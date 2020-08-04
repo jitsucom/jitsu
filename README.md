@@ -1,12 +1,12 @@
 # EventNative
 
-EventNative is an open source, high-performance event collection service. Capture all events your application generates and stream to your favorite data lake (we support RedShift and BigQuery so far). EventNative can be deployed in 1-click on the infrastructure of your choice. Please
+EventNative is an open source, high-performance event collection service. Capture all events your application generates and stream to your favorite data lake (we support RedShift and BigQuery so far). EventNative can be deployed in 1-click on the infrastructure of your choice.
 
 ## Quickstart
 The button below will deploy the master branch of EventNative on heroku
 [![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/ksenseai/tracker)
 
-For on-prem deployment, please use Docker.
+For on-prem deployment [Docker](https://eventnative-docs.ksense.io/deployment#deploy-with-docker) is our standard way.
 
 ## Features
 
