@@ -1,0 +1,37 @@
+{
+  "name": "@ksense/eventnative",
+  "version": "1.0.1",
+  "main": "./track.js",
+  "scripts": {
+    "devserver": "node devserver.js",
+    "build": " babel inline.js -d build && cp track.js build/track.js"
+  },
+  "dependencies": {
+    "body-parser": "^1.19.0",
+    "console-stamp": "0.2.9",
+    "cors": "^2.8.5",
+    "express": "4.17.1"
+  },
+  "devDependencies": {
+    "@babel/cli": "^7.10.5",
+    "@babel/core": "^7.11.0",
+    "@babel/plugin-transform-arrow-functions": "^7.10.4",
+    "@babel/plugin-transform-parameters": "^7.10.5",
+    "@babel/plugin-transform-strict-mode": "^7.10.4",
+    "@babel/preset-env": "^7.10.4",
+    "babel-loader": "^8.1.0",
+    "babel-preset-env": "^1.7.0",
+    "babel-preset-minify": "^0.5.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ksensehq/eventnative.git"
+  },
+  "author": "kSense, Inc",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/ksensehq/eventnative/issues"
+  },
+  "homepage": "https://eventnative-docs.ksense.io/javascript-integration/",
+  "description": "EventNative JavaScript tracking library. Read more at https://eventnative-docs.ksense.io/javascript-integration/"
+}

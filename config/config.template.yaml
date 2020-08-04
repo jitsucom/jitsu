@@ -1,0 +1,55 @@
+# NOTE: this not an actual config used by the application. This is
+# a template to show all configuration parameters.
+
+server:
+  port: 8001
+  auth:
+    - bd33c5fa-d69f-11ea-87d0-0242ac130003
+    - c20765a0-d69f-15ea-82d0-0242ac130003
+  public_url: https://yourhost
+
+geo.maxmind_path: https://statichost/GeoIP2-City.mmdb
+
+log:
+  main:
+    type: file
+    path: /home/tracker/logs/
+    rotation_min: 1440 #24 hours
+    max_backups: 30
+  event:
+    type: file
+    path: /home/tracker/logs/events
+    rotation_min: 5
+
+destinations:
+  redshift_one:
+    type: redshift
+    datasource:
+      host: redshift.amazonaws.com
+      db: my-db
+      schema: myschema
+      username: user
+      password: pass
+    s3:
+      access_key_id: abc123
+      secret_access_key: secretabc123
+      bucket: my-bucket
+      region: us-west-1
+    data_layout:
+      mapping:
+        - "/key1/key2 -> /key3"
+      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}'
+  redshift_two:
+    type: redshift
+    datasource:
+      host: redshift.amazonaws.com
+      db: my-db-2
+      username: user
+      password: pass
+    s3:
+      access_key_id: abc456
+      secret_access_key: secretabc456
+      bucket: my-bucket-2
+      region: us-west-1
+    data_layout:
+      table_name_template: 'field1'
