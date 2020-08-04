@@ -1,0 +1,14 @@
+{
+  "presets": [
+    "env",
+    "minify"
+  ],
+  "plugins": [
+    "@babel/plugin-transform-classes",
+    ["transform-strict-mode", {
+      "strictMode": false
+    }],
+    "@babel/transform-arrow-functions"
+  ],
+  "comments": false
+}

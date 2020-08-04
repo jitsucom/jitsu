@@ -1,0 +1,12 @@
+# Test binary, build with `go test -c`
+*.test
+
+.idea/
+temp/
+*.iml
+*.retry
+
+tracker
+
+node_modules/
+/web/build/

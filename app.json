@@ -1,0 +1,23 @@
+{
+  "name": "Event Native",
+  "description": "The easiest event capturing in the world",
+  "repository": "https://github.com/ksensehq/eventnative",
+  "logo": "https://node-js-sample.herokuapp.com/node.png",
+  "keywords": ["event", "native", "pixel", "golang"],
+  "stack": "container",
+  "env": {
+    "SERVER_AUTH": {
+      "description": "Api secret token",
+      "required": true
+    },
+    "GEO_MAXMIND_PATH": {
+      "description": "Http url to hosted maxmind db file",
+      "required": false
+    },
+    "DESTINATIONS_JSON": {
+      "description": "Json config for destinations",
+      "value": "{}",
+      "required": false
+    }
+  }
+}
