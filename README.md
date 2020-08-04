@@ -5,7 +5,7 @@ EventNative is an open source, high-performance event collection service. Captur
 ## Quickstart
 The button below will deploy the master branch of EventNative on heroku
 
-[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/ksensehq/tracker)
+[![Deploy](https://www.herokucdn.com/deploy/button.svg)](https://heroku.com/deploy?template=https://github.com/ksensehq/eventnative)
 
 For on-prem deployment [Docker](https://eventnative-docs.ksense.io/deployment#deploy-with-docker) is our standard way.
 
