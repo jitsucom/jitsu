@@ -8,12 +8,16 @@ The button below will deploy the master branch of EventNative on heroku
 
 For on-prem deployment [Docker](https://eventnative-docs.ksense.io/deployment#deploy-with-docker) is our standard way.
 
+## Demo
+
+We host a [simple page that demonstrates how EventNative works](http://track-demo.ksense.co.s3-website-us-east-1.amazonaws.com/). Once you instance is deployed, you can use this page to check how tracking works.
+
 ## Features
 
  * Multiple destination support: Redshift, BigQuery (Snowflake, pSQL - *coming soon*)
  * Drop-in Segment and Google Analytics replacement: No need to change tracking code if you're using analytics.js, just add a few lines of js code. More at [client side integratiob]
  * High-performance and throughput. EventNative is written in Go and the real limitation is a local disk performance (we log events to the disk and send them to DWH in batches)
- * Flexible-schema / JSON based interface. Any
+ * Flexible-schema / JSON based interface. Any event data can be sent to EventNative, the schema will be automatically adjusted.
  * No need to maintain DHW schema. We automatically map JSON events to tables and create necessary columns
  * Also, any event / data structure is supported. No
  * (coming soon) Retrospective user recognition for BigQuery.
