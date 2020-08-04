@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/ksenseai/tracker/appconfig"
-	"github.com/ksenseai/tracker/events"
-	"github.com/ksenseai/tracker/geo"
-	"github.com/ksenseai/tracker/middleware"
-	"github.com/ksenseai/tracker/timestamp"
+	"github.com/ksensehq/tracker/appconfig"
+	"github.com/ksensehq/tracker/events"
+	"github.com/ksensehq/tracker/geo"
+	"github.com/ksensehq/tracker/middleware"
+	"github.com/ksensehq/tracker/timestamp"
 	"log"
 	"net/http"
 	"strings"

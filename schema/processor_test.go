@@ -2,7 +2,7 @@ package schema
 
 import (
 	"bytes"
-	"github.com/ksenseai/tracker/test"
+	"github.com/ksensehq/tracker/test"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"strings"

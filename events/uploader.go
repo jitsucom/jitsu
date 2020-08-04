@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/ksenseai/tracker/appstatus"
+	"github.com/ksensehq/tracker/appstatus"
 	"io/ioutil"
 	"log"
 	"os"

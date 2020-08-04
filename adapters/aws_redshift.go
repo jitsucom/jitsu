@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/ksenseai/tracker/schema"
+	"github.com/ksensehq/tracker/schema"
 	_ "github.com/lib/pq"
 	"log"
 	"strings"

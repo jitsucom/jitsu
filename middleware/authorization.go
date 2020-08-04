@@ -3,7 +3,7 @@ package middleware
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/ksenseai/tracker/appconfig"
+	"github.com/ksensehq/tracker/appconfig"
 	"net/http"
 	"strings"
 )
