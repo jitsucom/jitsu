@@ -1,4 +1,4 @@
-module github.com/ksenseai/tracker
+module github.com/ksensehq/tracker
 
 go 1.14
 

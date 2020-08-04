@@ -1,7 +1,7 @@
 package schema
 
 import (
-	"github.com/ksenseai/tracker/test"
+	"github.com/ksensehq/tracker/test"
 	"testing"
 )
 

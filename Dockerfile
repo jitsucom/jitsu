@@ -18,9 +18,9 @@ RUN go get -u github.com/mailru/easyjson/...
 RUN chown -R $TRACKER_USER:$TRACKER_USER /go/pkg
 
 # Copy project
-ADD . /go/src/github.com/ksenseai/tracker
-WORKDIR /go/src/github.com/ksenseai/tracker
-RUN chown -R $TRACKER_USER:$TRACKER_USER /go/src/github.com/ksenseai/tracker
+ADD . /go/src/github.com/ksensehq/tracker
+WORKDIR /go/src/github.com/ksensehq/tracker
+RUN chown -R $TRACKER_USER:$TRACKER_USER /go/src/github.com/ksensehq/tracker
 
 #load dependencies and generate meta
 USER $TRACKER_USER
@@ -33,8 +33,8 @@ RUN mkdir -p /home/$TRACKER_USER/logs/events \
     && mkdir -p /home/$TRACKER_USER/app/static/prod
 
 # Copy static files
-RUN cp /go/src/github.com/ksenseai/tracker/web/inline.js /home/$TRACKER_USER/app/static/prod/
-RUN cp /go/src/github.com/ksenseai/tracker/web/track.js /home/$TRACKER_USER/app/static/prod/
+RUN cp /go/src/github.com/ksensehq/tracker/web/inline.js /home/$TRACKER_USER/app/static/prod/
+RUN cp /go/src/github.com/ksensehq/tracker/web/track.js /home/$TRACKER_USER/app/static/prod/
 
 # Build project
 RUN GOOS=linux GOARCH=amd64 go build -o /home/$TRACKER_USER/app/tracker

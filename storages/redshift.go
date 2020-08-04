@@ -3,9 +3,9 @@ package storages
 import (
 	"context"
 	"fmt"
-	"github.com/ksenseai/tracker/adapters"
-	"github.com/ksenseai/tracker/appstatus"
-	"github.com/ksenseai/tracker/schema"
+	"github.com/ksensehq/tracker/adapters"
+	"github.com/ksensehq/tracker/appstatus"
+	"github.com/ksensehq/tracker/schema"
 	"log"
 	"strings"
 	"time"

@@ -2,13 +2,13 @@ package main
 
 import (
 	"bytes"
-	"github.com/ksenseai/tracker/logging"
-	"github.com/ksenseai/tracker/middleware"
-	"github.com/ksenseai/tracker/test"
+	"github.com/ksensehq/tracker/logging"
+	"github.com/ksensehq/tracker/middleware"
+	"github.com/ksensehq/tracker/test"
 	"time"
 
 	"bou.ke/monkey"
-	"github.com/ksenseai/tracker/appconfig"
+	"github.com/ksensehq/tracker/appconfig"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"

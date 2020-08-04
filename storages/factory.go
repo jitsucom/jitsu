@@ -3,10 +3,10 @@ package storages
 import (
 	"context"
 	"errors"
-	"github.com/ksenseai/tracker/adapters"
-	"github.com/ksenseai/tracker/appconfig"
-	"github.com/ksenseai/tracker/events"
-	"github.com/ksenseai/tracker/schema"
+	"github.com/ksensehq/tracker/adapters"
+	"github.com/ksensehq/tracker/appconfig"
+	"github.com/ksensehq/tracker/events"
+	"github.com/ksensehq/tracker/schema"
 	"github.com/spf13/viper"
 	"log"
 )
