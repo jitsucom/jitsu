@@ -7,7 +7,7 @@
   "stack": "container",
   "env": {
     "SERVER_AUTH": {
-      "description": "API secret token. Use any random string withour whitespaces and save it. Later on you'll need it for JavaScript snippet",
+      "description": "API secret token. Use any random string without whitespaces and save it. Later on you'll need it for JavaScript snippet",
       "value": "57ac6e96-172a-4929-9fcf-6e6b1f16afdc",
       "required": true
     },

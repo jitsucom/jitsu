@@ -27,7 +27,7 @@ func (m *MultipleAsyncLogger) Consume(fact Fact, token string) error {
 func (m *MultipleAsyncLogger) Close() (resultErr error) {
 	for token, writer := range m.writerPerToken {
 		if err := writer.Close(); err != nil {
-			multierror.Append(resultErr, fmt.Errorf("Error closing %s writer: %v", token, err))
+			resultErr = multierror.Append(resultErr, fmt.Errorf("Error closing %s writer: %v", token, err))
 		}
 	}
 	return
