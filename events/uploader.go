@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/ksensehq/tracker/appstatus"
+	"github.com/ksensehq/eventnative/appstatus"
 	"io/ioutil"
 	"log"
 	"os"

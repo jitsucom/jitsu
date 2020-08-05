@@ -3,10 +3,10 @@ package storages
 import (
 	"context"
 	"errors"
-	"github.com/ksensehq/tracker/adapters"
-	"github.com/ksensehq/tracker/appconfig"
-	"github.com/ksensehq/tracker/events"
-	"github.com/ksensehq/tracker/schema"
+	"github.com/ksensehq/eventnative/adapters"
+	"github.com/ksensehq/eventnative/appconfig"
+	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/schema"
 	"github.com/spf13/viper"
 	"log"
 )

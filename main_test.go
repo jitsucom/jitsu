@@ -2,13 +2,13 @@ package main
 
 import (
 	"bytes"
-	"github.com/ksensehq/tracker/logging"
-	"github.com/ksensehq/tracker/middleware"
-	"github.com/ksensehq/tracker/test"
+	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/middleware"
+	"github.com/ksensehq/eventnative/test"
 	"time"
 
 	"bou.ke/monkey"
-	"github.com/ksensehq/tracker/appconfig"
+	"github.com/ksensehq/eventnative/appconfig"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"

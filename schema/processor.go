@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/ksensehq/tracker/timestamp"
+	"github.com/ksensehq/eventnative/timestamp"
 	"io"
 	"log"
 	"reflect"

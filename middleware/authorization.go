@@ -3,7 +3,7 @@ package middleware
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/ksensehq/tracker/appconfig"
+	"github.com/ksensehq/eventnative/appconfig"
 	"net/http"
 	"strings"
 )

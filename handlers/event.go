@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/ksensehq/tracker/appconfig"
-	"github.com/ksensehq/tracker/events"
-	"github.com/ksensehq/tracker/geo"
-	"github.com/ksensehq/tracker/middleware"
-	"github.com/ksensehq/tracker/timestamp"
+	"github.com/ksensehq/eventnative/appconfig"
+	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/geo"
+	"github.com/ksensehq/eventnative/middleware"
+	"github.com/ksensehq/eventnative/timestamp"
 	"log"
 	"net/http"
 	"strings"
