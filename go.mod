@@ -4,6 +4,8 @@ go 1.14
 
 require (
 	bou.ke/monkey v1.0.2
+	cloud.google.com/go/bigquery v1.0.1
+	cloud.google.com/go/storage v1.0.0
 	github.com/aws/aws-sdk-go v1.33.11
 	github.com/gin-gonic/gin v1.6.3
 	github.com/google/uuid v1.1.1
@@ -13,5 +15,6 @@ require (
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.5.1
+	google.golang.org/api v0.13.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
