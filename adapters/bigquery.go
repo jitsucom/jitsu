@@ -4,7 +4,7 @@ import (
 	"cloud.google.com/go/bigquery"
 	"context"
 	"fmt"
-	"github.com/ksensehq/tracker/schema"
+	"github.com/ksensehq/eventnative/schema"
 	"google.golang.org/api/googleapi"
 	"google.golang.org/api/option"
 	"log"

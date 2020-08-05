@@ -2,9 +2,9 @@ package appconfig
 
 import (
 	"github.com/google/uuid"
-	"github.com/ksensehq/tracker/events"
-	"github.com/ksensehq/tracker/geo"
-	"github.com/ksensehq/tracker/logging"
+	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/geo"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/spf13/viper"
 	"io"
 	"log"

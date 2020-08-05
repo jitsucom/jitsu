@@ -3,9 +3,9 @@ package storages
 import (
 	"context"
 	"fmt"
-	"github.com/ksensehq/tracker/adapters"
-	"github.com/ksensehq/tracker/appstatus"
-	"github.com/ksensehq/tracker/schema"
+	"github.com/ksensehq/eventnative/adapters"
+	"github.com/ksensehq/eventnative/appstatus"
+	"github.com/ksensehq/eventnative/schema"
 	"log"
 	"strings"
 	"time"

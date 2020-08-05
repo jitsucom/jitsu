@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/ksensehq/tracker/schema"
+	"github.com/ksensehq/eventnative/schema"
 	_ "github.com/lib/pq"
 	"log"
 	"strings"

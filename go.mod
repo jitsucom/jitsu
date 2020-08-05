@@ -1,4 +1,4 @@
-module github.com/ksensehq/tracker
+module github.com/ksensehq/eventnative
 
 go 1.14
 

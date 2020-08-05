@@ -1,7 +1,7 @@
 package schema
 
 import (
-	"github.com/ksensehq/tracker/test"
+	"github.com/ksensehq/eventnative/test"
 	"testing"
 )
 
