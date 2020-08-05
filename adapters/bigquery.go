@@ -43,7 +43,6 @@ func (bq *BigQuery) Copy(fileKey, tableName string) error {
 
 	gcsRef := bigquery.NewGCSReference(fmt.Sprintf("gs://%s/%s", bq.config.Bucket, fileKey))
 	gcsRef.SourceFormat = bigquery.JSON
-	//TODO gcsRef.Schema
 	loader := table.LoaderFrom(gcsRef)
 	loader.CreateDisposition = bigquery.CreateNever
 
