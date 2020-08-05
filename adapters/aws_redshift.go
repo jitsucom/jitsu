@@ -190,7 +190,7 @@ func (ar *AwsRedshift) CreateTable(tableSchema *schema.Table) error {
 
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] table %v", tableSchema.Name, err)
+		return fmt.Errorf("Error creating [%s] redshift table %v", tableSchema.Name, err)
 	}
 	return wrappedTx.tx.Commit()
 }
@@ -237,7 +237,7 @@ func (ar *AwsRedshift) PatchTableSchema(patchSchema *schema.Table) error {
 		_, err = alterStmt.ExecContext(ar.ctx)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("Error patching %s table with '%s' - %s column schema %v", patchSchema.Name, columnName, mappedColumnType, err)
+			return fmt.Errorf("Error patching %s redshift table with '%s' - %s column schema: %v", patchSchema.Name, columnName, mappedColumnType, err)
 		}
 	}
 
