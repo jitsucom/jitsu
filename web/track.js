@@ -124,7 +124,6 @@
                 let methodName = eventArgs.shift();
                 let method = this[methodName];
                 if (typeof method === 'function') {
-                    alert('Apply ' + methodName)
                     method.apply(this, eventArgs)
                 } else {
                     LOG.warn(`Unknown event '${methodName}' / ${typeof method}`)
