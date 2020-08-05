@@ -41,7 +41,7 @@ func NewBigQuery(ctx context.Context, config *GoogleConfig) (*BigQuery, error) {
 func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	table := bq.client.Dataset(bq.config.Dataset).Table(tableName)
 
-	gcsRef := bigquery.NewGCSReference(fileKey)
+	gcsRef := bigquery.NewGCSReference(fmt.Sprintf("gs://%s/%s", bq.config.Bucket, fileKey))
 	gcsRef.SourceFormat = bigquery.JSON
 	//TODO gcsRef.Schema
 	loader := table.LoaderFrom(gcsRef)
