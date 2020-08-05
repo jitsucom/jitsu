@@ -1,5 +1,4 @@
 # Go parameters
-APPLICATION=eventnative
 #GOBUILD_CMD=GOOS=linux GOARCH=amd64 go build
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
@@ -12,10 +11,10 @@ assemble: backend js
 
 backend:
 	echo "Using path $(PATH)"
-	go mod tidy
 	go get -u github.com/mailru/easyjson/...
+	go mod tidy
 	go generate
-	go -o eventnative
+	go build -o eventnative
 
 js:
 	npm i --prefix ./web && npm run build --prefix ./web
