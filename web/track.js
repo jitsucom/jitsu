@@ -9,14 +9,20 @@
         };
         factory(mod.exports);
 
-        global.eventN = mod.exports.default;
+        global.eventN = mod.exports.eventN;
     }
 })(this, function (exports) {
     const UTM_PREFIX = "utm_";
     const UTM_TYPES = ['source', 'medium', 'campaign', 'term', 'content']
     const CLICK_IDS = ['gclid', 'fbclid']
 
+    let eventnObject = (window.eventN === undefined) ? (window.eventN = {}) : window.eventN;
+    if (!eventnObject.eventsQ) {
+        eventnObject.eventsQ = [];
+    }
+
     if (window.eventN && window.eventN.initialized) {
+        exports.eventN = eventnObject
         return;
     }
 
@@ -162,7 +168,7 @@
         id(userProperties, doNotSendEvent) {
             this.userProperties = {...this.userProperties, ...userProperties}
             if (!doNotSendEvent) {
-                this.event('user_identify', {});
+                this.track('user_identify', {});
             }
         }
 
@@ -219,8 +225,8 @@
                     var originalSendHitTask = tracker.get('sendHitTask');
                     tracker.set('sendHitTask', (model) => {
                         var payLoad = model.get('hitPayload');
-                        if (this.dropLastGAEvent) {
-                            this.dropLastGAEvent = false;
+                        if (eventnObject && eventnObject.dropLastGAEvent) {
+                            eventnObject.dropLastGAEvent = false;
                         } else {
                             originalSendHitTask(model);
                         }
@@ -277,11 +283,11 @@
                         this.send3p('ga', jsonPayload);
                     });
                 });
-                this.dropLastGAEvent = true
+                eventnObject.dropLastGAEvent = true
                 try {
                     ga('send', 'pageview');
                 } finally {
-                    this.dropLastGAEvent = false;
+                    eventnObject.dropLastGAEvent = false;
                 }
             }
         }
@@ -307,13 +313,13 @@
                             LOG.warn('Failed to send an event', e)
                         }
 
-                        if (this.dropLastSegmentEvent) {
-                            this.dropLastSegmentEvent = false;
+                        if (eventnObject.dropLastSegmentEvent) {
+                            eventnObject.dropLastSegmentEvent = false;
                         } else {
                             chain.next(chain.payload);
                         }
                     });
-                    this.dropLastSegmentEvent = true;
+                    eventnObject.dropLastSegmentEvent = true;
                     window.analytics.page();
                 } else {
                     LOG.warn("Invalid interceptor state. Analytics js initialized, but not completely");
@@ -370,12 +376,9 @@
     //==================
     // EXPORTS SETUP
     //==================
-    let eventnObject = (window.eventN === undefined) ? (window.eventN = {}) : window.eventN;
-    if (!eventnObject.eventsQ) {
-        eventnObject.eventsQ = [];
-    }
 
-    for (const apiMethod of ['track', 'id']) {
+
+    for (const apiMethod of ['track', 'id', 'init']) {
         eventnObject[apiMethod] = function (...args) {
             let copy = args.slice();
             copy.unshift(apiMethod);
@@ -386,5 +389,5 @@
     eventnTracker.processEventsQueue(eventnObject);
     eventnObject.initialized = true;
 
-    exports.default = eventnObject
+    exports.eventN = eventnObject
 });
