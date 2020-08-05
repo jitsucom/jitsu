@@ -1,10 +1,9 @@
-# EventNative
+# EventNative JavaScript Library
 
-EventNative is an open source, high-performance event collection service. Capture all events your application generates and stream to your favorite data lake (we support RedShift and BigQuery so far). EventNative can be deployed in 1-click on the infrastructure of your choice.
+EventNative is an open source, high-performance event collection service. Read more:
+* [Project Github page](https://github.com/ksensehq/eventnative/)
+* [Javascript integration documentation](https://eventnative-docs.ksense.io/javascript-integration)
 
-## Demo
-
-We host a [simple page that demonstrates how EventNative works](http://track-demo.ksense.co.s3-website-us-east-1.amazonaws.com/). Once you instance is deployed, you can use this page to check how tracking works.
 
 ## Install
 `npm install --save  @ksense/eventnative`
