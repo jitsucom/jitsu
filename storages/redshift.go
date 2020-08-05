@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const s3FileKeyDelimiter = "-table-"
+const tableFileKeyDelimiter = "-table-"
 
 type AwsRedshift struct {
 	s3Adapter       *adapters.AwsS3
@@ -72,9 +72,9 @@ func (ar *AwsRedshift) start() {
 			}
 
 			for _, fileKey := range filesKeys {
-				names := strings.Split(fileKey, s3FileKeyDelimiter)
+				names := strings.Split(fileKey, tableFileKeyDelimiter)
 				if len(names) != 2 {
-					log.Printf("S3 file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", fileKey, s3FileKeyDelimiter)
+					log.Printf("S3 file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", fileKey, tableFileKeyDelimiter)
 					continue
 				}
 				wrappedTx, err := ar.redshiftAdapter.OpenTx()
@@ -114,11 +114,11 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 			//Get or Create Table
 			dbTableSchema, err = ar.redshiftAdapter.GetTableSchema(fdata.DataSchema.Name)
 			if err != nil {
-				return fmt.Errorf("Error getting table %s schema: %v", fdata.DataSchema.Name, err)
+				return fmt.Errorf("Error getting table %s schema from redshift: %v", fdata.DataSchema.Name, err)
 			}
 			if !dbTableSchema.Exists() {
 				if err := ar.redshiftAdapter.CreateTable(fdata.DataSchema); err != nil {
-					return fmt.Errorf("Error creating table %s: %v", fdata.DataSchema.Name, err)
+					return fmt.Errorf("Error creating table %s in redshift: %v", fdata.DataSchema.Name, err)
 				}
 				dbTableSchema = fdata.DataSchema
 			}
@@ -140,7 +140,7 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 	}
 	//TODO put them all in one folder and if all ok => move them all to next working folder
 	for _, fdata := range flatData {
-		err := ar.s3Adapter.UploadBytes(fdata.FileName+s3FileKeyDelimiter+fdata.DataSchema.Name, fdata.Payload.Bytes())
+		err := ar.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.Payload.Bytes())
 		if err != nil {
 			return err
 		}
