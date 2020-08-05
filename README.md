@@ -11,7 +11,7 @@ For on-prem deployment [Docker](https://eventnative-docs.ksense.io/deployment#de
 
 ## Demo
 
-We host a [simple page that demonstrates how EventNative works](http://track-demo.ksense.co.s3-website-us-east-1.amazonaws.com/). Once you instance is deployed, you can use this page to check how tracking works.
+We host a [simple page that demonstrates how EventNative works](https://track-demo.ksense.co/). Once you instance is deployed, you can use this page to check how tracking works.
 
 ## Features
 
@@ -33,5 +33,5 @@ Please, check out [website](https://eventnative-docs.ksense.io) for thorough doc
 
 ## About
 
-EventNative is developed at [kSense](https://ksense.io/)  and licenced under MIT license. We offer EventNative for free and making money from additional products (datasources integrations)
+EventNative is developed by [kSense](https://ksense.io/) and licenced under MIT license. We offer EventNative for free and making money from additional products (datasources integrations)
 
