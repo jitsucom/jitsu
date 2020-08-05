@@ -183,14 +183,14 @@ func (ar *AwsRedshift) CreateTable(tableSchema *schema.Table) error {
 	createStmt, err := wrappedTx.tx.PrepareContext(ar.ctx, fmt.Sprintf(createTableTemplate, ar.redshiftConfig.Schema, tableSchema.Name, strings.Join(columnsDDL, ",")))
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing create table %s statement %v", tableSchema.Name, err)
+		return fmt.Errorf("Error preparing create table %s statement: %v", tableSchema.Name, err)
 	}
 
 	_, err = createStmt.ExecContext(ar.ctx)
 
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] redshift table %v", tableSchema.Name, err)
+		return fmt.Errorf("Error creating [%s] redshift table: %v", tableSchema.Name, err)
 	}
 	return wrappedTx.tx.Commit()
 }
@@ -204,14 +204,14 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 	createStmt, err := wrappedTx.tx.PrepareContext(ar.ctx, fmt.Sprintf(createDbSchemaIfNotExistsTemplate, dbSchemaName))
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing create db schema %s statement %v", dbSchemaName, err)
+		return fmt.Errorf("Error preparing create db schema %s statement: %v", dbSchemaName, err)
 	}
 
 	_, err = createStmt.ExecContext(ar.ctx)
 
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] db schema %v", dbSchemaName, err)
+		return fmt.Errorf("Error creating [%s] db schema: %v", dbSchemaName, err)
 	}
 	return wrappedTx.tx.Commit()
 }
@@ -231,7 +231,7 @@ func (ar *AwsRedshift) PatchTableSchema(patchSchema *schema.Table) error {
 		alterStmt, err := wrappedTx.tx.PrepareContext(ar.ctx, fmt.Sprintf(addColumnTemplate, ar.redshiftConfig.Schema, patchSchema.Name, columnName, mappedColumnType))
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("Error preparing patching table %s schema statement %v", patchSchema.Name, err)
+			return fmt.Errorf("Error preparing patching table %s schema statement: %v", patchSchema.Name, err)
 		}
 
 		_, err = alterStmt.ExecContext(ar.ctx)
