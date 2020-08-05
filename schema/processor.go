@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"reflect"
-	"strings"
 	"text/template"
 	"time"
 )
@@ -31,45 +30,31 @@ func NewProcessor(tableNameFuncExpression string, mappings []string) (*Processor
 		return nil, err
 	}
 
-	var tableNameExtractFunc TableNameExtractFunction
-	if strings.Contains(tableNameFuncExpression, "{{") {
-		//template resolving
-		tmpl, err := template.New("table name extract").
-			Option("missingkey=error").
-			Parse(tableNameFuncExpression)
+	tmpl, err := template.New("table name extract").
+		Option("missingkey=error").
+		Parse(tableNameFuncExpression)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing table name template %v", err)
+	}
+
+	tableNameExtractFunc := func(object map[string]interface{}) (string, error) {
+		//we need time type of _timestamp field for extracting table name with date template
+		ts, ok := object[timestamp.Key]
+		if !ok {
+			return "", fmt.Errorf("Error extracting table name: %s field doesn't exist", timestamp.Key)
+		}
+		t, err := time.Parse(timestamp.Layout, ts.(string))
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing table name template %v", err)
+			return "", fmt.Errorf("Error extracting table name: malformed %s field: %v", timestamp.Key, err)
 		}
 
-		tableNameExtractFunc = func(object map[string]interface{}) (string, error) {
-			//we need time type of _timestamp field for extracting table name
-			ts, ok := object[timestamp.Key]
-			if !ok {
-				return "", fmt.Errorf("Error extracting table name: %s field doesn't exist", timestamp.Key)
-			}
-			t, err := time.Parse(timestamp.Layout, ts.(string))
-			if err != nil {
-				return "", fmt.Errorf("Error extracting table name: malformed %s field: %v", timestamp.Key, err)
-			}
-
-			object[timestamp.Key] = t
-			var buf bytes.Buffer
-			if err := tmpl.Execute(&buf, object); err != nil {
-				return "", fmt.Errorf("Error executing %s template: %v", tableNameFuncExpression, err)
-			}
-
-			return buf.String(), nil
+		object[timestamp.Key] = t
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, object); err != nil {
+			return "", fmt.Errorf("Error executing %s template: %v", tableNameFuncExpression, err)
 		}
-	} else {
-		//plain field
-		tableNameExtractFunc = func(object map[string]interface{}) (string, error) {
-			if tableName, ok := object[tableNameFuncExpression]; ok {
-				if value, ok := tableName.(string); ok {
-					return value, nil
-				}
-			}
-			return "", nil
-		}
+
+		return buf.String(), nil
 	}
 
 	return &Processor{fieldMapper: mapper, tableNameExtractFunc: tableNameExtractFunc}, nil
