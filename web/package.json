@@ -4,7 +4,7 @@
   "main": "./track.js",
   "scripts": {
     "devserver": "node devserver.js",
-    "build": " babel inline.js -d build && cp track.js build/track.js"
+    "build": "mkdir -p ./build && cp inline.js ./build/ && cp track.js ./build/"
   },
   "dependencies": {
     "body-parser": "^1.19.0",
