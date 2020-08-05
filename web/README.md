@@ -9,7 +9,7 @@ EventNative is an open source, high-performance event collection service. Read m
 `npm install --save  @ksense/eventnative`
 
 ## Usage
-<p class="callout warning"><b>Full version of JavaScript integration can be found [here](https://eventnative-docs.ksense.io/javascript-integration). A simplified version is presented below</b></p>
+**Full version of JavaScript integration can be found [here](https://eventnative-docs.ksense.io/javascript-integration). A simplified version is presented below**
 
 ```javascript 
 const { eventN } = require('@ksense/eventnative');
