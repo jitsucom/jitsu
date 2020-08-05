@@ -9,23 +9,24 @@ EventNative is an open source, high-performance event collection service. Read m
 `npm install --save  @ksense/eventnative`
 
 ## Usage
-
+<p class="callout warning">Full version of JavaScript integration can be found [here](https://eventnative-docs.ksense.io/javascript-integration)</p>
 ```javascript 
 const { eventN } = require('@ksense/eventnative');
 
 // initialization
 eventN.init({
-    "key": "0a5b6e03-703c-4703-99f1-dfec3d063670",
-    "tracking_host": "http://localhost",
-    "segment_hook": true,
-    "ga_hook": true
+    "key": "<if key>", //api
+    "tracking_host": "<tracking host>",
+    "segment_hook": if eventN should listen to Segment's analytics.js events,
+    "ga_hook": if eventN should listen to Google Analitics event
 });
+
+// push user info
+eventN.id({ ...user properties}); 
 
 // push event
 eventN.track('pageview');
 
-// push user info
-eventN.id({internal: 'lrk6i3fpw5h3nd4s1d5er', email: 'lrk6i3fpw5h3nd4s1d5er@gmail.com'}); 
 ```
 ## Props
 ```typescript
