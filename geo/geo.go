@@ -45,7 +45,7 @@ func CreateResolver(geoipPath string) (Resolver, error) {
 
 	geoIpParser, err := createGeoIpParser(geoipPath)
 	if err != nil {
-		log.Println("Error open maxmind db ", err)
+		log.Println("Error open maxmind db:", err)
 		return &DummyResolver{}, err
 	}
 

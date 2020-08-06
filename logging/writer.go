@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -16,20 +17,16 @@ func NewWriter(config Config) (io.WriteCloser, error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("Error while creating %v logger: %v", config.LoggerName, err)
 	}
-	switch config.LoggerType {
-	case "file":
+	if config.FileDir != "" {
 		return newRollingWriter(config)
-	case "stdout":
-		return os.Stdout, nil
-	case "mock":
+	} else if strings.Contains(config.LoggerName, "test-mock") {
 		return initInMemoryWriter(), nil
-	default:
-		return nil, fmt.Errorf("Unknown logger type %s.", config.LoggerType)
+	} else {
+		return os.Stdout, nil
 	}
 }
 
 func newRollingWriter(config Config) (io.WriteCloser, error) {
-	rotation := time.Duration(config.RotationMin) * time.Minute
 	fileNamePath := filepath.Join(config.FileDir, fmt.Sprintf("%s-%s.log", config.ServerName, config.LoggerName))
 	log.Println("Constructing new Lumberjack rolling writer for:", fileNamePath)
 	lWriter := &lumberjack.Logger{
@@ -40,8 +37,10 @@ func newRollingWriter(config Config) (io.WriteCloser, error) {
 		lWriter.MaxBackups = config.MaxBackups
 	}
 
-	lWriter.Close()
-
+	if config.RotationMin == 0 {
+		config.RotationMin = 1440 //24 hours
+	}
+	rotation := time.Duration(config.RotationMin) * time.Minute
 	ticker := time.NewTicker(rotation)
 	go func() {
 		for {

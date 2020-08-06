@@ -28,11 +28,8 @@ var Instance *AppConfig
 func setDefaultParams() {
 	viper.SetDefault("server.port", "8001")
 	viper.SetDefault("geo.maxmind_path", "/home/tracker/app/res/")
-	viper.SetDefault("log.main.type", "stdout")
-	viper.SetDefault("log.main.path", "/home/tracker/logs/")
-	viper.SetDefault("log.event.type", "file")
-	viper.SetDefault("log.event.path", "/home/tracker/logs/events")
-	viper.SetDefault("log.event.rotation_min", "5")
+	viper.SetDefault("log.path", "/home/tracker/logs/events")
+	viper.SetDefault("log.rotation_min", "5")
 }
 
 func Init() error {
@@ -46,11 +43,10 @@ func Init() error {
 
 	if err := logging.InitGlobalLogger(logging.Config{
 		LoggerName:  "main",
-		LoggerType:  viper.GetString("log.main.type"),
 		ServerName:  serverName,
-		FileDir:     viper.GetString("log.main.path"),
-		RotationMin: viper.GetInt64("log.main.rotation_min"),
-		MaxBackups:  viper.GetInt("log.main.max_backups")}); err != nil {
+		FileDir:     viper.GetString("server.log.path"),
+		RotationMin: viper.GetInt64("server.log.rotation_min"),
+		MaxBackups:  viper.GetInt("server.log.max_backups")}); err != nil {
 		log.Fatal(err)
 	}
 
@@ -101,11 +97,9 @@ func Init() error {
 	for token := range appConfig.AuthorizedTokens {
 		eventLogWriter, err := logging.NewWriter(logging.Config{
 			LoggerName:  "event-" + token,
-			LoggerType:  viper.GetString("log.event.type"),
 			ServerName:  serverName,
-			FileDir:     viper.GetString("log.event.path"),
-			RotationMin: viper.GetInt64("log.event.rotation_min"),
-			MaxBackups:  viper.GetInt("log.event.max_backups")})
+			FileDir:     viper.GetString("log.path"),
+			RotationMin: viper.GetInt64("log.rotation_min")})
 		if err != nil {
 			return err
 		}
