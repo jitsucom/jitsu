@@ -25,15 +25,14 @@ import (
 
 //some inner parameters
 const (
-	staticFileDir      = "/home/tracker/app/static/prod"
+	staticFileDir      = "./web"
 	uploaderFileMask   = "*-event-*-20*.log"
 	uploaderBatchSize  = 20
 	uploaderLoadEveryS = 60
 )
 
 var (
-	configPath = flag.String("config_path", "./", "config path")
-	configName = flag.String("config_name", "config", "config name")
+	configFilePath = flag.String("cfg", "./eventnative.yaml", "config file path")
 )
 
 func readInViperConfig() error {
@@ -41,10 +40,9 @@ func readInViperConfig() error {
 	viper.AutomaticEnv()
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	//custom config
-	viper.SetConfigName(*configName)
-	viper.AddConfigPath(*configPath)
+	viper.SetConfigFile(*configFilePath)
 	if err := viper.ReadInConfig(); err != nil {
-		log.Println("Custom config.yaml wasn't provided", err)
+		log.Println("Custom eventnative.yaml wasn't provided", err)
 	}
 	return nil
 }
@@ -97,7 +95,7 @@ func main() {
 		}
 	}
 
-	logEventPath := viper.GetString("log.event.path")
+	logEventPath := viper.GetString("log.path")
 	if !strings.HasSuffix(logEventPath, "/") {
 		logEventPath += "/"
 	}
