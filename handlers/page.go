@@ -11,7 +11,7 @@ import (
 
 const htmlContentType = "text/html; charset=utf-8"
 const welcomePageName = "welcome.html"
-const hostConstant = "<b><REPLACE WITH HOST URL></b>"
+const hostConstant = "<REPLACE WITH DEPLOYED HOST URL>"
 
 var blankPage = []byte(`<html><head></head><body></body></html>`)
 
