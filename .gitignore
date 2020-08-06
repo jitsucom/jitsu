@@ -10,3 +10,6 @@ tracker
 
 node_modules/
 /web/build/
+
+eventnative
+build/*

@@ -21,9 +21,8 @@ import (
 )
 
 func SetTestDefaultParams() {
-	viper.Set("server.auth", []string{"123qwe"})
-	viper.Set("log.main.type", "stdout")
-	viper.Set("log.event.type", "mock")
+	viper.Set("server.auth", []string{"test-mock"})
+	viper.Set("log.path", "")
 }
 
 func TestApiEvent(t *testing.T) {
@@ -72,7 +71,7 @@ func TestApiEvent(t *testing.T) {
 			b, err := ioutil.ReadFile(tt.reqBodyPath)
 			require.NoError(t, err)
 
-			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/event?token=123qwe", bytes.NewBuffer(b))
+			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/event?token=test-mock", bytes.NewBuffer(b))
 			require.NoError(t, err)
 			apiReq.Header.Add("x-real-ip", "95.82.232.185")
 			resp, err = http.DefaultClient.Do(apiReq)

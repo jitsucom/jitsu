@@ -8,7 +8,6 @@ import (
 
 type Config struct {
 	LoggerName  string
-	LoggerType  string
 	ServerName  string
 	FileDir     string
 	RotationMin int64
@@ -21,17 +20,6 @@ func (c Config) Validate() error {
 	}
 	if c.ServerName == "" {
 		return errors.New("Server name can't be empty")
-	}
-	if c.LoggerType == "" {
-		return errors.New("Logger type can't be empty")
-	}
-	if c.LoggerType == "file" {
-		if c.FileDir == "" {
-			return errors.New("File dir can't be empty")
-		}
-		if c.RotationMin == 0 {
-			return errors.New("Rotation min can't be 0")
-		}
 	}
 
 	return nil
