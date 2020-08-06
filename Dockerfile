@@ -1,46 +1,39 @@
-FROM golang:1.14.6-alpine3.12 AS build
+FROM golang:1.14.6-alpine3.12
 
-ENV TRACKER_USER=tracker
+ENV EVENTNATIVE_USER=eventnative
 
 # Install dependencies
 RUN echo "@testing http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
-RUN apk add git
-RUN apk -U add shadow@testing
-
-# Create tracker group & user
-RUN groupadd -r $TRACKER_USER \
-    && useradd -r -d /home/$TRACKER_USER -g $TRACKER_USER $TRACKER_USER \
-    && mkdir /home/$TRACKER_USER \
-    && chown $TRACKER_USER:$TRACKER_USER /home/$TRACKER_USER
-
-# Install easyjson
-RUN go get -u github.com/mailru/easyjson/...
-RUN chown -R $TRACKER_USER:$TRACKER_USER /go/pkg
+RUN apk add git make npm shadow@testing
 
 # Copy project
 ADD . /go/src/github.com/ksensehq/eventnative
+
+# Create eventnative group & user & dirs
+RUN groupadd -r $EVENTNATIVE_USER \
+    && useradd -r -d /home/$EVENTNATIVE_USER -g $EVENTNATIVE_USER $EVENTNATIVE_USER \
+    && mkdir /home/$EVENTNATIVE_USER \
+    && mkdir -p /home/$EVENTNATIVE_USER/logs/events \
+    && mkdir -p /home/$EVENTNATIVE_USER/app/res \
+    && chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER \
+    && chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /go/src/github.com/ksensehq/eventnative
+
+# Build
+USER $EVENTNATIVE_USER
 WORKDIR /go/src/github.com/ksensehq/eventnative
-RUN chown -R $TRACKER_USER:$TRACKER_USER /go/src/github.com/ksensehq/eventnative
-
-#load dependencies and generate meta
-USER $TRACKER_USER
-RUN go mod tidy
-RUN go generate
-
-# Create dirs
-RUN mkdir -p /home/$TRACKER_USER/logs/events \
-    && mkdir -p /home/$TRACKER_USER/app/res \
-    && mkdir -p /home/$TRACKER_USER/app/static/prod
+RUN make
 
 # Copy static files
-RUN cp /go/src/github.com/ksensehq/eventnative/web/inline.js /home/$TRACKER_USER/app/static/prod/
-RUN cp /go/src/github.com/ksensehq/eventnative/web/track.js /home/$TRACKER_USER/app/static/prod/
+RUN cp -r /go/src/github.com/ksensehq/eventnative/build/dist/* /home/$EVENTNATIVE_USER/app/
 
-# Build project
-RUN GOOS=linux GOARCH=amd64 go build -o /home/$TRACKER_USER/app/tracker
+# Delete go files
+USER root
+RUN rm -rf /go/ \
+    && rm -rf /usr/local/go
 
-WORKDIR /home/$TRACKER_USER/app
+USER $EVENTNATIVE_USER
+WORKDIR /home/$EVENTNATIVE_USER/app
 
 EXPOSE 8001
 
-ENTRYPOINT /home/$TRACKER_USER/app/$TRACKER_USER -config_path=/home/$TRACKER_USER/app/res
+ENTRYPOINT /home/$EVENTNATIVE_USER/app/$EVENTNATIVE_USER -cfg=/home/$EVENTNATIVE_USER/app/res/eventnative.yaml

@@ -13,12 +13,12 @@ geo.maxmind_path: https://statichost/GeoIP2-City.mmdb
 log:
   main:
     type: file
-    path: /home/tracker/logs/
+    path: /home/eventnative/logs/
     rotation_min: 1440 #24 hours
     max_backups: 30
   event:
     type: file
-    path: /home/tracker/logs/events
+    path: /home/eventnative/logs/events
     rotation_min: 5
 
 destinations:
