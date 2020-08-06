@@ -126,7 +126,7 @@ func SetupRouter() *gin.Engine {
 
 	publicUrl := viper.GetString("server.public_url")
 
-	htmlHandler := handlers.NewPageHandler(staticFileDir, publicUrl)
+	htmlHandler := handlers.NewPageHandler(staticFileDir, publicUrl, viper.GetBool("server.disable_welcome_page"))
 	router.GET("/p/:filename", htmlHandler.Handler)
 
 	staticHandler := handlers.NewStaticHandler(staticFileDir, publicUrl)

@@ -12,13 +12,19 @@ import (
 const htmlContentType = "text/html; charset=utf-8"
 const welcomePageName = "welcome.html"
 
+var blankPage = []byte(`<html><head></head><body></body></html>`)
+
 type PageHandler struct {
 	serverPublicUrl string
 	welcome         *template.Template
 }
 
-func NewPageHandler(sourceDir, serverPublicUrl string) (ph *PageHandler) {
+func NewPageHandler(sourceDir, serverPublicUrl string, disableWelcomePage bool) (ph *PageHandler) {
 	ph = &PageHandler{serverPublicUrl: serverPublicUrl}
+
+	if disableWelcomePage {
+		return
+	}
 
 	if !strings.HasSuffix(sourceDir, "/") {
 		sourceDir += "/"
@@ -53,8 +59,7 @@ func (ph *PageHandler) Handler(c *gin.Context) {
 	switch fileName {
 	case welcomePageName:
 		if ph.welcome == nil {
-			log.Println("Html template", welcomePageName, "was not found")
-			c.AbortWithStatus(http.StatusNotFound)
+			c.Writer.Write(blankPage)
 			return
 		}
 
@@ -62,6 +67,7 @@ func (ph *PageHandler) Handler(c *gin.Context) {
 		if ph.serverPublicUrl != "" {
 			host = ph.serverPublicUrl
 		}
+		log.Println("h:", host)
 
 		parameters := map[string]string{"DeployHost": host}
 		err := ph.welcome.Execute(c.Writer, parameters)
