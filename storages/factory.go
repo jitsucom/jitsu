@@ -11,6 +11,8 @@ import (
 	"log"
 )
 
+const defaultTableName = "events"
+
 type DestinationConfig struct {
 	OnlyTokens   []string    `mapstructure:"only_tokens"`
 	Type         string      `mapstructure:"type"`
@@ -47,19 +49,34 @@ func CreateStorages(ctx context.Context, destinations *viper.Viper) map[string][
 		}
 		log.Println("Initializing", name, "destination of type:", destination.Type)
 
+		var mapping []string
+		tableName := defaultTableName
+		if destination.DataLayout != nil {
+			mapping = destination.DataLayout.Mapping
+
+			if destination.DataLayout.TableNameTemplate != "" {
+				tableName = destination.DataLayout.TableNameTemplate
+			}
+		}
+
+		processor, err := schema.NewProcessor(tableName, mapping)
+		if err != nil {
+			logError(name, destination.Type, err)
+			continue
+		}
+
 		var storage events.Storage
-		var err error
 		switch destination.Type {
 		case "redshift":
-			storage, err = createRedshift(ctx, name, destination)
+			storage, err = createRedshift(ctx, name, destination, processor)
 		case "bigquery":
-			storage, err = createBigQuery(ctx, name, destination)
+			storage, err = createBigQuery(ctx, name, destination, processor)
 		default:
 			err = unknownDestination
 		}
 
 		if err != nil {
-			log.Printf("Error initializing %s destination of type %s: %v", name, destination.Type, err)
+			logError(name, destination.Type, err)
 			continue
 		}
 
@@ -79,7 +96,11 @@ func CreateStorages(ctx context.Context, destinations *viper.Viper) map[string][
 	return stores
 }
 
-func createRedshift(ctx context.Context, name string, destination DestinationConfig) (*AwsRedshift, error) {
+func logError(destinationName, destinationType string, err error) {
+	log.Printf("Error initializing %s destination of type %s: %v", destinationName, destinationType, err)
+}
+
+func createRedshift(ctx context.Context, name string, destination DestinationConfig, processor *schema.Processor) (*AwsRedshift, error) {
 	s3Config := destination.S3
 	if err := s3Config.Validate(); err != nil {
 		return nil, err
@@ -99,19 +120,10 @@ func createRedshift(ctx context.Context, name string, destination DestinationCon
 		log.Printf("name: %s type: redshift schema wasn't provided. Will be used default one: %s", name, redshiftConfig.Schema)
 	}
 
-	if destination.DataLayout == nil || destination.DataLayout.TableNameTemplate == "" {
-		return nil, errors.New("data_layout.table_name_template is required field")
-	}
-
-	processor, err := schema.NewProcessor(destination.DataLayout.TableNameTemplate, destination.DataLayout.Mapping)
-	if err != nil {
-		return nil, err
-	}
-
 	return NewAwsRedshift(ctx, s3Config, redshiftConfig, processor, destination.BreakOnError)
 }
 
-func createBigQuery(ctx context.Context, name string, destination DestinationConfig) (*BigQuery, error) {
+func createBigQuery(ctx context.Context, name string, destination DestinationConfig, processor *schema.Processor) (*BigQuery, error) {
 	gConfig := destination.Google
 	if err := gConfig.Validate(); err != nil {
 		return nil, err
@@ -121,15 +133,6 @@ func createBigQuery(ctx context.Context, name string, destination DestinationCon
 	if gConfig.Dataset == "" {
 		gConfig.Dataset = "default"
 		log.Printf("name: %s type: bigquery dataset wasn't provided. Will be used default one: %s", name, gConfig.Dataset)
-	}
-
-	if destination.DataLayout == nil || destination.DataLayout.TableNameTemplate == "" {
-		return nil, errors.New("data_layout.table_name_template is required field")
-	}
-
-	processor, err := schema.NewProcessor(destination.DataLayout.TableNameTemplate, destination.DataLayout.Mapping)
-	if err != nil {
-		return nil, err
 	}
 
 	return NewBigQuery(ctx, gConfig, processor, destination.BreakOnError)
