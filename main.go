@@ -124,7 +124,12 @@ func SetupRouter() *gin.Engine {
 		c.String(http.StatusOK, "pong")
 	})
 
-	staticHandler := handlers.NewStaticHandler(staticFileDir, viper.GetString("server.public_url"))
+	publicUrl := viper.GetString("server.public_url")
+
+	htmlHandler := handlers.NewPageHandler(staticFileDir, publicUrl)
+	router.GET("/p/:filename", htmlHandler.Handler)
+
+	staticHandler := handlers.NewStaticHandler(staticFileDir, publicUrl)
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 

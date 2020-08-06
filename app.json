@@ -1,6 +1,8 @@
 {
   "name": "EventNative",
   "description": "The easiest event capturing in the world. Read more about Heroku Deploy: https://eventnative-docs.ksense.io/deployment/deploy-on-heroku",
+  "website": "https://ksense.io",
+  "success_url": "/p/welcome.html",
   "repository": "https://github.com/ksensehq/eventnative",
   "logo": "https://gblobscdn.gitbook.com/spaces%2F-MDlF_We7UewTfEzZjEa%2Favatar-1596563957463.png",
   "keywords": ["event", "native", "pixel", "golang"],
