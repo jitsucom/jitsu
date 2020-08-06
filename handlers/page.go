@@ -67,7 +67,8 @@ func (ph *PageHandler) Handler(c *gin.Context) {
 		if ph.serverPublicUrl != "" {
 			host = ph.serverPublicUrl
 		}
-		log.Println("h:", host)
+		log.Println("h:", c.GetHeader("Host"))
+		log.Println("hh:", c.GetHeader("X-Forwarded-Host"))
 
 		parameters := map[string]string{"DeployHost": host}
 		err := ph.welcome.Execute(c.Writer, parameters)
