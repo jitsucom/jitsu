@@ -7,23 +7,20 @@ server:
     - bd33c5fa-d69f-11ea-87d0-0242ac130003
     - c20765a0-d69f-15ea-82d0-0242ac130003
   public_url: https://yourhost
+  log:
+    path: /home/eventnative/logs/ #omit this key to write log to stdout
+    rotation_min: 60 #1440 (24 hours) default value
 
 geo.maxmind_path: https://statichost/GeoIP2-City.mmdb
 
 log:
-  main:
-    type: file
-    path: /home/eventnative/logs/
-    rotation_min: 1440 #24 hours
-    max_backups: 30
-  event:
-    type: file
-    path: /home/eventnative/logs/events
-    rotation_min: 5
+  path: /home/eventnative/logs/events
+  rotation_min: 5
 
 destinations:
   redshift_one:
     type: redshift
+    only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003']
     datasource:
       host: redshift.amazonaws.com
       db: my-db
@@ -41,6 +38,7 @@ destinations:
       table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}'
   redshift_two:
     type: redshift
+    only_tokens: ['c20765a0-d69f-15ea-82d0-0242ac130003']
     datasource:
       host: redshift.amazonaws.com
       db: my-db-2
@@ -52,4 +50,13 @@ destinations:
       bucket: my-bucket-2
       region: us-west-1
     data_layout:
-      table_name_template: 'field1'
+      table_name_template: 'views' #constant
+  bigquery:
+    only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003', 'c20765a0-d69f-15ea-82d0-0242ac130003']
+    google:
+      gcs_bucket: google_cloud_storage_bucket
+      bq_project: big_query_project
+      bq_dataset: big_query_dataset # 'default' will be created if omitted
+      key_file: /home/eventnative/app/res/bqkey.json # or json string of key e.g. "{"service_account":...}"
+    data_layout:
+      table_name_template: 'events'
