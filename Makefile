@@ -7,6 +7,7 @@ all: clean assemble
 assemble: backend js
 	mkdir -p ./build/dist/web
 	cp ./web/build/* ./build/dist/web/
+	cp ./web/welcome.html ./build/dist/web/
 	cp eventnative ./build/dist/
 
 backend:
