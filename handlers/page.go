@@ -11,6 +11,7 @@ import (
 
 const htmlContentType = "text/html; charset=utf-8"
 const welcomePageName = "welcome.html"
+const hostConstant = "<b><REPLACE WITH HOST URL></b>"
 
 var blankPage = []byte(`<html><head></head><body></body></html>`)
 
@@ -67,7 +68,9 @@ func (ph *PageHandler) Handler(c *gin.Context) {
 		if ph.serverPublicUrl != "" {
 			host = ph.serverPublicUrl
 		}
-		log.Println(c.Request.Header)
+		if host == "" {
+			host = hostConstant
+		}
 
 		parameters := map[string]string{"DeployHost": host}
 		err := ph.welcome.Execute(c.Writer, parameters)
