@@ -69,15 +69,12 @@ workflows:
           filters:
             branches:
               only: master
-  build-docker-from-tag:
-    jobs:
-      - backend-test
       - build-tagged-docker:
           context: eventnative
           requires:
             - backend-test
           filters:
             tags:
-              only: /.*/
+              only: /^v\d+\.\d+\.\d+$/
             branches:
               ignore: /.*/
