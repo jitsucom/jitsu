@@ -38,6 +38,7 @@ var (
 func readInViperConfig() error {
 	flag.Parse()
 	viper.AutomaticEnv()
+	//support OS env variables as lower case and dot divided variables e.g. SERVER_PORT as server.port
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	//custom config
 	viper.SetConfigFile(*configFilePath)
@@ -63,6 +64,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	//listen to shutdown signal to free up all resources
 	ctx, cancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
@@ -88,6 +90,7 @@ func main() {
 		}
 	}
 
+	//Create event storages per token
 	tokenizedEventStorages := storages.CreateStorages(ctx, destinationsViper)
 	for _, eStorages := range tokenizedEventStorages {
 		for _, es := range eStorages {
@@ -95,6 +98,7 @@ func main() {
 		}
 	}
 
+	//Uploader must read event logger directory
 	logEventPath := viper.GetString("log.path")
 	if !strings.HasSuffix(logEventPath, "/") {
 		logEventPath += "/"

@@ -31,6 +31,8 @@ type DataLayout struct {
 
 var unknownDestination = errors.New("Unknown destination type")
 
+//Create event storage from incoming config
+//Enrich incoming configs with default values if needed
 func CreateStorages(ctx context.Context, destinations *viper.Viper) map[string][]events.Storage {
 	stores := map[string][]events.Storage{}
 	if destinations == nil {
@@ -100,6 +102,7 @@ func logError(destinationName, destinationType string, err error) {
 	log.Printf("Error initializing %s destination of type %s: %v", destinationName, destinationType, err)
 }
 
+//Create aws Redshift event storage
 func createRedshift(ctx context.Context, name string, destination DestinationConfig, processor *schema.Processor) (*AwsRedshift, error) {
 	s3Config := destination.S3
 	if err := s3Config.Validate(); err != nil {
@@ -123,6 +126,7 @@ func createRedshift(ctx context.Context, name string, destination DestinationCon
 	return NewAwsRedshift(ctx, s3Config, redshiftConfig, processor, destination.BreakOnError)
 }
 
+//Create google BigQuery event storage
 func createBigQuery(ctx context.Context, name string, destination DestinationConfig, processor *schema.Processor) (*BigQuery, error) {
 	gConfig := destination.Google
 	if err := gConfig.Validate(); err != nil {

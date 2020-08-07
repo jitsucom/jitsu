@@ -13,6 +13,10 @@ import (
 
 const tableFileKeyDelimiter = "-table-"
 
+//Store files to aws RedShift via aws s3
+//Keeping tables schema state inmemory and update it according to incoming new data
+//note: Assume that after any outer changes in db we need to recreate this structure
+//for keeping actual db tables schema state
 type AwsRedshift struct {
 	s3Adapter       *adapters.AwsS3
 	redshiftAdapter *adapters.AwsRedshift
@@ -51,6 +55,10 @@ func NewAwsRedshift(ctx context.Context, s3Config *adapters.S3Config, redshiftCo
 	return ar, nil
 }
 
+//Periodically (every 1 minute):
+//1. get all files from aws s3
+//2. load them to aws Redshift via Copy request
+//3. delete file from aws s3
 func (ar *AwsRedshift) start() {
 	go func() {
 		for {
@@ -102,6 +110,9 @@ func (ar *AwsRedshift) start() {
 	}()
 }
 
+//Process file payload
+//Patch table if there are any new fields
+//Upload payload as a file to aws s3
 func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 	flatData, err := ar.schemaProcessor.Process(fileName, payload, ar.breakOnError)
 	if err != nil {

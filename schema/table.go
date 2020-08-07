@@ -18,6 +18,7 @@ func (dt DataType) String() string {
 type TableNameExtractFunction func(map[string]interface{}) (string, error)
 type Columns map[string]Column
 
+//Add all columns from other to current instance
 func (c Columns) Merge(other Columns) {
 	for name, column := range other {
 		//TODO when we support several Column types (not only String) we need check if type was changed
@@ -30,6 +31,7 @@ type Table struct {
 	Columns Columns
 }
 
+//Return true if there is at least one column
 func (t *Table) Exists() bool {
 	return t != nil && len(t.Columns) > 0
 }

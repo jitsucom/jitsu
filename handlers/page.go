@@ -20,6 +20,7 @@ type PageHandler struct {
 	welcome         *template.Template
 }
 
+//Serve html files
 func NewPageHandler(sourceDir, serverPublicUrl string, disableWelcomePage bool) (ph *PageHandler) {
 	ph = &PageHandler{serverPublicUrl: serverPublicUrl}
 
