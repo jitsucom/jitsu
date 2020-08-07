@@ -1,6 +1,6 @@
-version: 2.0
+version: 2.1
 jobs:
-  build:
+  backend-test:
     working_directory: /go/src/github.com/ksensehq/eventnative/
     docker:
       - image: circleci/golang:1.14
@@ -26,3 +26,32 @@ jobs:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
+  build-latest-docker:
+    working_directory: /go/src/github.com/ksensehq/eventnative/
+    environment:
+      IMAGE_NAME: ksense/eventnative
+    docker:
+      - image: circleci/buildpack-deps:stretch
+    steps:
+      - checkout
+      - setup_remote_docker:
+          docker_layer_caching: true
+      - run:
+          name: Build and Push Docker image
+          command: |
+            docker build -t $IMAGE_NAME:latest .
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $IMAGE_NAME
+
+workflows:
+  version: 2.1
+  build-master-docker:
+    jobs:
+      - backend-test
+      - build-latest-docker:
+          context: eventnative
+          requires:
+            - backend-test
+          filters:
+            branches:
+              only: master
