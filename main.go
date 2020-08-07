@@ -120,6 +120,7 @@ func SetupRouter() *gin.Engine {
 
 	router := gin.New() //gin.Default()
 
+	router.GET("/", handlers.NewRedirectHandler("/p/welcome.html").Handler)
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
