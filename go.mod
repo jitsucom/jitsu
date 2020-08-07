@@ -15,6 +15,7 @@ require (
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/spf13/viper v1.7.0
 	github.com/stretchr/testify v1.5.1
+	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	google.golang.org/api v0.13.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
