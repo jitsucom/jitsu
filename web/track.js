@@ -357,6 +357,7 @@
                     result.click_id[name] = params;
                 }
             }
+            return result;
         }
 
         parseQuery(qs) {
