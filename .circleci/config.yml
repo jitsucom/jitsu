@@ -59,7 +59,7 @@ jobs:
 
 workflows:
   version: 2.1
-  build-docker-from-master:
+  build-docker:
     jobs:
       - backend-test
       - build-latest-docker:
