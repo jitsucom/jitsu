@@ -29,9 +29,8 @@ Please, check out [website](https://eventnative-docs.ksense.io) for thorough doc
  * [Deployment](https://eventnative-docs.ksense.io/deployment)
  * [Configuration](https://eventnative-docs.ksense.io/configuration)
  * Also, you're welcome to Join our Slack!
- * If you want to contribute to the development, we'd be delight! Please read our [development wiki](https://github.com/ksensehq/eventnative/wiki). Also, we have a #dev channel in our Slack
+ * If you want to contribute to the development, we'd be delight! Please read our [development wiki](https://github.com/ksensehq/eventnative/wiki). Also, we have a #dev channel in our [Slack](https://join.slack.com/t/eventnative/shared_invite/zt-gincgy2s-ZYwXXBjw_GIN1PhVzgaUNA)
 
 ## About EventNative
 
 EventNative is developed and maintained by [kSense](https://ksense.io/) under the MIT license. We charge for ETL from other datasources and let you connect your EventNative to kSense for analysis if you choose.
-
