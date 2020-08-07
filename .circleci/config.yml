@@ -61,7 +61,12 @@ workflows:
   version: 2.1
   build-docker:
     jobs:
-      - backend-test
+      - backend-test:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: /.*/
       - build-latest-docker:
           context: eventnative
           requires:
