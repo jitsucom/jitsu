@@ -27,8 +27,6 @@ jobs:
           paths:
             - "/go/pkg/mod"
   build-latest-docker:
-    requires:
-      - backend-test
     working_directory: /go/src/github.com/ksensehq/eventnative/
     environment:
       IMAGE_NAME: ksense/eventnative
@@ -50,6 +48,8 @@ workflows:
   build-master-docker:
     jobs:
       - build-latest-docker:
+          requires:
+            - backend-test
           filters:
             branches:
               only: master
