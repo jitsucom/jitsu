@@ -11,6 +11,11 @@
       "value": "57ac6e96-172a-4929-9fcf-6e6b1f16afdc",
       "required": true
     },
+    "SERVER_PUBLIC_URL": {
+      "description": "Your heroku application URL",
+      "value": "<APP NAME>.herokuapp.com",
+      "required": true
+    },
     "GEO_MAXMIND_PATH": {
       "description": "Http url to hosted MaxMind db file if you want to enable geo resolution (leave emply otherwise). Read more about geo: https://eventnative-docs.ksense.io/geo-data-resolution",
       "required": false
