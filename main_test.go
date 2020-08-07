@@ -65,19 +65,20 @@ func TestApiEvent(t *testing.T) {
 				IdleTimeout:       time.Second * 65,
 			}
 			go func() {
-
 				log.Fatal(server.ListenAndServe())
 			}()
 
 			log.Println("Started listen and serve " + httpAuthority)
 
-			resp, err := http.Get("http://" + httpAuthority + "/ping")
+			resp, err := test.RenewGet("http://" + httpAuthority + "/ping")
 			require.NoError(t, err)
+
 			b, err := ioutil.ReadFile(tt.reqBodyPath)
 			require.NoError(t, err)
 
 			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/event?token=test-mock", bytes.NewBuffer(b))
 			require.NoError(t, err)
+
 			apiReq.Header.Add("x-real-ip", "95.82.232.185")
 			resp, err = http.DefaultClient.Do(apiReq)
 			require.NoError(t, err)
