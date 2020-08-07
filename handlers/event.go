@@ -23,6 +23,7 @@ type EventHandler struct {
 	uaResolver    *useragent.Resolver
 }
 
+//Accept all events
 func NewEventHandler() (eventHandler *EventHandler) {
 	eventHandler = &EventHandler{}
 	eventHandler.eventConsumer = appconfig.Instance.EventsConsumer

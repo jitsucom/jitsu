@@ -5,6 +5,7 @@ import (
 	"net/http"
 )
 
+//Handle redirects
 type RedirectHandler struct {
 	toUrl string
 }

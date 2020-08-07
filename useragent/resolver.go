@@ -34,6 +34,8 @@ func (rua ResolvedUa) IsEmpty() bool {
 		rua.DeviceFamily == "" && rua.DeviceBrand == "" && rua.DeviceModel == ""
 }
 
+//Resolve client user-agent with github.com/ua-parser/uap-go/uaparser lib
+//Return nil if parsed ua is empty
 func (r Resolver) Resolve(ua string) *ResolvedUa {
 	if ua == "" {
 		return nil

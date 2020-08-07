@@ -52,6 +52,7 @@ func NewAwsS3(s3Config *S3Config) (*AwsS3, error) {
 	return &AwsS3{client: s3.New(s3Session, awsConfig), config: s3Config}, nil
 }
 
+//Create named file on aws s3 with payload
 func (a *AwsS3) UploadBytes(fileName string, fileBytes []byte) error {
 	fileType := http.DetectContentType(fileBytes)
 	params := &s3.PutObjectInput{
@@ -67,6 +68,7 @@ func (a *AwsS3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
+//Return aws s3 bucket file names
 func (a *AwsS3) ListBucket() ([]string, error) {
 	input := &s3.ListObjectsV2Input{Bucket: &a.config.Bucket}
 	var files []string
@@ -88,6 +90,7 @@ func (a *AwsS3) ListBucket() ([]string, error) {
 	return files, nil
 }
 
+//Delete object from aws s3 bucket
 func (a *AwsS3) DeleteObject(key string) error {
 	input := &s3.DeleteObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	output, err := a.client.DeleteObject(input)

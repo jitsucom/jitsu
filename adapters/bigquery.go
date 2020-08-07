@@ -38,6 +38,8 @@ func NewBigQuery(ctx context.Context, config *GoogleConfig) (*BigQuery, error) {
 	return &BigQuery{ctx: ctx, client: client, config: config}, nil
 }
 
+//Transfer data from google cloud storage file to google BigQuery table
+//as one batch
 func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	table := bq.client.Dataset(bq.config.Dataset).Table(tableName)
 
@@ -62,6 +64,7 @@ func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	return nil
 }
 
+//Return google BigQuery table representation(name, columns with types) as schema.Table
 func (bq *BigQuery) GetTableSchema(tableName string) (*schema.Table, error) {
 	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
 
@@ -88,6 +91,7 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*schema.Table, error) {
 	return table, nil
 }
 
+//Create google BigQuery table from schema.Table
 func (bq *BigQuery) CreateTable(tableSchema *schema.Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(tableSchema.Name)
 
@@ -118,6 +122,7 @@ func (bq *BigQuery) CreateTable(tableSchema *schema.Table) error {
 	return nil
 }
 
+//Create google BigQuery Dataset if doesn't exist
 func (bq *BigQuery) CreateDataset(dataset string) error {
 	bqDataset := bq.client.Dataset(dataset)
 	if _, err := bqDataset.Metadata(bq.ctx); err != nil {
@@ -133,6 +138,7 @@ func (bq *BigQuery) CreateDataset(dataset string) error {
 	return nil
 }
 
+//Add schema.Table columns to google BigQuery table
 func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(patchSchema.Name)
 	metadata, err := bqTable.Metadata(bq.ctx)
@@ -169,6 +175,7 @@ func (bq *BigQuery) Close() error {
 	return nil
 }
 
+//Return true if google err is 404
 func isNotFoundErr(err error) bool {
 	e, ok := err.(*googleapi.Error)
 	return ok && e.Code == http.StatusNotFound

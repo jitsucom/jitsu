@@ -12,6 +12,7 @@ import (
 const contentToRemove = `"use strict";`
 const jsContentType = "application/javascript"
 
+//Serve js files
 type StaticHandler struct {
 	servingFiles    map[string][]byte
 	serverPublicUrl string
