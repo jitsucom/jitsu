@@ -21,7 +21,7 @@ js:
 	npm i --prefix ./web && npm run build --prefix ./web
 
 test_backend:
-	go test ./...
+	go test -failfast -v -parallel=1 ./...
 
 clean:
 	go clean
