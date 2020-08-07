@@ -16,6 +16,10 @@
       "value": "<APP NAME>.herokuapp.com",
       "required": true
     },
+    "SERVER_DISABLE_WELCOME_PAGE": {
+      "description": "Disable /p/welcome.html page flag",
+      "value": false
+    },
     "GEO_MAXMIND_PATH": {
       "description": "Http url to hosted MaxMind db file if you want to enable geo resolution (leave emply otherwise). Read more about geo: https://eventnative-docs.ksense.io/geo-data-resolution",
       "required": false
