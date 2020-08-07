@@ -47,7 +47,9 @@ workflows:
   version: 2.1
   build-master-docker:
     jobs:
+      - backend-test
       - build-latest-docker:
+          context: eventnative
           requires:
             - backend-test
           filters:
