@@ -31,7 +31,7 @@ jobs:
     environment:
       IMAGE_NAME: ksense/eventnative
     docker:
-      - image: circleci/buildpack-deps:stretch
+      - image: circleci/golang:1.14-buster-node
     steps:
       - checkout
       - setup_remote_docker
