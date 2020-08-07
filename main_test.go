@@ -37,6 +37,11 @@ func TestApiEvent(t *testing.T) {
 			"test_data/event_input.json",
 			"test_data/fact_output.json",
 		},
+		{
+			"Api event with ua consuming test",
+			"test_data/event_ua_input.json",
+			"test_data/fact_ua_output.json",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
