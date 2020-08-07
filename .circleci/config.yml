@@ -1,0 +1,28 @@
+version: 2.0
+jobs:
+  build:
+    working_directory: /go/src/github.com/ksensehq/eventnative/
+    docker:
+      - image: circleci/golang:1.14
+    environment:
+      TEST_RESULTS: /tmp/test-results
+      GO111MODULE: "on"
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-{{ checksum "go.sum" }}
+      - run: mkdir -p $TEST_RESULTS
+      - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Run unit tests
+          command: |
+            trap "go-junit-report <${TEST_RESULTS}/go-test.out > ${TEST_RESULTS}/go-test-report.xml" EXIT
+            make test_backend | tee ${TEST_RESULTS}/go-test.out
+      - store_test_results:
+          path: /tmp/test-results
+      - run: go mod tidy
+      - save_cache:
+          key: go-mod-v1-{{ checksum "go.sum" }}
+          paths:
+            - "/go/pkg/mod"
