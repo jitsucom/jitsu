@@ -1,13 +1,10 @@
-<table>
-<td><center>
-<a  href="#"><img  width="200"   src="https://track-demo.ksense.co/readme/en-round.png"></a>
+<p align="center">
+  <img width="200"  src="https://track-demo.ksense.co/readme/en-round.png">
+</p><table> <td>
 
 **EventNative** is an open source, high-performance event collection service. Capture all events your application generates and stream to your favorite data lake (with current support for RedShift and BigQuery). EventNative can be deployed in 1-click on the infrastructure of your choice.<br>
-   <a href=#><img width="100" src="https://track-demo.ksense.co/readme/made-with.svg "></a> <a href="https://circleci.com/gh/ksensehq/eventnative/tree/master"><img width="100" src="https://circleci.com/gh/ksensehq/eventnative/tree/master.svg?style=svg&circle-token=52a01ca8af325a73c950df2aa1953f68933383c3"></a></center>
-</td>
+   <a href="https://circleci.com/gh/ksensehq/eventnative/tree/master"><img align="right" width="100" src="https://circleci.com/gh/ksensehq/eventnative/tree/master.svg?style=svg&circle-token=52a01ca8af325a73c950df2aa1953f68933383c3"></a> <a href=#><img align="right" width="100" src="https://track-demo.ksense.co/readme/made-with.svg"></a> </td>
 </table>
-
-
 
 <a href="#"><img align="right" src="https://track-demo.ksense.co/readme/start.svg" width="40px" /></a>
 
