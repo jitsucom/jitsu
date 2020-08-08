@@ -25,7 +25,6 @@ import (
 
 //some inner parameters
 const (
-	staticFileDir      = "./web"
 	uploaderFileMask   = "*-event-*-20*.log"
 	uploaderBatchSize  = 20
 	uploaderLoadEveryS = 60
@@ -131,10 +130,10 @@ func SetupRouter() *gin.Engine {
 
 	publicUrl := viper.GetString("server.public_url")
 
-	htmlHandler := handlers.NewPageHandler(staticFileDir, publicUrl, viper.GetBool("server.disable_welcome_page"))
+	htmlHandler := handlers.NewPageHandler(viper.GetString("server.static_files_dir"), publicUrl, viper.GetBool("server.disable_welcome_page"))
 	router.GET("/p/:filename", htmlHandler.Handler)
 
-	staticHandler := handlers.NewStaticHandler(staticFileDir, publicUrl)
+	staticHandler := handlers.NewStaticHandler(viper.GetString("server.static_files_dir"), publicUrl)
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
