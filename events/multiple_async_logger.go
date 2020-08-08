@@ -14,11 +14,13 @@ type tokenizedFact struct {
 	token string
 }
 
+//Logger that's is handling multiple log files: one per token(api_key)
 type MultipleAsyncLogger struct {
 	writerPerToken map[string]io.WriteCloser
 	logCh          chan tokenizedFact
 }
 
+//Put event fact to channel
 func (m *MultipleAsyncLogger) Consume(fact Fact, token string) error {
 	m.logCh <- tokenizedFact{fact: fact, token: token}
 	return nil
@@ -33,6 +35,8 @@ func (m *MultipleAsyncLogger) Close() (resultErr error) {
 	return
 }
 
+//Create MultipleAsyncLogger and run goroutine that's read from channel
+//and write to file according to token
 func NewMultipleAsyncLogger(writerPerToken map[string]io.WriteCloser) Consumer {
 	logger := MultipleAsyncLogger{writerPerToken: writerPerToken, logCh: make(chan tokenizedFact, 20000)}
 

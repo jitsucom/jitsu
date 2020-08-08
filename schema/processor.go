@@ -60,6 +60,9 @@ func NewProcessor(tableNameFuncExpression string, mappings []string) (*Processor
 	return &Processor{fieldMapper: mapper, tableNameExtractFunc: tableNameExtractFunc}, nil
 }
 
+//Process file payload lines divided with \n. Line by line where 1 line = 1 json
+//Return json byte payload contained 1 line = 1 json with \n delimiter
+//Every json byte payload for different table like {"table1": payload, "table2": payload}
 func (p *Processor) Process(fileName string, payload []byte, breakOnError bool) (map[string]*ProcessedFile, error) {
 	filePerTable := map[string]*ProcessedFile{}
 	input := bytes.NewBuffer(payload)
@@ -98,6 +101,8 @@ func (p *Processor) Process(fileName string, payload []byte, breakOnError bool) 
 	return filePerTable, nil
 }
 
+//Flatten all json keys from /key1/key2 to key1_key2 and apply mappings
+//Return table representation of object and object json bytes
 func (p *Processor) processObject(line []byte) (*Table, []byte, error) {
 	object := map[string]interface{}{}
 
@@ -134,6 +139,7 @@ func (p *Processor) processObject(line []byte) (*Table, []byte, error) {
 	return table, objectBytes, nil
 }
 
+//Return flatten object e.g. from {"key1":{"key2":123}} to {"key1_key2":123}
 func (p *Processor) flattenObject(json map[string]interface{}) (map[string]interface{}, error) {
 	flattenMap := make(map[string]interface{})
 

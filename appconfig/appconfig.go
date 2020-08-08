@@ -5,6 +5,7 @@ import (
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/geo"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/useragent"
 	"github.com/spf13/viper"
 	"io"
 	"log"
@@ -19,6 +20,7 @@ type AppConfig struct {
 
 	EventsConsumer events.Consumer
 	GeoResolver    geo.Resolver
+	UaResolver     *useragent.Resolver
 
 	closeMe []io.Closer
 }
@@ -73,6 +75,7 @@ func Init() error {
 		log.Println("Run without geo resolver", err)
 	}
 	appConfig.GeoResolver = geoResolver
+	appConfig.UaResolver = useragent.NewResolver()
 
 	//authorization
 	// 1. from config

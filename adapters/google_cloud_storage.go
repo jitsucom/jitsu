@@ -48,6 +48,7 @@ func NewGoogleCloudStorage(ctx context.Context, config *GoogleConfig) (*GoogleCl
 	return &GoogleCloudStorage{client: client, config: config, ctx: ctx}, nil
 }
 
+//Create named file on google cloud storage with payload
 func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) error {
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
 	object := bucket.Object(fileName)
@@ -64,6 +65,7 @@ func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) er
 	return nil
 }
 
+//Return google cloud storage bucket file names
 func (gcs *GoogleCloudStorage) ListBucket() ([]string, error) {
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
 	it := bucket.Objects(gcs.ctx, nil)
@@ -82,6 +84,7 @@ func (gcs *GoogleCloudStorage) ListBucket() ([]string, error) {
 	return files, nil
 }
 
+//Delete object from google cloud storage bucket
 func (gcs *GoogleCloudStorage) DeleteObject(key string) error {
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
 	obj := bucket.Object(key)

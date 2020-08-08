@@ -37,6 +37,11 @@ func TestApiEvent(t *testing.T) {
 			"test_data/event_input.json",
 			"test_data/fact_output.json",
 		},
+		{
+			"Api event with ua consuming test",
+			"test_data/event_ua_input.json",
+			"test_data/fact_ua_output.json",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -60,19 +65,20 @@ func TestApiEvent(t *testing.T) {
 				IdleTimeout:       time.Second * 65,
 			}
 			go func() {
-
 				log.Fatal(server.ListenAndServe())
 			}()
 
 			log.Println("Started listen and serve " + httpAuthority)
 
-			resp, err := http.Get("http://" + httpAuthority + "/ping")
+			resp, err := test.RenewGet("http://" + httpAuthority + "/ping")
 			require.NoError(t, err)
+
 			b, err := ioutil.ReadFile(tt.reqBodyPath)
 			require.NoError(t, err)
 
 			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/event?token=test-mock", bytes.NewBuffer(b))
 			require.NoError(t, err)
+
 			apiReq.Header.Add("x-real-ip", "95.82.232.185")
 			resp, err = http.DefaultClient.Do(apiReq)
 			require.NoError(t, err)

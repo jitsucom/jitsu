@@ -56,6 +56,7 @@ func CreateResolver(geoipPath string) (Resolver, error) {
 	return resolver, nil
 }
 
+//Create maxmind geo resolver from http source or from local file
 func createGeoIpParser(geoipPath string) (*geoip2.Reader, error) {
 	if strings.Contains(geoipPath, "http://") || strings.Contains(geoipPath, "https://") {
 		log.Println("Start downloading maxmind from", geoipPath)
@@ -80,6 +81,7 @@ func createGeoIpParser(geoipPath string) (*geoip2.Reader, error) {
 	}
 }
 
+//Get location info from client ip address
 func (mr *MaxMindResolver) Resolve(ip string) (*Data, error) {
 	data := &Data{}
 	if ip == "" {
