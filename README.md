@@ -4,7 +4,7 @@
    <a href="https://circleci.com/gh/ksensehq/eventnative/tree/master"><img align="right" width="100" src="https://circleci.com/gh/ksensehq/eventnative/tree/master.svg?style=svg&circle-token=52a01ca8af325a73c950df2aa1953f68933383c3"></a> <a href=#><img align="right" width="100" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/go.png"></a></td></tr></table><br>
 
 
-<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/start.svg" width="40px"></a>
+<a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/quick-n.png" width="40px"></a>
 ## Quick Start
 The fastest way to get started is one click deploy on Heroku with:<br>
 <a href="https://heroku.com/deploy?template=https://github.com/ksensehq/eventnative"><img src="https://raw.githubusercontent.com/ksensehq/eventnative/7eb28378b252ac7c3209457ca3766be806085e41/artwork/heroku.svg" width="200px" /></a>
@@ -14,7 +14,7 @@ The easiest way to deploy on your own server is using Docker:<br>
 <a href="https://docs.eventnative.dev/deployment/deploy-with-docker"><img src="https://github.com/ksensehq/eventnative/blob/master/artwork/docker.png?raw=true" width="200px" /></a>
 
 
-<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/features.svg" width="40px" /></a>
+<a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/feat-n.png" width="40px" /></a>
 
 ## Features
  * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://app.gitbook.com/@eventnative/s/eventnative/javascript-integration) and you're set!
@@ -36,12 +36,12 @@ The easiest way to deploy on your own server is using Docker:<br>
  * **Mobile Application SDKs**: Coming soon for [iOS](https://github.com/ksensehq/eventnative/issues/4) and [Android](https://github.com/ksensehq/eventnative/issues/5).
 
 
-<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/demo-new.svg" width="40px" /></a>
+<a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/demo-n.png" width="40px" /></a>
 ## Demo
 
 We host a [simple page that demonstrates how EventNative works](https://track-demo.ksense.co/). Once your instance is deployed, visit this page to see how tracking works.
 
-<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/docs.svg" width="40px" /></a>
+<a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/doc-n.png" width="40px" /></a>
 
 ## Documentation
 
@@ -52,7 +52,7 @@ Please see our extensive documentation [here](https://eventnative-docs.ksense.io
  * [Scaling](https://docs.eventnative.dev/scaling-eventnative) - How to setup a distributed deployment of EventNative. 
  
 
-<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/com.svg" width="40px" /></a>
+<a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/com-n.png" width="40px" /></a>
 ##  Community
 We are made for developers, by developers and would love to have you join our community.
  * [Wiki](https://github.com/ksensehq/eventnative/wiki) - Check out our development wiki.
