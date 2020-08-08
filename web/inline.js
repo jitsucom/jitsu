@@ -4,6 +4,7 @@
         let path = (args[1]['script_path'] || '/') + 's/track.js'
         let k = window.eventN || (window.eventN = {});
         k.eventsQ = k.eventsQ || (k.eventsQ = []);
+        k.id = (...args) => {k.eventsQ.push([id,...args])}
         k.track = (...args) => {k.eventsQ.push(args)}
         k.track(...args);
         let script = document.createElement("script");

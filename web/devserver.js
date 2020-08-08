@@ -27,8 +27,8 @@ function getTrackingHost(req) {
     return host;
 }
 
-const trackJs = prepareJsFile('track.js')
-const inlineJs = prepareJsFile('inline.js')
+const trackJs = prepareJsFile('build/track.js')
+const inlineJs = prepareJsFile('build/inline.js')
 
 devserver.use(express.static('demo'))
 devserver.use(express.json());

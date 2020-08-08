@@ -1,0 +1,26 @@
+{
+  "presets": [
+    "@babel/preset-typescript",
+    "@babel/preset-env",
+    "minify"
+  ],
+  "plugins": [
+    [
+      "@babel/plugin-proposal-decorators",
+      {
+        "legacy": true
+      }
+    ],
+    [
+      "@babel/plugin-proposal-class-properties",
+      {
+        "loose": true
+      }
+    ],
+    "@babel/plugin-transform-strict-mode",
+    "@babel/plugin-transform-classes",
+    "transform-es2015-modules-umd"
+  ],
+  "moduleId": "eventN",
+  "comments": false
+}

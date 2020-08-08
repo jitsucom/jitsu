@@ -1,10 +1,11 @@
 {
   "name": "@ksense/eventnative",
-  "version": "1.0.2",
-  "main": "./track.js",
+  "version": "1.0.3",
+  "main": "./build/track.js",
   "scripts": {
     "devserver": "node devserver.js",
-    "build": "mkdir -p ./build && cp inline.js ./build/ && cp track.js ./build/"
+    "build": "mkdir -p ./build && cp inline.js ./build/ && tsc -b . && babel ./src/track.ts --out-file ./build/track.js",
+    "watch": "tsc -b . -w "
   },
   "dependencies": {
     "body-parser": "^1.19.0",
@@ -13,14 +14,18 @@
     "express": "4.17.1"
   },
   "devDependencies": {
+    "typescript": "^3.9.7",
+    "@types/google.analytics": "0.0.40",
+    "@types/segment-analytics": "0.0.32",
     "@babel/cli": "^7.10.5",
     "@babel/core": "^7.11.0",
-    "@babel/plugin-transform-arrow-functions": "^7.10.4",
-    "@babel/plugin-transform-parameters": "^7.10.5",
+    "@babel/plugin-proposal-class-properties": "^7.10.4",
+    "@babel/plugin-proposal-decorators": "^7.10.5",
     "@babel/plugin-transform-strict-mode": "^7.10.4",
+    "@babel/plugin-transform-typescript": "^7.11.0",
     "@babel/preset-env": "^7.10.4",
-    "babel-loader": "^8.1.0",
-    "babel-preset-env": "^1.7.0",
+    "@babel/preset-typescript": "^7.10.4",
+    "babel-plugin-transform-es2015-modules-umd": "^6.24.1",
     "babel-preset-minify": "^0.5.1"
   },
   "repository": {
