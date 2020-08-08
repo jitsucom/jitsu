@@ -1,16 +1,18 @@
 {
   "name": "@ksense/eventnative",
   "version": "1.0.2",
-  "main": "./track.js",
+  "main": "src/track.js",
   "scripts": {
     "devserver": "node devserver.js",
-    "build": "mkdir -p ./build && cp inline.js ./build/ && cp track.js ./build/"
+    "build": "./buildjs.sh",
+    "watch": "tsc -b . -w "
   },
   "dependencies": {
     "body-parser": "^1.19.0",
     "console-stamp": "0.2.9",
     "cors": "^2.8.5",
-    "express": "4.17.1"
+    "express": "4.17.1",
+    "uglify-js": "^3.10.1"
   },
   "devDependencies": {
     "@babel/cli": "^7.10.5",

@@ -6,10 +6,11 @@ var cors = require('cors')
 const path = require('path');
 const devserver = express();
 const port = process.env.TRACK_DEMO_PORT ? process.env.TRACK_DEMO_PORT : 80;
-const useProdFiles = process.env.USE_PROD_FILES ? true : false;
+const DEFAULT_USE_PROD_FILES = true;
+const useProdFiles = process.env.USE_PROD_FILE === undefined ? DEFAULT_USE_PROD_FILES : process.env.USE_PROD_FILE;
 
 function prepareJsFile(file) {
-    let fullFilePath = useProdFiles ? path.join(__dirname, "/build", file) : path.join(__dirname, file);
+    let fullFilePath = path.join(__dirname, useProdFiles ? "./build" : "./src", file);
     return () => {
         let content = fs.readFileSync(fullFilePath, 'utf8');
         return content.replace('"use strict";', '')

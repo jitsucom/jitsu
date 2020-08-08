@@ -348,12 +348,12 @@
                     continue;
                 }
                 let val = params[name];
-                if (name.startsWith(UTM_PREFIX)) {
+                if (name.startsWith(UTM_PREFIX) >= 0) {
                     let utm = name.substring(UTM_PREFIX.length)
                     if (UTM_TYPES.indexOf(utm) >= 0) {
                         result.utm[utm] = val;
                     }
-                } else if (CLICK_IDS.indexOf(name)) {
+                } else if (CLICK_IDS.indexOf(name) >= 0) {
                     result.click_id[name] = params;
                 }
             }
