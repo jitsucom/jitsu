@@ -12,6 +12,10 @@ import (
 	"time"
 )
 
+//Store files to google BigQuery via google cloud storage
+//Keeping tables schema state inmemory and update it according to incoming new data
+//note: Assume that after any outer changes in db we need to recreate this structure
+//for keeping actual db tables schema state
 type BigQuery struct {
 	gcsAdapter      *adapters.GoogleCloudStorage
 	bqAdapter       *adapters.BigQuery
@@ -49,6 +53,10 @@ func NewBigQuery(ctx context.Context, config *adapters.GoogleConfig, processor *
 	return bq, nil
 }
 
+//Periodically (every 1 minute):
+//1. get all files from google cloud storage
+//2. load them to BigQuery via google api
+//3. delete file from google cloud storage
 func (bq *BigQuery) start() {
 	go func() {
 		for {
@@ -90,6 +98,9 @@ func (bq *BigQuery) start() {
 	}()
 }
 
+//Process file payload
+//Patch table if there are any new fields
+//Upload payload as a file to google cloud storage
 func (bq *BigQuery) Store(fileName string, payload []byte) error {
 	flatData, err := bq.schemaProcessor.Process(fileName, payload, bq.breakOnError)
 	if err != nil {

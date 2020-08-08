@@ -49,7 +49,7 @@ func NewFieldMapper(mappings []string) (Mapper, error) {
 	return &FieldMapper{rules: rules}, nil
 }
 
-//Map rewrite source to destination and other keys as is
+//Rewrite source to destination and other keys as is
 //Return copy of object with applied mappings
 func (fm FieldMapper) Map(object map[string]interface{}) map[string]interface{} {
 	mappedObject := map[string]interface{}{}
@@ -69,10 +69,12 @@ func (fm FieldMapper) Map(object map[string]interface{}) map[string]interface{} 
 	return mappedObject
 }
 
+//Return object as is
 func (DummyMapper) Map(object map[string]interface{}) map[string]interface{} {
 	return object
 }
 
+//Replace all '/' with '_'
 func formatKey(key string) string {
 	if strings.HasPrefix(key, "/") {
 		key = key[1:]

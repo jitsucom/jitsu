@@ -13,6 +13,7 @@ import (
 
 const logFileMaxSizeMB = 100
 
+//Create stdout or file or mock writers
 func NewWriter(config Config) (io.WriteCloser, error) {
 	if err := config.Validate(); err != nil {
 		return nil, fmt.Errorf("Error while creating %v logger: %v", config.LoggerName, err)

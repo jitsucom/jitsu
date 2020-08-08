@@ -11,12 +11,15 @@ import (
 	"time"
 )
 
+//regex for reading already rotated and closed log files
 var tokenExtractRegexp = regexp.MustCompile("-event-(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
 type Uploader interface {
 	Start()
 }
 
+//Uploader reads already rotated and closed log files
+//and passed them to all Storage (or Storages) according to token from filename
 type PeriodicUploader struct {
 	fileMask       string
 	filesBatchSize int
@@ -44,6 +47,9 @@ func NewUploader(fileMask string, filesBatchSize, uploadEveryS int, tokenizedEve
 	}
 }
 
+//Start reading  event logger log directory and finding already rotated and closed files by mask
+//read them and passed to Storage
+//delete if there wasn't any error
 func (u *PeriodicUploader) Start() {
 	go func() {
 		for {
