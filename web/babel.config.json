@@ -1,0 +1,17 @@
+{
+  "presets": [
+    "@babel/preset-env",
+    "minify"
+  ],
+  "plugins": [
+    [
+      "@babel/plugin-proposal-class-properties",
+      {
+        "loose": true
+      }
+    ],
+    "@babel/plugin-transform-strict-mode",
+    "@babel/plugin-transform-classes"
+  ],
+  "comments": false
+}
