@@ -20,7 +20,8 @@ The easiest way to deploy on your own server is using Docker:<br>
  * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://app.gitbook.com/@eventnative/s/eventnative/javascript-integration) and you're set!
  
  * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.dev/javascript-integration/direct-tracking).
-
+ 
+ * **Capture Events stoped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those withour AdBlock.
 
  * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), Snowflake ([Coming Soon](https://github.com/ksensehq/eventnative/issues/6)), PostgreSQL ([Coming Soon](https://github.com/ksensehq/eventnative/issues/1)).
  
@@ -29,10 +30,11 @@ The easiest way to deploy on your own server is using Docker:<br>
  * **Dynamic Schema and JSON Interface**: EventNative parses incoming requests and adjust the underlying schema automatically.
  
  * **No Schema Definitions Needed**: We automatically map JSON events to tables and create necessary columns on the fly.
+  
+ * **Retrospective User Recognition**: [Coming soon](https://docs.eventnative.dev/quick-start) for BigQuery.
  
- * Any event & data structure is support [Coming Soon]
- 
- * Retrospective user recognition for BigQuery [Coming Soon]
+ * **Mobile Application SDKs**: Coming soon for [iOS](https://github.com/ksensehq/eventnative/issues/4) and [Android](https://github.com/ksensehq/eventnative/issues/5).
+
 
 <a href="#"><img align="right" src="https://track-demo.ksense.co/readme/demo-new.svg" width="40px" /></a>
 ## Demo
@@ -60,6 +62,6 @@ We are made for developers, by developers and would love to have you join our co
 
 
 <a href="#"><img align="right" src="https://track-demo.ksense.co/readme/logo-color.svg" width="40px" /></a>
-## About EventNative
+## Open Source
 
 EventNative is developed and maintained by [kSense](https://ksense.io/) under the MIT license. We charge for ETL from other datasources and let you connect your EventNative destination to kSense for analysis if you choose.
