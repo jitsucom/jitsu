@@ -29,6 +29,7 @@ var Instance *AppConfig
 
 func setDefaultParams() {
 	viper.SetDefault("server.port", "8001")
+	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
 	viper.SetDefault("log.rotation_min", "5")
