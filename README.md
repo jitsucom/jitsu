@@ -7,15 +7,15 @@
    </tr>
 </table><br>
 
-<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/start.svg" width="40px" /></a>
 
+<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/start.svg" width="40px"></a>
 ## Quick Start
 The fastest way to get started is one click deploy on Heroku with:<br>
-<a href="https://heroku.com/deploy?template=https://github.com/ksensehq/eventnative"><img src="https://www.herokucdn.com/deploy/button.svg" width="250px" /></a>
+<a href="https://heroku.com/deploy?template=https://github.com/ksensehq/eventnative"><img src="https://www.herokucdn.com/deploy/button.svg" width="200px" /></a>
 
 
 The easiest way to deploy on your own server is using Docker:<br>
-<a href="https://app.gitbook.com/@eventnative/s/eventnative/deployment/deploy-with-docker"><img src="https://track-demo.ksense.co/readme/docker-new.png" width="150px" /></a>
+<a href="https://app.gitbook.com/@eventnative/s/eventnative/deployment/deploy-with-docker"><img src="https://track-demo.ksense.co/readme/docker-new.png" width="200px" /></a>
 
 <a href="#"><img align="right" src="https://track-demo.ksense.co/readme/demo-new.svg" width="40px" /></a>
 ## Demo
@@ -45,11 +45,15 @@ Please, check out [website](https://eventnative-docs.ksense.io) for thorough doc
  * Also, you're welcome to Join our Slack!
  * If you want to contribute to the development, we'd be delight! Please read our [development wiki](https://github.com/ksensehq/eventnative/wiki). Also, we have a #dev channel in our [Slack](https://join.slack.com/t/eventnative/shared_invite/zt-gincgy2s-ZYwXXBjw_GIN1PhVzgaUNA)
 
+<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/config.svg" width="40px" /></a>
 ## Configuration
 
+
+<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/com.svg" width="40px" /></a>
 ##  Community
 We are made for developers, by developers.
 
+<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/logo-color.svg" width="40px" /></a>
 ## About EventNative
 
 EventNative is developed and maintained by [kSense](https://ksense.io/) under the MIT license. We charge for ETL from other datasources and let you connect your EventNative to kSense for analysis if you choose.
