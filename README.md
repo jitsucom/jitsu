@@ -4,22 +4,19 @@
 
 **EventNative** is an open source, high-performance event collection service. Capture all events your application generates and stream to your favorite data lake (with current support for RedShift and BigQuery). EventNative can be deployed in 1-click on the infrastructure of your choice.<br>
    <a href="https://circleci.com/gh/ksensehq/eventnative/tree/master"><img align="right" width="100" src="https://circleci.com/gh/ksensehq/eventnative/tree/master.svg?style=svg&circle-token=52a01ca8af325a73c950df2aa1953f68933383c3"></a> <a href=#><img align="right" width="100" src="https://track-demo.ksense.co/readme/made-with.svg"></a> </td>
-</table>
+</table><br>
 
 <a href="#"><img align="right" src="https://track-demo.ksense.co/readme/start.svg" width="40px" /></a>
 
 ## Quick Start
-The fastest way to get started is one click deploy on Heroku with:
-<center><a href="https://heroku.com/deploy?template=https://github.com/ksensehq/eventnative"><img src="https://www.herokucdn.com/deploy/button.svg" width="300px" /></a></center>
-
-<br>
+The fastest way to get started is one click deploy on Heroku with:<br>
+<a href="https://heroku.com/deploy?template=https://github.com/ksensehq/eventnative"><img src="https://www.herokucdn.com/deploy/button.svg" width="250px" /></a>
 
 
 The easiest way to deploy on your own server is using Docker:<br>
-<center><a href="https://heroku.com/deploy?template=https://github.com/ksensehq/eventnative"><img src="https://track-demo.ksense.co/readme/docker-new.png" width="200px" /></a>
-</center>
-<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/demo-new.svg" width="40px" /></a>
+<a href="https://app.gitbook.com/@eventnative/s/eventnative/deployment/deploy-with-docker"><img src="https://track-demo.ksense.co/readme/docker-new.png" width="150px" /></a>
 
+<a href="#"><img align="right" src="https://track-demo.ksense.co/readme/demo-new.svg" width="40px" /></a>
 ## Demo
 
 We host a [simple page that demonstrates how EventNative works](https://track-demo.ksense.co/). Once your instance is deployed, visit this page to see how tracking works.
@@ -39,7 +36,7 @@ We host a [simple page that demonstrates how EventNative works](https://track-de
 
 <a href="#"><img align="right" src="https://track-demo.ksense.co/readme/docs.svg" width="40px" /></a>
 
-## Documentation and Configuration
+## Documentation
 
 Please, check out [website](https://eventnative-docs.ksense.io) for thorough documentation. Main topics:
  * [Deployment](https://eventnative-docs.ksense.io/deployment)
@@ -47,8 +44,7 @@ Please, check out [website](https://eventnative-docs.ksense.io) for thorough doc
  * Also, you're welcome to Join our Slack!
  * If you want to contribute to the development, we'd be delight! Please read our [development wiki](https://github.com/ksensehq/eventnative/wiki). Also, we have a #dev channel in our [Slack](https://join.slack.com/t/eventnative/shared_invite/zt-gincgy2s-ZYwXXBjw_GIN1PhVzgaUNA)
 
-
-## Documentation and Configuration
+## Configuration
 
 ##  Community
 We are made for developers, by developers.
