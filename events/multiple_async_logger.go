@@ -59,7 +59,7 @@ func NewMultipleAsyncLogger(writerPerToken map[string]io.WriteCloser, showInGlob
 			}
 
 			if logger.showInGlobalLogger {
-				prettyJsonBytes, _ := json.MarshalIndent(&tokenizedFact.fact, "", "  ")
+				prettyJsonBytes, _ := json.MarshalIndent(&tokenizedFact.fact, " ", " ")
 				log.Println(string(prettyJsonBytes))
 			}
 
