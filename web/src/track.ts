@@ -271,7 +271,6 @@ class EventnTracker {
   }
   
   initGAIntegration = () => {
-    debugger;
     let gaHook = this.getOpt('ga_hook', false)
     if (window.ga && gaHook) {
       ga(tracker => {
@@ -356,7 +355,7 @@ class EventnTracker {
   
   initSegmentIntegration = () => {
     //Hook up to segment API
-    debugger;
+    
     let segmentHook = this.getOpt('segment_hook', false);
     if (window.analytics && segmentHook) {
       if (window.analytics.addSourceMiddleware) {
