@@ -33,7 +33,7 @@ var unknownDestination = errors.New("Unknown destination type")
 
 //Create event storage from incoming config
 //Enrich incoming configs with default values if needed
-func CreateStorages(ctx context.Context, destinations *viper.Viper) map[string][]events.Storage {
+func CreateStorages(ctx context.Context, destinations *viper.Viper, logEventPath string) map[string][]events.Storage {
 	stores := map[string][]events.Storage{}
 	if destinations == nil {
 		return stores

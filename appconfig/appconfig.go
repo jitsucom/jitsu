@@ -9,7 +9,6 @@ import (
 	"github.com/spf13/viper"
 	"io"
 	"log"
-	"os"
 	"strings"
 )
 
@@ -40,13 +39,7 @@ func Init() error {
 
 	serverName := viper.GetString("server.name")
 	if serverName == "" {
-		hostname, err := os.Hostname()
-		if err != nil {
-			log.Println("Unable to get os hostname", err)
-			hostname = "unnamed-server"
-		}
-
-		serverName = hostname
+		serverName = "unnamed-server"
 	}
 
 	if err := logging.InitGlobalLogger(logging.Config{
