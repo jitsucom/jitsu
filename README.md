@@ -1,4 +1,4 @@
-<table><tr><td><img width="200"  src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/en-logo-256x256.png"></td><td>
+<table><tr><td><img width="200"  src="https://github.com/ksensehq/eventnative/blob/master/artwork/logo-256x256.png?raw=true"></td><td>
 
 **EventNative** is an open source, high-performance, event collection service. Capture all events your application generates and stream to your preferred Data Warehouse with current support for RedShift and BigQuery. EventNative can be deployed in 1-click on the infrastructure of your choice.<br>
    <a href="https://circleci.com/gh/ksensehq/eventnative/tree/master"><img align="right" width="100" src="https://circleci.com/gh/ksensehq/eventnative/tree/master.svg?style=svg&circle-token=52a01ca8af325a73c950df2aa1953f68933383c3"></a> <a href=#><img align="right" width="100" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/go.png"></a></td></tr></table><br>
@@ -63,7 +63,7 @@ We are made for developers, by developers and would love to have you join our co
  * Submit a pull request!
 
 
-<a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/7eb28378b252ac7c3209457ca3766be806085e41/artwork/ksense-logo.svg" width="40px" /></a>
+<a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/bb6a40cc5f0a84d29b270f510ea4f632f3314e71/artwork/ksense-logo.svg" width="40px" /></a>
 ## Open Source
 
 EventNative is developed and maintained by [kSense](https://ksense.io/) under the MIT license. We charge for ETL from other datasources and let you connect your EventNative destination to kSense for analysis if you choose.
