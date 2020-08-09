@@ -25,7 +25,8 @@
 
         body {
             margin: auto;
-            width: 50%;
+            min-width: 800px;
+            max-width: 50%;
             font-family: 'IMB Plex Sans', sans-serif;
         }
 
@@ -58,6 +59,9 @@
                     url: url,
                     error: () => trackingCode.text("//Failed to get snippet from server. Please, check error log"),
                     success: (data) => {
+                        if ($("#send_data_directly").prop('checked') === true) {
+                            data += "\n\neventN.track('pageview');\n"
+                        }
                         trackingCode.text(data);
                         hljs.highlightBlock(trackingCode[0]);
                     }
@@ -89,8 +93,9 @@ server:
 <p>Use this code to add tracking to your webapp (replace <b>API_KEY</b> with key you choose during installation). Further reading: <a href="https://eventnative-docs.ksense.io/javascript-integration">JavaScript
     integration guide</a></p>
 <pre class="code" id="tracking_code">//Data loading...</pre>
-<p class="inteceptors-config">Options: <input type="checkbox" id="ga_hook"/><label for="ga_hook">Google Analytics Interceptor</label> | <input type="checkbox" id="segment_hook"/> <label for="segment_hook">Segment
-    Interceptor</label></p>
+<p class="inteceptors-config">Options: <input type="checkbox" id="ga_hook"/><label for="ga_hook">Google Analytics Interceptor</label>
+    | <input type="checkbox" id="segment_hook"/> <label for="segment_hook">Segment Interceptor</label>
+    | <input type="checkbox" id="send_data_directly"/> <label for="send_data_directly">Send Data Directly</label></p>
 
 <p>Links:</p>
 <ol>
