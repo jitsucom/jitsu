@@ -36,4 +36,4 @@ WORKDIR /home/$EVENTNATIVE_USER/app
 
 EXPOSE 8001
 
-ENTRYPOINT /home/$EVENTNATIVE_USER/app/$EVENTNATIVE_USER -cfg=/home/$EVENTNATIVE_USER/app/res/eventnative.yaml
+ENTRYPOINT /home/$EVENTNATIVE_USER/app/$EVENTNATIVE_USER -cfg=/home/$EVENTNATIVE_USER/app/res/eventnative.yaml -cr=true
