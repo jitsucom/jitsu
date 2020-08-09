@@ -21,9 +21,8 @@ type MultipleAsyncLogger struct {
 }
 
 //Put event fact to channel
-func (m *MultipleAsyncLogger) Consume(fact Fact, token string) error {
+func (m *MultipleAsyncLogger) Consume(fact Fact, token string) {
 	m.logCh <- tokenizedFact{fact: fact, token: token}
-	return nil
 }
 
 func (m *MultipleAsyncLogger) Close() (resultErr error) {

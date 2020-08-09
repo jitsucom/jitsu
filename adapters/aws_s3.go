@@ -68,9 +68,9 @@ func (a *AwsS3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-//Return aws s3 bucket file names
-func (a *AwsS3) ListBucket() ([]string, error) {
-	input := &s3.ListObjectsV2Input{Bucket: &a.config.Bucket}
+//Return aws s3 bucket file names filtered by prefix
+func (a *AwsS3) ListBucket(prefix string) ([]string, error) {
+	input := &s3.ListObjectsV2Input{Bucket: &a.config.Bucket, Prefix: &prefix}
 	var files []string
 	for {
 		output, err := a.client.ListObjectsV2(input)

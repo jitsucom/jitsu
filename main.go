@@ -26,7 +26,7 @@ import (
 //some inner parameters
 const (
 	//$serverName-event-$token-$timestamp.log
-	uploaderFileMask   = "*-event-*-20*.log"
+	uploaderFileMask   = "-event-*-20*.log"
 	uploaderBatchSize  = 20
 	uploaderLoadEveryS = 60
 )
@@ -96,8 +96,14 @@ func main() {
 		}
 	}
 
+	//Get event logger path
+	logEventPath := viper.GetString("log.path")
+	if !strings.HasSuffix(logEventPath, "/") {
+		logEventPath += "/"
+	}
+
 	//Create event storages per token
-	tokenizedEventStorages := storages.CreateStorages(ctx, destinationsViper)
+	tokenizedEventStorages := storages.CreateStorages(ctx, destinationsViper, logEventPath)
 	for _, eStorages := range tokenizedEventStorages {
 		for _, es := range eStorages {
 			appconfig.Instance.ScheduleClosing(es)
@@ -105,11 +111,7 @@ func main() {
 	}
 
 	//Uploader must read event logger directory
-	logEventPath := viper.GetString("log.path")
-	if !strings.HasSuffix(logEventPath, "/") {
-		logEventPath += "/"
-	}
-	uploader := events.NewUploader(logEventPath+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, tokenizedEventStorages)
+	uploader := events.NewUploader(logEventPath+appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, tokenizedEventStorages)
 	uploader.Start()
 
 	router := SetupRouter()

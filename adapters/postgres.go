@@ -8,6 +8,7 @@ import (
 	"github.com/ksensehq/eventnative/schema"
 	_ "github.com/lib/pq"
 	"log"
+	"strconv"
 	"strings"
 )
 
@@ -30,6 +31,7 @@ const (
 	createDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS "%s"`
 	addColumnTemplate                 = `ALTER TABLE "%s"."%s" ADD COLUMN %s %s`
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
+	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
 )
 
 var (
@@ -231,6 +233,41 @@ func (p *Postgres) PatchTableSchema(patchSchema *schema.Table) error {
 	return wrappedTx.tx.Commit()
 }
 
+func (p *Postgres) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
+	var header, placeholders string
+	var values []interface{}
+	i := 1
+	for name, value := range valuesMap {
+		header += name + ","
+		//$1, $2, $3, etc
+		placeholders += "$" + strconv.Itoa(i) + ","
+		values = append(values, value)
+		i++
+	}
+
+	header = removeLastComma(header)
+	placeholders = removeLastComma(placeholders)
+
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(insertTemplate, p.config.Schema, schema.Name, header, placeholders))
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error preparing insert table %s statement: %v", schema.Name, err)
+	}
+
+	_, err = insertStmt.ExecContext(p.ctx, values...)
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", schema.Name, header, values, err)
+	}
+
+	return wrappedTx.tx.Commit()
+}
+
 func (p *Postgres) Close() error {
 	if err := p.dataSource.Close(); err != nil {
 		return fmt.Errorf("Error closing datasource: %v", err)
@@ -254,4 +291,12 @@ func (t *Transaction) Rollback() {
 	if err := t.tx.Rollback(); err != nil {
 		log.Printf("System error: unable to rollback %s transaction: %v", t.dbType, err)
 	}
+}
+
+func removeLastComma(str string) string {
+	if last := len(str) - 1; last >= 0 && str[last] == ',' {
+		str = str[:last]
+	}
+
+	return str
 }
