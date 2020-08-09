@@ -7,7 +7,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -20,8 +19,6 @@ func NewWriter(config Config) (io.WriteCloser, error) {
 	}
 	if config.FileDir != "" {
 		return newRollingWriter(config)
-	} else if strings.Contains(config.LoggerName, "test-mock") {
-		return initInMemoryWriter(), nil
 	} else {
 		return os.Stdout, nil
 	}
@@ -29,7 +26,7 @@ func NewWriter(config Config) (io.WriteCloser, error) {
 
 func newRollingWriter(config Config) (io.WriteCloser, error) {
 	fileNamePath := filepath.Join(config.FileDir, fmt.Sprintf("%s-%s.log", config.ServerName, config.LoggerName))
-	log.Println("Constructing new Lumberjack rolling writer for:", fileNamePath)
+	log.Println("Constructing rolling writer for:", fileNamePath)
 	lWriter := &lumberjack.Logger{
 		Filename: fileNamePath,
 		MaxSize:  logFileMaxSizeMB,
