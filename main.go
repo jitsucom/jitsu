@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	configFilePath = flag.String("cfg", "./eventnative.yaml", "config file path")
+	configFilePath = flag.String("cfg", "", "config file path")
 )
 
 func readInViperConfig() error {
@@ -42,7 +42,11 @@ func readInViperConfig() error {
 	//custom config
 	viper.SetConfigFile(*configFilePath)
 	if err := viper.ReadInConfig(); err != nil {
-		log.Println("Custom eventnative.yaml wasn't provided", err)
+		if viper.ConfigFileUsed() != "" {
+			return err
+		} else {
+			log.Println("Custom eventnative.yaml wasn't provided")
+		}
 	}
 	return nil
 }
@@ -56,7 +60,7 @@ func main() {
 	time.Local = time.UTC
 
 	if err := readInViperConfig(); err != nil {
-		log.Fatal("Error while reading viper config: ", err)
+		log.Fatal("Error while reading application config: ", err)
 	}
 
 	if err := appconfig.Init(); err != nil {
