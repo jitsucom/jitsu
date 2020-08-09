@@ -23,7 +23,7 @@ The easiest way to deploy on your own server is using Docker:<br>
  
  * **Capture Events stoped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those withour AdBlock.
 
- * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), Snowflake ([Coming Soon](https://github.com/ksensehq/eventnative/issues/6)), PostgreSQL ([Coming Soon](https://github.com/ksensehq/eventnative/issues/1)).
+ * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), [Snowflake](https://www.snowflake.com/) ([Coming Soon](https://github.com/ksensehq/eventnative/issues/6)), PostgreSQL (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/1)*) and [ClickHouse](https://clickhouse.tech/) (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/29)*)
  
  * **High-Performance and Throughput**: EventNative is written in [Go](https://golang.org/) with performance in mind, you're only limited by local disk performance since we write events locally prior to sending them to your data warehouse in batches. Read more about scalability [here](https://docs.eventnative.dev/scaling-eventnative).
  
@@ -31,7 +31,7 @@ The easiest way to deploy on your own server is using Docker:<br>
  
  * **No Schema Definitions Needed**: We automatically map JSON events to tables and create necessary columns on the fly.
   
- * **Retrospective User Recognition**: [Coming soon](https://docs.eventnative.dev/quick-start) for BigQuery.
+ * **Retrospective User Recognition**: [Coming soon](https://docs.eventnative.dev/quick-start) for selected destination (BigQuery, pSQL and ClickHouse).
  
  * **Mobile Application SDKs**: Coming soon for [iOS](https://github.com/ksensehq/eventnative/issues/4) and [Android](https://github.com/ksensehq/eventnative/issues/5).
 
