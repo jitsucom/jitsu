@@ -13,8 +13,9 @@
       "required": true
     },
     "SERVER_PUBLIC_URL": {
-      "description": "Your heroku application URL. Please use the same name you choose above: <APP NAME>.herokuapp.com",
-      "required": false
+      "description": "Your heroku application URL. Please use the same name you choose above",
+      "value": "<APP NAME>.herokuapp.com",
+      "required": true
     },
     "GEO_MAXMIND_PATH": {
       "description": "Http url to hosted MaxMind db file if you want to enable geo resolution (leave empty otherwise). Read more about geo: https://dev.eventnative.dev/geo-data-resolution",
