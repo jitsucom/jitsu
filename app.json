@@ -30,6 +30,11 @@
       "description": "JSON config for destination. Please, check suggested documentation here: https://eventnative-docs.ksense.io/deployment/deploy-on-heroku",
       "value": "{}",
       "required": false
+    },
+    "LOG_SHOW_IN_SERVER": {
+      "description": "Flag for debugging will show all json events in server logs",
+      "value": "false",
+      "required": false
     }
   }
 }
