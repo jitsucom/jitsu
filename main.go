@@ -25,6 +25,7 @@ import (
 
 //some inner parameters
 const (
+	//$serverName-event-$token-$timestamp.log
 	uploaderFileMask   = "*-event-*-20*.log"
 	uploaderBatchSize  = 20
 	uploaderLoadEveryS = 60

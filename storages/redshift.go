@@ -141,7 +141,7 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 		//Patch
 		if schemaDiff.Exists() {
 			if err := ar.redshiftAdapter.PatchTableSchema(schemaDiff); err != nil {
-				return err
+				return fmt.Errorf("Error patching table schema %s in redshift: %v", schemaDiff.Name, err)
 			}
 			//Save
 			for k, v := range schemaDiff.Columns {
@@ -165,5 +165,9 @@ func (ar AwsRedshift) Name() string {
 }
 
 func (ar AwsRedshift) Close() error {
-	return ar.redshiftAdapter.Close()
+	if err := ar.redshiftAdapter.Close(); err != nil {
+		return fmt.Errorf("Error closing redshift datasource: %v", err)
+	}
+
+	return nil
 }
