@@ -9,6 +9,7 @@ import (
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/handlers"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
 	"github.com/ksensehq/eventnative/storages"
 	"log"
@@ -102,19 +103,52 @@ func main() {
 		logEventPath += "/"
 	}
 
+	//logger consumers per token
+	loggingConsumers := map[string]events.Consumer{}
+	for token := range appconfig.Instance.AuthorizedTokens {
+		eventLogWriter, err := logging.NewWriter(logging.Config{
+			LoggerName:  "event-" + token,
+			ServerName:  appconfig.Instance.ServerName,
+			FileDir:     logEventPath,
+			RotationMin: viper.GetInt64("log.rotation_min")})
+		if err != nil {
+			log.Fatal(err)
+		}
+		logger := events.NewAsyncLogger(eventLogWriter)
+		loggingConsumers[token] = logger
+		appconfig.Instance.ScheduleClosing(logger)
+	}
+
 	//Create event storages per token
-	tokenizedEventStorages := storages.CreateStorages(ctx, destinationsViper, logEventPath)
-	for _, eStorages := range tokenizedEventStorages {
+	eventStoragesByToken, eventConsumersByToken := storages.CreateStorages(ctx, destinationsViper, logEventPath)
+
+	//Schedule storages and consumers resource releasing
+	for _, eStorages := range eventStoragesByToken {
 		for _, es := range eStorages {
 			appconfig.Instance.ScheduleClosing(es)
 		}
 	}
+	for _, eConsumers := range eventConsumersByToken {
+		for _, ec := range eConsumers {
+			appconfig.Instance.ScheduleClosing(ec)
+		}
+	}
+
+	//merge logger consumers with storage consumers
+	for token, loggingConsumer := range loggingConsumers {
+		consumers, ok := eventConsumersByToken[token]
+		if !ok {
+			consumers = []events.Consumer{}
+		}
+		consumers = append(consumers, loggingConsumer)
+		eventConsumersByToken[token] = consumers
+	}
 
 	//Uploader must read event logger directory
-	uploader := events.NewUploader(logEventPath+appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, tokenizedEventStorages)
+	uploader := events.NewUploader(logEventPath+appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, eventStoragesByToken)
 	uploader.Start()
 
-	router := SetupRouter()
+	router := SetupRouter(eventConsumersByToken)
 
 	log.Println("Started listen and server: " + appconfig.Instance.Authority)
 	server := &http.Server{
@@ -127,7 +161,7 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-func SetupRouter() *gin.Engine {
+func SetupRouter(tokenizedEventConsumers map[string][]events.Consumer) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -148,7 +182,7 @@ func SetupRouter() *gin.Engine {
 
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenAuth(handlers.NewEventHandler().Handler))
+		apiV1.POST("/event", middleware.TokenAuth(handlers.NewEventHandler(tokenizedEventConsumers).Handler))
 	}
 
 	router.Use(middleware.Cors)

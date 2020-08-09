@@ -16,7 +16,7 @@ import (
 const eventsPerPersistedFile = 2000
 
 //Consuming event facts, put them to https://github.com/joncrlsn/dque
-//Dequuing queue and store events to Postgres in streaming mode
+//Dequeuing and store events to Postgres in streaming mode
 //Keeping tables schema state inmemory and update it according to incoming new data
 //note: Assume that after any outer changes in db we need to recreate this structure
 //for keeping actual db tables schema state
@@ -25,7 +25,6 @@ type Postgres struct {
 	schemaProcessor *schema.Processor
 	tables          map[string]*schema.Table
 	eventQueue      *dque.DQue
-	breakOnError    bool
 }
 
 // EventFactBuilder creates and returns a new events.Fact.
@@ -47,13 +46,7 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		return nil, err
 	}
 
-	////fallback dir for queue will be event dir from log.path
-	//	logEventPath := viper.GetString("log.path")
-	//	if !strings.HasSuffix(logEventPath, "/") {
-	//		logEventPath += "/"
-	//	}
-	//TODO
-	queue, err := dque.Open(appconfig.Instance.ServerName+storageName, fallbackDir, eventsPerPersistedFile, EventFactBuilder)
+	queue, err := dque.Open(fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, storageName), fallbackDir, eventsPerPersistedFile, EventFactBuilder)
 	if err != nil {
 		queue, err = dque.New(storageName, fallbackDir, eventsPerPersistedFile, EventFactBuilder)
 		if err != nil {
@@ -72,7 +65,7 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 	return p, nil
 }
 
-func (p *Postgres) Consume(fact events.Fact, token string) {
+func (p *Postgres) Consume(fact events.Fact) {
 	if err := p.eventQueue.Enqueue(fact); err != nil {
 		log.Println("Error putting event fact to the Postgres queue:", err)
 	}

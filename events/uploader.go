@@ -18,8 +18,8 @@ type Uploader interface {
 	Start()
 }
 
-//Uploader reads already rotated and closed log files
-//and passed them to all Storage (or Storages) according to token from filename
+//Uploader read already rotated and closed log files
+//Passed them to all Storage (or Storages) according to token from filename
 type PeriodicUploader struct {
 	fileMask       string
 	filesBatchSize int

@@ -2,7 +2,6 @@ package appconfig
 
 import (
 	"github.com/google/uuid"
-	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/geo"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/useragent"
@@ -17,9 +16,8 @@ type AppConfig struct {
 	Authority        string
 	AuthorizedTokens map[string]bool
 
-	EventsConsumer events.Consumer
-	GeoResolver    geo.Resolver
-	UaResolver     *useragent.Resolver
+	GeoResolver geo.Resolver
+	UaResolver  *useragent.Resolver
 
 	closeMe []io.Closer
 }
@@ -93,23 +91,6 @@ func Init() error {
 	}
 
 	appConfig.AuthorizedTokens = authorizedTokens
-
-	//loggers per token
-	writers := map[string]io.WriteCloser{}
-	for token := range appConfig.AuthorizedTokens {
-		eventLogWriter, err := logging.NewWriter(logging.Config{
-			LoggerName:  "event-" + token,
-			ServerName:  serverName,
-			FileDir:     viper.GetString("log.path"),
-			RotationMin: viper.GetInt64("log.rotation_min")})
-		if err != nil {
-			return err
-		}
-		writers[token] = eventLogWriter
-	}
-
-	appConfig.EventsConsumer = events.NewMultipleAsyncLogger(writers)
-	appConfig.ScheduleClosing(appConfig.EventsConsumer)
 
 	Instance = &appConfig
 	return nil
