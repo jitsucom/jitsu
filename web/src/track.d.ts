@@ -1,5 +1,5 @@
 type IEventN = {
-  id: (userProperties: Object, doNotSendEvent: boolean) => void
+  id: (userProperties: any, doNotSendEvent: boolean) => void
   track: (event_type: string, event_data: any) => void
   init: (options: {
     key: string,

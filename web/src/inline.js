@@ -1,11 +1,18 @@
-(function(...args) {
+(function(cfg) {
     try {
-        let host = args[1]['tracking_host'];
-        let path = (args[1]['script_path'] || '/') + 's/track.js'
+        let host = cfg['tracking_host'];
+        let path = (cfg['script_path'] || '/') + 's/track.js'
         let k = window.eventN || (window.eventN = {});
         k.eventsQ = k.eventsQ || (k.eventsQ = []);
-        k.track = (...args) => {k.eventsQ.push(args)}
-        k.track(...args);
+        let methods = ['track', 'id', 'init'];
+        for (let i = 0; i < methods.length; i++) {
+            k[methods[i]] = (...args) => {
+                let copy = args.slice();
+                copy.unshift(methods[i]);
+                k.eventsQ.push(copy);
+            }
+        }
+        k.init(cfg);
         let script = document.createElement("script");
         script.type = "text/javascript";
         script.async = true;
@@ -15,5 +22,5 @@
     } catch (e) {
         console.log("EventNative init failed", e)
     }
-})('init', eventnConfig || {});
+})(eventnConfig || {});
 
