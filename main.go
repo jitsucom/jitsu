@@ -31,7 +31,8 @@ const (
 )
 
 var (
-	configFilePath = flag.String("cfg", "", "config file path")
+	configFilePath   = flag.String("cfg", "", "config file path")
+	containerizedRun = flag.Bool("cr", false, "containerised run marker")
 )
 
 func readInViperConfig() error {
@@ -42,7 +43,8 @@ func readInViperConfig() error {
 	//custom config
 	viper.SetConfigFile(*configFilePath)
 	if err := viper.ReadInConfig(); err != nil {
-		if viper.ConfigFileUsed() != "" {
+		//failfast for running service from source (not containerised) and with wrong config
+		if viper.ConfigFileUsed() != "" && !*containerizedRun {
 			return err
 		} else {
 			log.Println("Custom eventnative.yaml wasn't provided")
