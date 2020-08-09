@@ -71,7 +71,6 @@ func (sh *StaticHandler) Handler(c *gin.Context) {
 	}
 
 	c.Header("Content-type", jsContentType)
-	c.Header("Access-Control-Allow-Origin", "*")
 
 	switch fileName {
 	case "inline.js":
@@ -92,7 +91,7 @@ func (sh *StaticHandler) Handler(c *gin.Context) {
 			if sh.serverPublicUrl != "" {
 				config.TrackingHost = sh.serverPublicUrl
 			} else {
-				config.TrackingHost = c.GetHeader("Host")
+				config.TrackingHost = c.Request.Host
 			}
 		}
 

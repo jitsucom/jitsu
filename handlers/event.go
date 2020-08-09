@@ -17,13 +17,13 @@ import (
 const eventnKey = "eventn_ctx"
 const uaKey = "user_agent"
 
+//Accept all events
 type EventHandler struct {
 	eventConsumer events.Consumer
 	geoResolver   geo.Resolver
 	uaResolver    *useragent.Resolver
 }
 
-//Accept all events
 func NewEventHandler() (eventHandler *EventHandler) {
 	eventHandler = &EventHandler{}
 	eventHandler.eventConsumer = appconfig.Instance.EventsConsumer
@@ -33,7 +33,6 @@ func NewEventHandler() (eventHandler *EventHandler) {
 }
 
 func (eh *EventHandler) Handler(c *gin.Context) {
-	c.Header("Access-Control-Allow-Origin", "*")
 	payload := map[string]interface{}{}
 	if err := c.BindJSON(&payload); err != nil {
 		c.Writer.WriteHeader(http.StatusBadRequest)
