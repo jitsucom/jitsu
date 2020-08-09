@@ -71,6 +71,7 @@ func (sh *StaticHandler) Handler(c *gin.Context) {
 	}
 
 	c.Header("Content-type", jsContentType)
+	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
 	switch fileName {
 	case "inline.js":
