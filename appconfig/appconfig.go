@@ -38,10 +38,15 @@ func setDefaultParams() {
 func Init() error {
 	setDefaultParams()
 
-	serverName, err := os.Hostname()
-	if err != nil {
-		log.Println("Unable to get os hostname", err)
-		serverName = "unnamed-server"
+	serverName := viper.GetString("server.name")
+	if serverName == "" {
+		hostname, err := os.Hostname()
+		if err != nil {
+			log.Println("Unable to get os hostname", err)
+			hostname = "unnamed-server"
+		}
+
+		serverName = hostname
 	}
 
 	if err := logging.InitGlobalLogger(logging.Config{
