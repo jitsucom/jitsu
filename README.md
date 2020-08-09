@@ -25,15 +25,15 @@ For production deployment we suggest Docker:
  
  * **Capture Events stoped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those withour AdBlock.
 
- * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), [Snowflake](https://www.snowflake.com/) ([Coming Soon](https://github.com/ksensehq/eventnative/issues/6)), PostgreSQL (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/1)*) and [ClickHouse](https://clickhouse.tech/) (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/29)*)
+ * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), [Snowflake](https://www.snowflake.com/) ([Coming Soon](https://github.com/ksensehq/eventnative/issues/6)), PostgreSQL (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/1)*) and [ClickHouse](https://clickhouse.tech/) (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/29)*). EventNative automatically pushes to all your configured destinations at once without additional overhead.
  
  * **High-Performance and Throughput**: EventNative is written in [Go](https://golang.org/) with performance in mind, you're only limited by local disk performance since we write events locally prior to sending them to your data warehouse in batches. Read more about scalability [here](https://docs.eventnative.dev/scaling-eventnative).
  
- * **Dynamic Schema and JSON Interface**: EventNative parses incoming requests and adjust the underlying schema automatically.
+ * **Dynamic Schema and JSON Interface**: EventNative parses incoming requests and adjusts the underlying schema automatically. We map JSON events to tables and create necessary columns on the fly.
  
- * **No Schema Definitions Needed**: We automatically map JSON events to tables and create necessary columns on the fly.
-  
- * **Retrospective User Recognition**: [Coming soon](https://docs.eventnative.dev/quick-start) for selected destination (BigQuery, pSQL and ClickHouse).
+ * **Data Enrichment**: EventNative can connect with [MaxMind's](https://www.maxmind.com/en/home) selfhosted DB for geo resolution to determine a user's country, city, and zip code from their IP address
+   
+ * **Retrospective User Recognition**: [Coming soon](https://github.com/ksensehq/eventnative/issues/25) for selected destination (BigQuery, pSQL and ClickHouse).
  
  * **Mobile Application SDKs**: Coming soon for [iOS](https://github.com/ksensehq/eventnative/issues/4) and [Android](https://github.com/ksensehq/eventnative/issues/5).
 
