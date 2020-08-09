@@ -32,6 +32,7 @@ func setDefaultParams() {
 	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
+	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", "5")
 }
 
@@ -110,7 +111,7 @@ func Init() error {
 		writers[token] = eventLogWriter
 	}
 
-	appConfig.EventsConsumer = events.NewMultipleAsyncLogger(writers)
+	appConfig.EventsConsumer = events.NewMultipleAsyncLogger(writers, viper.GetBool("log.show_in_server"))
 	appConfig.ScheduleClosing(appConfig.EventsConsumer)
 
 	Instance = &appConfig
