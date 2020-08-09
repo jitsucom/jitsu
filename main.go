@@ -116,7 +116,7 @@ func main() {
 	log.Println("Started listen and server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
-		Handler:           router,
+		Handler:           middleware.Cors(router),
 		ReadTimeout:       time.Second * 60,
 		ReadHeaderTimeout: time.Second * 60,
 		IdleTimeout:       time.Second * 65,
@@ -148,6 +148,5 @@ func SetupRouter() *gin.Engine {
 		apiV1.POST("/event", middleware.TokenAuth(handlers.NewEventHandler().Handler))
 	}
 
-	router.Use(middleware.Cors)
 	return router
 }
