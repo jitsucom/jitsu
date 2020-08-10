@@ -3,9 +3,12 @@ package adapters
 import (
 	"cloud.google.com/go/storage"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
+	"strings"
 )
 
 type GoogleCloudStorage struct {
@@ -15,10 +18,13 @@ type GoogleCloudStorage struct {
 }
 
 type GoogleConfig struct {
-	Bucket  string `mapstructure:"gcs_bucket"`
-	Project string `mapstructure:"bq_project"`
-	Dataset string `mapstructure:"bq_dataset"`
-	KeyFile string `mapstructure:"key_file"`
+	Bucket  string      `mapstructure:"gcs_bucket"`
+	Project string      `mapstructure:"bq_project"`
+	Dataset string      `mapstructure:"bq_dataset"`
+	KeyFile interface{} `mapstructure:"key_file"`
+
+	//will be set on validation
+	credentials option.ClientOption
 }
 
 func (gc *GoogleConfig) Validate() error {
@@ -28,19 +34,40 @@ func (gc *GoogleConfig) Validate() error {
 	if gc.Bucket == "" {
 		return errors.New("Google cloud storage bucket(gcs_bucket) is required parameter")
 	}
-	if gc.KeyFile == "" {
-		return errors.New("Google key file is required parameter")
-	}
 	if gc.Project == "" {
 		return errors.New("BigQuery project(bq_project) is required parameter")
+	}
+
+	switch gc.KeyFile.(type) {
+	case map[string]interface{}:
+		keyFileObject := gc.KeyFile.(map[string]interface{})
+		if len(keyFileObject) == 0 {
+			return errors.New("Google key file is required parameter")
+		}
+		b, err := json.Marshal(keyFileObject)
+		if err != nil {
+			return fmt.Errorf("Malformed google key_file: %v", err)
+		}
+		gc.credentials = option.WithCredentialsJSON(b)
+	case string:
+		keyFile := gc.KeyFile.(string)
+		if keyFile == "" {
+			return errors.New("Google key file is required parameter")
+		}
+		if strings.Contains(keyFile, "{") {
+			gc.credentials = option.WithCredentialsJSON([]byte(keyFile))
+		} else {
+			gc.credentials = option.WithCredentialsFile(keyFile)
+		}
+	default:
+		return errors.New("Google ey_file must be string or json object")
 	}
 
 	return nil
 }
 
 func NewGoogleCloudStorage(ctx context.Context, config *GoogleConfig) (*GoogleCloudStorage, error) {
-	credentials := extractCredentials(config)
-	client, err := storage.NewClient(ctx, credentials)
+	client, err := storage.NewClient(ctx, config.credentials)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating google cloud storage client: %v", err)
 	}
