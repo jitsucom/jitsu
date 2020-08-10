@@ -33,7 +33,6 @@ func NewEventHandler() (eventHandler *EventHandler) {
 }
 
 func (eh *EventHandler) Handler(c *gin.Context) {
-	c.Header("Access-Control-Allow-Origin", "*")
 	payload := map[string]interface{}{}
 	if err := c.BindJSON(&payload); err != nil {
 		c.Writer.WriteHeader(http.StatusBadRequest)
