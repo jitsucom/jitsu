@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/schema"
 	"google.golang.org/api/googleapi"
-	"google.golang.org/api/option"
 	"log"
 	"net/http"
 	"strings"
@@ -29,8 +28,7 @@ type BigQuery struct {
 }
 
 func NewBigQuery(ctx context.Context, config *GoogleConfig) (*BigQuery, error) {
-	credentials := extractCredentials(config)
-	client, err := bigquery.NewClient(ctx, config.Project, credentials)
+	client, err := bigquery.NewClient(ctx, config.Project, config.credentials)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating BigQuery client: %v", err)
 	}
@@ -179,12 +177,4 @@ func (bq *BigQuery) Close() error {
 func isNotFoundErr(err error) bool {
 	e, ok := err.(*googleapi.Error)
 	return ok && e.Code == http.StatusNotFound
-}
-
-func extractCredentials(config *GoogleConfig) option.ClientOption {
-	if strings.Contains(config.KeyFile, "{") {
-		return option.WithCredentialsJSON([]byte(config.KeyFile))
-	} else {
-		return option.WithCredentialsFile(config.KeyFile)
-	}
 }
