@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
+	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/schema"
 	"log"
@@ -13,7 +14,7 @@ import (
 
 const tableFileKeyDelimiter = "-table-"
 
-//Store files to aws RedShift via aws s3
+//Store files to aws RedShift via aws s3 in batch mode (1 file = 1 transaction)
 //Keeping tables schema state inmemory and update it according to incoming new data
 //note: Assume that after any outer changes in db we need to recreate this structure
 //for keeping actual db tables schema state
@@ -68,8 +69,7 @@ func (ar *AwsRedshift) start() {
 			//TODO configurable
 			time.Sleep(1 * time.Minute)
 
-			//TODO if we want to accumulate all users in one bucket -> create different folders
-			filesKeys, err := ar.s3Adapter.ListBucket()
+			filesKeys, err := ar.s3Adapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
 				log.Println("Error reading files from s3", err)
 				continue
@@ -110,11 +110,11 @@ func (ar *AwsRedshift) start() {
 	}()
 }
 
-//Process file payload
+//ProcessFilePayload file payload
 //Patch table if there are any new fields
 //Upload payload as a file to aws s3
 func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
-	flatData, err := ar.schemaProcessor.Process(fileName, payload, ar.breakOnError)
+	flatData, err := ar.schemaProcessor.ProcessFilePayload(fileName, payload, ar.breakOnError)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 		//Patch
 		if schemaDiff.Exists() {
 			if err := ar.redshiftAdapter.PatchTableSchema(schemaDiff); err != nil {
-				return err
+				return fmt.Errorf("Error patching table schema %s in redshift: %v", schemaDiff.Name, err)
 			}
 			//Save
 			for k, v := range schemaDiff.Columns {
@@ -165,5 +165,9 @@ func (ar AwsRedshift) Name() string {
 }
 
 func (ar AwsRedshift) Close() error {
-	return ar.redshiftAdapter.Close()
+	if err := ar.redshiftAdapter.Close(); err != nil {
+		return fmt.Errorf("Error closing redshift datasource: %v", err)
+	}
+
+	return nil
 }

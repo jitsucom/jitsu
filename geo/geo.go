@@ -24,12 +24,12 @@ type Resolver interface {
 }
 
 type Data struct {
-	Country string  `json:"country"`
-	City    string  `json:"city"`
-	Lat     float64 `json:"latitude"`
-	Lon     float64 `json:"longitude"`
-	Zip     string  `json:"zip"`
-	Region  string  `json:"region"`
+	Country string  `json:"country,omitempty"`
+	City    string  `json:"city,omitempty"`
+	Lat     float64 `json:"latitude,omitempty"`
+	Lon     float64 `json:"longitude,omitempty"`
+	Zip     string  `json:"zip,omitempty"`
+	Region  string  `json:"region,omitempty"`
 }
 
 type MaxMindResolver struct {
@@ -45,8 +45,7 @@ func CreateResolver(geoipPath string) (Resolver, error) {
 
 	geoIpParser, err := createGeoIpParser(geoipPath)
 	if err != nil {
-		log.Println("Error open maxmind db:", err)
-		return &DummyResolver{}, err
+		return &DummyResolver{}, fmt.Errorf("Error open maxmind db: %v", err)
 	}
 
 	resolver := &MaxMindResolver{}

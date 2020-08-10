@@ -92,10 +92,10 @@ func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) er
 	return nil
 }
 
-//Return google cloud storage bucket file names
-func (gcs *GoogleCloudStorage) ListBucket() ([]string, error) {
+//Return google cloud storage bucket file names filtered by prefix
+func (gcs *GoogleCloudStorage) ListBucket(prefix string) ([]string, error) {
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
-	it := bucket.Objects(gcs.ctx, nil)
+	it := bucket.Objects(gcs.ctx, &storage.Query{Prefix: prefix})
 	var files []string
 	for {
 		attrs, err := it.Next()

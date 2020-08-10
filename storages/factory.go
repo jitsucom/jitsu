@@ -31,18 +31,19 @@ type DataLayout struct {
 
 var unknownDestination = errors.New("Unknown destination type")
 
-//Create event storage from incoming config
+//Create event storages(batch) and consumers(streaming) from incoming config
 //Enrich incoming configs with default values if needed
-func CreateStorages(ctx context.Context, destinations *viper.Viper) map[string][]events.Storage {
+func CreateStorages(ctx context.Context, destinations *viper.Viper, logEventPath string) (map[string][]events.Storage, map[string][]events.Consumer) {
 	stores := map[string][]events.Storage{}
+	consumers := map[string][]events.Consumer{}
 	if destinations == nil {
-		return stores
+		return stores, consumers
 	}
 
 	dc := map[string]DestinationConfig{}
 	if err := destinations.Unmarshal(&dc); err != nil {
 		log.Println("Error initializing destinations: wrong config format: each destination must contains one key and config as a value e.g. destinations:\n  custom_name:\n      type: redshift ...", err)
-		return stores
+		return stores, consumers
 	}
 
 	for name, destination := range dc {
@@ -68,11 +69,14 @@ func CreateStorages(ctx context.Context, destinations *viper.Viper) map[string][
 		}
 
 		var storage events.Storage
+		var consumer events.Consumer
 		switch destination.Type {
 		case "redshift":
 			storage, err = createRedshift(ctx, name, destination, processor)
 		case "bigquery":
 			storage, err = createBigQuery(ctx, name, destination, processor)
+		case "postgres":
+			consumer, err = createPostgres(ctx, name, destination, processor, logEventPath)
 		default:
 			err = unknownDestination
 		}
@@ -91,11 +95,16 @@ func CreateStorages(ctx context.Context, destinations *viper.Viper) map[string][
 		}
 
 		for _, token := range tokens {
-			stores[token] = append(stores[token], storage)
+			if storage != nil {
+				stores[token] = append(stores[token], storage)
+			}
+			if consumer != nil {
+				consumers[token] = append(consumers[token], consumer)
+			}
 		}
 
 	}
-	return stores
+	return stores, consumers
 }
 
 func logError(destinationName, destinationType string, err error) {
@@ -140,4 +149,23 @@ func createBigQuery(ctx context.Context, name string, destination DestinationCon
 	}
 
 	return NewBigQuery(ctx, gConfig, processor, destination.BreakOnError)
+}
+
+//Create Postgres event consumer
+func createPostgres(ctx context.Context, name string, destination DestinationConfig, processor *schema.Processor, logEventPath string) (*Postgres, error) {
+	config := destination.DataSource
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+	//enrich with default parameters
+	if config.Port <= 0 {
+		config.Port = 5432
+		log.Printf("name: %s type: postgres port wasn't provided. Will be used default one: %d", name, config.Port)
+	}
+	if config.Schema == "" {
+		config.Schema = "public"
+		log.Printf("name: %s type: postgres schema wasn't provided. Will be used default one: %s", name, config.Schema)
+	}
+
+	return NewPostgres(ctx, config, processor, logEventPath, name)
 }

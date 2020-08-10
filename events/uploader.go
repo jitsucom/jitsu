@@ -18,8 +18,8 @@ type Uploader interface {
 	Start()
 }
 
-//Uploader reads already rotated and closed log files
-//and passed them to all Storage (or Storages) according to token from filename
+//Uploader read already rotated and closed log files
+//Passed them to all Storage (or Storages) according to token from filename
 type PeriodicUploader struct {
 	fileMask       string
 	filesBatchSize int
@@ -31,7 +31,7 @@ type PeriodicUploader struct {
 type DummyUploader struct{}
 
 func (*DummyUploader) Start() {
-	log.Println("There is no configured event destinations")
+	log.Println("There is no configured event batch destinations")
 }
 
 func NewUploader(fileMask string, filesBatchSize, uploadEveryS int, tokenizedEventStorages map[string][]Storage) Uploader {
@@ -88,6 +88,7 @@ func (u *PeriodicUploader) Start() {
 
 				token := regexResult[1]
 				eventStorages, ok := u.tokenizedEventStorages[token]
+				//TODO remove it if we want to write logs with streaming postgres
 				if !ok {
 					log.Printf("Destination storages weren't found for token %s", token)
 					continue
