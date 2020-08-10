@@ -113,7 +113,7 @@ func main() {
 
 	router := SetupRouter()
 
-	log.Println("Started listen and server: " + appconfig.Instance.Authority)
+	log.Println("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
 		Handler:           middleware.Cors(router),
