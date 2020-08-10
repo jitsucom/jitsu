@@ -46,9 +46,10 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		return nil, err
 	}
 
-	queue, err := dque.Open(fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, storageName), fallbackDir, eventsPerPersistedFile, EventFactBuilder)
+	queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, storageName)
+	queue, err := dque.Open(queueName, fallbackDir, eventsPerPersistedFile, EventFactBuilder)
 	if err != nil {
-		queue, err = dque.New(storageName, fallbackDir, eventsPerPersistedFile, EventFactBuilder)
+		queue, err = dque.New(queueName, fallbackDir, eventsPerPersistedFile, EventFactBuilder)
 		if err != nil {
 			return nil, fmt.Errorf("Error creating event queue for postgres: %v", err)
 		}

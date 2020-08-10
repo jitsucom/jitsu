@@ -31,7 +31,7 @@ type PeriodicUploader struct {
 type DummyUploader struct{}
 
 func (*DummyUploader) Start() {
-	log.Println("There is no configured event destinations")
+	log.Println("There is no configured event batch destinations")
 }
 
 func NewUploader(fileMask string, filesBatchSize, uploadEveryS int, tokenizedEventStorages map[string][]Storage) Uploader {
