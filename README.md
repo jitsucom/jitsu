@@ -1,37 +1,38 @@
-<table><tr><td><img width="200"  src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/en-logo.png"></td><td>
+<table><tr><td><img width="200"  src="https://github.com/ksensehq/eventnative/blob/master/artwork/logo-256x256.png?raw=true"></td><td>
 
 **EventNative** is an open source, high-performance, event collection service. Capture all events your application generates and stream to your preferred Data Warehouse with current support for RedShift and BigQuery. EventNative can be deployed in 1-click on the infrastructure of your choice.<br>
-   <a href="https://circleci.com/gh/ksensehq/eventnative/tree/master"><img align="right" width="100" src="https://circleci.com/gh/ksensehq/eventnative/tree/master.svg?style=svg&circle-token=52a01ca8af325a73c950df2aa1953f68933383c3"></a> <a href=#><img align="right" width="100" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/go.png"></a></td></tr></table><br>
-
-
+   <a href="https://circleci.com/gh/ksensehq/eventnative/tree/master"><img align="right" width="100" src="https://circleci.com/gh/ksensehq/eventnative/tree/master.svg?style=svg&circle-token=52a01ca8af325a73c950df2aa1953f68933383c3"></a> <a href=#><img align="right" width="100" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/go.png"></a></td></tr></table><br><p align="center"><img width="600px" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/en-video.gif"></p>
+   
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/quick-n.png" width="40px"></a>
 ## Quick Start
-The fastest way to get started is one click deploy on Heroku with:<br>
+The fastest way to get started is one click [deploy on Heroku](https://docs.eventnative.dev/deployment/deploy-on-heroku) with:
+
 <a href="https://heroku.com/deploy?template=https://github.com/ksensehq/eventnative"><img src="https://raw.githubusercontent.com/ksensehq/eventnative/7eb28378b252ac7c3209457ca3766be806085e41/artwork/heroku.svg" width="200px" /></a>
 
-
-The easiest way to deploy on your own server is using Docker:<br>
-<a href="https://docs.eventnative.dev/deployment/deploy-with-docker"><img src="https://github.com/ksensehq/eventnative/blob/master/artwork/docker.png?raw=true" width="200px" /></a>
+For production deployment we suggest Docker:
+ * [Official ksense/eventnative](https://hub.docker.com/r/ksense/eventnative) image
+ * [Docker deployment guide](https://docs.eventnative.dev/deployment/deploy-with-docker)
+ * Also, you can [build EventNative from sources](https://docs.eventnative.dev/deployment/build-from-sources) and use configuration management of your choice
 
 
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/feat-n.png" width="40px" /></a>
 
 ## Features
- * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://app.gitbook.com/@eventnative/s/eventnative/javascript-integration) and you're set!
+ * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://docs.eventnative.dev/javascript-reference/direct-tracking) and you're set!
  
- * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.dev/javascript-integration/direct-tracking).
+ * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.dev/javascript-reference).
  
  * **Capture Events stoped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those withour AdBlock.
 
- * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), Snowflake ([Coming Soon](https://github.com/ksensehq/eventnative/issues/6)), PostgreSQL ([Coming Soon](https://github.com/ksensehq/eventnative/issues/1)).
+ * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), [Snowflake](https://www.snowflake.com/) ([Coming Soon](https://github.com/ksensehq/eventnative/issues/6)), PostgreSQL (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/1)*) and [ClickHouse](https://clickhouse.tech/) (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/29)*). EventNative automatically pushes to all your configured destinations at once without additional overhead.
  
  * **High-Performance and Throughput**: EventNative is written in [Go](https://golang.org/) with performance in mind, you're only limited by local disk performance since we write events locally prior to sending them to your data warehouse in batches. Read more about scalability [here](https://docs.eventnative.dev/scaling-eventnative).
  
- * **Dynamic Schema and JSON Interface**: EventNative parses incoming requests and adjust the underlying schema automatically.
+ * **Dynamic Schema and JSON Interface**: EventNative parses incoming requests and adjusts the underlying schema automatically. We map JSON events to tables and create necessary columns on the fly.
  
- * **No Schema Definitions Needed**: We automatically map JSON events to tables and create necessary columns on the fly.
-  
- * **Retrospective User Recognition**: [Coming soon](https://docs.eventnative.dev/quick-start) for BigQuery.
+ * **Data Enrichment**: EventNative can connect with [MaxMind's](https://www.maxmind.com/en/home) selfhosted DB for geo resolution to determine a user's country, city, and zip code from their IP address
+   
+ * **Retrospective User Recognition**: [Coming soon](https://github.com/ksensehq/eventnative/issues/25) for selected destination (BigQuery, pSQL and ClickHouse).
  
  * **Mobile Application SDKs**: Coming soon for [iOS](https://github.com/ksensehq/eventnative/issues/4) and [Android](https://github.com/ksensehq/eventnative/issues/5).
 
@@ -61,7 +62,7 @@ We are made for developers, by developers and would love to have you join our co
  * Submit a pull request!
 
 
-<a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/7eb28378b252ac7c3209457ca3766be806085e41/artwork/logo.svg" width="40px" /></a>
+<a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/bb6a40cc5f0a84d29b270f510ea4f632f3314e71/artwork/ksense-logo.svg" width="40px" /></a>
 ## Open Source
 
 EventNative is developed and maintained by [kSense](https://ksense.io/) under the MIT license. We charge for ETL from other datasources and let you connect your EventNative destination to kSense for analysis if you choose.

@@ -155,10 +155,10 @@ func main() {
 
 	router := SetupRouter(streamingStoragesByToken)
 
-	log.Println("Started listen and server: " + appconfig.Instance.Authority)
+	log.Println("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
-		Handler:           router,
+		Handler:           middleware.Cors(router),
 		ReadTimeout:       time.Second * 60,
 		ReadHeaderTimeout: time.Second * 60,
 		IdleTimeout:       time.Second * 65,
@@ -190,6 +190,5 @@ func SetupRouter(tokenizedEventConsumers map[string][]events.Consumer) *gin.Engi
 		apiV1.POST("/event", middleware.TokenAuth(handlers.NewEventHandler(tokenizedEventConsumers).Handler))
 	}
 
-	router.Use(middleware.Cors)
 	return router
 }
