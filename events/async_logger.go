@@ -10,8 +10,9 @@ import (
 
 //AsyncLogger write json logs to file system in different goroutine
 type AsyncLogger struct {
-	writer io.WriteCloser
-	logCh  chan Fact
+	writer             io.WriteCloser
+	logCh              chan Fact
+	showInGlobalLogger bool
 }
 
 //Consume event fact and put it to channel
@@ -28,8 +29,8 @@ func (al *AsyncLogger) Close() (resultErr error) {
 }
 
 //Create AsyncLogger and run goroutine that's read from channel and write to file
-func NewAsyncLogger(writer io.WriteCloser) Consumer {
-	logger := &AsyncLogger{writer: writer, logCh: make(chan Fact, 20000)}
+func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) Consumer {
+	logger := &AsyncLogger{writer: writer, logCh: make(chan Fact, 20000), showInGlobalLogger: showInGlobalLogger}
 
 	go func() {
 		for {
@@ -38,6 +39,11 @@ func NewAsyncLogger(writer io.WriteCloser) Consumer {
 			if err != nil {
 				log.Printf("Error marshaling event to json: %v", err)
 				continue
+			}
+
+			if logger.showInGlobalLogger {
+				prettyJsonBytes, _ := json.MarshalIndent(&fact, " ", " ")
+				log.Println(string(prettyJsonBytes))
 			}
 
 			buf := bytes.NewBuffer(bts)
