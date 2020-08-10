@@ -114,7 +114,7 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
-		logger := events.NewAsyncLogger(eventLogWriter)
+		logger := events.NewAsyncLogger(eventLogWriter, viper.GetBool("log.show_in_server"))
 		loggingConsumers[token] = logger
 		appconfig.Instance.ScheduleClosing(logger)
 	}

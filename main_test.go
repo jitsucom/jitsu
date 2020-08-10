@@ -52,7 +52,7 @@ func TestApiEvent(t *testing.T) {
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
-			router := SetupRouter(map[string][]events.Consumer{"test-mock": {events.NewAsyncLogger(logging.InitInMemoryWriter())}})
+			router := SetupRouter(map[string][]events.Consumer{"test-mock": {events.NewAsyncLogger(logging.InitInMemoryWriter(), false)}})
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
