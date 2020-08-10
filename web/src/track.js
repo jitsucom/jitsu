@@ -1,17 +1,3 @@
-(function (global, factory) {
-    if (typeof define === "function" && define.amd) {
-        define(["exports"], factory);
-    } else if (typeof exports !== "undefined") {
-        factory(exports);
-    } else {
-        var mod = {
-            exports: {}
-        };
-        factory(mod.exports);
-
-        global.eventN = mod.exports.eventN;
-    }
-})(this, function (exports) {
     const UTM_PREFIX = "utm_";
     const UTM_TYPES = ['source', 'medium', 'campaign', 'term', 'content']
     const CLICK_IDS = ['gclid', 'fbclid']
@@ -19,11 +5,6 @@
     let eventnObject = (window.eventN === undefined) ? (window.eventN = {}) : window.eventN;
     if (!eventnObject.eventsQ) {
         eventnObject.eventsQ = [];
-    }
-
-    if (window.eventN && window.eventN.initialized) {
-        exports.eventN = eventnObject
-        return;
     }
 
     const LOG = {
@@ -372,23 +353,18 @@
         }
     }
 
-    const eventnTracker = new EventnTracker();
+    if (!window.eventN || !window.eventN.initialized) {
+      const eventnTracker = new EventnTracker();
 
-    //==================
-    // EXPORTS SETUP
-    //==================
-
-
-    for (const apiMethod of ['track', 'id', 'init']) {
+      for (const apiMethod of ['track', 'id', 'init']) {
         eventnObject[apiMethod] = function (...args) {
-            let copy = args.slice();
-            copy.unshift(apiMethod);
-            eventnObject.eventsQ.push(copy);
-            eventnTracker.processEventsQueue(eventnObject);
+          let copy = args.slice();
+          copy.unshift(apiMethod);
+          eventnObject.eventsQ.push(copy);
+          eventnTracker.processEventsQueue(eventnObject);
         }
+      }
+      eventnTracker.processEventsQueue(eventnObject);
+      eventnObject.initialized = true;
     }
-    eventnTracker.processEventsQueue(eventnObject);
-    eventnObject.initialized = true;
-
-    exports.eventN = eventnObject
-});
+    export const eventN = eventnObject;
