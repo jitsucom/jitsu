@@ -68,10 +68,12 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 	return p, nil
 }
 
+//Consume events.Fact and enqueue it
 func (p *Postgres) Consume(fact events.Fact) {
 	p.enqueue(fact)
 }
 
+//Marshaling events.Fact to json bytes and put it to persistent queue
 func (p *Postgres) enqueue(fact events.Fact) {
 	factBytes, err := json.Marshal(fact)
 	if err != nil {
@@ -168,6 +170,7 @@ func (p *Postgres) insert(dataSchema *schema.Table, fact events.Fact) (err error
 	return p.adapter.Insert(dbTableSchema, fact)
 }
 
+//Close adapters.Postgres and queue
 func (p *Postgres) Close() (multiErr error) {
 	if err := p.adapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing postgres datasource: %v", err))

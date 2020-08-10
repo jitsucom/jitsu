@@ -10,6 +10,7 @@ import (
 	"io"
 	"log"
 	"reflect"
+	"strings"
 	"text/template"
 	"time"
 )
@@ -168,8 +169,9 @@ func (p *Processor) flattenObject(json map[string]interface{}) (map[string]inter
 
 }
 
-//omit nil values
+//omit nil values and make all keys to lowercase
 func (p *Processor) flatten(key string, value interface{}, destination map[string]interface{}) error {
+	key = strings.ToLower(key)
 	t := reflect.ValueOf(value)
 	switch t.Kind() {
 	case reflect.Slice:
