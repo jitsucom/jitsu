@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -26,7 +25,6 @@ func NewWriter(config Config) (io.WriteCloser, error) {
 
 func newRollingWriter(config Config) (io.WriteCloser, error) {
 	fileNamePath := filepath.Join(config.FileDir, fmt.Sprintf("%s-%s.log", config.ServerName, config.LoggerName))
-	log.Println("Constructing rolling writer for:", fileNamePath)
 	lWriter := &lumberjack.Logger{
 		Filename: fileNamePath,
 		MaxSize:  logFileMaxSizeMB,

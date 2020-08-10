@@ -55,7 +55,7 @@ func readInViperConfig() error {
 	return nil
 }
 
-//go:generate easyjson -all handlers/static.go useragent/resolver.go
+//go:generate easyjson -all handlers/static.go useragent/resolver.go geo/geo.go
 func main() {
 	// Setup seed for globalRand
 	rand.Seed(time.Now().Unix())
