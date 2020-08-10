@@ -29,6 +29,7 @@ func setDefaultParams() {
 	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
+	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", "5")
 }
 

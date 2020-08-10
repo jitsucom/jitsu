@@ -42,7 +42,7 @@ func CreateStorages(ctx context.Context, destinations *viper.Viper, logEventPath
 
 	dc := map[string]DestinationConfig{}
 	if err := destinations.Unmarshal(&dc); err != nil {
-		log.Println("Error initializing destinations: wrong config format: each destination must contains one key and config as a value e.g. destinations:\n  custom_name:\n      type: redshift ...")
+		log.Println("Error initializing destinations: wrong config format: each destination must contains one key and config as a value e.g. destinations:\n  custom_name:\n      type: redshift ...", err)
 		return stores, consumers
 	}
 

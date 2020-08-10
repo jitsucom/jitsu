@@ -17,6 +17,7 @@ import (
 const eventnKey = "eventn_ctx"
 const uaKey = "user_agent"
 
+//Accept all events
 type EventHandler struct {
 	eventConsumersByToken map[string][]events.Consumer
 	geoResolver           geo.Resolver

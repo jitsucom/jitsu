@@ -54,7 +54,7 @@ func NewPageHandler(sourceDir, serverPublicUrl string, disableWelcomePage bool) 
 
 func (ph *PageHandler) Handler(c *gin.Context) {
 	c.Header("Content-type", htmlContentType)
-	c.Header("Access-Control-Allow-Origin", "*")
+	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
 	fileName := c.Param("filename")
 
