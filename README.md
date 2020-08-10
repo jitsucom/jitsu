@@ -18,9 +18,9 @@ For production deployment we suggest Docker:
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/feat-n.png" width="40px" /></a>
 
 ## Features
- * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://app.gitbook.com/@eventnative/s/eventnative/javascript-integration) and you're set!
+ * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://docs.eventnative.dev/javascript-reference/direct-tracking) and you're set!
  
- * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.dev/javascript-integration/direct-tracking).
+ * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.dev/javascript-reference).
  
  * **Capture Events stoped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those withour AdBlock.
 
