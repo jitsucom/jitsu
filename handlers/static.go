@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"log"
@@ -11,6 +12,7 @@ import (
 
 const contentToRemove = `"use strict";`
 const jsContentType = "application/javascript"
+const eventsChainJsTemplate = "eventN.track('%s'); "
 
 //Serve js files
 type StaticHandler struct {
@@ -95,8 +97,16 @@ func (sh *StaticHandler) Handler(c *gin.Context) {
 			}
 		}
 
+		var eventsChainJs string
+		eventsArr, ok := c.GetQueryArray("event")
+		if ok {
+			for _, event := range eventsArr {
+				eventsChainJs += fmt.Sprintf(eventsChainJsTemplate, event)
+			}
+		}
+
 		configJson, _ := json.MarshalIndent(config, "", " ")
-		c.Writer.Write([]byte(`var eventnConfig = ` + string(configJson) + `;` + string(file)))
+		c.Writer.Write([]byte(`var eventnConfig = ` + string(configJson) + `;` + string(file) + eventsChainJs))
 	default:
 		c.Writer.Write(file)
 	}
