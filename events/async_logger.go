@@ -8,17 +8,18 @@ import (
 	"log"
 )
 
-//Logger that's is handling multiple log files: one per token(api_key)
+//AsyncLogger write json logs to file system in different goroutine
 type AsyncLogger struct {
 	writer io.WriteCloser
 	logCh  chan Fact
 }
 
-//Put event fact to channel
+//Consume event fact and put it to channel
 func (al *AsyncLogger) Consume(fact Fact) {
 	al.logCh <- fact
 }
 
+//Close underlying log file writer
 func (al *AsyncLogger) Close() (resultErr error) {
 	if err := al.writer.Close(); err != nil {
 		return fmt.Errorf("Error closing writer: %v", err)

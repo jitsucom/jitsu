@@ -16,12 +16,14 @@ const (
     				json 'auto'`
 )
 
+//AwsRedshift adapter for creating,patching (schema or table), copying data from s3 to redshift
 type AwsRedshift struct {
-	//Aws Redshift has Postgres fork under the hood
+	//Aws Redshift uses Postgres fork under the hood
 	dataSourceProxy *Postgres
 	s3Config        *S3Config
 }
 
+//NewAwsRedshift return configured AwsRedshift adapter instance
 func NewAwsRedshift(ctx context.Context, dsConfig *DataSourceConfig, s3Config *S3Config) (*AwsRedshift, error) {
 	postgres, err := NewPostgres(ctx, dsConfig)
 	if err != nil {
@@ -35,6 +37,7 @@ func (AwsRedshift) Name() string {
 	return "Redshift"
 }
 
+//OpenTx open underline sql transaction and return wrapped instance
 func (ar *AwsRedshift) OpenTx() (*Transaction, error) {
 	tx, err := ar.dataSourceProxy.dataSource.BeginTx(ar.dataSourceProxy.ctx, nil)
 	if err != nil {
@@ -44,6 +47,7 @@ func (ar *AwsRedshift) OpenTx() (*Transaction, error) {
 	return &Transaction{tx: tx, dbType: ar.Name()}, nil
 }
 
+//Copy transfer data from s3 to redshift by passing COPY request to redshift in provided wrapped transaction
 func (ar *AwsRedshift) Copy(wrappedTx *Transaction, fileKey, tableName string) error {
 	statement := fmt.Sprintf(copyTemplate, ar.dataSourceProxy.config.Schema, tableName, ar.s3Config.Bucket, fileKey, ar.s3Config.AccessKeyID, ar.s3Config.SecretKey, ar.s3Config.Region)
 	_, err := wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, statement)
@@ -51,22 +55,42 @@ func (ar *AwsRedshift) Copy(wrappedTx *Transaction, fileKey, tableName string) e
 	return err
 }
 
+//CreateDbSchema create database schema instance if doesn't exist
 func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
-	return ar.dataSourceProxy.CreateDbSchema(dbSchemaName)
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	return ar.dataSourceProxy.createDbSchemaInTransaction(wrappedTx, dbSchemaName)
 }
 
+//PatchTableSchema add new columns(from provided schema.Table) to existing table
 func (ar *AwsRedshift) PatchTableSchema(patchSchema *schema.Table) error {
-	return ar.dataSourceProxy.PatchTableSchema(patchSchema)
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	return ar.dataSourceProxy.patchTableSchemaInTransaction(wrappedTx, patchSchema)
 }
 
+//GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
 func (ar *AwsRedshift) GetTableSchema(tableName string) (*schema.Table, error) {
 	return ar.dataSourceProxy.GetTableSchema(tableName)
 }
 
+//CreateTable create database table with name,columns provided in schema.Table representation
 func (ar *AwsRedshift) CreateTable(tableSchema *schema.Table) error {
-	return ar.dataSourceProxy.CreateTable(tableSchema)
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	return ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
 }
 
+//Close underlying sql.DB
 func (ar *AwsRedshift) Close() error {
 	return ar.dataSourceProxy.Close()
 }

@@ -119,36 +119,41 @@ func main() {
 		appconfig.Instance.ScheduleClosing(logger)
 	}
 
-	//Create event storages per token
-	eventStoragesByToken, eventConsumersByToken := storages.CreateStorages(ctx, destinationsViper, logEventPath)
+	//Create event storages - batch(events.Storage) and streaming(events.Consumer) per token
+	batchStoragesByToken, streamingStoragesByToken := storages.CreateStorages(ctx, destinationsViper, logEventPath)
 
-	//Schedule storages and consumers resource releasing
-	for _, eStorages := range eventStoragesByToken {
+	//Schedule storages resource releasing
+	for _, eStorages := range batchStoragesByToken {
 		for _, es := range eStorages {
 			appconfig.Instance.ScheduleClosing(es)
 		}
 	}
-	for _, eConsumers := range eventConsumersByToken {
+	//Schedule consumers resource releasing
+	for _, eConsumers := range streamingStoragesByToken {
 		for _, ec := range eConsumers {
 			appconfig.Instance.ScheduleClosing(ec)
 		}
 	}
 
-	//merge logger consumers with storage consumers
+	//merge logger consumers with storage consumers: Skip loggers which don't have batches storages (because we don't need to write log files for streaming storages)
 	for token, loggingConsumer := range loggingConsumers {
-		consumers, ok := eventConsumersByToken[token]
+		if _, ok := batchStoragesByToken[token]; !ok {
+			continue
+		}
+
+		consumers, ok := streamingStoragesByToken[token]
 		if !ok {
 			consumers = []events.Consumer{}
 		}
 		consumers = append(consumers, loggingConsumer)
-		eventConsumersByToken[token] = consumers
+		streamingStoragesByToken[token] = consumers
 	}
 
 	//Uploader must read event logger directory
-	uploader := events.NewUploader(logEventPath+appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, eventStoragesByToken)
+	uploader := events.NewUploader(logEventPath+appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, batchStoragesByToken)
 	uploader.Start()
 
-	router := SetupRouter(eventConsumersByToken)
+	router := SetupRouter(streamingStoragesByToken)
 
 	log.Println("Started listen and server: " + appconfig.Instance.Authority)
 	server := &http.Server{
