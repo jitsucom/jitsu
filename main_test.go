@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
 	"github.com/ksensehq/eventnative/test"
@@ -51,7 +52,7 @@ func TestApiEvent(t *testing.T) {
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
-			router := SetupRouter()
+			router := SetupRouter(map[string][]events.Consumer{"test-mock": {events.NewAsyncLogger(logging.InitInMemoryWriter(), false)}})
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })

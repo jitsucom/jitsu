@@ -19,17 +19,18 @@ const uaKey = "user_agent"
 
 //Accept all events
 type EventHandler struct {
-	eventConsumer events.Consumer
-	geoResolver   geo.Resolver
-	uaResolver    *useragent.Resolver
+	eventConsumersByToken map[string][]events.Consumer
+	geoResolver           geo.Resolver
+	uaResolver            *useragent.Resolver
 }
 
-func NewEventHandler() (eventHandler *EventHandler) {
-	eventHandler = &EventHandler{}
-	eventHandler.eventConsumer = appconfig.Instance.EventsConsumer
-	eventHandler.geoResolver = appconfig.Instance.GeoResolver
-	eventHandler.uaResolver = appconfig.Instance.UaResolver
-	return
+//Accept all events according to token
+func NewEventHandler(eventConsumersByToken map[string][]events.Consumer) (eventHandler *EventHandler) {
+	return &EventHandler{
+		eventConsumersByToken: eventConsumersByToken,
+		geoResolver:           appconfig.Instance.GeoResolver,
+		uaResolver:            appconfig.Instance.UaResolver,
+	}
 }
 
 func (eh *EventHandler) Handler(c *gin.Context) {
@@ -81,6 +82,13 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 	if !ok {
 		log.Println("System error: token wasn't found in context")
 	} else {
-		eh.eventConsumer.Consume(payload, token.(string))
+		consumers, ok := eh.eventConsumersByToken[token.(string)]
+		if ok {
+			for _, consumer := range consumers {
+				consumer.Consume(payload)
+			}
+		} else {
+			log.Printf("Unknown token[%s] request was received", token.(string))
+		}
 	}
 }

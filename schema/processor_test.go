@@ -112,7 +112,7 @@ func TestProcess(t *testing.T) {
 			fBytes, err := ioutil.ReadFile(tt.inputFilePath)
 			require.NoError(t, err)
 
-			actualResult, err := p.Process("testfile", fBytes, false)
+			actualResult, err := p.ProcessFilePayload("testfile", fBytes, false)
 			require.NoError(t, err)
 
 			require.Equal(t, len(tt.expectedResult), len(actualResult), "Result sizes aren't equal")
