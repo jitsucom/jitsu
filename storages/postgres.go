@@ -2,7 +2,7 @@ package storages
 
 import (
 	"context"
-	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/joncrlsn/dque"
@@ -10,9 +10,7 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
-	"github.com/ksensehq/eventnative/geo"
 	"github.com/ksensehq/eventnative/schema"
-	"github.com/ksensehq/eventnative/useragent"
 	"log"
 )
 
@@ -30,10 +28,14 @@ type Postgres struct {
 	eventQueue      *dque.DQue
 }
 
+type QueuedFact struct {
+	FactBytes []byte
+}
+
 // FactBuilder creates and returns a new events.Fact.
 // This is used when we load a segment of the queue from disk.
-func FactBuilder() interface{} {
-	return events.Fact{}
+func QueuedFactBuilder() interface{} {
+	return &QueuedFact{}
 }
 
 func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor,
@@ -49,18 +51,10 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		return nil, err
 	}
 
-	//https://github.com/joncrlsn/dque uses gob under the hood and it is necessary configuration for serialization
-	gob.Register(map[string]interface{}{})
-	gob.Register(useragent.ResolvedUa{})
-	gob.Register(geo.Data{})
-
 	queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, storageName)
-	queue, err := dque.Open(queueName, fallbackDir, eventsPerPersistedFile, FactBuilder)
+	queue, err := dque.NewOrOpen(queueName, fallbackDir, eventsPerPersistedFile, QueuedFactBuilder)
 	if err != nil {
-		queue, err = dque.New(queueName, fallbackDir, eventsPerPersistedFile, FactBuilder)
-		if err != nil {
-			return nil, fmt.Errorf("Error creating event queue for postgres: %v", err)
-		}
+		return nil, fmt.Errorf("Error opening/creating event queue for postgres: %v", err)
 	}
 
 	p := &Postgres{
@@ -75,8 +69,18 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 }
 
 func (p *Postgres) Consume(fact events.Fact) {
-	if err := p.eventQueue.Enqueue(fact); err != nil {
-		log.Println("Error putting event fact to the Postgres queue:", err)
+	p.enqueue(fact)
+}
+
+func (p *Postgres) enqueue(fact events.Fact) {
+	factBytes, err := json.Marshal(fact)
+	if err != nil {
+		p.logSkippedEvent(fact, fmt.Errorf("Error marshalling events fact: %v", err))
+		return
+	}
+	if err := p.eventQueue.Enqueue(QueuedFact{FactBytes: factBytes}); err != nil {
+		p.logSkippedEvent(fact, fmt.Errorf("Error putting event fact bytes to the postgres queue: %v", err))
+		return
 	}
 }
 
@@ -96,9 +100,16 @@ func (p *Postgres) start() {
 				continue
 			}
 
-			fact, ok := iface.(events.Fact)
-			if !ok {
-				log.Println("Warn: Dequeued object is not an events.Fact instance")
+			wrappedFact, ok := iface.(QueuedFact)
+			if !ok || len(wrappedFact.FactBytes) == 0 {
+				log.Println("Warn: Dequeued object is not a QueuedFact instance or wrapped events.Fact bytes is empty")
+				continue
+			}
+
+			fact := events.Fact{}
+			err = json.Unmarshal(wrappedFact.FactBytes, &fact)
+			if err != nil {
+				log.Println("Error unmarshalling events.Fact from bytes", err)
 				continue
 			}
 
@@ -124,11 +135,11 @@ func (p *Postgres) start() {
 }
 
 //insert fact in Postgres
-func (p *Postgres) insert(dataSchema *schema.Table, fact events.Fact) error {
+func (p *Postgres) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
 	dbTableSchema, ok := p.tables[dataSchema.Name]
 	if !ok {
 		//Get or Create Table
-		dbTableSchema, err := p.adapter.GetTableSchema(dataSchema.Name)
+		dbTableSchema, err = p.adapter.GetTableSchema(dataSchema.Name)
 		if err != nil {
 			return fmt.Errorf("Error getting table %s schema from postgres: %v", dataSchema.Name, err)
 		}
@@ -157,12 +168,6 @@ func (p *Postgres) insert(dataSchema *schema.Table, fact events.Fact) error {
 	return p.adapter.Insert(dbTableSchema, fact)
 }
 
-func (p *Postgres) enqueue(fact events.Fact) {
-	if err := p.eventQueue.Enqueue(fact); err != nil {
-		log.Printf("Warn: unable to enqueue object %v reason: %v. This object will be skipped", fact, err)
-	}
-}
-
 func (p *Postgres) Close() (multiErr error) {
 	if err := p.adapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing postgres datasource: %v", err))
@@ -172,4 +177,8 @@ func (p *Postgres) Close() (multiErr error) {
 	}
 
 	return
+}
+
+func (p *Postgres) logSkippedEvent(fact events.Fact, err error) {
+	log.Printf("Warn: unable to enqueue object %v reason: %v. This object will be skipped", fact, err)
 }
