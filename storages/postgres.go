@@ -2,6 +2,7 @@ package storages
 
 import (
 	"context"
+	"encoding/gob"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/joncrlsn/dque"
@@ -9,7 +10,9 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/geo"
 	"github.com/ksensehq/eventnative/schema"
+	"github.com/ksensehq/eventnative/useragent"
 	"log"
 )
 
@@ -27,9 +30,9 @@ type Postgres struct {
 	eventQueue      *dque.DQue
 }
 
-// EventFactBuilder creates and returns a new events.Fact.
+// FactBuilder creates and returns a new events.Fact.
 // This is used when we load a segment of the queue from disk.
-func EventFactBuilder() interface{} {
+func FactBuilder() interface{} {
 	return events.Fact{}
 }
 
@@ -46,10 +49,15 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		return nil, err
 	}
 
+	//https://github.com/joncrlsn/dque uses gob under the hood and it is necessary configuration for serialization
+	gob.Register(map[string]interface{}{})
+	gob.Register(useragent.ResolvedUa{})
+	gob.Register(geo.Data{})
+
 	queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, storageName)
-	queue, err := dque.Open(queueName, fallbackDir, eventsPerPersistedFile, EventFactBuilder)
+	queue, err := dque.Open(queueName, fallbackDir, eventsPerPersistedFile, FactBuilder)
 	if err != nil {
-		queue, err = dque.New(queueName, fallbackDir, eventsPerPersistedFile, EventFactBuilder)
+		queue, err = dque.New(queueName, fallbackDir, eventsPerPersistedFile, FactBuilder)
 		if err != nil {
 			return nil, fmt.Errorf("Error creating event queue for postgres: %v", err)
 		}
@@ -138,7 +146,7 @@ func (p *Postgres) insert(dataSchema *schema.Table, fact events.Fact) error {
 	//Patch
 	if schemaDiff.Exists() {
 		if err := p.adapter.PatchTableSchema(schemaDiff); err != nil {
-			return fmt.Errorf("Error creating table %s in postgres: %v", schemaDiff.Name, err)
+			return fmt.Errorf("Error patching table %s in postgres: %v", schemaDiff.Name, err)
 		}
 		//Save
 		for k, v := range schemaDiff.Columns {
