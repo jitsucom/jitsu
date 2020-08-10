@@ -44,6 +44,7 @@ var (
 	}
 )
 
+//DataSourceConfig dto for deserialized datasource config (e.g. in Postgres or AwsRedshift destination)
 type DataSourceConfig struct {
 	Host     string `mapstructure:"host"`
 	Port     int    `mapstructure:"port"`
@@ -53,6 +54,7 @@ type DataSourceConfig struct {
 	Password string `mapstructure:"password"`
 }
 
+//Validate required fields in DataSourceConfig
 func (dsc *DataSourceConfig) Validate() error {
 	if dsc == nil {
 		return errors.New("Datasource config is required")
@@ -70,12 +72,14 @@ func (dsc *DataSourceConfig) Validate() error {
 	return nil
 }
 
+//Postgres is adapter for creating,patching (schema or table), inserting data to postgres
 type Postgres struct {
 	ctx        context.Context
 	config     *DataSourceConfig
 	dataSource *sql.DB
 }
 
+//NewPostgres return configured Postgres adapter instance
 func NewPostgres(ctx context.Context, config *DataSourceConfig) (*Postgres, error) {
 	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s connect_timeout=%d  user=%s password=%s",
 		config.Host, config.Port, config.Db, connectTimeoutSeconds, config.Username, config.Password)
@@ -95,6 +99,7 @@ func (Postgres) Name() string {
 	return "Postgres"
 }
 
+//OpenTx open underline sql transaction and return wrapped instance
 func (p *Postgres) OpenTx() (*Transaction, error) {
 	tx, err := p.dataSource.BeginTx(p.ctx, nil)
 	if err != nil {
@@ -104,12 +109,37 @@ func (p *Postgres) OpenTx() (*Transaction, error) {
 	return &Transaction{tx: tx, dbType: p.Name()}, nil
 }
 
+//CreateDbSchema create database schema instance if doesn't exist
 func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
 		return err
 	}
 
+	return p.createDbSchemaInTransaction(wrappedTx, dbSchemaName)
+}
+
+//CreateTable create database table with name,columns provided in schema.Table representation
+func (p *Postgres) CreateTable(tableSchema *schema.Table) error {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	return p.createTableInTransaction(wrappedTx, tableSchema)
+}
+
+//PatchTableSchema add new columns(from provided schema.Table) to existing table
+func (p *Postgres) PatchTableSchema(patchSchema *schema.Table) error {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	return p.patchTableSchemaInTransaction(wrappedTx, patchSchema)
+}
+
+func (p *Postgres) createDbSchemaInTransaction(wrappedTx *Transaction, dbSchemaName string) error {
 	createStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(createDbSchemaIfNotExistsTemplate, dbSchemaName))
 	if err != nil {
 		wrappedTx.Rollback()
@@ -125,28 +155,7 @@ func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 	return wrappedTx.tx.Commit()
 }
 
-func (p *Postgres) TablesList() ([]string, error) {
-	var tableNames []string
-	rows, err := p.dataSource.QueryContext(p.ctx, tableNamesQuery, p.config.Schema)
-	if err != nil {
-		return tableNames, fmt.Errorf("Error querying tables names: %v", err)
-	}
-
-	defer rows.Close()
-	for rows.Next() {
-		var tableName string
-		if err := rows.Scan(&tableName); err != nil {
-			return tableNames, fmt.Errorf("Error scanning table name: %v", err)
-		}
-		tableNames = append(tableNames, tableName)
-	}
-	if err := rows.Err(); err != nil {
-		return tableNames, fmt.Errorf("Last rows.Err: %v", err)
-	}
-
-	return tableNames, nil
-}
-
+//GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
 func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
 	rows, err := p.dataSource.QueryContext(p.ctx, tableSchemaQuery, p.config.Schema, tableName)
@@ -174,12 +183,7 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 	return table, nil
 }
 
-func (p *Postgres) CreateTable(tableSchema *schema.Table) error {
-	wrappedTx, err := p.OpenTx()
-	if err != nil {
-		return err
-	}
-
+func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema *schema.Table) error {
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
 		mappedType, ok := schemaToPostgres[column.Type]
@@ -205,12 +209,7 @@ func (p *Postgres) CreateTable(tableSchema *schema.Table) error {
 	return wrappedTx.tx.Commit()
 }
 
-func (p *Postgres) PatchTableSchema(patchSchema *schema.Table) error {
-	wrappedTx, err := p.OpenTx()
-	if err != nil {
-		return err
-	}
-
+func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSchema *schema.Table) error {
 	for columnName, column := range patchSchema.Columns {
 		mappedColumnType, ok := schemaToPostgres[column.Type]
 		if !ok {
@@ -233,6 +232,7 @@ func (p *Postgres) PatchTableSchema(patchSchema *schema.Table) error {
 	return wrappedTx.tx.Commit()
 }
 
+//Insert provided object in postgres
 func (p *Postgres) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
 	var header, placeholders string
 	var values []interface{}
@@ -268,6 +268,30 @@ func (p *Postgres) Insert(schema *schema.Table, valuesMap map[string]interface{}
 	return wrappedTx.tx.Commit()
 }
 
+//TablesList return slice of postgres table names
+func (p *Postgres) TablesList() ([]string, error) {
+	var tableNames []string
+	rows, err := p.dataSource.QueryContext(p.ctx, tableNamesQuery, p.config.Schema)
+	if err != nil {
+		return tableNames, fmt.Errorf("Error querying tables names: %v", err)
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var tableName string
+		if err := rows.Scan(&tableName); err != nil {
+			return tableNames, fmt.Errorf("Error scanning table name: %v", err)
+		}
+		tableNames = append(tableNames, tableName)
+	}
+	if err := rows.Err(); err != nil {
+		return tableNames, fmt.Errorf("Last rows.Err: %v", err)
+	}
+
+	return tableNames, nil
+}
+
+//Close underlying sql.DB
 func (p *Postgres) Close() error {
 	if err := p.dataSource.Close(); err != nil {
 		return fmt.Errorf("Error closing datasource: %v", err)
@@ -276,6 +300,8 @@ func (p *Postgres) Close() error {
 	return nil
 }
 
+//Transaction is sql transaction wrapper. Used for handling and log errors with db type (postgres or redshift)
+//on Commit() and Rollback() calls
 type Transaction struct {
 	dbType string
 	tx     *sql.Tx

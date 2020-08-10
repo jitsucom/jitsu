@@ -88,6 +88,7 @@ func (u *PeriodicUploader) Start() {
 
 				token := regexResult[1]
 				eventStorages, ok := u.tokenizedEventStorages[token]
+				//TODO remove it if we want to write logs with streaming postgres
 				if !ok {
 					log.Printf("Destination storages weren't found for token %s", token)
 					continue
