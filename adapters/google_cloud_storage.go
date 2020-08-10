@@ -42,7 +42,7 @@ func (gc *GoogleConfig) Validate() error {
 	case map[string]interface{}:
 		keyFileObject := gc.KeyFile.(map[string]interface{})
 		if len(keyFileObject) == 0 {
-			return errors.New("Google key file is required parameter")
+			return errors.New("Google key_file is required parameter")
 		}
 		b, err := json.Marshal(keyFileObject)
 		if err != nil {
@@ -60,7 +60,7 @@ func (gc *GoogleConfig) Validate() error {
 			gc.credentials = option.WithCredentialsFile(keyFile)
 		}
 	default:
-		return errors.New("Google ey_file must be string or json object")
+		return errors.New("Google key_file must be string or json object")
 	}
 
 	return nil
