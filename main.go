@@ -185,9 +185,11 @@ func SetupRouter(tokenizedEventConsumers map[string][]events.Consumer) *gin.Engi
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
+	eventHandler := handlers.NewEventHandler(tokenizedEventConsumers)
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenAuth(handlers.NewEventHandler(tokenizedEventConsumers).Handler))
+		apiV1.POST("/event", middleware.TokenAuth(eventHandler.Handler))
+		apiV1.POST("/s2s/event", middleware.TokenAuth(eventHandler.Handler))
 	}
 
 	return router

@@ -34,7 +34,7 @@ func NewEventHandler(eventConsumersByToken map[string][]events.Consumer) (eventH
 }
 
 func (eh *EventHandler) Handler(c *gin.Context) {
-	payload := map[string]interface{}{}
+	payload := events.Fact{}
 	if err := c.BindJSON(&payload); err != nil {
 		c.Writer.WriteHeader(http.StatusBadRequest)
 		return
@@ -58,16 +58,16 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 
 	eventnObject, ok := payload[eventnKey]
 	if ok {
-		evntMap, ok := eventnObject.(map[string]interface{})
+		eventFact, ok := eventnObject.(events.Fact)
 		if ok {
 			//geo
-			evntMap[geo.GeoDataKey] = geoData
+			eventFact[geo.GeoDataKey] = geoData
 
 			//user agent
-			ua, ok := evntMap[uaKey]
+			ua, ok := eventFact[uaKey]
 			if ok {
 				if uaStr, ok := ua.(string); ok {
-					evntMap[useragent.ParsedUaKey] = eh.uaResolver.Resolve(uaStr)
+					eventFact[useragent.ParsedUaKey] = eh.uaResolver.Resolve(uaStr)
 				}
 			}
 		} else {
