@@ -185,11 +185,12 @@ func SetupRouter(tokenizedEventConsumers map[string][]events.Consumer) *gin.Engi
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	eventHandler := handlers.NewEventHandler(tokenizedEventConsumers)
+	c2sEventHandler := handlers.NewEventHandler(tokenizedEventConsumers, events.NewC2SPreprocessor()).Handler
+	s2sEventHandler := handlers.NewEventHandler(tokenizedEventConsumers, events.NewS2SPreprocessor()).Handler
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenAuth(eventHandler.Handler))
-		apiV1.POST("/s2s/event", middleware.TokenAuth(eventHandler.Handler))
+		apiV1.POST("/event", middleware.TokenAuth(middleware.AccessControl(c2sEventHandler, appconfig.Instance.C2STokens, "")))
+		apiV1.POST("/s2s/event", middleware.TokenAuth(middleware.AccessControl(s2sEventHandler, appconfig.Instance.S2STokens, "The token isn't a server token. Please use s2s integration token\n")))
 	}
 
 	return router
