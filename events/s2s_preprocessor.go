@@ -22,8 +22,8 @@ func NewS2SPreprocessor() Preprocessor {
 	}
 }
 
-//Preprocess resolve geo from ip field or skip if location field was provided
-//resolve useragent from uaKey or skip if parsed_ua field was provided
+//Preprocess resolve geo from ip field or skip if geo.GeoDataKey field was provided
+//resolve useragent from uaKey or skip if useragent.ParsedUaKey field was provided
 //transform data to c2s format
 func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) {
 	if fact == nil {
@@ -50,7 +50,7 @@ func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 
 	if deviceCtx, ok := fact["device_ctx"]; ok {
 		if deviceCtxObject, ok := deviceCtx.(map[string]interface{}); ok {
-			//location node overwrite geo resolving
+			//geo.GeoDataKey node overwrite geo resolving
 			if location, ok := deviceCtxObject[geo.GeoDataKey]; !ok {
 				if ip, ok := deviceCtxObject["ip"]; ok {
 					geoData, err := s2sp.geoResolver.Resolve(ip.(string))
@@ -64,7 +64,7 @@ func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 				eventCtx[geo.GeoDataKey] = location
 			}
 
-			//parsed_ua node overwrite useragent resolving
+			//useragent.ParsedUaKey node overwrite useragent resolving
 			if parsedUa, ok := deviceCtxObject[useragent.ParsedUaKey]; !ok {
 				if ua, ok := deviceCtxObject[uaKey]; ok {
 					eventCtx[uaKey] = ua
