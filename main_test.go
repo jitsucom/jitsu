@@ -22,26 +22,70 @@ import (
 )
 
 func SetTestDefaultParams() {
-	viper.Set("server.auth", []string{"test-mock"})
 	viper.Set("log.path", "")
+	viper.Set("server.auth", []string{"c2stoken"})
+	viper.Set("server.s2s_auth", []string{"s2stoken"})
 }
 
 func TestApiEvent(t *testing.T) {
 	SetTestDefaultParams()
 	tests := []struct {
 		name             string
+		reqUrn           string
 		reqBodyPath      string
 		expectedJsonPath string
+
+		expectedHttpCode int
+		expectedErrMsg   string
 	}{
 		{
-			"Api event consuming test",
+			"Unauthorized c2s endpoint",
+			"/api/v1/event?token=wrongtoken",
 			"test_data/event_input.json",
-			"test_data/fact_output.json",
+			"",
+			http.StatusUnauthorized,
+			"",
 		},
 		{
-			"Api event with ua consuming test",
-			"test_data/event_ua_input.json",
-			"test_data/fact_ua_output.json",
+			"Unauthorized s2s endpoint",
+			"/api/v1/s2s/event?token=wrongtoken",
+			"test_data/s2s_event_input.json",
+			"",
+			http.StatusUnauthorized,
+			"",
+		},
+		{
+			"Unauthorized c2s endpoint with s2s token",
+			"/api/v1/event?token=s2stoken",
+			"test_data/event_input.json",
+			"",
+			http.StatusUnauthorized,
+			"",
+		},
+		{
+			"Unauthorized s2s endpoint with c2s token",
+			"/api/v1/s2s/event?token=c2stoken",
+			"test_data/s2s_event_input.json",
+			"",
+			http.StatusUnauthorized,
+			"The token isn't a server token. Please use s2s integration token\n",
+		},
+
+		{
+			"C2S Api event consuming test",
+			"/api/v1/event?token=c2stoken",
+			"test_data/event_input.json",
+			"test_data/fact_output.json",
+			http.StatusOK,
+			"",
+		},
+		{
+			"S2S Api event consuming test",
+			"/api/v1/s2s/event?token=s2stoken",
+			"test_data/s2s_event_input.json",
+			"test_data/s2s_fact_output.json",
+			http.StatusOK,
+			"",
 		},
 	}
 	for _, tt := range tests {
@@ -52,7 +96,11 @@ func TestApiEvent(t *testing.T) {
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
-			router := SetupRouter(map[string][]events.Consumer{"test-mock": {events.NewAsyncLogger(logging.InitInMemoryWriter(), false)}})
+			inmemWriter := logging.InitInMemoryWriter()
+			router := SetupRouter(map[string][]events.Consumer{
+				"c2stoken": {events.NewAsyncLogger(inmemWriter, false)},
+				"s2stoken": {events.NewAsyncLogger(inmemWriter, false)},
+			})
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -60,7 +108,7 @@ func TestApiEvent(t *testing.T) {
 
 			server := &http.Server{
 				Addr:              httpAuthority,
-				Handler:           middleware.AllowWildCardOrigin(router),
+				Handler:           middleware.Cors(router),
 				ReadTimeout:       time.Second * 60,
 				ReadHeaderTimeout: time.Second * 60,
 				IdleTimeout:       time.Second * 65,
@@ -71,28 +119,48 @@ func TestApiEvent(t *testing.T) {
 
 			log.Println("Started listen and serve " + httpAuthority)
 
+			//check ping endpoint
 			resp, err := test.RenewGet("http://" + httpAuthority + "/ping")
 			require.NoError(t, err)
 
 			b, err := ioutil.ReadFile(tt.reqBodyPath)
 			require.NoError(t, err)
 
-			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/event?token=test-mock", bytes.NewBuffer(b))
+			//check http OPTIONS
+			optReq, err := http.NewRequest("OPTIONS", "http://"+httpAuthority+tt.reqUrn, bytes.NewBuffer(b))
 			require.NoError(t, err)
+			optResp, err := http.DefaultClient.Do(optReq)
+			require.NoError(t, err)
+			require.Equal(t, 200, optResp.StatusCode)
 
+			//check http POST
+			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+tt.reqUrn, bytes.NewBuffer(b))
+			require.NoError(t, err)
 			apiReq.Header.Add("x-real-ip", "95.82.232.185")
 			resp, err = http.DefaultClient.Do(apiReq)
 			require.NoError(t, err)
-			require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
-			resp.Body.Close()
 
-			time.Sleep(200 * time.Millisecond)
-			data := logging.InstanceMock.Data
-			require.Equal(t, 1, len(data))
+			if tt.expectedHttpCode != 200 {
+				require.Equal(t, tt.expectedHttpCode, resp.StatusCode, "Http cods aren't equal")
 
-			fBytes, err := ioutil.ReadFile(tt.expectedJsonPath)
-			require.NoError(t, err)
-			test.JsonBytesEqual(t, fBytes, data[0], "Logged facts aren't equal")
+				b, err := ioutil.ReadAll(resp.Body)
+				require.NoError(t, err)
+
+				resp.Body.Close()
+				require.Equal(t, tt.expectedErrMsg, string(b))
+			} else {
+				require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"), "Cors header ACAO is empty")
+				require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
+				resp.Body.Close()
+
+				time.Sleep(200 * time.Millisecond)
+				data := logging.InstanceMock.Data
+				require.Equal(t, 1, len(data))
+
+				fBytes, err := ioutil.ReadFile(tt.expectedJsonPath)
+				require.NoError(t, err)
+				test.JsonBytesEqual(t, fBytes, data[0], "Logged facts aren't equal")
+			}
 		})
 	}
 }
