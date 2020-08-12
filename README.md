@@ -22,7 +22,7 @@ For production deployment we suggest Docker:
  
  * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.dev/javascript-reference).
  
- * **Capture Events stoped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those without AdBlock.
+ * **Capture Events stopped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those without AdBlock.
 
  * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), [PostgreSQL](https://www.postgresql.org/), [Snowflake](https://www.snowflake.com/) ([Coming Soon](https://github.com/ksensehq/eventnative/issues/6)) and [ClickHouse](https://clickhouse.tech/) (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/29)*). EventNative automatically pushes to all your configured destinations at once without additional overhead.
  
