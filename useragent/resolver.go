@@ -8,12 +8,16 @@ import (
 
 const ParsedUaKey = "parsed_ua"
 
-type Resolver struct {
+type Resolver interface {
+	Resolve(ua string) *ResolvedUa
+}
+
+type UapResolver struct {
 	parser *uaparser.Parser
 }
 
-func NewResolver() *Resolver {
-	return &Resolver{parser: uaparser.NewFromSaved()}
+func NewResolver() Resolver {
+	return &UapResolver{parser: uaparser.NewFromSaved()}
 }
 
 type ResolvedUa struct {
@@ -36,7 +40,7 @@ func (rua ResolvedUa) IsEmpty() bool {
 
 //Resolve client user-agent with github.com/ua-parser/uap-go/uaparser lib
 //Return nil if parsed ua is empty
-func (r Resolver) Resolve(ua string) *ResolvedUa {
+func (r *UapResolver) Resolve(ua string) *ResolvedUa {
 	if ua == "" {
 		return nil
 	}

@@ -1,0 +1,1 @@
+{"_timestamp":"2020-06-16T23:00:00.000000Z", "api_key": "s2stoken", "event_data": {"customkey": {"key1": "key2"}}, "eventn_ctx": {"event_id": null, "location": {}, "page_title": "EventNative Demo", "parsed_ua": {}, "referer":  "", "url": "http://track-demo.ksense", "user": {"id": 123}}, "src": "s2s"}

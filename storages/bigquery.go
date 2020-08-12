@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
+	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/schema"
 	"log"
@@ -12,7 +13,7 @@ import (
 	"time"
 )
 
-//Store files to google BigQuery via google cloud storage
+//Store files to google BigQuery via google cloud storage in batch mode (1 file = 1 transaction)
 //Keeping tables schema state inmemory and update it according to incoming new data
 //note: Assume that after any outer changes in db we need to recreate this structure
 //for keeping actual db tables schema state
@@ -66,10 +67,9 @@ func (bq *BigQuery) start() {
 			//TODO configurable
 			time.Sleep(1 * time.Minute)
 
-			//TODO if we want to accumulate all users in one bucket -> create different folders
-			filesKeys, err := bq.gcsAdapter.ListBucket()
+			filesKeys, err := bq.gcsAdapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
-				log.Println("Error reading files from google cloud storage", err)
+				log.Println("Error reading files from google cloud storage:", err)
 				continue
 			}
 
@@ -98,11 +98,11 @@ func (bq *BigQuery) start() {
 	}()
 }
 
-//Process file payload
+//ProcessFilePayload file payload
 //Patch table if there are any new fields
 //Upload payload as a file to google cloud storage
 func (bq *BigQuery) Store(fileName string, payload []byte) error {
-	flatData, err := bq.schemaProcessor.Process(fileName, payload, bq.breakOnError)
+	flatData, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, bq.breakOnError)
 	if err != nil {
 		return err
 	}

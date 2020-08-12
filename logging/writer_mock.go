@@ -8,7 +8,7 @@ type WriterMock struct {
 	Data [][]byte
 }
 
-func initInMemoryWriter() io.WriteCloser {
+func InitInMemoryWriter() io.WriteCloser {
 	InstanceMock = &WriterMock{
 		Data: [][]byte{},
 	}
