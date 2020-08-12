@@ -17,7 +17,7 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjson5c493fc2DecodeGithubComKsensehqEventnativeUseragent(in *jlexer.Lexer, out *Resolver) {
+func easyjson5c493fc2DecodeGithubComKsensehqEventnativeUseragent(in *jlexer.Lexer, out *UapResolver) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -46,7 +46,7 @@ func easyjson5c493fc2DecodeGithubComKsensehqEventnativeUseragent(in *jlexer.Lexe
 		in.Consumed()
 	}
 }
-func easyjson5c493fc2EncodeGithubComKsensehqEventnativeUseragent(out *jwriter.Writer, in Resolver) {
+func easyjson5c493fc2EncodeGithubComKsensehqEventnativeUseragent(out *jwriter.Writer, in UapResolver) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -54,26 +54,26 @@ func easyjson5c493fc2EncodeGithubComKsensehqEventnativeUseragent(out *jwriter.Wr
 }
 
 // MarshalJSON supports json.Marshaler interface
-func (v Resolver) MarshalJSON() ([]byte, error) {
+func (v UapResolver) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
 	easyjson5c493fc2EncodeGithubComKsensehqEventnativeUseragent(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
-func (v Resolver) MarshalEasyJSON(w *jwriter.Writer) {
+func (v UapResolver) MarshalEasyJSON(w *jwriter.Writer) {
 	easyjson5c493fc2EncodeGithubComKsensehqEventnativeUseragent(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
-func (v *Resolver) UnmarshalJSON(data []byte) error {
+func (v *UapResolver) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
 	easyjson5c493fc2DecodeGithubComKsensehqEventnativeUseragent(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
-func (v *Resolver) UnmarshalEasyJSON(l *jlexer.Lexer) {
+func (v *UapResolver) UnmarshalEasyJSON(l *jlexer.Lexer) {
 	easyjson5c493fc2DecodeGithubComKsensehqEventnativeUseragent(l, v)
 }
 func easyjson5c493fc2DecodeGithubComKsensehqEventnativeUseragent1(in *jlexer.Lexer, out *ResolvedUa) {

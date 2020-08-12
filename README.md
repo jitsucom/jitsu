@@ -18,13 +18,13 @@ For production deployment we suggest Docker:
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/feat-n.png" width="40px" /></a>
 
 ## Features
- * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://app.gitbook.com/@eventnative/s/eventnative/javascript-integration) and you're set!
+ * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://docs.eventnative.dev/javascript-reference/direct-tracking) and you're set!
  
- * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.dev/javascript-integration/direct-tracking).
+ * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.dev/javascript-reference).
  
- * **Capture Events stoped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those withour AdBlock.
+ * **Capture Events stoped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those without AdBlock.
 
- * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), [Snowflake](https://www.snowflake.com/) ([Coming Soon](https://github.com/ksensehq/eventnative/issues/6)), PostgreSQL (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/1)*) and [ClickHouse](https://clickhouse.tech/) (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/29)*). EventNative automatically pushes to all your configured destinations at once without additional overhead.
+ * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), [PostgreSQL](https://www.postgresql.org/), [Snowflake](https://www.snowflake.com/) ([Coming Soon](https://github.com/ksensehq/eventnative/issues/6)) and [ClickHouse](https://clickhouse.tech/) (*[Coming Soon](https://github.com/ksensehq/eventnative/issues/29)*). EventNative automatically pushes to all your configured destinations at once without additional overhead.
  
  * **High-Performance and Throughput**: EventNative is written in [Go](https://golang.org/) with performance in mind, you're only limited by local disk performance since we write events locally prior to sending them to your data warehouse in batches. Read more about scalability [here](https://docs.eventnative.dev/scaling-eventnative).
  

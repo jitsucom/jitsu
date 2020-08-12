@@ -1,22 +1,30 @@
 package middleware
 
-import "net/http"
+import (
+	"github.com/gin-gonic/gin"
+	"log"
+	"net/http"
+)
 
-func AccessControl(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if origin := r.Header.Get("Origin"); origin != "" {
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-		} else {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+//AccessControl check that provided token exists in specific (c2s or s2s) config
+func AccessControl(main gin.HandlerFunc, allowedTokens map[string]bool, errMsg string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		iface, ok := c.Get(TokenName)
+		if !ok {
+			log.Println("System error: token wasn't found in context")
+			return
 		}
-		h.ServeHTTP(w, r)
-	})
-}
 
-func AllowWildCardOrigin(h http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		h.ServeHTTP(w, r)
-	})
+		token := iface.(string)
+
+		if _, ok := allowedTokens[token]; !ok {
+			c.Writer.WriteHeader(http.StatusUnauthorized)
+			if errMsg != "" {
+				c.Writer.Write([]byte(errMsg))
+			}
+			return
+		}
+
+		main(c)
+	}
 }

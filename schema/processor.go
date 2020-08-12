@@ -5,10 +5,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/timestamp"
 	"io"
 	"log"
 	"reflect"
+	"strings"
 	"text/template"
 	"time"
 )
@@ -60,17 +62,22 @@ func NewProcessor(tableNameFuncExpression string, mappings []string) (*Processor
 	return &Processor{fieldMapper: mapper, tableNameExtractFunc: tableNameExtractFunc}, nil
 }
 
-//Process file payload lines divided with \n. Line by line where 1 line = 1 json
+//ProcessFact return table representation, processed flatten object
+func (p *Processor) ProcessFact(fact events.Fact) (*Table, map[string]interface{}, error) {
+	return p.processObject(fact)
+}
+
+//ProcessFilePayload file payload lines divided with \n. Line by line where 1 line = 1 json
 //Return json byte payload contained 1 line = 1 json with \n delimiter
 //Every json byte payload for different table like {"table1": payload, "table2": payload}
-func (p *Processor) Process(fileName string, payload []byte, breakOnError bool) (map[string]*ProcessedFile, error) {
+func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnError bool) (map[string]*ProcessedFile, error) {
 	filePerTable := map[string]*ProcessedFile{}
 	input := bytes.NewBuffer(payload)
 	reader := bufio.NewReaderSize(input, 64*1024)
 	line, readErr := reader.ReadBytes('\n')
 
 	for readErr == nil {
-		table, processedObject, err := p.processObject(line)
+		table, processedObject, err := p.processFileLine(line)
 		if err != nil {
 			if breakOnError {
 				return nil, err
@@ -101,9 +108,8 @@ func (p *Processor) Process(fileName string, payload []byte, breakOnError bool) 
 	return filePerTable, nil
 }
 
-//Flatten all json keys from /key1/key2 to key1_key2 and apply mappings
-//Return table representation of object and object json bytes
-func (p *Processor) processObject(line []byte) (*Table, []byte, error) {
+//Return table representation of object and flatten object bytes from file line
+func (p *Processor) processFileLine(line []byte) (*Table, []byte, error) {
 	object := map[string]interface{}{}
 
 	err := json.Unmarshal(line, &object)
@@ -111,6 +117,21 @@ func (p *Processor) processObject(line []byte) (*Table, []byte, error) {
 		return nil, nil, err
 	}
 
+	table, flattenObject, err := p.processObject(object)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	objectBytes, err := json.Marshal(flattenObject)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return table, objectBytes, nil
+}
+
+//Return table representation of object and flatten object
+func (p *Processor) processObject(object map[string]interface{}) (*Table, map[string]interface{}, error) {
 	flatObject, err := p.flattenObject(object)
 	if err != nil {
 		return nil, nil, err
@@ -126,17 +147,13 @@ func (p *Processor) processObject(line []byte) (*Table, []byte, error) {
 
 	mappedObject := p.fieldMapper.Map(flatObject)
 
-	objectBytes, err := json.Marshal(mappedObject)
-	if err != nil {
-		return nil, nil, err
-	}
-
 	table := &Table{Name: tableName, Columns: Columns{}}
 	for k := range mappedObject {
+		//TODO add types
 		table.Columns[k] = Column{Type: STRING}
 	}
 
-	return table, objectBytes, nil
+	return table, mappedObject, nil
 }
 
 //Return flatten object e.g. from {"key1":{"key2":123}} to {"key1_key2":123}
@@ -152,8 +169,9 @@ func (p *Processor) flattenObject(json map[string]interface{}) (map[string]inter
 
 }
 
-//omit nil values
+//omit nil values and make all keys to lowercase
 func (p *Processor) flatten(key string, value interface{}, destination map[string]interface{}) error {
+	key = strings.ToLower(key)
 	t := reflect.ValueOf(value)
 	switch t.Kind() {
 	case reflect.Slice:

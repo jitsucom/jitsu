@@ -3,9 +3,13 @@
 
 server:
   port: 8001
+  name: event-us-01 #This parameter is required in cluster deployments. If not set - will be taken from os.Hostname()
   auth:
     - bd33c5fa-d69f-11ea-87d0-0242ac130003
     - c20765a0-d69f-15ea-82d0-0242ac130003
+  s2s_auth:
+    - 5f15eba2-db58-11ea-87d0-0242ac130003
+    - 62faa226-db58-11ea-87d0-0242ac130003
   public_url: https://yourhost
   log:
     path: /home/eventnative/logs/ #omit this key to write log to stdout
