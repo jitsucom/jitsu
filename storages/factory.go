@@ -22,6 +22,7 @@ type DestinationConfig struct {
 	DataSource *adapters.DataSourceConfig `mapstructure:"datasource"`
 	S3         *adapters.S3Config         `mapstructure:"s3"`
 	Google     *adapters.GoogleConfig     `mapstructure:"google"`
+	ClickHouse *adapters.ClickHouseConfig `mapstructure:"clickhouse"`
 }
 
 type DataLayout struct {
@@ -72,11 +73,13 @@ func CreateStorages(ctx context.Context, destinations *viper.Viper, logEventPath
 		var consumer events.Consumer
 		switch destination.Type {
 		case "redshift":
-			storage, err = createRedshift(ctx, name, destination, processor)
+			storage, err = createRedshift(ctx, name, &destination, processor)
 		case "bigquery":
-			storage, err = createBigQuery(ctx, name, destination, processor)
+			storage, err = createBigQuery(ctx, name, &destination, processor)
 		case "postgres":
-			consumer, err = createPostgres(ctx, name, destination, processor, logEventPath)
+			consumer, err = createPostgres(ctx, name, &destination, processor, logEventPath)
+		case "clickhouse":
+			storage, err = createClickHouse(ctx, &destination, processor)
 		default:
 			err = unknownDestination
 		}
@@ -112,7 +115,7 @@ func logError(destinationName, destinationType string, err error) {
 }
 
 //Create aws Redshift event storage
-func createRedshift(ctx context.Context, name string, destination DestinationConfig, processor *schema.Processor) (*AwsRedshift, error) {
+func createRedshift(ctx context.Context, name string, destination *DestinationConfig, processor *schema.Processor) (*AwsRedshift, error) {
 	s3Config := destination.S3
 	if err := s3Config.Validate(); err != nil {
 		return nil, err
@@ -136,7 +139,7 @@ func createRedshift(ctx context.Context, name string, destination DestinationCon
 }
 
 //Create google BigQuery event storage
-func createBigQuery(ctx context.Context, name string, destination DestinationConfig, processor *schema.Processor) (*BigQuery, error) {
+func createBigQuery(ctx context.Context, name string, destination *DestinationConfig, processor *schema.Processor) (*BigQuery, error) {
 	gConfig := destination.Google
 	if err := gConfig.Validate(); err != nil {
 		return nil, err
@@ -152,7 +155,7 @@ func createBigQuery(ctx context.Context, name string, destination DestinationCon
 }
 
 //Create Postgres event consumer
-func createPostgres(ctx context.Context, name string, destination DestinationConfig, processor *schema.Processor, logEventPath string) (*Postgres, error) {
+func createPostgres(ctx context.Context, name string, destination *DestinationConfig, processor *schema.Processor, logEventPath string) (*Postgres, error) {
 	config := destination.DataSource
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -168,4 +171,14 @@ func createPostgres(ctx context.Context, name string, destination DestinationCon
 	}
 
 	return NewPostgres(ctx, config, processor, logEventPath, name)
+}
+
+//Create ClickHouse event storage
+func createClickHouse(ctx context.Context, destination *DestinationConfig, processor *schema.Processor) (*ClickHouse, error) {
+	config := destination.ClickHouse
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
+
+	return NewClickHouse(ctx, config, processor, destination.BreakOnError)
 }
