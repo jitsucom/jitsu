@@ -110,11 +110,9 @@ func (ar *AwsRedshift) start() {
 	}()
 }
 
-//ProcessFilePayload file payload
-//Patch table if there are any new fields
-//Upload payload as a file to aws s3
+//Store file from byte payload to s3 with processing
 func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
-	flatData, err := ar.schemaProcessor.ProcessFilePayload(fileName, payload, ar.breakOnError)
+	flatData, err := ar.schemaProcessor.ProcessFilePayloadIntoBytes(fileName, payload, ar.breakOnError)
 	if err != nil {
 		return err
 	}

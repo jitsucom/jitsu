@@ -102,7 +102,7 @@ func (bq *BigQuery) start() {
 //Patch table if there are any new fields
 //Upload payload as a file to google cloud storage
 func (bq *BigQuery) Store(fileName string, payload []byte) error {
-	flatData, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, bq.breakOnError)
+	flatData, err := bq.schemaProcessor.ProcessFilePayloadIntoBytes(fileName, payload, bq.breakOnError)
 	if err != nil {
 		return err
 	}
