@@ -293,15 +293,12 @@ func (p *Postgres) TablesList() ([]string, error) {
 
 //Close underlying sql.DB
 func (p *Postgres) Close() error {
-	if err := p.dataSource.Close(); err != nil {
-		return fmt.Errorf("Error closing datasource: %v", err)
-	}
-
-	return nil
+	return p.dataSource.Close()
 }
 
-//Transaction is sql transaction wrapper. Used for handling and log errors with db type (postgres or redshift)
+//Transaction is sql transaction wrapper. Used for handling and log errors with db type (postgres, redshift or clickhouse)
 //on Commit() and Rollback() calls
+//Use DirectCommit() if you need not to swallow an error on commit
 type Transaction struct {
 	dbType string
 	tx     *sql.Tx
@@ -311,6 +308,14 @@ func (t *Transaction) Commit() {
 	if err := t.tx.Commit(); err != nil {
 		log.Printf("System error: unable to commit %s transaction: %v", t.dbType, err)
 	}
+}
+
+func (t *Transaction) DirectCommit() error {
+	if err := t.tx.Commit(); err != nil {
+		return fmt.Errorf("Unable to commit %s transaction: %v", t.dbType, err)
+	}
+
+	return nil
 }
 
 func (t *Transaction) Rollback() {

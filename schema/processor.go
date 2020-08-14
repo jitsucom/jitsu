@@ -9,21 +9,26 @@ import (
 	"github.com/ksensehq/eventnative/timestamp"
 	"io"
 	"log"
-	"reflect"
-	"strings"
 	"text/template"
 	"time"
 )
 
-type Processor struct {
-	fieldMapper          Mapper
-	tableNameExtractFunc TableNameExtractFunction
+type ProcessedFileBytes struct {
+	FileName   string
+	Payload    *bytes.Buffer
+	DataSchema *Table
 }
 
 type ProcessedFile struct {
 	FileName   string
-	Payload    *bytes.Buffer
+	Payload    []map[string]interface{}
 	DataSchema *Table
+}
+
+type Processor struct {
+	flattener            *Flattener
+	fieldMapper          Mapper
+	tableNameExtractFunc TableNameExtractFunction
 }
 
 func NewProcessor(tableNameFuncExpression string, mappings []string) (*Processor, error) {
@@ -59,7 +64,10 @@ func NewProcessor(tableNameFuncExpression string, mappings []string) (*Processor
 		return buf.String(), nil
 	}
 
-	return &Processor{fieldMapper: mapper, tableNameExtractFunc: tableNameExtractFunc}, nil
+	return &Processor{
+		flattener:            NewFlattener(),
+		fieldMapper:          mapper,
+		tableNameExtractFunc: tableNameExtractFunc}, nil
 }
 
 //ProcessFact return table representation, processed flatten object
@@ -67,9 +75,49 @@ func (p *Processor) ProcessFact(fact events.Fact) (*Table, map[string]interface{
 	return p.processObject(fact)
 }
 
-//ProcessFilePayload file payload lines divided with \n. Line by line where 1 line = 1 json
+//ProcessFilePayloadIntoBytes process file payload lines divided with \n. Line by line where 1 line = 1 json
 //Return json byte payload contained 1 line = 1 json with \n delimiter
 //Every json byte payload for different table like {"table1": payload, "table2": payload}
+func (p *Processor) ProcessFilePayloadIntoBytes(fileName string, payload []byte, breakOnError bool) (map[string]*ProcessedFileBytes, error) {
+	filePerTable := map[string]*ProcessedFileBytes{}
+	input := bytes.NewBuffer(payload)
+	reader := bufio.NewReaderSize(input, 64*1024)
+	line, readErr := reader.ReadBytes('\n')
+
+	for readErr == nil {
+		table, processedObject, err := p.processFileLineIntoBytes(line)
+		if err != nil {
+			if breakOnError {
+				return nil, err
+			} else {
+				log.Printf("Warn: unable to process object %s reason: %v. This line will be skipped", string(line), err)
+			}
+		}
+
+		//don't process empty object
+		if table.Exists() {
+			f, ok := filePerTable[table.Name]
+			if !ok {
+				f := &ProcessedFileBytes{FileName: fileName, DataSchema: table, Payload: bytes.NewBuffer(processedObject)}
+				filePerTable[table.Name] = f
+			} else {
+				f.DataSchema.Columns.Merge(table.Columns)
+				f.Payload.Write([]byte("\n"))
+				f.Payload.Write(processedObject)
+			}
+		}
+
+		line, readErr = reader.ReadBytes('\n')
+		if readErr != nil && readErr != io.EOF {
+			log.Printf("Error reading line in [%s] file", fileName)
+		}
+	}
+
+	return filePerTable, nil
+}
+
+//ProcessFilePayload process file payload lines divided with \n. Line by line where 1 line = 1 json
+//Return array of processed objects per table like {"table1": []objects, "table2": []objects}
 func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnError bool) (map[string]*ProcessedFile, error) {
 	filePerTable := map[string]*ProcessedFile{}
 	input := bytes.NewBuffer(payload)
@@ -90,12 +138,11 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnE
 		if table.Exists() {
 			f, ok := filePerTable[table.Name]
 			if !ok {
-				f := &ProcessedFile{FileName: fileName, DataSchema: table, Payload: bytes.NewBuffer(processedObject)}
+				f := &ProcessedFile{FileName: fileName, DataSchema: table, Payload: []map[string]interface{}{processedObject}}
 				filePerTable[table.Name] = f
 			} else {
 				f.DataSchema.Columns.Merge(table.Columns)
-				f.Payload.Write([]byte("\n"))
-				f.Payload.Write(processedObject)
+				f.Payload = append(f.Payload, processedObject)
 			}
 		}
 
@@ -109,7 +156,22 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnE
 }
 
 //Return table representation of object and flatten object bytes from file line
-func (p *Processor) processFileLine(line []byte) (*Table, []byte, error) {
+func (p *Processor) processFileLineIntoBytes(line []byte) (*Table, []byte, error) {
+	table, object, err := p.processFileLine(line)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	objectBytes, err := json.Marshal(object)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return table, objectBytes, nil
+}
+
+//Return table representation of object and flatten object from file line
+func (p *Processor) processFileLine(line []byte) (*Table, map[string]interface{}, error) {
 	object := map[string]interface{}{}
 
 	err := json.Unmarshal(line, &object)
@@ -122,17 +184,12 @@ func (p *Processor) processFileLine(line []byte) (*Table, []byte, error) {
 		return nil, nil, err
 	}
 
-	objectBytes, err := json.Marshal(flattenObject)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return table, objectBytes, nil
+	return table, flattenObject, nil
 }
 
 //Return table representation of object and flatten object
 func (p *Processor) processObject(object map[string]interface{}) (*Table, map[string]interface{}, error) {
-	flatObject, err := p.flattenObject(object)
+	flatObject, err := p.flattener.FlattenObject(object)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -154,48 +211,4 @@ func (p *Processor) processObject(object map[string]interface{}) (*Table, map[st
 	}
 
 	return table, mappedObject, nil
-}
-
-//Return flatten object e.g. from {"key1":{"key2":123}} to {"key1_key2":123}
-func (p *Processor) flattenObject(json map[string]interface{}) (map[string]interface{}, error) {
-	flattenMap := make(map[string]interface{})
-
-	err := p.flatten("", json, flattenMap)
-	if err != nil {
-		return nil, err
-	}
-
-	return flattenMap, nil
-
-}
-
-//omit nil values and make all keys to lowercase
-func (p *Processor) flatten(key string, value interface{}, destination map[string]interface{}) error {
-	key = strings.ToLower(key)
-	t := reflect.ValueOf(value)
-	switch t.Kind() {
-	case reflect.Slice:
-		b, err := json.Marshal(value)
-		if err != nil {
-			return fmt.Errorf("Error marshaling array with key %s: %v", key, err)
-		}
-		destination[key] = string(b)
-	case reflect.Map:
-		unboxed := value.(map[string]interface{})
-		for k, v := range unboxed {
-			newKey := k
-			if key != "" {
-				newKey = key + "_" + newKey
-			}
-			if err := p.flatten(newKey, v, destination); err != nil {
-				return fmt.Errorf("Error flatten object with key %s_%s: %v", key, k, err)
-			}
-		}
-	default:
-		if value != nil {
-			destination[key] = fmt.Sprintf("%v", value)
-		}
-	}
-
-	return nil
 }
