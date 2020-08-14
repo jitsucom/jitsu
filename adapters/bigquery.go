@@ -36,8 +36,7 @@ func NewBigQuery(ctx context.Context, config *GoogleConfig) (*BigQuery, error) {
 	return &BigQuery{ctx: ctx, client: client, config: config}, nil
 }
 
-//Transfer data from google cloud storage file to google BigQuery table
-//as one batch
+//Transfer data from google cloud storage file to google BigQuery table as one batch
 func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	table := bq.client.Dataset(bq.config.Dataset).Table(tableName)
 

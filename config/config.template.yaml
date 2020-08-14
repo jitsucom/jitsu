@@ -39,7 +39,7 @@ destinations:
     data_layout:
       mapping:
         - "/key1/key2 -> /key3"
-      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}'
+      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #template
   redshift_two:
     type: redshift
     only_tokens: ['c20765a0-d69f-15ea-82d0-0242ac130003']
@@ -63,7 +63,18 @@ destinations:
       bq_dataset: big_query_dataset # 'default' will be created if omitted
       key_file: /home/eventnative/app/res/bqkey.json # or json string of key e.g. "{"service_account":...}"
     data_layout:
-      table_name_template: 'events'
+      table_name_template: 'events' #constant
+  postgres_ksense:
+    type: postgres
+    only_tokens: ['c20765a0-d69f-15ea-82d0-0242ac130003']
+    datasource:
+      schema: ksense #'public' is default value
+      host: your_host.com
+      db: your_db
+      username: your_username
+      password: your_password
+    data_layout:
+      table_name_template: 'events' #constant
   clickhouse_ksense:
     type: clickhouse
     only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003', 'c20765a0-d69f-15ea-82d0-0242ac130003']
