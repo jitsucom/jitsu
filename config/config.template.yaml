@@ -75,3 +75,11 @@ destinations:
       password: your_password
     data_layout:
       table_name_template: 'events' #constant
+  clickhouse_ksense:
+    type: clickhouse
+    only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003', 'c20765a0-d69f-15ea-82d0-0242ac130003']
+    clickhouse:
+      dsn: "https://username:password@host:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
+      db: mydb
+      tls: #optional
+        maincert: /home/eventnative/app/res/rootCa.crt
