@@ -16,11 +16,14 @@ import (
 )
 
 const (
-	tableSchemaCHQuery       = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
-	addColumnCHTemplate      = `ALTER TABLE "%s"."%s" ADD COLUMN %s Nullable(%s)`
-	createTableCHTemplate    = `CREATE TABLE "%s"."%s" (%s) ENGINE = MergeTree() ORDER BY (_timestamp)`
-	columnCHNullableTemplate = ` Nullable(%s) `
-	insertCHTemplate         = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
+	tableSchemaCHQuery               = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
+	addColumnCHTemplate              = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s Nullable(%s)`
+	createTableCHTemplate            = `CREATE TABLE "%s"."%s" (%s) ENGINE = MergeTree() ORDER BY (_timestamp)`
+	createReplicatedTableCHTemplate  = `CREATE TABLE "%s"."%s" %s (%s) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/%s/%s', '{replica}') ORDER BY (_timestamp)`
+	createDistributedTableCHTemplate = `CREATE TABLE "%s"."%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
+	columnCHNullableTemplate         = ` Nullable(%s) `
+	insertCHTemplate                 = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
+	onClusterCHClauseTemplate        = ` ON CLUSTER %s `
 )
 
 var (
@@ -36,9 +39,10 @@ var (
 
 //ClickHouseConfig dto for deserialized clickhouse config
 type ClickHouseConfig struct {
-	Dsn      string            `mapstructure:"dsn"`
+	Dsns     []string          `mapstructure:"dsns"`
 	Database string            `mapstructure:"db"`
 	Tls      map[string]string `mapstructure:"tls"`
+	Cluster  string            `mapstructure:"cluster"`
 }
 
 //Validate required fields in ClickHouseConfig
@@ -47,8 +51,12 @@ func (chc *ClickHouseConfig) Validate() error {
 		return errors.New("ClickHouse config is required")
 	}
 
-	if len(chc.Dsn) == 0 {
+	if len(chc.Dsns) == 0 {
 		return errors.New("dsn is required parameter")
+	}
+
+	if chc.Cluster == "" && len(chc.Dsns) > 1 {
+		return errors.New("cluster is required parameter when dsns count > 1")
 	}
 
 	if chc.Database == "" {
@@ -62,11 +70,12 @@ func (chc *ClickHouseConfig) Validate() error {
 type ClickHouse struct {
 	ctx        context.Context
 	database   string
+	cluster    string
 	dataSource *sql.DB
 }
 
 //NewClickHouse return configured ClickHouse adapter instance
-func NewClickHouse(ctx context.Context, connectionString, database string, tlsConfig map[string]string) (*ClickHouse, error) {
+func NewClickHouse(ctx context.Context, connectionString, database, cluster string, tlsConfig map[string]string) (*ClickHouse, error) {
 	if strings.Contains(connectionString, "https://") && tlsConfig != nil {
 		for tlsName, crtPath := range tlsConfig {
 			caCert, err := ioutil.ReadFile(crtPath)
@@ -91,7 +100,7 @@ func NewClickHouse(ctx context.Context, connectionString, database string, tlsCo
 		return nil, err
 	}
 
-	return &ClickHouse{ctx: ctx, database: database, dataSource: dataSource}, nil
+	return &ClickHouse{ctx: ctx, database: database, cluster: cluster, dataSource: dataSource}, nil
 }
 
 func (ClickHouse) Name() string {
@@ -109,6 +118,7 @@ func (ch *ClickHouse) OpenTx() (*Transaction, error) {
 }
 
 //CreateTable create database table with name,columns provided in schema.Table representation
+//New tables will have MergeTree() or ReplicatedMergeTree() engine depends on config.cluster empty or not
 func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 	wrappedTx, err := ch.OpenTx()
 	if err != nil {
@@ -132,7 +142,17 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 		columnsDDL = append(columnsDDL, addColumnDDL)
 	}
 
-	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(createTableCHTemplate, ch.database, tableSchema.Name, strings.Join(columnsDDL, ",")))
+	var createTableStatement string
+	if ch.cluster == "" {
+		//create table with MergeTree() engine
+		createTableStatement = fmt.Sprintf(createTableCHTemplate, ch.database, tableSchema.Name, strings.Join(columnsDDL, ","))
+	} else {
+		//create table with ReplicatedMergeTree() engine
+		createTableStatement = fmt.Sprintf(createReplicatedTableCHTemplate, ch.database, tableSchema.Name,
+			ch.getOnClusterClause(), strings.Join(columnsDDL, ","), ch.database, tableSchema.Name)
+	}
+
+	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, createTableStatement)
 	if err != nil {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing create table %s statement: %v", tableSchema.Name, err)
@@ -142,6 +162,12 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error creating [%s] table: %v", tableSchema.Name, err)
 	}
+
+	//create distributed table if ReplicatedMergeTree engine
+	if ch.cluster != "" {
+		ch.createDistributedTableInTransaction(wrappedTx, tableSchema.Name)
+	}
+
 	return wrappedTx.tx.Commit()
 }
 
@@ -231,10 +257,34 @@ func (ch *ClickHouse) InsertInTransaction(wrappedTx *Transaction, schema *schema
 }
 
 //Close underlying sql.DB
-func (c *ClickHouse) Close() error {
-	if err := c.dataSource.Close(); err != nil {
+func (ch *ClickHouse) Close() error {
+	if err := ch.dataSource.Close(); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+//return ON CLUSTER name clause or "" if config.cluster is empty
+func (ch *ClickHouse) getOnClusterClause() string {
+	if ch.cluster == "" {
+		return ""
+	}
+
+	return fmt.Sprintf(onClusterCHClauseTemplate, ch.cluster)
+}
+
+//create distributed table, ignore errors
+func (ch *ClickHouse) createDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
+	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(createDistributedTableCHTemplate,
+		ch.database, "dist_"+originTableName, ch.getOnClusterClause(), ch.database, originTableName, ch.cluster, ch.database, originTableName))
+	if err != nil {
+		log.Println("Error preparing create distributed table statement for [%s] : %v", originTableName, err)
+		return
+	}
+
+	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
+		wrappedTx.Rollback()
+		log.Println("Error creating distributed table for [%s] : %v", originTableName, err)
+	}
 }

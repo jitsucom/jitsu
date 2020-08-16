@@ -3,9 +3,11 @@ package storages
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/schema"
 	"log"
+	"math/rand"
 )
 
 //Store files to ClickHouse in batch mode (1 log file = 1 transaction)
@@ -13,20 +15,29 @@ import (
 //note: Assume that after any outer changes in db we need to recreate this structure
 //for keeping actual db tables schema state
 type ClickHouse struct {
-	adapter         *adapters.ClickHouse
+	adapters        []*adapters.ClickHouse
 	schemaProcessor *schema.Processor
 	tables          map[string]*schema.Table
 	breakOnError    bool
 }
 
 func NewClickHouse(ctx context.Context, config *adapters.ClickHouseConfig, processor *schema.Processor, breakOnError bool) (*ClickHouse, error) {
-	adapter, err := adapters.NewClickHouse(ctx, config.Dsn, config.Database, config.Tls)
-	if err != nil {
-		return nil, err
+	var chAdapters []*adapters.ClickHouse
+	for _, dsn := range config.Dsns {
+		adapter, err := adapters.NewClickHouse(ctx, dsn, config.Database, config.Cluster, config.Tls)
+		if err != nil {
+			//close all previous created adapters
+			for _, toClose := range chAdapters {
+				toClose.Close()
+			}
+			return nil, err
+		}
+
+		chAdapters = append(chAdapters, adapter)
 	}
 
 	return &ClickHouse{
-		adapter:         adapter,
+		adapters:        chAdapters,
 		schemaProcessor: processor,
 		tables:          map[string]*schema.Table{},
 		breakOnError:    breakOnError,
@@ -44,17 +55,18 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 		return err
 	}
 
+	adapter := ch.getAdapter()
 	//process db tables & schema
 	for _, fdata := range flatData {
 		dbTableSchema, ok := ch.tables[fdata.DataSchema.Name]
 		if !ok {
 			//Get or Create Table
-			dbTableSchema, err = ch.adapter.GetTableSchema(fdata.DataSchema.Name)
+			dbTableSchema, err = adapter.GetTableSchema(fdata.DataSchema.Name)
 			if err != nil {
 				return fmt.Errorf("Error getting table %s schema from clickhouse: %v", fdata.DataSchema.Name, err)
 			}
 			if !dbTableSchema.Exists() {
-				if err := ch.adapter.CreateTable(fdata.DataSchema); err != nil {
+				if err := adapter.CreateTable(fdata.DataSchema); err != nil {
 					return fmt.Errorf("Error creating table %s in clickhouse: %v", fdata.DataSchema.Name, err)
 				}
 				dbTableSchema = fdata.DataSchema
@@ -66,7 +78,7 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 		schemaDiff := dbTableSchema.Diff(fdata.DataSchema)
 		//Patch
 		if schemaDiff.Exists() {
-			if err := ch.adapter.PatchTableSchema(schemaDiff); err != nil {
+			if err := adapter.PatchTableSchema(schemaDiff); err != nil {
 				return fmt.Errorf("Error patching table schema %s in clickhouse: %v", schemaDiff.Name, err)
 			}
 			//Save
@@ -77,14 +89,14 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 	}
 
 	//insert all data in one transaction
-	tx, err := ch.adapter.OpenTx()
+	tx, err := adapter.OpenTx()
 	if err != nil {
 		return fmt.Errorf("Error opening clickhouse transaction: %v", err)
 	}
 
 	for _, fdata := range flatData {
 		for _, object := range fdata.Payload {
-			if err := ch.adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
+			if err := adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
 				if ch.breakOnError {
 					tx.Rollback()
 					return err
@@ -99,10 +111,16 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 }
 
 //Close adapters.ClickHouse
-func (ch *ClickHouse) Close() error {
-	if err := ch.adapter.Close(); err != nil {
-		return fmt.Errorf("Error closing clickhouse datasource: %v", err)
+func (ch *ClickHouse) Close() (multiErr error) {
+	for i, adapter := range ch.adapters {
+		if err := adapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing clickhouse datasource[%d]: %v", i, err))
+		}
 	}
 
-	return nil
+	return multiErr
+}
+
+func (ch *ClickHouse) getAdapter() *adapters.ClickHouse {
+	return ch.adapters[rand.Intn(len(ch.adapters))]
 }

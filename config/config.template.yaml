@@ -79,7 +79,10 @@ destinations:
     type: clickhouse
     only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003', 'c20765a0-d69f-15ea-82d0-0242ac130003']
     clickhouse:
-      dsn: "https://username:password@host:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
+      dsns:
+        - "https://username:password@host1:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
+        - "https://username:password@host2:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
       db: mydb
+      cluster: clustername #required if dsns count > 1
       tls: #optional
         maincert: /home/eventnative/app/res/rootCa.crt
