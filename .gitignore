@@ -1,5 +1,6 @@
 # Test binary, build with `go test -c`
 *.test
+.DS_Store
 
 .idea/
 temp/
