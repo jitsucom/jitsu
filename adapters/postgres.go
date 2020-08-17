@@ -13,8 +13,6 @@ import (
 )
 
 const (
-	connectTimeoutSeconds = 600 //TODO make it configurable
-
 	tableNamesQuery  = `SELECT table_name FROM information_schema.tables WHERE table_schema=$1`
 	tableSchemaQuery = `SELECT 
  							pg_attribute.attname AS name,
@@ -46,12 +44,13 @@ var (
 
 //DataSourceConfig dto for deserialized datasource config (e.g. in Postgres or AwsRedshift destination)
 type DataSourceConfig struct {
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	Db       string `mapstructure:"db"`
-	Schema   string `mapstructure:"schema"`
-	Username string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
+	Host       string            `mapstructure:"host"`
+	Port       int               `mapstructure:"port"`
+	Db         string            `mapstructure:"db"`
+	Schema     string            `mapstructure:"schema"`
+	Username   string            `mapstructure:"username"`
+	Password   string            `mapstructure:"password"`
+	Parameters map[string]string `mapstructure:"parameters"`
 }
 
 //Validate required fields in DataSourceConfig
@@ -69,6 +68,9 @@ func (dsc *DataSourceConfig) Validate() error {
 		return errors.New("Datasource username is required parameter")
 	}
 
+	if dsc.Parameters == nil {
+		dsc.Parameters = map[string]string{}
+	}
 	return nil
 }
 
@@ -81,8 +83,12 @@ type Postgres struct {
 
 //NewPostgres return configured Postgres adapter instance
 func NewPostgres(ctx context.Context, config *DataSourceConfig) (*Postgres, error) {
-	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s connect_timeout=%d  user=%s password=%s",
-		config.Host, config.Port, config.Db, connectTimeoutSeconds, config.Username, config.Password)
+	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
+		config.Host, config.Port, config.Db, config.Username, config.Password)
+	//concat provided connection parameters
+	for k, v := range config.Parameters {
+		connectionString += k + "=" + v + " "
+	}
 	dataSource, err := sql.Open("postgres", connectionString)
 
 	if err != nil {
