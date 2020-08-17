@@ -73,6 +73,9 @@ destinations:
       db: your_db
       username: your_username
       password: your_password
+      parameters: #optional postgres connect db parameters (see https://www.postgresql.org/docs/9.1/libpq-connect.html)
+        sslmode: disable
+        connect_timeout: 300
     data_layout:
       table_name_template: 'events' #constant
   clickhouse_ksense:

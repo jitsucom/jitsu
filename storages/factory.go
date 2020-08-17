@@ -134,6 +134,10 @@ func createRedshift(ctx context.Context, name string, destination *DestinationCo
 		redshiftConfig.Schema = "public"
 		log.Printf("name: %s type: redshift schema wasn't provided. Will be used default one: %s", name, redshiftConfig.Schema)
 	}
+	//default connect timeout seconds
+	if _, ok := redshiftConfig.Parameters["connect_timeout"]; !ok {
+		redshiftConfig.Parameters["connect_timeout"] = "600"
+	}
 
 	return NewAwsRedshift(ctx, s3Config, redshiftConfig, processor, destination.BreakOnError)
 }
@@ -168,6 +172,10 @@ func createPostgres(ctx context.Context, name string, destination *DestinationCo
 	if config.Schema == "" {
 		config.Schema = "public"
 		log.Printf("name: %s type: postgres schema wasn't provided. Will be used default one: %s", name, config.Schema)
+	}
+	//default connect timeout seconds
+	if _, ok := config.Parameters["connect_timeout"]; !ok {
+		config.Parameters["connect_timeout"] = "600"
 	}
 
 	return NewPostgres(ctx, config, processor, logEventPath, name)
