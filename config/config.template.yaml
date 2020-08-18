@@ -104,3 +104,15 @@ destinations:
           - eventn_ctx_event_id
       tls: #optional
         maincert: /home/eventnative/app/res/rootCa.crt
+  s3_destination:
+    type: s3
+    only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003']
+    s3:
+      access_key_id: abcd1234
+      secret_access_key: secretabcd1234
+      bucket: my-file-bucket
+      region: us-east-1
+    data_layout:
+      mapping:
+        - "/key1/key2 -> /key3"
+      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #template will be used for file naming

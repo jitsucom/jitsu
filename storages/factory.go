@@ -80,6 +80,8 @@ func CreateStorages(ctx context.Context, destinations *viper.Viper, logEventPath
 			consumer, err = createPostgres(ctx, name, &destination, processor, logEventPath)
 		case "clickhouse":
 			storage, err = createClickHouse(ctx, &destination, processor)
+		case "s3":
+			storage, err = createS3(&destination, processor)
 		default:
 			err = unknownDestination
 		}
@@ -189,4 +191,14 @@ func createClickHouse(ctx context.Context, destination *DestinationConfig, proce
 	}
 
 	return NewClickHouse(ctx, config, processor, destination.BreakOnError)
+}
+
+//Create aws s3 event storage
+func createS3(destination *DestinationConfig, processor *schema.Processor) (*AwsS3, error) {
+	s3Config := destination.S3
+	if err := s3Config.Validate(); err != nil {
+		return nil, err
+	}
+
+	return NewAwsS3(s3Config, processor, destination.BreakOnError)
 }
