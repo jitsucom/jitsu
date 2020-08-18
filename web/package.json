@@ -1,6 +1,6 @@
 {
   "name": "@ksense/eventnative",
-  "version": "1.0.2",
+  "version": "1.0.4",
   "main": "build/track.cjs.js",
   "module": "build/track.esm.js",
   "scripts": {
