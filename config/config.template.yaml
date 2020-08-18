@@ -87,7 +87,7 @@ destinations:
         - "https://username:password@host2:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
       db: mydb
       cluster: clustername #required. If dsns count > 1 or if Replicated* engines are used in raw_statement
-      engine: #optional. If not provided - 'ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id)' will be created or Replicated* one if cluster is provided
+      engine: #optional. If not provided - 'ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id) PARTITION BY toYYYYMM(_timestamp)' will be created or Replicated* one if cluster is provided
         raw_statement: 'ENGINE = ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id)' #optional. String will be used in 'CREATE TABLE ... $RAW_ENGINE' statement
         non_null_fields: #required if raw_statement is provided. You must specify all fields from partition clause, order clause, primary key clause
           - _timestamp
