@@ -22,9 +22,22 @@ type ClickHouse struct {
 }
 
 func NewClickHouse(ctx context.Context, config *adapters.ClickHouseConfig, processor *schema.Processor, breakOnError bool) (*ClickHouse, error) {
+	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
+	if err != nil {
+		return nil, err
+	}
+
+	//put default values and values from config
+	nonNullFields := map[string]bool{"eventn_ctx_event_id": true, "_timestamp": true}
+	if config.Engine != nil {
+		for _, fieldName := range config.Engine.NonNullFields {
+			nonNullFields[fieldName] = true
+		}
+	}
+
 	var chAdapters []*adapters.ClickHouse
 	for _, dsn := range config.Dsns {
-		adapter, err := adapters.NewClickHouse(ctx, dsn, config.Database, config.Cluster, config.Tls)
+		adapter, err := adapters.NewClickHouse(ctx, dsn, config.Database, config.Cluster, config.Tls, tableStatementFactory, nonNullFields)
 		if err != nil {
 			//close all previous created adapters
 			for _, toClose := range chAdapters {
