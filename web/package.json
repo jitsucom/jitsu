@@ -1,11 +1,11 @@
 {
   "name": "@ksense/eventnative",
   "version": "1.0.2",
-  "main": "src/track.js",
+  "main": "build/track.cjs.js",
+  "module": "build/track.esm.js",
   "scripts": {
     "devserver": "node devserver.js",
-    "build": "./buildjs.sh",
-    "watch": "tsc -b . -w "
+    "build": "./buildjs.sh"
   },
   "dependencies": {
     "body-parser": "^1.19.0",
@@ -14,6 +14,10 @@
     "express": "4.17.1",
     "uglify-js": "^3.10.1"
   },
+  "files": [
+    "build/track.cjs.js",
+    "build/track.esm.js"
+  ],
   "devDependencies": {
     "@babel/cli": "^7.10.5",
     "@babel/core": "^7.11.0",

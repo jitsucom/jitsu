@@ -1,370 +1,372 @@
-    const UTM_PREFIX = "utm_";
-    const UTM_TYPES = ['source', 'medium', 'campaign', 'term', 'content']
-    const CLICK_IDS = ['gclid', 'fbclid']
+const UTM_PREFIX = "utm_";
+const UTM_TYPES = ['source', 'medium', 'campaign', 'term', 'content']
+const CLICK_IDS = ['gclid', 'fbclid']
 
-    let eventnObject = (window.eventN === undefined) ? (window.eventN = {}) : window.eventN;
-    if (!eventnObject.eventsQ) {
+let eventnObject = (window.eventN === undefined) ? (window.eventN = {}) : window.eventN;
+if (!eventnObject.eventsQ) {
+    eventnObject.eventsQ = [];
+}
+
+const LOG = {
+    level: window.eventnLogLevel ? window.eventnLogLevel : 'WARN',
+    _levels: {'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3},
+    log: function (level, msg, ...context) {
+        if (console.log && this._levels[level] !== undefined && this._levels[level] >= this._levels[LOG.level]) {
+            let fullMsg = `eventn - [${level.padEnd(5, ' ')}]: ${msg}, `;
+            console.log(fullMsg, ...context)
+        }
+    },
+    init: function () {
+        let self = this;
+        for (let level in this._levels) {
+            self[level.toLowerCase()] = function (...args) {
+                self.log(level, ...args);
+            }
+        }
+        return this;
+    }
+};
+LOG.init()
+LOG.log('DEBUG', 'Log system initialized');
+
+class CookiesAccessor {
+    getItem(name) {
+        if (!name) {
+            return null;
+        }
+        return decodeURIComponent(document.cookie.replace(new RegExp("(?:(?:^|.*;)\\s*" + encodeURIComponent(name).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=\\s*([^;]*).*$)|^.*$"), "$1")) || null;
+    }
+
+    setItem(name, value, expire, domain, secure) {
+        if (!name || /^(?:expires|max\-age|path|domain|secure)$/i.test(name)) {
+            LOG.warn("prohibited cookie name " + name);
+            return false;
+        }
+        let expireString = "";
+        if (expire) {
+            switch (expire.constructor) {
+                case Number:
+                    expireString = expire === Infinity ? "; expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + expire;
+                    break;
+                case String:
+                    expireString = "; expires=" + expire;
+                    break;
+                case Date:
+                    expireString = "; expires=" + expire.toUTCString();
+                    break;
+            }
+        }
+        document.cookie = encodeURIComponent(name) + "=" + value + expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : "") + ";SameSite=Lax";
+        return true;
+    }
+
+    removeItem(key, domain) {
+        if (!this.hasItem(key)) {
+            return false;
+        }
+        document.cookie = encodeURIComponent(key) + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT" + (domain ? "; domain=" + domain : "");
+        return true;
+    }
+
+    hasItem(key) {
+        if (!name || /^(?:expires|max\-age|path|domain|secure)$/i.test(name)) {
+            LOG.warn("prohibited cookie name " + name);
+            return false;
+        }
+        return (new RegExp("(?:^|;\\s*)" + encodeURIComponent(key).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=")).test(document.cookie);
+    }
+
+    allNames() {
+        let keys = document.cookie.replace(/((?:^|\s*;)[^\=]+)(?=;|$)|^\s*|\s*(?:\=[^;]*)?(?:\1|$)/g, "").split(/\s*(?:\=[^;]*)?;\s*/);
+        for (let len = keys.length, idx = 0; idx < len; idx++) {
+            keys[idx] = decodeURIComponent(keys[idx]);
+        }
+        return keys;
+    }
+}
+
+class EventnTracker {
+    init(options) {
+        this.key = options['key'];
+        this.cookieDomain = options['cookie_domain'] || this.getCookieDomain();
+        this.trackingHost = options['tracking_host'] || 'track.ksense.io';
+        this.idCookieName = options['cookie_name'] || '__eventn_id';
+        this.anonymousId = this.getAnonymousId();
+        this.userProperties = {}
+        this.apiKey = options['key'] || 'NONE';
+        this.allOptions = options;
+        this.initSegmentIntegration();
+        this.initGAIntegration();
+    }
+
+    getOpt(name, defaultValue) {
+        let currentValue = this.allOptions[name];
+        return currentValue === undefined ? defaultValue : currentValue;
+    }
+
+    processEventsQueue(eventnObject) {
+        let events = eventnObject.eventsQ;
+        events.forEach((eventArgs) => {
+            LOG.debug('Processing event', eventArgs, null, 2);
+            let methodName = eventArgs.shift();
+            let method = this[methodName];
+            if (typeof method === 'function') {
+                method.apply(this, eventArgs)
+            } else {
+                LOG.warn(`Unknown event '${methodName}' / ${typeof method}`)
+            }
+        })
         eventnObject.eventsQ = [];
     }
 
-    const LOG = {
-        level: window.eventnLogLevel ? window.eventnLogLevel : 'WARN',
-        _levels: {'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3},
-        log: function (level, msg, ...context) {
-            if (console.log && this._levels[level] !== undefined && this._levels[level] >= this._levels[LOG.level]) {
-                let fullMsg = `eventn - [${level.padEnd(5, ' ')}]: ${msg}, `;
-                console.log(fullMsg, ...context)
-            }
-        },
-        init: function () {
-            let self = this;
-            for (let level in this._levels) {
-                self[level.toLowerCase()] = function (...args) {
-                    self.log(level, ...args);
-                }
-            }
-            return this;
-        }
-    };
-    LOG.init()
-    LOG.log('DEBUG', 'Log system initialized');
-
-    class CookiesAccessor {
-        getItem(name) {
-            if (!name) {
-                return null;
-            }
-            return decodeURIComponent(document.cookie.replace(new RegExp("(?:(?:^|.*;)\\s*" + encodeURIComponent(name).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=\\s*([^;]*).*$)|^.*$"), "$1")) || null;
-        }
-
-        setItem(name, value, expire, domain, secure) {
-            if (!name || /^(?:expires|max\-age|path|domain|secure)$/i.test(name)) {
-                LOG.warn("prohibited cookie name " + name);
-                return false;
-            }
-            let expireString = "";
-            if (expire) {
-                switch (expire.constructor) {
-                    case Number:
-                        expireString = expire === Infinity ? "; expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + expire;
-                        break;
-                    case String:
-                        expireString = "; expires=" + expire;
-                        break;
-                    case Date:
-                        expireString = "; expires=" + expire.toUTCString();
-                        break;
-                }
-            }
-            document.cookie = encodeURIComponent(name) + "=" + value + expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : "");
-            return true;
-        }
-
-        removeItem(key, domain) {
-            if (!this.hasItem(key)) {
-                return false;
-            }
-            document.cookie = encodeURIComponent(key) + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT" + (domain ? "; domain=" + domain : "");
-            return true;
-        }
-
-        hasItem(key) {
-            if (!name || /^(?:expires|max\-age|path|domain|secure)$/i.test(name)) {
-                LOG.warn("prohibited cookie name " + name);
-                return false;
-            }
-            return (new RegExp("(?:^|;\\s*)" + encodeURIComponent(key).replace(/[\-\.\+\*]/g, "\\$&") + "\\s*\\=")).test(document.cookie);
-        }
-
-        allNames() {
-            let keys = document.cookie.replace(/((?:^|\s*;)[^\=]+)(?=;|$)|^\s*|\s*(?:\=[^;]*)?(?:\1|$)/g, "").split(/\s*(?:\=[^;]*)?;\s*/);
-            for (let len = keys.length, idx = 0; idx < len; idx++) {
-                keys[idx] = decodeURIComponent(keys[idx]);
-            }
-            return keys;
+    /**
+     * Get a user id (anonymous id) through cookies
+     */
+    getAnonymousId() {
+        let cookies = new CookiesAccessor();
+        let idCookie = cookies.getItem(this.idCookieName);
+        if (!idCookie) {
+            let newId = this.generateId();
+            LOG.debug('New user id', newId);
+            cookies.setItem(this.idCookieName, newId, Infinity, this.cookieDomain, document.location.protocol !== "http:");
+            return newId;
+        } else {
+            return idCookie;
         }
     }
 
-    class EventnTracker {
-        init(options) {
-            this.key = options['key'];
-            this.cookieDomain = options['cookie_domain'] || this.getCookieDomain();
-            this.trackingHost = options['tracking_host'] || 'track.ksense.io';
-            this.idCookieName = options['cookie_name'] || '__eventn_id';
-            this.anonymousId = this.getAnonymousId();
-            this.userProperties = {}
-            this.apiKey = options['key'] || 'NONE';
-            this.allOptions = options;
-            this.initSegmentIntegration();
-            this.initGAIntegration();
+    track(event_type, event_data) {
+        let payload = {
+            api_key: this.apiKey,
+            src: 'eventn',
+            event_type: event_type,
+            eventn_ctx: this.geteventnCtx(),
+            eventn_data: event_data
         }
+        this.sendJson(payload);
+    }
 
-        getOpt(name, defaultValue) {
-            let currentValue = this.allOptions[name];
-            return currentValue === undefined ? defaultValue : currentValue;
+    id(userProperties, doNotSendEvent) {
+        this.userProperties = {...this.userProperties, ...userProperties}
+        if (!doNotSendEvent) {
+            this.track('user_identify', {});
         }
+    }
 
-        processEventsQueue(eventnObject) {
-            let events = eventnObject.eventsQ;
-            events.forEach((eventArgs) => {
-                LOG.debug('Processing event', eventArgs, null, 2);
-                let methodName = eventArgs.shift();
-                let method = this[methodName];
-                if (typeof method === 'function') {
-                    method.apply(this, eventArgs)
-                } else {
-                    LOG.warn(`Unknown event '${methodName}' / ${typeof method}`)
-                }
-            })
-            eventnObject.eventsQ = [];
+    send3p(sourceType, object) {
+        let payload = {
+            api_key: this.apiKey,
+            event_type: '3rdparty',
+            src: sourceType,
+            src_payload: object,
+            eventn_ctx: this.geteventnCtx(),
+            eventn_data: {}
         }
+        this.sendJson(payload);
+    }
 
-        /**
-         * Get a user id (anonymous id) through cookies
-         */
-        getAnonymousId() {
-            let cookies = new CookiesAccessor();
-            let idCookie = cookies.getItem(this.idCookieName);
-            if (!idCookie) {
-                let newId = this.generateId();
-                LOG.debug('New user id', newId);
-                cookies.setItem(this.idCookieName, newId, Infinity, this.cookieDomain, document.location.protocol !== "http:");
-                return newId;
-            } else {
-                return idCookie;
-            }
+    geteventnCtx() {
+        let now = new Date();
+        return {
+            event_id: this.generateId(),
+            user: {
+                anonymous_id: this.anonymousId,
+                ...this.userProperties
+            },
+            user_agent: navigator.userAgent,
+            utc_time: now.toISOString(),
+            local_tz_offset: now.getTimezoneOffset(),
+            referer: document.referrer,
+            url: window.location.href,
+            page_title: document.title,
+            ...this.getDataFromParams()
+        };
+    }
+
+    sendJson(json) {
+        let req = new XMLHttpRequest();
+        req.onerror = function () {
+            LOG.warn('Failed to send', json)
+        };
+        let url = this.trackingHost + "/api/v1/event";
+        if (!url.startsWith("https://") && !url.startsWith("http://")) {
+            url = document.location.protocol + "//" + url;
         }
+        url += "?token=" + this.apiKey;
 
-        track(event_type, event_data) {
-            let payload = {
-                api_key: this.apiKey,
-                src: 'eventn',
-                event_type: event_type,
-                eventn_ctx: this.geteventnCtx(),
-                eventn_data: event_data
-            }
-            this.sendJson(payload);
-        }
+        req.open('POST', url);
+        req.setRequestHeader("Content-Type", "application/json");
+        req.send(JSON.stringify(json))
+    }
 
-        id(userProperties, doNotSendEvent) {
-            this.userProperties = {...this.userProperties, ...userProperties}
-            if (!doNotSendEvent) {
-                this.track('user_identify', {});
-            }
-        }
-
-        send3p(sourceType, object) {
-            let payload = {
-                api_key: this.apiKey,
-                event_type: '3rdparty',
-                src: sourceType,
-                src_payload: object,
-                eventn_ctx: this.geteventnCtx(),
-                eventn_data: {}
-            }
-            this.sendJson(payload);
-        }
-
-        geteventnCtx() {
-            let now = new Date();
-            return {
-                event_id: this.generateId(),
-                user: {
-                    anonymous_id: this.anonymousId,
-                    ...this.userProperties
-                },
-                user_agent: navigator.userAgent,
-                utc_time: now.toISOString(),
-                local_tz_offset: now.getTimezoneOffset(),
-                referer: document.referrer,
-                url: window.location.href,
-                page_title: document.title,
-                ...this.getDataFromParams()
-            };
-        }
-
-        sendJson(json) {
-            let req = new XMLHttpRequest();
-            req.onerror = function () {
-                LOG.warn('Failed to send', json)
-            };
-            let url = this.trackingHost + "/api/v1/event";
-            if (!url.startsWith("https://") && !url.startsWith("http://")) {
-                url = document.location.protocol + "//" + url;
-            }
-            url += "?token=" + this.apiKey;
-
-            req.open('POST', url);
-            req.setRequestHeader("Content-Type", "application/json");
-            req.send(JSON.stringify(json))
-        }
-
-        initGAIntegration() {
-            let gaHook = this.getOpt('ga_hook', false)
-            if (window.ga && gaHook) {
-                ga(tracker => {
-                    var originalSendHitTask = tracker.get('sendHitTask');
-                    tracker.set('sendHitTask', (model) => {
-                        var payLoad = model.get('hitPayload');
-                        if (eventnObject && eventnObject.dropLastGAEvent) {
-                            eventnObject.dropLastGAEvent = false;
-                        } else {
-                            originalSendHitTask(model);
-                        }
-                        let jsonPayload = this.parseQuery(payLoad);
-                        this.rename(jsonPayload, 'v', 'ga_protocol_version');
-                        this.rename(jsonPayload, 'tid', 'ga_property');
-                        this.rename(jsonPayload, 'ds', 'datasource');
-                        this.rename(jsonPayload, 'cid', 'client_id');
-                        this.rename(jsonPayload, 'uid', 'user_id');
-                        this.rename(jsonPayload, '_gid', 'ga_user_id', (id) => {return "GA1.1." + id});
-                        this.rename(jsonPayload, 'sc', 'session_control');
-                        this.rename(jsonPayload, 'uip', 'user_ip_override');
-                        this.rename(jsonPayload, 'ua', 'user_agent_override');
-                        this.rename(jsonPayload, 'dr', 'referrer');
-                        this.rename(jsonPayload, 'cn', 'campaign_name');
-                        this.rename(jsonPayload, 'cs', 'campaign_source');
-                        this.rename(jsonPayload, 'cm', 'campaign_medium');
-                        this.rename(jsonPayload, 'cc', 'campaign_context');
-                        this.rename(jsonPayload, 'sr', 'screen_size');
-                        this.rename(jsonPayload, 'vp', 'viewport_size');
-                        this.rename(jsonPayload, 'de', 'document_encoding');
-                        this.rename(jsonPayload, 'sd', 'screen_color');
-                        this.rename(jsonPayload, 'ul', 'user_language');
-                        this.rename(jsonPayload, 't', 'event_type');
-                        this.rename(jsonPayload, 'dl', 'url');
-                        this.rename(jsonPayload, 'dh', 'hostname');
-                        this.rename(jsonPayload, 'dp', 'path');
-                        this.rename(jsonPayload, 'dt', 'document_title');
-                        this.rename(jsonPayload, 'je', 'java_installed');
-                        this.rename(jsonPayload, 'jid');
-                        this.rename(jsonPayload, '_s');
-                        this.rename(jsonPayload, 'a');
-                        this.rename(jsonPayload, 'gdid');
-                        this.rename(jsonPayload, '_u');
-                        this.rename(jsonPayload, '_v');
-                        this.rename(jsonPayload, 'z');
-                        this.rename(jsonPayload, 'ti', 'transaction_id');
-                        this.rename(jsonPayload, 'tr', 'transaction_revenue');
-                        this.rename(jsonPayload, 'ts', 'transaction_shipping');
-                        this.rename(jsonPayload, 'tt', 'transaction_tax');
-                        this.rename(jsonPayload, 'in', 'item_name');
-                        this.rename(jsonPayload, 'ip', 'item_price');
-                        this.rename(jsonPayload, 'iq', 'item_quality');
-                        this.rename(jsonPayload, 'ic', 'item_code');
-                        this.rename(jsonPayload, 'iv', 'item_category');
-                        this.rename(jsonPayload, 'tcc', 'coupon_code');
-                        this.rename(jsonPayload, 'cos', 'checkout_step');
-
-                        this.rename(jsonPayload, 'ec', 'event_category');
-                        this.rename(jsonPayload, 'ea', 'event_action');
-                        this.rename(jsonPayload, 'el', 'event_label');
-                        this.rename(jsonPayload, 'ev', 'event_value');
-
-                        this.send3p('ga', jsonPayload);
-                    });
-                });
-                eventnObject.dropLastGAEvent = true
-                try {
-                    ga('send', 'pageview');
-                } finally {
-                    eventnObject.dropLastGAEvent = false;
-                }
-            }
-        }
-
-        rename(obj, src, dst, fn) {
-            if (obj[src] !== undefined) {
-                if (dst) {
-                    obj[dst] = fn ? fn(obj[src]) : obj[src]
-                }
-                delete obj[src];
-            }
-        }
-
-        initSegmentIntegration() {
-            //Hook up to segment API
-            let segmentHook = this.getOpt('segment_hook', false);
-            if (window.analytics && segmentHook) {
-                if (window.analytics.addSourceMiddleware) {
-                    window.analytics.addSourceMiddleware(chain => {
-                        try {
-                            this.send3p('ajs', chain.payload);
-                        } catch (e) {
-                            LOG.warn('Failed to send an event', e)
-                        }
-
-                        if (eventnObject.dropLastSegmentEvent) {
-                            eventnObject.dropLastSegmentEvent = false;
-                        } else {
-                            chain.next(chain.payload);
-                        }
-                    });
-                    eventnObject.dropLastSegmentEvent = true;
-                    window.analytics.page();
-                } else {
-                    LOG.warn("Invalid interceptor state. Analytics js initialized, but not completely");
-                }
-            } else if (segmentHook) {
-                LOG.warn('Analytics.js listener is not set. Please, put eventn script after analytics.js initialization!');
-            }
-        }
-
-        getCookieDomain() {
-            return location.hostname.replace("www.");
-        }
-
-        generateId() {
-            return Math.random().toString(36).substring(2, 12);
-        }
-
-        getDataFromParams() {
-            let params = this.parseQuery();
-            let result = {
-                utm: {},
-                click_id: {}
-            }
-            for (let name in params) {
-                if (!params.hasOwnProperty(name)) {
-                    continue;
-                }
-                let val = params[name];
-                if (name.startsWith(UTM_PREFIX) >= 0) {
-                    let utm = name.substring(UTM_PREFIX.length)
-                    if (UTM_TYPES.indexOf(utm) >= 0) {
-                        result.utm[utm] = val;
+    initGAIntegration() {
+        let gaHook = this.getOpt('ga_hook', false)
+        if (window.ga && gaHook) {
+            ga(tracker => {
+                var originalSendHitTask = tracker.get('sendHitTask');
+                tracker.set('sendHitTask', (model) => {
+                    var payLoad = model.get('hitPayload');
+                    if (eventnObject && eventnObject.dropLastGAEvent) {
+                        eventnObject.dropLastGAEvent = false;
+                    } else {
+                        originalSendHitTask(model);
                     }
-                } else if (CLICK_IDS.indexOf(name) >= 0) {
-                    result.click_id[name] = params;
+                    let jsonPayload = this.parseQuery(payLoad);
+                    this.rename(jsonPayload, 'v', 'ga_protocol_version');
+                    this.rename(jsonPayload, 'tid', 'ga_property');
+                    this.rename(jsonPayload, 'ds', 'datasource');
+                    this.rename(jsonPayload, 'cid', 'client_id');
+                    this.rename(jsonPayload, 'uid', 'user_id');
+                    this.rename(jsonPayload, '_gid', 'ga_user_id', (id) => {
+                        return "GA1.1." + id
+                    });
+                    this.rename(jsonPayload, 'sc', 'session_control');
+                    this.rename(jsonPayload, 'uip', 'user_ip_override');
+                    this.rename(jsonPayload, 'ua', 'user_agent_override');
+                    this.rename(jsonPayload, 'dr', 'referrer');
+                    this.rename(jsonPayload, 'cn', 'campaign_name');
+                    this.rename(jsonPayload, 'cs', 'campaign_source');
+                    this.rename(jsonPayload, 'cm', 'campaign_medium');
+                    this.rename(jsonPayload, 'cc', 'campaign_context');
+                    this.rename(jsonPayload, 'sr', 'screen_size');
+                    this.rename(jsonPayload, 'vp', 'viewport_size');
+                    this.rename(jsonPayload, 'de', 'document_encoding');
+                    this.rename(jsonPayload, 'sd', 'screen_color');
+                    this.rename(jsonPayload, 'ul', 'user_language');
+                    this.rename(jsonPayload, 't', 'event_type');
+                    this.rename(jsonPayload, 'dl', 'url');
+                    this.rename(jsonPayload, 'dh', 'hostname');
+                    this.rename(jsonPayload, 'dp', 'path');
+                    this.rename(jsonPayload, 'dt', 'document_title');
+                    this.rename(jsonPayload, 'je', 'java_installed');
+                    this.rename(jsonPayload, 'jid');
+                    this.rename(jsonPayload, '_s');
+                    this.rename(jsonPayload, 'a');
+                    this.rename(jsonPayload, 'gdid');
+                    this.rename(jsonPayload, '_u');
+                    this.rename(jsonPayload, '_v');
+                    this.rename(jsonPayload, 'z');
+                    this.rename(jsonPayload, 'ti', 'transaction_id');
+                    this.rename(jsonPayload, 'tr', 'transaction_revenue');
+                    this.rename(jsonPayload, 'ts', 'transaction_shipping');
+                    this.rename(jsonPayload, 'tt', 'transaction_tax');
+                    this.rename(jsonPayload, 'in', 'item_name');
+                    this.rename(jsonPayload, 'ip', 'item_price');
+                    this.rename(jsonPayload, 'iq', 'item_quality');
+                    this.rename(jsonPayload, 'ic', 'item_code');
+                    this.rename(jsonPayload, 'iv', 'item_category');
+                    this.rename(jsonPayload, 'tcc', 'coupon_code');
+                    this.rename(jsonPayload, 'cos', 'checkout_step');
+
+                    this.rename(jsonPayload, 'ec', 'event_category');
+                    this.rename(jsonPayload, 'ea', 'event_action');
+                    this.rename(jsonPayload, 'el', 'event_label');
+                    this.rename(jsonPayload, 'ev', 'event_value');
+
+                    this.send3p('ga', jsonPayload);
+                });
+            });
+            eventnObject.dropLastGAEvent = true
+            try {
+                ga('send', 'pageview');
+            } finally {
+                eventnObject.dropLastGAEvent = false;
+            }
+        }
+    }
+
+    rename(obj, src, dst, fn) {
+        if (obj[src] !== undefined) {
+            if (dst) {
+                obj[dst] = fn ? fn(obj[src]) : obj[src]
+            }
+            delete obj[src];
+        }
+    }
+
+    initSegmentIntegration() {
+        //Hook up to segment API
+        let segmentHook = this.getOpt('segment_hook', false);
+        if (window.analytics && segmentHook) {
+            if (window.analytics.addSourceMiddleware) {
+                window.analytics.addSourceMiddleware(chain => {
+                    try {
+                        this.send3p('ajs', chain.payload);
+                    } catch (e) {
+                        LOG.warn('Failed to send an event', e)
+                    }
+
+                    if (eventnObject.dropLastSegmentEvent) {
+                        eventnObject.dropLastSegmentEvent = false;
+                    } else {
+                        chain.next(chain.payload);
+                    }
+                });
+                eventnObject.dropLastSegmentEvent = true;
+                window.analytics.page();
+            } else {
+                LOG.warn("Invalid interceptor state. Analytics js initialized, but not completely");
+            }
+        } else if (segmentHook) {
+            LOG.warn('Analytics.js listener is not set. Please, put eventn script after analytics.js initialization!');
+        }
+    }
+
+    getCookieDomain() {
+        return location.hostname.replace("www.");
+    }
+
+    generateId() {
+        return Math.random().toString(36).substring(2, 12);
+    }
+
+    getDataFromParams() {
+        let params = this.parseQuery();
+        let result = {
+            utm: {},
+            click_id: {}
+        }
+        for (let name in params) {
+            if (!params.hasOwnProperty(name)) {
+                continue;
+            }
+            let val = params[name];
+            if (name.startsWith(UTM_PREFIX) >= 0) {
+                let utm = name.substring(UTM_PREFIX.length)
+                if (UTM_TYPES.indexOf(utm) >= 0) {
+                    result.utm[utm] = val;
                 }
+            } else if (CLICK_IDS.indexOf(name) >= 0) {
+                result.click_id[name] = params;
             }
-            return result;
         }
-
-        parseQuery(qs) {
-            let queryString = qs || window.location.search.substring(1)
-            let query = {};
-            let pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
-            for (let i = 0; i < pairs.length; i++) {
-                let pair = pairs[i].split('=');
-                query[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
-            }
-            return query;
-        }
+        return result;
     }
 
-    if (!window.eventN || !window.eventN.initialized) {
-      const eventnTracker = new EventnTracker();
+    parseQuery(qs) {
+        let queryString = qs || window.location.search.substring(1)
+        let query = {};
+        let pairs = (queryString[0] === '?' ? queryString.substr(1) : queryString).split('&');
+        for (let i = 0; i < pairs.length; i++) {
+            let pair = pairs[i].split('=');
+            query[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1] || '');
+        }
+        return query;
+    }
+}
 
-      for (const apiMethod of ['track', 'id', 'init']) {
+if (!window.eventN || !window.eventN.initialized) {
+    const eventnTracker = new EventnTracker();
+
+    for (const apiMethod of ['track', 'id', 'init']) {
         eventnObject[apiMethod] = function (...args) {
-          let copy = args.slice();
-          copy.unshift(apiMethod);
-          eventnObject.eventsQ.push(copy);
-          eventnTracker.processEventsQueue(eventnObject);
+            let copy = args.slice();
+            copy.unshift(apiMethod);
+            eventnObject.eventsQ.push(copy);
+            eventnTracker.processEventsQueue(eventnObject);
         }
-      }
-      eventnTracker.processEventsQueue(eventnObject);
-      eventnObject.initialized = true;
     }
-    export const eventN = eventnObject;
+    eventnTracker.processEventsQueue(eventnObject);
+    eventnObject.initialized = true;
+}
+export const eventN = eventnObject;

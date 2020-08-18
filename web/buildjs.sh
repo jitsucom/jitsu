@@ -1,4 +1,11 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
+
+function fail() {
+  echo $*
+  exit 1
+}
+
+[ -z "$(cat ./src/track.js | grep alert)" ] || fail "ERROR: ./src/track.js contains alert() call, cannot build that!"
 
 mkdir -p ./build && \
 ./node_modules/rollup/dist/bin/rollup -c rollup.config.js && \
