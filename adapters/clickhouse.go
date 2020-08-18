@@ -25,7 +25,7 @@ const (
 	createTableCHTemplate            = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
 	createDistributedTableCHTemplate = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
 
-	defaultPartition  = `PARTITION BY toYYYYMM(_timestamp)`
+	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
 	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
 	defaultPrimaryKey = ``
 	DateTimeCHType    = `DateTime`
