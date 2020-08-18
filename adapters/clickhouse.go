@@ -16,14 +16,19 @@ import (
 )
 
 const (
-	tableSchemaCHQuery               = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
-	addColumnCHTemplate              = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s Nullable(%s)`
-	createTableCHTemplate            = `CREATE TABLE "%s"."%s" (%s) ENGINE = MergeTree() ORDER BY (_timestamp)`
-	createReplicatedTableCHTemplate  = `CREATE TABLE "%s"."%s" %s (%s) ENGINE = ReplicatedMergeTree('/clickhouse/tables/{shard}/%s/%s', '{replica}') ORDER BY (_timestamp)`
-	createDistributedTableCHTemplate = `CREATE TABLE "%s"."%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
-	columnCHNullableTemplate         = ` Nullable(%s) `
-	insertCHTemplate                 = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
-	onClusterCHClauseTemplate        = ` ON CLUSTER %s `
+	tableSchemaCHQuery        = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
+	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s Nullable(%s)`
+	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
+	onClusterCHClauseTemplate = ` ON CLUSTER %s `
+	columnCHNullableTemplate  = ` Nullable(%s) `
+
+	createTableCHTemplate            = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
+	createDistributedTableCHTemplate = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
+
+	defaultPartition  = ``
+	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
+	defaultPrimaryKey = ``
+	DateTimeCHType    = `DateTime`
 )
 
 var (
@@ -34,6 +39,7 @@ var (
 	clickhouseToSchema = map[string]schema.DataType{
 		"String":           schema.STRING,
 		"Nullable(String)": schema.STRING,
+		"DateTime":         schema.STRING,
 	}
 )
 
@@ -43,6 +49,22 @@ type ClickHouseConfig struct {
 	Database string            `mapstructure:"db"`
 	Tls      map[string]string `mapstructure:"tls"`
 	Cluster  string            `mapstructure:"cluster"`
+	Engine   *EngineConfig     `mapstructure:"engine"`
+}
+
+//EngineConfig dto for deserialized clickhouse engine config
+type EngineConfig struct {
+	RawStatement    string        `mapstructure:"raw_statement"`
+	NonNullFields   []string      `mapstructure:"non_null_fields"`
+	PartitionFields []FieldConfig `mapstructure:"partition_fields"`
+	OrderFields     []FieldConfig `mapstructure:"order_fields"`
+	PrimaryKeys     []string      `mapstructure:"primary_keys"`
+}
+
+//FieldConfig dto for deserialized clickhouse engine fields
+type FieldConfig struct {
+	Function string `mapstructure:"function"`
+	Field    string `mapstructure:"field"`
 }
 
 //Validate required fields in ClickHouseConfig
@@ -63,19 +85,107 @@ func (chc *ClickHouseConfig) Validate() error {
 		return errors.New("db is required parameter")
 	}
 
+	if chc.Engine != nil {
+		if chc.Engine.RawStatement != "" && len(chc.Engine.NonNullFields) == 0 {
+			return errors.New("engine.non_null_fields is required parameter if engine.raw_statement is provided")
+		}
+	}
+
 	return nil
+}
+
+//TableStatementFactory is used for creating CREATE TABLE statements depends on config
+type TableStatementFactory struct {
+	engineStatement string
+	database        string
+	onClusterClause string
+
+	partitionClause  string
+	orderByClause    string
+	primaryKeyClause string
+
+	engineStatementFormat bool
+}
+
+func NewTableStatementFactory(config *ClickHouseConfig) (*TableStatementFactory, error) {
+	if config == nil {
+		return nil, errors.New("Clickhouse config can't be nil")
+	}
+	var onClusterClause string
+	if config.Cluster != "" {
+		onClusterClause = fmt.Sprintf(onClusterCHClauseTemplate, config.Cluster)
+	}
+
+	partitionClause := defaultPartition
+	orderByClause := defaultOrderBy
+	primaryKeyClause := defaultPrimaryKey
+	if config.Engine != nil {
+		//raw statement overrides all provided config parameters
+		if config.Engine.RawStatement != "" {
+			return &TableStatementFactory{
+				engineStatement: config.Engine.RawStatement,
+				database:        config.Database,
+				onClusterClause: onClusterClause,
+			}, nil
+		}
+
+		if len(config.Engine.PartitionFields) > 0 {
+			partitionClause = "PARTITION BY (" + extractStatement(config.Engine.PartitionFields) + ")"
+		}
+		if len(config.Engine.OrderFields) > 0 {
+			orderByClause = "ORDER BY (" + extractStatement(config.Engine.OrderFields) + ")"
+		}
+		if len(config.Engine.PrimaryKeys) > 0 {
+			primaryKeyClause = "PRIMARY KEY (" + strings.Join(config.Engine.PrimaryKeys, ", ") + ")"
+		}
+	}
+
+	var engineStatement string
+	var engineStatementFormat bool
+	if config.Cluster != "" {
+		//create engine statement with ReplicatedReplacingMergeTree() engine. We need to replace %s with tableName on creating statement
+		engineStatement = `ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/` + config.Database + `/%s', '{replica}', _timestamp)`
+		engineStatementFormat = true
+	} else {
+		//create table template with ReplacingMergeTree() engine
+		engineStatement = `ENGINE = ReplacingMergeTree(_timestamp)`
+	}
+
+	return &TableStatementFactory{
+		engineStatement:       engineStatement,
+		database:              config.Database,
+		onClusterClause:       onClusterClause,
+		partitionClause:       partitionClause,
+		orderByClause:         orderByClause,
+		primaryKeyClause:      primaryKeyClause,
+		engineStatementFormat: engineStatementFormat,
+	}, nil
+}
+
+//CreateTableStatement return clickhouse DDL for creating table statement
+func (tsf TableStatementFactory) CreateTableStatement(tableName, columnsClause string) string {
+	engineStatement := tsf.engineStatement
+	if tsf.engineStatementFormat {
+		engineStatement = fmt.Sprintf(engineStatement, tableName)
+	}
+	return fmt.Sprintf(createTableCHTemplate, tsf.database, tableName, tsf.onClusterClause, columnsClause, engineStatement,
+		tsf.partitionClause, tsf.orderByClause, tsf.primaryKeyClause)
 }
 
 //ClickHouse is adapter for creating,patching (schema or table), inserting data to clickhouse
 type ClickHouse struct {
-	ctx        context.Context
-	database   string
-	cluster    string
-	dataSource *sql.DB
+	ctx                   context.Context
+	database              string
+	cluster               string
+	dataSource            *sql.DB
+	tableStatementFactory *TableStatementFactory
+	nonNullFields         map[string]bool
 }
 
 //NewClickHouse return configured ClickHouse adapter instance
-func NewClickHouse(ctx context.Context, connectionString, database, cluster string, tlsConfig map[string]string) (*ClickHouse, error) {
+func NewClickHouse(ctx context.Context, connectionString, database, cluster string, tlsConfig map[string]string,
+	tableStatementFactory *TableStatementFactory, nonNullFields map[string]bool) (*ClickHouse, error) {
+	//configure tls
 	if strings.Contains(connectionString, "https://") && tlsConfig != nil {
 		for tlsName, crtPath := range tlsConfig {
 			caCert, err := ioutil.ReadFile(crtPath)
@@ -90,17 +200,23 @@ func NewClickHouse(ctx context.Context, connectionString, database, cluster stri
 			}
 		}
 	}
-
+	//connect
 	dataSource, err := sql.Open("clickhouse", connectionString)
 	if err != nil {
 		return nil, err
 	}
-
 	if err := dataSource.Ping(); err != nil {
 		return nil, err
 	}
 
-	return &ClickHouse{ctx: ctx, database: database, cluster: cluster, dataSource: dataSource}, nil
+	return &ClickHouse{
+		ctx:                   ctx,
+		database:              database,
+		cluster:               cluster,
+		dataSource:            dataSource,
+		tableStatementFactory: tableStatementFactory,
+		nonNullFields:         nonNullFields,
+	}, nil
 }
 
 func (ClickHouse) Name() string {
@@ -133,34 +249,28 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 			mappedType = schemaToClickhouse[schema.STRING]
 		}
 		var addColumnDDL string
-		//clickhouse table must have one order field. It will be _timestamp as default
+		//clickhouse table must have at least one order field. It will be _timestamp as default
 		if columnName == timestamp.Key {
-			addColumnDDL = columnName + " " + mappedType
+			addColumnDDL = columnName + " " + DateTimeCHType
 		} else {
-			addColumnDDL = columnName + fmt.Sprintf(columnCHNullableTemplate, mappedType)
+			//check if field is nonNullable
+			if _, ok := ch.nonNullFields[columnName]; ok {
+				addColumnDDL = columnName + " " + mappedType
+			} else {
+				addColumnDDL = columnName + fmt.Sprintf(columnCHNullableTemplate, mappedType)
+			}
 		}
 		columnsDDL = append(columnsDDL, addColumnDDL)
 	}
 
-	var createTableStatement string
-	if ch.cluster == "" {
-		//create table with MergeTree() engine
-		createTableStatement = fmt.Sprintf(createTableCHTemplate, ch.database, tableSchema.Name, strings.Join(columnsDDL, ","))
-	} else {
-		//create table with ReplicatedMergeTree() engine
-		createTableStatement = fmt.Sprintf(createReplicatedTableCHTemplate, ch.database, tableSchema.Name,
-			ch.getOnClusterClause(), strings.Join(columnsDDL, ","), ch.database, tableSchema.Name)
-	}
-
-	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, createTableStatement)
+	statementStr := ch.tableStatementFactory.CreateTableStatement(tableSchema.Name, strings.Join(columnsDDL, ","))
+	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, statementStr)
 	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing create table %s statement: %v", tableSchema.Name, err)
+		return fmt.Errorf("Error preparing create table [%s] statement [%s]: %v", tableSchema.Name, statementStr, err)
 	}
 
 	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] table: %v", tableSchema.Name, err)
+		return fmt.Errorf("Error creating [%s] table with statement [%s]: %v", tableSchema.Name, statementStr, err)
 	}
 
 	//create distributed table if ReplicatedMergeTree engine
@@ -213,7 +323,7 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 			log.Println("Unknown clickhouse schema type:", column.Type.String())
 			mappedColumnType = schemaToClickhouse[schema.STRING]
 		}
-		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, columnName, mappedColumnType))
+		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, mappedColumnType))
 		if err != nil {
 			wrappedTx.Rollback()
 			return fmt.Errorf("Error preparing patching table %s schema statement: %v", patchSchema.Name, err)
@@ -277,14 +387,26 @@ func (ch *ClickHouse) getOnClusterClause() string {
 //create distributed table, ignore errors
 func (ch *ClickHouse) createDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(createDistributedTableCHTemplate,
-		ch.database, "dist_"+originTableName, ch.getOnClusterClause(), ch.database, originTableName, ch.cluster, ch.database, originTableName))
+		ch.database, originTableName, ch.getOnClusterClause(), ch.database, originTableName, ch.cluster, ch.database, originTableName))
 	if err != nil {
-		log.Println("Error preparing create distributed table statement for [%s] : %v", originTableName, err)
+		log.Printf("Error preparing create distributed table statement for [%s] : %v", originTableName, err)
 		return
 	}
 
 	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
 		wrappedTx.Rollback()
-		log.Println("Error creating distributed table for [%s] : %v", originTableName, err)
+		log.Printf("Error creating distributed table for [%s] : %v", originTableName, err)
 	}
+}
+
+func extractStatement(fieldConfigs []FieldConfig) string {
+	var parameters []string
+	for _, fieldConfig := range fieldConfigs {
+		if fieldConfig.Function != "" {
+			parameters = append(parameters, fieldConfig.Function+"("+fieldConfig.Field+")")
+			continue
+		}
+		parameters = append(parameters, fieldConfig.Field)
+	}
+	return strings.Join(parameters, ",")
 }
