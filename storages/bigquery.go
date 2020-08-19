@@ -18,6 +18,8 @@ import (
 //note: Assume that after any outer changes in db we need to recreate this structure
 //for keeping actual db tables schema state
 type BigQuery struct {
+	name            string
+	sourceDir       string
 	gcsAdapter      *adapters.GoogleCloudStorage
 	bqAdapter       *adapters.BigQuery
 	schemaProcessor *schema.Processor
@@ -25,7 +27,7 @@ type BigQuery struct {
 	breakOnError    bool
 }
 
-func NewBigQuery(ctx context.Context, config *adapters.GoogleConfig, processor *schema.Processor, breakOnError bool) (*BigQuery, error) {
+func NewBigQuery(ctx context.Context, name, sourceDir string, config *adapters.GoogleConfig, processor *schema.Processor, breakOnError bool) (*BigQuery, error) {
 	gcsAdapter, err := adapters.NewGoogleCloudStorage(ctx, config)
 	if err != nil {
 		return nil, err
@@ -43,18 +45,22 @@ func NewBigQuery(ctx context.Context, config *adapters.GoogleConfig, processor *
 	}
 
 	bq := &BigQuery{
+		name:            name,
+		sourceDir:       sourceDir,
 		gcsAdapter:      gcsAdapter,
 		bqAdapter:       bigQueryAdapter,
 		schemaProcessor: processor,
 		tables:          map[string]*schema.Table{},
 		breakOnError:    breakOnError,
 	}
+	fr := &FileReader{dir: sourceDir, storage: bq}
+	fr.start()
 	bq.start()
 
 	return bq, nil
 }
 
-//Periodically (every 1 minute):
+//Periodically (every 30 seconds):
 //1. get all files from google cloud storage
 //2. load them to BigQuery via google api
 //3. delete file from google cloud storage
@@ -65,7 +71,7 @@ func (bq *BigQuery) start() {
 				break
 			}
 			//TODO configurable
-			time.Sleep(1 * time.Minute)
+			time.Sleep(30 * time.Second)
 
 			filesKeys, err := bq.gcsAdapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
@@ -148,11 +154,19 @@ func (bq *BigQuery) Store(fileName string, payload []byte) error {
 	return nil
 }
 
-func (bq BigQuery) Name() string {
+func (bq *BigQuery) Name() string {
+	return bq.name
+}
+
+func (bq *BigQuery) Type() string {
 	return "BigQuery"
 }
 
-func (bq BigQuery) Close() (multiErr error) {
+func (bq *BigQuery) SourceDir() string {
+	return bq.sourceDir
+}
+
+func (bq *BigQuery) Close() (multiErr error) {
 	if err := bq.gcsAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	}

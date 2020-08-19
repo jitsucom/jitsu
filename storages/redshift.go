@@ -19,6 +19,8 @@ const tableFileKeyDelimiter = "-table-"
 //note: Assume that after any outer changes in db we need to recreate this structure
 //for keeping actual db tables schema state
 type AwsRedshift struct {
+	name            string
+	sourceDir       string
 	s3Adapter       *adapters.S3
 	redshiftAdapter *adapters.AwsRedshift
 	schemaProcessor *schema.Processor
@@ -26,7 +28,7 @@ type AwsRedshift struct {
 	breakOnError    bool
 }
 
-func NewAwsRedshift(ctx context.Context, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
+func NewAwsRedshift(ctx context.Context, name, sourceDir string, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
 	processor *schema.Processor, breakOnError bool) (*AwsRedshift, error) {
 	s3Adapter, err := adapters.NewS3(s3Config)
 	if err != nil {
@@ -45,18 +47,23 @@ func NewAwsRedshift(ctx context.Context, s3Config *adapters.S3Config, redshiftCo
 	}
 
 	ar := &AwsRedshift{
+		name:            name,
+		sourceDir:       sourceDir,
 		s3Adapter:       s3Adapter,
 		redshiftAdapter: redshiftAdapter,
 		schemaProcessor: processor,
 		tables:          map[string]*schema.Table{},
 		breakOnError:    breakOnError,
 	}
+
+	fr := &(FileReader{dir: sourceDir, storage: ar})
+	fr.start()
 	ar.start()
 
 	return ar, nil
 }
 
-//Periodically (every 1 minute):
+//Periodically (every 30 seconds):
 //1. get all files from aws s3
 //2. load them to aws Redshift via Copy request
 //3. delete file from aws s3
@@ -67,7 +74,7 @@ func (ar *AwsRedshift) start() {
 				break
 			}
 			//TODO configurable
-			time.Sleep(1 * time.Minute)
+			time.Sleep(30 * time.Second)
 
 			filesKeys, err := ar.s3Adapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
@@ -158,11 +165,19 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 	return nil
 }
 
-func (ar AwsRedshift) Name() string {
+func (ar *AwsRedshift) Name() string {
+	return ar.name
+}
+
+func (ar *AwsRedshift) Type() string {
 	return "Redshift"
 }
 
-func (ar AwsRedshift) Close() error {
+func (ar *AwsRedshift) SourceDir() string {
+	return ar.sourceDir
+}
+
+func (ar *AwsRedshift) Close() error {
 	if err := ar.redshiftAdapter.Close(); err != nil {
 		return fmt.Errorf("Error closing redshift datasource: %v", err)
 	}

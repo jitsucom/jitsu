@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v1.2.7] - 2020-08-19
+### Changed
+- move storage files to different directories
+
 ## [v1.2.6] - 2020-08-19
 ### Changed
 - [44](https://github.com/ksensehq/eventnative/issues/44) S3 as destination

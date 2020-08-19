@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"path"
 	"strings"
 
 	"log"
@@ -113,8 +114,8 @@ func (dr *DummyResolver) Resolve(ip string) (*Data, error) {
 	return nil, nil
 }
 
-func findMmdbFile(path string) string {
-	files, err := ioutil.ReadDir(path)
+func findMmdbFile(dir string) string {
+	files, err := ioutil.ReadDir(dir)
 	if err != nil {
 		log.Println(err)
 		return ""
@@ -122,10 +123,7 @@ func findMmdbFile(path string) string {
 
 	for _, f := range files {
 		if strings.HasSuffix(f.Name(), mmdbSuffix) {
-			if !strings.HasSuffix(path, "/") {
-				path = path + "/"
-			}
-			return path + f.Name()
+			return path.Join(dir, f.Name())
 		}
 	}
 
