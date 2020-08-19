@@ -193,12 +193,12 @@ func createClickHouse(ctx context.Context, destination *DestinationConfig, proce
 	return NewClickHouse(ctx, config, processor, destination.BreakOnError)
 }
 
-//Create aws s3 event storage
-func createS3(destination *DestinationConfig, processor *schema.Processor) (*AwsS3, error) {
+//Create s3 event storage
+func createS3(destination *DestinationConfig, processor *schema.Processor) (*S3, error) {
 	s3Config := destination.S3
 	if err := s3Config.Validate(); err != nil {
 		return nil, err
 	}
 
-	return NewAwsS3(s3Config, processor, destination.BreakOnError)
+	return NewS3(s3Config, processor, destination.BreakOnError)
 }

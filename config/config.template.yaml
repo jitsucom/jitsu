@@ -112,6 +112,7 @@ destinations:
       secret_access_key: secretabcd1234
       bucket: my-file-bucket
       region: us-east-1
+      endpoint: #default: aws s3 endpoint. If you use DigitalOcean spaces or others - specify your endpoint
     data_layout:
       mapping:
         - "/key1/key2 -> /key3"
