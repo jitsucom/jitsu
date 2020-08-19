@@ -34,11 +34,12 @@ const (
 
 var (
 	schemaToPostgres = map[schema.DataType]string{
-		schema.STRING: "character varying(512)",
+		schema.STRING: "character varying(8192)",
 	}
 
 	postgresToSchema = map[string]schema.DataType{
-		"character varying(512)": schema.STRING,
+		"character varying(512)":  schema.STRING,
+		"character varying(8192)": schema.STRING,
 	}
 )
 
