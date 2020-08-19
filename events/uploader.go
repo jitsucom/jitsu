@@ -96,7 +96,7 @@ func (u *PeriodicUploader) Start() {
 				for _, storage := range eventStorages {
 					//copy file
 					newFile := path.Join(storage.SourceDir(), fileName)
-					if err := ioutil.WriteFile(newFile, b, 0755); err != nil {
+					if err := ioutil.WriteFile(newFile, b, 0644); err != nil {
 						log.Println("Error copying file", filePath, "in", newFile, "err:", err)
 					}
 				}

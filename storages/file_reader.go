@@ -6,7 +6,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
+	"path"
 	"time"
 )
 
@@ -32,22 +32,23 @@ func (fr *FileReader) start() {
 			}
 
 			for _, f := range files {
-				b, err := ioutil.ReadFile(f.Name())
+				filePath := path.Join(fr.storage.SourceDir(), f.Name())
+				b, err := ioutil.ReadFile(filePath)
 				if err != nil {
-					log.Println("Error reading file", f.Name(), err)
+					log.Println("Error reading file", filePath, err)
 					continue
 				}
 				if len(b) == 0 {
-					os.Remove(f.Name())
+					os.Remove(filePath)
 					continue
 				}
 
-				if err := fr.storage.Store(filepath.Base(f.Name()), b); err != nil {
-					log.Println("Error store file", f.Name(), "in", fr.storage.Name(), "destination:", err)
+				if err := fr.storage.Store(f.Name(), b); err != nil {
+					log.Println("Error store file", filePath, "in", fr.storage.Name(), "destination:", err)
 					continue
 				}
 
-				os.Remove(f.Name())
+				os.Remove(filePath)
 			}
 		}
 	}()
