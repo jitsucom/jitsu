@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"path"
 	"strings"
 
 	"log"
@@ -122,7 +123,7 @@ func findMmdbFile(dir string) string {
 
 	for _, f := range files {
 		if strings.HasSuffix(f.Name(), mmdbSuffix) {
-			return f.Name()
+			return path.Join(dir, f.Name())
 		}
 	}
 
