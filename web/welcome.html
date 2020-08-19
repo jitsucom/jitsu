@@ -46,7 +46,7 @@
         });
 
         function generateTrackingCode() {
-            let url = "/s/inline.js?key=" + encodeURIComponent("[API_KEY]");
+            let url = "/t/inline.js?key=" + encodeURIComponent("[API_KEY]");
             let trackingCode = $('#tracking_code');
             trackingCode.text("//Data loading...")
             for (let attr of ['ga_hook', 'segment_hook']) {
