@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -99,9 +100,6 @@ func main() {
 
 	//Get event logger path
 	logEventPath := viper.GetString("log.path")
-	if !strings.HasSuffix(logEventPath, "/") {
-		logEventPath += "/"
-	}
 
 	//logger consumers per token
 	loggingConsumers := map[string]events.Consumer{}
@@ -150,7 +148,7 @@ func main() {
 	}
 
 	//Uploader must read event logger directory
-	uploader := events.NewUploader(logEventPath+appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, batchStoragesByToken)
+	uploader := events.NewUploader(path.Join(logEventPath, appconfig.Instance.ServerName+uploaderFileMask), uploaderBatchSize, uploaderLoadEveryS, batchStoragesByToken)
 	uploader.Start()
 
 	router := SetupRouter(streamingStoragesByToken)

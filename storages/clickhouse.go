@@ -15,13 +15,15 @@ import (
 //note: Assume that after any outer changes in db we need to recreate this structure
 //for keeping actual db tables schema state
 type ClickHouse struct {
+	name            string
+	sourceDir       string
 	adapters        []*adapters.ClickHouse
 	schemaProcessor *schema.Processor
 	tables          map[string]*schema.Table
 	breakOnError    bool
 }
 
-func NewClickHouse(ctx context.Context, config *adapters.ClickHouseConfig, processor *schema.Processor, breakOnError bool) (*ClickHouse, error) {
+func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters.ClickHouseConfig, processor *schema.Processor, breakOnError bool) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
@@ -49,16 +51,31 @@ func NewClickHouse(ctx context.Context, config *adapters.ClickHouseConfig, proce
 		chAdapters = append(chAdapters, adapter)
 	}
 
-	return &ClickHouse{
+	ch := &ClickHouse{
+		name:            name,
+		sourceDir:       sourceDir,
 		adapters:        chAdapters,
 		schemaProcessor: processor,
 		tables:          map[string]*schema.Table{},
 		breakOnError:    breakOnError,
-	}, nil
+	}
+
+	fr := &FileReader{dir: sourceDir, storage: ch}
+	fr.start()
+
+	return ch, nil
 }
 
 func (ch *ClickHouse) Name() string {
+	return ch.name
+}
+
+func (ch *ClickHouse) Type() string {
 	return "ClickHouse"
+}
+
+func (ch *ClickHouse) SourceDir() string {
+	return ch.sourceDir
 }
 
 //Store file payload to ClickHouse with processing
