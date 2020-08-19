@@ -19,7 +19,7 @@ const tableFileKeyDelimiter = "-table-"
 //note: Assume that after any outer changes in db we need to recreate this structure
 //for keeping actual db tables schema state
 type AwsRedshift struct {
-	s3Adapter       *adapters.AwsS3
+	s3Adapter       *adapters.S3
 	redshiftAdapter *adapters.AwsRedshift
 	schemaProcessor *schema.Processor
 	tables          map[string]*schema.Table
@@ -28,7 +28,7 @@ type AwsRedshift struct {
 
 func NewAwsRedshift(ctx context.Context, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
 	processor *schema.Processor, breakOnError bool) (*AwsRedshift, error) {
-	s3Adapter, err := adapters.NewAwsS3(s3Config)
+	s3Adapter, err := adapters.NewS3(s3Config)
 	if err != nil {
 		return nil, err
 	}
