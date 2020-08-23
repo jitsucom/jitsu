@@ -66,7 +66,7 @@ combine(plugins).forEach(
     [false, true].forEach( // debug on/off variations
       (verbose) => {
         const file = ['track', ...plugins, ...(verbose ? ['debug'] : [])].join('.');
-        browserBuilds.push({
+        browserBuilds.  push({
           input: './src/browser.ts',
           plugins: [
             pluginsGenerator(plugins),
