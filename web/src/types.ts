@@ -1,11 +1,12 @@
-export interface IEventnTracker {
+export type Tracker = {
   send3p: (name: string, payload: any) => void
   track: (name: string, payload: any) => void
   id: (userData: Record<string, any>, doNotSendEvent: boolean) => void
-  logger: ILogger
+  logger: Logger
+  init?: (opts: TrackerOptions) => void
 }
 
-export interface ILogger {
+export type Logger = {
   debug: (...args: any) => void
   info: (...args: any) => void
   warn: (...args: any) => void
@@ -17,7 +18,41 @@ export type TrackerOptions = {
   tracking_host?: string
   cookie_name?: string
   key?: string
-  logger?: ILogger
+  logger?: Logger
 };
 
-export type TrackerPlugin = (t: IEventnTracker) => void;
+interface UserProps {
+  anonymous_id: string
+  [propName: string]: any
+}
+
+export interface EventCtx {
+  event_id: string
+  user: UserProps
+  user_agent: string
+  utc_time: string
+  local_tz_offset: number
+  referer: string
+  url: string
+  page_title: string
+  [propName: string]: any
+}
+
+export type Event = {
+  api_key: string
+  src: string
+  event_type: string
+  eventn_ctx: EventCtx
+}
+
+export type EventnEvent = Event & {
+  eventn_data: any
+  src: 'eventn'
+}
+
+export type ThirdPartyEvent = Event & {
+  event_type: ''
+  src_payload: any
+}
+
+export type TrackerPlugin = (t: Tracker) => void;
