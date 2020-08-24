@@ -1,8 +1,8 @@
-import { IEventnTracker, TrackerPlugin } from './types'
+import { Tracker, TrackerPlugin } from './types'
 
 export default (globalPropName: string = 'analytics'): TrackerPlugin => {
   let dropLastSegmentEvent = false;
-  return (t: IEventnTracker) => {
+  return (t: Tracker) => {
     const analytics = (window as any)[globalPropName];
     if (!analytics || typeof analytics.addSourceMiddleware !== 'function') {
       return;
@@ -12,7 +12,7 @@ export default (globalPropName: string = 'analytics'): TrackerPlugin => {
       try {
         t.send3p('ajs', chain.payload);
       } catch (e) {
-        // LOG.warn('Failed to send an event', e)
+        logger: t.logger.warn('Failed to send an event', e)
       }
 
       if (dropLastSegmentEvent) {

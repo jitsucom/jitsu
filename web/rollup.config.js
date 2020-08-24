@@ -66,7 +66,7 @@ combine(plugins).forEach(
     [false, true].forEach( // debug on/off variations
       (verbose) => {
         const file = ['track', ...plugins, ...(verbose ? ['debug'] : [])].join('.');
-        browserBuilds.  push({
+        browserBuilds.push({
           input: './src/browser.ts',
           plugins: [
             pluginsGenerator(plugins),
@@ -77,7 +77,7 @@ combine(plugins).forEach(
             }),
           ],
           output: {
-            file: `${targetDir}/browser/${file}.js`,
+            file: `${targetDir}/${file}.js`,
             format: 'iife'
           },
         })
@@ -88,6 +88,7 @@ combine(plugins).forEach(
 
 export default [
   ...browserBuilds,
+  /*
   ...[
     ['tracker', 'index'],
     ...plugins.map(p => [`${p}-plugin`, `plugins/${p}`])
@@ -98,4 +99,5 @@ export default [
       output: { file: `${targetDir}/${dst}.js`, format: 'es' },
     })
   ),
+   */
 ];

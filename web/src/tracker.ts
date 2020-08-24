@@ -1,2 +1,3 @@
-import { initTracker } from './core'
+import { initTracker } from './core';
+
 export const eventN = initTracker();
