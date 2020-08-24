@@ -10,16 +10,15 @@ import (
 	"math/rand"
 )
 
+const clickHouseStorageType = "ClickHouse"
+
 //Store files to ClickHouse in batch mode (1 log file = 1 transaction)
-//Keeping tables schema state inmemory and update it according to incoming new data
-//note: Assume that after any outer changes in db we need to recreate this structure
-//for keeping actual db tables schema state
 type ClickHouse struct {
 	name            string
 	sourceDir       string
 	adapters        []*adapters.ClickHouse
+	tableHelpers    []*TableHelper
 	schemaProcessor *schema.Processor
-	tables          map[string]*schema.Table
 	breakOnError    bool
 }
 
@@ -37,7 +36,10 @@ func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters
 		}
 	}
 
+	monitorKeeper := NewMonitorKeeper()
+
 	var chAdapters []*adapters.ClickHouse
+	var tableHelpers []*TableHelper
 	for _, dsn := range config.Dsns {
 		adapter, err := adapters.NewClickHouse(ctx, dsn, config.Database, config.Cluster, config.Tls, tableStatementFactory, nonNullFields)
 		if err != nil {
@@ -49,14 +51,15 @@ func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters
 		}
 
 		chAdapters = append(chAdapters, adapter)
+		tableHelpers = append(tableHelpers, NewTableHelper(adapter, monitorKeeper, clickHouseStorageType))
 	}
 
 	ch := &ClickHouse{
 		name:            name,
 		sourceDir:       sourceDir,
 		adapters:        chAdapters,
+		tableHelpers:    tableHelpers,
 		schemaProcessor: processor,
-		tables:          map[string]*schema.Table{},
 		breakOnError:    breakOnError,
 	}
 
@@ -71,7 +74,7 @@ func (ch *ClickHouse) Name() string {
 }
 
 func (ch *ClickHouse) Type() string {
-	return "ClickHouse"
+	return clickHouseStorageType
 }
 
 func (ch *ClickHouse) SourceDir() string {
@@ -85,36 +88,11 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 		return err
 	}
 
-	adapter := ch.getAdapter()
+	adapter, tableHelper := ch.getAdapters()
 	//process db tables & schema
 	for _, fdata := range flatData {
-		dbTableSchema, ok := ch.tables[fdata.DataSchema.Name]
-		if !ok {
-			//Get or Create Table
-			dbTableSchema, err = adapter.GetTableSchema(fdata.DataSchema.Name)
-			if err != nil {
-				return fmt.Errorf("Error getting table %s schema from clickhouse: %v", fdata.DataSchema.Name, err)
-			}
-			if !dbTableSchema.Exists() {
-				if err := adapter.CreateTable(fdata.DataSchema); err != nil {
-					return fmt.Errorf("Error creating table %s in clickhouse: %v", fdata.DataSchema.Name, err)
-				}
-				dbTableSchema = fdata.DataSchema
-			}
-			//Save
-			ch.tables[dbTableSchema.Name] = dbTableSchema
-		}
-
-		schemaDiff := dbTableSchema.Diff(fdata.DataSchema)
-		//Patch
-		if schemaDiff.Exists() {
-			if err := adapter.PatchTableSchema(schemaDiff); err != nil {
-				return fmt.Errorf("Error patching table schema %s in clickhouse: %v", schemaDiff.Name, err)
-			}
-			//Save
-			for k, v := range schemaDiff.Columns {
-				dbTableSchema.Columns[k] = v
-			}
+		if err := tableHelper.EnsureTable(fdata.DataSchema); err != nil {
+			return err
 		}
 	}
 
@@ -125,7 +103,7 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 	}
 
 	for _, fdata := range flatData {
-		for _, object := range fdata.Payload {
+		for _, object := range fdata.GetPayload() {
 			if err := adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
 				if ch.breakOnError {
 					tx.Rollback()
@@ -151,6 +129,8 @@ func (ch *ClickHouse) Close() (multiErr error) {
 	return multiErr
 }
 
-func (ch *ClickHouse) getAdapter() *adapters.ClickHouse {
-	return ch.adapters[rand.Intn(len(ch.adapters))]
+//assume that adapters quantity == tableHelpers quantity
+func (ch *ClickHouse) getAdapters() (*adapters.ClickHouse, *TableHelper) {
+	num := rand.Intn(len(ch.adapters))
+	return ch.adapters[num], ch.tableHelpers[num]
 }

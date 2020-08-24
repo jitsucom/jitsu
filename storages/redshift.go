@@ -13,18 +13,16 @@ import (
 )
 
 const tableFileKeyDelimiter = "-table-"
+const redshiftStorageType = "Redshift"
 
 //Store files to aws RedShift via aws s3 in batch mode (1 file = 1 transaction)
-//Keeping tables schema state inmemory and update it according to incoming new data
-//note: Assume that after any outer changes in db we need to recreate this structure
-//for keeping actual db tables schema state
 type AwsRedshift struct {
 	name            string
 	sourceDir       string
 	s3Adapter       *adapters.S3
 	redshiftAdapter *adapters.AwsRedshift
+	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
-	tables          map[string]*schema.Table
 	breakOnError    bool
 }
 
@@ -46,13 +44,16 @@ func NewAwsRedshift(ctx context.Context, name, sourceDir string, s3Config *adapt
 		return nil, err
 	}
 
+	monitorKeeper := NewMonitorKeeper()
+	tableHelper := NewTableHelper(redshiftAdapter, monitorKeeper, redshiftStorageType)
+
 	ar := &AwsRedshift{
 		name:            name,
 		sourceDir:       sourceDir,
 		s3Adapter:       s3Adapter,
 		redshiftAdapter: redshiftAdapter,
+		tableHelper:     tableHelper,
 		schemaProcessor: processor,
-		tables:          map[string]*schema.Table{},
 		breakOnError:    breakOnError,
 	}
 
@@ -119,44 +120,20 @@ func (ar *AwsRedshift) start() {
 
 //Store file from byte payload to s3 with processing
 func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
-	flatData, err := ar.schemaProcessor.ProcessFilePayloadIntoBytes(fileName, payload, ar.breakOnError)
+	flatData, err := ar.schemaProcessor.ProcessFilePayload(fileName, payload, ar.breakOnError)
 	if err != nil {
 		return err
 	}
 
 	for _, fdata := range flatData {
-		dbTableSchema, ok := ar.tables[fdata.DataSchema.Name]
-		if !ok {
-			//Get or Create Table
-			dbTableSchema, err = ar.redshiftAdapter.GetTableSchema(fdata.DataSchema.Name)
-			if err != nil {
-				return fmt.Errorf("Error getting table %s schema from redshift: %v", fdata.DataSchema.Name, err)
-			}
-			if !dbTableSchema.Exists() {
-				if err := ar.redshiftAdapter.CreateTable(fdata.DataSchema); err != nil {
-					return fmt.Errorf("Error creating table %s in redshift: %v", fdata.DataSchema.Name, err)
-				}
-				dbTableSchema = fdata.DataSchema
-			}
-			//Save
-			ar.tables[dbTableSchema.Name] = dbTableSchema
-		}
-
-		schemaDiff := dbTableSchema.Diff(fdata.DataSchema)
-		//Patch
-		if schemaDiff.Exists() {
-			if err := ar.redshiftAdapter.PatchTableSchema(schemaDiff); err != nil {
-				return fmt.Errorf("Error patching table schema %s in redshift: %v", schemaDiff.Name, err)
-			}
-			//Save
-			for k, v := range schemaDiff.Columns {
-				dbTableSchema.Columns[k] = v
-			}
+		if err := ar.tableHelper.EnsureTable(fdata.DataSchema); err != nil {
+			return err
 		}
 	}
+
 	//TODO put them all in one folder and if all ok => move them all to next working folder
 	for _, fdata := range flatData {
-		err := ar.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.Payload.Bytes())
+		err := ar.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes())
 		if err != nil {
 			return err
 		}
@@ -170,7 +147,7 @@ func (ar *AwsRedshift) Name() string {
 }
 
 func (ar *AwsRedshift) Type() string {
-	return "Redshift"
+	return redshiftStorageType
 }
 
 func (ar *AwsRedshift) SourceDir() string {

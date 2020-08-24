@@ -1,27 +1,23 @@
 package schema
 
-type DataType int
-
-const (
-	STRING DataType = iota
+import (
+	"fmt"
+	"github.com/ksensehq/eventnative/typing"
 )
-
-func (dt DataType) String() string {
-	switch dt {
-	default:
-		return ""
-	case STRING:
-		return "STRING"
-	}
-}
 
 type TableNameExtractFunction func(map[string]interface{}) (string, error)
 type Columns map[string]Column
 
-//Add all columns from other to current instance
+type ColumnDiff struct {
+	ColumnName   string
+	CurrentType  typing.DataType
+	IncomingType typing.DataType
+}
+
+//Merge add all columns from other to current instance
+//note: assume that current columns and other columns have same column types
 func (c Columns) Merge(other Columns) {
 	for name, column := range other {
-		//TODO when we support several Column types (not only String) we need check if type was changed
 		c[name] = column
 	}
 }
@@ -41,9 +37,34 @@ func (c Columns) Header() string {
 	return header
 }
 
+// TypesDiff calculates diff between column types
+// Return array of ColumnDiff where
+// CurrentType - type of current object column
+// IncomingType - type of another object column
+func (c Columns) TypesDiff(another Columns) []*ColumnDiff {
+	var diff []*ColumnDiff
+
+	if another == nil || len(another) == 0 {
+		return diff
+	}
+
+	for name, anotherColumn := range another {
+		if currentColumn, ok := c[name]; ok && anotherColumn.Type != currentColumn.Type {
+			diff = append(diff, &ColumnDiff{
+				ColumnName:   name,
+				CurrentType:  currentColumn.Type,
+				IncomingType: anotherColumn.Type,
+			})
+		}
+	}
+
+	return diff
+}
+
 type Table struct {
 	Name    string
 	Columns Columns
+	Version int64
 }
 
 //Return true if there is at least one column
@@ -52,28 +73,31 @@ func (t *Table) Exists() bool {
 }
 
 // Diff calculates diff between current schema and another one.
-// Assume that current schema exists (at least with empty columns)
 // Return schema to add to current schema (for being equal) or empty if
 // 1) another one is empty
 // 2) all fields from another schema exist in current schema
-func (t Table) Diff(another *Table) *Table {
+// Return err if any column type was changed
+func (t Table) Diff(another *Table) (*Table, error) {
 	diff := &Table{Name: t.Name, Columns: Columns{}}
 
 	if another == nil || len(another.Columns) == 0 {
-		return diff
+		return diff, nil
 	}
 
-	//not empty main schema => write only new columns to the result
-	for columnName, columnType := range another.Columns {
-		if _, ok := t.Columns[columnName]; !ok {
-			//TODO add type check
-			diff.Columns[columnName] = columnType
+	for name, column := range another.Columns {
+		if currentColumn, ok := t.Columns[name]; ok {
+			//type was changed
+			if currentColumn.Type != column.Type {
+				return nil, fmt.Errorf("Unsupported column [%s] type changing from: %s to: %s", name, currentColumn.Type.String(), column.Type.String())
+			}
+		} else {
+			diff.Columns[name] = column
 		}
 	}
 
-	return diff
+	return diff, nil
 }
 
 type Column struct {
-	Type DataType
+	Type typing.DataType
 }

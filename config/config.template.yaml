@@ -39,6 +39,7 @@ destinations:
     data_layout:
       mapping:
         - "/key1/key2 -> /key3"
+        - "/key1/key3 -> (integer) /key4"
       table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #template
   redshift_two:
     type: redshift

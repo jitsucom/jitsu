@@ -2,7 +2,6 @@ package storages
 
 import (
 	"context"
-	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
@@ -13,17 +12,16 @@ import (
 	"time"
 )
 
+const bqStorageType = "BigQuery"
+
 //Store files to google BigQuery via google cloud storage in batch mode (1 file = 1 transaction)
-//Keeping tables schema state inmemory and update it according to incoming new data
-//note: Assume that after any outer changes in db we need to recreate this structure
-//for keeping actual db tables schema state
 type BigQuery struct {
 	name            string
 	sourceDir       string
 	gcsAdapter      *adapters.GoogleCloudStorage
 	bqAdapter       *adapters.BigQuery
+	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
-	tables          map[string]*schema.Table
 	breakOnError    bool
 }
 
@@ -44,13 +42,17 @@ func NewBigQuery(ctx context.Context, name, sourceDir string, config *adapters.G
 		return nil, err
 	}
 
+	monitorKeeper := NewMonitorKeeper()
+
+	tableHelper := NewTableHelper(bigQueryAdapter, monitorKeeper, bqStorageType)
+
 	bq := &BigQuery{
 		name:            name,
 		sourceDir:       sourceDir,
 		gcsAdapter:      gcsAdapter,
 		bqAdapter:       bigQueryAdapter,
+		tableHelper:     tableHelper,
 		schemaProcessor: processor,
-		tables:          map[string]*schema.Table{},
 		breakOnError:    breakOnError,
 	}
 	fr := &FileReader{dir: sourceDir, storage: bq}
@@ -105,47 +107,22 @@ func (bq *BigQuery) start() {
 }
 
 //ProcessFilePayload file payload
-//Patch table if there are any new fields
+//Ensure table
 //Upload payload as a file to google cloud storage
 func (bq *BigQuery) Store(fileName string, payload []byte) error {
-	flatData, err := bq.schemaProcessor.ProcessFilePayloadIntoBytes(fileName, payload, bq.breakOnError)
+	flatData, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, bq.breakOnError)
 	if err != nil {
 		return err
 	}
 
 	for _, fdata := range flatData {
-		dbTableSchema, ok := bq.tables[fdata.DataSchema.Name]
-		if !ok {
-			//Get or Create Table
-			dbTableSchema, err = bq.bqAdapter.GetTableSchema(fdata.DataSchema.Name)
-			if err != nil {
-				return fmt.Errorf("Error getting table %s schema from BigQuery: %v", fdata.DataSchema.Name, err)
-			}
-			if !dbTableSchema.Exists() {
-				if err := bq.bqAdapter.CreateTable(fdata.DataSchema); err != nil {
-					return fmt.Errorf("Error creating table %s in BigQuery: %v", fdata.DataSchema.Name, err)
-				}
-				dbTableSchema = fdata.DataSchema
-			}
-			//Save
-			bq.tables[dbTableSchema.Name] = dbTableSchema
-		}
-
-		schemaDiff := dbTableSchema.Diff(fdata.DataSchema)
-		//Patch
-		if schemaDiff.Exists() {
-			if err := bq.bqAdapter.PatchTableSchema(schemaDiff); err != nil {
-				return err
-			}
-			//Save
-			for k, v := range schemaDiff.Columns {
-				dbTableSchema.Columns[k] = v
-			}
+		if err := bq.tableHelper.EnsureTable(fdata.DataSchema); err != nil {
+			return err
 		}
 	}
 
 	for _, fdata := range flatData {
-		err := bq.gcsAdapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.Payload.Bytes())
+		err := bq.gcsAdapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes())
 		if err != nil {
 			return err
 		}
@@ -159,7 +136,7 @@ func (bq *BigQuery) Name() string {
 }
 
 func (bq *BigQuery) Type() string {
-	return "BigQuery"
+	return bqStorageType
 }
 
 func (bq *BigQuery) SourceDir() string {

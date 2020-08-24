@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/ksensehq/eventnative/schema"
+	"github.com/ksensehq/eventnative/typing"
 	"google.golang.org/api/googleapi"
 	"log"
 	"net/http"
@@ -12,12 +13,18 @@ import (
 )
 
 var (
-	SchemaToBigQuery = map[schema.DataType]bigquery.FieldType{
-		schema.STRING: bigquery.StringFieldType,
+	SchemaToBigQuery = map[typing.DataType]bigquery.FieldType{
+		typing.STRING:    bigquery.StringFieldType,
+		typing.INT64:     bigquery.IntegerFieldType,
+		typing.FLOAT64:   bigquery.FloatFieldType,
+		typing.TIMESTAMP: bigquery.TimestampFieldType,
 	}
 
-	BigQueryToSchema = map[bigquery.FieldType]schema.DataType{
-		bigquery.StringFieldType: schema.STRING,
+	BigQueryToSchema = map[bigquery.FieldType]typing.DataType{
+		bigquery.StringFieldType:    typing.STRING,
+		bigquery.IntegerFieldType:   typing.INT64,
+		bigquery.FloatFieldType:     typing.FLOAT64,
+		bigquery.TimestampFieldType: typing.TIMESTAMP,
 	}
 )
 
@@ -80,7 +87,7 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*schema.Table, error) {
 		mappedType, ok := BigQueryToSchema[field.Type]
 		if !ok {
 			log.Println("Unknown BigQuery column type:", field.Type)
-			mappedType = schema.STRING
+			mappedType = typing.STRING
 		}
 		table.Columns[field.Name] = schema.Column{Type: mappedType}
 	}
@@ -107,7 +114,7 @@ func (bq *BigQuery) CreateTable(tableSchema *schema.Table) error {
 		mappedType, ok := SchemaToBigQuery[column.Type]
 		if !ok {
 			log.Println("Unknown BigQuery schema type:", column.Type)
-			mappedType = SchemaToBigQuery[schema.STRING]
+			mappedType = SchemaToBigQuery[typing.STRING]
 		}
 		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: mappedType})
 	}
@@ -147,7 +154,7 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
 		mappedColumnType, ok := SchemaToBigQuery[column.Type]
 		if !ok {
 			log.Println("Unknown BigQuery schema type:", column.Type.String())
-			mappedColumnType = SchemaToBigQuery[schema.STRING]
+			mappedColumnType = SchemaToBigQuery[typing.STRING]
 		}
 		metadata.Schema = append(metadata.Schema, &bigquery.FieldSchema{Name: columnName, Type: mappedColumnType})
 	}
