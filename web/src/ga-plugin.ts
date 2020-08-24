@@ -1,9 +1,9 @@
-import { IEventnTracker, TrackerPlugin } from './types'
+import { Tracker, TrackerPlugin } from './types'
 import { awaitGlobalProp, parseQuery } from './helpers';
 
 export default (globalPropName: string = 'ga'): TrackerPlugin => {
   let dropLastGAEvent = false;
-  return (t: IEventnTracker) => {
+  return (t: Tracker) => {
     awaitGlobalProp(globalPropName).then(
       (ga: any) => {
         ga(
