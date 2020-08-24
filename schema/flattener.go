@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -56,9 +57,11 @@ func (f *Flattener) flatten(key string, value interface{}, destination map[strin
 				return fmt.Errorf("Error flatten object with key %s_%s: %v", key, k, err)
 			}
 		}
+	case reflect.Bool:
+		destination[key] = strconv.FormatBool(value.(bool))
 	default:
 		if !f.omitNilValues || value != nil {
-			destination[key] = fmt.Sprintf("%v", value)
+			destination[key] = value
 		}
 	}
 

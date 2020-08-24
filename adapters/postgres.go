@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ksensehq/eventnative/schema"
+	"github.com/ksensehq/eventnative/typing"
 	_ "github.com/lib/pq"
 	"log"
 	"strconv"
@@ -33,13 +34,19 @@ const (
 )
 
 var (
-	schemaToPostgres = map[schema.DataType]string{
-		schema.STRING: "character varying(8192)",
+	schemaToPostgres = map[typing.DataType]string{
+		typing.STRING:    "character varying(8192)",
+		typing.INT64:     "bigint",
+		typing.FLOAT64:   "numeric (40,20)",
+		typing.TIMESTAMP: "timestamp",
 	}
 
-	postgresToSchema = map[string]schema.DataType{
-		"character varying(512)":  schema.STRING,
-		"character varying(8192)": schema.STRING,
+	postgresToSchema = map[string]typing.DataType{
+		"character varying(512)":  typing.STRING,
+		"character varying(8192)": typing.STRING,
+		"bigint":                  typing.INT64,
+		"numeric (40,20)":         typing.FLOAT64,
+		"timestamp":               typing.TIMESTAMP,
 	}
 )
 
@@ -176,10 +183,10 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 		if err := rows.Scan(&columnName, &columnPostgresType); err != nil {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
-		mappedType, ok := postgresToSchema[columnPostgresType]
+		mappedType, ok := postgresToSchema[strings.ToLower(columnPostgresType)]
 		if !ok {
 			log.Println("Unknown postgres column type:", columnPostgresType)
-			mappedType = schema.STRING
+			mappedType = typing.STRING
 		}
 		table.Columns[columnName] = schema.Column{Type: mappedType}
 	}
@@ -196,7 +203,7 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema 
 		mappedType, ok := schemaToPostgres[column.Type]
 		if !ok {
 			log.Println("Unknown postgres schema type:", column.Type)
-			mappedType = schemaToPostgres[schema.STRING]
+			mappedType = schemaToPostgres[typing.STRING]
 		}
 		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, columnName, mappedType))
 	}
@@ -221,7 +228,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 		mappedColumnType, ok := schemaToPostgres[column.Type]
 		if !ok {
 			log.Println("Unknown postgres schema type:", column.Type.String())
-			mappedColumnType = schemaToPostgres[schema.STRING]
+			mappedColumnType = schemaToPostgres[typing.STRING]
 		}
 		alterStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(addColumnTemplate, p.config.Schema, patchSchema.Name, columnName, mappedColumnType))
 		if err != nil {

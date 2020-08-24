@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/schema"
 	"github.com/ksensehq/eventnative/timestamp"
+	"github.com/ksensehq/eventnative/typing"
 	"github.com/mailru/go-clickhouse"
 	"io/ioutil"
 	"log"
@@ -32,14 +33,19 @@ const (
 )
 
 var (
-	schemaToClickhouse = map[schema.DataType]string{
-		schema.STRING: "String",
+	schemaToClickhouse = map[typing.DataType]string{
+		typing.STRING:    "String",
+		typing.INT64:     "Int64",
+		typing.FLOAT64:   "Float64",
+		typing.TIMESTAMP: "DateTime",
 	}
 
-	clickhouseToSchema = map[string]schema.DataType{
-		"String":           schema.STRING,
-		"Nullable(String)": schema.STRING,
-		"DateTime":         schema.STRING,
+	clickhouseToSchema = map[string]typing.DataType{
+		"String":           typing.STRING,
+		"Nullable(String)": typing.STRING,
+		"Int64":            typing.INT64,
+		"Float64":          typing.FLOAT64,
+		"DateTime":         typing.TIMESTAMP,
 	}
 )
 
@@ -246,7 +252,7 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 		mappedType, ok := schemaToClickhouse[column.Type]
 		if !ok {
 			log.Println("Unknown clickhouse schema type:", column.Type)
-			mappedType = schemaToClickhouse[schema.STRING]
+			mappedType = schemaToClickhouse[typing.STRING]
 		}
 		var addColumnDDL string
 		//clickhouse table must have at least one order field. It will be _timestamp as default
@@ -299,7 +305,7 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*schema.Table, error) {
 		mappedType, ok := clickhouseToSchema[columnClickhouseType]
 		if !ok {
 			log.Println("Unknown clickhouse column type:", columnClickhouseType)
-			mappedType = schema.STRING
+			mappedType = typing.STRING
 		}
 		table.Columns[columnName] = schema.Column{Type: mappedType}
 	}
@@ -321,7 +327,7 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 		mappedColumnType, ok := schemaToClickhouse[column.Type]
 		if !ok {
 			log.Println("Unknown clickhouse schema type:", column.Type.String())
-			mappedColumnType = schemaToClickhouse[schema.STRING]
+			mappedColumnType = schemaToClickhouse[typing.STRING]
 		}
 		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, mappedColumnType))
 		if err != nil {
