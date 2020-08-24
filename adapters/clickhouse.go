@@ -41,11 +41,14 @@ var (
 	}
 
 	clickhouseToSchema = map[string]typing.DataType{
-		"String":           typing.STRING,
-		"Nullable(String)": typing.STRING,
-		"Int64":            typing.INT64,
-		"Float64":          typing.FLOAT64,
-		"DateTime":         typing.TIMESTAMP,
+		"String":             typing.STRING,
+		"Nullable(String)":   typing.STRING,
+		"Int64":              typing.INT64,
+		"Nullable(Int64)":    typing.INT64,
+		"Float64":            typing.FLOAT64,
+		"Nullable(Float64)":  typing.FLOAT64,
+		"DateTime":           typing.TIMESTAMP,
+		"Nullable(DateTime)": typing.TIMESTAMP,
 	}
 )
 
