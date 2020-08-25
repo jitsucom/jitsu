@@ -1,7 +1,12 @@
 {
   "name": "@ksense/eventnative",
+  "main": "dist/main.cjs.js",
+  "module": "dist/main.esm.js",
   "version": "1.0.2",
   "devDependencies": {
+    "@babel/core": "^7.2.2",
+    "@babel/preset-env": "^7.2.3",
+    "@rollup/plugin-babel": "^5.2.0",
     "@rollup/plugin-strip": "^2.0.0",
     "@rollup/plugin-virtual": "^2.0.3",
     "rollup": "^1.0.0",
@@ -9,6 +14,7 @@
     "rollup-plugin-node-resolve": "^4.0.0",
     "rollup-plugin-terser": "^6.1.0",
     "rollup-plugin-typescript": "^1.0.0",
+    "terser": "^5.2.1",
     "ts-node": "^7.0.1",
     "tslib": "^1.9.3",
     "typescript": "^3.2.2"
@@ -20,6 +26,6 @@
     "pretest": "npm run build"
   },
   "files": [
-    "build"
+    "dist"
   ]
 }

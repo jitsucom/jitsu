@@ -27,6 +27,12 @@ export default (globalPropName: string = 'ga'): TrackerPlugin => {
           dropLastGAEvent = false;
         }
       },
+    ).catch(
+      (e) => {
+        logger: {
+          t.logger.error(e)
+        }
+      }
     );
   }
 };
