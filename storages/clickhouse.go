@@ -91,7 +91,12 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 	adapter, tableHelper := ch.getAdapters()
 	//process db tables & schema
 	for _, fdata := range flatData {
-		if err := tableHelper.EnsureTable(fdata.DataSchema); err != nil {
+		dbSchema, err := tableHelper.EnsureTable(fdata.DataSchema)
+		if err != nil {
+			return err
+		}
+
+		if err := ch.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
 			return err
 		}
 	}

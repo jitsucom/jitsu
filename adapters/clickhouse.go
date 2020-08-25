@@ -252,9 +252,9 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := schemaToClickhouse[column.Type]
+		mappedType, ok := schemaToClickhouse[column.GetType()]
 		if !ok {
-			log.Println("Unknown clickhouse schema type:", column.Type)
+			log.Println("Unknown clickhouse schema type:", column.GetType())
 			mappedType = schemaToClickhouse[typing.STRING]
 		}
 		var addColumnDDL string
@@ -310,7 +310,7 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*schema.Table, error) {
 			log.Println("Unknown clickhouse column type:", columnClickhouseType)
 			mappedType = typing.STRING
 		}
-		table.Columns[columnName] = schema.Column{Type: mappedType}
+		table.Columns[columnName] = schema.NewColumn(mappedType)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)
@@ -327,9 +327,9 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := schemaToClickhouse[column.Type]
+		mappedColumnType, ok := schemaToClickhouse[column.GetType()]
 		if !ok {
-			log.Println("Unknown clickhouse schema type:", column.Type.String())
+			log.Println("Unknown clickhouse schema type:", column.GetType().String())
 			mappedColumnType = schemaToClickhouse[typing.STRING]
 		}
 		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, mappedColumnType))

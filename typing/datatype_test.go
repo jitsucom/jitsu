@@ -5,6 +5,14 @@ import (
 	"testing"
 )
 
+func TestDataTypeValues(t *testing.T) {
+	require.Equal(t, DataType(0), UNKNOWN)
+	require.Equal(t, DataType(1), INT64)
+	require.Equal(t, DataType(2), FLOAT64)
+	require.Equal(t, DataType(3), STRING)
+	require.Equal(t, DataType(4), TIMESTAMP)
+}
+
 func TestTypeFromString(t *testing.T) {
 	tests := []struct {
 		name        string

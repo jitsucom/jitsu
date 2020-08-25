@@ -9,10 +9,11 @@ import (
 type DataType int
 
 const (
+	//IMPORTANT: order of iota values. Int values according to Typecast tree (see typing.typecastTree)
 	UNKNOWN DataType = iota
-	STRING
 	INT64
 	FLOAT64
+	STRING
 	TIMESTAMP
 )
 

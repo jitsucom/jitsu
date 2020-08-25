@@ -188,7 +188,7 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 			log.Println("Unknown postgres column type:", columnPostgresType)
 			mappedType = typing.STRING
 		}
-		table.Columns[columnName] = schema.Column{Type: mappedType}
+		table.Columns[columnName] = schema.NewColumn(mappedType)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)
@@ -200,9 +200,9 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema *schema.Table) error {
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := schemaToPostgres[column.Type]
+		mappedType, ok := schemaToPostgres[column.GetType()]
 		if !ok {
-			log.Println("Unknown postgres schema type:", column.Type)
+			log.Println("Unknown postgres schema type:", column.GetType())
 			mappedType = schemaToPostgres[typing.STRING]
 		}
 		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, columnName, mappedType))
@@ -225,9 +225,9 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema 
 
 func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSchema *schema.Table) error {
 	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := schemaToPostgres[column.Type]
+		mappedColumnType, ok := schemaToPostgres[column.GetType()]
 		if !ok {
-			log.Println("Unknown postgres schema type:", column.Type.String())
+			log.Println("Unknown postgres schema type:", column.GetType().String())
 			mappedColumnType = schemaToPostgres[typing.STRING]
 		}
 		alterStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(addColumnTemplate, p.config.Schema, patchSchema.Name, columnName, mappedColumnType))

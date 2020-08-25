@@ -7,30 +7,65 @@ import (
 	"time"
 )
 
+// Typecast tree
+//      STRING(3)
+//     /      \
+//FLOAT64(2)  TIMESTAMP(4)
+//    |
+//  INT64(1)
+//
 var (
+	typecastTree = &typeNode{
+		t: STRING,
+		left: &typeNode{
+			t:    FLOAT64,
+			left: &typeNode{t: INT64},
+		},
+		right: &typeNode{t: TIMESTAMP},
+	}
 	DefaultTypes = map[string]DataType{
 		timestamp.Key:         TIMESTAMP,
-		"eventn_ctx_utc_time": TIMESTAMP, //TODO
+		"eventn_ctx_utc_time": TIMESTAMP,
 	}
 	convertRules = map[rule]ConvertFunc{
 		rule{from: INT64, to: STRING}:     intToString,
 		rule{from: FLOAT64, to: STRING}:   floatToString,
 		rule{from: TIMESTAMP, to: STRING}: timestampToString,
 
-		rule{from: STRING, to: INT64}:     stringToInt,
-		rule{from: STRING, to: FLOAT64}:   stringToFloat,
+		rule{from: INT64, to: FLOAT64}: intToFloat,
+
 		rule{from: STRING, to: TIMESTAMP}: stringToTimestamp,
 
-		rule{from: FLOAT64, to: INT64}: floatToInt,
-		rule{from: INT64, to: FLOAT64}: intToFloat,
+		// Future
+		/*rule{from: STRING, to: INT64}:     stringToInt,
+		rule{from: STRING, to: FLOAT64}:   stringToFloat,
+		rule{from: FLOAT64, to: INT64}: floatToInt,*/
 	}
 )
+
+type typeNode struct {
+	t     DataType
+	left  *typeNode
+	right *typeNode
+}
 
 type ConvertFunc func(v interface{}) (interface{}, error)
 
 type rule struct {
 	from DataType
 	to   DataType
+}
+
+func IsConvertible(from DataType, to DataType) bool {
+	if from == to {
+		return true
+	}
+
+	if _, ok := convertRules[rule{from: from, to: to}]; ok {
+		return true
+	}
+
+	return false
 }
 
 func Convert(toType DataType, v interface{}) (interface{}, error) {
@@ -49,6 +84,31 @@ func Convert(toType DataType, v interface{}) (interface{}, error) {
 	}
 
 	return f(v)
+}
+
+func GetCommonAncestorType(t1, t2 DataType) DataType {
+	return lowestCommonAncestor(typecastTree, t1, t2)
+}
+
+func lowestCommonAncestor(root *typeNode, t1, t2 DataType) DataType {
+	// Start from the root node of the tree
+	node := root
+
+	// Traverse the tree
+	for node != nil {
+		if t1 > node.t && t2 > node.t {
+			// If both t1 and t2 are greater than parent
+			node = node.right
+		} else if t1 < node.t && t2 < node.t {
+			// If both t1 and t2 are lesser than parent
+			node = node.left
+		} else {
+			// We have found the split point, i.e. the LCA node.
+			return node.t
+		}
+	}
+
+	return UNKNOWN
 }
 
 //assume that input v can't be nil
@@ -108,6 +168,23 @@ func timestampToString(v interface{}) (interface{}, error) {
 	}
 }
 
+func intToFloat(v interface{}) (interface{}, error) {
+	switch v.(type) {
+	case int:
+		return float64(v.(int)), nil
+	case int8:
+		return float64(v.(int8)), nil
+	case int16:
+		return float64(v.(int16)), nil
+	case int32:
+		return float64(v.(int32)), nil
+	case int64:
+		return float64(v.(int64)), nil
+	default:
+		return nil, fmt.Errorf("Value: %v with type: %t isn't int", v, v)
+	}
+}
+
 func stringToInt(v interface{}) (interface{}, error) {
 	intValue, err := strconv.Atoi(v.(string))
 	if err != nil {
@@ -143,22 +220,5 @@ func floatToInt(v interface{}) (interface{}, error) {
 		return int64(v.(float64)), nil
 	default:
 		return nil, fmt.Errorf("Value: %v with type: %t isn't float", v, v)
-	}
-}
-
-func intToFloat(v interface{}) (interface{}, error) {
-	switch v.(type) {
-	case int:
-		return float64(v.(int)), nil
-	case int8:
-		return float64(v.(int8)), nil
-	case int16:
-		return float64(v.(int16)), nil
-	case int32:
-		return float64(v.(int32)), nil
-	case int64:
-		return float64(v.(int64)), nil
-	default:
-		return nil, fmt.Errorf("Value: %v with type: %t isn't int", v, v)
 	}
 }
