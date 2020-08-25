@@ -30,14 +30,16 @@ func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, 
 //EnsureTable get table schema if doesn't have inmemory or version was changed create a new one
 //if table doesn't exist - create a new one and increment version
 //if exists - calculate diff, patch existing one with diff and increment version
-func (th *TableHelper) EnsureTable(dataSchema *schema.Table) (err error) {
+//return actual db table schema (with actual db types)
+func (th *TableHelper) EnsureTable(dataSchema *schema.Table) (*schema.Table, error) {
+	var err error
 	dbTableSchema, ok := th.tables[dataSchema.Name]
 
 	//get or create
 	if !ok {
 		dbTableSchema, err = th.getOrCreate(dataSchema)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		//save
@@ -46,53 +48,62 @@ func (th *TableHelper) EnsureTable(dataSchema *schema.Table) (err error) {
 
 	schemaDiff, err := dbTableSchema.Diff(dataSchema)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	//patch
-	if schemaDiff.Exists() {
-		if err := th.monitorKeeper.Lock(dbTableSchema.Name); err != nil {
-			return fmt.Errorf("System error locking table %s in %s: %v", dataSchema.Name, th.storageType, err)
-		}
-		defer th.unlock(dbTableSchema.Name, 1)
-
-		ver, err := th.monitorKeeper.GetVersion(dbTableSchema.Name)
-		if err != nil {
-			return fmt.Errorf("Error getting version of table %s in %s: %v", dataSchema.Name, th.storageType, err)
-		}
-
-		//get schema and calculate diff one more time if version was changed (this statement handles optimistic locking)
-		if ver != dbTableSchema.Version {
-			dbTableSchema, err = th.manager.GetTableSchema(dataSchema.Name)
-			if err != nil {
-				return fmt.Errorf("Error getting table %s schema from %s: %v", dataSchema.Name, th.storageType, err)
-			}
-
-			dbTableSchema.Version = ver
-
-			schemaDiff, err = dbTableSchema.Diff(dataSchema)
-			if err != nil {
-				return err
-			}
-		}
-
-		if err := th.manager.PatchTableSchema(schemaDiff); err != nil {
-			return err
-		}
-
-		newVersion, err := th.monitorKeeper.IncrementVersion(dbTableSchema.Name)
-		if err != nil {
-			return fmt.Errorf("Error incrementing version in storage [%s]: %v", th.storageType, err)
-		}
-
-		//Save
-		for k, v := range schemaDiff.Columns {
-			dbTableSchema.Columns[k] = v
-		}
-		dbTableSchema.Version = newVersion
+	//if diff doesn't exist - do nothing
+	if !schemaDiff.Exists() {
+		return dbTableSchema, nil
 	}
 
-	return nil
+	//patch schema
+	if err := th.monitorKeeper.Lock(dbTableSchema.Name); err != nil {
+		return nil, fmt.Errorf("System error locking table %s in %s: %v", dataSchema.Name, th.storageType, err)
+	}
+	defer th.unlock(dbTableSchema.Name, 1)
+
+	ver, err := th.monitorKeeper.GetVersion(dbTableSchema.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Error getting version of table %s in %s: %v", dataSchema.Name, th.storageType, err)
+	}
+
+	//get schema and calculate diff one more time if version was changed (this statement handles optimistic locking)
+	if ver != dbTableSchema.Version {
+		dbTableSchema, err = th.manager.GetTableSchema(dataSchema.Name)
+		if err != nil {
+			return nil, fmt.Errorf("Error getting table %s schema from %s: %v", dataSchema.Name, th.storageType, err)
+		}
+
+		dbTableSchema.Version = ver
+
+		schemaDiff, err = dbTableSchema.Diff(dataSchema)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	//check if newSchemaDiff doesn't exist - do nothing
+	if !schemaDiff.Exists() {
+		return dbTableSchema, nil
+	}
+
+	//patch and increment table version
+	if err := th.manager.PatchTableSchema(schemaDiff); err != nil {
+		return nil, err
+	}
+
+	newVersion, err := th.monitorKeeper.IncrementVersion(dbTableSchema.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Error incrementing version in storage [%s]: %v", th.storageType, err)
+	}
+
+	//Save
+	for k, v := range schemaDiff.Columns {
+		dbTableSchema.Columns[k] = v
+	}
+	dbTableSchema.Version = newVersion
+
+	return dbTableSchema, nil
 }
 
 //lock table -> get existing schema -> create a new one if doesn't exist -> return schema with version

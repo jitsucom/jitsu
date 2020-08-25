@@ -116,7 +116,12 @@ func (bq *BigQuery) Store(fileName string, payload []byte) error {
 	}
 
 	for _, fdata := range flatData {
-		if err := bq.tableHelper.EnsureTable(fdata.DataSchema); err != nil {
+		dbSchema, err := bq.tableHelper.EnsureTable(fdata.DataSchema)
+		if err != nil {
+			return err
+		}
+
+		if err := bq.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
 			return err
 		}
 	}

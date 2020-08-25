@@ -126,7 +126,12 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 	}
 
 	for _, fdata := range flatData {
-		if err := ar.tableHelper.EnsureTable(fdata.DataSchema); err != nil {
+		dbSchema, err := ar.tableHelper.EnsureTable(fdata.DataSchema)
+		if err != nil {
+			return err
+		}
+
+		if err := ar.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
 			return err
 		}
 	}

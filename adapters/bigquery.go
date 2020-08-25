@@ -89,7 +89,7 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*schema.Table, error) {
 			log.Println("Unknown BigQuery column type:", field.Type)
 			mappedType = typing.STRING
 		}
-		table.Columns[field.Name] = schema.Column{Type: mappedType}
+		table.Columns[field.Name] = schema.NewColumn(mappedType)
 	}
 
 	return table, nil
@@ -111,9 +111,9 @@ func (bq *BigQuery) CreateTable(tableSchema *schema.Table) error {
 
 	bqSchema := bigquery.Schema{}
 	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := SchemaToBigQuery[column.Type]
+		mappedType, ok := SchemaToBigQuery[column.GetType()]
 		if !ok {
-			log.Println("Unknown BigQuery schema type:", column.Type)
+			log.Println("Unknown BigQuery schema type:", column.GetType())
 			mappedType = SchemaToBigQuery[typing.STRING]
 		}
 		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: mappedType})
@@ -151,9 +151,9 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := SchemaToBigQuery[column.Type]
+		mappedColumnType, ok := SchemaToBigQuery[column.GetType()]
 		if !ok {
-			log.Println("Unknown BigQuery schema type:", column.Type.String())
+			log.Println("Unknown BigQuery schema type:", column.GetType().String())
 			mappedColumnType = SchemaToBigQuery[typing.STRING]
 		}
 		metadata.Schema = append(metadata.Schema, &bigquery.FieldSchema{Name: columnName, Type: mappedColumnType})

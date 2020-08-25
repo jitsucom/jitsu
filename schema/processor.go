@@ -97,31 +97,8 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnE
 			if !ok {
 				filePerTable[table.Name] = &ProcessedFile{FileName: fileName, DataSchema: table, payload: []map[string]interface{}{processedObject}}
 			} else {
-				var objectErr error
-				//if existing column type was changed -> convert new column type to existing one
-				for _, columnDiff := range f.DataSchema.Columns.TypesDiff(table.Columns) {
-					v := processedObject[columnDiff.ColumnName]
-					converted, err := typing.Convert(columnDiff.CurrentType, v)
-					if err != nil {
-						if breakOnError {
-							return nil, err
-						} else {
-							log.Printf("Warn: field [%s] has changed type from [%s] to [%s] in object %s Converting err: %v. This line will be skipped",
-								columnDiff.ColumnName, columnDiff.CurrentType.String(), columnDiff.IncomingType.String(), string(line), err)
-							objectErr = err
-							break
-						}
-					}
-					//replace value, type -> converted value, type
-					processedObject[columnDiff.ColumnName] = converted
-					table.Columns[columnDiff.ColumnName] = Column{Type: columnDiff.CurrentType}
-				}
-
-				//include ok object to the result (skip err objects)
-				if objectErr == nil {
-					f.DataSchema.Columns.Merge(table.Columns)
-					f.payload = append(f.payload, processedObject)
-				}
+				f.DataSchema.Columns.Merge(table.Columns)
+				f.payload = append(f.payload, processedObject)
 			}
 		}
 
@@ -132,6 +109,34 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnE
 	}
 
 	return filePerTable, nil
+}
+
+//ApplyDBTyping call ApplyDBTypingToObject to every object in input *ProcessedFile payload
+//return err if can't convert any field to DB schema type
+func (p *Processor) ApplyDBTyping(dbSchema *Table, pf *ProcessedFile) error {
+	for _, object := range pf.payload {
+		if err := p.ApplyDBTypingToObject(dbSchema, object); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+//ApplyDBTypingToObject convert all object fields to DB schema types
+//change input object
+//return err if can't convert any field to DB schema type
+func (p *Processor) ApplyDBTypingToObject(dbSchema *Table, object map[string]interface{}) error {
+	for k, v := range object {
+		column := dbSchema.Columns[k]
+		converted, err := typing.Convert(column.GetType(), v)
+		if err != nil {
+			return fmt.Errorf("Error applying DB type [%s] to input [%s] field with [%v] value: %v", column.GetType(), k, v, err)
+		}
+		object[k] = converted
+	}
+
+	return nil
 }
 
 //Return table representation of object and flatten object from file line
@@ -214,7 +219,7 @@ func (p *Processor) processObject(object map[string]interface{}) (*Table, map[st
 			mappedObject[k] = converted
 		}
 
-		table.Columns[k] = Column{Type: resultColumnType}
+		table.Columns[k] = NewColumn(resultColumnType)
 	}
 
 	return table, mappedObject, nil

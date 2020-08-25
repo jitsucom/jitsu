@@ -139,7 +139,12 @@ func (p *Postgres) start() {
 
 //insert fact in Postgres
 func (p *Postgres) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	if err := p.tableHelper.EnsureTable(dataSchema); err != nil {
+	dbSchema, err := p.tableHelper.EnsureTable(dataSchema)
+	if err != nil {
+		return err
+	}
+
+	if err := p.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
 		return err
 	}
 
