@@ -12,6 +12,7 @@ export const getCookie = (name: string) => {
 export const setCookie = (name: string, value: string, expire: number, domain: string, secure: boolean) => {
   const expireString = expire === Infinity ? "; expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + expire;
   document.cookie = encodeURIComponent(name) + "=" + value + expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : "");
+  console.log(encodeURIComponent(name) + "=" + value + expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : ""))
 };
 
 export const generateId = () => Math.random().toString(36).substring(2, 12);
@@ -61,8 +62,7 @@ export const getDataFromParams = (params: Record<string, string>) => {
 }
 
 export const getHostWithProtocol = (host: string) => {
-  const onlyHost = host.replace(/^https?:/, '').replace(/^\/\//, '');
-  return document.location.protocol + onlyHost;
+  return '//' + host.replace(/^https?:/, '').replace(/^\/\//, '');
 };
 
 export const awaitGlobalProp = (prop: string, timeout = 500, retries = 4) => new Promise(
@@ -78,7 +78,7 @@ export const awaitGlobalProp = (prop: string, timeout = 500, retries = 4) => new
     }
     setTimeout(
       () => {
-        awaitGlobalProp(prop, timeout, retries - 1).then(resolve);
+        awaitGlobalProp(prop, timeout, retries - 1).then(resolve).catch(reject);
       },
       timeout
     )

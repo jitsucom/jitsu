@@ -16,11 +16,11 @@
             border-radius: 7px;
             margin-bottom: 1px;
         }
-
-        p.inteceptors-config {
-            padding-bottom: 20px;
-            margin-top: 0px;
-            font-family: 'Ubuntu Mono', monospace;
+        #tracking_code {
+            transition: opacity 0.3s ease;
+        }
+        ._pending {
+            opacity: 0.4;
         }
 
         body {
@@ -33,7 +33,18 @@
         h1 {
             font-family: 'Rubik', serif;
         }
-
+        .options label {
+            margin-left: 20px;
+            margin-bottom: 3px;
+            font-family: 'Ubuntu Mono', monospace;
+        }
+        .options input {
+            margin-right: 8px;
+        }
+        .options label:after {
+            content: '';
+            display: block;
+        }
     </style>
 
     <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.2/highlight.min.js"></script>
@@ -48,8 +59,8 @@
         function generateTrackingCode() {
             let url = "/s/inline.js?key=" + encodeURIComponent("[API_KEY]");
             let trackingCode = $('#tracking_code');
-            trackingCode.text("//Data loading...")
-            for (let attr of ['ga_hook', 'segment_hook']) {
+            trackingCode.addClass('_pending');
+            for (let attr of ['ga_hook', 'segment_hook', 'debug']) {
                 if ($("#" + attr).prop('checked') === true) {
                     url += `&${attr}=true`
                 }
@@ -57,13 +68,26 @@
             $.ajax({
                     type: "GET",
                     url: url,
+                    dataType: 'text',
                     error: () => trackingCode.text("//Failed to get snippet from server. Please, check error log"),
                     success: (data) => {
                         if ($("#send_data_directly").prop('checked') === true) {
                             data += "\n\neventN.track('pageview');\n"
                         }
-                        trackingCode.text(data);
+                        trackingCode.text(data).removeClass('_pending');
                         hljs.highlightBlock(trackingCode[0]);
+                        try {
+                          Array.from(document.querySelectorAll('script')).forEach(
+                            (script) => {
+                              if (script.src.match(/track\..*js$/)) {
+                                script.parentNode.removeChild(script)
+                              }
+                            }
+                          )
+                          eval(data);
+                        } catch (e) {
+                          console.log('eval failed', e);
+                        }
                     }
                 }
             );
@@ -71,7 +95,16 @@
 
         $(document).ready(() => {
             generateTrackingCode();
-            $(".inteceptors-config > input").change(generateTrackingCode);
+            $(".options input").change(generateTrackingCode);
+            var $code = $('#tracking_code');
+            $code.on('click', () => {
+              var selection = window.getSelection();
+              selection.removeAllRanges();
+              var range = document.createRange(),
+                  referenceNode = $code[0];
+              range.selectNodeContents(referenceNode);
+              selection.addRange(range);
+            });
         })
     </script>
 </head>
@@ -93,9 +126,13 @@ server:
 <p>Use this code to add tracking to your webapp (replace <b>API_KEY</b> with key you choose during installation). Further reading: <a href="https://eventnative-docs.ksense.io/javascript-integration">JavaScript
     integration guide</a></p>
 <pre class="code" id="tracking_code">//Data loading...</pre>
-<p class="inteceptors-config">Options: <input type="checkbox" id="ga_hook"/><label for="ga_hook">Google Analytics Interceptor</label>
-    | <input type="checkbox" id="segment_hook"/> <label for="segment_hook">Segment Interceptor</label>
-    | <input type="checkbox" id="send_data_directly"/> <label for="send_data_directly">Send Data Directly</label></p>
+<p>Options:</p>
+<p class="options">
+  <label><input type="checkbox" id="ga_hook"/>Google Analytics Interceptor</label>
+  <label><input type="checkbox" id="segment_hook"/>Segment Interceptor</label>
+  <label><input type="checkbox" id="send_data_directly"/>Send Data Directly</label>
+  <label><input type="checkbox" id="debug" />Debug mode</label>
+</p>
 
 <p>Links:</p>
 <ol>

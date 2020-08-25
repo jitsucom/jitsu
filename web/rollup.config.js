@@ -1,6 +1,7 @@
 import typescript from 'rollup-plugin-typescript';
 import { terser } from 'rollup-plugin-terser';
 import strip from '@rollup/plugin-strip';
+import babel from '@rollup/plugin-babel';
 import path from 'path';
 
 /**
@@ -8,7 +9,7 @@ import path from 'path';
  * @param plugins list of plugin names (e.g. ['ga', 'segment'])
  * @returns string
  */
-const pluginsGenerator = (plugins) => {
+const pluginsGeneratorPlugin = (plugins) => {
   const PREFIX = `\0virtual:`;
   const PLUGINS_PATH = 'plugins';
   return {
@@ -30,11 +31,32 @@ const pluginsGenerator = (plugins) => {
   };
 }
 
-const stripLogger = strip({
-  include: ['**/*.ts'],
-  functions: ['this.logger.*'],
+const stripLoggerPlugin = strip({
+  include: ['**/*.ts', '**/*.js'],
+  functions: ['logger.*', 't.logger.*'],
   labels: ['logger'],
 });
+
+const typescriptPlugin = typescript({
+  allowUnusedLabels: false,
+  alwaysStrict: false,
+});
+
+/*
+const addLogging = (plugin, label) => {
+  const origTransform = plugin.transform;
+
+  plugin.transform = function (code, id) {
+    console.log(`${label} in:`, id);
+    const res = origTransform.apply(this, [code, id])
+    console.log(`${label} out:`, res);
+    return res;
+  }
+}
+
+// addLogging(typescriptPlugin, 'ts');
+// addLogging(stripLoggerPlugin, 'strip')
+*/
 
 /**
  * Create all available combinations of passed array elements,
@@ -57,28 +79,33 @@ const combine = arr => {
   return res;
 }
 
-const plugins = ['ga', 'segment'];
+const availPlugins = ['ga', 'segment'];
 const targetDir = 'build';
 
 let browserBuilds = [];
-combine(plugins).forEach(
+combine(availPlugins).forEach(
   (plugins) => {
     [false, true].forEach( // debug on/off variations
       (verbose) => {
-        const file = ['track', ...plugins, ...(verbose ? ['debug'] : [])].join('.');
+        let pluginChunks = [
+          ...(plugins.length === 0 ? ['direct'] : []),
+          ...(plugins.length < availPlugins.length ? plugins : []),
+        ];
+        const file = ['track', ...pluginChunks, ...(verbose ? ['debug'] : [])].join('.');
         browserBuilds.push({
           input: './src/browser.ts',
           plugins: [
-            pluginsGenerator(plugins),
-            typescript(),
-            ...(!verbose ? [stripLogger] : []),
+            pluginsGeneratorPlugin(plugins),
+            typescriptPlugin,
+            ...(!verbose ? [stripLoggerPlugin] : []),
             terser({
               output: { comments: false },
             }),
           ],
           output: {
             file: `${targetDir}/${file}.js`,
-            format: 'iife'
+            format: 'iife',
+            sourcemap: verbose,
           },
         })
       }
@@ -88,16 +115,22 @@ combine(plugins).forEach(
 
 export default [
   ...browserBuilds,
-  /*
-  ...[
-    ['tracker', 'index'],
-    ...plugins.map(p => [`${p}-plugin`, `plugins/${p}`])
-  ].map(
-    ([src, dst]) => ({
-      input: `src/${src}.ts`,
-      plugins: [typescript()],
-      output: { file: `${targetDir}/${dst}.js`, format: 'es' },
-    })
-  ),
-   */
+  {
+    input: 'src/inline.js',
+    output: { file: `${targetDir}/inline.js`, format: 'cjs' },
+    plugins: [
+      babel({babelHelpers: 'bundled'}),
+      terser({
+        output: { comments: false },
+      }),
+    ]
+  },
+  {
+    input: `src/main.ts`,
+    plugins: [typescriptPlugin],
+    output: [
+      { file: `dist/main.esm.js`, format: 'es' },
+      { file: `dist/main.cjs.js`, format: 'cjs' },
+    ]
+  }
 ];

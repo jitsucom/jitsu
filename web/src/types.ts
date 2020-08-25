@@ -19,6 +19,8 @@ export type TrackerOptions = {
   cookie_name?: string
   key?: string
   logger?: Logger
+  ga_hook?: boolean
+  segment_hook?: boolean
 };
 
 interface UserProps {
