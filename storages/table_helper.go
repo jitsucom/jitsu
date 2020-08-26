@@ -27,7 +27,7 @@ func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, 
 	}
 }
 
-//EnsureTable get table schema if doesn't have inmemory or version was changed create a new one
+//EnsureTable return DB table schema and err if occurred
 //if table doesn't exist - create a new one and increment version
 //if exists - calculate diff, patch existing one with diff and increment version
 //return actual db table schema (with actual db types)

@@ -106,9 +106,7 @@ func (bq *BigQuery) start() {
 	}()
 }
 
-//ProcessFilePayload file payload
-//Ensure table
-//Upload payload as a file to google cloud storage
+//Store file from byte payload to google cloud storage with processing
 func (bq *BigQuery) Store(fileName string, payload []byte) error {
 	flatData, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, bq.breakOnError)
 	if err != nil {

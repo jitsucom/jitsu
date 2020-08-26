@@ -9,6 +9,7 @@ import (
 	"github.com/ksensehq/eventnative/typing"
 	_ "github.com/lib/pq"
 	"log"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -208,6 +209,8 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema 
 		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, columnName, mappedType))
 	}
 
+	//sorting columns asc
+	sort.Strings(columnsDDL)
 	createStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(createTableTemplate, p.config.Schema, tableSchema.Name, strings.Join(columnsDDL, ",")))
 	if err != nil {
 		wrappedTx.Rollback()
