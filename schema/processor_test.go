@@ -38,7 +38,7 @@ func TestProcess(t *testing.T) {
 							"_geo_data_region": NewColumn(typing.STRING),
 							"_timestamp":       NewColumn(typing.TIMESTAMP),
 							"event_type":       NewColumn(typing.STRING),
-							"key1":             NewColumn(typing.FLOAT64),
+							"key1":             NewColumn(typing.INT64),
 							"key3":             NewColumn(typing.STRING)}},
 				},
 
@@ -50,14 +50,14 @@ func TestProcess(t *testing.T) {
 					DataSchema: &Table{Name: "user_2020_08", Columns: Columns{
 						"_geo_data_city":    NewColumn(typing.STRING),
 						"_geo_data_country": NewColumn(typing.STRING),
-						"_geo_data_zip":     NewColumn(typing.FLOAT64),
+						"_geo_data_zip":     NewColumn(typing.INT64),
 						"_timestamp":        NewColumn(typing.TIMESTAMP),
 						"event_type":        NewColumn(typing.STRING),
 						"key1":              NewColumn(typing.STRING),
 						"key10":             NewColumn(typing.STRING),
 						"key10_sib1_1": Column{
 							dataType:       nil,
-							typeOccurrence: map[typing.DataType]bool{typing.STRING: true, typing.FLOAT64: true},
+							typeOccurrence: map[typing.DataType]bool{typing.STRING: true, typing.INT64: true},
 						},
 						"key1_key2": NewColumn(typing.STRING),
 						"key3":      NewColumn(typing.STRING)}},
