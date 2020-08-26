@@ -58,10 +58,17 @@ func TestDiff(t *testing.T) {
 			"",
 		},
 		{
-			"Diff error column type was changed",
+			"Diff ok with changed type convertible",
 			&Table{Name: "some", Columns: Columns{"col1": NewColumn(typing.STRING), "col4": NewColumn(typing.STRING)}},
 			&Table{Name: "some", Columns: Columns{"col1": NewColumn(typing.FLOAT64), "col2": NewColumn(typing.STRING)}},
-			&Table{Name: "some", Columns: Columns{"col2": NewColumn(typing.STRING), "col1": NewColumn(typing.STRING)}},
+			&Table{Name: "some", Columns: Columns{"col2": NewColumn(typing.STRING)}},
+			"",
+		},
+		{
+			"Diff err with changed type isn't convertible",
+			&Table{Name: "some", Columns: Columns{"col1": NewColumn(typing.FLOAT64), "col4": NewColumn(typing.STRING)}},
+			&Table{Name: "some", Columns: Columns{"col1": NewColumn(typing.STRING), "col2": NewColumn(typing.STRING)}},
+			nil,
 			"Unsupported column [col1] type changing from: STRING to: FLOAT64",
 		},
 	}
