@@ -2,6 +2,7 @@ package typing
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -67,11 +68,24 @@ func StringFromType(dataType DataType) (string, error) {
 	return str, nil
 }
 
+//TypeFromValue return DataType from v type
+//note: json.Unmarshal doesn't return int type at all, but returns float64 instead
+//      we have to check math.Trunc(floatV) == floatV and than it will be INT64
 func TypeFromValue(v interface{}) (DataType, error) {
 	switch v.(type) {
 	case string:
 		return STRING, nil
-	case float64, float32:
+	case float32:
+		floatV := float64(v.(float32))
+		if math.Trunc(floatV) == floatV {
+			return INT64, nil
+		}
+		return FLOAT64, nil
+	case float64:
+		floatV := v.(float64)
+		if math.Trunc(floatV) == floatV {
+			return INT64, nil
+		}
 		return FLOAT64, nil
 	case int, int8, int16, int32, int64:
 		return INT64, nil

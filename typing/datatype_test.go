@@ -145,14 +145,26 @@ func TestTypeFromValue(t *testing.T) {
 			"",
 		},
 		{
-			"Float32 ok",
+			"Float32 with zero after point - int",
 			float32(123.0),
+			INT64,
+			"",
+		},
+		{
+			"Float64 with zero after point - int",
+			123.0,
+			INT64,
+			"",
+		},
+		{
+			"Float32 ok",
+			float32(123.1),
 			FLOAT64,
 			"",
 		},
 		{
 			"Float64 ok",
-			123.0,
+			123.0000000001,
 			FLOAT64,
 			"",
 		},
@@ -194,7 +206,7 @@ func TestTypeFromValue(t *testing.T) {
 				require.EqualError(t, err, tt.expectedErr, "Errors aren't equal")
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, tt.expected, actual, "strings aren't equal")
+				require.Equal(t, tt.expected, actual, "types aren't equal")
 			}
 		})
 	}

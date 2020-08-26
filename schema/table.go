@@ -69,8 +69,8 @@ func (t Table) Diff(another *Table) (*Table, error) {
 
 	for name, column := range another.Columns {
 		if currentColumn, ok := t.Columns[name]; ok {
-			if !typing.IsConvertible(currentColumn.GetType(), column.GetType()) {
-				return nil, fmt.Errorf("Unsupported column [%s] type changing from: %s to: %s", name, currentColumn.GetType().String(), column.GetType().String())
+			if !typing.IsConvertible(column.GetType(), currentColumn.GetType()) {
+				return nil, fmt.Errorf("Unsupported column [%s] type changing from: %s to: %s", name, column.GetType().String(), currentColumn.GetType().String())
 			}
 		} else {
 			diff.Columns[name] = column
