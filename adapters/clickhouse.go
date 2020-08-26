@@ -8,11 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ksensehq/eventnative/schema"
-	"github.com/ksensehq/eventnative/timestamp"
 	"github.com/ksensehq/eventnative/typing"
 	"github.com/mailru/go-clickhouse"
 	"io/ioutil"
 	"log"
+	"sort"
 	"strings"
 )
 
@@ -29,7 +29,6 @@ const (
 	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
 	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
 	defaultPrimaryKey = ``
-	DateTimeCHType    = `DateTime`
 )
 
 var (
@@ -258,20 +257,16 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 			mappedType = schemaToClickhouse[typing.STRING]
 		}
 		var addColumnDDL string
-		//clickhouse table must have at least one order field. It will be _timestamp as default
-		if columnName == timestamp.Key {
-			addColumnDDL = columnName + " " + DateTimeCHType
+		if _, ok := ch.nonNullFields[columnName]; ok {
+			addColumnDDL = columnName + " " + mappedType
 		} else {
-			//check if field is nonNullable
-			if _, ok := ch.nonNullFields[columnName]; ok {
-				addColumnDDL = columnName + " " + mappedType
-			} else {
-				addColumnDDL = columnName + fmt.Sprintf(columnCHNullableTemplate, mappedType)
-			}
+			addColumnDDL = columnName + fmt.Sprintf(columnCHNullableTemplate, mappedType)
 		}
 		columnsDDL = append(columnsDDL, addColumnDDL)
 	}
 
+	//sorting columns asc
+	sort.Strings(columnsDDL)
 	statementStr := ch.tableStatementFactory.CreateTableStatement(tableSchema.Name, strings.Join(columnsDDL, ","))
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, statementStr)
 	if err != nil {
