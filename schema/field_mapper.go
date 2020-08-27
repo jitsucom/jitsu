@@ -123,7 +123,7 @@ func (fm FieldMapper) ApplyDelete(object map[string]interface{}) map[string]inte
 	return mappedObject
 }
 
-//Map rewrite source to destination and apply typecast
+//Map rewrite source to destination
 //Input: flattened object
 //Return same object with applied mappings
 func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
