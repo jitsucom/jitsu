@@ -15,16 +15,14 @@ import (
 )
 
 const eventsPerPersistedFile = 2000
+const postgresStorageType = "Postgres"
 
 //Consuming event facts, put them to https://github.com/joncrlsn/dque
 //Dequeuing and store events to Postgres in streaming mode
-//Keeping tables schema state inmemory and update it according to incoming new data
-//note: Assume that after any outer changes in db we need to recreate this structure
-//for keeping actual db tables schema state
 type Postgres struct {
 	adapter         *adapters.Postgres
+	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
-	tables          map[string]*schema.Table
 	eventQueue      *dque.DQue
 }
 
@@ -57,10 +55,13 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		return nil, fmt.Errorf("Error opening/creating event queue for postgres: %v", err)
 	}
 
+	monitorKeeper := NewMonitorKeeper()
+	tableHelper := NewTableHelper(adapter, monitorKeeper, redshiftStorageType)
+
 	p := &Postgres{
 		adapter:         adapter,
+		tableHelper:     tableHelper,
 		schemaProcessor: processor,
-		tables:          map[string]*schema.Table{},
 		eventQueue:      queue,
 	}
 	p.start()
@@ -138,36 +139,16 @@ func (p *Postgres) start() {
 
 //insert fact in Postgres
 func (p *Postgres) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	dbTableSchema, ok := p.tables[dataSchema.Name]
-	if !ok {
-		//Get or Create Table
-		dbTableSchema, err = p.adapter.GetTableSchema(dataSchema.Name)
-		if err != nil {
-			return fmt.Errorf("Error getting table %s schema from postgres: %v", dataSchema.Name, err)
-		}
-		if !dbTableSchema.Exists() {
-			if err := p.adapter.CreateTable(dataSchema); err != nil {
-				return fmt.Errorf("Error creating table %s in postgres: %v", dataSchema.Name, err)
-			}
-			dbTableSchema = dataSchema
-		}
-		//Save
-		p.tables[dbTableSchema.Name] = dbTableSchema
+	dbSchema, err := p.tableHelper.EnsureTable(dataSchema)
+	if err != nil {
+		return err
 	}
 
-	schemaDiff := dbTableSchema.Diff(dataSchema)
-	//Patch
-	if schemaDiff.Exists() {
-		if err := p.adapter.PatchTableSchema(schemaDiff); err != nil {
-			return fmt.Errorf("Error patching table %s in postgres: %v", schemaDiff.Name, err)
-		}
-		//Save
-		for k, v := range schemaDiff.Columns {
-			dbTableSchema.Columns[k] = v
-		}
+	if err := p.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
+		return err
 	}
 
-	return p.adapter.Insert(dbTableSchema, fact)
+	return p.adapter.Insert(dataSchema, fact)
 }
 
 //Close adapters.Postgres and queue

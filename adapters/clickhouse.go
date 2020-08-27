@@ -8,15 +8,17 @@ import (
 	"errors"
 	"fmt"
 	"github.com/ksensehq/eventnative/schema"
-	"github.com/ksensehq/eventnative/timestamp"
+	"github.com/ksensehq/eventnative/typing"
 	"github.com/mailru/go-clickhouse"
 	"io/ioutil"
 	"log"
+	"sort"
 	"strings"
 )
 
 const (
 	tableSchemaCHQuery        = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
+	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS %s %s`
 	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s Nullable(%s)`
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
 	onClusterCHClauseTemplate = ` ON CLUSTER %s `
@@ -24,22 +26,30 @@ const (
 
 	createTableCHTemplate            = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
 	createDistributedTableCHTemplate = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
+	dropDistributedTableCHTemplate   = `DROP TABLE "%s"."dist_%s" %s`
 
 	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
 	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
 	defaultPrimaryKey = ``
-	DateTimeCHType    = `DateTime`
 )
 
 var (
-	schemaToClickhouse = map[schema.DataType]string{
-		schema.STRING: "String",
+	schemaToClickhouse = map[typing.DataType]string{
+		typing.STRING:    "String",
+		typing.INT64:     "Int64",
+		typing.FLOAT64:   "Float64",
+		typing.TIMESTAMP: "DateTime",
 	}
 
-	clickhouseToSchema = map[string]schema.DataType{
-		"String":           schema.STRING,
-		"Nullable(String)": schema.STRING,
-		"DateTime":         schema.STRING,
+	clickhouseToSchema = map[string]typing.DataType{
+		"String":             typing.STRING,
+		"Nullable(String)":   typing.STRING,
+		"Int64":              typing.INT64,
+		"Nullable(Int64)":    typing.INT64,
+		"Float64":            typing.FLOAT64,
+		"Nullable(Float64)":  typing.FLOAT64,
+		"DateTime":           typing.TIMESTAMP,
+		"Nullable(DateTime)": typing.TIMESTAMP,
 	}
 )
 
@@ -233,6 +243,28 @@ func (ch *ClickHouse) OpenTx() (*Transaction, error) {
 	return &Transaction{tx: tx, dbType: ch.Name()}, nil
 }
 
+//CreateDB create database instance if doesn't exist
+func (ch *ClickHouse) CreateDB(dbName string) error {
+	wrappedTx, err := ch.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(createCHDBTemplate, dbName, ch.getOnClusterClause()))
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error preparing create db %s statement: %v", dbName, err)
+	}
+
+	_, err = createStmt.ExecContext(ch.ctx)
+
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error creating [%s] db: %v", dbName, err)
+	}
+	return wrappedTx.tx.Commit()
+}
+
 //CreateTable create database table with name,columns provided in schema.Table representation
 //New tables will have MergeTree() or ReplicatedMergeTree() engine depends on config.cluster empty or not
 func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
@@ -243,26 +275,22 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := schemaToClickhouse[column.Type]
+		mappedType, ok := schemaToClickhouse[column.GetType()]
 		if !ok {
-			log.Println("Unknown clickhouse schema type:", column.Type)
-			mappedType = schemaToClickhouse[schema.STRING]
+			log.Println("Unknown clickhouse schema type:", column.GetType())
+			mappedType = schemaToClickhouse[typing.STRING]
 		}
 		var addColumnDDL string
-		//clickhouse table must have at least one order field. It will be _timestamp as default
-		if columnName == timestamp.Key {
-			addColumnDDL = columnName + " " + DateTimeCHType
+		if _, ok := ch.nonNullFields[columnName]; ok {
+			addColumnDDL = columnName + " " + mappedType
 		} else {
-			//check if field is nonNullable
-			if _, ok := ch.nonNullFields[columnName]; ok {
-				addColumnDDL = columnName + " " + mappedType
-			} else {
-				addColumnDDL = columnName + fmt.Sprintf(columnCHNullableTemplate, mappedType)
-			}
+			addColumnDDL = columnName + fmt.Sprintf(columnCHNullableTemplate, mappedType)
 		}
 		columnsDDL = append(columnsDDL, addColumnDDL)
 	}
 
+	//sorting columns asc
+	sort.Strings(columnsDDL)
 	statementStr := ch.tableStatementFactory.CreateTableStatement(tableSchema.Name, strings.Join(columnsDDL, ","))
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, statementStr)
 	if err != nil {
@@ -299,9 +327,9 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*schema.Table, error) {
 		mappedType, ok := clickhouseToSchema[columnClickhouseType]
 		if !ok {
 			log.Println("Unknown clickhouse column type:", columnClickhouseType)
-			mappedType = schema.STRING
+			mappedType = typing.STRING
 		}
-		table.Columns[columnName] = schema.Column{Type: mappedType}
+		table.Columns[columnName] = schema.NewColumn(mappedType)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)
@@ -311,6 +339,7 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*schema.Table, error) {
 }
 
 //PatchTableSchema add new columns(from provided schema.Table) to existing table
+//drop and create distributed table
 func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 	wrappedTx, err := ch.OpenTx()
 	if err != nil {
@@ -318,10 +347,10 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := schemaToClickhouse[column.Type]
+		mappedColumnType, ok := schemaToClickhouse[column.GetType()]
 		if !ok {
-			log.Println("Unknown clickhouse schema type:", column.Type.String())
-			mappedColumnType = schemaToClickhouse[schema.STRING]
+			log.Println("Unknown clickhouse schema type:", column.GetType().String())
+			mappedColumnType = schemaToClickhouse[typing.STRING]
 		}
 		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, mappedColumnType))
 		if err != nil {
@@ -334,6 +363,12 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 			wrappedTx.Rollback()
 			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, mappedColumnType, err)
 		}
+	}
+
+	//drop and create distributed table if ReplicatedMergeTree engine
+	if ch.cluster != "" {
+		ch.dropDistributedTableInTransaction(wrappedTx, patchSchema.Name)
+		ch.createDistributedTableInTransaction(wrappedTx, patchSchema.Name)
 	}
 
 	return wrappedTx.tx.Commit()
@@ -394,8 +429,21 @@ func (ch *ClickHouse) createDistributedTableInTransaction(wrappedTx *Transaction
 	}
 
 	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
-		wrappedTx.Rollback()
 		log.Printf("Error creating distributed table for [%s] : %v", originTableName, err)
+	}
+}
+
+//drop distributed table, ignore errors
+func (ch *ClickHouse) dropDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
+	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(dropDistributedTableCHTemplate,
+		ch.database, originTableName, ch.getOnClusterClause()))
+	if err != nil {
+		log.Printf("Error preparing drop distributed table statement for [%s] : %v", originTableName, err)
+		return
+	}
+
+	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
+		log.Printf("Error dropping distributed table for [%s] : %v", originTableName, err)
 	}
 }
 
