@@ -5,29 +5,30 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/timestamp"
+	"github.com/ksensehq/eventnative/typing"
 	"io"
 	"log"
-	"reflect"
 	"text/template"
 	"time"
 )
 
 type Processor struct {
+	flattener            *Flattener
 	fieldMapper          Mapper
+	typeCasts            map[string]typing.DataType
 	tableNameExtractFunc TableNameExtractFunction
 }
 
-type ProcessedFile struct {
-	FileName   string
-	Payload    *bytes.Buffer
-	DataSchema *Table
-}
-
 func NewProcessor(tableNameFuncExpression string, mappings []string) (*Processor, error) {
-	mapper, err := NewFieldMapper(mappings)
+	mapper, typeCasts, err := NewFieldMapper(mappings)
 	if err != nil {
 		return nil, err
+	}
+
+	if typeCasts == nil {
+		typeCasts = map[string]typing.DataType{}
 	}
 
 	tmpl, err := template.New("table name extract").
@@ -54,23 +55,34 @@ func NewProcessor(tableNameFuncExpression string, mappings []string) (*Processor
 			return "", fmt.Errorf("Error executing %s template: %v", tableNameFuncExpression, err)
 		}
 
+		//revert type of _timestamp field
+		object[timestamp.Key] = ts
+
 		return buf.String(), nil
 	}
 
-	return &Processor{fieldMapper: mapper, tableNameExtractFunc: tableNameExtractFunc}, nil
+	return &Processor{
+		flattener:            NewFlattener(),
+		fieldMapper:          mapper,
+		typeCasts:            typeCasts,
+		tableNameExtractFunc: tableNameExtractFunc}, nil
 }
 
-//Process file payload lines divided with \n. Line by line where 1 line = 1 json
-//Return json byte payload contained 1 line = 1 json with \n delimiter
-//Every json byte payload for different table like {"table1": payload, "table2": payload}
-func (p *Processor) Process(fileName string, payload []byte, breakOnError bool) (map[string]*ProcessedFile, error) {
+//ProcessFact return table representation, processed flatten object
+func (p *Processor) ProcessFact(fact events.Fact) (*Table, map[string]interface{}, error) {
+	return p.processObject(fact)
+}
+
+//ProcessFilePayload process file payload lines divided with \n. Line by line where 1 line = 1 json
+//Return array of processed objects per table like {"table1": []objects, "table2": []objects}
+func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnError bool) (map[string]*ProcessedFile, error) {
 	filePerTable := map[string]*ProcessedFile{}
 	input := bytes.NewBuffer(payload)
 	reader := bufio.NewReaderSize(input, 64*1024)
 	line, readErr := reader.ReadBytes('\n')
 
 	for readErr == nil {
-		table, processedObject, err := p.processObject(line)
+		table, processedObject, err := p.processLine(line)
 		if err != nil {
 			if breakOnError {
 				return nil, err
@@ -83,12 +95,10 @@ func (p *Processor) Process(fileName string, payload []byte, breakOnError bool) 
 		if table.Exists() {
 			f, ok := filePerTable[table.Name]
 			if !ok {
-				f := &ProcessedFile{FileName: fileName, DataSchema: table, Payload: bytes.NewBuffer(processedObject)}
-				filePerTable[table.Name] = f
+				filePerTable[table.Name] = &ProcessedFile{FileName: fileName, DataSchema: table, payload: []map[string]interface{}{processedObject}}
 			} else {
 				f.DataSchema.Columns.Merge(table.Columns)
-				f.Payload.Write([]byte("\n"))
-				f.Payload.Write(processedObject)
+				f.payload = append(f.payload, processedObject)
 			}
 		}
 
@@ -101,9 +111,36 @@ func (p *Processor) Process(fileName string, payload []byte, breakOnError bool) 
 	return filePerTable, nil
 }
 
-//Flatten all json keys from /key1/key2 to key1_key2 and apply mappings
-//Return table representation of object and object json bytes
-func (p *Processor) processObject(line []byte) (*Table, []byte, error) {
+//ApplyDBTyping call ApplyDBTypingToObject to every object in input *ProcessedFile payload
+//return err if can't convert any field to DB schema type
+func (p *Processor) ApplyDBTyping(dbSchema *Table, pf *ProcessedFile) error {
+	for _, object := range pf.payload {
+		if err := p.ApplyDBTypingToObject(dbSchema, object); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+//ApplyDBTypingToObject convert all object fields to DB schema types
+//change input object
+//return err if can't convert any field to DB schema type
+func (p *Processor) ApplyDBTypingToObject(dbSchema *Table, object map[string]interface{}) error {
+	for k, v := range object {
+		column := dbSchema.Columns[k]
+		converted, err := typing.Convert(column.GetType(), v)
+		if err != nil {
+			return fmt.Errorf("Error applying DB type [%s] to input [%s] field with [%v] value: %v", column.GetType(), k, v, err)
+		}
+		object[k] = converted
+	}
+
+	return nil
+}
+
+//Return table representation of object and flatten object from file line
+func (p *Processor) processLine(line []byte) (*Table, map[string]interface{}, error) {
 	object := map[string]interface{}{}
 
 	err := json.Unmarshal(line, &object)
@@ -111,73 +148,79 @@ func (p *Processor) processObject(line []byte) (*Table, []byte, error) {
 		return nil, nil, err
 	}
 
-	flatObject, err := p.flattenObject(object)
+	table, flattenObject, err := p.processObject(object)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	tableName, err := p.tableNameExtractFunc(flatObject)
+	return table, flattenObject, nil
+}
+
+//Return table representation of object and flatten, mapped object
+//1. remove toDelete fields from object
+//2. flatten object
+//3. map object
+//4. apply typecast
+func (p *Processor) processObject(object map[string]interface{}) (*Table, map[string]interface{}, error) {
+	processed := p.fieldMapper.ApplyDelete(object)
+
+	flatObject, err := p.flattener.FlattenObject(processed)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error extracting table name from object {%v}: %v", flatObject, err)
+		return nil, nil, err
+	}
+
+	mappedObject, err := p.fieldMapper.Map(flatObject)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Error mapping object {%v}: %v", flatObject, err)
+	}
+
+	tableName, err := p.tableNameExtractFunc(mappedObject)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Error extracting table name from object {%v}: %v", mappedObject, err)
 	}
 	if tableName == "" {
-		return nil, nil, fmt.Errorf("Unknown table name. Object {%v}", flatObject)
-	}
-
-	mappedObject := p.fieldMapper.Map(flatObject)
-
-	objectBytes, err := json.Marshal(mappedObject)
-	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("Unknown table name. Object {%v}", mappedObject)
 	}
 
 	table := &Table{Name: tableName, Columns: Columns{}}
-	for k := range mappedObject {
-		table.Columns[k] = Column{Type: STRING}
-	}
 
-	return table, objectBytes, nil
-}
-
-//Return flatten object e.g. from {"key1":{"key2":123}} to {"key1_key2":123}
-func (p *Processor) flattenObject(json map[string]interface{}) (map[string]interface{}, error) {
-	flattenMap := make(map[string]interface{})
-
-	err := p.flatten("", json, flattenMap)
-	if err != nil {
-		return nil, err
-	}
-
-	return flattenMap, nil
-
-}
-
-//omit nil values
-func (p *Processor) flatten(key string, value interface{}, destination map[string]interface{}) error {
-	t := reflect.ValueOf(value)
-	switch t.Kind() {
-	case reflect.Slice:
-		b, err := json.Marshal(value)
+	//apply typecast and define column types
+	//mapping typecast overrides default typecast
+	for k, v := range mappedObject {
+		//value type
+		resultColumnType, err := typing.TypeFromValue(v)
 		if err != nil {
-			return fmt.Errorf("Error marshaling array with key %s: %v", key, err)
+			return nil, nil, fmt.Errorf("Error getting type of field [%s]: %v", k, err)
 		}
-		destination[key] = string(b)
-	case reflect.Map:
-		unboxed := value.(map[string]interface{})
-		for k, v := range unboxed {
-			newKey := k
-			if key != "" {
-				newKey = key + "_" + newKey
+
+		//default typecast
+		if defaultType, ok := typing.DefaultTypes[k]; ok {
+			converted, err := typing.Convert(defaultType, v)
+			if err != nil {
+				return nil, nil, fmt.Errorf("Error default converting field [%s]: %v", k, err)
 			}
-			if err := p.flatten(newKey, v, destination); err != nil {
-				return fmt.Errorf("Error flatten object with key %s_%s: %v", key, k, err)
+
+			resultColumnType = defaultType
+			mappedObject[k] = converted
+		}
+
+		//mapping typecast
+		if toType, ok := p.typeCasts[k]; ok {
+			converted, err := typing.Convert(toType, v)
+			if err != nil {
+				strType, getStrErr := typing.StringFromType(toType)
+				if getStrErr != nil {
+					strType = getStrErr.Error()
+				}
+				return nil, nil, fmt.Errorf("Error converting field [%s] to [%s]: %v", k, strType, err)
 			}
+
+			resultColumnType = toType
+			mappedObject[k] = converted
 		}
-	default:
-		if value != nil {
-			destination[key] = fmt.Sprintf("%v", value)
-		}
+
+		table.Columns[k] = NewColumn(resultColumnType)
 	}
 
-	return nil
+	return table, mappedObject, nil
 }

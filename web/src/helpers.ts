@@ -61,6 +61,18 @@ export const getDataFromParams = (params: Record<string, string>) => {
   return result;
 }
 
+//2020-08-24T13:42:16.439Z -> 2020-08-24T13:42:16.439123Z
+export const reformatDate = (strDate: string) => {
+  const end = strDate.split('.')[1];
+  if (!end) {
+    return strDate;
+  }
+  if (end.length >= 7) {
+    return strDate;
+  }
+  return strDate.slice(0, -1) + '0'.repeat(7 - end.length) + 'Z';
+};
+
 export const getHostWithProtocol = (host: string) => {
   return '//' + host.replace(/^https?:/, '').replace(/^\/\//, '');
 };

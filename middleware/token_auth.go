@@ -8,6 +8,7 @@ import (
 
 const TokenName = "token"
 
+//TokenAuth check that provided token is valid and exists in auth config
 func TokenAuth(main gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if len(appconfig.Instance.AuthorizedTokens) > 0 {

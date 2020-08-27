@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -18,8 +19,8 @@ type Uploader interface {
 	Start()
 }
 
-//Uploader reads already rotated and closed log files
-//and passed them to all Storage (or Storages) according to token from filename
+//Uploader read already rotated and closed log files
+//Put them to Storage source dirs according to token from filename
 type PeriodicUploader struct {
 	fileMask       string
 	filesBatchSize int
@@ -31,7 +32,6 @@ type PeriodicUploader struct {
 type DummyUploader struct{}
 
 func (*DummyUploader) Start() {
-	log.Println("There is no configured event destinations")
 }
 
 func NewUploader(fileMask string, filesBatchSize, uploadEveryS int, tokenizedEventStorages map[string][]Storage) Uploader {
@@ -47,9 +47,9 @@ func NewUploader(fileMask string, filesBatchSize, uploadEveryS int, tokenizedEve
 	}
 }
 
-//Start reading  event logger log directory and finding already rotated and closed files by mask
-//read them and passed to Storage
-//delete if there wasn't any error
+//Start reading event logger log directory and finding already rotated and closed files by mask
+//multiple them to storage directories (by token) where 1 file -> 1 file per every storage directory
+//delete found files from log dir
 func (u *PeriodicUploader) Start() {
 	go func() {
 		for {
@@ -93,16 +93,12 @@ func (u *PeriodicUploader) Start() {
 					continue
 				}
 
-				//TODO all storages must be in one transaction 1 or no one
 				for _, storage := range eventStorages {
-					if err = storage.Store(fileName, b); err != nil {
-						log.Println("Error store file", filePath, "in", storage.Name(), "destination:", err)
-						break
+					//copy file
+					newFile := path.Join(storage.SourceDir(), fileName)
+					if err := ioutil.WriteFile(newFile, b, 0644); err != nil {
+						log.Println("Error copying file", filePath, "in", newFile, "err:", err)
 					}
-				}
-
-				if err != nil {
-					continue
 				}
 
 				os.Remove(filePath)

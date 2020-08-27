@@ -11,7 +11,7 @@ import (
 	"net/http"
 )
 
-type AwsS3 struct {
+type S3 struct {
 	config *S3Config
 	client *s3.S3
 }
@@ -21,6 +21,7 @@ type S3Config struct {
 	SecretKey   string `mapstructure:"secret_access_key"`
 	Bucket      string `mapstructure:"bucket"`
 	Region      string `mapstructure:"region"`
+	Endpoint    string `mapstructure:"endpoint"`
 }
 
 func (s3c *S3Config) Validate() error {
@@ -43,17 +44,20 @@ func (s3c *S3Config) Validate() error {
 	return nil
 }
 
-func NewAwsS3(s3Config *S3Config) (*AwsS3, error) {
+func NewS3(s3Config *S3Config) (*S3, error) {
 	awsConfig := aws.NewConfig().
 		WithCredentials(credentials.NewStaticCredentials(s3Config.AccessKeyID, s3Config.SecretKey, "")).
 		WithRegion(s3Config.Region)
+	if s3Config.Endpoint != "" {
+		awsConfig.WithEndpoint(s3Config.Endpoint)
+	}
 	s3Session := session.Must(session.NewSession())
 
-	return &AwsS3{client: s3.New(s3Session, awsConfig), config: s3Config}, nil
+	return &S3{client: s3.New(s3Session, awsConfig), config: s3Config}, nil
 }
 
 //Create named file on aws s3 with payload
-func (a *AwsS3) UploadBytes(fileName string, fileBytes []byte) error {
+func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	fileType := http.DetectContentType(fileBytes)
 	params := &s3.PutObjectInput{
 		Bucket:      aws.String(a.config.Bucket),
@@ -68,9 +72,9 @@ func (a *AwsS3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-//Return aws s3 bucket file names
-func (a *AwsS3) ListBucket() ([]string, error) {
-	input := &s3.ListObjectsV2Input{Bucket: &a.config.Bucket}
+//Return aws s3 bucket file names filtered by prefix
+func (a *S3) ListBucket(prefix string) ([]string, error) {
+	input := &s3.ListObjectsV2Input{Bucket: &a.config.Bucket, Prefix: &prefix}
 	var files []string
 	for {
 		output, err := a.client.ListObjectsV2(input)
@@ -90,8 +94,8 @@ func (a *AwsS3) ListBucket() ([]string, error) {
 	return files, nil
 }
 
-//Delete object from aws s3 bucket
-func (a *AwsS3) DeleteObject(key string) error {
+//Delete object from s3 bucket
+func (a *S3) DeleteObject(key string) error {
 	input := &s3.DeleteObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	output, err := a.client.DeleteObject(input)
 	if err != nil {

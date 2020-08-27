@@ -9,6 +9,7 @@ import (
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/handlers"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
 	"github.com/ksensehq/eventnative/storages"
 	"log"
@@ -16,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -25,8 +27,9 @@ import (
 
 //some inner parameters
 const (
-	uploaderFileMask   = "*-event-*-20*.log"
-	uploaderBatchSize  = 20
+	//$serverName-event-$token-$timestamp.log
+	uploaderFileMask   = "-event-*-20*.log"
+	uploaderBatchSize  = 50
 	uploaderLoadEveryS = 60
 )
 
@@ -95,25 +98,62 @@ func main() {
 		}
 	}
 
-	//Create event storages per token
-	tokenizedEventStorages := storages.CreateStorages(ctx, destinationsViper)
-	for _, eStorages := range tokenizedEventStorages {
+	//Get event logger path
+	logEventPath := viper.GetString("log.path")
+
+	//logger consumers per token
+	loggingConsumers := map[string]events.Consumer{}
+	for token := range appconfig.Instance.AuthorizedTokens {
+		eventLogWriter, err := logging.NewWriter(logging.Config{
+			LoggerName:  "event-" + token,
+			ServerName:  appconfig.Instance.ServerName,
+			FileDir:     logEventPath,
+			RotationMin: viper.GetInt64("log.rotation_min")})
+		if err != nil {
+			log.Fatal(err)
+		}
+		logger := events.NewAsyncLogger(eventLogWriter, viper.GetBool("log.show_in_server"))
+		loggingConsumers[token] = logger
+		appconfig.Instance.ScheduleClosing(logger)
+	}
+
+	//Create event storages - batch(events.Storage) and streaming(events.Consumer) per token
+	batchStoragesByToken, streamingStoragesByToken := storages.CreateStorages(ctx, destinationsViper, logEventPath)
+
+	//Schedule storages resource releasing
+	for _, eStorages := range batchStoragesByToken {
 		for _, es := range eStorages {
 			appconfig.Instance.ScheduleClosing(es)
 		}
 	}
+	//Schedule consumers resource releasing
+	for _, eConsumers := range streamingStoragesByToken {
+		for _, ec := range eConsumers {
+			appconfig.Instance.ScheduleClosing(ec)
+		}
+	}
+
+	//merge logger consumers with storage consumers: Skip loggers which don't have batches storages (because we don't need to write log files for streaming storages)
+	for token, loggingConsumer := range loggingConsumers {
+		if _, ok := batchStoragesByToken[token]; !ok {
+			continue
+		}
+
+		consumers, ok := streamingStoragesByToken[token]
+		if !ok {
+			consumers = []events.Consumer{}
+		}
+		consumers = append(consumers, loggingConsumer)
+		streamingStoragesByToken[token] = consumers
+	}
 
 	//Uploader must read event logger directory
-	logEventPath := viper.GetString("log.path")
-	if !strings.HasSuffix(logEventPath, "/") {
-		logEventPath += "/"
-	}
-	uploader := events.NewUploader(logEventPath+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, tokenizedEventStorages)
+	uploader := events.NewUploader(path.Join(logEventPath, appconfig.Instance.ServerName+uploaderFileMask), uploaderBatchSize, uploaderLoadEveryS, batchStoragesByToken)
 	uploader.Start()
 
-	router := SetupRouter()
+	router := SetupRouter(streamingStoragesByToken)
 
-	log.Println("Started listen and server: " + appconfig.Instance.Authority)
+	log.Println("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
 		Handler:           middleware.Cors(router),
@@ -124,7 +164,7 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-func SetupRouter() *gin.Engine {
+func SetupRouter(tokenizedEventConsumers map[string][]events.Consumer) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -143,9 +183,12 @@ func SetupRouter() *gin.Engine {
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
+	c2sEventHandler := handlers.NewEventHandler(tokenizedEventConsumers, events.NewC2SPreprocessor()).Handler
+	s2sEventHandler := handlers.NewEventHandler(tokenizedEventConsumers, events.NewS2SPreprocessor()).Handler
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenAuth(handlers.NewEventHandler().Handler))
+		apiV1.POST("/event", middleware.TokenAuth(middleware.AccessControl(c2sEventHandler, appconfig.Instance.C2STokens, "")))
+		apiV1.POST("/s2s/event", middleware.TokenAuth(middleware.AccessControl(s2sEventHandler, appconfig.Instance.S2STokens, "The token isn't a server token. Please use s2s integration token\n")))
 	}
 
 	return router

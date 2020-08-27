@@ -5,7 +5,8 @@ import {
   generateId,
   parseQuery,
   getDataFromParams,
-  getHostWithProtocol
+  getHostWithProtocol,
+  reformatDate,
 } from './helpers'
 
 import {
@@ -84,7 +85,7 @@ export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []
         ...userProperties
       },
       user_agent: navigator.userAgent,
-      utc_time: now.toISOString(),
+      utc_time: reformatDate(now.toISOString()),
       local_tz_offset: now.getTimezoneOffset(),
       referer: document.referrer,
       url: window.location.href,
