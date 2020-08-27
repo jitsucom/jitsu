@@ -63,6 +63,16 @@ func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters
 		breakOnError:    breakOnError,
 	}
 
+	adapter, _ := ch.getAdapters()
+	err = adapter.CreateDB(config.Database)
+	if err != nil {
+		//close all previous created adapters
+		for _, toClose := range chAdapters {
+			toClose.Close()
+		}
+		return nil, err
+	}
+
 	fr := &FileReader{dir: sourceDir, storage: ch}
 	fr.start()
 

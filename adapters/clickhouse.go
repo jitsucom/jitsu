@@ -18,6 +18,7 @@ import (
 
 const (
 	tableSchemaCHQuery        = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
+	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS %s %s`
 	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s Nullable(%s)`
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
 	onClusterCHClauseTemplate = ` ON CLUSTER %s `
@@ -25,6 +26,7 @@ const (
 
 	createTableCHTemplate            = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
 	createDistributedTableCHTemplate = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
+	dropDistributedTableCHTemplate   = `DROP TABLE "%s"."dist_%s" %s`
 
 	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
 	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
@@ -241,6 +243,28 @@ func (ch *ClickHouse) OpenTx() (*Transaction, error) {
 	return &Transaction{tx: tx, dbType: ch.Name()}, nil
 }
 
+//CreateDB create database instance if doesn't exist
+func (ch *ClickHouse) CreateDB(dbName string) error {
+	wrappedTx, err := ch.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(createCHDBTemplate, dbName, ch.getOnClusterClause()))
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error preparing create db %s statement: %v", dbName, err)
+	}
+
+	_, err = createStmt.ExecContext(ch.ctx)
+
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error creating [%s] db: %v", dbName, err)
+	}
+	return wrappedTx.tx.Commit()
+}
+
 //CreateTable create database table with name,columns provided in schema.Table representation
 //New tables will have MergeTree() or ReplicatedMergeTree() engine depends on config.cluster empty or not
 func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
@@ -315,6 +339,7 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*schema.Table, error) {
 }
 
 //PatchTableSchema add new columns(from provided schema.Table) to existing table
+//drop and create distributed table
 func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 	wrappedTx, err := ch.OpenTx()
 	if err != nil {
@@ -338,6 +363,12 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 			wrappedTx.Rollback()
 			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, mappedColumnType, err)
 		}
+	}
+
+	//drop and create distributed table if ReplicatedMergeTree engine
+	if ch.cluster != "" {
+		ch.dropDistributedTableInTransaction(wrappedTx, patchSchema.Name)
+		ch.createDistributedTableInTransaction(wrappedTx, patchSchema.Name)
 	}
 
 	return wrappedTx.tx.Commit()
@@ -398,8 +429,21 @@ func (ch *ClickHouse) createDistributedTableInTransaction(wrappedTx *Transaction
 	}
 
 	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
-		wrappedTx.Rollback()
 		log.Printf("Error creating distributed table for [%s] : %v", originTableName, err)
+	}
+}
+
+//drop distributed table, ignore errors
+func (ch *ClickHouse) dropDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
+	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(dropDistributedTableCHTemplate,
+		ch.database, originTableName, ch.getOnClusterClause()))
+	if err != nil {
+		log.Printf("Error preparing drop distributed table statement for [%s] : %v", originTableName, err)
+		return
+	}
+
+	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
+		log.Printf("Error dropping distributed table for [%s] : %v", originTableName, err)
 	}
 }
 
