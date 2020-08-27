@@ -1,54 +1,32 @@
 {
   "name": "@ksense/eventnative",
-  "version": "1.0.5",
-  "main": "build/track.cjs.js",
-  "module": "build/track.esm.js",
-  "scripts": {
-    "dev": "node devserver.js --watch",
-    "build": "mkdir -p ./build && npm run alert-check && npm run build-track && npm run build-inline && cp ./welcome.html ./build",
-    "watch": "node watch.js",
-    "alert-check": "node -e \"(fs.readFileSync('./src/track.js').indexOf('alert') > -1) && (console.error('ERROR: ./src/track.js contains alert() call, cannot build that!') || process.exit(1))\"",
-    "build-track": "rollup -c ./rollup.config.js",
-    "build-inline": "npm run compile-inline && npm run uglify-inline",
-    "compile-inline": "babel ./src/inline.js --out-file ./build/inline.int.js",
-    "uglify-inline": "uglifyjs -O max_line_len=160  ./build/inline.int.js > ./build/inline.js"
-  },
-  "files": [
-    "build/track.cjs.js",
-    "build/track.esm.js"
-  ],
+  "main": "dist/main.cjs.js",
+  "module": "dist/main.esm.js",
+  "version": "1.0.2",
   "devDependencies": {
-    "@babel/cli": "^7.10.5",
-    "@babel/core": "^7.11.0",
-    "@babel/plugin-transform-arrow-functions": "^7.10.4",
-    "@babel/plugin-transform-parameters": "^7.10.5",
-    "@babel/plugin-transform-strict-mode": "^7.10.4",
-    "@babel/preset-env": "^7.10.4",
-    "babel-loader": "^8.1.0",
-    "babel-preset-env": "^1.7.0",
-    "babel-preset-minify": "^0.5.1",
-    "body-parser": "^1.19.0",
-    "chokidar": "^3.4.2",
-    "console-stamp": "0.2.9",
-    "cors": "^2.8.5",
-    "express": "4.17.1",
-    "react-dev-utils": "^10.2.1",
+    "@babel/core": "^7.2.2",
+    "@babel/preset-env": "^7.2.3",
+    "@rollup/plugin-babel": "^5.2.0",
+    "@rollup/plugin-strip": "^2.0.0",
+    "@rollup/plugin-virtual": "^2.0.3",
     "rollup": "^1.0.0",
-    "rollup-plugin-babel": "^4.2.0",
     "rollup-plugin-commonjs": "^9.2.0",
     "rollup-plugin-node-resolve": "^4.0.0",
     "rollup-plugin-terser": "^6.1.0",
-    "uglify-js": "^3.10.1"
+    "rollup-plugin-typescript": "^1.0.0",
+    "terser": "^5.2.1",
+    "ts-node": "^7.0.1",
+    "tslib": "^1.9.3",
+    "typescript": "^3.2.2"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/ksensehq/eventnative.git"
+  "scripts": {
+    "build": "rollup -c",
+    "dev": "rollup -c -w",
+    "devserver": "node devserver.js --watch",
+    "test": "node test/test.js",
+    "pretest": "npm run build"
   },
-  "author": "kSense, Inc",
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/ksensehq/eventnative/issues"
-  },
-  "homepage": "https://eventnative-docs.ksense.io/javascript-integration/",
-  "description": "EventNative JavaScript tracking library. Read more at https://eventnative-docs.ksense.io/javascript-integration/"
+  "files": [
+    "dist"
+  ]
 }

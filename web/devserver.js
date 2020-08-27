@@ -3,7 +3,6 @@ require('console-stamp')(console, 'HH:MM:ss.l');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const express = require('express');
-const cors = require('cors');
 const path = require('path');
 const openBrowser = require('react-dev-utils/openBrowser');
 const { choosePort } = require('react-dev-utils/WebpackDevServerUtils');
@@ -48,6 +47,7 @@ function addJsHeaders(res) {
 
 const trackJs = prepareJsFile('track.js')
 const inlineJs = prepareJsFile('inline.js')
+const eventNConfigPlaceholder = 'eventnConfig'
 
 const devserver = express();
 
@@ -83,7 +83,7 @@ devserver.get("/s/track.js", (req, res) => {
 devserver.get('/t/inline.js', (req, res) => {
     const toBool = str => str === "true";
     const asIs = str => str;
-    const accepted_params = {'key': asIs, 'segment_hook': toBool, 'tracking_host': asIs , 'cookie_domain': asIs, 'ga_hook': toBool};
+    const accepted_params = {'key': asIs, 'segment_hook': toBool, 'tracking_host': asIs , 'cookie_domain': asIs, 'ga_hook': toBool, 'debug': toBool()};
     if (!req.query['key']) {
         throw new Error("Mandatory key paramter is missing");
     }
@@ -93,9 +93,28 @@ devserver.get('/t/inline.js', (req, res) => {
             config[property] = transform(req.query[property]);
         }
     }
-    config['tracking_host'] = config['tracking_host'] || getTrackingHost(req);
+    let trackingHost = config['tracking_host'] || getTrackingHost(req);
+    config['tracking_host'] = trackingHost
+
+    src = trackingHost;
+    if (!trackingHost.startsWith("http://") && !trackingHost.startsWith("https://") && !trackingHost.startsWith("//")) {
+        src = "//" + src
+    }
+    src += "/s/track"
+    if (config['ga_hook'] === false && config['segment_hook'] === false) {
+        src += ".direct"
+    } else if (config['ga_hook'] === false && config['segment_hook'] === false) {
+        src += ".ga"
+    } else if (config['segment_hook'] === true && config['ga_hook'] === false) {
+        src += ".segment"
+    }
+    if (config['debug']) {
+        src += ".debug"
+    }
+    src += ".js"
+    config['script_src'] = src
     addJsHeaders(res);
-    res.send(`var eventnConfig = ${JSON.stringify(config, null, 2)};\n${inlineJs()}`);
+    res.send(inlineJs().replace(eventNConfigPlaceholder, JSON.stringify(config, null, 2)));
 });
 
 choosePort(HOST, PORT).then(selectedPort => {
