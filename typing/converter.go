@@ -28,11 +28,11 @@ var (
 		"eventn_ctx_utc_time": TIMESTAMP,
 	}
 	convertRules = map[rule]ConvertFunc{
-		rule{from: INT64, to: STRING}:     intToString,
-		rule{from: FLOAT64, to: STRING}:   floatToString,
+		rule{from: INT64, to: STRING}:     numberToString,
+		rule{from: FLOAT64, to: STRING}:   numberToString,
 		rule{from: TIMESTAMP, to: STRING}: timestampToString,
 
-		rule{from: INT64, to: FLOAT64}: intToFloat,
+		rule{from: INT64, to: FLOAT64}: numberToFloat,
 
 		rule{from: STRING, to: TIMESTAMP}: stringToTimestamp,
 
@@ -112,7 +112,7 @@ func lowestCommonAncestor(root *typeNode, t1, t2 DataType) DataType {
 }
 
 //assume that input v can't be nil
-func intToString(v interface{}) (interface{}, error) {
+func numberToString(v interface{}) (interface{}, error) {
 	switch v.(type) {
 	case int64:
 		int64Value, _ := v.(int64)
@@ -129,17 +129,6 @@ func intToString(v interface{}) (interface{}, error) {
 	case int8:
 		int8Value, _ := v.(int8)
 		return strconv.FormatInt(int64(int8Value), 10), nil
-	case string:
-		str, _ := v.(string)
-		return str, nil
-	default:
-		return nil, fmt.Errorf("Error intToString(): Unknown value type: %t", v)
-	}
-}
-
-//assume that input v can't be nil
-func floatToString(v interface{}) (interface{}, error) {
-	switch v.(type) {
 	case float64:
 		float64Value, _ := v.(float64)
 		return strconv.FormatFloat(float64Value, 'f', -1, 64), nil
@@ -150,7 +139,7 @@ func floatToString(v interface{}) (interface{}, error) {
 		str, _ := v.(string)
 		return str, nil
 	default:
-		return nil, fmt.Errorf("Error floatToString(): Unknown value type: %t", v)
+		return nil, fmt.Errorf("Error numberToString(): Unknown value type: %t", v)
 	}
 }
 
@@ -168,7 +157,7 @@ func timestampToString(v interface{}) (interface{}, error) {
 	}
 }
 
-func intToFloat(v interface{}) (interface{}, error) {
+func numberToFloat(v interface{}) (interface{}, error) {
 	switch v.(type) {
 	case int:
 		return float64(v.(int)), nil
@@ -180,6 +169,10 @@ func intToFloat(v interface{}) (interface{}, error) {
 		return float64(v.(int32)), nil
 	case int64:
 		return float64(v.(int64)), nil
+	case float32:
+		return float64(v.(float32)), nil
+	case float64:
+		return v.(float64), nil
 	default:
 		return nil, fmt.Errorf("Value: %v with type: %t isn't int", v, v)
 	}
@@ -206,6 +199,7 @@ func stringToFloat(v interface{}) (interface{}, error) {
 func stringToTimestamp(v interface{}) (interface{}, error) {
 	t, err := time.Parse(timestamp.Layout, v.(string))
 	if err != nil {
+		t, err = time.Parse(timestamp.DeprecatedLayout, v.(string))
 		return nil, fmt.Errorf("Error stringToTimestamp() for value: %v: %v", v, err)
 	}
 
