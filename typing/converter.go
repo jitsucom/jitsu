@@ -28,8 +28,8 @@ var (
 		"eventn_ctx_utc_time": TIMESTAMP,
 	}
 	convertRules = map[rule]ConvertFunc{
-		rule{from: INT64, to: STRING}:     intToString,
-		rule{from: FLOAT64, to: STRING}:   floatToString,
+		rule{from: INT64, to: STRING}:     numberToString,
+		rule{from: FLOAT64, to: STRING}:   numberToString,
 		rule{from: TIMESTAMP, to: STRING}: timestampToString,
 
 		rule{from: INT64, to: FLOAT64}: intToFloat,
@@ -112,7 +112,7 @@ func lowestCommonAncestor(root *typeNode, t1, t2 DataType) DataType {
 }
 
 //assume that input v can't be nil
-func intToString(v interface{}) (interface{}, error) {
+func numberToString(v interface{}) (interface{}, error) {
 	switch v.(type) {
 	case int64:
 		int64Value, _ := v.(int64)
@@ -129,17 +129,6 @@ func intToString(v interface{}) (interface{}, error) {
 	case int8:
 		int8Value, _ := v.(int8)
 		return strconv.FormatInt(int64(int8Value), 10), nil
-	case string:
-		str, _ := v.(string)
-		return str, nil
-	default:
-		return nil, fmt.Errorf("Error intToString(): Unknown value type: %t", v)
-	}
-}
-
-//assume that input v can't be nil
-func floatToString(v interface{}) (interface{}, error) {
-	switch v.(type) {
 	case float64:
 		float64Value, _ := v.(float64)
 		return strconv.FormatFloat(float64Value, 'f', -1, 64), nil
@@ -150,7 +139,7 @@ func floatToString(v interface{}) (interface{}, error) {
 		str, _ := v.(string)
 		return str, nil
 	default:
-		return nil, fmt.Errorf("Error floatToString(): Unknown value type: %t", v)
+		return nil, fmt.Errorf("Error numberToString(): Unknown value type: %t", v)
 	}
 }
 

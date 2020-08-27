@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v1.2.9] - 2020-08-27
+### Fixed
+- [15](https://github.com/ksensehq/eventnative/issues/15) Fixed int -> string casting
+
 ## [v1.2.8] - 2020-08-27
 ### Added
 - [15](https://github.com/ksensehq/eventnative/issues/15) Schema typing
