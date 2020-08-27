@@ -195,6 +195,7 @@ func stringToFloat(v interface{}) (interface{}, error) {
 func stringToTimestamp(v interface{}) (interface{}, error) {
 	t, err := time.Parse(timestamp.Layout, v.(string))
 	if err != nil {
+		t, err = time.Parse(timestamp.DeprecatedLayout, v.(string))
 		return nil, fmt.Errorf("Error stringToTimestamp() for value: %v: %v", v, err)
 	}
 
