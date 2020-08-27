@@ -11,6 +11,7 @@ tracker
 
 node_modules/
 /web/build/
+/web/dist/
 
 eventnative
 build/*
