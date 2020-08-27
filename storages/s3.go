@@ -36,13 +36,13 @@ func NewS3(name, sourceDir string, s3Config *adapters.S3Config, processor *schem
 
 //Store file from byte payload to s3 with processing
 func (s3 *S3) Store(fileName string, payload []byte) error {
-	flatData, err := s3.schemaProcessor.ProcessFilePayloadIntoBytes(fileName, payload, s3.breakOnError)
+	flatData, err := s3.schemaProcessor.ProcessFilePayload(fileName, payload, s3.breakOnError)
 	if err != nil {
 		return err
 	}
 
 	for _, fdata := range flatData {
-		err := s3.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.Payload.Bytes())
+		err := s3.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes())
 		if err != nil {
 			return err
 		}

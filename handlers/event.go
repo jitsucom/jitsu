@@ -48,7 +48,7 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 	}
 
 	processed[apiTokenKey] = token
-	processed[timestamp.Key] = time.Now().Format(timestamp.Layout)
+	processed[timestamp.Key] = time.Now().UTC().Format(timestamp.Layout)
 
 	consumers, ok := eh.eventConsumersByToken[token]
 	if ok {

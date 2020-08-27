@@ -29,6 +29,18 @@ const LOG = {
 LOG.init()
 LOG.log('DEBUG', 'Log system initialized');
 
+//2020-08-24T13:42:16.439Z -> 2020-08-24T13:42:16.439123Z
+function reformatDate(str) {
+    const end = str.split('.')[1];
+    if (!end) {
+        return str;
+    }
+    if (end.length >= 7) {
+        return str;
+    }
+    return str.slice(0, -1) + '0'.repeat(7 - end.length) + 'Z';
+}
+
 class CookiesAccessor {
     getItem(name) {
         if (!name) {
@@ -174,7 +186,7 @@ class EventnTracker {
                 ...this.userProperties
             },
             user_agent: navigator.userAgent,
-            utc_time: now.toISOString(),
+            utc_time: reformatDate(now.toISOString()),
             local_tz_offset: now.getTimezoneOffset(),
             referer: document.referrer,
             url: window.location.href,
