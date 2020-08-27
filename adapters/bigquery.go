@@ -5,20 +5,26 @@ import (
 	"context"
 	"fmt"
 	"github.com/ksensehq/eventnative/schema"
+	"github.com/ksensehq/eventnative/typing"
 	"google.golang.org/api/googleapi"
-	"google.golang.org/api/option"
 	"log"
 	"net/http"
 	"strings"
 )
 
 var (
-	SchemaToBigQuery = map[schema.DataType]bigquery.FieldType{
-		schema.STRING: bigquery.StringFieldType,
+	SchemaToBigQuery = map[typing.DataType]bigquery.FieldType{
+		typing.STRING:    bigquery.StringFieldType,
+		typing.INT64:     bigquery.IntegerFieldType,
+		typing.FLOAT64:   bigquery.FloatFieldType,
+		typing.TIMESTAMP: bigquery.TimestampFieldType,
 	}
 
-	BigQueryToSchema = map[bigquery.FieldType]schema.DataType{
-		bigquery.StringFieldType: schema.STRING,
+	BigQueryToSchema = map[bigquery.FieldType]typing.DataType{
+		bigquery.StringFieldType:    typing.STRING,
+		bigquery.IntegerFieldType:   typing.INT64,
+		bigquery.FloatFieldType:     typing.FLOAT64,
+		bigquery.TimestampFieldType: typing.TIMESTAMP,
 	}
 )
 
@@ -29,8 +35,7 @@ type BigQuery struct {
 }
 
 func NewBigQuery(ctx context.Context, config *GoogleConfig) (*BigQuery, error) {
-	credentials := extractCredentials(config)
-	client, err := bigquery.NewClient(ctx, config.Project, credentials)
+	client, err := bigquery.NewClient(ctx, config.Project, config.credentials)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating BigQuery client: %v", err)
 	}
@@ -38,8 +43,7 @@ func NewBigQuery(ctx context.Context, config *GoogleConfig) (*BigQuery, error) {
 	return &BigQuery{ctx: ctx, client: client, config: config}, nil
 }
 
-//Transfer data from google cloud storage file to google BigQuery table
-//as one batch
+//Transfer data from google cloud storage file to google BigQuery table as one batch
 func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	table := bq.client.Dataset(bq.config.Dataset).Table(tableName)
 
@@ -83,9 +87,9 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*schema.Table, error) {
 		mappedType, ok := BigQueryToSchema[field.Type]
 		if !ok {
 			log.Println("Unknown BigQuery column type:", field.Type)
-			mappedType = schema.STRING
+			mappedType = typing.STRING
 		}
-		table.Columns[field.Name] = schema.Column{Type: mappedType}
+		table.Columns[field.Name] = schema.NewColumn(mappedType)
 	}
 
 	return table, nil
@@ -107,10 +111,10 @@ func (bq *BigQuery) CreateTable(tableSchema *schema.Table) error {
 
 	bqSchema := bigquery.Schema{}
 	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := SchemaToBigQuery[column.Type]
+		mappedType, ok := SchemaToBigQuery[column.GetType()]
 		if !ok {
-			log.Println("Unknown BigQuery schema type:", column.Type)
-			mappedType = SchemaToBigQuery[schema.STRING]
+			log.Println("Unknown BigQuery schema type:", column.GetType())
+			mappedType = SchemaToBigQuery[typing.STRING]
 		}
 		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: mappedType})
 	}
@@ -147,10 +151,10 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := SchemaToBigQuery[column.Type]
+		mappedColumnType, ok := SchemaToBigQuery[column.GetType()]
 		if !ok {
-			log.Println("Unknown BigQuery schema type:", column.Type.String())
-			mappedColumnType = SchemaToBigQuery[schema.STRING]
+			log.Println("Unknown BigQuery schema type:", column.GetType().String())
+			mappedColumnType = SchemaToBigQuery[typing.STRING]
 		}
 		metadata.Schema = append(metadata.Schema, &bigquery.FieldSchema{Name: columnName, Type: mappedColumnType})
 	}
@@ -179,12 +183,4 @@ func (bq *BigQuery) Close() error {
 func isNotFoundErr(err error) bool {
 	e, ok := err.(*googleapi.Error)
 	return ok && e.Code == http.StatusNotFound
-}
-
-func extractCredentials(config *GoogleConfig) option.ClientOption {
-	if strings.Contains(config.KeyFile, "{") {
-		return option.WithCredentialsJSON([]byte(config.KeyFile))
-	} else {
-		return option.WithCredentialsFile(config.KeyFile)
-	}
 }

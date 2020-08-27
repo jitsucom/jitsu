@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
 	"log"
@@ -12,8 +13,11 @@ import (
 
 const contentToRemove = `"use strict";`
 const jsContentType = "application/javascript"
+
 const inlineJs = "inline.js"
 const jsConfigVar = "eventnConfig"
+
+const eventsChainJsTemplate = "eventN.track('%s'); "
 
 //Serve js files
 type StaticHandler struct {
@@ -92,6 +96,7 @@ func (sh *StaticHandler) Handler(c *gin.Context) {
 	}
 
 	c.Header("Content-type", jsContentType)
+
 	c.Header("Vary", "Accept-Encoding")
 	c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
 
@@ -117,9 +122,18 @@ func (sh *StaticHandler) Handler(c *gin.Context) {
 				config.TrackingHost = c.Request.Host
 			}
 		}
+
 		c.Writer.Write(sh.inlineJsParts[0])
 		c.Writer.Write([]byte(buildJsConfigString(config)))
 		c.Writer.Write(sh.inlineJsParts[1])
+
+		eventsArr, ok := c.GetQueryArray("event")
+		if ok {
+			for _, event := range eventsArr {
+				c.Writer.Write([]byte(fmt.Sprintf(eventsChainJsTemplate, event)))
+			}
+		}
+
 	default:
 		gzipped, ok := sh.gzippedFiles[fileName]
 		if ok && strings.Contains(c.Request.Header.Get("Accept-Encoding"), "gzip") {

@@ -1,13 +1,26 @@
 require('console-stamp')(console, 'HH:MM:ss.l');
 
 const fs = require('fs');
+const { spawn } = require('child_process');
 const express = require('express');
-var cors = require('cors')
+const cors = require('cors');
 const path = require('path');
-const devserver = express();
-const port = process.env.TRACK_DEMO_PORT ? process.env.TRACK_DEMO_PORT : 80;
-const DEFAULT_USE_PROD_FILES = true;
+const openBrowser = require('react-dev-utils/openBrowser');
+const { choosePort } = require('react-dev-utils/WebpackDevServerUtils');
+
+
+const DEFAULT_PORT 				= 4000;
+const PORT 						= process.env.TRACK_DEMO_PORT ? process.env.TRACK_DEMO_PORT : DEFAULT_PORT;
+const HOST 						= 'localhost';
+const DEFAULT_USE_PROD_FILES 	= true;
+
+
+let globalPort = PORT;
+
+
 const useProdFiles = process.env.USE_PROD_FILE === undefined ? DEFAULT_USE_PROD_FILES : process.env.USE_PROD_FILE;
+const testHtmlPath = path.resolve("./test.html");
+
 
 function prepareJsFile(file) {
     let fullFilePath = path.join(__dirname, useProdFiles ? "./build" : "./src", file);
@@ -19,17 +32,28 @@ function prepareJsFile(file) {
 
 function getTrackingHost(req) {
     let host = req.protocol + "://" + req.hostname;
-    if (port !== 80 && req.protocol === "http") {
-        host += ":" + port
+    if (globalPort !== 80 && req.protocol === "http") {
+        host += ":" + globalPort
     }
-    if (port !== 443 && req.protocol === "https") {
-        host += ":" + port
+    if (globalPort !== 443 && req.protocol === "https") {
+        host += ":" + globalPort
     }
     return host;
 }
 
+function addJsHeaders(res) {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+}
+
 const trackJs = prepareJsFile('track.js')
 const inlineJs = prepareJsFile('inline.js')
+
+const devserver = express();
+
+devserver.get('/', (req, res) => {
+	res.sendFile(testHtmlPath);
+});
 
 devserver.use(express.static('demo'))
 devserver.use(express.json());
@@ -44,11 +68,6 @@ devserver.use(function(req, res, next) {
         return next();
     }
 });
-function addJsHeaders(res) {
-    res.setHeader('Content-Type', 'application/javascript');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-}
-
 
 devserver.post('/api/v1/event', (req, res) => {
     console.log('Event', JSON.stringify(req.body, null, 2));
@@ -60,7 +79,6 @@ devserver.get("/s/track.js", (req, res) => {
     addJsHeaders(res);
     res.send(trackJs());
 });
-
 
 devserver.get('/t/inline.js', (req, res) => {
     const toBool = str => str === "true";
@@ -80,4 +98,23 @@ devserver.get('/t/inline.js', (req, res) => {
     res.send(`var eventnConfig = ${JSON.stringify(config, null, 2)};\n${inlineJs()}`);
 });
 
-devserver.listen(port, () => console.log(`Started at ${port}!`));
+choosePort(HOST, PORT).then(selectedPort => {
+	if (selectedPort == null) {
+		// We have not found a selectedPort.
+		return;
+	}
+
+	globalPort = selectedPort;
+
+	devserver.listen(globalPort, () => {
+		console.log(`Started at ${globalPort}!`);
+
+		console.log('Opening browser...');
+		openBrowser('http://' + HOST + ':' + globalPort + '/');
+
+		if (process.argv.indexOf('--watch') > -1) {
+			console.log('Watching changes...');
+			spawn('npm', ['run', 'watch'], { stdio: 'inherit' });
+		}
+	});
+});

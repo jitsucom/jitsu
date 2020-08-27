@@ -1,34 +1,53 @@
 package schema
 
-type DataType int
-
-const (
-	STRING DataType = iota
+import (
+	"fmt"
+	"github.com/ksensehq/eventnative/typing"
+	"log"
 )
-
-func (dt DataType) String() string {
-	switch dt {
-	default:
-		return ""
-	case STRING:
-		return "STRING"
-	}
-}
 
 type TableNameExtractFunction func(map[string]interface{}) (string, error)
 type Columns map[string]Column
 
-//Add all columns from other to current instance
+//Merge add all columns from other to current instance
+//wipe column.type if a new one was added
 func (c Columns) Merge(other Columns) {
-	for name, column := range other {
-		//TODO when we support several Column types (not only String) we need check if type was changed
-		c[name] = column
+	for otherName, otherColumn := range other {
+		if currentColumn, ok := c[otherName]; ok {
+			//add new type occurrences
+			//wipe column.type if new type was added
+			for t := range otherColumn.typeOccurrence {
+				if _, ok := currentColumn.typeOccurrence[t]; !ok {
+					currentColumn.typeOccurrence[t] = true
+					currentColumn.dataType = nil
+					c[otherName] = currentColumn
+				}
+			}
+		} else {
+			c[otherName] = otherColumn
+		}
 	}
+}
+
+//Header return comma separated column names string
+func (c Columns) Header() string {
+	header := ""
+	for columnName := range c {
+		header += columnName + ","
+	}
+
+	// Remove last comma
+	if last := len(header) - 1; last >= 0 && header[last] == ',' {
+		header = header[:last]
+	}
+
+	return header
 }
 
 type Table struct {
 	Name    string
 	Columns Columns
+	Version int64
 }
 
 //Return true if there is at least one column
@@ -37,28 +56,65 @@ func (t *Table) Exists() bool {
 }
 
 // Diff calculates diff between current schema and another one.
-// Assume that current schema exists (at least with empty columns)
 // Return schema to add to current schema (for being equal) or empty if
 // 1) another one is empty
 // 2) all fields from another schema exist in current schema
-func (t Table) Diff(another *Table) *Table {
+// Return err if another newType can't be cast to current type (column type changing case)
+func (t Table) Diff(another *Table) (*Table, error) {
 	diff := &Table{Name: t.Name, Columns: Columns{}}
 
 	if another == nil || len(another.Columns) == 0 {
-		return diff
+		return diff, nil
 	}
 
-	//not empty main schema => write only new columns to the result
-	for columnName, columnType := range another.Columns {
-		if _, ok := t.Columns[columnName]; !ok {
-			//TODO add type check
-			diff.Columns[columnName] = columnType
+	for name, column := range another.Columns {
+		if currentColumn, ok := t.Columns[name]; ok {
+			if !typing.IsConvertible(column.GetType(), currentColumn.GetType()) {
+				return nil, fmt.Errorf("Unsupported column [%s] type changing from: %s to: %s", name, column.GetType().String(), currentColumn.GetType().String())
+			}
+		} else {
+			diff.Columns[name] = column
 		}
 	}
 
-	return diff
+	return diff, nil
 }
 
 type Column struct {
-	Type DataType
+	dataType       *typing.DataType
+	typeOccurrence map[typing.DataType]bool
+}
+
+func NewColumn(t typing.DataType) Column {
+	return Column{
+		dataType:       &t,
+		typeOccurrence: map[typing.DataType]bool{t: true},
+	}
+}
+
+//GetType get column type based on occurrence in one file
+//lazily get common ancestor type (typing.GetCommonAncestorType)
+func (c Column) GetType() typing.DataType {
+	if c.dataType != nil {
+		return *c.dataType
+	}
+
+	var types []typing.DataType
+	for t := range c.typeOccurrence {
+		types = append(types, t)
+	}
+
+	if len(types) == 0 {
+		log.Println("System error: Column typeOccurrence can't be empty")
+		return typing.UNKNOWN
+	}
+
+	common := types[0]
+	for i := 1; i < len(types); i++ {
+		common = typing.GetCommonAncestorType(common, types[i])
+	}
+
+	//put result to dataType (it will be wiped(in Merge) if a new type is added)
+	c.dataType = &common
+	return common
 }

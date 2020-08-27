@@ -15,6 +15,5 @@ func NewRedirectHandler(redirectToUrl string) *RedirectHandler {
 }
 
 func (rh *RedirectHandler) Handler(c *gin.Context) {
-	c.Header("Access-Control-Allow-Origin", "*")
 	c.Redirect(http.StatusPermanentRedirect, rh.toUrl)
 }

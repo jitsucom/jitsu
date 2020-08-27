@@ -4,7 +4,7 @@ ENV EVENTNATIVE_USER=eventnative
 
 # Install dependencies
 RUN echo "@testing http://nl.alpinelinux.org/alpine/edge/testing" >> /etc/apk/repositories
-RUN apk add git make npm shadow@testing
+RUN apk add git make bash npm shadow@testing
 
 # Copy project
 ADD . /go/src/github.com/ksensehq/eventnative
