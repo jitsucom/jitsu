@@ -32,7 +32,7 @@ var (
 		rule{from: FLOAT64, to: STRING}:   numberToString,
 		rule{from: TIMESTAMP, to: STRING}: timestampToString,
 
-		rule{from: INT64, to: FLOAT64}: intToFloat,
+		rule{from: INT64, to: FLOAT64}: numberToFloat,
 
 		rule{from: STRING, to: TIMESTAMP}: stringToTimestamp,
 
@@ -157,7 +157,7 @@ func timestampToString(v interface{}) (interface{}, error) {
 	}
 }
 
-func intToFloat(v interface{}) (interface{}, error) {
+func numberToFloat(v interface{}) (interface{}, error) {
 	switch v.(type) {
 	case int:
 		return float64(v.(int)), nil
@@ -169,6 +169,10 @@ func intToFloat(v interface{}) (interface{}, error) {
 		return float64(v.(int32)), nil
 	case int64:
 		return float64(v.(int64)), nil
+	case float32:
+		return float64(v.(float32)), nil
+	case float64:
+		return v.(float64), nil
 	default:
 		return nil, fmt.Errorf("Value: %v with type: %t isn't int", v, v)
 	}
