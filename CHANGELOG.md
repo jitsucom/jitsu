@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [v1.2.7] - 2020-08-26
+## [v1.2.7] - 2020-08-27
 ### Added
 - [15](https://github.com/ksensehq/eventnative/issues/15) Schema typing
 
