@@ -9,21 +9,20 @@ import (
 
 type Mapper interface {
 	Map(object map[string]interface{}) (map[string]interface{}, error)
-	ApplyDelete(object map[string]interface{}) map[string]interface{}
 }
 
 type FieldMapper struct {
-	//src: key1_key2, dest: key3_key4
 	rules []*MappingRule
-	// /key1/key2
-	pathsToDelete []string
 }
 
 type DummyMapper struct{}
 
 type MappingRule struct {
-	source      string
-	destination string
+	// "/key1/key2/key3 -> /key4/key5"
+	//[key1, key2, key3]
+	source []string
+	//[key4, key5]
+	destination []string
 }
 
 //NewFieldMapper return FieldMapper, fields to typecast and err
@@ -33,7 +32,6 @@ func NewFieldMapper(mappings []string) (Mapper, map[string]typing.DataType, erro
 	}
 
 	var rules []*MappingRule
-	var pathsToDelete []string
 	fieldsToCast := map[string]typing.DataType{}
 	for _, mapping := range mappings {
 		mappingWithoutSpaces := strings.ReplaceAll(mapping, " ", "")
@@ -46,28 +44,33 @@ func NewFieldMapper(mappings []string) (Mapper, map[string]typing.DataType, erro
 		source := parts[0]
 		destination := parts[1]
 
-		//mappings like: '/key1 -> '
-		if destination == "" {
-			pathsToDelete = append(pathsToDelete, formatPrefixSuffix(source))
-			continue
+		if source == "" {
+			return nil, nil, fmt.Errorf("Malformed data mapping [%s]. Source part before '->' can't be empty", mapping)
 		}
 
 		//without type casting
 		if !strings.Contains(destination, ")") {
+			destinationParts := strings.Split(formatPrefixSuffix(destination), "/")
+			if len(destinationParts) == 1 && destinationParts[0] == "" {
+				destinationParts = []string{}
+			}
 			rules = append(rules, &MappingRule{
-				source:      formatKey(source),
-				destination: formatKey(destination),
+				source:      strings.Split(formatPrefixSuffix(source), "/"),
+				destination: destinationParts,
 			})
 			continue
 		}
 
 		//parse type casting
 		destParts := strings.Split(destination, ")")
-		if len(destParts) != 2 {
+		if len(destParts) != 2 || (len(destParts) == 1 && destParts[0] == "") {
 			return nil, nil, fmt.Errorf("Malformed cast statement in data mapping [%s]. Use format: /field1/subfield1 -> (integer) /field2/subfield2", mapping)
 		}
 
-		formattedDestination := formatKey(destParts[1])
+		// /key1/key2 -> []string{key1, key2}
+		destinationArr := strings.Split(formatPrefixSuffix(destParts[1]), "/")
+		// []string{key1, key2} -> key1_key2
+		formattedDestination := strings.Join(destinationArr, "_")
 
 		castType := strings.ReplaceAll(destParts[0], "(", "")
 		dataType, err := typing.TypeFromString(castType)
@@ -77,8 +80,8 @@ func NewFieldMapper(mappings []string) (Mapper, map[string]typing.DataType, erro
 
 		fieldsToCast[formattedDestination] = dataType
 		rules = append(rules, &MappingRule{
-			source:      formatKey(source),
-			destination: formattedDestination,
+			source:      strings.Split(formatPrefixSuffix(source), "/"),
+			destination: destinationArr,
 		})
 	}
 
@@ -87,32 +90,64 @@ func NewFieldMapper(mappings []string) (Mapper, map[string]typing.DataType, erro
 		log.Println(m)
 	}
 
-	return &FieldMapper{rules: rules, pathsToDelete: pathsToDelete}, fieldsToCast, nil
+	return &FieldMapper{rules: rules}, fieldsToCast, nil
 }
 
-//ApplyDelete remove keys from unflatten json according to mapping rules
-//Input: unflatten object
-//Return copy of object with applied removing keys mappings
-func (fm FieldMapper) ApplyDelete(object map[string]interface{}) map[string]interface{} {
+//Map copy input object with applied deletes and mappings
+func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
 	mappedObject := map[string]interface{}{}
 	for k, v := range object {
 		mappedObject[k] = v
 	}
 
-	for _, path := range fm.pathsToDelete {
-		parts := strings.Split(path, "/")
-		//dive into inner and remove last key from mapping '/key1/../lastkey'
-		inner := mappedObject
-		for i := 0; i < len(parts); i++ {
-			key := parts[i]
-			if i == len(parts)-1 {
-				delete(inner, key)
+	for _, rule := range fm.rules {
+		//dive into source inner and map last key from mapping '/key1/../lastkey'
+		sourceInner := mappedObject
+		destInner := mappedObject
+		for i := 0; i < len(rule.source); i++ {
+			sourceKey := rule.source[i]
+			if i == len(rule.source)-1 {
+				//check if dest is empty => handle delete
+				if len(rule.destination) == 0 {
+					delete(sourceInner, sourceKey)
+					break
+				}
+				sourceNodeToTransfer, ok := sourceInner[sourceKey]
+				//source node doesn't exist
+				if !ok {
+					break
+				}
+				//dive into dest inner and put to last last key from mapping '/key2/../lastkey2'
+				for j := 0; j < len(rule.destination); j++ {
+					destKey := rule.destination[j]
+					if j == len(rule.destination)-1 {
+						destInner[destKey] = sourceNodeToTransfer
+						delete(sourceInner, sourceKey)
+						break
+					}
+
+					//dive or create
+					if sub, ok := destInner[destKey]; ok {
+						if subMap, ok := sub.(map[string]interface{}); ok {
+							destInner = subMap
+						} else {
+							//node isn't object node
+							break
+						}
+					} else {
+						subMap := map[string]interface{}{}
+						destInner[destKey] = subMap
+						destInner = subMap
+					}
+				}
+
 				break
 			}
 
-			if sub, ok := inner[key]; ok {
+			//dive
+			if sub, ok := sourceInner[sourceKey]; ok {
 				if subMap, ok := sub.(map[string]interface{}); ok {
-					inner = subMap
+					sourceInner = subMap
 					continue
 				}
 			}
@@ -120,36 +155,12 @@ func (fm FieldMapper) ApplyDelete(object map[string]interface{}) map[string]inte
 			break
 		}
 	}
-	return mappedObject
-}
-
-//Map rewrite source to destination
-//Input: flattened object
-//Return same object with applied mappings
-func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
-	for _, rule := range fm.rules {
-		v, ok := object[rule.source]
-		if ok {
-			delete(object, rule.source)
-			object[rule.destination] = v
-		}
-	}
-	return object, nil
+	return mappedObject, nil
 }
 
 //Return object as is
 func (DummyMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
 	return object, nil
-}
-
-//Return object as is
-func (DummyMapper) ApplyDelete(object map[string]interface{}) map[string]interface{} {
-	return object
-}
-
-//Replace all '/' with '_'
-func formatKey(key string) string {
-	return strings.ReplaceAll(formatPrefixSuffix(key), "/", "_")
 }
 
 func formatPrefixSuffix(key string) string {
