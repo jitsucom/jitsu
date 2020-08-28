@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v1.2.11] - 2020-08-28
+### Fixed
+- fix object mapping
+
 ## [v1.2.10] - 2020-08-27
 ### Added
 - move track.js to typescript
