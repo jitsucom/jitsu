@@ -15,14 +15,13 @@ const clickHouseStorageType = "ClickHouse"
 //Store files to ClickHouse in batch mode (1 log file = 1 transaction)
 type ClickHouse struct {
 	name            string
-	sourceDir       string
 	adapters        []*adapters.ClickHouse
 	tableHelpers    []*TableHelper
 	schemaProcessor *schema.Processor
 	breakOnError    bool
 }
 
-func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters.ClickHouseConfig, processor *schema.Processor, breakOnError bool) (*ClickHouse, error) {
+func NewClickHouse(ctx context.Context, name string, config *adapters.ClickHouseConfig, processor *schema.Processor, breakOnError bool) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
@@ -56,7 +55,6 @@ func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters
 
 	ch := &ClickHouse{
 		name:            name,
-		sourceDir:       sourceDir,
 		adapters:        chAdapters,
 		tableHelpers:    tableHelpers,
 		schemaProcessor: processor,
@@ -73,9 +71,6 @@ func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters
 		return nil, err
 	}
 
-	fr := &FileReader{dir: sourceDir, storage: ch}
-	fr.start()
-
 	return ch, nil
 }
 
@@ -85,10 +80,6 @@ func (ch *ClickHouse) Name() string {
 
 func (ch *ClickHouse) Type() string {
 	return clickHouseStorageType
-}
-
-func (ch *ClickHouse) SourceDir() string {
-	return ch.sourceDir
 }
 
 //Store file payload to ClickHouse with processing

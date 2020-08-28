@@ -1,7 +1,8 @@
-package events
+package logfiles
 
 import (
 	"github.com/ksensehq/eventnative/appstatus"
+	"github.com/ksensehq/eventnative/events"
 	"io/ioutil"
 	"log"
 	"os"
@@ -19,14 +20,17 @@ type Uploader interface {
 	Start()
 }
 
-//Uploader read already rotated and closed log files
-//Put them to Storage source dirs according to token from filename
+//PeriodicUploader read already rotated and closed log files
+//Pass them to storages according to tokens
+//Keep uploading log file with result statuses
 type PeriodicUploader struct {
+	logEventPath   string
 	fileMask       string
 	filesBatchSize int
 	uploadEvery    time.Duration
 
-	tokenizedEventStorages map[string][]Storage
+	statusManager          *statusManager
+	tokenizedEventStorages map[string][]events.Storage
 }
 
 type DummyUploader struct{}
@@ -34,22 +38,28 @@ type DummyUploader struct{}
 func (*DummyUploader) Start() {
 }
 
-func NewUploader(fileMask string, filesBatchSize, uploadEveryS int, tokenizedEventStorages map[string][]Storage) Uploader {
+func NewUploader(logEventPath, fileMask string, filesBatchSize, uploadEveryS int, tokenizedEventStorages map[string][]events.Storage) (Uploader, error) {
 	if len(tokenizedEventStorages) == 0 {
-		return &DummyUploader{}
+		return &DummyUploader{}, nil
 	}
 
+	statusManager, err := newStatusManager(logEventPath)
+	if err != nil {
+		return nil, err
+	}
 	return &PeriodicUploader{
-		fileMask:               fileMask,
+		logEventPath:           logEventPath,
+		fileMask:               path.Join(logEventPath, fileMask),
 		filesBatchSize:         filesBatchSize,
 		uploadEvery:            time.Duration(uploadEveryS) * time.Second,
+		statusManager:          statusManager,
 		tokenizedEventStorages: tokenizedEventStorages,
-	}
+	}, nil
 }
 
 //Start reading event logger log directory and finding already rotated and closed files by mask
-//multiple them to storage directories (by token) where 1 file -> 1 file per every storage directory
-//delete found files from log dir
+//pass them to storages according to tokens
+//keep uploading log statuses file for every event log file
 func (u *PeriodicUploader) Start() {
 	go func() {
 		for {
@@ -93,15 +103,27 @@ func (u *PeriodicUploader) Start() {
 					continue
 				}
 
+				//flag for deleting file if all storages don't have errors while storing this file
+				deleteFile := true
 				for _, storage := range eventStorages {
-					//copy file
-					newFile := path.Join(storage.SourceDir(), fileName)
-					if err := ioutil.WriteFile(newFile, b, 0644); err != nil {
-						log.Println("Error copying file", filePath, "in", newFile, "err:", err)
+					if !u.statusManager.isUploaded(fileName, storage.Name()) {
+						err := storage.Store(fileName, b)
+						if err != nil {
+							deleteFile = false
+							log.Println("Error store file", filePath, "in", storage.Name(), "destination:", err)
+						}
+						u.statusManager.updateStatus(fileName, storage.Name(), err)
 					}
 				}
 
-				os.Remove(filePath)
+				if deleteFile {
+					err := os.Remove(filePath)
+					if err != nil {
+						log.Println("Error deleting file", filePath, err)
+					} else {
+						u.statusManager.cleanUp(fileName)
+					}
+				}
 			}
 
 			time.Sleep(u.uploadEvery)

@@ -8,13 +8,12 @@ import (
 //Store files to aws s3 in batch mode
 type S3 struct {
 	name            string
-	sourceDir       string
 	s3Adapter       *adapters.S3
 	schemaProcessor *schema.Processor
 	breakOnError    bool
 }
 
-func NewS3(name, sourceDir string, s3Config *adapters.S3Config, processor *schema.Processor, breakOnError bool) (*S3, error) {
+func NewS3(name string, s3Config *adapters.S3Config, processor *schema.Processor, breakOnError bool) (*S3, error) {
 	s3Adapter, err := adapters.NewS3(s3Config)
 	if err != nil {
 		return nil, err
@@ -22,14 +21,10 @@ func NewS3(name, sourceDir string, s3Config *adapters.S3Config, processor *schem
 
 	s3 := &S3{
 		name:            name,
-		sourceDir:       sourceDir,
 		s3Adapter:       s3Adapter,
 		schemaProcessor: processor,
 		breakOnError:    breakOnError,
 	}
-
-	fr := &FileReader{dir: sourceDir, storage: s3}
-	fr.start()
 
 	return s3, nil
 }
@@ -57,10 +52,6 @@ func (s3 *S3) Name() string {
 
 func (s3 *S3) Type() string {
 	return "S3"
-}
-
-func (s3 *S3) SourceDir() string {
-	return s3.sourceDir
 }
 
 func (s3 *S3) Close() error {

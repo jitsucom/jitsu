@@ -18,7 +18,6 @@ const redshiftStorageType = "Redshift"
 //Store files to aws RedShift via aws s3 in batch mode (1 file = 1 transaction)
 type AwsRedshift struct {
 	name            string
-	sourceDir       string
 	s3Adapter       *adapters.S3
 	redshiftAdapter *adapters.AwsRedshift
 	tableHelper     *TableHelper
@@ -26,7 +25,7 @@ type AwsRedshift struct {
 	breakOnError    bool
 }
 
-func NewAwsRedshift(ctx context.Context, name, sourceDir string, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
+func NewAwsRedshift(ctx context.Context, name string, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
 	processor *schema.Processor, breakOnError bool) (*AwsRedshift, error) {
 	s3Adapter, err := adapters.NewS3(s3Config)
 	if err != nil {
@@ -49,7 +48,6 @@ func NewAwsRedshift(ctx context.Context, name, sourceDir string, s3Config *adapt
 
 	ar := &AwsRedshift{
 		name:            name,
-		sourceDir:       sourceDir,
 		s3Adapter:       s3Adapter,
 		redshiftAdapter: redshiftAdapter,
 		tableHelper:     tableHelper,
@@ -57,8 +55,6 @@ func NewAwsRedshift(ctx context.Context, name, sourceDir string, s3Config *adapt
 		breakOnError:    breakOnError,
 	}
 
-	fr := &(FileReader{dir: sourceDir, storage: ar})
-	fr.start()
 	ar.start()
 
 	return ar, nil
@@ -153,10 +149,6 @@ func (ar *AwsRedshift) Name() string {
 
 func (ar *AwsRedshift) Type() string {
 	return redshiftStorageType
-}
-
-func (ar *AwsRedshift) SourceDir() string {
-	return ar.sourceDir
 }
 
 func (ar *AwsRedshift) Close() error {

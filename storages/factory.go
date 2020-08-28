@@ -9,8 +9,6 @@ import (
 	"github.com/ksensehq/eventnative/schema"
 	"github.com/spf13/viper"
 	"log"
-	"os"
-	"path"
 )
 
 const defaultTableName = "events"
@@ -71,23 +69,19 @@ func CreateStorages(ctx context.Context, destinations *viper.Viper, logEventPath
 			continue
 		}
 
-		sourceDir := path.Join(logEventPath, name)
-		//ensure storage source directory
-		_ = os.MkdirAll(sourceDir, 0755)
-
 		var storage events.Storage
 		var consumer events.Consumer
 		switch destination.Type {
 		case "redshift":
-			storage, err = createRedshift(ctx, name, sourceDir, &destination, processor)
+			storage, err = createRedshift(ctx, name, &destination, processor)
 		case "bigquery":
-			storage, err = createBigQuery(ctx, name, sourceDir, &destination, processor)
+			storage, err = createBigQuery(ctx, name, &destination, processor)
 		case "postgres":
 			consumer, err = createPostgres(ctx, name, &destination, processor, logEventPath)
 		case "clickhouse":
-			storage, err = createClickHouse(ctx, name, sourceDir, &destination, processor)
+			storage, err = createClickHouse(ctx, name, &destination, processor)
 		case "s3":
-			storage, err = createS3(name, sourceDir, &destination, processor)
+			storage, err = createS3(name, &destination, processor)
 		default:
 			err = unknownDestination
 		}
@@ -123,7 +117,7 @@ func logError(destinationName, destinationType string, err error) {
 }
 
 //Create aws Redshift event storage
-func createRedshift(ctx context.Context, name, sourceDir string, destination *DestinationConfig, processor *schema.Processor) (*AwsRedshift, error) {
+func createRedshift(ctx context.Context, name string, destination *DestinationConfig, processor *schema.Processor) (*AwsRedshift, error) {
 	s3Config := destination.S3
 	if err := s3Config.Validate(); err != nil {
 		return nil, err
@@ -147,11 +141,11 @@ func createRedshift(ctx context.Context, name, sourceDir string, destination *De
 		redshiftConfig.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewAwsRedshift(ctx, name, sourceDir, s3Config, redshiftConfig, processor, destination.BreakOnError)
+	return NewAwsRedshift(ctx, name, s3Config, redshiftConfig, processor, destination.BreakOnError)
 }
 
 //Create google BigQuery event storage
-func createBigQuery(ctx context.Context, name, sourceDir string, destination *DestinationConfig, processor *schema.Processor) (*BigQuery, error) {
+func createBigQuery(ctx context.Context, name string, destination *DestinationConfig, processor *schema.Processor) (*BigQuery, error) {
 	gConfig := destination.Google
 	if err := gConfig.Validate(); err != nil {
 		return nil, err
@@ -163,7 +157,7 @@ func createBigQuery(ctx context.Context, name, sourceDir string, destination *De
 		log.Printf("name: %s type: bigquery dataset wasn't provided. Will be used default one: %s", name, gConfig.Dataset)
 	}
 
-	return NewBigQuery(ctx, name, sourceDir, gConfig, processor, destination.BreakOnError)
+	return NewBigQuery(ctx, name, gConfig, processor, destination.BreakOnError)
 }
 
 //Create Postgres event consumer
@@ -190,21 +184,21 @@ func createPostgres(ctx context.Context, name string, destination *DestinationCo
 }
 
 //Create ClickHouse event storage
-func createClickHouse(ctx context.Context, name, sourceDir string, destination *DestinationConfig, processor *schema.Processor) (*ClickHouse, error) {
+func createClickHouse(ctx context.Context, name string, destination *DestinationConfig, processor *schema.Processor) (*ClickHouse, error) {
 	config := destination.ClickHouse
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
-	return NewClickHouse(ctx, name, sourceDir, config, processor, destination.BreakOnError)
+	return NewClickHouse(ctx, name, config, processor, destination.BreakOnError)
 }
 
 //Create s3 event storage
-func createS3(name, sourceDir string, destination *DestinationConfig, processor *schema.Processor) (*S3, error) {
+func createS3(name string, destination *DestinationConfig, processor *schema.Processor) (*S3, error) {
 	s3Config := destination.S3
 	if err := s3Config.Validate(); err != nil {
 		return nil, err
 	}
 
-	return NewS3(name, sourceDir, s3Config, processor, destination.BreakOnError)
+	return NewS3(name, s3Config, processor, destination.BreakOnError)
 }
