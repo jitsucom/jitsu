@@ -162,31 +162,29 @@ func (p *Processor) processLine(line []byte) (*Table, map[string]interface{}, er
 //3. map object
 //4. apply typecast
 func (p *Processor) processObject(object map[string]interface{}) (*Table, map[string]interface{}, error) {
-	processed := p.fieldMapper.ApplyDelete(object)
+	mappedObject, err := p.fieldMapper.Map(object)
+	if err != nil {
+		return nil, nil, fmt.Errorf("Error mapping object {%v}: %v", object, err)
+	}
 
-	flatObject, err := p.flattener.FlattenObject(processed)
+	flatObject, err := p.flattener.FlattenObject(mappedObject)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	mappedObject, err := p.fieldMapper.Map(flatObject)
+	tableName, err := p.tableNameExtractFunc(flatObject)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error mapping object {%v}: %v", flatObject, err)
-	}
-
-	tableName, err := p.tableNameExtractFunc(mappedObject)
-	if err != nil {
-		return nil, nil, fmt.Errorf("Error extracting table name from object {%v}: %v", mappedObject, err)
+		return nil, nil, fmt.Errorf("Error extracting table name from object {%v}: %v", flatObject, err)
 	}
 	if tableName == "" {
-		return nil, nil, fmt.Errorf("Unknown table name. Object {%v}", mappedObject)
+		return nil, nil, fmt.Errorf("Unknown table name. Object {%v}", flatObject)
 	}
 
 	table := &Table{Name: tableName, Columns: Columns{}}
 
 	//apply typecast and define column types
 	//mapping typecast overrides default typecast
-	for k, v := range mappedObject {
+	for k, v := range flatObject {
 		//value type
 		resultColumnType, err := typing.TypeFromValue(v)
 		if err != nil {
@@ -201,7 +199,7 @@ func (p *Processor) processObject(object map[string]interface{}) (*Table, map[st
 			}
 
 			resultColumnType = defaultType
-			mappedObject[k] = converted
+			flatObject[k] = converted
 		}
 
 		//mapping typecast
@@ -216,11 +214,11 @@ func (p *Processor) processObject(object map[string]interface{}) (*Table, map[st
 			}
 
 			resultColumnType = toType
-			mappedObject[k] = converted
+			flatObject[k] = converted
 		}
 
 		table.Columns[k] = NewColumn(resultColumnType)
 	}
 
-	return table, mappedObject, nil
+	return table, flatObject, nil
 }
