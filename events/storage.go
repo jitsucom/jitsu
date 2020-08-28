@@ -7,5 +7,4 @@ type Storage interface {
 	Store(fileName string, payload []byte) error
 	Name() string
 	Type() string
-	SourceDir() string
 }

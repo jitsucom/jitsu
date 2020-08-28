@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
-	"github.com/joncrlsn/dque"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
@@ -14,7 +13,6 @@ import (
 	"log"
 )
 
-const eventsPerPersistedFile = 2000
 const postgresStorageType = "Postgres"
 
 //Consuming event facts, put them to https://github.com/joncrlsn/dque
@@ -23,17 +21,7 @@ type Postgres struct {
 	adapter         *adapters.Postgres
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
-	eventQueue      *dque.DQue
-}
-
-type QueuedFact struct {
-	FactBytes []byte
-}
-
-// FactBuilder creates and returns a new events.Fact.
-// This is used when we load a segment of the queue from disk.
-func QueuedFactBuilder() interface{} {
-	return &QueuedFact{}
+	eventQueue      *events.PersistentQueue
 }
 
 func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor,
@@ -50,9 +38,9 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 	}
 
 	queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, storageName)
-	queue, err := dque.NewOrOpen(queueName, fallbackDir, eventsPerPersistedFile, QueuedFactBuilder)
+	queue, err := events.NewPersistentQueue(queueName, fallbackDir)
 	if err != nil {
-		return nil, fmt.Errorf("Error opening/creating event queue for postgres: %v", err)
+		return nil, err
 	}
 
 	monitorKeeper := NewMonitorKeeper()

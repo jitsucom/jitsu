@@ -17,7 +17,6 @@ const bqStorageType = "BigQuery"
 //Store files to google BigQuery via google cloud storage in batch mode (1 file = 1 transaction)
 type BigQuery struct {
 	name            string
-	sourceDir       string
 	gcsAdapter      *adapters.GoogleCloudStorage
 	bqAdapter       *adapters.BigQuery
 	tableHelper     *TableHelper
@@ -25,7 +24,7 @@ type BigQuery struct {
 	breakOnError    bool
 }
 
-func NewBigQuery(ctx context.Context, name, sourceDir string, config *adapters.GoogleConfig, processor *schema.Processor, breakOnError bool) (*BigQuery, error) {
+func NewBigQuery(ctx context.Context, name string, config *adapters.GoogleConfig, processor *schema.Processor, breakOnError bool) (*BigQuery, error) {
 	gcsAdapter, err := adapters.NewGoogleCloudStorage(ctx, config)
 	if err != nil {
 		return nil, err
@@ -48,15 +47,12 @@ func NewBigQuery(ctx context.Context, name, sourceDir string, config *adapters.G
 
 	bq := &BigQuery{
 		name:            name,
-		sourceDir:       sourceDir,
 		gcsAdapter:      gcsAdapter,
 		bqAdapter:       bigQueryAdapter,
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
 		breakOnError:    breakOnError,
 	}
-	fr := &FileReader{dir: sourceDir, storage: bq}
-	fr.start()
 	bq.start()
 
 	return bq, nil
@@ -140,10 +136,6 @@ func (bq *BigQuery) Name() string {
 
 func (bq *BigQuery) Type() string {
 	return bqStorageType
-}
-
-func (bq *BigQuery) SourceDir() string {
-	return bq.sourceDir
 }
 
 func (bq *BigQuery) Close() (multiErr error) {
