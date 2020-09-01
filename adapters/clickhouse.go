@@ -374,7 +374,7 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 	return wrappedTx.tx.Commit()
 }
 
-//Insert provided object in ClickHouse
+//Insert provided object in ClickHouse in stream mode
 func (ch *ClickHouse) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
 	wrappedTx, err := ch.OpenTx()
 	if err != nil {
@@ -389,7 +389,7 @@ func (ch *ClickHouse) Insert(schema *schema.Table, valuesMap map[string]interfac
 	return wrappedTx.DirectCommit()
 }
 
-//Insert provided object in ClickHouse
+//Insert provided object in ClickHouse in transaction
 func (ch *ClickHouse) InsertInTransaction(wrappedTx *Transaction, schema *schema.Table, valuesMap map[string]interface{}) error {
 	var header, placeholders string
 	var values []interface{}
