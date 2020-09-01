@@ -375,6 +375,21 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 }
 
 //Insert provided object in ClickHouse
+func (ch *ClickHouse) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
+	wrappedTx, err := ch.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err := ch.InsertInTransaction(wrappedTx, schema, valuesMap); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+//Insert provided object in ClickHouse
 func (ch *ClickHouse) InsertInTransaction(wrappedTx *Transaction, schema *schema.Table, valuesMap map[string]interface{}) error {
 	var header, placeholders string
 	var values []interface{}

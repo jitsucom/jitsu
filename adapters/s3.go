@@ -45,6 +45,10 @@ func (s3c *S3Config) Validate() error {
 }
 
 func NewS3(s3Config *S3Config) (*S3, error) {
+	if err := s3Config.Validate(); err != nil {
+		return nil, err
+	}
+
 	awsConfig := aws.NewConfig().
 		WithCredentials(credentials.NewStaticCredentials(s3Config.AccessKeyID, s3Config.SecretKey, "")).
 		WithRegion(s3Config.Region)

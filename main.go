@@ -118,8 +118,11 @@ func main() {
 		appconfig.Instance.ScheduleClosing(logger)
 	}
 
-	//Create event storages - batch(events.Storage) and streaming(events.Consumer) per token
-	batchStoragesByToken, streamingStoragesByToken := storages.CreateStorages(ctx, destinationsViper, logEventPath)
+	//Create event destinations:
+	//- batch mode (events.Storage)
+	//- streaming mode (events.Consumer)
+	//per token
+	batchStoragesByToken, streamingConsumersByToken := storages.Create(ctx, destinationsViper, logEventPath)
 
 	//Schedule storages resource releasing
 	for _, eStorages := range batchStoragesByToken {
@@ -128,7 +131,7 @@ func main() {
 		}
 	}
 	//Schedule consumers resource releasing
-	for _, eConsumers := range streamingStoragesByToken {
+	for _, eConsumers := range streamingConsumersByToken {
 		for _, ec := range eConsumers {
 			appconfig.Instance.ScheduleClosing(ec)
 		}
@@ -140,12 +143,12 @@ func main() {
 			continue
 		}
 
-		consumers, ok := streamingStoragesByToken[token]
+		consumers, ok := streamingConsumersByToken[token]
 		if !ok {
 			consumers = []events.Consumer{}
 		}
 		consumers = append(consumers, loggingConsumer)
-		streamingStoragesByToken[token] = consumers
+		streamingConsumersByToken[token] = consumers
 	}
 
 	//Uploader must read event logger directory
@@ -155,7 +158,7 @@ func main() {
 	}
 	uploader.Start()
 
-	router := SetupRouter(streamingStoragesByToken)
+	router := SetupRouter(streamingConsumersByToken)
 
 	log.Println("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{

@@ -251,6 +251,20 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 
 //Insert provided object in postgres
 func (p *Postgres) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err := p.InsertInTransaction(wrappedTx, schema, valuesMap); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+func (p *Postgres) InsertInTransaction(wrappedTx *Transaction, schema *schema.Table, valuesMap map[string]interface{}) error {
 	var header, placeholders string
 	var values []interface{}
 	i := 1
@@ -265,24 +279,17 @@ func (p *Postgres) Insert(schema *schema.Table, valuesMap map[string]interface{}
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
 
-	wrappedTx, err := p.OpenTx()
-	if err != nil {
-		return err
-	}
-
 	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(insertTemplate, p.config.Schema, schema.Name, header, placeholders))
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing insert table %s statement: %v", schema.Name, err)
 	}
 
 	_, err = insertStmt.ExecContext(p.ctx, values...)
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", schema.Name, header, values, err)
 	}
 
-	return wrappedTx.tx.Commit()
+	return nil
 }
 
 //TablesList return slice of postgres table names

@@ -3,6 +3,7 @@ package storages
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/events"
@@ -11,11 +12,17 @@ import (
 	"log"
 )
 
-const defaultTableName = "events"
+const (
+	defaultTableName = "events"
+
+	batchMode     = "batch"
+	streamingMode = "streaming"
+)
 
 type DestinationConfig struct {
 	OnlyTokens   []string    `mapstructure:"only_tokens"`
 	Type         string      `mapstructure:"type"`
+	Mode         string      `mapstructure:"mode"`
 	DataLayout   *DataLayout `mapstructure:"data_layout"`
 	BreakOnError bool        `mapstructure:"break_on_error"`
 
@@ -34,7 +41,7 @@ var unknownDestination = errors.New("Unknown destination type")
 
 //Create event storages(batch) and consumers(streaming) from incoming config
 //Enrich incoming configs with default values if needed
-func CreateStorages(ctx context.Context, destinations *viper.Viper, logEventPath string) (map[string][]events.Storage, map[string][]events.Consumer) {
+func Create(ctx context.Context, destinations *viper.Viper, logEventPath string) (map[string][]events.Storage, map[string][]events.Consumer) {
 	stores := map[string][]events.Storage{}
 	consumers := map[string][]events.Consumer{}
 	if destinations == nil {
@@ -51,7 +58,15 @@ func CreateStorages(ctx context.Context, destinations *viper.Viper, logEventPath
 		if destination.Type == "" {
 			destination.Type = name
 		}
-		log.Println("Initializing", name, "destination of type:", destination.Type)
+		if destination.Mode == "" {
+			destination.Mode = batchMode
+		}
+		log.Println("Initializing", name, "destination of type:", destination.Type, "in mode:", destination.Mode)
+
+		if destination.Mode != batchMode && destination.Mode != streamingMode {
+			logError(name, destination.Type, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, batchMode, streamingMode))
+			continue
+		}
 
 		var mapping []string
 		tableName := defaultTableName
@@ -73,15 +88,35 @@ func CreateStorages(ctx context.Context, destinations *viper.Viper, logEventPath
 		var consumer events.Consumer
 		switch destination.Type {
 		case "redshift":
-			storage, err = createRedshift(ctx, name, &destination, processor)
+			if destination.Mode == streamingMode {
+				consumer, err = createRedshift(ctx, name, logEventPath, &destination, processor, true)
+			} else {
+				storage, err = createRedshift(ctx, name, logEventPath, &destination, processor, false)
+			}
 		case "bigquery":
-			storage, err = createBigQuery(ctx, name, &destination, processor)
+			if destination.Mode == streamingMode {
+				consumer, err = createBigQuery(ctx, name, logEventPath, &destination, processor, true)
+			} else {
+				storage, err = createBigQuery(ctx, name, logEventPath, &destination, processor, false)
+			}
 		case "postgres":
-			consumer, err = createPostgres(ctx, name, &destination, processor, logEventPath)
+			if destination.Mode == streamingMode {
+				consumer, err = createPostgres(ctx, name, logEventPath, &destination, processor, true)
+			} else {
+				storage, err = createPostgres(ctx, name, logEventPath, &destination, processor, false)
+			}
 		case "clickhouse":
-			storage, err = createClickHouse(ctx, name, &destination, processor)
+			if destination.Mode == streamingMode {
+				consumer, err = createClickHouse(ctx, name, logEventPath, &destination, processor, true)
+			} else {
+				storage, err = createClickHouse(ctx, name, logEventPath, &destination, processor, false)
+			}
 		case "s3":
-			storage, err = createS3(name, &destination, processor)
+			if destination.Mode == streamingMode {
+				err = fmt.Errorf("S3 destination doesn't support %s mode", streamingMode)
+			} else {
+				storage, err = createS3(name, &destination, processor)
+			}
 		default:
 			err = unknownDestination
 		}
@@ -116,13 +151,8 @@ func logError(destinationName, destinationType string, err error) {
 	log.Printf("Error initializing %s destination of type %s: %v", destinationName, destinationType, err)
 }
 
-//Create aws Redshift event storage
-func createRedshift(ctx context.Context, name string, destination *DestinationConfig, processor *schema.Processor) (*AwsRedshift, error) {
-	s3Config := destination.S3
-	if err := s3Config.Validate(); err != nil {
-		return nil, err
-	}
-
+//Create aws Redshift destination
+func createRedshift(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamingMode bool) (*AwsRedshift, error) {
 	redshiftConfig := destination.DataSource
 	if err := redshiftConfig.Validate(); err != nil {
 		return nil, err
@@ -141,13 +171,13 @@ func createRedshift(ctx context.Context, name string, destination *DestinationCo
 		redshiftConfig.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewAwsRedshift(ctx, name, s3Config, redshiftConfig, processor, destination.BreakOnError)
+	return NewAwsRedshift(ctx, name, logEventPath, destination.S3, redshiftConfig, processor, destination.BreakOnError, streamingMode)
 }
 
-//Create google BigQuery event storage
-func createBigQuery(ctx context.Context, name string, destination *DestinationConfig, processor *schema.Processor) (*BigQuery, error) {
+//Create google BigQuery destination
+func createBigQuery(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamingMode bool) (*BigQuery, error) {
 	gConfig := destination.Google
-	if err := gConfig.Validate(); err != nil {
+	if err := gConfig.Validate(streamingMode); err != nil {
 		return nil, err
 	}
 
@@ -157,11 +187,11 @@ func createBigQuery(ctx context.Context, name string, destination *DestinationCo
 		log.Printf("name: %s type: bigquery dataset wasn't provided. Will be used default one: %s", name, gConfig.Dataset)
 	}
 
-	return NewBigQuery(ctx, name, gConfig, processor, destination.BreakOnError)
+	return NewBigQuery(ctx, name, logEventPath, gConfig, processor, destination.BreakOnError, streamingMode)
 }
 
-//Create Postgres event consumer
-func createPostgres(ctx context.Context, name string, destination *DestinationConfig, processor *schema.Processor, logEventPath string) (*Postgres, error) {
+//Create Postgres destination
+func createPostgres(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamingMode bool) (*Postgres, error) {
 	config := destination.DataSource
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -180,20 +210,20 @@ func createPostgres(ctx context.Context, name string, destination *DestinationCo
 		config.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewPostgres(ctx, config, processor, logEventPath, name)
+	return NewPostgres(ctx, config, processor, logEventPath, name, destination.BreakOnError, streamingMode)
 }
 
-//Create ClickHouse event storage
-func createClickHouse(ctx context.Context, name string, destination *DestinationConfig, processor *schema.Processor) (*ClickHouse, error) {
+//Create ClickHouse destination
+func createClickHouse(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamingMode bool) (*ClickHouse, error) {
 	config := destination.ClickHouse
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
-	return NewClickHouse(ctx, name, config, processor, destination.BreakOnError)
+	return NewClickHouse(ctx, name, logEventPath, config, processor, destination.BreakOnError, streamingMode)
 }
 
-//Create s3 event storage
+//Create s3 destination
 func createS3(name string, destination *DestinationConfig, processor *schema.Processor) (*S3, error) {
 	s3Config := destination.S3
 	if err := s3Config.Validate(); err != nil {
