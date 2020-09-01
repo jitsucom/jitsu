@@ -38,7 +38,7 @@ var (
 	schemaToPostgres = map[typing.DataType]string{
 		typing.STRING:    "character varying(8192)",
 		typing.INT64:     "bigint",
-		typing.FLOAT64:   "numeric(40,20)",
+		typing.FLOAT64:   "numeric(38,18)",
 		typing.TIMESTAMP: "timestamp",
 	}
 
@@ -47,6 +47,7 @@ var (
 		"character varying(8192)":     typing.STRING,
 		"bigint":                      typing.INT64,
 		"numeric(40,20)":              typing.FLOAT64,
+		"numeric(38,18)":              typing.FLOAT64,
 		"timestamp without time zone": typing.TIMESTAMP,
 	}
 )
