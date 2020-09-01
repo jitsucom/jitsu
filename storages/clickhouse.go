@@ -17,7 +17,7 @@ const clickHouseStorageType = "ClickHouse"
 
 //Store files to ClickHouse in two modes:
 //batch: (1 file = 1 transaction)
-//streaming: (1 object = 1 transaction)
+//stream: (1 object = 1 transaction)
 type ClickHouse struct {
 	name            string
 	adapters        []*adapters.ClickHouse
@@ -28,14 +28,14 @@ type ClickHouse struct {
 }
 
 func NewClickHouse(ctx context.Context, name, fallbackDir string, config *adapters.ClickHouseConfig, processor *schema.Processor,
-	breakOnError, streamingMode bool) (*ClickHouse, error) {
+	breakOnError, streamMode bool) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
 	}
 
 	var eventQueue *events.PersistentQueue
-	if streamingMode {
+	if streamMode {
 		var err error
 		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
 		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
@@ -89,7 +89,7 @@ func NewClickHouse(ctx context.Context, name, fallbackDir string, config *adapte
 		return nil, err
 	}
 
-	if streamingMode {
+	if streamMode {
 		ch.startStreamingConsumer()
 	}
 

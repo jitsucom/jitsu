@@ -19,7 +19,7 @@ const redshiftStorageType = "Redshift"
 
 //Store files to aws RedShift in two modes:
 //batch: via aws s3 in batch mode (1 file = 1 transaction)
-//streaming: via events queue in streaming mode (1 object = 1 transaction)
+//stream: via events queue in stream mode (1 object = 1 transaction)
 type AwsRedshift struct {
 	name            string
 	s3Adapter       *adapters.S3
@@ -30,12 +30,12 @@ type AwsRedshift struct {
 	breakOnError    bool
 }
 
-//NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for streaming consumer depend on destination mode
+//NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(ctx context.Context, name, fallbackDir string, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
-	processor *schema.Processor, breakOnError, streamingMode bool) (*AwsRedshift, error) {
+	processor *schema.Processor, breakOnError, streamMode bool) (*AwsRedshift, error) {
 	var s3Adapter *adapters.S3
 	var eventQueue *events.PersistentQueue
-	if streamingMode {
+	if streamMode {
 		var err error
 		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
 		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
@@ -74,7 +74,7 @@ func NewAwsRedshift(ctx context.Context, name, fallbackDir string, s3Config *ada
 		breakOnError:    breakOnError,
 	}
 
-	if streamingMode {
+	if streamMode {
 		ar.startStreamingConsumer()
 	} else {
 		ar.startBatchStorage()

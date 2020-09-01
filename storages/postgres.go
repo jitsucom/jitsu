@@ -16,7 +16,7 @@ const postgresStorageType = "Postgres"
 
 //Store files to Postgres in two modes:
 //batch: (1 file = 1 transaction)
-//streaming: (1 object = 1 transaction)
+//stream: (1 object = 1 transaction)
 type Postgres struct {
 	name            string
 	adapter         *adapters.Postgres
@@ -27,9 +27,9 @@ type Postgres struct {
 }
 
 func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor,
-	fallbackDir, storageName string, breakOnError, streamingMode bool) (*Postgres, error) {
+	fallbackDir, storageName string, breakOnError, streamMode bool) (*Postgres, error) {
 	var eventQueue *events.PersistentQueue
-	if streamingMode {
+	if streamMode {
 		var err error
 		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, storageName)
 		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
@@ -61,7 +61,7 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		breakOnError:    breakOnError,
 	}
 
-	if streamingMode {
+	if streamMode {
 		p.startStreamingConsumer()
 	}
 
