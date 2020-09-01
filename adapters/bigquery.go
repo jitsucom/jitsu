@@ -192,7 +192,7 @@ func isNotFoundErr(err error) bool {
 	return ok && e.Code == http.StatusNotFound
 }
 
-//BQItem struct for stream inserts to BigQuery
+//BQItem struct for streaming inserts to BigQuery
 type BQItem struct {
 	values map[string]interface{}
 }

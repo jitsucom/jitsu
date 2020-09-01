@@ -67,7 +67,7 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 	return ar.dataSourceProxy.createDbSchemaInTransaction(wrappedTx, dbSchemaName)
 }
 
-//Insert provided object in aws redshift
+//Insert provided object in AwsRedshift in stream mode
 func (ar *AwsRedshift) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
 	wrappedTx, err := ar.OpenTx()
 	if err != nil {
