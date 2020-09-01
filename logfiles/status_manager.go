@@ -80,15 +80,18 @@ func (sm *statusManager) updateStatus(fileName, storage string, storageErr error
 	statusesPerStorage, ok := sm.fileStatuses[fileName]
 	if !ok {
 		statusesPerStorage = map[string]*Status{}
+		sm.fileStatuses[fileName] = statusesPerStorage
 	}
 
 	status, ok := statusesPerStorage[storage]
 	if !ok {
 		status = &Status{}
+		statusesPerStorage[storage] = status
 	}
 
 	if storageErr == nil {
 		status.Uploaded = true
+		status.Err = ""
 	} else {
 		status.Uploaded = false
 		status.Err = storageErr.Error()

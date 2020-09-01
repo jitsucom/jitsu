@@ -50,7 +50,7 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 	}
 
 	monitorKeeper := NewMonitorKeeper()
-	tableHelper := NewTableHelper(adapter, monitorKeeper, redshiftStorageType)
+	tableHelper := NewTableHelper(adapter, monitorKeeper, postgresStorageType)
 
 	p := &Postgres{
 		name:            storageName,
