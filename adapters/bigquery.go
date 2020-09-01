@@ -68,7 +68,7 @@ func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	return nil
 }
 
-//Insert provided object in BigQuery in streaming mode
+//Insert provided object in BigQuery in stream mode
 func (bq *BigQuery) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(schema.Name).Inserter()
 
@@ -192,7 +192,7 @@ func isNotFoundErr(err error) bool {
 	return ok && e.Code == http.StatusNotFound
 }
 
-//BQItem struct for streaming inserts to BigQuery
+//BQItem struct for stream inserts to BigQuery
 type BQItem struct {
 	values map[string]interface{}
 }

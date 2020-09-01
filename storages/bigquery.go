@@ -18,7 +18,7 @@ const bqStorageType = "BigQuery"
 
 //Store files to google BigQuery in two modes:
 //batch: via google cloud storage in batch mode (1 file = 1 transaction)
-//streaming: via events queue in streaming mode (1 object = 1 transaction)
+//stream: via events queue in stream mode (1 object = 1 transaction)
 type BigQuery struct {
 	name            string
 	gcsAdapter      *adapters.GoogleCloudStorage
@@ -30,10 +30,10 @@ type BigQuery struct {
 }
 
 func NewBigQuery(ctx context.Context, name, fallbackDir string, config *adapters.GoogleConfig, processor *schema.Processor,
-	breakOnError, streamingMode bool) (*BigQuery, error) {
+	breakOnError, streamMode bool) (*BigQuery, error) {
 	var gcsAdapter *adapters.GoogleCloudStorage
 	var eventQueue *events.PersistentQueue
-	if streamingMode {
+	if streamMode {
 		var err error
 		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
 		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
@@ -72,7 +72,7 @@ func NewBigQuery(ctx context.Context, name, fallbackDir string, config *adapters
 		eventQueue:      eventQueue,
 		breakOnError:    breakOnError,
 	}
-	if streamingMode {
+	if streamMode {
 		bq.startStreamingConsumer()
 	} else {
 		bq.startBatchStorage()

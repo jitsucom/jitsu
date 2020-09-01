@@ -120,7 +120,7 @@ func main() {
 
 	//Create event destinations:
 	//- batch mode (events.Storage)
-	//- streaming mode (events.Consumer)
+	//- stream mode (events.Consumer)
 	//per token
 	batchStoragesByToken, streamingConsumersByToken := storages.Create(ctx, destinationsViper, logEventPath)
 
