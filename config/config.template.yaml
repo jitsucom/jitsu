@@ -25,6 +25,7 @@ destinations:
   redshift_one:
     type: redshift
     only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003']
+    mode: batch #Optional. Available mode: [batch, stream], default value: batch
     datasource:
       host: redshift.amazonaws.com
       db: my-db
@@ -44,6 +45,7 @@ destinations:
   redshift_two:
     type: redshift
     only_tokens: ['c20765a0-d69f-15ea-82d0-0242ac130003']
+    mode: stream
     datasource:
       host: redshift.amazonaws.com
       db: my-db-2
@@ -68,6 +70,7 @@ destinations:
   postgres_ksense:
     type: postgres
     only_tokens: ['c20765a0-d69f-15ea-82d0-0242ac130003']
+    mode: stream
     datasource:
       schema: ksense #'public' is default value
       host: your_host.com

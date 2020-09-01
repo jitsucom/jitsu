@@ -2,10 +2,12 @@ package storages
 
 import (
 	"context"
+	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
+	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/schema"
 	"log"
 	"strings"
@@ -14,21 +16,36 @@ import (
 
 const bqStorageType = "BigQuery"
 
-//Store files to google BigQuery via google cloud storage in batch mode (1 file = 1 transaction)
+//Store files to google BigQuery in two modes:
+//batch: via google cloud storage in batch mode (1 file = 1 transaction)
+//stream: via events queue in stream mode (1 object = 1 transaction)
 type BigQuery struct {
 	name            string
-	sourceDir       string
 	gcsAdapter      *adapters.GoogleCloudStorage
 	bqAdapter       *adapters.BigQuery
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
+	eventQueue      *events.PersistentQueue
 	breakOnError    bool
 }
 
-func NewBigQuery(ctx context.Context, name, sourceDir string, config *adapters.GoogleConfig, processor *schema.Processor, breakOnError bool) (*BigQuery, error) {
-	gcsAdapter, err := adapters.NewGoogleCloudStorage(ctx, config)
-	if err != nil {
-		return nil, err
+func NewBigQuery(ctx context.Context, name, fallbackDir string, config *adapters.GoogleConfig, processor *schema.Processor,
+	breakOnError, streamMode bool) (*BigQuery, error) {
+	var gcsAdapter *adapters.GoogleCloudStorage
+	var eventQueue *events.PersistentQueue
+	if streamMode {
+		var err error
+		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
+		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		gcsAdapter, err = adapters.NewGoogleCloudStorage(ctx, config)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	bigQueryAdapter, err := adapters.NewBigQuery(ctx, config)
@@ -48,25 +65,61 @@ func NewBigQuery(ctx context.Context, name, sourceDir string, config *adapters.G
 
 	bq := &BigQuery{
 		name:            name,
-		sourceDir:       sourceDir,
 		gcsAdapter:      gcsAdapter,
 		bqAdapter:       bigQueryAdapter,
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
+		eventQueue:      eventQueue,
 		breakOnError:    breakOnError,
 	}
-	fr := &FileReader{dir: sourceDir, storage: bq}
-	fr.start()
-	bq.start()
+	if streamMode {
+		bq.startStreamingConsumer()
+	} else {
+		bq.startBatchStorage()
+	}
 
 	return bq, nil
+}
+
+//Run goroutine to:
+//1. read from queue
+//2. insert in BigQuery
+func (bq *BigQuery) startStreamingConsumer() {
+	go func() {
+		for {
+			if appstatus.Instance.Idle {
+				break
+			}
+			fact, err := bq.eventQueue.DequeueBlock()
+			if err != nil {
+				log.Println("Error reading event fact from bigquery queue", err)
+				continue
+			}
+
+			dataSchema, flattenObject, err := bq.schemaProcessor.ProcessFact(fact)
+			if err != nil {
+				log.Printf("Unable to process object %v: %v", fact, err)
+				continue
+			}
+
+			//don't process empty object
+			if !dataSchema.Exists() {
+				continue
+			}
+
+			if err := bq.insert(dataSchema, flattenObject); err != nil {
+				log.Printf("Error inserting to bigquery table [%s]: %v", dataSchema.Name, err)
+				continue
+			}
+		}
+	}()
 }
 
 //Periodically (every 30 seconds):
 //1. get all files from google cloud storage
 //2. load them to BigQuery via google api
 //3. delete file from google cloud storage
-func (bq *BigQuery) start() {
+func (bq *BigQuery) startBatchStorage() {
 	go func() {
 		for {
 			if appstatus.Instance.Idle {
@@ -106,6 +159,27 @@ func (bq *BigQuery) start() {
 	}()
 }
 
+//Consume events.Fact and enqueue it
+func (bq *BigQuery) Consume(fact events.Fact) {
+	if err := bq.eventQueue.Enqueue(fact); err != nil {
+		logSkippedEvent(fact, err)
+	}
+}
+
+//insert fact in BigQuery
+func (bq *BigQuery) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
+	dbSchema, err := bq.tableHelper.EnsureTable(dataSchema)
+	if err != nil {
+		return err
+	}
+
+	if err := bq.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
+		return err
+	}
+
+	return bq.bqAdapter.Insert(dataSchema, fact)
+}
+
 //Store file from byte payload to google cloud storage with processing
 func (bq *BigQuery) Store(fileName string, payload []byte) error {
 	flatData, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, bq.breakOnError)
@@ -142,16 +216,18 @@ func (bq *BigQuery) Type() string {
 	return bqStorageType
 }
 
-func (bq *BigQuery) SourceDir() string {
-	return bq.sourceDir
-}
-
 func (bq *BigQuery) Close() (multiErr error) {
 	if err := bq.gcsAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, err)
 	}
 	if err := bq.bqAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, err)
+	}
+
+	if bq.eventQueue != nil {
+		if err := bq.eventQueue.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing bigquery event queue: %v", err))
+		}
 	}
 	return
 }

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
+	"github.com/ksensehq/eventnative/appconfig"
+	"github.com/ksensehq/eventnative/appstatus"
+	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/schema"
 	"log"
 	"math/rand"
@@ -12,20 +15,33 @@ import (
 
 const clickHouseStorageType = "ClickHouse"
 
-//Store files to ClickHouse in batch mode (1 log file = 1 transaction)
+//Store files to ClickHouse in two modes:
+//batch: (1 file = 1 transaction)
+//stream: (1 object = 1 transaction)
 type ClickHouse struct {
 	name            string
-	sourceDir       string
 	adapters        []*adapters.ClickHouse
 	tableHelpers    []*TableHelper
 	schemaProcessor *schema.Processor
+	eventQueue      *events.PersistentQueue
 	breakOnError    bool
 }
 
-func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters.ClickHouseConfig, processor *schema.Processor, breakOnError bool) (*ClickHouse, error) {
+func NewClickHouse(ctx context.Context, name, fallbackDir string, config *adapters.ClickHouseConfig, processor *schema.Processor,
+	breakOnError, streamMode bool) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
+	}
+
+	var eventQueue *events.PersistentQueue
+	if streamMode {
+		var err error
+		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
+		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	//put default values and values from config
@@ -56,10 +72,10 @@ func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters
 
 	ch := &ClickHouse{
 		name:            name,
-		sourceDir:       sourceDir,
 		adapters:        chAdapters,
 		tableHelpers:    tableHelpers,
 		schemaProcessor: processor,
+		eventQueue:      eventQueue,
 		breakOnError:    breakOnError,
 	}
 
@@ -73,8 +89,9 @@ func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters
 		return nil, err
 	}
 
-	fr := &FileReader{dir: sourceDir, storage: ch}
-	fr.start()
+	if streamMode {
+		ch.startStreamingConsumer()
+	}
 
 	return ch, nil
 }
@@ -87,8 +104,61 @@ func (ch *ClickHouse) Type() string {
 	return clickHouseStorageType
 }
 
-func (ch *ClickHouse) SourceDir() string {
-	return ch.sourceDir
+//Consume events.Fact and enqueue it
+func (ch *ClickHouse) Consume(fact events.Fact) {
+	if err := ch.eventQueue.Enqueue(fact); err != nil {
+		logSkippedEvent(fact, err)
+	}
+}
+
+//Run goroutine to:
+//1. read from queue
+//2. insert in ClickHouse
+func (ch *ClickHouse) startStreamingConsumer() {
+	go func() {
+		for {
+			if appstatus.Instance.Idle {
+				break
+			}
+			fact, err := ch.eventQueue.DequeueBlock()
+			if err != nil {
+				log.Println("Error reading event fact from clickhouse queue", err)
+				continue
+			}
+
+			dataSchema, flattenObject, err := ch.schemaProcessor.ProcessFact(fact)
+			if err != nil {
+				log.Printf("Unable to process object %v: %v", fact, err)
+				continue
+			}
+
+			//don't process empty object
+			if !dataSchema.Exists() {
+				continue
+			}
+
+			if err := ch.insert(dataSchema, flattenObject); err != nil {
+				log.Printf("Error inserting to clickhouse table [%s]: %v", dataSchema.Name, err)
+				continue
+			}
+		}
+	}()
+}
+
+//insert fact in ClickHouse
+func (ch *ClickHouse) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
+	adapter, tableHelper := ch.getAdapters()
+
+	dbSchema, err := tableHelper.EnsureTable(dataSchema)
+	if err != nil {
+		return err
+	}
+
+	if err := ch.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
+		return err
+	}
+
+	return adapter.Insert(dataSchema, fact)
 }
 
 //Store file payload to ClickHouse with processing
@@ -138,6 +208,12 @@ func (ch *ClickHouse) Close() (multiErr error) {
 	for i, adapter := range ch.adapters {
 		if err := adapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing clickhouse datasource[%d]: %v", i, err))
+		}
+	}
+
+	if ch.eventQueue != nil {
+		if err := ch.eventQueue.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing clickhouse event queue: %v", err))
 		}
 	}
 

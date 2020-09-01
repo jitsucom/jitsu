@@ -9,6 +9,7 @@ import (
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/handlers"
+	"github.com/ksensehq/eventnative/logfiles"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
 	"github.com/ksensehq/eventnative/storages"
@@ -17,7 +18,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -81,6 +81,7 @@ func main() {
 		appstatus.Instance.Idle = true
 		cancel()
 		appconfig.Instance.Close()
+		time.Sleep(3 * time.Second)
 		os.Exit(0)
 	}()
 
@@ -117,8 +118,11 @@ func main() {
 		appconfig.Instance.ScheduleClosing(logger)
 	}
 
-	//Create event storages - batch(events.Storage) and streaming(events.Consumer) per token
-	batchStoragesByToken, streamingStoragesByToken := storages.CreateStorages(ctx, destinationsViper, logEventPath)
+	//Create event destinations:
+	//- batch mode (events.Storage)
+	//- stream mode (events.Consumer)
+	//per token
+	batchStoragesByToken, streamingConsumersByToken := storages.Create(ctx, destinationsViper, logEventPath)
 
 	//Schedule storages resource releasing
 	for _, eStorages := range batchStoragesByToken {
@@ -127,7 +131,7 @@ func main() {
 		}
 	}
 	//Schedule consumers resource releasing
-	for _, eConsumers := range streamingStoragesByToken {
+	for _, eConsumers := range streamingConsumersByToken {
 		for _, ec := range eConsumers {
 			appconfig.Instance.ScheduleClosing(ec)
 		}
@@ -139,19 +143,22 @@ func main() {
 			continue
 		}
 
-		consumers, ok := streamingStoragesByToken[token]
+		consumers, ok := streamingConsumersByToken[token]
 		if !ok {
 			consumers = []events.Consumer{}
 		}
 		consumers = append(consumers, loggingConsumer)
-		streamingStoragesByToken[token] = consumers
+		streamingConsumersByToken[token] = consumers
 	}
 
 	//Uploader must read event logger directory
-	uploader := events.NewUploader(path.Join(logEventPath, appconfig.Instance.ServerName+uploaderFileMask), uploaderBatchSize, uploaderLoadEveryS, batchStoragesByToken)
+	uploader, err := logfiles.NewUploader(logEventPath, appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, batchStoragesByToken)
+	if err != nil {
+		log.Fatal("Error while creating file uploader", err)
+	}
 	uploader.Start()
 
-	router := SetupRouter(streamingStoragesByToken)
+	router := SetupRouter(streamingConsumersByToken)
 
 	log.Println("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{

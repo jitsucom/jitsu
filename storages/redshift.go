@@ -3,9 +3,11 @@ package storages
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
+	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/schema"
 	"log"
 	"strings"
@@ -15,22 +17,37 @@ import (
 const tableFileKeyDelimiter = "-table-"
 const redshiftStorageType = "Redshift"
 
-//Store files to aws RedShift via aws s3 in batch mode (1 file = 1 transaction)
+//Store files to aws RedShift in two modes:
+//batch: via aws s3 in batch mode (1 file = 1 transaction)
+//stream: via events queue in stream mode (1 object = 1 transaction)
 type AwsRedshift struct {
 	name            string
-	sourceDir       string
 	s3Adapter       *adapters.S3
 	redshiftAdapter *adapters.AwsRedshift
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
+	eventQueue      *events.PersistentQueue
 	breakOnError    bool
 }
 
-func NewAwsRedshift(ctx context.Context, name, sourceDir string, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
-	processor *schema.Processor, breakOnError bool) (*AwsRedshift, error) {
-	s3Adapter, err := adapters.NewS3(s3Config)
-	if err != nil {
-		return nil, err
+//NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
+func NewAwsRedshift(ctx context.Context, name, fallbackDir string, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
+	processor *schema.Processor, breakOnError, streamMode bool) (*AwsRedshift, error) {
+	var s3Adapter *adapters.S3
+	var eventQueue *events.PersistentQueue
+	if streamMode {
+		var err error
+		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
+		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		var err error
+		s3Adapter, err = adapters.NewS3(s3Config)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	redshiftAdapter, err := adapters.NewAwsRedshift(ctx, redshiftConfig, s3Config)
@@ -49,26 +66,62 @@ func NewAwsRedshift(ctx context.Context, name, sourceDir string, s3Config *adapt
 
 	ar := &AwsRedshift{
 		name:            name,
-		sourceDir:       sourceDir,
 		s3Adapter:       s3Adapter,
 		redshiftAdapter: redshiftAdapter,
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
+		eventQueue:      eventQueue,
 		breakOnError:    breakOnError,
 	}
 
-	fr := &(FileReader{dir: sourceDir, storage: ar})
-	fr.start()
-	ar.start()
+	if streamMode {
+		ar.startStreamingConsumer()
+	} else {
+		ar.startBatchStorage()
+	}
 
 	return ar, nil
+}
+
+//Run goroutine to:
+//1. read from queue
+//2. insert in AwsRedshift
+func (ar *AwsRedshift) startStreamingConsumer() {
+	go func() {
+		for {
+			if appstatus.Instance.Idle {
+				break
+			}
+			fact, err := ar.eventQueue.DequeueBlock()
+			if err != nil {
+				log.Println("Error reading event fact from redshift queue", err)
+				continue
+			}
+
+			dataSchema, flattenObject, err := ar.schemaProcessor.ProcessFact(fact)
+			if err != nil {
+				log.Printf("Unable to process object %v: %v", fact, err)
+				continue
+			}
+
+			//don't process empty object
+			if !dataSchema.Exists() {
+				continue
+			}
+
+			if err := ar.insert(dataSchema, flattenObject); err != nil {
+				log.Printf("Error inserting to redshift table [%s]: %v", dataSchema.Name, err)
+				continue
+			}
+		}
+	}()
 }
 
 //Periodically (every 30 seconds):
 //1. get all files from aws s3
 //2. load them to aws Redshift via Copy request
 //3. delete file from aws s3
-func (ar *AwsRedshift) start() {
+func (ar *AwsRedshift) startBatchStorage() {
 	go func() {
 		for {
 			if appstatus.Instance.Idle {
@@ -118,6 +171,27 @@ func (ar *AwsRedshift) start() {
 	}()
 }
 
+//Consume events.Fact and enqueue it
+func (ar *AwsRedshift) Consume(fact events.Fact) {
+	if err := ar.eventQueue.Enqueue(fact); err != nil {
+		logSkippedEvent(fact, err)
+	}
+}
+
+//insert fact in Redshift
+func (ar *AwsRedshift) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
+	dbSchema, err := ar.tableHelper.EnsureTable(dataSchema)
+	if err != nil {
+		return err
+	}
+
+	if err := ar.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
+		return err
+	}
+
+	return ar.redshiftAdapter.Insert(dataSchema, fact)
+}
+
 //Store file from byte payload to s3 with processing
 func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 	flatData, err := ar.schemaProcessor.ProcessFilePayload(fileName, payload, ar.breakOnError)
@@ -155,14 +229,16 @@ func (ar *AwsRedshift) Type() string {
 	return redshiftStorageType
 }
 
-func (ar *AwsRedshift) SourceDir() string {
-	return ar.sourceDir
-}
-
-func (ar *AwsRedshift) Close() error {
+func (ar *AwsRedshift) Close() (multiErr error) {
 	if err := ar.redshiftAdapter.Close(); err != nil {
-		return fmt.Errorf("Error closing redshift datasource: %v", err)
+		multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing redshift datasource: %v", err))
 	}
 
-	return nil
+	if ar.eventQueue != nil {
+		if err := ar.eventQueue.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing redshift queue: %v", err))
+		}
+	}
+
+	return
 }
