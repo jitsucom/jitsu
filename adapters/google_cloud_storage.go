@@ -27,11 +27,12 @@ type GoogleConfig struct {
 	credentials option.ClientOption
 }
 
-func (gc *GoogleConfig) Validate() error {
+func (gc *GoogleConfig) Validate(streamingMode bool) error {
 	if gc == nil {
 		return errors.New("Google config is required")
 	}
-	if gc.Bucket == "" {
+	//batch mode works via google cloud storage
+	if !streamingMode && gc.Bucket == "" {
 		return errors.New("Google cloud storage bucket(gcs_bucket) is required parameter")
 	}
 	if gc.Project == "" {

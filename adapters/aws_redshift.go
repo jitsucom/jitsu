@@ -65,6 +65,21 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 	return ar.dataSourceProxy.createDbSchemaInTransaction(wrappedTx, dbSchemaName)
 }
 
+//Insert provided object in aws redshift
+func (ar *AwsRedshift) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err := ar.dataSourceProxy.InsertInTransaction(wrappedTx, schema, valuesMap); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
 //PatchTableSchema add new columns(from provided schema.Table) to existing table
 func (ar *AwsRedshift) PatchTableSchema(patchSchema *schema.Table) error {
 	wrappedTx, err := ar.OpenTx()
