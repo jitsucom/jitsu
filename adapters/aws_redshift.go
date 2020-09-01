@@ -13,7 +13,9 @@ const (
     				ACCESS_KEY_ID '%s'
     				SECRET_ACCESS_KEY '%s'
     				region '%s'
-    				json 'auto'`
+    				json 'auto'
+                    dateformat 'auto'
+                    timeformat 'auto'`
 )
 
 //AwsRedshift adapter for creating,patching (schema or table), copying data from s3 to redshift
