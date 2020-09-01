@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v1.2.12] - 2020-09-01
+### Fixed
+- [15](https://github.com/ksensehq/eventnative/issues/15) Fixed float precision postgres/redshift
+
 ## [v1.2.11] - 2020-08-28
 ### Fixed
 - fix object mapping
