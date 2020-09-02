@@ -28,7 +28,7 @@ type ClickHouse struct {
 }
 
 func NewClickHouse(ctx context.Context, name, fallbackDir string, config *adapters.ClickHouseConfig, processor *schema.Processor,
-	breakOnError, streamMode bool) (*ClickHouse, error) {
+	breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
@@ -51,8 +51,6 @@ func NewClickHouse(ctx context.Context, name, fallbackDir string, config *adapte
 			nonNullFields[fieldName] = true
 		}
 	}
-
-	monitorKeeper := NewMonitorKeeper()
 
 	var chAdapters []*adapters.ClickHouse
 	var tableHelpers []*TableHelper

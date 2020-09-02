@@ -41,7 +41,7 @@ var unknownDestination = errors.New("Unknown destination type")
 
 //Create event storages(batch) and consumers(stream) from incoming config
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, destinations *viper.Viper, logEventPath string) (map[string][]events.Storage, map[string][]events.Consumer) {
+func Create(ctx context.Context, destinations *viper.Viper, logEventPath string, syncServiceType string, syncServiceEndpoint string) (map[string][]events.Storage, map[string][]events.Consumer) {
 	stores := map[string][]events.Storage{}
 	consumers := map[string][]events.Consumer{}
 	if destinations == nil {
@@ -51,6 +51,12 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string)
 	dc := map[string]DestinationConfig{}
 	if err := destinations.Unmarshal(&dc); err != nil {
 		log.Println("Error initializing destinations: wrong config format: each destination must contains one key and config as a value e.g. destinations:\n  custom_name:\n      type: redshift ...", err)
+		return stores, consumers
+	}
+
+	monitorKeeper, err := NewMonitorKeeper(syncServiceType, syncServiceEndpoint)
+	if err != nil {
+		log.Println("Error sync service: ", err)
 		return stores, consumers
 	}
 
@@ -89,27 +95,27 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string)
 		switch destination.Type {
 		case "redshift":
 			if destination.Mode == streamMode {
-				consumer, err = createRedshift(ctx, name, logEventPath, &destination, processor, true)
+				consumer, err = createRedshift(ctx, name, logEventPath, &destination, processor, true, monitorKeeper)
 			} else {
-				storage, err = createRedshift(ctx, name, logEventPath, &destination, processor, false)
+				storage, err = createRedshift(ctx, name, logEventPath, &destination, processor, false, monitorKeeper)
 			}
 		case "bigquery":
 			if destination.Mode == streamMode {
-				consumer, err = createBigQuery(ctx, name, logEventPath, &destination, processor, true)
+				consumer, err = createBigQuery(ctx, name, logEventPath, &destination, processor, true, monitorKeeper)
 			} else {
-				storage, err = createBigQuery(ctx, name, logEventPath, &destination, processor, false)
+				storage, err = createBigQuery(ctx, name, logEventPath, &destination, processor, false, monitorKeeper)
 			}
 		case "postgres":
 			if destination.Mode == streamMode {
-				consumer, err = createPostgres(ctx, name, logEventPath, &destination, processor, true)
+				consumer, err = createPostgres(ctx, name, logEventPath, &destination, processor, true, monitorKeeper)
 			} else {
-				storage, err = createPostgres(ctx, name, logEventPath, &destination, processor, false)
+				storage, err = createPostgres(ctx, name, logEventPath, &destination, processor, false, monitorKeeper)
 			}
 		case "clickhouse":
 			if destination.Mode == streamMode {
-				consumer, err = createClickHouse(ctx, name, logEventPath, &destination, processor, true)
+				consumer, err = createClickHouse(ctx, name, logEventPath, &destination, processor, true, monitorKeeper)
 			} else {
-				storage, err = createClickHouse(ctx, name, logEventPath, &destination, processor, false)
+				storage, err = createClickHouse(ctx, name, logEventPath, &destination, processor, false, monitorKeeper)
 			}
 		case "s3":
 			if destination.Mode == streamMode {
@@ -152,7 +158,7 @@ func logError(destinationName, destinationType string, err error) {
 }
 
 //Create aws Redshift destination
-func createRedshift(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool) (*AwsRedshift, error) {
+func createRedshift(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool, keeper MonitorKeeper) (*AwsRedshift, error) {
 	redshiftConfig := destination.DataSource
 	if err := redshiftConfig.Validate(); err != nil {
 		return nil, err
@@ -171,11 +177,11 @@ func createRedshift(ctx context.Context, name, logEventPath string, destination 
 		redshiftConfig.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewAwsRedshift(ctx, name, logEventPath, destination.S3, redshiftConfig, processor, destination.BreakOnError, streamMode)
+	return NewAwsRedshift(ctx, name, logEventPath, destination.S3, redshiftConfig, processor, destination.BreakOnError, streamMode, keeper)
 }
 
 //Create google BigQuery destination
-func createBigQuery(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool) (*BigQuery, error) {
+func createBigQuery(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool, keeper MonitorKeeper) (*BigQuery, error) {
 	gConfig := destination.Google
 	if err := gConfig.Validate(streamMode); err != nil {
 		return nil, err
@@ -187,11 +193,11 @@ func createBigQuery(ctx context.Context, name, logEventPath string, destination 
 		log.Printf("name: %s type: bigquery dataset wasn't provided. Will be used default one: %s", name, gConfig.Dataset)
 	}
 
-	return NewBigQuery(ctx, name, logEventPath, gConfig, processor, destination.BreakOnError, streamMode)
+	return NewBigQuery(ctx, name, logEventPath, gConfig, processor, destination.BreakOnError, streamMode, keeper)
 }
 
 //Create Postgres destination
-func createPostgres(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool) (*Postgres, error) {
+func createPostgres(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool, monitorKeeper MonitorKeeper) (*Postgres, error) {
 	config := destination.DataSource
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -210,17 +216,17 @@ func createPostgres(ctx context.Context, name, logEventPath string, destination 
 		config.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewPostgres(ctx, config, processor, logEventPath, name, destination.BreakOnError, streamMode)
+	return NewPostgres(ctx, config, processor, logEventPath, name, destination.BreakOnError, streamMode, monitorKeeper)
 }
 
 //Create ClickHouse destination
-func createClickHouse(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool) (*ClickHouse, error) {
+func createClickHouse(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool, keeper MonitorKeeper) (*ClickHouse, error) {
 	config := destination.ClickHouse
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
-	return NewClickHouse(ctx, name, logEventPath, config, processor, destination.BreakOnError, streamMode)
+	return NewClickHouse(ctx, name, logEventPath, config, processor, destination.BreakOnError, streamMode, keeper)
 }
 
 //Create s3 destination
