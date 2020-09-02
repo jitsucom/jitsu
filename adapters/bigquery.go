@@ -68,6 +68,13 @@ func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	return nil
 }
 
+//Insert provided object in BigQuery in stream mode
+func (bq *BigQuery) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
+	inserter := bq.client.Dataset(bq.config.Dataset).Table(schema.Name).Inserter()
+
+	return inserter.Put(bq.ctx, BQItem{values: valuesMap})
+}
+
 //Return google BigQuery table representation(name, columns with types) as schema.Table
 func (bq *BigQuery) GetTableSchema(tableName string) (*schema.Table, error) {
 	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
@@ -183,4 +190,19 @@ func (bq *BigQuery) Close() error {
 func isNotFoundErr(err error) bool {
 	e, ok := err.(*googleapi.Error)
 	return ok && e.Code == http.StatusNotFound
+}
+
+//BQItem struct for streaming inserts to BigQuery
+type BQItem struct {
+	values map[string]interface{}
+}
+
+func (bqi BQItem) Save() (row map[string]bigquery.Value, insertID string, err error) {
+	row = map[string]bigquery.Value{}
+
+	for k, v := range bqi.values {
+		row[k] = v
+	}
+
+	return
 }

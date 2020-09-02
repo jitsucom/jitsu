@@ -3,6 +3,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v1.2.14] - 2020-09-02
+### Changed
+- revert typescript track.js api 
+
+## [v1.2.13] - 2020-09-01
+### Added
+- [18](https://github.com/ksensehq/eventnative/issues/18) Two destination modes: stream and batch
+
+## [v1.2.12] - 2020-09-01
+### Fixed
+- [15](https://github.com/ksensehq/eventnative/issues/15) Fixed float precision postgres/redshift
+
 ## [v1.2.11] - 2020-08-28
 ### Fixed
 - fix object mapping

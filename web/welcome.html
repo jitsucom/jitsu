@@ -60,7 +60,7 @@
             let url = "/t/inline.js?key=" + encodeURIComponent("[API_KEY]");
             let trackingCode = $('#tracking_code');
             trackingCode.addClass('_pending');
-            for (let attr of ['ga_hook', 'segment_hook', 'debug']) {
+            for (let attr of ['ga_hook', 'segment_hook']) {
                 if ($("#" + attr).prop('checked') === true) {
                     url += `&${attr}=true`
                 }
@@ -118,7 +118,7 @@
     Welcome to EventNative!
 
 </h1>
-<b>If you see this page, the <b></b><a href="https://github.com/ksensehq/eventnative">EventNative</a></b> sever is successfully installed and working.</p>
+<b>If you see this page, the <b></b><a href="https://github.com/ksensehq/eventnative">EventNative</a></b> server is successfully installed and working.</p>
 <p>Add following config parameter to disable this page (blank page will be shown instead)</p>
 <pre class="code">
 server:
@@ -131,7 +131,6 @@ server:
   <label><input type="checkbox" id="ga_hook"/>Google Analytics Interceptor</label>
   <label><input type="checkbox" id="segment_hook"/>Segment Interceptor</label>
   <label><input type="checkbox" id="send_data_directly"/>Send Data Directly</label>
-  <label><input type="checkbox" id="debug" />Debug mode</label>
 </p>
 
 <p>Links:</p>
