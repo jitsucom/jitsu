@@ -7,6 +7,8 @@ require (
 	cloud.google.com/go/bigquery v1.10.0
 	cloud.google.com/go/storage v1.10.0
 	github.com/aws/aws-sdk-go v1.34.0
+	github.com/coreos/etcd v3.3.25+incompatible // indirect
+	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/gin-gonic/gin v1.6.3
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/go-multierror v1.1.0
@@ -18,7 +20,10 @@ require (
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
+	go.etcd.io/etcd v3.3.25+incompatible
 	google.golang.org/api v0.30.0
+	google.golang.org/grpc/examples v0.0.0-20200902070140-9a132e444fbe // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v2 v2.3.0 // indirect
+	sigs.k8s.io/yaml v1.2.0 // indirect
 )
