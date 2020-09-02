@@ -27,7 +27,7 @@ type Postgres struct {
 }
 
 func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor,
-	fallbackDir, storageName string, breakOnError, streamMode bool) (*Postgres, error) {
+	fallbackDir, storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*Postgres, error) {
 	var eventQueue *events.PersistentQueue
 	if streamMode {
 		var err error
@@ -49,7 +49,6 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		return nil, err
 	}
 
-	monitorKeeper := NewMonitorKeeper()
 	tableHelper := NewTableHelper(adapter, monitorKeeper, postgresStorageType)
 
 	p := &Postgres{
