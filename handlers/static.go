@@ -3,6 +3,7 @@ package handlers
 import (
 	"bytes"
 	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"io/ioutil"
@@ -33,7 +34,6 @@ type jsConfig struct {
 	TrackingHost string `json:"tracking_host" form:"tracking_host"`
 	CookieDomain string `json:"cookie_domain,omitempty" form:"cookie_domain"`
 	GaHook       bool   `json:"ga_hook" form:"ga_hook"`
-	Debug        bool   `json:"debug" form:"debug"`
 }
 
 func NewStaticHandler(sourceDir, serverPublicUrl string) *StaticHandler {
@@ -124,7 +124,8 @@ func (sh *StaticHandler) Handler(c *gin.Context) {
 		}
 
 		c.Writer.Write(sh.inlineJsParts[0])
-		c.Writer.Write([]byte(buildJsConfigString(config)))
+		configJson, _ := json.MarshalIndent(config, "", " ")
+		c.Writer.Write(configJson)
 		c.Writer.Write(sh.inlineJsParts[1])
 
 		eventsArr, ok := c.GetQueryArray("event")
@@ -143,31 +144,6 @@ func (sh *StaticHandler) Handler(c *gin.Context) {
 			c.Writer.Write(file)
 		}
 	}
-}
-
-func buildJsConfigString(config *jsConfig) string {
-	res := "{\n"
-	res += "  key: '" + config.Key + "',\n"
-	res += "  tracking_host: '" + config.TrackingHost + "',\n"
-	src := config.TrackingHost
-	if !strings.HasPrefix(src, "http://") && !strings.HasPrefix(src, "https://") && !strings.HasPrefix(src, "//") {
-		src = "//" + src
-	}
-	src += "/s/track"
-	if !config.GaHook && !config.SegmentHook {
-		src += ".direct"
-	} else if config.GaHook && !config.SegmentHook {
-		src += ".ga"
-	} else if config.SegmentHook && !config.GaHook {
-		src += ".segment"
-	}
-	if config.Debug {
-		src += ".debug"
-	}
-	src += ".js"
-	res += "  script_src: '" + src + "',\n"
-	res += "}"
-	return res
 }
 
 func gzipData(data []byte) (compressedData []byte, err error) {

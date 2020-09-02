@@ -13,7 +13,9 @@ const (
     				ACCESS_KEY_ID '%s'
     				SECRET_ACCESS_KEY '%s'
     				region '%s'
-    				json 'auto'`
+    				json 'auto'
+                    dateformat 'auto'
+                    timeformat 'auto'`
 )
 
 //AwsRedshift adapter for creating,patching (schema or table), copying data from s3 to redshift
@@ -63,6 +65,21 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 	}
 
 	return ar.dataSourceProxy.createDbSchemaInTransaction(wrappedTx, dbSchemaName)
+}
+
+//Insert provided object in AwsRedshift in stream mode
+func (ar *AwsRedshift) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err := ar.dataSourceProxy.InsertInTransaction(wrappedTx, schema, valuesMap); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
 }
 
 //PatchTableSchema add new columns(from provided schema.Table) to existing table
