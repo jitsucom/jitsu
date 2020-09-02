@@ -60,7 +60,7 @@
             let url = "/t/inline.js?key=" + encodeURIComponent("[API_KEY]");
             let trackingCode = $('#tracking_code');
             trackingCode.addClass('_pending');
-            for (let attr of ['ga_hook', 'segment_hook', 'debug']) {
+            for (let attr of ['ga_hook', 'segment_hook']) {
                 if ($("#" + attr).prop('checked') === true) {
                     url += `&${attr}=true`
                 }
@@ -131,7 +131,6 @@ server:
   <label><input type="checkbox" id="ga_hook"/>Google Analytics Interceptor</label>
   <label><input type="checkbox" id="segment_hook"/>Segment Interceptor</label>
   <label><input type="checkbox" id="send_data_directly"/>Send Data Directly</label>
-  <label><input type="checkbox" id="debug" />Debug mode</label>
 </p>
 
 <p>Links:</p>

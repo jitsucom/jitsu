@@ -1,5 +1,7 @@
 (function(cfg) {
   try {
+    let host = cfg['tracking_host'];
+    let path = (cfg['script_path'] || '/') + 's/track.js'
     let k = window.eventN || (window.eventN = {}), q;
     k.eventsQ = q = k.eventsQ || (k.eventsQ = []);
     const addMethod = m => {
@@ -13,7 +15,7 @@
     let script = document.createElement("script");
     script.type = "text/javascript";
     script.async = true;
-    script.src = cfg.script_src;
+    script.src = ((host.startsWith("https://") || host.startsWith("http://") ) ? host : (location.protocol + "//" + host)) + path;
     let orig = document.getElementsByTagName("script")[0];
     orig.parentNode.insertBefore(script, orig);
   } catch (e) {

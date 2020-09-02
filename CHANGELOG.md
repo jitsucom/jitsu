@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v1.2.14] - 2020-09-02
+### Changed
+- revert typescript track.js api 
+
 ## [v1.2.13] - 2020-09-01
 ### Added
 - [18](https://github.com/ksensehq/eventnative/issues/18) Two destination modes: stream and batch
