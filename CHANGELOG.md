@@ -3,7 +3,7 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-## [v1.2.14] - 2020-09-01
+## [v1.2.14] - 2020-09-02
 ### Changed
 - revert typescript track.js api 
 
