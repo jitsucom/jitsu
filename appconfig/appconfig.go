@@ -22,7 +22,8 @@ type AppConfig struct {
 	GeoResolver geo.Resolver
 	UaResolver  useragent.Resolver
 
-	SynchronizationService map[string]string
+	SynchronizationServiceType     string
+	SynchronizationServiceEndpoint string
 
 	closeMe []io.Closer
 }
@@ -116,7 +117,8 @@ func Init() error {
 	appConfig.S2STokens = s2sTokens
 
 	// Synchronization service
-	appConfig.SynchronizationService = viper.GetStringMapString("synchronization_service")
+	appConfig.SynchronizationServiceType = viper.GetString("synchronization_service.type")
+	appConfig.SynchronizationServiceEndpoint = viper.GetString("synchronization_service.endpoint")
 
 	Instance = &appConfig
 	return nil

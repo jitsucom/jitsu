@@ -27,7 +27,7 @@ type AwsRedshift struct {
 }
 
 func NewAwsRedshift(ctx context.Context, name, sourceDir string, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
-	processor *schema.Processor, breakOnError bool) (*AwsRedshift, error) {
+	processor *schema.Processor, breakOnError bool, monitorKeeper MonitorKeeper) (*AwsRedshift, error) {
 	s3Adapter, err := adapters.NewS3(s3Config)
 	if err != nil {
 		return nil, err
@@ -44,7 +44,6 @@ func NewAwsRedshift(ctx context.Context, name, sourceDir string, s3Config *adapt
 		return nil, err
 	}
 
-	monitorKeeper := NewMonitorKeeper()
 	tableHelper := NewTableHelper(redshiftAdapter, monitorKeeper, redshiftStorageType)
 
 	ar := &AwsRedshift{

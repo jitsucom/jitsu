@@ -4,26 +4,38 @@ go 1.14
 
 require (
 	bou.ke/monkey v1.0.2
-	cloud.google.com/go/bigquery v1.10.0
-	cloud.google.com/go/storage v1.10.0
+	cloud.google.com/go/bigquery v1.4.0
+	cloud.google.com/go/storage v1.5.0
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/coreos/etcd v3.3.25+incompatible // indirect
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/gin-gonic/gin v1.6.3
+	github.com/golang/protobuf v1.4.2 // indirect
+	github.com/google/go-cmp v0.5.1 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.8.0
-	github.com/mailru/easyjson v0.7.2
+	github.com/mailru/easyjson v0.7.6
 	github.com/mailru/go-clickhouse v1.3.0
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	go.etcd.io/etcd v3.3.25+incompatible
-	google.golang.org/api v0.30.0
-	google.golang.org/grpc/examples v0.0.0-20200902070140-9a132e444fbe // indirect
+	go.opencensus.io v0.22.4 // indirect
+	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
+	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
+	golang.org/x/net v0.0.0-20200707034311-ab3426394381 // indirect
+	golang.org/x/sys v0.0.0-20200803210538-64077c9b5642 // indirect
+	golang.org/x/text v0.3.3 // indirect
+	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
+	golang.org/x/tools v0.0.0-20200806022845-90696ccdc692 // indirect
+	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
+	google.golang.org/api v0.15.1
+	google.golang.org/appengine v1.6.6 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v2 v2.3.0 // indirect
+	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )

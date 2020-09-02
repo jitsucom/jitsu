@@ -25,7 +25,7 @@ type BigQuery struct {
 	breakOnError    bool
 }
 
-func NewBigQuery(ctx context.Context, name, sourceDir string, config *adapters.GoogleConfig, processor *schema.Processor, breakOnError bool) (*BigQuery, error) {
+func NewBigQuery(ctx context.Context, name, sourceDir string, config *adapters.GoogleConfig, processor *schema.Processor, breakOnError bool, monitorKeeper MonitorKeeper) (*BigQuery, error) {
 	gcsAdapter, err := adapters.NewGoogleCloudStorage(ctx, config)
 	if err != nil {
 		return nil, err
@@ -41,8 +41,6 @@ func NewBigQuery(ctx context.Context, name, sourceDir string, config *adapters.G
 	if err != nil {
 		return nil, err
 	}
-
-	monitorKeeper := NewMonitorKeeper()
 
 	tableHelper := NewTableHelper(bigQueryAdapter, monitorKeeper, bqStorageType)
 
