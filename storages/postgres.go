@@ -37,7 +37,7 @@ func QueuedFactBuilder() interface{} {
 }
 
 func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor,
-	fallbackDir, storageName string) (*Postgres, error) {
+	fallbackDir, storageName string, monitorKeeper MonitorKeeper) (*Postgres, error) {
 	adapter, err := adapters.NewPostgres(ctx, config)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,6 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		return nil, fmt.Errorf("Error opening/creating event queue for postgres: %v", err)
 	}
 
-	monitorKeeper := NewMonitorKeeper()
 	tableHelper := NewTableHelper(adapter, monitorKeeper, redshiftStorageType)
 
 	p := &Postgres{

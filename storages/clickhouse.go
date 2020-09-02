@@ -22,7 +22,8 @@ type ClickHouse struct {
 	breakOnError    bool
 }
 
-func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters.ClickHouseConfig, processor *schema.Processor, breakOnError bool) (*ClickHouse, error) {
+func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters.ClickHouseConfig,
+	processor *schema.Processor, breakOnError bool, monitorKeeper MonitorKeeper) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
@@ -35,8 +36,6 @@ func NewClickHouse(ctx context.Context, name, sourceDir string, config *adapters
 			nonNullFields[fieldName] = true
 		}
 	}
-
-	monitorKeeper := NewMonitorKeeper()
 
 	var chAdapters []*adapters.ClickHouse
 	var tableHelpers []*TableHelper
