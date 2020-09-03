@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
+	"io"
+	"log"
 	"strconv"
 	"time"
 )
@@ -15,8 +17,8 @@ type Lock interface {
 }
 
 type MonitorKeeper interface {
-	Lock(dbType string, tableName string) (Lock, error)
-	Unlock(lock Lock) error
+	Lock(dbType string, tableName string) (Lock, io.Closer, error)
+	Unlock(lock Lock, closer io.Closer) error
 
 	GetVersion(dbType string, tableName string) (int64, error)
 	IncrementVersion(dbType string, tableName string) (int64, error)
@@ -25,11 +27,11 @@ type MonitorKeeper interface {
 type DummyMonitorKeeper struct {
 }
 
-func (dmk *DummyMonitorKeeper) Lock(dbType string, tableName string) (Lock, error) {
-	return nil, nil
+func (dmk *DummyMonitorKeeper) Lock(dbType string, tableName string) (Lock, io.Closer, error) {
+	return nil, nil, nil
 }
 
-func (dmk *DummyMonitorKeeper) Unlock(lock Lock) error {
+func (dmk *DummyMonitorKeeper) Unlock(lock Lock, closer io.Closer) error {
 	return nil
 }
 
@@ -46,23 +48,28 @@ type EtcdMonitorKeeper struct {
 	client *clientv3.Client
 }
 
-func (emk *EtcdMonitorKeeper) Lock(dbType string, tableName string) (Lock, error) {
+func (emk *EtcdMonitorKeeper) Lock(dbType string, tableName string) (Lock, io.Closer, error) {
 	session, sessionError := concurrency.NewSession(emk.client)
 	if sessionError != nil {
-		return nil, sessionError
+		return nil, nil, sessionError
 	}
 	l := concurrency.NewMutex(session, dbType+"_"+tableName)
 	ctx := context.Background()
 	if err := l.Lock(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return l, nil
+	return l, session, nil
 }
 
-func (emk *EtcdMonitorKeeper) Unlock(lock Lock) error {
+func (emk *EtcdMonitorKeeper) Unlock(lock Lock, closer io.Closer) error {
 	ctx := context.Background()
 	if err := lock.Unlock(ctx); err != nil {
 		return err
+	}
+	if closer != nil {
+		if closeError := closer.Close(); closeError != nil {
+			log.Println("Unlocked successfully but failed to close resource ", closeError)
+		}
 	}
 	return nil
 }
