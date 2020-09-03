@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/bigquery v1.4.0
 	cloud.google.com/go/storage v1.5.0
 	github.com/aws/aws-sdk-go v1.34.0
-	github.com/coreos/etcd v3.3.25+incompatible // indirect
+	github.com/coreos/etcd v3.3.25+incompatible
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/gin-gonic/gin v1.6.3
 	github.com/golang/protobuf v1.4.2 // indirect
@@ -22,7 +22,6 @@ require (
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
-	go.etcd.io/etcd v3.3.25+incompatible
 	go.opencensus.io v0.22.4 // indirect
 	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
@@ -38,5 +37,4 @@ require (
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
-	google.golang.org/grpc v1.26.0
 )
