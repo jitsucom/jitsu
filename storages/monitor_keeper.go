@@ -43,8 +43,7 @@ func (dmk *DummyMonitorKeeper) IncrementVersion(dbType string, tableName string)
 
 // etcd lock implementation
 type EtcdMonitorKeeper struct {
-	client         *clientv3.Client
-	requestTimeout time.Duration
+	client *clientv3.Client
 }
 
 func (emk *EtcdMonitorKeeper) Lock(dbType string, tableName string) (Lock, error) {
@@ -54,7 +53,6 @@ func (emk *EtcdMonitorKeeper) Lock(dbType string, tableName string) (Lock, error
 	if err := l.Lock(ctx); err != nil {
 		return nil, err
 	}
-	fmt.Println("locked")
 	return l, nil
 }
 
@@ -63,12 +61,11 @@ func (emk *EtcdMonitorKeeper) Unlock(lock Lock) error {
 	if err := lock.Unlock(ctx); err != nil {
 		return err
 	}
-	fmt.Println("Unlocked")
 	return nil
 }
 
 func (emk *EtcdMonitorKeeper) GetVersion(dbType string, tableName string) (int64, error) {
-	ctx, _ := context.WithTimeout(context.Background(), emk.requestTimeout)
+	ctx := context.Background()
 	kv := emk.client.KV
 	response, err := kv.Get(ctx, dbType+"_"+tableName)
 	if err != nil {
@@ -90,14 +87,14 @@ func (emk *EtcdMonitorKeeper) IncrementVersion(dbType string, tableName string) 
 	if err != nil {
 		return -1, err
 	}
-	ctx, _ := context.WithTimeout(context.Background(), emk.requestTimeout*time.Second)
+	ctx := context.Background()
 	kv := emk.client
 	version = version + 1
 	_, putErr := kv.Put(ctx, dbType+"_"+tableName, strconv.FormatInt(version, 10))
 	return version, putErr
 }
 
-func NewMonitorKeeper(syncServiceType string, syncServiceEndpoint string, connectionTimeoutSeconds uint, requestTimeoutSeconds uint) (MonitorKeeper, error) {
+func NewMonitorKeeper(syncServiceType string, syncServiceEndpoint string, connectionTimeoutSeconds uint) (MonitorKeeper, error) {
 	if syncServiceType == "" || syncServiceEndpoint == "" {
 		fmt.Println("Using stub sync server as no configuration is provided")
 		return &DummyMonitorKeeper{}, nil
@@ -112,7 +109,6 @@ func NewMonitorKeeper(syncServiceType string, syncServiceEndpoint string, connec
 		}
 		keeper := &EtcdMonitorKeeper{}
 		keeper.client = cli
-		keeper.requestTimeout = time.Duration(requestTimeoutSeconds) * time.Second
 		return keeper, nil
 	} else {
 		return nil, errors.Unwrap(fmt.Errorf("Unknown sync service type %s.", syncServiceType))
