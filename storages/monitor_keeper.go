@@ -47,8 +47,11 @@ type EtcdMonitorKeeper struct {
 }
 
 func (emk *EtcdMonitorKeeper) Lock(dbType string, tableName string) (Lock, error) {
-	s, _ := concurrency.NewSession(emk.client)
-	l := concurrency.NewMutex(s, dbType+"_"+tableName)
+	session, sessionError := concurrency.NewSession(emk.client)
+	if sessionError != nil {
+		return nil, sessionError
+	}
+	l := concurrency.NewMutex(session, dbType+"_"+tableName)
 	ctx := context.Background()
 	if err := l.Lock(ctx); err != nil {
 		return nil, err
