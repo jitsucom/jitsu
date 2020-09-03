@@ -57,7 +57,7 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 
 	monitorKeeper, err := NewMonitorKeeper(syncServiceType, syncServiceEndpoint, connectionTimeoutSeconds)
 	if err != nil {
-		log.Println("Error sync service: ", err)
+		log.Println("Error while creating sync service: ", err)
 		return stores, consumers
 	}
 
