@@ -4,14 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"go.etcd.io/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3"
+	"github.com/coreos/etcd/clientv3/concurrency"
 	"strconv"
 	"time"
 )
 
+type Lock interface {
+	Unlock(ctx context.Context) error
+}
+
 type MonitorKeeper interface {
-	Lock(dbType string, tableName string) error
-	Unlock(dbType string, tableName string) error
+	Lock(dbType string, tableName string) (Lock, error)
+	Unlock(lock Lock) error
 
 	GetVersion(dbType string, tableName string) (int64, error)
 	IncrementVersion(dbType string, tableName string) (int64, error)
@@ -20,11 +25,11 @@ type MonitorKeeper interface {
 type DummyMonitorKeeper struct {
 }
 
-func (dmk *DummyMonitorKeeper) Lock(dbType string, tableName string) error {
-	return nil
+func (dmk *DummyMonitorKeeper) Lock(dbType string, tableName string) (Lock, error) {
+	return nil, nil
 }
 
-func (dmk *DummyMonitorKeeper) Unlock(dbType string, tableName string) error {
+func (dmk *DummyMonitorKeeper) Unlock(lock Lock) error {
 	return nil
 }
 
@@ -42,12 +47,23 @@ type EtcdMonitorKeeper struct {
 	requestTimeout time.Duration
 }
 
-func (emk *EtcdMonitorKeeper) Lock(dbType string, tableName string) error {
-
-	return nil
+func (emk *EtcdMonitorKeeper) Lock(dbType string, tableName string) (Lock, error) {
+	s, _ := concurrency.NewSession(emk.client)
+	l := concurrency.NewMutex(s, dbType+"_"+tableName)
+	ctx := context.Background()
+	if err := l.Lock(ctx); err != nil {
+		return nil, err
+	}
+	fmt.Println("locked")
+	return l, nil
 }
 
-func (emk *EtcdMonitorKeeper) Unlock(dbType string, tableName string) error {
+func (emk *EtcdMonitorKeeper) Unlock(lock Lock) error {
+	ctx := context.Background()
+	if err := lock.Unlock(ctx); err != nil {
+		return err
+	}
+	fmt.Println("Unlocked")
 	return nil
 }
 

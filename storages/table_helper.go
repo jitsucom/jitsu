@@ -57,10 +57,11 @@ func (th *TableHelper) EnsureTable(dataSchema *schema.Table) (*schema.Table, err
 	}
 
 	//patch schema
-	if err := th.monitorKeeper.Lock(th.storageType, dbTableSchema.Name); err != nil {
+	lock, err := th.monitorKeeper.Lock(th.storageType, dbTableSchema.Name)
+	if err != nil {
 		return nil, fmt.Errorf("System error locking table %s in %s: %v", dataSchema.Name, th.storageType, err)
 	}
-	defer th.unlock(dbTableSchema.Name, 1)
+	defer th.unlock(lock, dataSchema.Name, 1)
 
 	ver, err := th.monitorKeeper.GetVersion(th.storageType, dbTableSchema.Name)
 	if err != nil {
@@ -108,10 +109,11 @@ func (th *TableHelper) EnsureTable(dataSchema *schema.Table) (*schema.Table, err
 
 //lock table -> get existing schema -> create a new one if doesn't exist -> return schema with version
 func (th *TableHelper) getOrCreate(dataSchema *schema.Table) (*schema.Table, error) {
-	if err := th.monitorKeeper.Lock(th.storageType, dataSchema.Name); err != nil {
+	lock, err := th.monitorKeeper.Lock(th.storageType, dataSchema.Name)
+	if err != nil {
 		return nil, fmt.Errorf("System error locking table %s in %s: %v", dataSchema.Name, th.storageType, err)
 	}
-	defer th.unlock(dataSchema.Name, 1)
+	defer th.unlock(lock, dataSchema.Name, 1)
 
 	//Get schema
 	dbTableSchema, err := th.manager.GetTableSchema(dataSchema.Name)
@@ -144,12 +146,12 @@ func (th *TableHelper) getOrCreate(dataSchema *schema.Table) (*schema.Table, err
 	return dbTableSchema, nil
 }
 
-func (th *TableHelper) unlock(tableName string, retry int) {
-	if err := th.monitorKeeper.Unlock(th.storageType, tableName); err != nil {
+func (th *TableHelper) unlock(lock Lock, tableName string, retry int) {
+	if err := th.monitorKeeper.Unlock(lock); err != nil {
 		if retry == unlockRetryCount {
 			log.Printf("System error unlocking table %s in %s after %d tries: %v", tableName, th.storageType, retry, err)
 		} else {
-			th.unlock(tableName, retry+1)
+			th.unlock(lock, tableName, retry+1)
 		}
 	}
 }
