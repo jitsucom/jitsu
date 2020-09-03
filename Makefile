@@ -12,7 +12,6 @@ assemble: backend js
 
 backend:
 	echo "Using path $(PATH)"
-	# this is a temporary script until etcd releases 3.3 version that fixes bug with deprecated grpc functionality usage
 	go get -u github.com/mailru/easyjson/...
 	go mod tidy
 	go generate
