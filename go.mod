@@ -38,4 +38,5 @@ require (
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
+	google.golang.org/grpc v1.26.0
 )

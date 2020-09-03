@@ -122,7 +122,9 @@ func main() {
 	//- batch mode (events.Storage)
 	//- stream mode (events.Consumer)
 	//per token
-	batchStoragesByToken, streamingConsumersByToken := storages.Create(ctx, destinationsViper, logEventPath, appconfig.Instance.SynchronizationServiceType, appconfig.Instance.SynchronizationServiceEndpoint)
+	batchStoragesByToken, streamingConsumersByToken := storages.Create(ctx, destinationsViper, logEventPath,
+		appconfig.Instance.SynchronizationServiceType, appconfig.Instance.SynchronizationServiceEndpoint,
+		appconfig.Instance.SynchronizationConnectionTimeout, appconfig.Instance.SynchronizationRequestTimeout)
 
 	//Schedule storages resource releasing
 	for _, eStorages := range batchStoragesByToken {

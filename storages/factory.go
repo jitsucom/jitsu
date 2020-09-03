@@ -41,7 +41,8 @@ var unknownDestination = errors.New("Unknown destination type")
 
 //Create event storages(batch) and consumers(stream) from incoming config
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, destinations *viper.Viper, logEventPath string, syncServiceType string, syncServiceEndpoint string) (map[string][]events.Storage, map[string][]events.Consumer) {
+func Create(ctx context.Context, destinations *viper.Viper, logEventPath string, syncServiceType string,
+	syncServiceEndpoint string, connectionTimeoutSeconds uint, requestTimeoutSeconds uint) (map[string][]events.Storage, map[string][]events.Consumer) {
 	stores := map[string][]events.Storage{}
 	consumers := map[string][]events.Consumer{}
 	if destinations == nil {
@@ -54,7 +55,7 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 		return stores, consumers
 	}
 
-	monitorKeeper, err := NewMonitorKeeper(syncServiceType, syncServiceEndpoint)
+	monitorKeeper, err := NewMonitorKeeper(syncServiceType, syncServiceEndpoint, connectionTimeoutSeconds, requestTimeoutSeconds)
 	if err != nil {
 		log.Println("Error sync service: ", err)
 		return stores, consumers
