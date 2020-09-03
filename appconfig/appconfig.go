@@ -22,8 +22,10 @@ type AppConfig struct {
 	GeoResolver geo.Resolver
 	UaResolver  useragent.Resolver
 
-	SynchronizationServiceType     string
-	SynchronizationServiceEndpoint string
+	SynchronizationServiceType       string
+	SynchronizationServiceEndpoint   string
+	SynchronizationConnectionTimeout uint
+	SynchronizationRequestTimeout    uint
 
 	closeMe []io.Closer
 }
@@ -119,6 +121,10 @@ func Init() error {
 	// Synchronization service
 	appConfig.SynchronizationServiceType = viper.GetString("synchronization_service.type")
 	appConfig.SynchronizationServiceEndpoint = viper.GetString("synchronization_service.endpoint")
+	viper.SetDefault("synchronization_service.connection_timeout_seconds", 2)
+	appConfig.SynchronizationConnectionTimeout = viper.GetUint("synchronization_service.connection_timeout_seconds")
+	viper.SetDefault("synchronization_service.request_timeout_seconds", 10)
+	appConfig.SynchronizationRequestTimeout = viper.GetUint("synchronization_service.request_timeout_seconds")
 
 	Instance = &appConfig
 	return nil
