@@ -16,7 +16,7 @@ func Authorization(main gin.HandlerFunc) gin.HandlerFunc {
 			return
 		}
 
-		if _, ok := appconfig.Instance.AuthorizedTokens[authHeader[1]]; !ok {
+		if !appconfig.Instance.AuthorizationService.IsAuthorized(authHeader[1]) {
 			c.AbortWithError(http.StatusUnauthorized, errors.New("401 Unauthorized\n"))
 			return
 		}
