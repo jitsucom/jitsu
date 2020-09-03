@@ -1,24 +1,10 @@
 package resources
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 )
-
-var UnknownSource = errors.New("Unknown source")
-
-func Load(sourcePath string) ([]byte, error) {
-	if strings.Contains(sourcePath, "http://") || strings.Contains(sourcePath, "https://") {
-		return LoadFromHttp(sourcePath)
-	} else if strings.Contains(sourcePath, "file://") {
-		return LoadFromFile(strings.Replace(sourcePath, "file://", "", 1))
-	}
-
-	return nil, UnknownSource
-}
 
 func LoadFromFile(filePath string) ([]byte, error) {
 	b, err := ioutil.ReadFile(filePath)

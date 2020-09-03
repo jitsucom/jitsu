@@ -42,13 +42,14 @@ func Init() error {
 		serverName = "unnamed-server"
 	}
 
-	if err := logging.InitGlobalLogger(logging.Config{
+	err := logging.InitGlobalLogger(logging.Config{
 		LoggerName:  "main",
 		ServerName:  serverName,
 		FileDir:     viper.GetString("server.log.path"),
 		RotationMin: viper.GetInt64("server.log.rotation_min"),
-		MaxBackups:  viper.GetInt("server.log.max_backups")}); err != nil {
-		log.Fatal(err)
+		MaxBackups:  viper.GetInt("server.log.max_backups")})
+	if err != nil {
+		return err
 	}
 
 	log.Println(" *** Creating new AppConfig *** ")
@@ -73,9 +74,15 @@ func Init() error {
 	if err != nil {
 		log.Println("Run without geo resolver", err)
 	}
+
+	authService, err := authorization.NewService()
+	if err != nil {
+		return err
+	}
+
+	appConfig.AuthorizationService = authService
 	appConfig.GeoResolver = geoResolver
 	appConfig.UaResolver = useragent.NewResolver()
-	appConfig.AuthorizationService = authorization.NewService()
 
 	Instance = &appConfig
 	return nil

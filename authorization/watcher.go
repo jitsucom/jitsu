@@ -3,16 +3,41 @@ package authorization
 import (
 	"crypto/md5"
 	"fmt"
-	"github.com/spf13/viper"
+	"log"
 	"time"
 )
 
-func Watcher(service *Service, url string, reloadSec int) {
-	hashes := map[string]string{}
-	for {
+func Watcher(source string, loadFunc func(string) ([]byte, error), updateFunc func(map[string][]string), reloadSec int) (map[string][]string, error) {
+	payload, err := loadFunc(source)
+	if err != nil {
+		return nil, err
+	}
 
-		fmt.Sprintf("%x", md5.Sum())
-		service.reload()
-		time.Sleep(time.Duration(viper.GetInt("server.auth_reload_sec")) * time.Second)
+	go watch(source, payload, loadFunc, updateFunc, reloadSec)
+	return parseFromBytes(source, payload)
+}
+
+func watch(source string, payload []byte, loadFunc func(string) ([]byte, error), updateFunc func(map[string][]string), reloadSec int) {
+	hash := fmt.Sprintf("%x", md5.Sum(payload))
+	for {
+		time.Sleep(time.Duration(reloadSec) * time.Second)
+		b, err := loadFunc(source)
+		if err != nil {
+			log.Printf("Error reloading %s: %v", source, err)
+			continue
+		}
+
+		newHash := fmt.Sprintf("%x", md5.Sum(b))
+		if hash != newHash {
+			result, err := parseFromBytes(source, payload)
+			if err != nil {
+				log.Printf("Error parsing reloaded %s: %v", source, err)
+				continue
+			}
+
+			updateFunc(result)
+			log.Printf("New resource from %s was loaded", source)
+			hash = newHash
+		}
 	}
 }
