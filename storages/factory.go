@@ -129,7 +129,7 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 		tokens := destination.OnlyTokens
 		if len(tokens) == 0 {
 			log.Printf("Warn: only_tokens wasn't provided. All tokens will be stored in %s %s destination", name, destination.Type)
-			for token := range appconfig.Instance.AuthorizedTokens {
+			for token := range appconfig.Instance.AuthorizationService.GetAllTokens() {
 				tokens = append(tokens, token)
 			}
 		}

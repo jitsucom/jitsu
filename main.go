@@ -104,7 +104,7 @@ func main() {
 
 	//logger consumers per token
 	loggingConsumers := map[string]events.Consumer{}
-	for token := range appconfig.Instance.AuthorizedTokens {
+	for token := range appconfig.Instance.AuthorizationService.GetAllTokens() {
 		eventLogWriter, err := logging.NewWriter(logging.Config{
 			LoggerName:  "event-" + token,
 			ServerName:  appconfig.Instance.ServerName,
@@ -166,7 +166,9 @@ func main() {
 	}
 	uploader.Start()
 
-	router := SetupRouter(streamingConsumersByToken)
+	destinationsService := events.NewDestinationService(streamingConsumersByToken, batchStoragesByToken)
+
+	router := SetupRouter(destinationsService)
 
 	log.Println("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
@@ -179,7 +181,7 @@ func main() {
 	log.Fatal(server.ListenAndServe())
 }
 
-func SetupRouter(tokenizedEventConsumers map[string][]events.Consumer) *gin.Engine {
+func SetupRouter(destinations *events.DestinationService) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -198,12 +200,12 @@ func SetupRouter(tokenizedEventConsumers map[string][]events.Consumer) *gin.Engi
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	c2sEventHandler := handlers.NewEventHandler(tokenizedEventConsumers, events.NewC2SPreprocessor()).Handler
-	s2sEventHandler := handlers.NewEventHandler(tokenizedEventConsumers, events.NewS2SPreprocessor()).Handler
+	c2sEventHandler := handlers.NewEventHandler(destinations, events.NewC2SPreprocessor()).Handler
+	s2sEventHandler := handlers.NewEventHandler(destinations, events.NewS2SPreprocessor()).Handler
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenAuth(middleware.AccessControl(c2sEventHandler, appconfig.Instance.C2STokens, "")))
-		apiV1.POST("/s2s/event", middleware.TokenAuth(middleware.AccessControl(s2sEventHandler, appconfig.Instance.S2STokens, "The token isn't a server token. Please use s2s integration token\n")))
+		apiV1.POST("/event", middleware.TokenAuth(c2sEventHandler, appconfig.Instance.AuthorizationService.GetC2SOrigins, ""))
+		apiV1.POST("/s2s/event", middleware.TokenAuth(s2sEventHandler, appconfig.Instance.AuthorizationService.GetS2SOrigins, "The token isn't a server token. Please use s2s integration token\n"))
 	}
 
 	return router

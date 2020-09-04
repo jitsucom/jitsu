@@ -10,6 +10,7 @@ server:
   s2s_auth:
     - 5f15eba2-db58-11ea-87d0-0242ac130003
     - 62faa226-db58-11ea-87d0-0242ac130003
+  auth_reload_sec: 60 #default value is 300. If auth or s2s_auth is http or file:/// source than it will be reloaded every auth_reload_sec
   public_url: https://yourhost
   log:
     path: /home/eventnative/logs/ #omit this key to write log to stdout
