@@ -3,6 +3,7 @@ package authorization
 import (
 	"crypto/md5"
 	"fmt"
+	"github.com/ksensehq/eventnative/appstatus"
 	"log"
 	"time"
 )
@@ -20,6 +21,10 @@ func Watcher(source string, loadFunc func(string) ([]byte, error), updateFunc fu
 func watch(source string, payload []byte, loadFunc func(string) ([]byte, error), updateFunc func(map[string][]string), reloadSec int) {
 	hash := fmt.Sprintf("%x", md5.Sum(payload))
 	for {
+		if appstatus.Instance.Idle {
+			break
+		}
+
 		time.Sleep(time.Duration(reloadSec) * time.Second)
 		b, err := loadFunc(source)
 		if err != nil {

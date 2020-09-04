@@ -3,6 +3,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v1.2.15] - 2020-09-04
+### Added
+- [9](https://github.com/ksensehq/eventnative/issues/9) Authorization tokens reload
+
 ## [v1.2.14] - 2020-09-02
 ### Changed
 - revert typescript track.js api 
