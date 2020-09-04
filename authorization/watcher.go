@@ -18,23 +18,23 @@ func Watcher(source string, loadFunc func(string) ([]byte, error), updateFunc fu
 	return parseFromBytes(source, payload)
 }
 
-func watch(source string, payload []byte, loadFunc func(string) ([]byte, error), updateFunc func(map[string][]string), reloadSec int) {
-	hash := fmt.Sprintf("%x", md5.Sum(payload))
+func watch(source string, firstTimePayload []byte, loadFunc func(string) ([]byte, error), updateFunc func(map[string][]string), reloadSec int) {
+	hash := fmt.Sprintf("%x", md5.Sum(firstTimePayload))
 	for {
 		if appstatus.Instance.Idle {
 			break
 		}
 
 		time.Sleep(time.Duration(reloadSec) * time.Second)
-		b, err := loadFunc(source)
+		actualPayload, err := loadFunc(source)
 		if err != nil {
 			log.Printf("Error reloading %s: %v", source, err)
 			continue
 		}
 
-		newHash := fmt.Sprintf("%x", md5.Sum(b))
+		newHash := fmt.Sprintf("%x", md5.Sum(actualPayload))
 		if hash != newHash {
-			result, err := parseFromBytes(source, payload)
+			result, err := parseFromBytes(source, actualPayload)
 			if err != nil {
 				log.Printf("Error parsing reloaded %s: %v", source, err)
 				continue
