@@ -14,15 +14,15 @@ const apiTokenKey = "api_key"
 
 //Accept all events
 type EventHandler struct {
-	eventConsumersByToken map[string][]events.Consumer
-	preprocessor          events.Preprocessor
+	destinationService *events.DestinationService
+	preprocessor       events.Preprocessor
 }
 
 //Accept all events according to token
-func NewEventHandler(eventConsumersByToken map[string][]events.Consumer, preprocessor events.Preprocessor) (eventHandler *EventHandler) {
+func NewEventHandler(destinationService *events.DestinationService, preprocessor events.Preprocessor) (eventHandler *EventHandler) {
 	return &EventHandler{
-		eventConsumersByToken: eventConsumersByToken,
-		preprocessor:          preprocessor,
+		destinationService: destinationService,
+		preprocessor:       preprocessor,
 	}
 }
 
@@ -50,13 +50,12 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 	processed[apiTokenKey] = token
 	processed[timestamp.Key] = time.Now().UTC().Format(timestamp.Layout)
 
-	consumers, ok := eh.eventConsumersByToken[token]
-	if ok {
+	consumers := eh.destinationService.GetConsumers(token)
+	if len(consumers) == 0 {
+		log.Printf("Unknown token[%s] request was received", token)
+	} else {
 		for _, consumer := range consumers {
 			consumer.Consume(processed)
 		}
-	} else {
-		log.Printf("Unknown token[%s] request was received", token)
 	}
-
 }
