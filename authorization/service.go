@@ -26,9 +26,9 @@ type Service struct {
 func NewService() (*Service, error) {
 	service := &Service{}
 
-	reloadSec := viper.GetInt("server.server.auth_reload_sec")
+	reloadSec := viper.GetInt("server.auth_reload_sec")
 	if reloadSec == 0 {
-		return nil, errors.New("server.server.auth_reload_sec can't be empty")
+		return nil, errors.New("server.auth_reload_sec can't be empty")
 	}
 
 	c2sTokens, err := load("server.auth", service.updateC2STokens, reloadSec)

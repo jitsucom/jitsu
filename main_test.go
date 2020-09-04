@@ -24,7 +24,7 @@ import (
 func SetTestDefaultParams() {
 	viper.Set("log.path", "")
 	viper.Set("server.auth", []string{"c2stoken"})
-	viper.Set("server.s2s_auth", []string{"s2stoken"})
+	viper.Set("server.s2s_auth", `[{"token":"s2stoken", "origins":["whiteorigin*"]}]`)
 }
 
 func TestApiEvent(t *testing.T) {
@@ -32,6 +32,7 @@ func TestApiEvent(t *testing.T) {
 	tests := []struct {
 		name             string
 		reqUrn           string
+		reqOrigin        string
 		reqBodyPath      string
 		expectedJsonPath string
 
@@ -41,6 +42,7 @@ func TestApiEvent(t *testing.T) {
 		{
 			"Unauthorized c2s endpoint",
 			"/api/v1/event?token=wrongtoken",
+			"",
 			"test_data/event_input.json",
 			"",
 			http.StatusUnauthorized,
@@ -49,31 +51,35 @@ func TestApiEvent(t *testing.T) {
 		{
 			"Unauthorized s2s endpoint",
 			"/api/v1/s2s/event?token=wrongtoken",
+			"",
 			"test_data/s2s_event_input.json",
 			"",
 			http.StatusUnauthorized,
-			"",
+			"The token isn't a server token. Please use s2s integration token\n",
 		},
 		{
 			"Unauthorized c2s endpoint with s2s token",
 			"/api/v1/event?token=s2stoken",
+			"",
 			"test_data/event_input.json",
 			"",
 			http.StatusUnauthorized,
 			"",
 		},
 		{
-			"Unauthorized s2s endpoint with c2s token",
-			"/api/v1/s2s/event?token=c2stoken",
+			"Unauthorized s2s wrong origin",
+			"/api/v1/s2s/event?token=s2stoken",
+			"http://ksense.com",
 			"test_data/s2s_event_input.json",
 			"",
 			http.StatusUnauthorized,
-			"The token isn't a server token. Please use s2s integration token\n",
+			"",
 		},
 
 		{
 			"C2S Api event consuming test",
 			"/api/v1/event?token=c2stoken",
+			"",
 			"test_data/event_input.json",
 			"test_data/fact_output.json",
 			http.StatusOK,
@@ -82,6 +88,7 @@ func TestApiEvent(t *testing.T) {
 		{
 			"S2S Api event consuming test",
 			"/api/v1/s2s/event?token=s2stoken",
+			"https://whiteorigin.com/",
 			"test_data/s2s_event_input.json",
 			"test_data/s2s_fact_output.json",
 			http.StatusOK,
@@ -97,10 +104,10 @@ func TestApiEvent(t *testing.T) {
 			defer appconfig.Instance.Close()
 
 			inmemWriter := logging.InitInMemoryWriter()
-			router := SetupRouter(map[string][]events.Consumer{
+			router := SetupRouter(events.NewDestinationService(map[string][]events.Consumer{
 				"c2stoken": {events.NewAsyncLogger(inmemWriter, false)},
 				"s2stoken": {events.NewAsyncLogger(inmemWriter, false)},
-			})
+			}, map[string][]events.Storage{}))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -136,6 +143,9 @@ func TestApiEvent(t *testing.T) {
 			//check http POST
 			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+tt.reqUrn, bytes.NewBuffer(b))
 			require.NoError(t, err)
+			if tt.reqOrigin != "" {
+				apiReq.Header.Add("Origin", tt.reqOrigin)
+			}
 			apiReq.Header.Add("x-real-ip", "95.82.232.185")
 			resp, err = http.DefaultClient.Do(apiReq)
 			require.NoError(t, err)
