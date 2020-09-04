@@ -179,7 +179,7 @@ func (ar *AwsRedshift) Consume(fact events.Fact) {
 
 //insert fact in Redshift
 func (ar *AwsRedshift) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	dbSchema, err := ar.tableHelper.EnsureTable(dataSchema)
+	dbSchema, err := ar.tableHelper.EnsureTable(ar.Name(), dataSchema)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 	}
 
 	for _, fdata := range flatData {
-		dbSchema, err := ar.tableHelper.EnsureTable(fdata.DataSchema)
+		dbSchema, err := ar.tableHelper.EnsureTable(ar.Name(), fdata.DataSchema)
 		if err != nil {
 			return err
 		}

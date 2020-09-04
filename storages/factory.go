@@ -41,8 +41,7 @@ var unknownDestination = errors.New("Unknown destination type")
 
 //Create event storages(batch) and consumers(stream) from incoming config
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, destinations *viper.Viper, logEventPath string, syncServiceType string,
-	syncServiceEndpoint string, connectionTimeoutSeconds uint, requestTimeoutSeconds uint) (map[string][]events.Storage, map[string][]events.Consumer) {
+func Create(ctx context.Context, destinations *viper.Viper, logEventPath string, monitorKeeper MonitorKeeper) (map[string][]events.Storage, map[string][]events.Consumer) {
 	stores := map[string][]events.Storage{}
 	consumers := map[string][]events.Consumer{}
 	if destinations == nil {
@@ -52,12 +51,6 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 	dc := map[string]DestinationConfig{}
 	if err := destinations.Unmarshal(&dc); err != nil {
 		log.Println("Error initializing destinations: wrong config format: each destination must contains one key and config as a value e.g. destinations:\n  custom_name:\n      type: redshift ...", err)
-		return stores, consumers
-	}
-
-	monitorKeeper, err := NewMonitorKeeper(syncServiceType, syncServiceEndpoint, connectionTimeoutSeconds)
-	if err != nil {
-		log.Println("Error while creating sync service: ", err)
 		return stores, consumers
 	}
 
