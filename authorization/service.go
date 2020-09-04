@@ -31,12 +31,12 @@ func NewService() (*Service, error) {
 		return nil, errors.New("server.server.auth_reload_sec can't be empty")
 	}
 
-	c2sTokens, err := load("server.auth", service.updateC2sTokens, reloadSec)
+	c2sTokens, err := load("server.auth", service.updateC2STokens, reloadSec)
 	if err != nil {
 		return nil, fmt.Errorf("Error loading server.auth tokens: %v", err)
 	}
 
-	s2sTokens, err := load("server.s2s_auth", service.updateS2sTokens, reloadSec)
+	s2sTokens, err := load("server.s2s_auth", service.updateS2STokens, reloadSec)
 	if err != nil {
 		return nil, fmt.Errorf("Error loading server.s2s_auth tokens: %v", err)
 	}
@@ -85,13 +85,13 @@ func (s *Service) GetS2SOrigins(token string) ([]string, bool) {
 	return origins, ok
 }
 
-func (s *Service) updateC2sTokens(c2sTokens map[string][]string) {
+func (s *Service) updateC2STokens(c2sTokens map[string][]string) {
 	s.Lock()
 	s.c2STokens = c2sTokens
 	s.Unlock()
 }
 
-func (s *Service) updateS2sTokens(s2sTokens map[string][]string) {
+func (s *Service) updateS2STokens(s2sTokens map[string][]string) {
 	s.Lock()
 	s.s2STokens = s2sTokens
 	s.Unlock()
