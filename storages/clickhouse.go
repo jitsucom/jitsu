@@ -147,7 +147,7 @@ func (ch *ClickHouse) startStreamingConsumer() {
 func (ch *ClickHouse) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
 	adapter, tableHelper := ch.getAdapters()
 
-	dbSchema, err := tableHelper.EnsureTable(dataSchema)
+	dbSchema, err := tableHelper.EnsureTable(ch.Name(), dataSchema)
 	if err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 	adapter, tableHelper := ch.getAdapters()
 	//process db tables & schema
 	for _, fdata := range flatData {
-		dbSchema, err := tableHelper.EnsureTable(fdata.DataSchema)
+		dbSchema, err := tableHelper.EnsureTable(ch.Name(), fdata.DataSchema)
 		if err != nil {
 			return err
 		}
