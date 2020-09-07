@@ -117,6 +117,6 @@ func NewMonitorKeeper(syncServiceType string, syncServiceEndpoint string, connec
 		}
 		return &EtcdMonitorKeeper{client: cli}, nil
 	} else {
-		return nil, fmt.Errorf("Unknown sync service type ", syncServiceType)
+		return nil, fmt.Errorf("Unknown sync service type %v", syncServiceType)
 	}
 }
