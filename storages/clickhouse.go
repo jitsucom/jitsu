@@ -28,7 +28,7 @@ type ClickHouse struct {
 }
 
 func NewClickHouse(ctx context.Context, name, fallbackDir string, config *adapters.ClickHouseConfig, processor *schema.Processor,
-	breakOnError, streamMode bool) (*ClickHouse, error) {
+	breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
@@ -51,8 +51,6 @@ func NewClickHouse(ctx context.Context, name, fallbackDir string, config *adapte
 			nonNullFields[fieldName] = true
 		}
 	}
-
-	monitorKeeper := NewMonitorKeeper()
 
 	var chAdapters []*adapters.ClickHouse
 	var tableHelpers []*TableHelper
@@ -149,7 +147,7 @@ func (ch *ClickHouse) startStreamingConsumer() {
 func (ch *ClickHouse) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
 	adapter, tableHelper := ch.getAdapters()
 
-	dbSchema, err := tableHelper.EnsureTable(dataSchema)
+	dbSchema, err := tableHelper.EnsureTable(ch.Name(), dataSchema)
 	if err != nil {
 		return err
 	}
@@ -171,7 +169,7 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 	adapter, tableHelper := ch.getAdapters()
 	//process db tables & schema
 	for _, fdata := range flatData {
-		dbSchema, err := tableHelper.EnsureTable(fdata.DataSchema)
+		dbSchema, err := tableHelper.EnsureTable(ch.Name(), fdata.DataSchema)
 		if err != nil {
 			return err
 		}

@@ -27,7 +27,7 @@ type Postgres struct {
 }
 
 func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor,
-	fallbackDir, storageName string, breakOnError, streamMode bool) (*Postgres, error) {
+	fallbackDir, storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*Postgres, error) {
 	var eventQueue *events.PersistentQueue
 	if streamMode {
 		var err error
@@ -49,7 +49,6 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		return nil, err
 	}
 
-	monitorKeeper := NewMonitorKeeper()
 	tableHelper := NewTableHelper(adapter, monitorKeeper, postgresStorageType)
 
 	p := &Postgres{
@@ -118,7 +117,7 @@ func (p *Postgres) Store(fileName string, payload []byte) error {
 
 	//process db tables & schema
 	for _, fdata := range flatData {
-		dbSchema, err := p.tableHelper.EnsureTable(fdata.DataSchema)
+		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), fdata.DataSchema)
 		if err != nil {
 			return err
 		}
@@ -152,7 +151,7 @@ func (p *Postgres) Store(fileName string, payload []byte) error {
 
 //insert fact in Postgres
 func (p *Postgres) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	dbSchema, err := p.tableHelper.EnsureTable(dataSchema)
+	dbSchema, err := p.tableHelper.EnsureTable(p.Name(), dataSchema)
 	if err != nil {
 		return err
 	}

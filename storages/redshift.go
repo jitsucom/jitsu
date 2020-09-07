@@ -32,7 +32,7 @@ type AwsRedshift struct {
 
 //NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(ctx context.Context, name, fallbackDir string, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
-	processor *schema.Processor, breakOnError, streamMode bool) (*AwsRedshift, error) {
+	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*AwsRedshift, error) {
 	var s3Adapter *adapters.S3
 	var eventQueue *events.PersistentQueue
 	if streamMode {
@@ -61,7 +61,6 @@ func NewAwsRedshift(ctx context.Context, name, fallbackDir string, s3Config *ada
 		return nil, err
 	}
 
-	monitorKeeper := NewMonitorKeeper()
 	tableHelper := NewTableHelper(redshiftAdapter, monitorKeeper, redshiftStorageType)
 
 	ar := &AwsRedshift{
@@ -180,7 +179,7 @@ func (ar *AwsRedshift) Consume(fact events.Fact) {
 
 //insert fact in Redshift
 func (ar *AwsRedshift) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	dbSchema, err := ar.tableHelper.EnsureTable(dataSchema)
+	dbSchema, err := ar.tableHelper.EnsureTable(ar.Name(), dataSchema)
 	if err != nil {
 		return err
 	}
@@ -200,7 +199,7 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 	}
 
 	for _, fdata := range flatData {
-		dbSchema, err := ar.tableHelper.EnsureTable(fdata.DataSchema)
+		dbSchema, err := ar.tableHelper.EnsureTable(ar.Name(), fdata.DataSchema)
 		if err != nil {
 			return err
 		}
