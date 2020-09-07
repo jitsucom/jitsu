@@ -120,7 +120,6 @@ func main() {
 
 	syncServiceType := viper.GetString("synchronization_service.type")
 	syncServiceEndpoint := viper.GetString("synchronization_service.endpoint")
-	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
 	connectionTimeoutSeconds := viper.GetUint("synchronization_service.connection_timeout_seconds")
 	monitorKeeper, err := storages.NewMonitorKeeper(syncServiceType, syncServiceEndpoint, connectionTimeoutSeconds)
 	if err != nil {
