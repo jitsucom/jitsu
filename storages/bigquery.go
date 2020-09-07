@@ -30,7 +30,7 @@ type BigQuery struct {
 }
 
 func NewBigQuery(ctx context.Context, name, fallbackDir string, config *adapters.GoogleConfig, processor *schema.Processor,
-	breakOnError, streamMode bool) (*BigQuery, error) {
+	breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*BigQuery, error) {
 	var gcsAdapter *adapters.GoogleCloudStorage
 	var eventQueue *events.PersistentQueue
 	if streamMode {
@@ -58,8 +58,6 @@ func NewBigQuery(ctx context.Context, name, fallbackDir string, config *adapters
 	if err != nil {
 		return nil, err
 	}
-
-	monitorKeeper := NewMonitorKeeper()
 
 	tableHelper := NewTableHelper(bigQueryAdapter, monitorKeeper, bqStorageType)
 
@@ -168,7 +166,7 @@ func (bq *BigQuery) Consume(fact events.Fact) {
 
 //insert fact in BigQuery
 func (bq *BigQuery) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	dbSchema, err := bq.tableHelper.EnsureTable(dataSchema)
+	dbSchema, err := bq.tableHelper.EnsureTable(bq.Name(), dataSchema)
 	if err != nil {
 		return err
 	}
@@ -188,7 +186,7 @@ func (bq *BigQuery) Store(fileName string, payload []byte) error {
 	}
 
 	for _, fdata := range flatData {
-		dbSchema, err := bq.tableHelper.EnsureTable(fdata.DataSchema)
+		dbSchema, err := bq.tableHelper.EnsureTable(bq.Name(), fdata.DataSchema)
 		if err != nil {
 			return err
 		}

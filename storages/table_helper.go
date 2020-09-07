@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/schema"
+	"io"
 	"log"
 )
 
@@ -31,13 +32,13 @@ func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, 
 //if table doesn't exist - create a new one and increment version
 //if exists - calculate diff, patch existing one with diff and increment version
 //return actual db table schema (with actual db types)
-func (th *TableHelper) EnsureTable(dataSchema *schema.Table) (*schema.Table, error) {
+func (th *TableHelper) EnsureTable(destinationName string, dataSchema *schema.Table) (*schema.Table, error) {
 	var err error
 	dbTableSchema, ok := th.tables[dataSchema.Name]
 
 	//get or create
 	if !ok {
-		dbTableSchema, err = th.getOrCreate(dataSchema)
+		dbTableSchema, err = th.getOrCreate(destinationName, dataSchema)
 		if err != nil {
 			return nil, err
 		}
@@ -57,12 +58,13 @@ func (th *TableHelper) EnsureTable(dataSchema *schema.Table) (*schema.Table, err
 	}
 
 	//patch schema
-	if err := th.monitorKeeper.Lock(dbTableSchema.Name); err != nil {
+	lock, closer, err := th.monitorKeeper.Lock(destinationName, dbTableSchema.Name)
+	if err != nil {
 		return nil, fmt.Errorf("System error locking table %s in %s: %v", dataSchema.Name, th.storageType, err)
 	}
-	defer th.unlock(dbTableSchema.Name, 1)
+	defer th.unlock(lock, closer, dataSchema.Name, 1)
 
-	ver, err := th.monitorKeeper.GetVersion(dbTableSchema.Name)
+	ver, err := th.monitorKeeper.GetVersion(destinationName, dbTableSchema.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting version of table %s in %s: %v", dataSchema.Name, th.storageType, err)
 	}
@@ -92,7 +94,7 @@ func (th *TableHelper) EnsureTable(dataSchema *schema.Table) (*schema.Table, err
 		return nil, err
 	}
 
-	newVersion, err := th.monitorKeeper.IncrementVersion(dbTableSchema.Name)
+	newVersion, err := th.monitorKeeper.IncrementVersion(destinationName, dbTableSchema.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Error incrementing version in storage [%s]: %v", th.storageType, err)
 	}
@@ -107,11 +109,12 @@ func (th *TableHelper) EnsureTable(dataSchema *schema.Table) (*schema.Table, err
 }
 
 //lock table -> get existing schema -> create a new one if doesn't exist -> return schema with version
-func (th *TableHelper) getOrCreate(dataSchema *schema.Table) (*schema.Table, error) {
-	if err := th.monitorKeeper.Lock(dataSchema.Name); err != nil {
+func (th *TableHelper) getOrCreate(destinationName string, dataSchema *schema.Table) (*schema.Table, error) {
+	lock, closer, err := th.monitorKeeper.Lock(destinationName, dataSchema.Name)
+	if err != nil {
 		return nil, fmt.Errorf("System error locking table %s in %s: %v", dataSchema.Name, th.storageType, err)
 	}
-	defer th.unlock(dataSchema.Name, 1)
+	defer th.unlock(lock, closer, dataSchema.Name, 1)
 
 	//Get schema
 	dbTableSchema, err := th.manager.GetTableSchema(dataSchema.Name)
@@ -125,7 +128,7 @@ func (th *TableHelper) getOrCreate(dataSchema *schema.Table) (*schema.Table, err
 			return nil, fmt.Errorf("Error creating table %s in %s: %v", dataSchema.Name, th.storageType, err)
 		}
 
-		ver, err := th.monitorKeeper.IncrementVersion(dataSchema.Name)
+		ver, err := th.monitorKeeper.IncrementVersion(destinationName, dataSchema.Name)
 		if err != nil {
 			return nil, fmt.Errorf("Error incrementing version of table %s in %s: %v", dataSchema.Name, th.storageType, err)
 		}
@@ -133,7 +136,7 @@ func (th *TableHelper) getOrCreate(dataSchema *schema.Table) (*schema.Table, err
 		dbTableSchema = dataSchema
 		dbTableSchema.Version = ver
 	} else {
-		ver, err := th.monitorKeeper.GetVersion(dbTableSchema.Name)
+		ver, err := th.monitorKeeper.GetVersion(destinationName, dbTableSchema.Name)
 		if err != nil {
 			return nil, fmt.Errorf("Error getting version of table %s in %s: %v", dataSchema.Name, th.storageType, err)
 		}
@@ -144,12 +147,12 @@ func (th *TableHelper) getOrCreate(dataSchema *schema.Table) (*schema.Table, err
 	return dbTableSchema, nil
 }
 
-func (th *TableHelper) unlock(tableName string, retry int) {
-	if err := th.monitorKeeper.Unlock(tableName); err != nil {
+func (th *TableHelper) unlock(lock Lock, closer io.Closer, tableName string, retry int) {
+	if err := th.monitorKeeper.Unlock(lock, closer); err != nil {
 		if retry == unlockRetryCount {
 			log.Printf("System error unlocking table %s in %s after %d tries: %v", tableName, th.storageType, retry, err)
 		} else {
-			th.unlock(tableName, retry+1)
+			th.unlock(lock, closer, tableName, retry+1)
 		}
 	}
 }

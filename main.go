@@ -118,11 +118,18 @@ func main() {
 		appconfig.Instance.ScheduleClosing(logger)
 	}
 
+	syncServiceType := viper.GetString("synchronization_service.type")
+	syncServiceEndpoint := viper.GetString("synchronization_service.endpoint")
+	connectionTimeoutSeconds := viper.GetUint("synchronization_service.connection_timeout_seconds")
+	monitorKeeper, err := storages.NewMonitorKeeper(syncServiceType, syncServiceEndpoint, connectionTimeoutSeconds)
+	if err != nil {
+		log.Fatal("Failed to initiate monitor keeper ", err)
+	}
 	//Create event destinations:
 	//- batch mode (events.Storage)
 	//- stream mode (events.Consumer)
 	//per token
-	batchStoragesByToken, streamingConsumersByToken := storages.Create(ctx, destinationsViper, logEventPath)
+	batchStoragesByToken, streamingConsumersByToken := storages.Create(ctx, destinationsViper, logEventPath, monitorKeeper)
 
 	//Schedule storages resource releasing
 	for _, eStorages := range batchStoragesByToken {

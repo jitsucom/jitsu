@@ -32,6 +32,7 @@ func setDefaultParams() {
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", "5")
+	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
 }
 
 func Init() error {
