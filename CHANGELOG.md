@@ -2,6 +2,8 @@
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+### Added
+- [57](https://github.com/ksensehq/eventnative/issues/57) etcd synchronization service
 
 ## [v1.2.15] - 2020-09-04
 ### Added
