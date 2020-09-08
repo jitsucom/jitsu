@@ -7,7 +7,6 @@ import (
 	"github.com/ksensehq/eventnative/timestamp"
 	"log"
 	"net/http"
-	"time"
 )
 
 const apiTokenKey = "api_key"
@@ -48,7 +47,7 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 	}
 
 	processed[apiTokenKey] = token
-	processed[timestamp.Key] = time.Now().UTC().Format(timestamp.Layout)
+	processed[timestamp.Key] = timestamp.NowUTC()
 
 	consumers := eh.destinationService.GetConsumers(token)
 	if len(consumers) == 0 {
