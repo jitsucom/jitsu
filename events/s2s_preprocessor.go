@@ -25,27 +25,33 @@ func NewS2SPreprocessor() Preprocessor {
 //Preprocess resolve geo from ip field or skip if geo.GeoDataKey field was provided
 //resolve useragent from uaKey or skip if useragent.ParsedUaKey field was provided
 //transform data to c2s format
+//return same object
 func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) {
 	if fact == nil {
 		return nil, errors.New("Input fact can't be nil")
 	}
 
-	processed := Fact{}
-
+	//create node eventnKey if doesn't exist
 	eventCtx := map[string]interface{}{}
-
-	processed["event_data"] = fact["event_data"]
-	processed["src"] = "s2s"
-	processed[eventnKey] = eventCtx
-
-	eventCtx["event_id"] = fact["event_id"]
-	eventCtx["user"] = fact["user"]
-	if pageCtx, ok := fact["page_ctx"]; ok {
-		if pageCtxObject, ok := pageCtx.(map[string]interface{}); ok {
-			for k, v := range pageCtxObject {
-				eventCtx[k] = v
-			}
+	if reqEventCtx, ok := fact[eventnKey]; !ok {
+		fact[eventnKey] = eventCtx
+	} else {
+		if reqEventCtxMap, ok := reqEventCtx.(map[string]interface{}); !ok {
+			fact[eventnKey] = eventCtx
+		} else {
+			eventCtx = reqEventCtxMap
 		}
+	}
+
+	fact["src"] = "s2s"
+	if eventId, ok := fact["event_id"]; ok {
+		eventCtx["event_id"] = eventId
+		delete(fact, "event_id")
+	}
+
+	if userNode, ok := fact["user"]; ok {
+		eventCtx["user"] = userNode
+		delete(fact, "user")
 	}
 
 	if deviceCtx, ok := fact["device_ctx"]; ok {
@@ -62,6 +68,7 @@ func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 				}
 			} else {
 				eventCtx[geo.GeoDataKey] = location
+				delete(deviceCtxObject, geo.GeoDataKey)
 			}
 
 			//useragent.ParsedUaKey node overwrite useragent resolving
@@ -74,9 +81,10 @@ func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 				}
 			} else {
 				eventCtx[useragent.ParsedUaKey] = parsedUa
+				delete(deviceCtxObject, useragent.ParsedUaKey)
 			}
 		}
 	}
 
-	return processed, nil
+	return fact, nil
 }

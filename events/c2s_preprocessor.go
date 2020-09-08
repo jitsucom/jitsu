@@ -36,6 +36,7 @@ func NewC2SPreprocessor() Preprocessor {
 //Preprocess resolve geo from ip headers or remoteAddr
 //resolve useragent from uaKey
 //put data to eventnKey
+//return same object
 func (c2sp *C2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) {
 	if fact == nil {
 		return nil, nilFactErr

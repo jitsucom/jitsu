@@ -2,6 +2,10 @@
 #GOBUILD_CMD=GOOS=linux GOARCH=amd64 go build
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
+commit=`git rev-parse --short HEAD`
+built_at=`date -u +%FT%T.000000Z`
+tag=`git describe --abbrev=0`
+
 all: clean assemble
 
 assemble: backend js
@@ -15,7 +19,7 @@ backend:
 	go get -u github.com/mailru/easyjson/...
 	go mod tidy
 	go generate
-	go build -o eventnative
+	go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o eventnative
 
 js:
 	npm i --prefix ./web && npm run build --prefix ./web

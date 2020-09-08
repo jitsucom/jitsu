@@ -1,5 +1,5 @@
 {
-  "event_type": "test",
+  "event_origin": "test",
   "event_data": {
     "customkey": {"key1": "key2"}
   },
