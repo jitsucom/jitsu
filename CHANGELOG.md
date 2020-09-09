@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 ### Added
 
+## [v1.3.1] - 2020-09-09
+### Changed
+- [64](https://github.com/ksensehq/eventnative/issues/64) Telemetry: usage metrics implementation
+
 ## [v1.3.0] - 2020-09-09
 ### Added
 - [64](https://github.com/ksensehq/eventnative/issues/64) Telemetry: usage metrics implementation
