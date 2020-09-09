@@ -42,17 +42,7 @@ func (c2sp *C2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 		return nil, nilFactErr
 	}
 
-	ip := r.Header.Get("X-Real-IP")
-	if ip == "" {
-		ip = r.Header.Get("X-Forwarded-For")
-	}
-	if ip == "" {
-		remoteAddr := r.RemoteAddr
-		if remoteAddr != "" {
-			addrPort := strings.Split(remoteAddr, ":")
-			ip = addrPort[0]
-		}
-	}
+	ip := extractIp(r)
 
 	eventnObject, ok := fact[eventnKey]
 	if !ok {
@@ -81,4 +71,19 @@ func (c2sp *C2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 	}
 
 	return fact, nil
+}
+
+func extractIp(r *http.Request) string {
+	ip := r.Header.Get("X-Real-IP")
+	if ip == "" {
+		ip = r.Header.Get("X-Forwarded-For")
+	}
+	if ip == "" {
+		remoteAddr := r.RemoteAddr
+		if remoteAddr != "" {
+			addrPort := strings.Split(remoteAddr, ":")
+			ip = addrPort[0]
+		}
+	}
+	return ip
 }
