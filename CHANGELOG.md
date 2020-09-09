@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 ### Added
 
+## [v1.3.0] - 2020-09-09
+### Added
+- [64](https://github.com/ksensehq/eventnative/issues/64) Telemetry: usage metrics implementation
+### Changed
+- s2s processing
+
 ## [v1.2.16] - 2020-09-07
+### Added
 - [57](https://github.com/ksensehq/eventnative/issues/57) etcd synchronization service
 
 ## [v1.2.15] - 2020-09-04

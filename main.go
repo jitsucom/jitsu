@@ -78,7 +78,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	telemetry.Init(commit, tag, builtAt, viper.GetBool("telemetry.disabled.usage"))
+	telemetry.Init(commit, tag, builtAt, viper.GetBool("server.telemetry.disabled.usage"))
 
 	//listen to shutdown signal to free up all resources
 	ctx, cancel := context.WithCancel(context.Background())

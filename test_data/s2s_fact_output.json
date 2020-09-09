@@ -7,14 +7,13 @@
     }
   },
   "event_origin": "test",
-  "eventn_ctx": {
-    "location": {},
-    "parsed_ua": {},
-    "user": {
-      "id": 123
-    }
+  "user": {
+    "id": 123
   },
-  "device_ctx": {},
+  "device_ctx": {
+    "location": {},
+    "parsed_ua": {}
+  },
   "page_ctx": {
     "page_title": "EventNative Demo",
     "referer": "",
