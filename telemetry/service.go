@@ -60,7 +60,7 @@ func (s *Service) startUsage() {
 	go func() {
 		for {
 			req := <-s.usageCh
-			if b, err := req.MarshalJSON(); err != nil {
+			if b, err := req.MarshalJSON(); err == nil {
 				s.client.Post(s.url, "application/json", bytes.NewBuffer(b))
 			}
 		}
