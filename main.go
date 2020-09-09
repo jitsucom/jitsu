@@ -13,6 +13,7 @@ import (
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
 	"github.com/ksensehq/eventnative/storages"
+	"github.com/ksensehq/eventnative/telemetry"
 	"log"
 	"math/rand"
 	"net/http"
@@ -36,6 +37,11 @@ const (
 var (
 	configFilePath   = flag.String("cfg", "", "config file path")
 	containerizedRun = flag.Bool("cr", false, "containerised run marker")
+
+	//ldflags
+	commit  string
+	tag     string
+	builtAt string
 )
 
 func readInViperConfig() error {
@@ -56,7 +62,7 @@ func readInViperConfig() error {
 	return nil
 }
 
-//go:generate easyjson -all useragent/resolver.go
+//go:generate easyjson -all useragent/resolver.go telemetry/req_factory.go telemetry/models.go
 func main() {
 	// Setup seed for globalRand
 	rand.Seed(time.Now().Unix())
@@ -72,12 +78,15 @@ func main() {
 		log.Fatal(err)
 	}
 
+	telemetry.Init(commit, tag, builtAt, viper.GetBool("server.telemetry.disabled.usage"))
+
 	//listen to shutdown signal to free up all resources
 	ctx, cancel := context.WithCancel(context.Background())
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
 	go func() {
 		<-c
+		telemetry.ServerStop()
 		appstatus.Instance.Idle = true
 		cancel()
 		appconfig.Instance.Close()
@@ -169,6 +178,7 @@ func main() {
 
 	router := SetupRouter(destinationsService)
 
+	telemetry.ServerStart()
 	log.Println("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,

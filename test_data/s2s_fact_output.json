@@ -1,1 +1,23 @@
-{"_timestamp":"2020-06-16T23:00:00.000000Z", "api_key": "s2stoken", "event_data": {"customkey": {"key1": "key2"}}, "eventn_ctx": {"event_id": null, "location": {}, "page_title": "EventNative Demo", "parsed_ua": {}, "referer":  "", "url": "http://track-demo.ksense", "user": {"id": 123}}, "src": "s2s"}
+{
+  "_timestamp": "2020-06-16T23:00:00.000000Z",
+  "api_key": "s2stoken",
+  "event_data": {
+    "customkey": {
+      "key1": "key2"
+    }
+  },
+  "event_origin": "test",
+  "user": {
+    "id": 123
+  },
+  "device_ctx": {
+    "location": {},
+    "parsed_ua": {}
+  },
+  "page_ctx": {
+    "page_title": "EventNative Demo",
+    "referer": "",
+    "url": "http://track-demo.ksense"
+  },
+  "src": "s2s"
+}

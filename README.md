@@ -35,6 +35,8 @@ For production deployment we suggest Docker:
  * **Retrospective User Recognition**: [Coming soon](https://github.com/ksensehq/eventnative/issues/25) for selected destination (BigQuery, pSQL and ClickHouse).
  
  * **Mobile Application SDKs**: Coming soon for [iOS](https://github.com/ksensehq/eventnative/issues/4) and [Android](https://github.com/ksensehq/eventnative/issues/5).
+ 
+ * **Telemetry**: To help us improve EventNative, we collect usage metrics **without any customer data**. For more details, please check out our [wiki page](https://github.com/ksensehq/eventnative/wiki/Telemetry).
 
 
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/demo-n.png" width="40px" /></a>
