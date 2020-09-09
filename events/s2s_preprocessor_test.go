@@ -35,9 +35,7 @@ func TestS2SPreprocess(t *testing.T) {
 			"Empty input object",
 			Fact{},
 			&http.Request{Header: http.Header{}},
-			Fact{
-				"eventn_ctx": map[string]interface{}{},
-				"src":        "s2s"},
+			Fact{"src": "s2s"},
 			"",
 		},
 		{
@@ -52,10 +50,9 @@ func TestS2SPreprocess(t *testing.T) {
 			Fact{
 				"event_data":   map[string]interface{}{"key1": "key2"},
 				"event_origin": "s2s_test",
-				"eventn_ctx": map[string]interface{}{
-					"user": map[string]interface{}{"id": "123"}},
-				"page_ctx": map[string]interface{}{"referer": "www.site.com"},
-				"src":      "s2s"},
+				"user":         map[string]interface{}{"id": "123"},
+				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
+				"src":          "s2s"},
 			"",
 		},
 		{
@@ -69,14 +66,15 @@ func TestS2SPreprocess(t *testing.T) {
 				"device_ctx":   map[string]interface{}{"ip": "10.10.10.10"}},
 			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
 			Fact{
-				"device_ctx":   map[string]interface{}{"ip": "10.10.10.10"},
+				"device_ctx": map[string]interface{}{
+					"ip":       "10.10.10.10",
+					"location": (*geo.Data)(nil),
+				},
 				"event_data":   map[string]interface{}{"key1": "key2"},
 				"event_origin": "s2s_test",
-				"eventn_ctx": map[string]interface{}{
-					"location": (*geo.Data)(nil),
-					"user":     map[string]interface{}{"id": "123"}},
-				"page_ctx": map[string]interface{}{"referer": "www.site.com"},
-				"src":      "s2s"},
+				"user":         map[string]interface{}{"id": "123"},
+				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
+				"src":          "s2s"},
 			"",
 		},
 		{
@@ -90,14 +88,15 @@ func TestS2SPreprocess(t *testing.T) {
 				"device_ctx":   map[string]interface{}{"ip": "20.20.20.20"}},
 			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
 			Fact{
-				"device_ctx":   map[string]interface{}{"ip": "20.20.20.20"},
+				"device_ctx": map[string]interface{}{
+					"ip":       "20.20.20.20",
+					"location": geoDataMock,
+				},
 				"event_data":   map[string]interface{}{"key1": "key2"},
 				"event_origin": "s2s_test",
-				"eventn_ctx": map[string]interface{}{
-					"location": geoDataMock,
-					"user":     map[string]interface{}{"id": "123"}},
-				"page_ctx": map[string]interface{}{"referer": "www.site.com"},
-				"src":      "s2s"},
+				"user":         map[string]interface{}{"id": "123"},
+				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
+				"src":          "s2s"},
 			"",
 		},
 		{
@@ -114,15 +113,15 @@ func TestS2SPreprocess(t *testing.T) {
 				}},
 			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
 			Fact{
-				"device_ctx":   map[string]interface{}{},
-				"event_data":   map[string]interface{}{"key1": "key2"},
-				"event_origin": "s2s_test",
-				"eventn_ctx": map[string]interface{}{
+				"device_ctx": map[string]interface{}{
 					"location":  map[string]interface{}{"custom_location": "123"},
 					"parsed_ua": map[string]interface{}{"custom_ua": "123"},
-					"user":      map[string]interface{}{"id": "123"}},
-				"page_ctx": map[string]interface{}{"referer": "www.site.com"},
-				"src":      "s2s"},
+				},
+				"event_data":   map[string]interface{}{"key1": "key2"},
+				"event_origin": "s2s_test",
+				"user":         map[string]interface{}{"id": "123"},
+				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
+				"src":          "s2s"},
 			"",
 		},
 		{
@@ -133,11 +132,10 @@ func TestS2SPreprocess(t *testing.T) {
 				"weather": map[string]interface{}{"id": "123", "type": "good"}},
 			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
 			Fact{
-				"billing":    []string{"1", "2"},
-				"eventn_ctx": map[string]interface{}{},
-				"keys":       map[string]interface{}{"key1": "key2"},
-				"weather":    map[string]interface{}{"id": "123", "type": "good"},
-				"src":        "s2s"},
+				"billing": []string{"1", "2"},
+				"keys":    map[string]interface{}{"key1": "key2"},
+				"weather": map[string]interface{}{"id": "123", "type": "good"},
+				"src":     "s2s"},
 			"",
 		},
 	}
