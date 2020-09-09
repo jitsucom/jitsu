@@ -31,7 +31,7 @@ func Init(commit, tag, builtAt string, usageOptOut bool) {
 		url:         "https://tracker.ksense.io/api/v1/s2s/event?token=ttttd50c-d8f2-414c-bf3d-9902a5031fd2",
 		usageOptOut: usageOptOut,
 
-		usageCh: make(chan *Request, 10_000_000),
+		usageCh: make(chan *Request, 100),
 	}
 
 	if !usageOptOut {
