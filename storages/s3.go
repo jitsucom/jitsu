@@ -37,7 +37,7 @@ func (s3 *S3) Store(fileName string, payload []byte) error {
 	}
 
 	for _, fdata := range flatData {
-		err := s3.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes())
+		err := s3.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes(schema.JsonMarshallerInstance))
 		if err != nil {
 			return err
 		}

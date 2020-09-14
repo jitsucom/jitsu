@@ -29,19 +29,12 @@ func (c Columns) Merge(other Columns) {
 	}
 }
 
-//Header return comma separated column names string
-func (c Columns) Header() string {
-	header := ""
+//Header return column names as a string slice
+func (c Columns) Header() (header []string) {
 	for columnName := range c {
-		header += columnName + ","
+		header = append(header, columnName)
 	}
-
-	// Remove last comma
-	if last := len(header) - 1; last >= 0 && header[last] == ',' {
-		header = header[:last]
-	}
-
-	return header
+	return
 }
 
 type Table struct {
