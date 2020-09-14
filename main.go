@@ -210,7 +210,7 @@ func SetupRouter(destinations *events.DestinationService) *gin.Engine {
 	router.GET("/t/:filename", staticHandler.Handler)
 
 	c2sEventHandler := handlers.NewEventHandler(destinations, events.NewC2SPreprocessor()).Handler
-	s2sEventHandler := handlers.NewEventHandler(destinations, events.NewS2SPreprocessor()).Handler
+	s2sEventHandler := handlers.NewEventHandler(destinations, events.NewS2SPreprocessor(viper.GetBool("server.telemetry.collector"))).Handler
 	apiV1 := router.Group("/api/v1")
 	{
 		apiV1.POST("/event", middleware.TokenAuth(c2sEventHandler, appconfig.Instance.AuthorizationService.GetC2SOrigins, ""))
