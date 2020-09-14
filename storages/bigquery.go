@@ -197,7 +197,7 @@ func (bq *BigQuery) Store(fileName string, payload []byte) error {
 	}
 
 	for _, fdata := range flatData {
-		err := bq.gcsAdapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes())
+		err := bq.gcsAdapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes(schema.JsonMarshallerInstance))
 		if err != nil {
 			return err
 		}

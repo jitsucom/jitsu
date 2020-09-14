@@ -211,7 +211,7 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
 
 	//TODO put them all in one folder and if all ok => move them all to next working folder
 	for _, fdata := range flatData {
-		err := ar.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes())
+		err := ar.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes(schema.JsonMarshallerInstance))
 		if err != nil {
 			return err
 		}

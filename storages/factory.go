@@ -30,6 +30,7 @@ type DestinationConfig struct {
 	S3         *adapters.S3Config         `mapstructure:"s3"`
 	Google     *adapters.GoogleConfig     `mapstructure:"google"`
 	ClickHouse *adapters.ClickHouseConfig `mapstructure:"clickhouse"`
+	Snowflake  *adapters.SnowflakeConfig  `mapstructure:"snowflake"`
 }
 
 type DataLayout struct {
@@ -116,6 +117,12 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 				err = fmt.Errorf("S3 destination doesn't support %s mode", streamMode)
 			} else {
 				storage, err = createS3(name, &destination, processor)
+			}
+		case "snowflake":
+			if destination.Mode == streamMode {
+				consumer, err = createSnowflake(ctx, name, logEventPath, &destination, processor, true, monitorKeeper)
+			} else {
+				storage, err = createSnowflake(ctx, name, logEventPath, &destination, processor, false, monitorKeeper)
 			}
 		default:
 			err = unknownDestination
@@ -231,4 +238,18 @@ func createS3(name string, destination *DestinationConfig, processor *schema.Pro
 	}
 
 	return NewS3(name, s3Config, processor, destination.BreakOnError)
+}
+
+//Create Snowflake destination
+func createSnowflake(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool, keeper MonitorKeeper) (*Snowflake, error) {
+	snowflakeConfig := destination.Snowflake
+	if err := snowflakeConfig.Validate(); err != nil {
+		return nil, err
+	}
+	if snowflakeConfig.Schema == "" {
+		snowflakeConfig.Schema = "PUBLIC"
+		log.Printf("name: %s type: snowflake schema wasn't provided. Will be used default one: %s", name, snowflakeConfig.Schema)
+	}
+
+	return NewSnowflake(ctx, name, logEventPath, destination.S3, snowflakeConfig, processor, destination.BreakOnError, streamMode, keeper)
 }
