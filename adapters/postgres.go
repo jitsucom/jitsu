@@ -132,7 +132,7 @@ func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 		return err
 	}
 
-	return p.createDbSchemaInTransaction(wrappedTx, dbSchemaName)
+	return createDbSchemaInTransaction(p.ctx, wrappedTx, dbSchemaName)
 }
 
 //CreateTable create database table with name,columns provided in schema.Table representation
@@ -153,22 +153,6 @@ func (p *Postgres) PatchTableSchema(patchSchema *schema.Table) error {
 	}
 
 	return p.patchTableSchemaInTransaction(wrappedTx, patchSchema)
-}
-
-func (p *Postgres) createDbSchemaInTransaction(wrappedTx *Transaction, dbSchemaName string) error {
-	createStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(createDbSchemaIfNotExistsTemplate, dbSchemaName))
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing create db schema %s statement: %v", dbSchemaName, err)
-	}
-
-	_, err = createStmt.ExecContext(p.ctx)
-
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] db schema: %v", dbSchemaName, err)
-	}
-	return wrappedTx.tx.Commit()
 }
 
 //GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
@@ -321,7 +305,7 @@ func (p *Postgres) Close() error {
 	return p.dataSource.Close()
 }
 
-//Transaction is sql transaction wrapper. Used for handling and log errors with db type (postgres, redshift or clickhouse)
+//Transaction is sql transaction wrapper. Used for handling and log errors with db type (postgres, redshift, clickhouse or snowflake)
 //on Commit() and Rollback() calls
 //Use DirectCommit() if you need not to swallow an error on commit
 type Transaction struct {
@@ -347,6 +331,23 @@ func (t *Transaction) Rollback() {
 	if err := t.tx.Rollback(); err != nil {
 		log.Printf("System error: unable to rollback %s transaction: %v", t.dbType, err)
 	}
+}
+
+func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, dbSchemaName string) error {
+	createStmt, err := wrappedTx.tx.PrepareContext(ctx, fmt.Sprintf(createDbSchemaIfNotExistsTemplate, dbSchemaName))
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error preparing create db schema %s statement: %v", dbSchemaName, err)
+	}
+
+	_, err = createStmt.ExecContext(ctx)
+
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error creating [%s] db schema: %v", dbSchemaName, err)
+	}
+
+	return wrappedTx.tx.Commit()
 }
 
 func removeLastComma(str string) string {

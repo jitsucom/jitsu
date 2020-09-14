@@ -64,7 +64,7 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 		return err
 	}
 
-	return ar.dataSourceProxy.createDbSchemaInTransaction(wrappedTx, dbSchemaName)
+	return createDbSchemaInTransaction(ar.dataSourceProxy.ctx, wrappedTx, dbSchemaName)
 }
 
 //Insert provided object in AwsRedshift in stream mode

@@ -19,6 +19,7 @@ require (
 	github.com/mailru/easyjson v0.7.6
 	github.com/mailru/go-clickhouse v1.3.0
 	github.com/oschwald/geoip2-golang v1.4.0
+	github.com/snowflakedb/gosnowflake v1.3.8
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe

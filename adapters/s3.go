@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"io"
 	"net/http"
 )
 
@@ -60,7 +61,7 @@ func NewS3(s3Config *S3Config) (*S3, error) {
 	return &S3{client: s3.New(s3Session, awsConfig), config: s3Config}, nil
 }
 
-//Create named file on aws s3 with payload
+//Create named file on s3 with payload
 func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	fileType := http.DetectContentType(fileBytes)
 	params := &s3.PutObjectInput{
@@ -76,7 +77,7 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-//Return aws s3 bucket file names filtered by prefix
+//Return s3 bucket file names filtered by prefix
 func (a *S3) ListBucket(prefix string) ([]string, error) {
 	input := &s3.ListObjectsV2Input{Bucket: &a.config.Bucket, Prefix: &prefix}
 	var files []string
@@ -96,6 +97,23 @@ func (a *S3) ListBucket(prefix string) ([]string, error) {
 	}
 
 	return files, nil
+}
+
+//Return s3 file by name
+func (a *S3) GetObject(name string) ([]byte, error) {
+	input := &s3.GetObjectInput{Bucket: &a.config.Bucket, Key: &name}
+	result, err := a.client.GetObject(input)
+	if err != nil {
+		return nil, err
+	}
+
+	defer result.Body.Close()
+
+	buf := bytes.NewBuffer(nil)
+	if _, err := io.Copy(buf, result.Body); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
 }
 
 //Delete object from s3 bucket
