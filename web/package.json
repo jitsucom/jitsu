@@ -28,5 +28,11 @@
   },
   "files": [
     "dist"
-  ]
+  ],
+  "dependencies": {
+    "devserver": "^0.2.5",
+    "express": "^4.17.1",
+    "merge": "^1.2.1",
+    "react-dev-utils": "^10.2.1"
+  }
 }
