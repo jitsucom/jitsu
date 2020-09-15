@@ -251,5 +251,11 @@ func createSnowflake(ctx context.Context, name, logEventPath string, destination
 		log.Printf("name: %s type: snowflake schema wasn't provided. Will be used default one: %s", name, snowflakeConfig.Schema)
 	}
 
+	//default client_session_keep_alive
+	if _, ok := snowflakeConfig.Parameters["client_session_keep_alive"]; !ok {
+		t := "true"
+		snowflakeConfig.Parameters["client_session_keep_alive"] = &t
+	}
+
 	return NewSnowflake(ctx, name, logEventPath, destination.S3, snowflakeConfig, processor, destination.BreakOnError, streamMode, keeper)
 }
