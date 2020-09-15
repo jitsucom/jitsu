@@ -13,7 +13,9 @@ export default (globalPropName: string = 'analytics'): TrackerPlugin => {
                 }
                 let interceptor = (chain: any) => {
                     try {
-                        t.send3p('ajs', chain.payload);
+                        let payload = Object.assign({}, chain.payload)
+                        payload.type = chain.payload.type()
+                        t.send3p('ajs', payload);
                     } catch (e) {
                         logger: t.logger.warn('Failed to send an event', e)
                     }
