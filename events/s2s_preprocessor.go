@@ -13,15 +13,12 @@ import (
 type S2SPreprocessor struct {
 	geoResolver geo.Resolver
 	uaResolver  useragent.Resolver
-
-	handlingIps bool
 }
 
-func NewS2SPreprocessor(handlingIps bool) Preprocessor {
+func NewS2SPreprocessor() Preprocessor {
 	return &S2SPreprocessor{
 		geoResolver: appconfig.Instance.GeoResolver,
 		uaResolver:  appconfig.Instance.UaResolver,
-		handlingIps: handlingIps,
 	}
 }
 
@@ -34,8 +31,9 @@ func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 	}
 
 	fact["src"] = "s2s"
-	if s2sp.handlingIps {
-		fact["source_ip"] = extractIp(r)
+	ip := extractIp(r)
+	if ip != "" {
+		fact[ipKey] = ip
 	}
 
 	if deviceCtx, ok := fact["device_ctx"]; ok {
