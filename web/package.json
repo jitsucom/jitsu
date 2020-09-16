@@ -17,7 +17,11 @@
     "terser": "^5.2.1",
     "ts-node": "^7.0.1",
     "tslib": "^1.9.3",
-    "typescript": "^3.2.2"
+    "typescript": "^3.2.2",
+    "devserver": "^0.2.5",
+    "express": "^4.17.1",
+    "merge": "^1.2.1",
+    "react-dev-utils": "^10.2.1"
   },
   "scripts": {
     "build": "rollup -c",
