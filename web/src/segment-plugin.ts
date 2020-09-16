@@ -13,7 +13,7 @@ export default (globalPropName: string = 'analytics'): TrackerPlugin => {
                 }
                 let interceptor = (chain: any) => {
                     try {
-                        let payload = Object.assign({}, chain.payload)
+                        let payload =  {...chain.payload}
                         payload.type = chain.payload.type()
                         t.send3p('ajs', payload);
                     } catch (e) {
