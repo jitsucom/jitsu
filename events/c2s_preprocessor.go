@@ -12,6 +12,7 @@ import (
 )
 
 const eventnKey = "eventn_ctx"
+const ipKey = "source_ip"
 const uaKey = "user_agent"
 
 var nilFactErr = errors.New("Input fact can't be nil")
@@ -43,6 +44,9 @@ func (c2sp *C2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 	}
 
 	ip := extractIp(r)
+	if ip != "" {
+		fact[ipKey] = ip
+	}
 
 	eventnObject, ok := fact[eventnKey]
 	if !ok {
