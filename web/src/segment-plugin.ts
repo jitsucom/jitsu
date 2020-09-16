@@ -15,10 +15,10 @@ export default (globalPropName: string = 'analytics'): TrackerPlugin => {
                     try {
                         let payload =  {...chain.payload}
                         payload.type = chain.payload.type()
-                        let u = analytics.user()
-                        if (u) {
-                            payload.obj.user_id = u.id()
+                        if (typeof analytics.user === 'function' && analytics.user() && typeof analytics.user().id === 'function'){
+                            payload.obj.user_id = analytics.user().id()
                         }
+
                         t.send3p('ajs', payload);
                     } catch (e) {
                         logger: t.logger.warn('Failed to send an event', e)

@@ -119,7 +119,7 @@ export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []
     logger
   };
   const init = (options: TrackerOptions, plugins: TrackerPlugin[] = []) => {
-    logger: logger.debug('initializing', options, plugins, '1.0.9')
+    logger: logger.debug('initializing', options, plugins, '1.0.10')
     cookieDomain = options['cookie_domain'] || getCookieDomain();
     trackingHost = getHostWithProtocol(options['tracking_host'] || 'track.ksense.io');
     idCookieName = options['cookie_name'] || '__eventn_id';
