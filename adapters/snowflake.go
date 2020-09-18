@@ -90,13 +90,14 @@ type Snowflake struct {
 //NewSnowflake return configured Snowflake adapter instance
 func NewSnowflake(ctx context.Context, config *SnowflakeConfig, s3Config *S3Config) (*Snowflake, error) {
 	cfg := &sf.Config{
-		Account:  config.Account,
-		User:     config.Username,
-		Password: config.Password,
-		Port:     config.Port,
-		Schema:   config.Schema,
-		Database: config.Db,
-		Params:   config.Parameters,
+		Account:   config.Account,
+		User:      config.Username,
+		Password:  config.Password,
+		Port:      config.Port,
+		Schema:    config.Schema,
+		Database:  config.Db,
+		Warehouse: config.Warehouse,
+		Params:    config.Parameters,
 	}
 	connectionString, err := sf.DSN(cfg)
 	if err != nil {
