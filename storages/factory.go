@@ -188,6 +188,10 @@ func createBigQuery(ctx context.Context, name, logEventPath string, destination 
 		return nil, err
 	}
 
+	if gConfig.Project == "" {
+		return nil, errors.New("BigQuery project(bq_project) is required parameter")
+	}
+
 	//enrich with default parameters
 	if gConfig.Dataset == "" {
 		gConfig.Dataset = "default"
@@ -257,5 +261,15 @@ func createSnowflake(ctx context.Context, name, logEventPath string, destination
 		snowflakeConfig.Parameters["client_session_keep_alive"] = &t
 	}
 
-	return NewSnowflake(ctx, name, logEventPath, destination.S3, snowflakeConfig, processor, destination.BreakOnError, streamMode, keeper)
+	if destination.Google != nil {
+		if err := destination.Google.Validate(streamMode); err != nil {
+			return nil, err
+		}
+		//stage is required when gcp integration
+		if snowflakeConfig.Stage == "" {
+			return nil, errors.New("Snowflake stage is required parameter in GCP integration")
+		}
+	}
+
+	return NewSnowflake(ctx, name, logEventPath, destination.S3, destination.Google, snowflakeConfig, processor, destination.BreakOnError, streamMode, keeper)
 }
