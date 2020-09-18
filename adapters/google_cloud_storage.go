@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
+	"io/ioutil"
 	"strings"
 )
 
@@ -34,9 +35,6 @@ func (gc *GoogleConfig) Validate(streamMode bool) error {
 	//batch mode works via google cloud storage
 	if !streamMode && gc.Bucket == "" {
 		return errors.New("Google cloud storage bucket(gcs_bucket) is required parameter")
-	}
-	if gc.Project == "" {
-		return errors.New("BigQuery project(bq_project) is required parameter")
 	}
 
 	switch gc.KeyFile.(type) {
@@ -122,6 +120,20 @@ func (gcs *GoogleCloudStorage) DeleteObject(key string) error {
 	}
 
 	return nil
+}
+
+//Get object from google cloud storage bucket
+func (gcs *GoogleCloudStorage) GetObject(key string) ([]byte, error) {
+	bucket := gcs.client.Bucket(gcs.config.Bucket)
+	obj := bucket.Object(key)
+
+	r, err := obj.NewReader(gcs.ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer r.Close()
+
+	return ioutil.ReadAll(r)
 }
 
 func (gcs *GoogleCloudStorage) Close() error {

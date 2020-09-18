@@ -14,11 +14,14 @@ import (
 )
 
 const (
-	tableSchemaSFQuery = `SELECT COLUMN_NAME, concat(DATA_TYPE, IFF(NUMERIC_SCALE is null, '', TO_VARCHAR(NUMERIC_SCALE))) from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = ? and TABLE_NAME = ?`
-	copySFTemplate     = `COPY INTO "%s"."%s" (%s) 
-                      FROM 's3://%s/%s'
-					  CREDENTIALS = (aws_key_id='%s' aws_secret_key='%s')
-                      FILE_FORMAT=(TYPE= 'CSV', FIELD_DELIMITER = '||' SKIP_HEADER = 1 EMPTY_FIELD_AS_NULL = true)`
+	tableSchemaSFQuery      = `SELECT COLUMN_NAME, concat(DATA_TYPE, IFF(NUMERIC_SCALE is null, '', TO_VARCHAR(NUMERIC_SCALE))) from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = ? and TABLE_NAME = ?`
+	copyStatementFileFormat = ` FILE_FORMAT=(TYPE= 'CSV', FIELD_DELIMITER = '||' SKIP_HEADER = 1 EMPTY_FIELD_AS_NULL = true) `
+	gcpFrom                 = `FROM @%s
+   							   %s
+                               PATTERN = '%s'`
+	awsS3From = `FROM 's3://%s/%s'
+					           CREDENTIALS = (aws_key_id='%s' aws_secret_key='%s') 
+                               %s`
 )
 
 var (
@@ -46,6 +49,7 @@ type SnowflakeConfig struct {
 	Username   string             `mapstructure:"username"`
 	Password   string             `mapstructure:"password"`
 	Warehouse  string             `mapstructure:"warehouse"`
+	Stage      string             `mapstructure:"stage"`
 	Parameters map[string]*string `mapstructure:"parameters"`
 }
 
@@ -240,7 +244,15 @@ func (s *Snowflake) Copy(wrappedTx *Transaction, fileKey, header, tableName stri
 		headerParts = append(headerParts, v)
 	}
 
-	statement := fmt.Sprintf(copySFTemplate, s.config.Schema, tableName, strings.Join(headerParts, ","), s.s3Config.Bucket, fileKey, s.s3Config.AccessKeyID, s.s3Config.SecretKey)
+	statement := fmt.Sprintf(`COPY INTO "%s"."%s" (%s) `, s.config.Schema, tableName, strings.Join(headerParts, ","))
+	if s.s3Config != nil {
+		//s3 integration stage
+		statement += fmt.Sprintf(awsS3From, s.s3Config.Bucket, fileKey, s.s3Config.AccessKeyID, s.s3Config.SecretKey, copyStatementFileFormat)
+	} else {
+		//gcp integration stage
+		statement += fmt.Sprintf(gcpFrom, s.config.Stage, copyStatementFileFormat, fileKey)
+	}
+
 	_, err := wrappedTx.tx.ExecContext(s.ctx, statement)
 
 	return err
