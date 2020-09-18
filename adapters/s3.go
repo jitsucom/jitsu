@@ -130,3 +130,7 @@ func (a *S3) DeleteObject(key string) error {
 
 	return nil
 }
+
+func (a *S3) Close() error {
+	return nil
+}

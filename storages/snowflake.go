@@ -18,11 +18,11 @@ import (
 const snowflakeStorageType = "Snowflake"
 
 //Store files to Snowflake in two modes:
-//batch: via aws s3 in batch mode (1 file = 1 transaction)
+//batch: via aws s3 (or gcp) in batch mode (1 file = 1 transaction)
 //stream: via events queue in stream mode (1 object = 1 transaction)
 type Snowflake struct {
 	name             string
-	s3Adapter        *adapters.S3
+	stageAdapter     adapters.Stage
 	snowflakeAdapter *adapters.Snowflake
 	tableHelper      *TableHelper
 	schemaProcessor  *schema.Processor
@@ -31,9 +31,9 @@ type Snowflake struct {
 }
 
 //NewSnowflake return Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
-func NewSnowflake(ctx context.Context, name, fallbackDir string, s3Config *adapters.S3Config, snowflakeConfig *adapters.SnowflakeConfig,
-	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*Snowflake, error) {
-	var s3Adapter *adapters.S3
+func NewSnowflake(ctx context.Context, name, fallbackDir string, s3Config *adapters.S3Config, gcpConfig *adapters.GoogleConfig,
+	snowflakeConfig *adapters.SnowflakeConfig, processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*Snowflake, error) {
+	var stageAdapter adapters.Stage
 	var eventQueue *events.PersistentQueue
 	if streamMode {
 		var err error
@@ -44,9 +44,16 @@ func NewSnowflake(ctx context.Context, name, fallbackDir string, s3Config *adapt
 		}
 	} else {
 		var err error
-		s3Adapter, err = adapters.NewS3(s3Config)
-		if err != nil {
-			return nil, err
+		if s3Config != nil {
+			stageAdapter, err = adapters.NewS3(s3Config)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			stageAdapter, err = adapters.NewGoogleCloudStorage(ctx, gcpConfig)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -59,7 +66,7 @@ func NewSnowflake(ctx context.Context, name, fallbackDir string, s3Config *adapt
 
 	ar := &Snowflake{
 		name:             name,
-		s3Adapter:        s3Adapter,
+		stageAdapter:     stageAdapter,
 		snowflakeAdapter: snowflakeAdapter,
 		tableHelper:      tableHelper,
 		schemaProcessor:  processor,
@@ -145,9 +152,9 @@ func (s *Snowflake) startStreamingConsumer() {
 }
 
 //Periodically (every 30 seconds):
-//1. get all files from aws s3
+//1. get all files from stage (aws s3 or gcp)
 //2. load them to Snowflake via Copy request
-//3. delete file from aws s3
+//3. delete file from stage
 func (s *Snowflake) startBatchStorage() {
 	go func() {
 		for {
@@ -157,9 +164,9 @@ func (s *Snowflake) startBatchStorage() {
 			//TODO configurable
 			time.Sleep(30 * time.Second)
 
-			filesKeys, err := s.s3Adapter.ListBucket(appconfig.Instance.ServerName)
+			filesKeys, err := s.stageAdapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
-				log.Println("Error reading files from s3", err)
+				log.Println("Error reading files from stage", err)
 				continue
 			}
 
@@ -174,20 +181,20 @@ func (s *Snowflake) startBatchStorage() {
 					continue
 				}
 
-				payload, err := s.s3Adapter.GetObject(fileKey)
+				payload, err := s.stageAdapter.GetObject(fileKey)
 				if err != nil {
-					log.Printf("Error getting file %s from s3 in Snowflake storage: %v", fileKey, err)
+					log.Printf("Error getting file %s from stage in Snowflake storage: %v", fileKey, err)
 					continue
 				}
 
 				lines := strings.Split(string(payload), "\n")
 				if len(lines) == 0 {
-					log.Printf("Error reading s3 file %s payload in Snowflake storage: empty file", fileKey)
+					log.Printf("Error reading stage file %s payload in Snowflake storage: empty file", fileKey)
 					continue
 				}
 				header := lines[0]
 				if header == "" {
-					log.Printf("Error reading s3 file %s header in Snowflake storage: %v", fileKey, err)
+					log.Printf("Error reading stage file %s header in Snowflake storage: %v", fileKey, err)
 					continue
 				}
 
@@ -198,15 +205,15 @@ func (s *Snowflake) startBatchStorage() {
 				}
 
 				if err := s.snowflakeAdapter.Copy(wrappedTx, fileKey, header, names[1]); err != nil {
-					log.Printf("Error copying file [%s] from s3 to snowflake: %v", fileKey, err)
+					log.Printf("Error copying file [%s] from stage to snowflake: %v", fileKey, err)
 					wrappedTx.Rollback()
 					continue
 				}
 
 				wrappedTx.Commit()
 
-				if err := s.s3Adapter.DeleteObject(fileKey); err != nil {
-					log.Println("System error: file", fileKey, "wasn't deleted from s3 and will be inserted in db again", err)
+				if err := s.stageAdapter.DeleteObject(fileKey); err != nil {
+					log.Println("System error: file", fileKey, "wasn't deleted from stage and will be inserted in db again", err)
 					continue
 				}
 
@@ -236,7 +243,7 @@ func (s *Snowflake) insert(dataSchema *schema.Table, fact events.Fact) (err erro
 	return s.snowflakeAdapter.Insert(dataSchema, fact)
 }
 
-//Store file from byte payload to s3 with processing
+//Store file from byte payload to stage with processing
 func (s *Snowflake) Store(fileName string, payload []byte) error {
 	flatData, err := s.schemaProcessor.ProcessFilePayload(fileName, payload, s.breakOnError)
 	if err != nil {
@@ -255,7 +262,7 @@ func (s *Snowflake) Store(fileName string, payload []byte) error {
 	}
 
 	for _, fdata := range flatData {
-		err := s.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes(schema.CsvMarshallerInstance))
+		err := s.stageAdapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes(schema.CsvMarshallerInstance))
 		if err != nil {
 			return err
 		}
@@ -275,6 +282,10 @@ func (s *Snowflake) Type() string {
 func (s *Snowflake) Close() (multiErr error) {
 	if err := s.snowflakeAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing snowflake datasource: %v", err))
+	}
+
+	if err := s.stageAdapter.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing snowflake stage: %v", err))
 	}
 
 	if s.eventQueue != nil {
