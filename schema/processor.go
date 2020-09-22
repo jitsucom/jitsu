@@ -10,6 +10,7 @@ import (
 	"github.com/ksensehq/eventnative/typing"
 	"io"
 	"log"
+	"strings"
 	"text/template"
 	"time"
 )
@@ -58,7 +59,8 @@ func NewProcessor(tableNameFuncExpression string, mappings []string) (*Processor
 		//revert type of _timestamp field
 		object[timestamp.Key] = ts
 
-		return buf.String(), nil
+		// format "Abc dse" -> "abc_dse"
+		return strings.ToLower(strings.ReplaceAll(buf.String(), " ", "_")), nil
 	}
 
 	return &Processor{
