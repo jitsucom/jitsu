@@ -1,5 +1,5 @@
 export type Tracker = {
-  send3p: (name: string, payload: any, subType?: string) => void
+  send3p: (name: string, payload: any, type?: string) => void
   track: (name: string, payload: any) => void
   id: (userData: Record<string, any>, doNotSendEvent: boolean) => void
   logger: Logger
