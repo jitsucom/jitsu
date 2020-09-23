@@ -1,12 +1,7 @@
-export type Tracker = {
-  send3p: (name: string, payload: any, type?: string) => void
-  track: (name: string, payload: any) => void
-  id: (userData: Record<string, any>, doNotSendEvent: boolean) => void
-  logger: Logger
-  init?: (opts: TrackerOptions) => void
-  interceptAnalytics: (t: Tracker, analytics: any) => void
-}
-
+/**
+ * Interface for logging. Plugins might use it
+ * internally
+ */
 export type Logger = {
   debug: (...args: any) => void
   info: (...args: any) => void
@@ -14,12 +9,52 @@ export type Logger = {
   error: (...args: any) => void
 }
 
+
+/**
+ * Main EventNative tracker inteface
+ */
+export type Tracker = {
+  logger: Logger
+  /**
+   * Sends a third-party event (event intercepted from third-party system, such as analytics.js or GA). Should
+   * not be called directly
+   * @param typeName event name of event
+   * @param payload third-party payload
+   * @param type event-type
+   */
+  send3p: (typeName: string, payload: any, type?: string) => void
+  /**
+   * Sends a track event to server
+   * @param name event name
+   * @param payload event payload
+   */
+  track: (typeName: string, payload: any) => void
+  /**
+   * Sets a user data
+   * @param userData user data (as map id_type --> value, such as "email": "a@bcd.com"
+   * @param doNotSendEvent if true (false by default), separate "id" event won't be sent to server
+   */
+  id: (userData: Record<string, any>, doNotSendEvent?: boolean) => void
+  /**
+   * Initializes tracker. Must be called
+   * @param initialization options
+   */
+  init?: (opts: TrackerOptions) => void
+  /**
+   * Explicit call for intercepting segment's analytics.
+   * @param analytics window.analytics object
+   */
+  interceptAnalytics: (analytics: any) => void
+}
+
+/**
+ * Configuration options of EventNative
+ */
 export type TrackerOptions = {
   cookie_domain?: string
   tracking_host?: string
   cookie_name?: string
   key?: string
-  logger?: Logger
   ga_hook?: boolean
   segment_hook?: boolean
 };
@@ -51,11 +86,6 @@ export type Event = {
 export type EventnEvent = Event & {
   eventn_data: any
   src: 'eventn'
-}
-
-export type ThirdPartyEvent = Event & {
-  event_type: ''
-  src_payload: any
 }
 
 export type TrackerPlugin = (t: Tracker) => void;
