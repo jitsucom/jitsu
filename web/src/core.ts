@@ -1,33 +1,29 @@
 import {
-  getCookieDomain,
-  getCookie,
-  setCookie,
   generateId,
-  parseQuery,
+  getCookie,
+  getCookieDomain,
   getDataFromParams,
   getHostWithProtocol,
+  parseQuery,
   reformatDate,
+  setCookie,
 } from './helpers'
 
-import {
-  TrackerOptions,
-  TrackerPlugin,
-  Tracker,
-  Logger,
-  Event,
-  EventCtx, ThirdPartyEvent, EventnEvent
-} from './types'
+import {Event, EventCtx, EventnEvent, Logger, Tracker, TrackerOptions, TrackerPlugin} from './types'
 
 export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []): Tracker => {
   let cookieDomain: string;
   let trackingHost: string;
-  let idCookieName: string  ;
+  let idCookieName: string;
   const loggerKeys = ['debug', 'info', 'warn', 'error'];
-  let logger: Logger = loggerKeys.reduce((res, k) => ({...res, [k]: () => {} }), {}) as Logger;
+  let logger: Logger = loggerKeys.reduce((res, k) => ({
+    ...res, [k]: () => {
+    }
+  }), {}) as Logger;
   logger: {
     logger = loggerKeys.reduce(
-      (res, k) => ({...res, [k]: (...args: any[]) => (console as any)[k]('[eventNative]', ...args)}),
-      {},
+        (res, k) => ({...res, [k]: (...args: any[]) => (console as any)[k]('[eventNative]', ...args)}),
+        {},
     ) as Logger;
   }
   let apiKey: string;
@@ -69,10 +65,50 @@ export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []
     }
   }
 
-  const send3p = (sourceType: string, object: any) => {
-    const e = makeEvent('3rdparty', sourceType) as any;
+  const send3p = (sourceType: string, object: any, subType?: string) => {
+    let eventType = '3rdparty'
+    if (subType && subType !== ''){
+      eventType += '_' + subType
+    }
+
+    const e = makeEvent(eventType, sourceType) as any;
     e.src_payload = object;
     sendJson(e);
+  }
+
+  const interceptAnalytics = (t: Tracker, analytics: any) => {
+    if (!analytics || typeof analytics.addSourceMiddleware !== 'function') {
+      logger: t.logger.error('analytics.addSourceMiddleware is not a function', analytics)
+      return;
+    }
+
+    let interceptor = (chain: any) => {
+          try {
+            let payload = {...chain.payload}
+
+            let integration = chain.integrations['Segment.io']
+            if (integration && integration.analytics) {
+              let analyticsOriginal = integration.analytics
+              if (typeof analyticsOriginal.user === 'function' && analyticsOriginal.user() && typeof analyticsOriginal.user().id === 'function') {
+                payload.obj.userId = analyticsOriginal.user().id()
+              }
+            }
+
+            let subType = chain.payload.type();
+            if (subType === 'track'){
+              subType = chain.payload.event()
+            }
+
+            t.send3p('ajs', payload, subType);
+          } catch
+              (e) {
+            logger: t.logger.warn('Failed to send an event', e)
+          }
+
+          chain.next(chain.payload);
+        };
+
+    analytics.addSourceMiddleware(interceptor);
   }
 
 
@@ -116,10 +152,11 @@ export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []
     track,
     send3p,
     id,
+    interceptAnalytics,
     logger
   };
   const init = (options: TrackerOptions, plugins: TrackerPlugin[] = []) => {
-    logger: logger.debug('initializing', options, plugins, '1.0.10')
+    logger: logger.debug('initializing', options, plugins, '1.0.11')
     cookieDomain = options['cookie_domain'] || getCookieDomain();
     trackingHost = getHostWithProtocol(options['tracking_host'] || 'track.ksense.io');
     idCookieName = options['cookie_name'] || '__eventn_id';
