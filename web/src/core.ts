@@ -120,7 +120,7 @@ class TrackerImpl implements Tracker {
     }
 
     init(options: TrackerOptions, plugins: TrackerPlugin[] = []) {
-        this.logger.debug('initializing', options, plugins, '1.0.11')
+        this.logger.debug('initializing', options, plugins, EVENTN_VERSION)
         this.cookieDomain = options['cookie_domain'] || getCookieDomain();
         this.trackingHost = getHostWithProtocol(options['tracking_host'] || 'track.ksense.io');
         this.idCookieName = options['cookie_name'] || '__eventn_id';
