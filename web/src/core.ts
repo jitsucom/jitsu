@@ -65,10 +65,10 @@ export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []
     }
   }
 
-  const send3p = (sourceType: string, object: any, subType?: string) => {
+  const send3p = (sourceType: string, object: any, type?: string) => {
     let eventType = '3rdparty'
-    if (subType && subType !== ''){
-      eventType += '_' + subType
+    if (type && type !== ''){
+      eventType = type
     }
 
     const e = makeEvent(eventType, sourceType) as any;
@@ -94,12 +94,12 @@ export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []
               }
             }
 
-            let subType = chain.payload.type();
-            if (subType === 'track'){
-              subType = chain.payload.event()
+            let type = chain.payload.type();
+            if (type === 'track'){
+              type = chain.payload.event()
             }
 
-            t.send3p('ajs', payload, subType);
+            t.send3p('ajs', payload, type);
           } catch
               (e) {
             logger: t.logger.warn('Failed to send an event', e)
