@@ -9,6 +9,8 @@ import {
     setCookie,
 } from './helpers'
 
+const EVENTN_VERSION = require("../package.json")['version'];
+
 import {Event, Logger, EventCtx, EventnEvent, Tracker, TrackerOptions, TrackerPlugin} from './types'
 
 
@@ -167,8 +169,16 @@ class TrackerImpl implements Tracker {
 }
 
 export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []): Tracker => {
+    if (window) {
+            (window as any)["__eventNDebug"] = {
+            clientVersion: EVENTN_VERSION
+        }
+    }
 
     const eventN = new TrackerImpl();
+    if (window) {
+        (window as any)["__eventNDebug"]['instance'] = eventN;
+    }
     if (opts) {
         eventN.init(opts)
     }
