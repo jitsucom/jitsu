@@ -1,7 +1,6 @@
 package storages
 
 import (
-	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"sync"
@@ -15,6 +14,7 @@ type RetryableProxy struct {
 	config  *Config
 	storage events.Storage
 	ready   bool
+	closed  bool
 }
 
 func newProxy(factoryMethod func(config *Config) (events.Storage, error), config *Config) events.StorageProxy {
@@ -26,7 +26,7 @@ func newProxy(factoryMethod func(config *Config) (events.Storage, error), config
 func (rsp *RetryableProxy) start() {
 	go func() {
 		for {
-			if appstatus.Instance.Idle {
+			if rsp.closed {
 				break
 			}
 
@@ -56,6 +56,7 @@ func (rsp *RetryableProxy) Get() (events.Storage, bool) {
 }
 
 func (rsp *RetryableProxy) Close() error {
+	rsp.closed = true
 	if rsp.storage != nil {
 		return rsp.storage.Close()
 	}
