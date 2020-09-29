@@ -123,7 +123,7 @@ func (ar *AwsRedshift) startBatch() {
 
 			filesKeys, err := ar.s3Adapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
-				logging.Errorf("[%s] Error reading files from s3", ar.Name(), err)
+				logging.Errorf("[%s] Error reading files from s3: %v", ar.Name(), err)
 				continue
 			}
 
@@ -139,7 +139,7 @@ func (ar *AwsRedshift) startBatch() {
 				}
 				wrappedTx, err := ar.redshiftAdapter.OpenTx()
 				if err != nil {
-					logging.Errorf("[%s] Error creating redshift transaction", ar.Name(), err)
+					logging.Errorf("[%s] Error creating redshift transaction: %v", ar.Name(), err)
 					continue
 				}
 
