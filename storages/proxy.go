@@ -9,7 +9,7 @@ import (
 
 type RetryableProxy struct {
 	sync.RWMutex
-	factoryMethod func(config *Config) (events.Storage, error)
+	factoryMethod func(*Config) (events.Storage, error)
 
 	config  *Config
 	storage events.Storage
@@ -17,7 +17,7 @@ type RetryableProxy struct {
 	closed  bool
 }
 
-func newProxy(factoryMethod func(config *Config) (events.Storage, error), config *Config) events.StorageProxy {
+func newProxy(factoryMethod func(*Config) (events.Storage, error), config *Config) events.StorageProxy {
 	rsp := &RetryableProxy{factoryMethod: factoryMethod, config: config}
 	go rsp.start()
 	return rsp

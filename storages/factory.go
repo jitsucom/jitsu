@@ -67,7 +67,9 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 		return storageProxies, consumers
 	}
 
-	for name, destination := range dc {
+	for name, d := range dc {
+		//common case
+		destination := d
 		if destination.Type == "" {
 			destination.Type = name
 		}
