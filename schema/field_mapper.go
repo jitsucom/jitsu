@@ -3,7 +3,6 @@ package schema
 import (
 	"fmt"
 	"github.com/ksensehq/eventnative/typing"
-	"log"
 	"strings"
 )
 
@@ -83,11 +82,6 @@ func NewFieldMapper(mappings []string) (Mapper, map[string]typing.DataType, erro
 			source:      strings.Split(formatPrefixSuffix(source), "/"),
 			destination: destinationArr,
 		})
-	}
-
-	log.Println("Configured field mapping rules:")
-	for _, m := range mappings {
-		log.Println(m)
 	}
 
 	return &FieldMapper{rules: rules}, fieldsToCast, nil

@@ -4,7 +4,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"github.com/ksensehq/eventnative/appstatus"
-	"log"
+	"github.com/ksensehq/eventnative/logging"
 	"time"
 )
 
@@ -28,7 +28,7 @@ func watch(source string, firstTimePayload []byte, loadFunc func(string) ([]byte
 		time.Sleep(time.Duration(reloadSec) * time.Second)
 		actualPayload, err := loadFunc(source)
 		if err != nil {
-			log.Printf("Error reloading %s: %v", source, err)
+			logging.Errorf("Error reloading %s: %v", source, err)
 			continue
 		}
 
@@ -36,12 +36,12 @@ func watch(source string, firstTimePayload []byte, loadFunc func(string) ([]byte
 		if hash != newHash {
 			result, err := parseFromBytes(source, actualPayload)
 			if err != nil {
-				log.Printf("Error parsing reloaded %s: %v", source, err)
+				logging.Errorf("Error parsing reloaded %s: %v", source, err)
 				continue
 			}
 
 			updateFunc(result)
-			log.Printf("New resource from %s was loaded", source)
+			logging.Infof("New resource from %s was loaded", source)
 			hash = newHash
 		}
 	}

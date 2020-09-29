@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/ksensehq/eventnative/logging"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -42,13 +42,13 @@ func NewStaticHandler(sourceDir, serverPublicUrl string) *StaticHandler {
 	}
 	files, err := ioutil.ReadDir(sourceDir)
 	if err != nil {
-		log.Println("Error reading static file dir", sourceDir, err)
+		logging.Error("Error reading static file dir", sourceDir, err)
 	}
 	servingFiles := map[string][]byte{}
 	gzippedFiles := map[string][]byte{}
 	for _, f := range files {
 		if f.IsDir() {
-			log.Println("Serving directories isn't supported", f.Name())
+			logging.Warn("Serving directories isn't supported", f.Name())
 			continue
 		}
 
@@ -58,7 +58,7 @@ func NewStaticHandler(sourceDir, serverPublicUrl string) *StaticHandler {
 
 		payload, err := ioutil.ReadFile(sourceDir + f.Name())
 		if err != nil {
-			log.Println("Error reading file", sourceDir+f.Name(), err)
+			logging.Error("Error reading file", sourceDir+f.Name(), err)
 			continue
 		}
 
@@ -67,11 +67,11 @@ func NewStaticHandler(sourceDir, serverPublicUrl string) *StaticHandler {
 		servingFiles[f.Name()] = []byte(reformattedPayload)
 		gzipped, err := gzipData(servingFiles[f.Name()])
 		if err != nil {
-			log.Println("Failed to gzip", sourceDir+f.Name(), err)
+			logging.Error("Failed to gzip", sourceDir+f.Name(), err)
 		} else {
 			gzippedFiles[f.Name()] = gzipped
 		}
-		log.Println("Serve static file:", "/"+f.Name())
+		logging.Info("Serve static file:", "/"+f.Name())
 	}
 	var inlineJsParts = make([][]byte, 2)
 	for i, part := range strings.Split(string(servingFiles[inlineJs]), jsConfigVar) {
@@ -90,7 +90,7 @@ func (sh *StaticHandler) Handler(c *gin.Context) {
 
 	file, ok := sh.servingFiles[fileName]
 	if !ok {
-		log.Println("Unknown static file request:", fileName)
+		logging.Error("Unknown static file request:", fileName)
 		c.Status(http.StatusNotFound)
 		return
 	}

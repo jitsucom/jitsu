@@ -137,9 +137,5 @@ func (gcs *GoogleCloudStorage) GetObject(key string) ([]byte, error) {
 }
 
 func (gcs *GoogleCloudStorage) Close() error {
-	if err := gcs.client.Close(); err != nil {
-		return fmt.Errorf("Error closing google cloud storage client: %v", err)
-	}
-
-	return nil
+	return gcs.client.Close()
 }

@@ -2,6 +2,8 @@ package storages
 
 import (
 	"github.com/ksensehq/eventnative/adapters"
+	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 )
 
@@ -27,6 +29,10 @@ func NewS3(name string, s3Config *adapters.S3Config, processor *schema.Processor
 	}
 
 	return s3, nil
+}
+
+func (s3 *S3) Consume(fact events.Fact) {
+	logging.Errorf("[%s] S3 storage doesn't support streaming mode", s3.Name())
 }
 
 //Store file from byte payload to s3 with processing

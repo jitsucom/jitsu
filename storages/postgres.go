@@ -3,13 +3,11 @@ package storages
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
-	"log"
 )
 
 const postgresStorageType = "Postgres"
@@ -26,17 +24,8 @@ type Postgres struct {
 	breakOnError    bool
 }
 
-func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor,
-	fallbackDir, storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*Postgres, error) {
-	var eventQueue *events.PersistentQueue
-	if streamMode {
-		var err error
-		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, storageName)
-		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
-		if err != nil {
-			return nil, err
-		}
-	}
+func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor, eventQueue *events.PersistentQueue,
+	storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*Postgres, error) {
 
 	adapter, err := adapters.NewPostgres(ctx, config)
 	if err != nil {
@@ -46,6 +35,7 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 	//create db schema if doesn't exist
 	err = adapter.CreateDbSchema(config.Schema)
 	if err != nil {
+		adapter.Close()
 		return nil, err
 	}
 
@@ -61,23 +51,16 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 	}
 
 	if streamMode {
-		p.startStreamingConsumer()
+		p.startStream()
 	}
 
 	return p, nil
 }
 
-//Consume events.Fact and enqueue it
-func (p *Postgres) Consume(fact events.Fact) {
-	if err := p.eventQueue.Enqueue(fact); err != nil {
-		logSkippedEvent(fact, err)
-	}
-}
-
 //Run goroutine to:
 //1. read from queue
 //2. insert in Postgres
-func (p *Postgres) startStreamingConsumer() {
+func (p *Postgres) startStream() {
 	go func() {
 		for {
 			if appstatus.Instance.Idle {
@@ -85,13 +68,13 @@ func (p *Postgres) startStreamingConsumer() {
 			}
 			fact, err := p.eventQueue.DequeueBlock()
 			if err != nil {
-				log.Println("Error reading event fact from postgres queue", err)
+				logging.Errorf("[%s] Error reading event fact from postgres queue: %v", p.Name(), err)
 				continue
 			}
 
 			dataSchema, flattenObject, err := p.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				log.Printf("Unable to process object %v: %v", fact, err)
+				logging.Errorf("[%s] Unable to process object %v: %v", p.Name(), fact, err)
 				continue
 			}
 
@@ -101,7 +84,7 @@ func (p *Postgres) startStreamingConsumer() {
 			}
 
 			if err := p.insert(dataSchema, flattenObject); err != nil {
-				log.Printf("Error inserting to postgres table [%s]: %v", dataSchema.Name, err)
+				logging.Errorf("[%s] Error inserting to postgres table [%s]: %v", p.Name(), dataSchema.Name, err)
 				continue
 			}
 		}
@@ -140,7 +123,7 @@ func (p *Postgres) Store(fileName string, payload []byte) error {
 					tx.Rollback()
 					return err
 				} else {
-					log.Printf("Warn: unable to insert object %v reason: %v. This line will be skipped", object, err)
+					logging.Warnf("[%s] Unable to insert object %v reason: %v. This line will be skipped", p.Name(), object, err)
 				}
 			}
 		}
@@ -163,19 +146,13 @@ func (p *Postgres) insert(dataSchema *schema.Table, fact events.Fact) (err error
 	return p.adapter.Insert(dataSchema, fact)
 }
 
-//Close adapters.Postgres and queue
-func (p *Postgres) Close() (multiErr error) {
+//Close adapters.Postgres
+func (p *Postgres) Close() error {
 	if err := p.adapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing postgres datasource: %v", err))
+		return fmt.Errorf("[%s] Error closing postgres datasource: %v", p.Name(), err)
 	}
 
-	if p.eventQueue != nil {
-		if err := p.eventQueue.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing postgres event queue: %v", err))
-		}
-	}
-
-	return
+	return nil
 }
 
 func (p *Postgres) Name() string {
@@ -184,8 +161,4 @@ func (p *Postgres) Name() string {
 
 func (p *Postgres) Type() string {
 	return postgresStorageType
-}
-
-func logSkippedEvent(fact events.Fact, err error) {
-	log.Printf("Warn: unable to enqueue object %v reason: %v. This object will be skipped", fact, err)
 }

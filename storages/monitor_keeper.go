@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/coreos/etcd/clientv3"
 	"github.com/coreos/etcd/clientv3/concurrency"
+	"github.com/ksensehq/eventnative/logging"
 	"io"
-	"log"
 	"strconv"
 	"time"
 )
@@ -67,7 +67,7 @@ func (emk *EtcdMonitorKeeper) Unlock(lock Lock, closer io.Closer) error {
 	}
 	if closer != nil {
 		if closeError := closer.Close(); closeError != nil {
-			log.Println("Unlocked successfully but failed to close resource ", closeError)
+			logging.Error("Unlocked successfully but failed to close resource ", closeError)
 		}
 	}
 	return nil
@@ -104,7 +104,7 @@ func (emk *EtcdMonitorKeeper) IncrementVersion(destinationName string, tableName
 
 func NewMonitorKeeper(syncServiceType string, syncServiceEndpoint string, connectionTimeoutSeconds uint) (MonitorKeeper, error) {
 	if syncServiceType == "" || syncServiceEndpoint == "" {
-		log.Println("Using stub sync server as no configuration is provided")
+		logging.Warn("Using stub sync server as no configuration is provided")
 		return &DummyMonitorKeeper{}, nil
 	}
 	if syncServiceType == "etcd" {

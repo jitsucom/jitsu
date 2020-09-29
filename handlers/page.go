@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/ksensehq/eventnative/logging"
 	"html/template"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -33,7 +33,7 @@ func NewPageHandler(sourceDir, serverPublicUrl string, disableWelcomePage bool) 
 	}
 	payload, err := ioutil.ReadFile(sourceDir + welcomePageName)
 	if err != nil {
-		log.Printf("Error reading %s file: %v", sourceDir+welcomePageName, err)
+		logging.Errorf("Error reading %s file: %v", sourceDir+welcomePageName, err)
 		return
 	}
 
@@ -41,11 +41,11 @@ func NewPageHandler(sourceDir, serverPublicUrl string, disableWelcomePage bool) 
 		Option("missingkey=zero").
 		Parse(string(payload))
 	if err != nil {
-		log.Println("Error parsing html template from", welcomePageName, err)
+		logging.Error("Error parsing html template from", welcomePageName, err)
 		return
 	}
 
-	log.Println("Serve html file:", "/"+welcomePageName)
+	logging.Info("Serve html file:", "/"+welcomePageName)
 
 	ph.welcome = welcomeHtmlTmpl
 
@@ -75,7 +75,7 @@ func (ph *PageHandler) Handler(c *gin.Context) {
 		parameters := map[string]string{"DeployHost": host}
 		err := ph.welcome.Execute(c.Writer, parameters)
 		if err != nil {
-			log.Println("Error executing welcome.html template", err)
+			logging.Error("Error executing welcome.html template", err)
 		}
 	default:
 		c.AbortWithStatus(http.StatusNotFound)

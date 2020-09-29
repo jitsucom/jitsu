@@ -8,8 +8,8 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
-	"log"
 	"strings"
 	"time"
 )
@@ -29,18 +29,10 @@ type BigQuery struct {
 	breakOnError    bool
 }
 
-func NewBigQuery(ctx context.Context, name, fallbackDir string, config *adapters.GoogleConfig, processor *schema.Processor,
+func NewBigQuery(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.GoogleConfig, processor *schema.Processor,
 	breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*BigQuery, error) {
 	var gcsAdapter *adapters.GoogleCloudStorage
-	var eventQueue *events.PersistentQueue
-	if streamMode {
-		var err error
-		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
-		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
-		if err != nil {
-			return nil, err
-		}
-	} else {
+	if !streamMode {
 		var err error
 		gcsAdapter, err = adapters.NewGoogleCloudStorage(ctx, config)
 		if err != nil {
@@ -56,6 +48,10 @@ func NewBigQuery(ctx context.Context, name, fallbackDir string, config *adapters
 	//create dataset if doesn't exist
 	err = bigQueryAdapter.CreateDataset(config.Dataset)
 	if err != nil {
+		bigQueryAdapter.Close()
+		if gcsAdapter != nil {
+			gcsAdapter.Close()
+		}
 		return nil, err
 	}
 
@@ -71,9 +67,9 @@ func NewBigQuery(ctx context.Context, name, fallbackDir string, config *adapters
 		breakOnError:    breakOnError,
 	}
 	if streamMode {
-		bq.startStreamingConsumer()
+		bq.startStream()
 	} else {
-		bq.startBatchStorage()
+		bq.startBatch()
 	}
 
 	return bq, nil
@@ -82,7 +78,7 @@ func NewBigQuery(ctx context.Context, name, fallbackDir string, config *adapters
 //Run goroutine to:
 //1. read from queue
 //2. insert in BigQuery
-func (bq *BigQuery) startStreamingConsumer() {
+func (bq *BigQuery) startStream() {
 	go func() {
 		for {
 			if appstatus.Instance.Idle {
@@ -90,13 +86,13 @@ func (bq *BigQuery) startStreamingConsumer() {
 			}
 			fact, err := bq.eventQueue.DequeueBlock()
 			if err != nil {
-				log.Println("Error reading event fact from bigquery queue", err)
+				logging.Errorf("[%s] Error reading event fact from bigquery queue: %v", bq.Name(), err)
 				continue
 			}
 
 			dataSchema, flattenObject, err := bq.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				log.Printf("Unable to process object %v: %v", fact, err)
+				logging.Errorf("[%s] Unable to process object %v: %v", bq.Name(), fact, err)
 				continue
 			}
 
@@ -106,7 +102,7 @@ func (bq *BigQuery) startStreamingConsumer() {
 			}
 
 			if err := bq.insert(dataSchema, flattenObject); err != nil {
-				log.Printf("Error inserting to bigquery table [%s]: %v", dataSchema.Name, err)
+				logging.Errorf("[%s] Error inserting to bigquery table [%s]: %v", bq.Name(), dataSchema.Name, err)
 				continue
 			}
 		}
@@ -117,7 +113,7 @@ func (bq *BigQuery) startStreamingConsumer() {
 //1. get all files from google cloud storage
 //2. load them to BigQuery via google api
 //3. delete file from google cloud storage
-func (bq *BigQuery) startBatchStorage() {
+func (bq *BigQuery) startBatch() {
 	go func() {
 		for {
 			if appstatus.Instance.Idle {
@@ -128,7 +124,7 @@ func (bq *BigQuery) startBatchStorage() {
 
 			filesKeys, err := bq.gcsAdapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
-				log.Println("Error reading files from google cloud storage:", err)
+				logging.Errorf("[%s] Error reading files from google cloud storage: %v", bq.Name(), err)
 				continue
 			}
 
@@ -139,29 +135,22 @@ func (bq *BigQuery) startBatchStorage() {
 			for _, fileKey := range filesKeys {
 				names := strings.Split(fileKey, tableFileKeyDelimiter)
 				if len(names) != 2 {
-					log.Printf("Google cloud storage file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", fileKey, tableFileKeyDelimiter)
+					logging.Errorf("[%s] Google cloud storage file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", bq.Name(), fileKey, tableFileKeyDelimiter)
 					continue
 				}
 
 				if err := bq.bqAdapter.Copy(fileKey, names[1]); err != nil {
-					log.Printf("Error copying file [%s] from google cloud storage to BigQuery: %v", fileKey, err)
+					logging.Errorf("[%s] Error copying file [%s] from google cloud storage to BigQuery: %v", bq.Name(), fileKey, err)
 					continue
 				}
 
 				if err := bq.gcsAdapter.DeleteObject(fileKey); err != nil {
-					log.Println("System error: file", fileKey, "wasn't deleted from google cloud storage and will be inserted in db again", err)
+					logging.Errorf("[%s] System error: file %s wasn't deleted from google cloud storage and will be inserted in db again: %v", bq.Name(), fileKey, err)
 					continue
 				}
 			}
 		}
 	}()
-}
-
-//Consume events.Fact and enqueue it
-func (bq *BigQuery) Consume(fact events.Fact) {
-	if err := bq.eventQueue.Enqueue(fact); err != nil {
-		logSkippedEvent(fact, err)
-	}
 }
 
 //insert fact in BigQuery
@@ -216,16 +205,11 @@ func (bq *BigQuery) Type() string {
 
 func (bq *BigQuery) Close() (multiErr error) {
 	if err := bq.gcsAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, err)
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.Name(), err))
 	}
 	if err := bq.bqAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, err)
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing BigQuery client: %v", bq.Name(), err))
 	}
 
-	if bq.eventQueue != nil {
-		if err := bq.eventQueue.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing bigquery event queue: %v", err))
-		}
-	}
 	return
 }

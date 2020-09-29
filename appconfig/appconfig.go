@@ -7,7 +7,6 @@ import (
 	"github.com/ksensehq/eventnative/useragent"
 	"github.com/spf13/viper"
 	"io"
-	"log"
 )
 
 type AppConfig struct {
@@ -53,13 +52,13 @@ func Init() error {
 		return err
 	}
 
-	log.Println(" *** Creating new AppConfig *** ")
-	log.Println("Server Name:", serverName)
+	logging.Info("*** Creating new AppConfig ***")
+	logging.Info("Server Name:", serverName)
 	publicUrl := viper.GetString("server.public_url")
 	if publicUrl == "" {
-		log.Println("Server public url: will be taken from Host header")
+		logging.Warn("Server public url: will be taken from Host header")
 	} else {
-		log.Println("Server public url:", publicUrl)
+		logging.Info("Server public url:", publicUrl)
 	}
 
 	var appConfig AppConfig
@@ -73,7 +72,7 @@ func Init() error {
 
 	geoResolver, err := geo.CreateResolver(viper.GetString("geo.maxmind_path"))
 	if err != nil {
-		log.Println("Run without geo resolver", err)
+		logging.Warn("Run without geo resolver:", err)
 	}
 
 	authService, err := authorization.NewService()
@@ -96,7 +95,7 @@ func (a *AppConfig) ScheduleClosing(c io.Closer) {
 func (a *AppConfig) Close() {
 	for _, cl := range a.closeMe {
 		if err := cl.Close(); err != nil {
-			log.Println(err)
+			logging.Error(err)
 		}
 	}
 }

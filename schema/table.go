@@ -2,8 +2,8 @@ package schema
 
 import (
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/typing"
-	"log"
 )
 
 type TableNameExtractFunction func(map[string]interface{}) (string, error)
@@ -98,7 +98,7 @@ func (c Column) GetType() typing.DataType {
 	}
 
 	if len(types) == 0 {
-		log.Println("System error: Column typeOccurrence can't be empty")
+		logging.Error("System error: Column typeOccurrence can't be empty")
 		return typing.UNKNOWN
 	}
 

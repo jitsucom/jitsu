@@ -17,13 +17,13 @@ func NewWriter(config Config) (io.WriteCloser, error) {
 		return nil, fmt.Errorf("Error while creating %v logger: %v", config.LoggerName, err)
 	}
 	if config.FileDir != "" {
-		return newRollingWriter(config)
+		return newRollingWriter(config), nil
 	} else {
 		return os.Stdout, nil
 	}
 }
 
-func newRollingWriter(config Config) (io.WriteCloser, error) {
+func newRollingWriter(config Config) io.WriteCloser {
 	fileNamePath := filepath.Join(config.FileDir, fmt.Sprintf("%s-%s.log", config.ServerName, config.LoggerName))
 	lWriter := &lumberjack.Logger{
 		Filename: fileNamePath,
@@ -45,5 +45,5 @@ func newRollingWriter(config Config) (io.WriteCloser, error) {
 		}
 	}()
 
-	return lWriter, nil
+	return lWriter
 }

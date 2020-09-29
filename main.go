@@ -14,7 +14,6 @@ import (
 	"github.com/ksensehq/eventnative/middleware"
 	"github.com/ksensehq/eventnative/storages"
 	"github.com/ksensehq/eventnative/telemetry"
-	"log"
 	"math/rand"
 	"net/http"
 	"os"
@@ -56,7 +55,7 @@ func readInViperConfig() error {
 		if viper.ConfigFileUsed() != "" && !*containerizedRun {
 			return err
 		} else {
-			log.Println("Custom eventnative.yaml wasn't provided")
+			logging.Warn("Custom eventnative.yaml wasn't provided")
 		}
 	}
 	return nil
@@ -71,11 +70,11 @@ func main() {
 	time.Local = time.UTC
 
 	if err := readInViperConfig(); err != nil {
-		log.Fatal("Error while reading application config: ", err)
+		logging.Fatal("Error while reading application config: ", err)
 	}
 
 	if err := appconfig.Init(); err != nil {
-		log.Fatal(err)
+		logging.Fatal(err)
 	}
 
 	telemetry.Init(commit, tag, builtAt, viper.GetBool("server.telemetry.disabled.usage"))
@@ -102,29 +101,10 @@ func main() {
 		envJsonViper := viper.New()
 		envJsonViper.SetConfigType("json")
 		if err := envJsonViper.ReadConfig(bytes.NewBufferString(jsonConfig)); err != nil {
-			log.Println("Error reading/parsing json config from DESTINATIONS_JSON", err)
+			logging.Error("Error reading/parsing json config from DESTINATIONS_JSON", err)
 		} else {
 			destinationsViper = envJsonViper.Sub("destinations")
 		}
-	}
-
-	//Get event logger path
-	logEventPath := viper.GetString("log.path")
-
-	//logger consumers per token
-	loggingConsumers := map[string]events.Consumer{}
-	for token := range appconfig.Instance.AuthorizationService.GetAllTokens() {
-		eventLogWriter, err := logging.NewWriter(logging.Config{
-			LoggerName:  "event-" + token,
-			ServerName:  appconfig.Instance.ServerName,
-			FileDir:     logEventPath,
-			RotationMin: viper.GetInt64("log.rotation_min")})
-		if err != nil {
-			log.Fatal(err)
-		}
-		logger := events.NewAsyncLogger(eventLogWriter, viper.GetBool("log.show_in_server"))
-		loggingConsumers[token] = logger
-		appconfig.Instance.ScheduleClosing(logger)
 	}
 
 	syncServiceType := viper.GetString("synchronization_service.type")
@@ -132,54 +112,31 @@ func main() {
 	connectionTimeoutSeconds := viper.GetUint("synchronization_service.connection_timeout_seconds")
 	monitorKeeper, err := storages.NewMonitorKeeper(syncServiceType, syncServiceEndpoint, connectionTimeoutSeconds)
 	if err != nil {
-		log.Fatal("Failed to initiate monitor keeper ", err)
+		logging.Fatal("Failed to initiate monitor keeper ", err)
 	}
+
+	//Get event logger path
+	logEventPath := viper.GetString("log.path")
+
 	//Create event destinations:
-	//- batch mode (events.Storage)
-	//- stream mode (events.Consumer)
 	//per token
+	//storage
+	//consumer
 	batchStoragesByToken, streamingConsumersByToken := storages.Create(ctx, destinationsViper, logEventPath, monitorKeeper)
 
-	//Schedule storages resource releasing
-	for _, eStorages := range batchStoragesByToken {
-		for _, es := range eStorages {
-			appconfig.Instance.ScheduleClosing(es)
-		}
-	}
-	//Schedule consumers resource releasing
-	for _, eConsumers := range streamingConsumersByToken {
-		for _, ec := range eConsumers {
-			appconfig.Instance.ScheduleClosing(ec)
-		}
-	}
-
-	//merge logger consumers with storage consumers: Skip loggers which don't have batches storages (because we don't need to write log files for streaming storages)
-	for token, loggingConsumer := range loggingConsumers {
-		if _, ok := batchStoragesByToken[token]; !ok {
-			continue
-		}
-
-		consumers, ok := streamingConsumersByToken[token]
-		if !ok {
-			consumers = []events.Consumer{}
-		}
-		consumers = append(consumers, loggingConsumer)
-		streamingConsumersByToken[token] = consumers
-	}
+	destinationsService := events.NewDestinationService(streamingConsumersByToken, batchStoragesByToken)
 
 	//Uploader must read event logger directory
-	uploader, err := logfiles.NewUploader(logEventPath, appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, batchStoragesByToken)
+	uploader, err := logfiles.NewUploader(logEventPath, appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, destinationsService)
 	if err != nil {
-		log.Fatal("Error while creating file uploader", err)
+		logging.Fatal("Error while creating file uploader", err)
 	}
 	uploader.Start()
-
-	destinationsService := events.NewDestinationService(streamingConsumersByToken, batchStoragesByToken)
 
 	router := SetupRouter(destinationsService)
 
 	telemetry.ServerStart()
-	log.Println("Started server: " + appconfig.Instance.Authority)
+	logging.Info("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
 		Handler:           middleware.Cors(router),
@@ -187,7 +144,7 @@ func main() {
 		ReadHeaderTimeout: time.Second * 60,
 		IdleTimeout:       time.Second * 65,
 	}
-	log.Fatal(server.ListenAndServe())
+	logging.Fatal(server.ListenAndServe())
 }
 
 func SetupRouter(destinations *events.DestinationService) *gin.Engine {
