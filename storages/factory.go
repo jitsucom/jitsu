@@ -19,6 +19,8 @@ const (
 	streamMode = "stream"
 )
 
+var unknownDestination = errors.New("Unknown destination type")
+
 type DestinationConfig struct {
 	OnlyTokens   []string    `mapstructure:"only_tokens"`
 	Type         string      `mapstructure:"type"`
@@ -38,21 +40,31 @@ type DataLayout struct {
 	TableNameTemplate string   `mapstructure:"table_name_template"`
 }
 
-var unknownDestination = errors.New("Unknown destination type")
+type Config struct {
+	ctx           context.Context
+	name          string
+	destination   *DestinationConfig
+	processor     *schema.Processor
+	streamMode    bool
+	monitorKeeper MonitorKeeper
+	eventQueue    *events.PersistentQueue
+}
 
-//Create event storages(batch) and consumers(stream) from incoming config
+//Create event storage proxies and event consumers (loggers or event-queues) from incoming config
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, destinations *viper.Viper, logEventPath string, monitorKeeper MonitorKeeper) (map[string][]events.Storage, map[string][]events.Consumer) {
-	stores := map[string][]events.Storage{}
+func Create(ctx context.Context, destinations *viper.Viper, logEventPath string, monitorKeeper MonitorKeeper) (map[string][]events.StorageProxy, map[string][]events.Consumer) {
+	storageProxies := map[string][]events.StorageProxy{}
 	consumers := map[string][]events.Consumer{}
+	loggers := map[string]events.Consumer{}
+
 	if destinations == nil {
-		return stores, consumers
+		return storageProxies, consumers
 	}
 
 	dc := map[string]DestinationConfig{}
 	if err := destinations.Unmarshal(&dc); err != nil {
 		logging.Error("Error initializing destinations: wrong config format: each destination must contains one key and config as a value e.g. destinations:\n  custom_name:\n      type: redshift ...", err)
-		return stores, consumers
+		return storageProxies, consumers
 	}
 
 	for name, destination := range dc {
@@ -62,15 +74,9 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 		if destination.Mode == "" {
 			destination.Mode = batchMode
 		}
-		logging.Info("Initializing", name, "destination of type:", destination.Type, "in mode:", destination.Mode)
-
-		if destination.Mode != batchMode && destination.Mode != streamMode {
-			logError(name, destination.Type, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, batchMode, streamMode))
-			continue
-		}
 
 		var mapping []string
-		tableName := defaultTableName
+		var tableName string
 		if destination.DataLayout != nil {
 			mapping = destination.DataLayout.Mapping
 
@@ -79,112 +85,147 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 			}
 		}
 
+		logging.Infof("[%s] Initializing destination of type: %s in mode: %s", name, destination.Type, destination.Mode)
+
+		if tableName == "" {
+			tableName = defaultTableName
+			logging.Infof("[%s] uses default table name: %s", name, tableName)
+		}
+
+		if len(mapping) == 0 {
+			logging.Warnf("[%s] doesn't have mapping rules", name)
+		} else {
+			logging.Infof("[%s] Configured field mapping rules:", name)
+			for _, m := range mapping {
+				logging.Infof("[%s] %s", name, m)
+			}
+		}
+
+		if destination.Mode != batchMode && destination.Mode != streamMode {
+			logError(name, destination.Type, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, batchMode, streamMode))
+			continue
+		}
+
 		processor, err := schema.NewProcessor(tableName, mapping)
 		if err != nil {
 			logError(name, destination.Type, err)
 			continue
 		}
 
-		var storage events.Storage
-		var consumer events.Consumer
-		switch destination.Type {
-		case "redshift":
-			if destination.Mode == streamMode {
-				consumer, err = createRedshift(ctx, name, logEventPath, &destination, processor, true, monitorKeeper)
-			} else {
-				storage, err = createRedshift(ctx, name, logEventPath, &destination, processor, false, monitorKeeper)
+		var eventQueue *events.PersistentQueue
+		if destination.Mode == streamMode {
+			queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
+			eventQueue, err = events.NewPersistentQueue(queueName, logEventPath)
+			if err != nil {
+				logError(name, destination.Type, err)
+				continue
 			}
-		case "bigquery":
-			if destination.Mode == streamMode {
-				consumer, err = createBigQuery(ctx, name, logEventPath, &destination, processor, true, monitorKeeper)
-			} else {
-				storage, err = createBigQuery(ctx, name, logEventPath, &destination, processor, false, monitorKeeper)
-			}
-		case "postgres":
-			if destination.Mode == streamMode {
-				consumer, err = createPostgres(ctx, name, logEventPath, &destination, processor, true, monitorKeeper)
-			} else {
-				storage, err = createPostgres(ctx, name, logEventPath, &destination, processor, false, monitorKeeper)
-			}
-		case "clickhouse":
-			if destination.Mode == streamMode {
-				consumer, err = createClickHouse(ctx, name, logEventPath, &destination, processor, true, monitorKeeper)
-			} else {
-				storage, err = createClickHouse(ctx, name, logEventPath, &destination, processor, false, monitorKeeper)
-			}
-		case "s3":
-			if destination.Mode == streamMode {
-				err = fmt.Errorf("S3 destination doesn't support %s mode", streamMode)
-			} else {
-				storage, err = createS3(name, &destination, processor)
-			}
-		case "snowflake":
-			if destination.Mode == streamMode {
-				consumer, err = createSnowflake(ctx, name, logEventPath, &destination, processor, true, monitorKeeper)
-			} else {
-				storage, err = createSnowflake(ctx, name, logEventPath, &destination, processor, false, monitorKeeper)
-			}
-		default:
-			err = unknownDestination
+
+			appconfig.Instance.ScheduleClosing(eventQueue)
 		}
 
-		if err != nil {
-			logError(name, destination.Type, err)
+		storageConfig := &Config{
+			ctx:           ctx,
+			name:          name,
+			destination:   &destination,
+			processor:     processor,
+			streamMode:    destination.Mode == streamMode,
+			monitorKeeper: monitorKeeper,
+			eventQueue:    eventQueue,
+		}
+
+		var storageProxy events.StorageProxy
+		switch destination.Type {
+		case "redshift":
+			storageProxy = newProxy(createRedshift, storageConfig)
+		case "bigquery":
+			storageProxy = newProxy(createBigQuery, storageConfig)
+		case "postgres":
+			storageProxy = newProxy(createPostgres, storageConfig)
+		case "clickhouse":
+			storageProxy = newProxy(createClickHouse, storageConfig)
+		case "s3":
+			storageProxy = newProxy(createS3, storageConfig)
+		case "snowflake":
+			storageProxy = newProxy(createSnowflake, storageConfig)
+		default:
+			logError(name, destination.Type, unknownDestination)
 			continue
 		}
 
+		appconfig.Instance.ScheduleClosing(storageProxy)
+
 		tokens := destination.OnlyTokens
 		if len(tokens) == 0 {
-			logging.Warnf("only_tokens wasn't provided. All tokens will be stored in %s %s destination", name, destination.Type)
+			logging.Warnf("[%s] only_tokens wasn't provided. All tokens will be stored.", name)
 			for token := range appconfig.Instance.AuthorizationService.GetAllTokens() {
 				tokens = append(tokens, token)
 			}
 		}
 
+		//append:
+		//storage per token
+		//consumer(event queue or logger) per token
 		for _, token := range tokens {
-			if storage != nil {
-				stores[token] = append(stores[token], storage)
+			if storageConfig.streamMode {
+				consumers[token] = append(consumers[token], eventQueue)
+			} else {
+				logger, ok := loggers[token]
+				if !ok {
+					eventLogWriter, err := logging.NewWriter(logging.Config{
+						LoggerName:  "event-" + token,
+						ServerName:  appconfig.Instance.ServerName,
+						FileDir:     logEventPath,
+						RotationMin: viper.GetInt64("log.rotation_min")})
+					if err != nil {
+						appconfig.Instance.Close()
+						logging.Fatal(err)
+					}
+					logger = events.NewAsyncLogger(eventLogWriter, viper.GetBool("log.show_in_server"))
+					loggers[token] = logger
+					appconfig.Instance.ScheduleClosing(logger)
+				}
+				consumers[token] = append(consumers[token], logger)
 			}
-			if consumer != nil {
-				consumers[token] = append(consumers[token], consumer)
-			}
+
+			storageProxies[token] = append(storageProxies[token], storageProxy)
 		}
 
 	}
-	return stores, consumers
+	return storageProxies, consumers
 }
 
 func logError(destinationName, destinationType string, err error) {
-	logging.Errorf("Error initializing %s destination of type %s: %v", destinationName, destinationType, err)
+	logging.Errorf("[%s] Error initializing destination of type %s: %v", destinationName, destinationType, err)
 }
 
 //Create aws Redshift destination
-func createRedshift(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool, keeper MonitorKeeper) (*AwsRedshift, error) {
-	redshiftConfig := destination.DataSource
+func createRedshift(config *Config) (events.Storage, error) {
+	redshiftConfig := config.destination.DataSource
 	if err := redshiftConfig.Validate(); err != nil {
 		return nil, err
 	}
 	//enrich with default parameters
 	if redshiftConfig.Port <= 0 {
 		redshiftConfig.Port = 5439
-		logging.Errorf("name: %s type: redshift port wasn't provided. Will be used default one: %d", name, redshiftConfig.Port)
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.name, redshiftConfig.Port)
 	}
 	if redshiftConfig.Schema == "" {
 		redshiftConfig.Schema = "public"
-		logging.Errorf("name: %s type: redshift schema wasn't provided. Will be used default one: %s", name, redshiftConfig.Schema)
+		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.name, redshiftConfig.Schema)
 	}
 	//default connect timeout seconds
 	if _, ok := redshiftConfig.Parameters["connect_timeout"]; !ok {
 		redshiftConfig.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewAwsRedshift(ctx, name, logEventPath, destination.S3, redshiftConfig, processor, destination.BreakOnError, streamMode, keeper)
+	return NewAwsRedshift(config.ctx, config.name, config.eventQueue, config.destination.S3, redshiftConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
 }
 
 //Create google BigQuery destination
-func createBigQuery(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool, keeper MonitorKeeper) (*BigQuery, error) {
-	gConfig := destination.Google
-	if err := gConfig.Validate(streamMode); err != nil {
+func createBigQuery(config *Config) (events.Storage, error) {
+	gConfig := config.destination.Google
+	if err := gConfig.Validate(config.streamMode); err != nil {
 		return nil, err
 	}
 
@@ -195,64 +236,70 @@ func createBigQuery(ctx context.Context, name, logEventPath string, destination 
 	//enrich with default parameters
 	if gConfig.Dataset == "" {
 		gConfig.Dataset = "default"
-		logging.Errorf("name: %s type: bigquery dataset wasn't provided. Will be used default one: %s", name, gConfig.Dataset)
+		logging.Warnf("[%s] dataset wasn't provided. Will be used default one: %s", config.name, gConfig.Dataset)
 	}
 
-	return NewBigQuery(ctx, name, logEventPath, gConfig, processor, destination.BreakOnError, streamMode, keeper)
+	return NewBigQuery(config.ctx, config.name, config.eventQueue, gConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
 }
 
 //Create Postgres destination
-func createPostgres(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool, monitorKeeper MonitorKeeper) (*Postgres, error) {
-	config := destination.DataSource
-	if err := config.Validate(); err != nil {
+func createPostgres(config *Config) (events.Storage, error) {
+	pgConfig := config.destination.DataSource
+	if err := pgConfig.Validate(); err != nil {
 		return nil, err
 	}
 	//enrich with default parameters
-	if config.Port <= 0 {
-		config.Port = 5432
-		logging.Errorf("name: %s type: postgres port wasn't provided. Will be used default one: %d", name, config.Port)
+	if pgConfig.Port <= 0 {
+		pgConfig.Port = 5432
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.name, pgConfig.Port)
 	}
-	if config.Schema == "" {
-		config.Schema = "public"
-		logging.Errorf("name: %s type: postgres schema wasn't provided. Will be used default one: %s", name, config.Schema)
+	if pgConfig.Schema == "" {
+		pgConfig.Schema = "public"
+		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.name, pgConfig.Schema)
 	}
 	//default connect timeout seconds
-	if _, ok := config.Parameters["connect_timeout"]; !ok {
-		config.Parameters["connect_timeout"] = "600"
+	if _, ok := pgConfig.Parameters["connect_timeout"]; !ok {
+		pgConfig.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewPostgres(ctx, config, processor, logEventPath, name, destination.BreakOnError, streamMode, monitorKeeper)
+	return NewPostgres(config.ctx, pgConfig, config.processor, config.eventQueue, config.name, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
 }
 
 //Create ClickHouse destination
-func createClickHouse(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool, keeper MonitorKeeper) (*ClickHouse, error) {
-	config := destination.ClickHouse
-	if err := config.Validate(); err != nil {
+func createClickHouse(config *Config) (events.Storage, error) {
+	chConfig := config.destination.ClickHouse
+	if err := chConfig.Validate(); err != nil {
 		return nil, err
 	}
 
-	return NewClickHouse(ctx, name, logEventPath, config, processor, destination.BreakOnError, streamMode, keeper)
+	return NewClickHouse(config.ctx, config.name, config.eventQueue, chConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
 }
 
 //Create s3 destination
-func createS3(name string, destination *DestinationConfig, processor *schema.Processor) (*S3, error) {
-	s3Config := destination.S3
+func createS3(config *Config) (events.Storage, error) {
+	if config.streamMode {
+		if config.eventQueue != nil {
+			config.eventQueue.Close()
+		}
+		return nil, fmt.Errorf("S3 destination doesn't support %s mode", config.name, streamMode)
+	}
+	s3Config := config.destination.S3
 	if err := s3Config.Validate(); err != nil {
 		return nil, err
 	}
 
-	return NewS3(name, s3Config, processor, destination.BreakOnError)
+	return NewS3(config.name, s3Config, config.processor, config.destination.BreakOnError)
 }
 
 //Create Snowflake destination
-func createSnowflake(ctx context.Context, name, logEventPath string, destination *DestinationConfig, processor *schema.Processor, streamMode bool, keeper MonitorKeeper) (*Snowflake, error) {
-	snowflakeConfig := destination.Snowflake
+func createSnowflake(config *Config) (events.Storage, error) {
+	snowflakeConfig := config.destination.Snowflake
 	if err := snowflakeConfig.Validate(); err != nil {
 		return nil, err
 	}
 	if snowflakeConfig.Schema == "" {
 		snowflakeConfig.Schema = "PUBLIC"
-		logging.Errorf("name: %s type: snowflake schema wasn't provided. Will be used default one: %s", name, snowflakeConfig.Schema)
+		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.name, snowflakeConfig.Schema)
 	}
 
 	//default client_session_keep_alive
@@ -261,8 +308,8 @@ func createSnowflake(ctx context.Context, name, logEventPath string, destination
 		snowflakeConfig.Parameters["client_session_keep_alive"] = &t
 	}
 
-	if destination.Google != nil {
-		if err := destination.Google.Validate(streamMode); err != nil {
+	if config.destination.Google != nil {
+		if err := config.destination.Google.Validate(config.streamMode); err != nil {
 			return nil, err
 		}
 		//stage is required when gcp integration
@@ -271,5 +318,5 @@ func createSnowflake(ctx context.Context, name, logEventPath string, destination
 		}
 	}
 
-	return NewSnowflake(ctx, name, logEventPath, destination.S3, destination.Google, snowflakeConfig, processor, destination.BreakOnError, streamMode, keeper)
+	return NewSnowflake(config.ctx, config.name, config.eventQueue, config.destination.S3, config.destination.Google, snowflakeConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
 }

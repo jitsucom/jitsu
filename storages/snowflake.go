@@ -31,18 +31,10 @@ type Snowflake struct {
 }
 
 //NewSnowflake return Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
-func NewSnowflake(ctx context.Context, name, fallbackDir string, s3Config *adapters.S3Config, gcpConfig *adapters.GoogleConfig,
+func NewSnowflake(ctx context.Context, name string, eventQueue *events.PersistentQueue, s3Config *adapters.S3Config, gcpConfig *adapters.GoogleConfig,
 	snowflakeConfig *adapters.SnowflakeConfig, processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*Snowflake, error) {
 	var stageAdapter adapters.Stage
-	var eventQueue *events.PersistentQueue
-	if streamMode {
-		var err error
-		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
-		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
-		if err != nil {
-			return nil, err
-		}
-	} else {
+	if !streamMode {
 		var err error
 		if s3Config != nil {
 			stageAdapter, err = adapters.NewS3(s3Config)
@@ -59,6 +51,9 @@ func NewSnowflake(ctx context.Context, name, fallbackDir string, s3Config *adapt
 
 	snowflakeAdapter, err := CreateSnowflakeAdapter(ctx, s3Config, *snowflakeConfig)
 	if err != nil {
+		if stageAdapter != nil {
+			stageAdapter.Close()
+		}
 		return nil, err
 	}
 
@@ -75,9 +70,9 @@ func NewSnowflake(ctx context.Context, name, fallbackDir string, s3Config *adapt
 	}
 
 	if streamMode {
-		ar.startStreamingConsumer()
+		ar.startStream()
 	} else {
-		ar.startBatchStorage()
+		ar.startBatch()
 	}
 
 	return ar, nil
@@ -120,7 +115,7 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 //Run goroutine to:
 //1. read from queue
 //2. insert in Snowflake
-func (s *Snowflake) startStreamingConsumer() {
+func (s *Snowflake) startStream() {
 	go func() {
 		for {
 			if appstatus.Instance.Idle {
@@ -128,13 +123,13 @@ func (s *Snowflake) startStreamingConsumer() {
 			}
 			fact, err := s.eventQueue.DequeueBlock()
 			if err != nil {
-				logging.Error("Error reading event fact from snowflake queue", err)
+				logging.Errorf("[%s] Error reading event fact from snowflake queue: %v", s.Name(), err)
 				continue
 			}
 
 			dataSchema, flattenObject, err := s.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				logging.Errorf("Unable to process object %v: %v", fact, err)
+				logging.Errorf("[%s] Unable to process object %v: %v", s.Name(), fact, err)
 				continue
 			}
 
@@ -144,7 +139,7 @@ func (s *Snowflake) startStreamingConsumer() {
 			}
 
 			if err := s.insert(dataSchema, flattenObject); err != nil {
-				logging.Errorf("Error inserting to snowflake table [%s]: %v", dataSchema.Name, err)
+				logging.Errorf("[%s] Error inserting to snowflake table [%s]: %v", s.Name(), dataSchema.Name, err)
 				continue
 			}
 		}
@@ -155,7 +150,7 @@ func (s *Snowflake) startStreamingConsumer() {
 //1. get all files from stage (aws s3 or gcp)
 //2. load them to Snowflake via Copy request
 //3. delete file from stage
-func (s *Snowflake) startBatchStorage() {
+func (s *Snowflake) startBatch() {
 	go func() {
 		for {
 			if appstatus.Instance.Idle {
@@ -166,7 +161,7 @@ func (s *Snowflake) startBatchStorage() {
 
 			filesKeys, err := s.stageAdapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
-				logging.Error("Error reading files from stage", err)
+				logging.Errorf("[%s] Error reading files from stage: %v", s.Name(), err)
 				continue
 			}
 
@@ -177,35 +172,35 @@ func (s *Snowflake) startBatchStorage() {
 			for _, fileKey := range filesKeys {
 				names := strings.Split(fileKey, tableFileKeyDelimiter)
 				if len(names) != 2 {
-					logging.Errorf("S3 file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", fileKey, tableFileKeyDelimiter)
+					logging.Errorf("[%s] S3 file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", s.Name(), fileKey, tableFileKeyDelimiter)
 					continue
 				}
 
 				payload, err := s.stageAdapter.GetObject(fileKey)
 				if err != nil {
-					logging.Errorf("Error getting file %s from stage in Snowflake storage: %v", fileKey, err)
+					logging.Errorf("[%s] Error getting file %s from stage in Snowflake storage: %v", s.Name(), fileKey, err)
 					continue
 				}
 
 				lines := strings.Split(string(payload), "\n")
 				if len(lines) == 0 {
-					logging.Errorf("Error reading stage file %s payload in Snowflake storage: empty file", fileKey)
+					logging.Errorf("[%s] Error reading stage file %s payload in Snowflake storage: empty file", s.Name(), fileKey)
 					continue
 				}
 				header := lines[0]
 				if header == "" {
-					logging.Errorf("Error reading stage file %s header in Snowflake storage: %v", fileKey, err)
+					logging.Errorf("[%s] Error reading stage file %s header in Snowflake storage: %v", s.Name(), fileKey, err)
 					continue
 				}
 
 				wrappedTx, err := s.snowflakeAdapter.OpenTx()
 				if err != nil {
-					logging.Error("Error creating snowflake transaction", err)
+					logging.Errorf("[%s] Error creating snowflake transaction: %v", s.Name(), err)
 					continue
 				}
 
 				if err := s.snowflakeAdapter.Copy(wrappedTx, fileKey, header, names[1]); err != nil {
-					logging.Errorf("Error copying file [%s] from stage to snowflake: %v", fileKey, err)
+					logging.Errorf("[%s] Error copying file [%s] from stage to snowflake: %v", s.Name(), fileKey, err)
 					wrappedTx.Rollback()
 					continue
 				}
@@ -213,20 +208,13 @@ func (s *Snowflake) startBatchStorage() {
 				wrappedTx.Commit()
 
 				if err := s.stageAdapter.DeleteObject(fileKey); err != nil {
-					logging.Error("System error: file", fileKey, "wasn't deleted from stage and will be inserted in db again", err)
+					logging.Errorf("[%s] System error: file %s wasn't deleted from stage and will be inserted in db again: %v", s.Name(), fileKey, err)
 					continue
 				}
 
 			}
 		}
 	}()
-}
-
-//Consume events.Fact and enqueue it
-func (s *Snowflake) Consume(fact events.Fact) {
-	if err := s.eventQueue.Enqueue(fact); err != nil {
-		logSkippedEvent(fact, err)
-	}
 }
 
 //insert fact in Snowflake
@@ -281,17 +269,11 @@ func (s *Snowflake) Type() string {
 
 func (s *Snowflake) Close() (multiErr error) {
 	if err := s.snowflakeAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing snowflake datasource: %v", err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake datasource: %v", s.Name(), err))
 	}
 
 	if err := s.stageAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing snowflake stage: %v", err))
-	}
-
-	if s.eventQueue != nil {
-		if err := s.eventQueue.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing snowflake queue: %v", err))
-		}
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake stage: %v", s.Name(), err))
 	}
 
 	return

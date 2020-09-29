@@ -179,11 +179,7 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
 }
 
 func (bq *BigQuery) Close() error {
-	if err := bq.client.Close(); err != nil {
-		return fmt.Errorf("Error closing BigQuery client: %v", err)
-	}
-
-	return nil
+	return bq.client.Close()
 }
 
 //Return true if google err is 404

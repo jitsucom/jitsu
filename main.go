@@ -107,25 +107,6 @@ func main() {
 		}
 	}
 
-	//Get event logger path
-	logEventPath := viper.GetString("log.path")
-
-	//logger consumers per token
-	loggingConsumers := map[string]events.Consumer{}
-	for token := range appconfig.Instance.AuthorizationService.GetAllTokens() {
-		eventLogWriter, err := logging.NewWriter(logging.Config{
-			LoggerName:  "event-" + token,
-			ServerName:  appconfig.Instance.ServerName,
-			FileDir:     logEventPath,
-			RotationMin: viper.GetInt64("log.rotation_min")})
-		if err != nil {
-			logging.Fatal(err)
-		}
-		logger := events.NewAsyncLogger(eventLogWriter, viper.GetBool("log.show_in_server"))
-		loggingConsumers[token] = logger
-		appconfig.Instance.ScheduleClosing(logger)
-	}
-
 	syncServiceType := viper.GetString("synchronization_service.type")
 	syncServiceEndpoint := viper.GetString("synchronization_service.endpoint")
 	connectionTimeoutSeconds := viper.GetUint("synchronization_service.connection_timeout_seconds")
@@ -133,47 +114,24 @@ func main() {
 	if err != nil {
 		logging.Fatal("Failed to initiate monitor keeper ", err)
 	}
+
+	//Get event logger path
+	logEventPath := viper.GetString("log.path")
+
 	//Create event destinations:
-	//- batch mode (events.Storage)
-	//- stream mode (events.Consumer)
 	//per token
+	//storage
+	//consumer
 	batchStoragesByToken, streamingConsumersByToken := storages.Create(ctx, destinationsViper, logEventPath, monitorKeeper)
 
-	//Schedule storages resource releasing
-	for _, eStorages := range batchStoragesByToken {
-		for _, es := range eStorages {
-			appconfig.Instance.ScheduleClosing(es)
-		}
-	}
-	//Schedule consumers resource releasing
-	for _, eConsumers := range streamingConsumersByToken {
-		for _, ec := range eConsumers {
-			appconfig.Instance.ScheduleClosing(ec)
-		}
-	}
-
-	//merge logger consumers with storage consumers: Skip loggers which don't have batches storages (because we don't need to write log files for streaming storages)
-	for token, loggingConsumer := range loggingConsumers {
-		if _, ok := batchStoragesByToken[token]; !ok {
-			continue
-		}
-
-		consumers, ok := streamingConsumersByToken[token]
-		if !ok {
-			consumers = []events.Consumer{}
-		}
-		consumers = append(consumers, loggingConsumer)
-		streamingConsumersByToken[token] = consumers
-	}
+	destinationsService := events.NewDestinationService(streamingConsumersByToken, batchStoragesByToken)
 
 	//Uploader must read event logger directory
-	uploader, err := logfiles.NewUploader(logEventPath, appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, batchStoragesByToken)
+	uploader, err := logfiles.NewUploader(logEventPath, appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, destinationsService)
 	if err != nil {
 		logging.Fatal("Error while creating file uploader", err)
 	}
 	uploader.Start()
-
-	destinationsService := events.NewDestinationService(streamingConsumersByToken, batchStoragesByToken)
 
 	router := SetupRouter(destinationsService)
 
