@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"io"
-	"log"
 )
 
 //AsyncLogger write json logs to file system in different goroutine
@@ -37,20 +37,20 @@ func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) Consumer {
 			fact := <-logger.logCh
 			bts, err := json.Marshal(fact)
 			if err != nil {
-				log.Printf("Error marshaling event to json: %v", err)
+				logging.Errorf("Error marshaling event to json: %v", err)
 				continue
 			}
 
 			if logger.showInGlobalLogger {
 				prettyJsonBytes, _ := json.MarshalIndent(&fact, " ", " ")
-				log.Println(string(prettyJsonBytes))
+				logging.Info(string(prettyJsonBytes))
 			}
 
 			buf := bytes.NewBuffer(bts)
 			buf.Write([]byte("\n"))
 
 			if _, err := logger.writer.Write(buf.Bytes()); err != nil {
-				log.Printf("Error writing event to log file: %v", err)
+				logging.Errorf("Error writing event to log file: %v", err)
 				continue
 			}
 		}

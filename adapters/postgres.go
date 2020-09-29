@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 	"github.com/ksensehq/eventnative/typing"
 	_ "github.com/lib/pq"
-	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -171,7 +171,7 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 		}
 		mappedType, ok := postgresToSchema[strings.ToLower(columnPostgresType)]
 		if !ok {
-			log.Println("Unknown postgres column type:", columnPostgresType)
+			logging.Error("Unknown postgres column type:", columnPostgresType)
 			mappedType = typing.STRING
 		}
 		table.Columns[columnName] = schema.NewColumn(mappedType)
@@ -188,7 +188,7 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema 
 	for columnName, column := range tableSchema.Columns {
 		mappedType, ok := schemaToPostgres[column.GetType()]
 		if !ok {
-			log.Println("Unknown postgres schema type:", column.GetType())
+			logging.Error("Unknown postgres schema type:", column.GetType())
 			mappedType = schemaToPostgres[typing.STRING]
 		}
 		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, columnName, mappedType))
@@ -215,7 +215,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 	for columnName, column := range patchSchema.Columns {
 		mappedColumnType, ok := schemaToPostgres[column.GetType()]
 		if !ok {
-			log.Println("Unknown postgres schema type:", column.GetType().String())
+			logging.Error("Unknown postgres schema type:", column.GetType().String())
 			mappedColumnType = schemaToPostgres[typing.STRING]
 		}
 		alterStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(addColumnTemplate, p.config.Schema, patchSchema.Name, columnName, mappedColumnType))
@@ -315,7 +315,7 @@ type Transaction struct {
 
 func (t *Transaction) Commit() {
 	if err := t.tx.Commit(); err != nil {
-		log.Printf("System error: unable to commit %s transaction: %v", t.dbType, err)
+		logging.Errorf("System error: unable to commit %s transaction: %v", t.dbType, err)
 	}
 }
 
@@ -329,7 +329,7 @@ func (t *Transaction) DirectCommit() error {
 
 func (t *Transaction) Rollback() {
 	if err := t.tx.Rollback(); err != nil {
-		log.Printf("System error: unable to rollback %s transaction: %v", t.dbType, err)
+		logging.Errorf("System error: unable to rollback %s transaction: %v", t.dbType, err)
 	}
 }
 

@@ -124,7 +124,7 @@ func TestApiEvent(t *testing.T) {
 				log.Fatal(server.ListenAndServe())
 			}()
 
-			log.Println("Started listen and serve " + httpAuthority)
+			logging.Info("Started listen and serve " + httpAuthority)
 
 			//check ping endpoint
 			resp, err := test.RenewGet("http://" + httpAuthority + "/ping")
