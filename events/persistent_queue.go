@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/joncrlsn/dque"
+	"github.com/ksensehq/eventnative/logging"
 )
 
 const eventsPerPersistedFile = 2000
@@ -32,15 +33,16 @@ func NewPersistentQueue(queueName, fallbackDir string) (*PersistentQueue, error)
 	return &PersistentQueue{queue: queue}, nil
 }
 
-func (pq *PersistentQueue) Enqueue(f Fact) error {
+func (pq *PersistentQueue) Consume(f Fact) {
 	factBytes, err := json.Marshal(f)
 	if err != nil {
-		return fmt.Errorf("Error marshalling events fact: %v", err)
+		logSkippedEvent(f, fmt.Errorf("Error marshalling events fact: %v", err))
+		return
 	}
 	if err := pq.queue.Enqueue(QueuedFact{FactBytes: factBytes}); err != nil {
-		return fmt.Errorf("Error putting event fact bytes to the persistent queue: %v", err)
+		logSkippedEvent(f, fmt.Errorf("Error putting event fact bytes to the persistent queue: %v", err))
+		return
 	}
-	return nil
 }
 
 func (pq *PersistentQueue) DequeueBlock() (Fact, error) {
@@ -64,4 +66,8 @@ func (pq *PersistentQueue) DequeueBlock() (Fact, error) {
 
 func (pq *PersistentQueue) Close() error {
 	return pq.queue.Close()
+}
+
+func logSkippedEvent(fact Fact, err error) {
+	logging.Warnf("Unable to enqueue object %v reason: %v. This object will be skipped", fact, err)
 }

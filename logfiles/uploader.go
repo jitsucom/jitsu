@@ -16,10 +16,6 @@ import (
 //regex for reading already rotated and closed log files
 var tokenExtractRegexp = regexp.MustCompile("-event-(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
-type Uploader interface {
-	Start()
-}
-
 //PeriodicUploader read already rotated and closed log files
 //Pass them to storages according to tokens
 //Keep uploading log file with result statuses
@@ -29,31 +25,22 @@ type PeriodicUploader struct {
 	filesBatchSize int
 	uploadEvery    time.Duration
 
-	statusManager          *statusManager
-	tokenizedEventStorages map[string][]events.Storage
+	statusManager      *statusManager
+	destinationService *events.DestinationService
 }
 
-type DummyUploader struct{}
-
-func (*DummyUploader) Start() {
-}
-
-func NewUploader(logEventPath, fileMask string, filesBatchSize, uploadEveryS int, tokenizedEventStorages map[string][]events.Storage) (Uploader, error) {
-	if len(tokenizedEventStorages) == 0 {
-		return &DummyUploader{}, nil
-	}
-
+func NewUploader(logEventPath, fileMask string, filesBatchSize, uploadEveryS int, destinationService *events.DestinationService) (*PeriodicUploader, error) {
 	statusManager, err := newStatusManager(logEventPath)
 	if err != nil {
 		return nil, err
 	}
 	return &PeriodicUploader{
-		logEventPath:           logEventPath,
-		fileMask:               path.Join(logEventPath, fileMask),
-		filesBatchSize:         filesBatchSize,
-		uploadEvery:            time.Duration(uploadEveryS) * time.Second,
-		statusManager:          statusManager,
-		tokenizedEventStorages: tokenizedEventStorages,
+		logEventPath:       logEventPath,
+		fileMask:           path.Join(logEventPath, fileMask),
+		filesBatchSize:     filesBatchSize,
+		uploadEvery:        time.Duration(uploadEveryS) * time.Second,
+		statusManager:      statusManager,
+		destinationService: destinationService,
 	}, nil
 }
 
@@ -97,20 +84,25 @@ func (u *PeriodicUploader) Start() {
 				}
 
 				token := regexResult[1]
-				eventStorages, ok := u.tokenizedEventStorages[token]
-				if !ok {
+				storageProxies := u.destinationService.GetStorages(token)
+				if len(storageProxies) == 0 {
 					logging.Warnf("Destination storages weren't found for token %s", token)
 					continue
 				}
 
 				//flag for deleting file if all storages don't have errors while storing this file
 				deleteFile := true
-				for _, storage := range eventStorages {
+				for _, storageProxy := range storageProxies {
+					storage, ok := storageProxy.Get()
+					if !ok {
+						deleteFile = false
+						continue
+					}
 					if !u.statusManager.isUploaded(fileName, storage.Name()) {
 						err := storage.Store(fileName, b)
 						if err != nil {
 							deleteFile = false
-							logging.Error("Error store file", filePath, "in", storage.Name(), "destination:", err)
+							logging.Errorf("[%s] Error storing file %s in destination: %v", storage.Name(), filePath, err)
 						}
 						u.statusManager.updateStatus(fileName, storage.Name(), err)
 					}

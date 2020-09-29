@@ -6,10 +6,10 @@ import "sync"
 type DestinationService struct {
 	sync.RWMutex
 	consumersByToken map[string][]Consumer
-	storagesByToken  map[string][]Storage
+	storagesByToken  map[string][]StorageProxy
 }
 
-func NewDestinationService(consumersByToken map[string][]Consumer, storagesByToken map[string][]Storage) *DestinationService {
+func NewDestinationService(consumersByToken map[string][]Consumer, storagesByToken map[string][]StorageProxy) *DestinationService {
 	return &DestinationService{
 		RWMutex:          sync.RWMutex{},
 		consumersByToken: consumersByToken,
@@ -23,13 +23,13 @@ func (ds *DestinationService) GetConsumers(token string) []Consumer {
 	return ds.consumersByToken[token]
 }
 
-func (ds *DestinationService) GetStorages(token string) []Storage {
+func (ds *DestinationService) GetStorages(token string) []StorageProxy {
 	ds.RLock()
 	defer ds.RUnlock()
 	return ds.storagesByToken[token]
 }
 
-func (ds *DestinationService) Reload(consumersByToken map[string][]Consumer, storagesByToken map[string][]Storage) {
+func (ds *DestinationService) Reload(consumersByToken map[string][]Consumer, storagesByToken map[string][]StorageProxy) {
 	ds.Lock()
 	defer ds.Unlock()
 	ds.storagesByToken = storagesByToken

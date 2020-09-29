@@ -51,7 +51,7 @@ func Error(v ...interface{}) {
 }
 
 func Infof(format string, v ...interface{}) {
-	Info(fmt.Sprintf(format, v))
+	Info(fmt.Sprintf(format, v...))
 }
 
 func Info(v ...interface{}) {
@@ -59,7 +59,7 @@ func Info(v ...interface{}) {
 }
 
 func Warnf(format string, v ...interface{}) {
-	Warn(fmt.Sprintf(format, v))
+	Warn(fmt.Sprintf(format, v...))
 }
 
 func Warn(v ...interface{}) {
