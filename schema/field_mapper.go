@@ -2,8 +2,8 @@ package schema
 
 import (
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/typing"
-	"log"
 	"strings"
 )
 
@@ -28,6 +28,7 @@ type MappingRule struct {
 //NewFieldMapper return FieldMapper, fields to typecast and err
 func NewFieldMapper(mappings []string) (Mapper, map[string]typing.DataType, error) {
 	if len(mappings) == 0 {
+		logging.Warn("Initializing without mapping rules")
 		return &DummyMapper{}, nil, nil
 	}
 
@@ -85,9 +86,9 @@ func NewFieldMapper(mappings []string) (Mapper, map[string]typing.DataType, erro
 		})
 	}
 
-	log.Println("Configured field mapping rules:")
+	logging.Info("Configured field mapping rules:")
 	for _, m := range mappings {
-		log.Println(m)
+		logging.Info(m)
 	}
 
 	return &FieldMapper{rules: rules}, fieldsToCast, nil

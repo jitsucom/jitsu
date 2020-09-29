@@ -8,9 +8,9 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 	sf "github.com/snowflakedb/gosnowflake"
-	"log"
 	"strings"
 	"time"
 )
@@ -128,13 +128,13 @@ func (s *Snowflake) startStreamingConsumer() {
 			}
 			fact, err := s.eventQueue.DequeueBlock()
 			if err != nil {
-				log.Println("Error reading event fact from snowflake queue", err)
+				logging.Error("Error reading event fact from snowflake queue", err)
 				continue
 			}
 
 			dataSchema, flattenObject, err := s.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				log.Printf("Unable to process object %v: %v", fact, err)
+				logging.Errorf("Unable to process object %v: %v", fact, err)
 				continue
 			}
 
@@ -144,7 +144,7 @@ func (s *Snowflake) startStreamingConsumer() {
 			}
 
 			if err := s.insert(dataSchema, flattenObject); err != nil {
-				log.Printf("Error inserting to snowflake table [%s]: %v", dataSchema.Name, err)
+				logging.Errorf("Error inserting to snowflake table [%s]: %v", dataSchema.Name, err)
 				continue
 			}
 		}
@@ -166,7 +166,7 @@ func (s *Snowflake) startBatchStorage() {
 
 			filesKeys, err := s.stageAdapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
-				log.Println("Error reading files from stage", err)
+				logging.Error("Error reading files from stage", err)
 				continue
 			}
 
@@ -177,35 +177,35 @@ func (s *Snowflake) startBatchStorage() {
 			for _, fileKey := range filesKeys {
 				names := strings.Split(fileKey, tableFileKeyDelimiter)
 				if len(names) != 2 {
-					log.Printf("S3 file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", fileKey, tableFileKeyDelimiter)
+					logging.Errorf("S3 file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", fileKey, tableFileKeyDelimiter)
 					continue
 				}
 
 				payload, err := s.stageAdapter.GetObject(fileKey)
 				if err != nil {
-					log.Printf("Error getting file %s from stage in Snowflake storage: %v", fileKey, err)
+					logging.Errorf("Error getting file %s from stage in Snowflake storage: %v", fileKey, err)
 					continue
 				}
 
 				lines := strings.Split(string(payload), "\n")
 				if len(lines) == 0 {
-					log.Printf("Error reading stage file %s payload in Snowflake storage: empty file", fileKey)
+					logging.Errorf("Error reading stage file %s payload in Snowflake storage: empty file", fileKey)
 					continue
 				}
 				header := lines[0]
 				if header == "" {
-					log.Printf("Error reading stage file %s header in Snowflake storage: %v", fileKey, err)
+					logging.Errorf("Error reading stage file %s header in Snowflake storage: %v", fileKey, err)
 					continue
 				}
 
 				wrappedTx, err := s.snowflakeAdapter.OpenTx()
 				if err != nil {
-					log.Println("Error creating snowflake transaction", err)
+					logging.Error("Error creating snowflake transaction", err)
 					continue
 				}
 
 				if err := s.snowflakeAdapter.Copy(wrappedTx, fileKey, header, names[1]); err != nil {
-					log.Printf("Error copying file [%s] from stage to snowflake: %v", fileKey, err)
+					logging.Errorf("Error copying file [%s] from stage to snowflake: %v", fileKey, err)
 					wrappedTx.Rollback()
 					continue
 				}
@@ -213,7 +213,7 @@ func (s *Snowflake) startBatchStorage() {
 				wrappedTx.Commit()
 
 				if err := s.stageAdapter.DeleteObject(fileKey); err != nil {
-					log.Println("System error: file", fileKey, "wasn't deleted from stage and will be inserted in db again", err)
+					logging.Error("System error: file", fileKey, "wasn't deleted from stage and will be inserted in db again", err)
 					continue
 				}
 

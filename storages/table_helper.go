@@ -3,9 +3,9 @@ package storages
 import (
 	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 	"io"
-	"log"
 )
 
 const unlockRetryCount = 5
@@ -150,7 +150,7 @@ func (th *TableHelper) getOrCreate(destinationName string, dataSchema *schema.Ta
 func (th *TableHelper) unlock(lock Lock, closer io.Closer, tableName string, retry int) {
 	if err := th.monitorKeeper.Unlock(lock, closer); err != nil {
 		if retry == unlockRetryCount {
-			log.Printf("System error unlocking table %s in %s after %d tries: %v", tableName, th.storageType, retry, err)
+			logging.Errorf("System error unlocking table %s in %s after %d tries: %v", tableName, th.storageType, retry, err)
 		} else {
 			th.unlock(lock, closer, tableName, retry+1)
 		}

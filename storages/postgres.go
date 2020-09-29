@@ -8,8 +8,8 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
-	"log"
 )
 
 const postgresStorageType = "Postgres"
@@ -85,13 +85,13 @@ func (p *Postgres) startStreamingConsumer() {
 			}
 			fact, err := p.eventQueue.DequeueBlock()
 			if err != nil {
-				log.Println("Error reading event fact from postgres queue", err)
+				logging.Error("Error reading event fact from postgres queue", err)
 				continue
 			}
 
 			dataSchema, flattenObject, err := p.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				log.Printf("Unable to process object %v: %v", fact, err)
+				logging.Errorf("Unable to process object %v: %v", fact, err)
 				continue
 			}
 
@@ -101,7 +101,7 @@ func (p *Postgres) startStreamingConsumer() {
 			}
 
 			if err := p.insert(dataSchema, flattenObject); err != nil {
-				log.Printf("Error inserting to postgres table [%s]: %v", dataSchema.Name, err)
+				logging.Errorf("Error inserting to postgres table [%s]: %v", dataSchema.Name, err)
 				continue
 			}
 		}
@@ -140,7 +140,7 @@ func (p *Postgres) Store(fileName string, payload []byte) error {
 					tx.Rollback()
 					return err
 				} else {
-					log.Printf("Warn: unable to insert object %v reason: %v. This line will be skipped", object, err)
+					logging.Warnf("Unable to insert object %v reason: %v. This line will be skipped", object, err)
 				}
 			}
 		}
@@ -187,5 +187,5 @@ func (p *Postgres) Type() string {
 }
 
 func logSkippedEvent(fact events.Fact, err error) {
-	log.Printf("Warn: unable to enqueue object %v reason: %v. This object will be skipped", fact, err)
+	logging.Warnf("Unable to enqueue object %v reason: %v. This object will be skipped", fact, err)
 }

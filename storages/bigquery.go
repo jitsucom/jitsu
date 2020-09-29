@@ -8,8 +8,8 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
-	"log"
 	"strings"
 	"time"
 )
@@ -90,13 +90,13 @@ func (bq *BigQuery) startStreamingConsumer() {
 			}
 			fact, err := bq.eventQueue.DequeueBlock()
 			if err != nil {
-				log.Println("Error reading event fact from bigquery queue", err)
+				logging.Error("Error reading event fact from bigquery queue", err)
 				continue
 			}
 
 			dataSchema, flattenObject, err := bq.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				log.Printf("Unable to process object %v: %v", fact, err)
+				logging.Errorf("Unable to process object %v: %v", fact, err)
 				continue
 			}
 
@@ -106,7 +106,7 @@ func (bq *BigQuery) startStreamingConsumer() {
 			}
 
 			if err := bq.insert(dataSchema, flattenObject); err != nil {
-				log.Printf("Error inserting to bigquery table [%s]: %v", dataSchema.Name, err)
+				logging.Errorf("Error inserting to bigquery table [%s]: %v", dataSchema.Name, err)
 				continue
 			}
 		}
@@ -128,7 +128,7 @@ func (bq *BigQuery) startBatchStorage() {
 
 			filesKeys, err := bq.gcsAdapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
-				log.Println("Error reading files from google cloud storage:", err)
+				logging.Error("Error reading files from google cloud storage:", err)
 				continue
 			}
 
@@ -139,17 +139,17 @@ func (bq *BigQuery) startBatchStorage() {
 			for _, fileKey := range filesKeys {
 				names := strings.Split(fileKey, tableFileKeyDelimiter)
 				if len(names) != 2 {
-					log.Printf("Google cloud storage file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", fileKey, tableFileKeyDelimiter)
+					logging.Errorf("Google cloud storage file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", fileKey, tableFileKeyDelimiter)
 					continue
 				}
 
 				if err := bq.bqAdapter.Copy(fileKey, names[1]); err != nil {
-					log.Printf("Error copying file [%s] from google cloud storage to BigQuery: %v", fileKey, err)
+					logging.Errorf("Error copying file [%s] from google cloud storage to BigQuery: %v", fileKey, err)
 					continue
 				}
 
 				if err := bq.gcsAdapter.DeleteObject(fileKey); err != nil {
-					log.Println("System error: file", fileKey, "wasn't deleted from google cloud storage and will be inserted in db again", err)
+					logging.Error("System error: file", fileKey, "wasn't deleted from google cloud storage and will be inserted in db again", err)
 					continue
 				}
 			}

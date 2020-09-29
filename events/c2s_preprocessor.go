@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/geo"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/useragent"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -60,7 +60,7 @@ func (c2sp *C2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 
 	geoData, err := c2sp.geoResolver.Resolve(ip)
 	if err != nil {
-		log.Println(err)
+		logging.Error(err)
 	}
 
 	//geo

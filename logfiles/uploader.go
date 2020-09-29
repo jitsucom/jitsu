@@ -3,8 +3,8 @@ package logfiles
 import (
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -68,7 +68,7 @@ func (u *PeriodicUploader) Start() {
 			}
 			files, err := filepath.Glob(u.fileMask)
 			if err != nil {
-				log.Println("Error finding files by mask", u.fileMask, err)
+				logging.Error("Error finding files by mask", u.fileMask, err)
 				return
 			}
 
@@ -82,7 +82,7 @@ func (u *PeriodicUploader) Start() {
 
 				b, err := ioutil.ReadFile(filePath)
 				if err != nil {
-					log.Println("Error reading file", filePath, err)
+					logging.Error("Error reading file", filePath, err)
 					continue
 				}
 				if len(b) == 0 {
@@ -92,14 +92,14 @@ func (u *PeriodicUploader) Start() {
 				//get token from filename
 				regexResult := tokenExtractRegexp.FindStringSubmatch(fileName)
 				if len(regexResult) != 2 {
-					log.Printf("Error processing file %s. Malformed name", filePath)
+					logging.Errorf("Error processing file %s. Malformed name", filePath)
 					continue
 				}
 
 				token := regexResult[1]
 				eventStorages, ok := u.tokenizedEventStorages[token]
 				if !ok {
-					log.Printf("Destination storages weren't found for token %s", token)
+					logging.Warnf("Destination storages weren't found for token %s", token)
 					continue
 				}
 
@@ -110,7 +110,7 @@ func (u *PeriodicUploader) Start() {
 						err := storage.Store(fileName, b)
 						if err != nil {
 							deleteFile = false
-							log.Println("Error store file", filePath, "in", storage.Name(), "destination:", err)
+							logging.Error("Error store file", filePath, "in", storage.Name(), "destination:", err)
 						}
 						u.statusManager.updateStatus(fileName, storage.Name(), err)
 					}
@@ -119,7 +119,7 @@ func (u *PeriodicUploader) Start() {
 				if deleteFile {
 					err := os.Remove(filePath)
 					if err != nil {
-						log.Println("Error deleting file", filePath, err)
+						logging.Error("Error deleting file", filePath, err)
 					} else {
 						u.statusManager.cleanUp(fileName)
 					}

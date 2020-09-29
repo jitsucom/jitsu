@@ -8,8 +8,8 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
-	"log"
 	"math/rand"
 )
 
@@ -120,13 +120,13 @@ func (ch *ClickHouse) startStreamingConsumer() {
 			}
 			fact, err := ch.eventQueue.DequeueBlock()
 			if err != nil {
-				log.Println("Error reading event fact from clickhouse queue", err)
+				logging.Error("Error reading event fact from clickhouse queue", err)
 				continue
 			}
 
 			dataSchema, flattenObject, err := ch.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				log.Printf("Unable to process object %v: %v", fact, err)
+				logging.Errorf("Unable to process object %v: %v", fact, err)
 				continue
 			}
 
@@ -136,7 +136,7 @@ func (ch *ClickHouse) startStreamingConsumer() {
 			}
 
 			if err := ch.insert(dataSchema, flattenObject); err != nil {
-				log.Printf("Error inserting to clickhouse table [%s]: %v", dataSchema.Name, err)
+				logging.Errorf("Error inserting to clickhouse table [%s]: %v", dataSchema.Name, err)
 				continue
 			}
 		}
@@ -192,7 +192,7 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 					tx.Rollback()
 					return err
 				} else {
-					log.Printf("Warn: unable to insert object %v reason: %v. This line will be skipped", object, err)
+					logging.Warnf("Unable to insert object %v reason: %v. This line will be skipped", object, err)
 				}
 			}
 		}

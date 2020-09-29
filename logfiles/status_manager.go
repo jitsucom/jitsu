@@ -2,8 +2,8 @@ package logfiles
 
 import (
 	"encoding/json"
+	"github.com/ksensehq/eventnative/logging"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -39,7 +39,7 @@ func newStatusManager(logEventPath string) (*statusManager, error) {
 
 		b, err := ioutil.ReadFile(filePath)
 		if err != nil {
-			log.Println("Error reading log status file", filePath, err)
+			logging.Error("Error reading log status file", filePath, err)
 			continue
 		}
 		if len(b) == 0 {
@@ -48,7 +48,7 @@ func newStatusManager(logEventPath string) (*statusManager, error) {
 		}
 		statuses := map[string]*Status{}
 		if err := json.Unmarshal(b, &statuses); err != nil {
-			log.Println("Error unmarshalling log status file", filePath, err)
+			logging.Error("Error unmarshalling log status file", filePath, err)
 			fileStatuses[fileLogName] = map[string]*Status{}
 			continue
 		}
@@ -103,12 +103,12 @@ func (sm *statusManager) updateStatus(fileName, storage string, storageErr error
 func (sm *statusManager) persist(fileName string, statusesPerStorage map[string]*Status) {
 	b, err := json.Marshal(statusesPerStorage)
 	if err != nil {
-		log.Println("Error marshaling event log file statuses for file", fileName, err)
+		logging.Error("Error marshaling event log file statuses for file", fileName, err)
 		return
 	}
 	filePath := path.Join(sm.logEventPath, fileName+statusFileExtension)
 	if err := ioutil.WriteFile(filePath, b, 0644); err != nil {
-		log.Println("Error writing event log status file", filePath, err)
+		logging.Error("Error writing event log status file", filePath, err)
 	}
 }
 

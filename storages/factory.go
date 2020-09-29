@@ -7,9 +7,9 @@ import (
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 	"github.com/spf13/viper"
-	"log"
 )
 
 const (
@@ -51,7 +51,7 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 
 	dc := map[string]DestinationConfig{}
 	if err := destinations.Unmarshal(&dc); err != nil {
-		log.Println("Error initializing destinations: wrong config format: each destination must contains one key and config as a value e.g. destinations:\n  custom_name:\n      type: redshift ...", err)
+		logging.Error("Error initializing destinations: wrong config format: each destination must contains one key and config as a value e.g. destinations:\n  custom_name:\n      type: redshift ...", err)
 		return stores, consumers
 	}
 
@@ -62,7 +62,7 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 		if destination.Mode == "" {
 			destination.Mode = batchMode
 		}
-		log.Println("Initializing", name, "destination of type:", destination.Type, "in mode:", destination.Mode)
+		logging.Info("Initializing", name, "destination of type:", destination.Type, "in mode:", destination.Mode)
 
 		if destination.Mode != batchMode && destination.Mode != streamMode {
 			logError(name, destination.Type, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, batchMode, streamMode))
@@ -135,7 +135,7 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 
 		tokens := destination.OnlyTokens
 		if len(tokens) == 0 {
-			log.Printf("Warn: only_tokens wasn't provided. All tokens will be stored in %s %s destination", name, destination.Type)
+			logging.Warnf("only_tokens wasn't provided. All tokens will be stored in %s %s destination", name, destination.Type)
 			for token := range appconfig.Instance.AuthorizationService.GetAllTokens() {
 				tokens = append(tokens, token)
 			}
@@ -155,7 +155,7 @@ func Create(ctx context.Context, destinations *viper.Viper, logEventPath string,
 }
 
 func logError(destinationName, destinationType string, err error) {
-	log.Printf("Error initializing %s destination of type %s: %v", destinationName, destinationType, err)
+	logging.Errorf("Error initializing %s destination of type %s: %v", destinationName, destinationType, err)
 }
 
 //Create aws Redshift destination
@@ -167,11 +167,11 @@ func createRedshift(ctx context.Context, name, logEventPath string, destination 
 	//enrich with default parameters
 	if redshiftConfig.Port <= 0 {
 		redshiftConfig.Port = 5439
-		log.Printf("name: %s type: redshift port wasn't provided. Will be used default one: %d", name, redshiftConfig.Port)
+		logging.Errorf("name: %s type: redshift port wasn't provided. Will be used default one: %d", name, redshiftConfig.Port)
 	}
 	if redshiftConfig.Schema == "" {
 		redshiftConfig.Schema = "public"
-		log.Printf("name: %s type: redshift schema wasn't provided. Will be used default one: %s", name, redshiftConfig.Schema)
+		logging.Errorf("name: %s type: redshift schema wasn't provided. Will be used default one: %s", name, redshiftConfig.Schema)
 	}
 	//default connect timeout seconds
 	if _, ok := redshiftConfig.Parameters["connect_timeout"]; !ok {
@@ -195,7 +195,7 @@ func createBigQuery(ctx context.Context, name, logEventPath string, destination 
 	//enrich with default parameters
 	if gConfig.Dataset == "" {
 		gConfig.Dataset = "default"
-		log.Printf("name: %s type: bigquery dataset wasn't provided. Will be used default one: %s", name, gConfig.Dataset)
+		logging.Errorf("name: %s type: bigquery dataset wasn't provided. Will be used default one: %s", name, gConfig.Dataset)
 	}
 
 	return NewBigQuery(ctx, name, logEventPath, gConfig, processor, destination.BreakOnError, streamMode, keeper)
@@ -210,11 +210,11 @@ func createPostgres(ctx context.Context, name, logEventPath string, destination 
 	//enrich with default parameters
 	if config.Port <= 0 {
 		config.Port = 5432
-		log.Printf("name: %s type: postgres port wasn't provided. Will be used default one: %d", name, config.Port)
+		logging.Errorf("name: %s type: postgres port wasn't provided. Will be used default one: %d", name, config.Port)
 	}
 	if config.Schema == "" {
 		config.Schema = "public"
-		log.Printf("name: %s type: postgres schema wasn't provided. Will be used default one: %s", name, config.Schema)
+		logging.Errorf("name: %s type: postgres schema wasn't provided. Will be used default one: %s", name, config.Schema)
 	}
 	//default connect timeout seconds
 	if _, ok := config.Parameters["connect_timeout"]; !ok {
@@ -252,7 +252,7 @@ func createSnowflake(ctx context.Context, name, logEventPath string, destination
 	}
 	if snowflakeConfig.Schema == "" {
 		snowflakeConfig.Schema = "PUBLIC"
-		log.Printf("name: %s type: snowflake schema wasn't provided. Will be used default one: %s", name, snowflakeConfig.Schema)
+		logging.Errorf("name: %s type: snowflake schema wasn't provided. Will be used default one: %s", name, snowflakeConfig.Schema)
 	}
 
 	//default client_session_keep_alive

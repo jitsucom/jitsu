@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/resources"
 	"github.com/spf13/viper"
-	"log"
 	"strings"
 	"sync"
 )
@@ -46,7 +46,7 @@ func NewService() (*Service, error) {
 		generatedToken := uuid.New().String()
 		c2sTokens[generatedToken] = []string{}
 		s2sTokens[generatedToken] = []string{}
-		log.Println("Empty 'server.tokens' config key. Auto generate token:", generatedToken)
+		logging.Warn("Empty 'server.tokens' config key. Auto generate token:", generatedToken)
 	}
 
 	service.c2STokens = c2sTokens

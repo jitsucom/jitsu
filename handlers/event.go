@@ -3,9 +3,9 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
 	"github.com/ksensehq/eventnative/timestamp"
-	"log"
 	"net/http"
 )
 
@@ -34,14 +34,14 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 
 	iface, ok := c.Get(middleware.TokenName)
 	if !ok {
-		log.Println("System error: token wasn't found in context")
+		logging.Error("System error: token wasn't found in context")
 		return
 	}
 	token := iface.(string)
 
 	processed, err := eh.preprocessor.Preprocess(payload, c.Request)
 	if err != nil {
-		log.Println("Error processing event:", err)
+		logging.Error("Error processing event:", err)
 		c.Writer.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -51,7 +51,7 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 
 	consumers := eh.destinationService.GetConsumers(token)
 	if len(consumers) == 0 {
-		log.Printf("Unknown token[%s] request was received", token)
+		logging.Warnf("Unknown token[%s] request was received", token)
 	} else {
 		for _, consumer := range consumers {
 			consumer.Consume(processed)

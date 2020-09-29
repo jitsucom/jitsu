@@ -8,8 +8,8 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
-	"log"
 	"strings"
 	"time"
 )
@@ -93,13 +93,13 @@ func (ar *AwsRedshift) startStreamingConsumer() {
 			}
 			fact, err := ar.eventQueue.DequeueBlock()
 			if err != nil {
-				log.Println("Error reading event fact from redshift queue", err)
+				logging.Error("Error reading event fact from redshift queue", err)
 				continue
 			}
 
 			dataSchema, flattenObject, err := ar.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				log.Printf("Unable to process object %v: %v", fact, err)
+				logging.Errorf("Unable to process object %v: %v", fact, err)
 				continue
 			}
 
@@ -109,7 +109,7 @@ func (ar *AwsRedshift) startStreamingConsumer() {
 			}
 
 			if err := ar.insert(dataSchema, flattenObject); err != nil {
-				log.Printf("Error inserting to redshift table [%s]: %v", dataSchema.Name, err)
+				logging.Errorf("Error inserting to redshift table [%s]: %v", dataSchema.Name, err)
 				continue
 			}
 		}
@@ -131,7 +131,7 @@ func (ar *AwsRedshift) startBatchStorage() {
 
 			filesKeys, err := ar.s3Adapter.ListBucket(appconfig.Instance.ServerName)
 			if err != nil {
-				log.Println("Error reading files from s3", err)
+				logging.Error("Error reading files from s3", err)
 				continue
 			}
 
@@ -142,17 +142,17 @@ func (ar *AwsRedshift) startBatchStorage() {
 			for _, fileKey := range filesKeys {
 				names := strings.Split(fileKey, tableFileKeyDelimiter)
 				if len(names) != 2 {
-					log.Printf("S3 file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", fileKey, tableFileKeyDelimiter)
+					logging.Errorf("S3 file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", fileKey, tableFileKeyDelimiter)
 					continue
 				}
 				wrappedTx, err := ar.redshiftAdapter.OpenTx()
 				if err != nil {
-					log.Println("Error creating redshift transaction", err)
+					logging.Error("Error creating redshift transaction", err)
 					continue
 				}
 
 				if err := ar.redshiftAdapter.Copy(wrappedTx, fileKey, names[1]); err != nil {
-					log.Printf("Error copying file [%s] from s3 to redshift: %v", fileKey, err)
+					logging.Errorf("Error copying file [%s] from s3 to redshift: %v", fileKey, err)
 					wrappedTx.Rollback()
 					continue
 				}
@@ -161,7 +161,7 @@ func (ar *AwsRedshift) startBatchStorage() {
 				//TODO may be we need to have a journal for collecting already processed files names
 				// if ar.s3Adapter.DeleteObject fails => it will be processed next time => duplicate data
 				if err := ar.s3Adapter.DeleteObject(fileKey); err != nil {
-					log.Println("System error: file", fileKey, "wasn't deleted from s3 and will be inserted in db again", err)
+					logging.Error("System error: file", fileKey, "wasn't deleted from s3 and will be inserted in db again", err)
 					continue
 				}
 

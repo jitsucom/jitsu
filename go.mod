@@ -13,6 +13,7 @@ require (
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/google/go-cmp v0.5.1 // indirect
 	github.com/google/uuid v1.1.1
+	github.com/gookit/color v1.3.1
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.8.0

@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/timestamp"
 	"github.com/ksensehq/eventnative/typing"
 	"io"
-	"log"
 	"strings"
 	"text/template"
 	"time"
@@ -89,7 +89,7 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnE
 			if breakOnError {
 				return nil, err
 			} else {
-				log.Printf("Warn: unable to process object %s reason: %v. This line will be skipped", string(line), err)
+				logging.Warnf("Unable to process object %s reason: %v. This line will be skipped", string(line), err)
 			}
 		}
 
@@ -106,7 +106,7 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnE
 
 		line, readErr = reader.ReadBytes('\n')
 		if readErr != nil && readErr != io.EOF {
-			log.Printf("Error reading line in [%s] file", fileName)
+			logging.Errorf("Error reading line in [%s] file", fileName)
 		}
 	}
 
