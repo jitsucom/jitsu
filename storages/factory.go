@@ -281,7 +281,7 @@ func createS3(config *Config) (events.Storage, error) {
 		if config.eventQueue != nil {
 			config.eventQueue.Close()
 		}
-		return nil, fmt.Errorf("S3 destination doesn't support %s mode", config.name, streamMode)
+		return nil, fmt.Errorf("S3 destination doesn't support %s mode", streamMode)
 	}
 	s3Config := config.destination.S3
 	if err := s3Config.Validate(); err != nil {
