@@ -107,7 +107,7 @@ func TestApiEvent(t *testing.T) {
 			router := SetupRouter(events.NewDestinationService(map[string][]events.Consumer{
 				"c2stoken": {events.NewAsyncLogger(inmemWriter, false)},
 				"s2stoken": {events.NewAsyncLogger(inmemWriter, false)},
-			}, map[string][]events.Storage{}))
+			}, map[string][]events.StorageProxy{}))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -124,7 +124,7 @@ func TestApiEvent(t *testing.T) {
 				log.Fatal(server.ListenAndServe())
 			}()
 
-			log.Println("Started listen and serve " + httpAuthority)
+			logging.Info("Started listen and serve " + httpAuthority)
 
 			//check ping endpoint
 			resp, err := test.RenewGet("http://" + httpAuthority + "/ping")

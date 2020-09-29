@@ -2,8 +2,8 @@ package useragent
 
 import (
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ua-parser/uap-go/uaparser"
-	"log"
 )
 
 const ParsedUaKey = "parsed_ua"
@@ -47,7 +47,7 @@ func (r *UapResolver) Resolve(ua string) *ResolvedUa {
 
 	parsed := r.parser.Parse(ua)
 	if parsed == nil {
-		log.Println("Unable to parse user agent:", ua)
+		logging.Error("Unable to parse user agent:", ua)
 		return nil
 	}
 

@@ -5,10 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 	"github.com/ksensehq/eventnative/typing"
 	sf "github.com/snowflakedb/gosnowflake"
-	"log"
 	"sort"
 	"strings"
 )
@@ -151,7 +151,7 @@ func (s *Snowflake) CreateTable(tableSchema *schema.Table) error {
 	for columnName, column := range tableSchema.Columns {
 		mappedType, ok := schemaToSnowflake[column.GetType()]
 		if !ok {
-			log.Println("Unknown snowflake schema type:", column.GetType())
+			logging.Error("Unknown snowflake schema type:", column.GetType())
 			mappedType = schemaToSnowflake[typing.STRING]
 		}
 		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, columnName, mappedType))
@@ -184,7 +184,7 @@ func (s *Snowflake) PatchTableSchema(patchSchema *schema.Table) error {
 	for columnName, column := range patchSchema.Columns {
 		mappedColumnType, ok := schemaToPostgres[column.GetType()]
 		if !ok {
-			log.Println("Unknown snowflake schema type:", column.GetType().String())
+			logging.Error("Unknown snowflake schema type:", column.GetType().String())
 			mappedColumnType = schemaToSnowflake[typing.STRING]
 		}
 		alterStmt, err := wrappedTx.tx.PrepareContext(s.ctx, fmt.Sprintf(addColumnTemplate, s.config.Schema, patchSchema.Name, columnName, mappedColumnType))
@@ -219,7 +219,7 @@ func (s *Snowflake) GetTableSchema(tableName string) (*schema.Table, error) {
 		}
 		mappedType, ok := snowflakeToSchema[strings.ToLower(columnSnowflakeType)]
 		if !ok {
-			log.Println("Unknown snowflake column type:", columnSnowflakeType)
+			logging.Error("Unknown snowflake column type:", columnSnowflakeType)
 			mappedType = typing.STRING
 		}
 		table.Columns[strings.ToLower(columnName)] = schema.NewColumn(mappedType)

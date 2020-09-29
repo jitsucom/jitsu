@@ -7,11 +7,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 	"github.com/ksensehq/eventnative/typing"
 	"github.com/mailru/go-clickhouse"
 	"io/ioutil"
-	"log"
 	"sort"
 	"strings"
 )
@@ -277,7 +277,7 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 	for columnName, column := range tableSchema.Columns {
 		mappedType, ok := schemaToClickhouse[column.GetType()]
 		if !ok {
-			log.Println("Unknown clickhouse schema type:", column.GetType())
+			logging.Error("Unknown clickhouse schema type:", column.GetType())
 			mappedType = schemaToClickhouse[typing.STRING]
 		}
 		var addColumnDDL string
@@ -326,7 +326,7 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*schema.Table, error) {
 
 		mappedType, ok := clickhouseToSchema[columnClickhouseType]
 		if !ok {
-			log.Println("Unknown clickhouse column type:", columnClickhouseType)
+			logging.Error("Unknown clickhouse column type:", columnClickhouseType)
 			mappedType = typing.STRING
 		}
 		table.Columns[columnName] = schema.NewColumn(mappedType)
@@ -349,7 +349,7 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 	for columnName, column := range patchSchema.Columns {
 		mappedColumnType, ok := schemaToClickhouse[column.GetType()]
 		if !ok {
-			log.Println("Unknown clickhouse schema type:", column.GetType().String())
+			logging.Error("Unknown clickhouse schema type:", column.GetType().String())
 			mappedColumnType = schemaToClickhouse[typing.STRING]
 		}
 		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, mappedColumnType))
@@ -439,12 +439,12 @@ func (ch *ClickHouse) createDistributedTableInTransaction(wrappedTx *Transaction
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(createDistributedTableCHTemplate,
 		ch.database, originTableName, ch.getOnClusterClause(), ch.database, originTableName, ch.cluster, ch.database, originTableName))
 	if err != nil {
-		log.Printf("Error preparing create distributed table statement for [%s] : %v", originTableName, err)
+		logging.Errorf("Error preparing create distributed table statement for [%s] : %v", originTableName, err)
 		return
 	}
 
 	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
-		log.Printf("Error creating distributed table for [%s] : %v", originTableName, err)
+		logging.Errorf("Error creating distributed table for [%s] : %v", originTableName, err)
 	}
 }
 
@@ -453,12 +453,12 @@ func (ch *ClickHouse) dropDistributedTableInTransaction(wrappedTx *Transaction, 
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(dropDistributedTableCHTemplate,
 		ch.database, originTableName, ch.getOnClusterClause()))
 	if err != nil {
-		log.Printf("Error preparing drop distributed table statement for [%s] : %v", originTableName, err)
+		logging.Errorf("Error preparing drop distributed table statement for [%s] : %v", originTableName, err)
 		return
 	}
 
 	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
-		log.Printf("Error dropping distributed table for [%s] : %v", originTableName, err)
+		logging.Errorf("Error dropping distributed table for [%s] : %v", originTableName, err)
 	}
 }
 

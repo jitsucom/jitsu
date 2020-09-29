@@ -8,3 +8,8 @@ type Storage interface {
 	Name() string
 	Type() string
 }
+
+type StorageProxy interface {
+	io.Closer
+	Get() (Storage, bool)
+}

@@ -3,14 +3,13 @@ package geo
 import (
 	"errors"
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/oschwald/geoip2-golang"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"path"
 	"strings"
-
-	"log"
 )
 
 const GeoDataKey = "location"
@@ -51,7 +50,7 @@ func CreateResolver(geoipPath string) (Resolver, error) {
 
 	resolver := &MaxMindResolver{}
 	resolver.parser = geoIpParser
-	log.Println("Loaded MaxMind db:", geoipPath)
+	logging.Info("Loaded MaxMind db:", geoipPath)
 
 	return resolver, nil
 }
@@ -59,7 +58,7 @@ func CreateResolver(geoipPath string) (Resolver, error) {
 //Create maxmind geo resolver from http source or from local file
 func createGeoIpParser(geoipPath string) (*geoip2.Reader, error) {
 	if strings.Contains(geoipPath, "http://") || strings.Contains(geoipPath, "https://") {
-		log.Println("Start downloading maxmind from", geoipPath)
+		logging.Info("Start downloading maxmind from", geoipPath)
 		r, err := http.Get(geoipPath)
 		if err != nil {
 			return nil, fmt.Errorf("Error loading maxmind db from http source: %s %v", geoipPath, err)
@@ -117,7 +116,7 @@ func (dr *DummyResolver) Resolve(ip string) (*Data, error) {
 func findMmdbFile(dir string) string {
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
-		log.Println(err)
+		logging.Error(err)
 		return ""
 	}
 

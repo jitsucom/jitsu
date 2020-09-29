@@ -4,10 +4,10 @@ import (
 	"cloud.google.com/go/bigquery"
 	"context"
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 	"github.com/ksensehq/eventnative/typing"
 	"google.golang.org/api/googleapi"
-	"log"
 	"net/http"
 	"strings"
 )
@@ -93,7 +93,7 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*schema.Table, error) {
 	for _, field := range meta.Schema {
 		mappedType, ok := BigQueryToSchema[field.Type]
 		if !ok {
-			log.Println("Unknown BigQuery column type:", field.Type)
+			logging.Error("Unknown BigQuery column type:", field.Type)
 			mappedType = typing.STRING
 		}
 		table.Columns[field.Name] = schema.NewColumn(mappedType)
@@ -108,7 +108,7 @@ func (bq *BigQuery) CreateTable(tableSchema *schema.Table) error {
 
 	_, err := bqTable.Metadata(bq.ctx)
 	if err == nil {
-		log.Println("BigQuery table", tableSchema.Name, "already exists")
+		logging.Info("BigQuery table", tableSchema.Name, "already exists")
 		return nil
 	}
 
@@ -120,7 +120,7 @@ func (bq *BigQuery) CreateTable(tableSchema *schema.Table) error {
 	for columnName, column := range tableSchema.Columns {
 		mappedType, ok := SchemaToBigQuery[column.GetType()]
 		if !ok {
-			log.Println("Unknown BigQuery schema type:", column.GetType())
+			logging.Error("Unknown BigQuery schema type:", column.GetType())
 			mappedType = SchemaToBigQuery[typing.STRING]
 		}
 		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: mappedType})
@@ -160,7 +160,7 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
 	for columnName, column := range patchSchema.Columns {
 		mappedColumnType, ok := SchemaToBigQuery[column.GetType()]
 		if !ok {
-			log.Println("Unknown BigQuery schema type:", column.GetType().String())
+			logging.Error("Unknown BigQuery schema type:", column.GetType().String())
 			mappedColumnType = SchemaToBigQuery[typing.STRING]
 		}
 		metadata.Schema = append(metadata.Schema, &bigquery.FieldSchema{Name: columnName, Type: mappedColumnType})
@@ -179,11 +179,7 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
 }
 
 func (bq *BigQuery) Close() error {
-	if err := bq.client.Close(); err != nil {
-		return fmt.Errorf("Error closing BigQuery client: %v", err)
-	}
-
-	return nil
+	return bq.client.Close()
 }
 
 //Return true if google err is 404

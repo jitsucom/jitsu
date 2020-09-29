@@ -2,7 +2,7 @@ package schema
 
 import (
 	"bytes"
-	"log"
+	"github.com/ksensehq/eventnative/logging"
 	"strings"
 )
 
@@ -34,7 +34,7 @@ func (pf ProcessedFile) GetPayloadBytes(marshaller Marshaller) []byte {
 	for _, object := range pf.payload {
 		objectBytes, err := marshaller.Marshal(fields, object)
 		if err != nil {
-			log.Println("Error marshaling object in processed file:", err)
+			logging.Error("Error marshaling object in processed file:", err)
 		} else {
 			if buf == nil {
 				buf = bytes.NewBuffer(objectBytes)

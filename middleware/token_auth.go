@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"log"
+	"github.com/ksensehq/eventnative/logging"
 	"net"
 	"net/http"
 	"net/url"
@@ -38,7 +38,7 @@ func TokenAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([]string
 
 			u, err := url.Parse(reqOrigin)
 			if err != nil {
-				log.Printf("Error parsing origin [%s]: %v", reqOrigin, err)
+				logging.Errorf("Error parsing origin [%s]: %v", reqOrigin, err)
 				c.AbortWithStatus(http.StatusUnauthorized)
 				return
 			}
@@ -47,7 +47,7 @@ func TokenAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([]string
 			if strings.Contains(u.Host, ":") {
 				host, _, err := net.SplitHostPort(u.Host)
 				if err != nil {
-					log.Printf("Error extracting domain from [%s]: %v", u.Host, err)
+					logging.Errorf("Error extracting domain from [%s]: %v", u.Host, err)
 					c.AbortWithStatus(http.StatusUnauthorized)
 					return
 				}

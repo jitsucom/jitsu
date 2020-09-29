@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
-	"log"
 	"math/rand"
 )
 
@@ -27,21 +26,11 @@ type ClickHouse struct {
 	breakOnError    bool
 }
 
-func NewClickHouse(ctx context.Context, name, fallbackDir string, config *adapters.ClickHouseConfig, processor *schema.Processor,
-	breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*ClickHouse, error) {
+func NewClickHouse(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.ClickHouseConfig,
+	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
-	}
-
-	var eventQueue *events.PersistentQueue
-	if streamMode {
-		var err error
-		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
-		eventQueue, err = events.NewPersistentQueue(queueName, fallbackDir)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	//put default values and values from config
@@ -88,7 +77,7 @@ func NewClickHouse(ctx context.Context, name, fallbackDir string, config *adapte
 	}
 
 	if streamMode {
-		ch.startStreamingConsumer()
+		ch.startStream()
 	}
 
 	return ch, nil
@@ -102,17 +91,10 @@ func (ch *ClickHouse) Type() string {
 	return clickHouseStorageType
 }
 
-//Consume events.Fact and enqueue it
-func (ch *ClickHouse) Consume(fact events.Fact) {
-	if err := ch.eventQueue.Enqueue(fact); err != nil {
-		logSkippedEvent(fact, err)
-	}
-}
-
 //Run goroutine to:
 //1. read from queue
 //2. insert in ClickHouse
-func (ch *ClickHouse) startStreamingConsumer() {
+func (ch *ClickHouse) startStream() {
 	go func() {
 		for {
 			if appstatus.Instance.Idle {
@@ -120,13 +102,13 @@ func (ch *ClickHouse) startStreamingConsumer() {
 			}
 			fact, err := ch.eventQueue.DequeueBlock()
 			if err != nil {
-				log.Println("Error reading event fact from clickhouse queue", err)
+				logging.Errorf("[%s] Error reading event fact from clickhouse queue: %v", ch.Name(), err)
 				continue
 			}
 
 			dataSchema, flattenObject, err := ch.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				log.Printf("Unable to process object %v: %v", fact, err)
+				logging.Errorf("[%s] Unable to process object %v: %v", ch.Name(), fact, err)
 				continue
 			}
 
@@ -136,7 +118,7 @@ func (ch *ClickHouse) startStreamingConsumer() {
 			}
 
 			if err := ch.insert(dataSchema, flattenObject); err != nil {
-				log.Printf("Error inserting to clickhouse table [%s]: %v", dataSchema.Name, err)
+				logging.Errorf("[%s] Error inserting to clickhouse table [%s]: %v", ch.Name(), dataSchema.Name, err)
 				continue
 			}
 		}
@@ -192,7 +174,7 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 					tx.Rollback()
 					return err
 				} else {
-					log.Printf("Warn: unable to insert object %v reason: %v. This line will be skipped", object, err)
+					logging.Warnf("[%s] Unable to insert object %v reason: %v. This line will be skipped", ch.Name(), object, err)
 				}
 			}
 		}
@@ -205,13 +187,7 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 func (ch *ClickHouse) Close() (multiErr error) {
 	for i, adapter := range ch.adapters {
 		if err := adapter.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing clickhouse datasource[%d]: %v", i, err))
-		}
-	}
-
-	if ch.eventQueue != nil {
-		if err := ch.eventQueue.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing clickhouse event queue: %v", err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing clickhouse datasource[%d]: %v", ch.Name(), i, err))
 		}
 	}
 

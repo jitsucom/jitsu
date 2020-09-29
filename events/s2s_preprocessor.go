@@ -4,8 +4,8 @@ import (
 	"errors"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/geo"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/useragent"
-	"log"
 	"net/http"
 )
 
@@ -43,7 +43,7 @@ func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 				if ip, ok := deviceCtxObject["ip"]; ok {
 					geoData, err := s2sp.geoResolver.Resolve(ip.(string))
 					if err != nil {
-						log.Println(err)
+						logging.Error(err)
 					}
 
 					deviceCtxObject[geo.GeoDataKey] = geoData
