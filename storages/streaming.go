@@ -63,7 +63,9 @@ func (sw *StreamingWorker) start() {
 
 			if err := sw.streamingStorage.Insert(dataSchema, flattenObject); err != nil {
 				logging.Errorf("[%s] Error inserting to table [%s]: %v", sw.streamingStorage.Name(), dataSchema.Name, err)
-				if strings.Contains(err.Error(), "connection refused") || strings.Contains(err.Error(), "EOF") {
+				if strings.Contains(err.Error(), "connection refused") ||
+					strings.Contains(err.Error(), "EOF") ||
+					strings.Contains(err.Error(), "write: broken pipe") {
 					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second))
 				}
 				continue
