@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
@@ -20,7 +19,6 @@ type Postgres struct {
 	adapter         *adapters.Postgres
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
-	eventQueue      *events.PersistentQueue
 	breakOnError    bool
 }
 
@@ -46,49 +44,14 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		adapter:         adapter,
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
-		eventQueue:      eventQueue,
 		breakOnError:    breakOnError,
 	}
 
 	if streamMode {
-		p.startStream()
+		newStreamingWorker(eventQueue, processor, p).start()
 	}
 
 	return p, nil
-}
-
-//Run goroutine to:
-//1. read from queue
-//2. insert in Postgres
-func (p *Postgres) startStream() {
-	go func() {
-		for {
-			if appstatus.Instance.Idle {
-				break
-			}
-			fact, err := p.eventQueue.DequeueBlock()
-			if err != nil {
-				logging.Errorf("[%s] Error reading event fact from postgres queue: %v", p.Name(), err)
-				continue
-			}
-
-			dataSchema, flattenObject, err := p.schemaProcessor.ProcessFact(fact)
-			if err != nil {
-				logging.Errorf("[%s] Unable to process object %v: %v", p.Name(), fact, err)
-				continue
-			}
-
-			//don't process empty object
-			if !dataSchema.Exists() {
-				continue
-			}
-
-			if err := p.insert(dataSchema, flattenObject); err != nil {
-				logging.Errorf("[%s] Error inserting to postgres table [%s]: %v", p.Name(), dataSchema.Name, err)
-				continue
-			}
-		}
-	}()
 }
 
 //Store file payload to Postgres with processing
@@ -132,8 +95,8 @@ func (p *Postgres) Store(fileName string, payload []byte) error {
 	return tx.DirectCommit()
 }
 
-//insert fact in Postgres
-func (p *Postgres) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
+//Insert fact in Postgres
+func (p *Postgres) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
 	dbSchema, err := p.tableHelper.EnsureTable(p.Name(), dataSchema)
 	if err != nil {
 		return err

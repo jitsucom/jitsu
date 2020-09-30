@@ -26,7 +26,6 @@ type Snowflake struct {
 	snowflakeAdapter *adapters.Snowflake
 	tableHelper      *TableHelper
 	schemaProcessor  *schema.Processor
-	eventQueue       *events.PersistentQueue
 	breakOnError     bool
 }
 
@@ -59,23 +58,22 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 
 	tableHelper := NewTableHelper(snowflakeAdapter, monitorKeeper, snowflakeStorageType)
 
-	ar := &Snowflake{
+	snowflake := &Snowflake{
 		name:             name,
 		stageAdapter:     stageAdapter,
 		snowflakeAdapter: snowflakeAdapter,
 		tableHelper:      tableHelper,
 		schemaProcessor:  processor,
-		eventQueue:       eventQueue,
 		breakOnError:     breakOnError,
 	}
 
 	if streamMode {
-		ar.startStream()
+		newStreamingWorker(eventQueue, processor, snowflake).start()
 	} else {
-		ar.startBatch()
+		snowflake.startBatch()
 	}
 
-	return ar, nil
+	return snowflake, nil
 }
 
 //create snowflake adapter with schema
@@ -110,40 +108,6 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 		return nil, err
 	}
 	return snowflakeAdapter, nil
-}
-
-//Run goroutine to:
-//1. read from queue
-//2. insert in Snowflake
-func (s *Snowflake) startStream() {
-	go func() {
-		for {
-			if appstatus.Instance.Idle {
-				break
-			}
-			fact, err := s.eventQueue.DequeueBlock()
-			if err != nil {
-				logging.Errorf("[%s] Error reading event fact from snowflake queue: %v", s.Name(), err)
-				continue
-			}
-
-			dataSchema, flattenObject, err := s.schemaProcessor.ProcessFact(fact)
-			if err != nil {
-				logging.Errorf("[%s] Unable to process object %v: %v", s.Name(), fact, err)
-				continue
-			}
-
-			//don't process empty object
-			if !dataSchema.Exists() {
-				continue
-			}
-
-			if err := s.insert(dataSchema, flattenObject); err != nil {
-				logging.Errorf("[%s] Error inserting to snowflake table [%s]: %v", s.Name(), dataSchema.Name, err)
-				continue
-			}
-		}
-	}()
 }
 
 //Periodically (every 30 seconds):
@@ -217,8 +181,8 @@ func (s *Snowflake) startBatch() {
 	}()
 }
 
-//insert fact in Snowflake
-func (s *Snowflake) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
+//Insert fact in Snowflake
+func (s *Snowflake) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
 	dbSchema, err := s.tableHelper.EnsureTable(s.Name(), dataSchema)
 	if err != nil {
 		return err
