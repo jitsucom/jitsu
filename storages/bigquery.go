@@ -25,7 +25,6 @@ type BigQuery struct {
 	bqAdapter       *adapters.BigQuery
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
-	eventQueue      *events.PersistentQueue
 	breakOnError    bool
 }
 
@@ -63,50 +62,15 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 		bqAdapter:       bigQueryAdapter,
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
-		eventQueue:      eventQueue,
 		breakOnError:    breakOnError,
 	}
 	if streamMode {
-		bq.startStream()
+		newStreamingWorker(eventQueue, processor, bq).start()
 	} else {
 		bq.startBatch()
 	}
 
 	return bq, nil
-}
-
-//Run goroutine to:
-//1. read from queue
-//2. insert in BigQuery
-func (bq *BigQuery) startStream() {
-	go func() {
-		for {
-			if appstatus.Instance.Idle {
-				break
-			}
-			fact, err := bq.eventQueue.DequeueBlock()
-			if err != nil {
-				logging.Errorf("[%s] Error reading event fact from bigquery queue: %v", bq.Name(), err)
-				continue
-			}
-
-			dataSchema, flattenObject, err := bq.schemaProcessor.ProcessFact(fact)
-			if err != nil {
-				logging.Errorf("[%s] Unable to process object %v: %v", bq.Name(), fact, err)
-				continue
-			}
-
-			//don't process empty object
-			if !dataSchema.Exists() {
-				continue
-			}
-
-			if err := bq.insert(dataSchema, flattenObject); err != nil {
-				logging.Errorf("[%s] Error inserting to bigquery table [%s]: %v", bq.Name(), dataSchema.Name, err)
-				continue
-			}
-		}
-	}()
 }
 
 //Periodically (every 30 seconds):
@@ -153,8 +117,8 @@ func (bq *BigQuery) startBatch() {
 	}()
 }
 
-//insert fact in BigQuery
-func (bq *BigQuery) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
+//Insert fact in BigQuery
+func (bq *BigQuery) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
 	dbSchema, err := bq.tableHelper.EnsureTable(bq.Name(), dataSchema)
 	if err != nil {
 		return err
