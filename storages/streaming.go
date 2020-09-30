@@ -38,15 +38,15 @@ func (sw *StreamingWorker) start() {
 			if appstatus.Instance.Idle {
 				break
 			}
-			fact, queuedTime, err := sw.eventQueue.DequeueBlock()
+			fact, dequeuedTime, err := sw.eventQueue.DequeueBlock()
 			if err != nil {
 				logging.Errorf("[%s] Error reading event fact from queue: %v", sw.streamingStorage.Name(), err)
 				continue
 			}
 
 			//dequeued event was from retry call and retry timeout hasn't come
-			if time.Now().Before(queuedTime) {
-				sw.eventQueue.ConsumeTimed(fact, queuedTime)
+			if time.Now().Before(dequeuedTime) {
+				sw.eventQueue.ConsumeTimed(fact, dequeuedTime)
 				continue
 			}
 
