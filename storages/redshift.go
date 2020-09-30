@@ -25,7 +25,6 @@ type AwsRedshift struct {
 	redshiftAdapter *adapters.AwsRedshift
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
-	eventQueue      *events.PersistentQueue
 	breakOnError    bool
 }
 
@@ -61,51 +60,16 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 		redshiftAdapter: redshiftAdapter,
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
-		eventQueue:      eventQueue,
 		breakOnError:    breakOnError,
 	}
 
 	if streamMode {
-		ar.startStream()
+		newStreamingWorker(eventQueue, processor, ar).start()
 	} else {
 		ar.startBatch()
 	}
 
 	return ar, nil
-}
-
-//Run goroutine to:
-//1. read from queue
-//2. insert in AwsRedshift
-func (ar *AwsRedshift) startStream() {
-	go func() {
-		for {
-			if appstatus.Instance.Idle {
-				break
-			}
-			fact, err := ar.eventQueue.DequeueBlock()
-			if err != nil {
-				logging.Errorf("[%s] Error reading event fact from redshift queue: %v", ar.Name(), err)
-				continue
-			}
-
-			dataSchema, flattenObject, err := ar.schemaProcessor.ProcessFact(fact)
-			if err != nil {
-				logging.Errorf("[%s] Unable to process object %v: %v", ar.Name(), fact, err)
-				continue
-			}
-
-			//don't process empty object
-			if !dataSchema.Exists() {
-				continue
-			}
-
-			if err := ar.insert(dataSchema, flattenObject); err != nil {
-				logging.Errorf("[%s] Error inserting to redshift table [%s]: %v", ar.Name(), dataSchema.Name, err)
-				continue
-			}
-		}
-	}()
 }
 
 //Periodically (every 30 seconds):
@@ -162,8 +126,8 @@ func (ar *AwsRedshift) startBatch() {
 	}()
 }
 
-//insert fact in Redshift
-func (ar *AwsRedshift) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
+//Insert fact in Redshift
+func (ar *AwsRedshift) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
 	dbSchema, err := ar.tableHelper.EnsureTable(ar.Name(), dataSchema)
 	if err != nil {
 		return err

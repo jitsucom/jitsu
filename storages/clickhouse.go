@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
@@ -22,7 +21,6 @@ type ClickHouse struct {
 	adapters        []*adapters.ClickHouse
 	tableHelpers    []*TableHelper
 	schemaProcessor *schema.Processor
-	eventQueue      *events.PersistentQueue
 	breakOnError    bool
 }
 
@@ -62,7 +60,6 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 		adapters:        chAdapters,
 		tableHelpers:    tableHelpers,
 		schemaProcessor: processor,
-		eventQueue:      eventQueue,
 		breakOnError:    breakOnError,
 	}
 
@@ -77,7 +74,7 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 	}
 
 	if streamMode {
-		ch.startStream()
+		newStreamingWorker(eventQueue, processor, ch).start()
 	}
 
 	return ch, nil
@@ -91,42 +88,8 @@ func (ch *ClickHouse) Type() string {
 	return clickHouseStorageType
 }
 
-//Run goroutine to:
-//1. read from queue
-//2. insert in ClickHouse
-func (ch *ClickHouse) startStream() {
-	go func() {
-		for {
-			if appstatus.Instance.Idle {
-				break
-			}
-			fact, err := ch.eventQueue.DequeueBlock()
-			if err != nil {
-				logging.Errorf("[%s] Error reading event fact from clickhouse queue: %v", ch.Name(), err)
-				continue
-			}
-
-			dataSchema, flattenObject, err := ch.schemaProcessor.ProcessFact(fact)
-			if err != nil {
-				logging.Errorf("[%s] Unable to process object %v: %v", ch.Name(), fact, err)
-				continue
-			}
-
-			//don't process empty object
-			if !dataSchema.Exists() {
-				continue
-			}
-
-			if err := ch.insert(dataSchema, flattenObject); err != nil {
-				logging.Errorf("[%s] Error inserting to clickhouse table [%s]: %v", ch.Name(), dataSchema.Name, err)
-				continue
-			}
-		}
-	}()
-}
-
-//insert fact in ClickHouse
-func (ch *ClickHouse) insert(dataSchema *schema.Table, fact events.Fact) (err error) {
+//Insert fact in ClickHouse
+func (ch *ClickHouse) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
 	adapter, tableHelper := ch.getAdapters()
 
 	dbSchema, err := tableHelper.EnsureTable(ch.Name(), dataSchema)
