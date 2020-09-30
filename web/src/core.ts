@@ -9,7 +9,23 @@ import {
     setCookie,
 } from './helpers'
 
-const EVENTN_VERSION = require("../package.json")['version'];
+
+function getVersion() {
+
+    try {
+        if (require !== undefined) {
+            return require("../package.json")['version'];
+        } else {
+            return "UNKNOWN";
+        }
+
+    } catch (e) {
+        return "UNKNOWN"
+    }
+}
+
+const EVENTN_VERSION = getVersion();
+
 
 import {Event, Logger, EventCtx, EventnEvent, Tracker, TrackerOptions, TrackerPlugin} from './types'
 
