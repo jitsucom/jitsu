@@ -1,6 +1,8 @@
 package events
 
-import "io"
+import (
+	"io"
+)
 
 type Storage interface {
 	io.Closer

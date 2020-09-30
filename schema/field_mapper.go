@@ -89,10 +89,7 @@ func NewFieldMapper(mappings []string) (Mapper, map[string]typing.DataType, erro
 
 //Map copy input object with applied deletes and mappings
 func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
-	mappedObject := map[string]interface{}{}
-	for k, v := range object {
-		mappedObject[k] = v
-	}
+	mappedObject := copyMap(object)
 
 	for _, rule := range fm.rules {
 		//dive into source inner and map last key from mapping '/key1/../lastkey'
@@ -165,4 +162,18 @@ func formatPrefixSuffix(key string) string {
 		key = key[:len(key)-1]
 	}
 	return key
+}
+
+func copyMap(m map[string]interface{}) map[string]interface{} {
+	cp := make(map[string]interface{})
+	for k, v := range m {
+		vm, ok := v.(map[string]interface{})
+		if ok {
+			cp[k] = copyMap(vm)
+		} else {
+			cp[k] = v
+		}
+	}
+
+	return cp
 }
