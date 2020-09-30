@@ -23,6 +23,7 @@ type S3Config struct {
 	Bucket      string `mapstructure:"bucket"`
 	Region      string `mapstructure:"region"`
 	Endpoint    string `mapstructure:"endpoint"`
+	Folder      string `mapstructure:"folder"`
 }
 
 func (s3c *S3Config) Validate() error {
@@ -63,6 +64,9 @@ func NewS3(s3Config *S3Config) (*S3, error) {
 
 //Create named file on s3 with payload
 func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
+	if a.config.Folder != "" {
+		fileName = a.config.Folder + "/" + fileName
+	}
 	fileType := http.DetectContentType(fileBytes)
 	params := &s3.PutObjectInput{
 		Bucket:      aws.String(a.config.Bucket),
@@ -77,8 +81,12 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-//Return s3 bucket file names filtered by prefix
-func (a *S3) ListBucket(prefix string) ([]string, error) {
+//Return s3 bucket file keys filtered by file name prefix
+func (a *S3) ListBucket(fileNamePrefix string) ([]string, error) {
+	prefix := fileNamePrefix
+	if a.config.Folder != "" {
+		prefix = a.config.Folder + "/" + fileNamePrefix
+	}
 	input := &s3.ListObjectsV2Input{Bucket: &a.config.Bucket, Prefix: &prefix}
 	var files []string
 	for {
@@ -99,9 +107,9 @@ func (a *S3) ListBucket(prefix string) ([]string, error) {
 	return files, nil
 }
 
-//Return s3 file by name
-func (a *S3) GetObject(name string) ([]byte, error) {
-	input := &s3.GetObjectInput{Bucket: &a.config.Bucket, Key: &name}
+//Return s3 file by key
+func (a *S3) GetObject(key string) ([]byte, error) {
+	input := &s3.GetObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	result, err := a.client.GetObject(input)
 	if err != nil {
 		return nil, err
@@ -116,7 +124,7 @@ func (a *S3) GetObject(name string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-//Delete object from s3 bucket
+//Delete object from s3 bucket by key
 func (a *S3) DeleteObject(key string) error {
 	input := &s3.DeleteObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	output, err := a.client.DeleteObject(input)

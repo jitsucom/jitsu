@@ -99,7 +99,7 @@ func (s *Service) updateS2STokens(s2sTokens map[string][]string) {
 
 func load(viperKey string, updateFunc func(map[string][]string), reloadSec int) (map[string][]string, error) {
 	authSource := viper.GetString(viperKey)
-	if strings.Contains(authSource, "http://") || strings.Contains(authSource, "https://") {
+	if strings.HasPrefix(authSource, "http://") || strings.HasPrefix(authSource, "https://") {
 		return Watcher(authSource, resources.LoadFromHttp, updateFunc, reloadSec)
 	} else if strings.Contains(authSource, "file://") {
 		return Watcher(strings.Replace(authSource, "file://", "", 1), resources.LoadFromFile, updateFunc, reloadSec)
