@@ -12,8 +12,8 @@ import (
 const eventsPerPersistedFile = 2000
 
 type QueuedFact struct {
-	FactBytes  []byte
-	QueuedTime time.Time
+	FactBytes    []byte
+	DequeuedTime time.Time
 }
 
 // QueuedFactBuilder creates and returns a new events.Fact.
@@ -46,7 +46,7 @@ func (pq *PersistentQueue) ConsumeTimed(f Fact, t time.Time) {
 		return
 	}
 
-	if err := pq.queue.Enqueue(QueuedFact{FactBytes: factBytes, QueuedTime: t}); err != nil {
+	if err := pq.queue.Enqueue(QueuedFact{FactBytes: factBytes, DequeuedTime: t}); err != nil {
 		logSkippedEvent(f, fmt.Errorf("Error putting event fact bytes to the persistent queue: %v", err))
 		return
 	}
@@ -68,7 +68,7 @@ func (pq *PersistentQueue) DequeueBlock() (Fact, time.Time, error) {
 		return nil, time.Time{}, fmt.Errorf("Error unmarshalling events.Fact from bytes: %v", err)
 	}
 
-	return fact, wrappedFact.QueuedTime, nil
+	return fact, wrappedFact.DequeuedTime, nil
 }
 
 func (pq *PersistentQueue) Close() error {
