@@ -54,13 +54,13 @@ var (
 
 //DataSourceConfig dto for deserialized datasource config (e.g. in Postgres or AwsRedshift destination)
 type DataSourceConfig struct {
-	Host       string            `mapstructure:"host"`
-	Port       int               `mapstructure:"port"`
-	Db         string            `mapstructure:"db"`
-	Schema     string            `mapstructure:"schema"`
-	Username   string            `mapstructure:"username"`
-	Password   string            `mapstructure:"password"`
-	Parameters map[string]string `mapstructure:"parameters"`
+	Host       string            `mapstructure:"host" json:"host,omitempty"`
+	Port       int               `mapstructure:"port" json:"port,omitempty"`
+	Db         string            `mapstructure:"db" json:"db,omitempty"`
+	Schema     string            `mapstructure:"schema" json:"schema,omitempty"`
+	Username   string            `mapstructure:"username" json:"username,omitempty"`
+	Password   string            `mapstructure:"password" json:"password,omitempty"`
+	Parameters map[string]string `mapstructure:"parameters" json:"parameters,omitempty"`
 }
 
 //Validate required fields in DataSourceConfig

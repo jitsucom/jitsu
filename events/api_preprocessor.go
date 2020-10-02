@@ -9,14 +9,14 @@ import (
 	"net/http"
 )
 
-//S2SPreprocessor preprocess server 2 server integration events
-type S2SPreprocessor struct {
+//ApiPreprocessor preprocess server 2 server integration events
+type ApiPreprocessor struct {
 	geoResolver geo.Resolver
 	uaResolver  useragent.Resolver
 }
 
-func NewS2SPreprocessor() Preprocessor {
-	return &S2SPreprocessor{
+func NewApiPreprocessor() Preprocessor {
+	return &ApiPreprocessor{
 		geoResolver: appconfig.Instance.GeoResolver,
 		uaResolver:  appconfig.Instance.UaResolver,
 	}
@@ -25,12 +25,12 @@ func NewS2SPreprocessor() Preprocessor {
 //Preprocess resolve geo from ip field or skip if geo.GeoDataKey field was provided
 //resolve useragent from uaKey or skip if useragent.ParsedUaKey field was provided
 //return same object
-func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) {
+func (ap *ApiPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) {
 	if fact == nil {
 		return nil, errors.New("Input fact can't be nil")
 	}
 
-	fact["src"] = "s2s"
+	fact["src"] = "api"
 	ip := extractIp(r)
 	if ip != "" {
 		fact[ipKey] = ip
@@ -41,7 +41,7 @@ func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 			//geo.GeoDataKey node overwrite geo resolving
 			if _, ok := deviceCtxObject[geo.GeoDataKey]; !ok {
 				if ip, ok := deviceCtxObject["ip"]; ok {
-					geoData, err := s2sp.geoResolver.Resolve(ip.(string))
+					geoData, err := ap.geoResolver.Resolve(ip.(string))
 					if err != nil {
 						logging.Error(err)
 					}
@@ -54,7 +54,7 @@ func (s2sp *S2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 			if _, ok := deviceCtxObject[useragent.ParsedUaKey]; !ok {
 				if ua, ok := deviceCtxObject[uaKey]; ok {
 					if uaStr, ok := ua.(string); ok {
-						deviceCtxObject[useragent.ParsedUaKey] = s2sp.uaResolver.Resolve(uaStr)
+						deviceCtxObject[useragent.ParsedUaKey] = ap.uaResolver.Resolve(uaStr)
 					}
 				}
 			}

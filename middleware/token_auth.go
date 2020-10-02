@@ -13,7 +13,7 @@ const TokenName = "token"
 
 //TokenAuth check that provided token:
 //1. is valid
-//2. exists in specific (c2s or s2s) config
+//2. exists in specific (js or api) token config
 //3. origins equal
 func TokenAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([]string, bool), errMsg string) gin.HandlerFunc {
 	return func(c *gin.Context) {

@@ -19,6 +19,6 @@
     "referer": "",
     "url": "http://track-demo.ksense"
   },
-  "src": "s2s",
+  "src": "api",
   "source_ip":"95.82.232.185"
 }
