@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestS2SPreprocess(t *testing.T) {
+func TestApiPreprocess(t *testing.T) {
 	geoDataMock := &geo.Data{
 		Country: "US",
 		City:    "New York",
@@ -35,13 +35,13 @@ func TestS2SPreprocess(t *testing.T) {
 			"Empty input object",
 			Fact{},
 			&http.Request{Header: http.Header{}},
-			Fact{"src": "s2s"},
+			Fact{"src": "api"},
 			"",
 		},
 		{
 			"Process ok without device ctx",
 			Fact{
-				"event_origin": "s2s_test",
+				"event_origin": "api_test",
 				"src":          "123",
 				"event_data":   map[string]interface{}{"key1": "key2"},
 				"user":         map[string]interface{}{"id": "123"},
@@ -49,10 +49,10 @@ func TestS2SPreprocess(t *testing.T) {
 			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
 			Fact{
 				"event_data":   map[string]interface{}{"key1": "key2"},
-				"event_origin": "s2s_test",
+				"event_origin": "api_test",
 				"user":         map[string]interface{}{"id": "123"},
 				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
-				"src":          "s2s",
+				"src":          "api",
 				"source_ip":    "10.10.10.10",
 			},
 			"",
@@ -60,7 +60,7 @@ func TestS2SPreprocess(t *testing.T) {
 		{
 			"Process ok with device ctx but without ip and ua",
 			Fact{
-				"event_origin": "s2s_test",
+				"event_origin": "api_test",
 				"src":          "123",
 				"event_data":   map[string]interface{}{"key1": "key2"},
 				"user":         map[string]interface{}{"id": "123"},
@@ -73,10 +73,10 @@ func TestS2SPreprocess(t *testing.T) {
 					"location": (*geo.Data)(nil),
 				},
 				"event_data":   map[string]interface{}{"key1": "key2"},
-				"event_origin": "s2s_test",
+				"event_origin": "api_test",
 				"user":         map[string]interface{}{"id": "123"},
 				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
-				"src":          "s2s",
+				"src":          "api",
 				"source_ip":    "10.10.10.10",
 			},
 			"",
@@ -84,7 +84,7 @@ func TestS2SPreprocess(t *testing.T) {
 		{
 			"Process ok with device ctx with ip and ua",
 			Fact{
-				"event_origin": "s2s_test",
+				"event_origin": "api_test",
 				"src":          "123",
 				"event_data":   map[string]interface{}{"key1": "key2"},
 				"user":         map[string]interface{}{"id": "123"},
@@ -97,10 +97,10 @@ func TestS2SPreprocess(t *testing.T) {
 					"location": geoDataMock,
 				},
 				"event_data":   map[string]interface{}{"key1": "key2"},
-				"event_origin": "s2s_test",
+				"event_origin": "api_test",
 				"user":         map[string]interface{}{"id": "123"},
 				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
-				"src":          "s2s",
+				"src":          "api",
 				"source_ip":    "10.10.10.10",
 			},
 			"",
@@ -108,7 +108,7 @@ func TestS2SPreprocess(t *testing.T) {
 		{
 			"Process ok with location and parsed ua",
 			Fact{
-				"event_origin": "s2s_test",
+				"event_origin": "api_test",
 				"src":          "123",
 				"event_data":   map[string]interface{}{"key1": "key2"},
 				"user":         map[string]interface{}{"id": "123"},
@@ -124,10 +124,10 @@ func TestS2SPreprocess(t *testing.T) {
 					"parsed_ua": map[string]interface{}{"custom_ua": "123"},
 				},
 				"event_data":   map[string]interface{}{"key1": "key2"},
-				"event_origin": "s2s_test",
+				"event_origin": "api_test",
 				"user":         map[string]interface{}{"id": "123"},
 				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
-				"src":          "s2s",
+				"src":          "api",
 				"source_ip":    "10.10.10.10",
 			},
 			"",
@@ -143,7 +143,7 @@ func TestS2SPreprocess(t *testing.T) {
 				"billing":   []string{"1", "2"},
 				"keys":      map[string]interface{}{"key1": "key2"},
 				"weather":   map[string]interface{}{"id": "123", "type": "good"},
-				"src":       "s2s",
+				"src":       "api",
 				"source_ip": "10.10.10.10",
 			},
 			"",
@@ -151,12 +151,12 @@ func TestS2SPreprocess(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s2sPreprocessor := &S2SPreprocessor{
+			apiPreprocessor := &ApiPreprocessor{
 				geoResolver: geo.Mock{"20.20.20.20": geoDataMock},
 				uaResolver:  useragent.Mock{},
 			}
 
-			actualFact, actualErr := s2sPreprocessor.Preprocess(tt.input, tt.inputReq)
+			actualFact, actualErr := apiPreprocessor.Preprocess(tt.input, tt.inputReq)
 			if tt.expectedErr == "" {
 				require.NoError(t, actualErr)
 			} else {

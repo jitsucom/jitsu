@@ -19,10 +19,10 @@ type GoogleCloudStorage struct {
 }
 
 type GoogleConfig struct {
-	Bucket  string      `mapstructure:"gcs_bucket"`
-	Project string      `mapstructure:"bq_project"`
-	Dataset string      `mapstructure:"bq_dataset"`
-	KeyFile interface{} `mapstructure:"key_file"`
+	Bucket  string      `mapstructure:"gcs_bucket" json:"gcs_bucket,omitempty"`
+	Project string      `mapstructure:"bq_project" json:"bq_project,omitempty"`
+	Dataset string      `mapstructure:"bq_dataset" json:"bq_dataset,omitempty"`
+	KeyFile interface{} `mapstructure:"key_file" json:"key_file,omitempty"`
 
 	//will be set on validation
 	credentials option.ClientOption

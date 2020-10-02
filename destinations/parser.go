@@ -1,0 +1,28 @@
+package destinations
+
+import (
+	"encoding/json"
+	"github.com/google/martian/log"
+	"github.com/ksensehq/eventnative/resources"
+	"github.com/ksensehq/eventnative/storages"
+)
+
+func parseFromBytes(b []byte) (map[string]storages.DestinationConfig, error) {
+	payload := map[string]storages.DestinationConfig{}
+	err := json.Unmarshal(b, &payload)
+	if err != nil {
+		return nil, err
+	}
+
+	return payload, nil
+}
+
+func getHash(name string, destination storages.DestinationConfig) string {
+	b, err := json.Marshal(destination)
+	if err != nil {
+		log.Errorf("Error getting hash(marshalling) from [%s] destination: %v", name, err)
+		return ""
+	}
+
+	return resources.GetHash(b)
+}

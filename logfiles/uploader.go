@@ -2,7 +2,7 @@ package logfiles
 
 import (
 	"github.com/ksensehq/eventnative/appstatus"
-	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/logging"
 	"io/ioutil"
 	"os"
@@ -26,10 +26,10 @@ type PeriodicUploader struct {
 	uploadEvery    time.Duration
 
 	statusManager      *statusManager
-	destinationService *events.DestinationService
+	destinationService *destinations.Service
 }
 
-func NewUploader(logEventPath, fileMask string, filesBatchSize, uploadEveryS int, destinationService *events.DestinationService) (*PeriodicUploader, error) {
+func NewUploader(logEventPath, fileMask string, filesBatchSize, uploadEveryS int, destinationService *destinations.Service) (*PeriodicUploader, error) {
 	statusManager, err := newStatusManager(logEventPath)
 	if err != nil {
 		return nil, err
@@ -53,6 +53,12 @@ func (u *PeriodicUploader) Start() {
 			if appstatus.Instance.Idle {
 				break
 			}
+
+			if destinations.StatusInstance.Reloading {
+				time.Sleep(2 * time.Second)
+				continue
+			}
+
 			files, err := filepath.Glob(u.fileMask)
 			if err != nil {
 				logging.Error("Error finding files by mask", u.fileMask, err)
@@ -86,7 +92,7 @@ func (u *PeriodicUploader) Start() {
 				token := regexResult[1]
 				storageProxies := u.destinationService.GetStorages(token)
 				if len(storageProxies) == 0 {
-					logging.Warnf("Destination storages weren't found for token %s", token)
+					logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, token)
 					continue
 				}
 

@@ -4,17 +4,21 @@
 server:
   port: 8001
   name: event-us-01 #This parameter is required in cluster deployments. If not set - will be taken from os.Hostname()
+  #might be http url of file source
+  #auth: https://source_of_tokens
   auth:
-    - bd33c5fa-d69f-11ea-87d0-0242ac130003
-    - c20765a0-d69f-15ea-82d0-0242ac130003
-  s2s_auth:
-    - 5f15eba2-db58-11ea-87d0-0242ac130003
-    - 62faa226-db58-11ea-87d0-0242ac130003
-  auth_reload_sec: 60 #default value is 300. If auth or s2s_auth is http or file:/// source than it will be reloaded every auth_reload_sec
+    js:
+      - bd33c5fa-d69f-11ea-87d0-0242ac130003
+      - c20765a0-d69f-15ea-82d0-0242ac130003
+    api:
+      - 5f15eba2-db58-11ea-87d0-0242ac130003
+      - 62faa226-db58-11ea-87d0-0242ac130003
+  auth_reload_sec: 60 #default value is 100.  If 'auth' is http or file:/// source than it will be reloaded every auth_reload_sec
   public_url: https://yourhost
   log:
     path: /home/eventnative/logs/ #omit this key to write log to stdout
     rotation_min: 60 #1440 (24 hours) default value
+  destinations_reload_sec: 60 #default value is 120.  If 'destinations' is http or file:/// source than it will be reloaded every destinations_reload_sec
 
 geo.maxmind_path: https://statichost/GeoIP2-City.mmdb
 
@@ -22,6 +26,8 @@ log:
   path: /home/eventnative/logs/events
   rotation_min: 5
 
+#might be http url or file source
+#destinations: https://source_of_destinations
 destinations:
   redshift_one:
     type: redshift
@@ -38,6 +44,7 @@ destinations:
       secret_access_key: secretabc123
       bucket: my-bucket
       region: us-west-1
+      folder: redshift_one #Optional. Specify this parameter if several destinations use one s3 bucket
     data_layout:
       mapping:
         - "/key1/key2 -> /key3"
