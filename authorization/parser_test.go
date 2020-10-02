@@ -2,6 +2,7 @@ package authorization
 
 import (
 	"github.com/ksensehq/eventnative/test"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -75,6 +76,39 @@ func TestParseFromBytes(t *testing.T) {
 				test.ObjectsEqual(t, tt.expectedJs, actualJs, "Js tokens and expected tokens aren't equal")
 				test.ObjectsEqual(t, tt.expectedApi, actualApi, "Api tokens and expected tokens aren't equal")
 			}
+		})
+	}
+}
+
+func TestParseFromConfig(t *testing.T) {
+	vp := viper.New()
+	tests := []struct {
+		name     string
+		input    interface{}
+		expected map[string][]string
+	}{
+		{
+			"config doesn't have key",
+			nil,
+			map[string][]string{},
+		},
+		{
+			"value is string slice",
+			[]string{"token1", "token2"},
+			map[string][]string{"token1": {}, "token2": {}},
+		},
+		{
+			"value is string",
+			"token3",
+			map[string][]string{"token3": {}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vp.Set("key", tt.input)
+			actual := parseFromConfig(vp, "key")
+			test.ObjectsEqual(t, tt.expected, actual, "Parsed tokens aren't equal with expected")
 		})
 	}
 }

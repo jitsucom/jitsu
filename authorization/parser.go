@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/google/martian/log"
+	"github.com/spf13/viper"
 	"reflect"
 	"strings"
 )
@@ -36,16 +38,39 @@ func parseFromBytes(b []byte) (map[string][]string, map[string][]string, error) 
 	return jsTokens, apiTokens, nil
 }
 
-func reformat(tokensArr []string) map[string][]string {
-	tokensOrigins := map[string][]string{}
-	for _, t := range tokensArr {
-		trimmed := strings.TrimSpace(t)
-		if trimmed != "" {
-			tokensOrigins[trimmed] = []string{}
+//parse from viper string slice or from viper json string value
+func parseFromConfig(viperConfig *viper.Viper, key string) (tokensOrigins map[string][]string) {
+	tokensOrigins = map[string][]string{}
+
+	tokensStrArr := viperConfig.GetStringSlice(key)
+	if len(tokensStrArr) > 0 {
+		for _, t := range tokensStrArr {
+			trimmed := strings.TrimSpace(t)
+			if trimmed != "" {
+				tokensOrigins[trimmed] = []string{}
+			}
 		}
+		return
 	}
 
-	return tokensOrigins
+	jsonStr := viperConfig.GetString(key)
+	if jsonStr == "" {
+		return
+	}
+
+	var tokensArr []interface{}
+	var err error
+	if err = json.Unmarshal([]byte(jsonStr), &tokensArr); err != nil {
+		log.Errorf("Error parsing [%s] tokens from config: %v", key, err)
+		return
+	}
+
+	tokensOrigins, err = reformatObj(tokensArr)
+	if err != nil {
+		log.Errorf("Error parsing [%s] tokens from config: %v", key, err)
+	}
+
+	return
 }
 
 func reformatObj(tokensArr []interface{}) (map[string][]string, error) {
