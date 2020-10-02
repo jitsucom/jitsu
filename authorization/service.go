@@ -29,8 +29,8 @@ func NewService() (*Service, error) {
 
 	authViper := viper.Sub("server.auth")
 	if authViper != nil {
-		service.jsTokens = reformat(authViper.GetStringSlice("js"))
-		service.apiTokens = reformat(authViper.GetStringSlice("api"))
+		service.jsTokens = parseFromConfig(authViper, "js")
+		service.apiTokens = parseFromConfig(authViper, "api")
 	} else {
 		authSource := viper.GetString("server.auth")
 
