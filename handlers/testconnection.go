@@ -3,8 +3,10 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/ksensehq/eventnative/adapters"
+	"log"
 	"net/http"
 )
 
@@ -14,6 +16,11 @@ type ConnectionConfig struct {
 }
 
 type ConnectionTestHandler struct {
+}
+
+type RedshiftConfig struct {
+	DbConfig adapters.DataSourceConfig `json:"database"`
+	S3Config adapters.S3Config         `json:"s3"`
 }
 
 func testConnection(config ConnectionConfig) error {
@@ -28,14 +35,9 @@ func testConnection(config ConnectionConfig) error {
 		if err != nil {
 			return err
 		}
-		//host := config.ConnectionParameters["host"].(string)
-		//port := config.ConnectionParameters["port"].(int)
-		//database := config.ConnectionParameters["database"].(string)
-		//username := config.ConnectionParameters["username"].(string)
-		//password := config.ConnectionParameters["password"].(string)
-		//schema := config.ConnectionParameters["schema"].(string)
-		//
-		//dsConfig := adapters.DataSourceConfig{Host: host, Port: port, Db: database, Username: username, Password: password, Schema: schema}
+		if err := postgresConfig.Validate(); err != nil {
+			return err
+		}
 		postgres, err := adapters.NewPostgres(context.Background(), &postgresConfig)
 		if err != nil {
 			return err
@@ -43,9 +45,66 @@ func testConnection(config ConnectionConfig) error {
 		defer postgres.Close()
 		return postgres.Test()
 
-	}
-	return nil
+	case "clickhouse":
+		var chConfig adapters.ClickHouseConfig
+		body, err := json.Marshal(config.ConnectionConfig)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(body, &chConfig)
+		if err != nil {
+			return err
+		}
+		if err = chConfig.Validate(); err != nil {
+			return err
+		}
+		tableStatementFactory, err := adapters.NewTableStatementFactory(&chConfig)
+		if err != nil {
+			return err
+		}
+		nonNullFields := map[string]bool{"eventn_ctx_event_id": true, "_timestamp": true}
+		dsnsAvailable := map[string]error{}
+		for i := range chConfig.Dsns {
+			ch, err := adapters.NewClickHouse(context.Background(), chConfig.Dsns[i], chConfig.Database, chConfig.Cluster, chConfig.Tls, tableStatementFactory, nonNullFields)
+			if err != nil {
+				return err
+			}
+			err = ch.Test()
+			if err = ch.Close(); err != nil {
+				log.Printf("Failed to close clickhouse datasource %s", err)
+			}
+			dsnsAvailable[chConfig.Dsns[i]] = err
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 
+	case "redshift":
+		var rsConfig RedshiftConfig
+		body, err := json.Marshal(config.ConnectionConfig)
+		if err != nil {
+			return err
+		}
+		err = json.Unmarshal(body, &rsConfig)
+		if err != nil {
+			return err
+		}
+		if err = rsConfig.DbConfig.Validate(); err != nil {
+			return err
+		}
+		if err = rsConfig.S3Config.Validate(); err != nil {
+			return err
+		}
+		redshift, err := adapters.NewAwsRedshift(context.Background(), &rsConfig.DbConfig, &rsConfig.S3Config)
+		if err != nil {
+			return err
+		}
+		defer redshift.Close()
+		return redshift.Test()
+	default:
+		return errors.New("unsupported destination type " + config.DestinationType)
+	}
 }
 
 type OkResponse struct {
@@ -54,7 +113,7 @@ type OkResponse struct {
 
 type ErrorResponse struct {
 	Message string `json:"message"`
-	Error   error  `'json:"error"`
+	Error   error  `json:"error"`
 }
 
 func NewConnectionTestHandler() *ConnectionTestHandler {
