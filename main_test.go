@@ -24,7 +24,7 @@ import (
 
 func SetTestDefaultParams() {
 	viper.Set("log.path", "")
-	viper.Set("server.auth", `{"js": ["c2stoken"], "api":[{"token":"s2stoken", "origins":["whiteorigin*"]}]}`)
+	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
 }
 
 func TestApiEvent(t *testing.T) {
@@ -79,7 +79,7 @@ func TestApiEvent(t *testing.T) {
 		{
 			"C2S Api event consuming test",
 			"/api/v1/event?token=c2stoken",
-			"",
+			"https://whiteorigin.com/",
 			"test_data/event_input.json",
 			"test_data/fact_output.json",
 			http.StatusOK,
@@ -106,8 +106,7 @@ func TestApiEvent(t *testing.T) {
 			inmemWriter := logging.InitInMemoryWriter()
 			router := SetupRouter(destinations.NewTestService(
 				map[string]map[string]events.Consumer{
-					"c2stoken": {"test": events.NewAsyncLogger(inmemWriter, false)},
-					"s2stoken": {"test": events.NewAsyncLogger(inmemWriter, false)},
+					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
 				}, map[string]map[string]events.StorageProxy{}))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
