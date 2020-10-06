@@ -2,44 +2,44 @@ package destinations
 
 import "github.com/ksensehq/eventnative/events"
 
-//map["token"]map["destination_name"]interface
-//because 1 token = ∞ storages
+//map["tokenId"]map["destination_name"]interface
+//because 1 token id = ∞ storages
 type TokenizedStorages map[string]map[string]events.StorageProxy
 
-//map["token"]map["token | destination_name"]interface
-//because 1 token = 1logger but ∞ event.queue
+//map["tokenId"]map["tokenId | destination_name"]interface
+//because 1 token id = 1logger but ∞ event.queue
 type TokenizedConsumers map[string]map[string]events.Consumer
 
-func (ts TokenizedStorages) Add(token, name string, proxy events.StorageProxy) {
-	storageProxies, ok := ts[token]
+func (ts TokenizedStorages) Add(tokenId, name string, proxy events.StorageProxy) {
+	storageProxies, ok := ts[tokenId]
 	if !ok {
 		storageProxies = map[string]events.StorageProxy{}
-		ts[token] = storageProxies
+		ts[tokenId] = storageProxies
 	}
 	storageProxies[name] = proxy
 }
 
 func (ts TokenizedStorages) AddAll(other TokenizedStorages) {
-	for token, storages := range other {
+	for tokenId, storages := range other {
 		for name, storage := range storages {
-			ts.Add(token, name, storage)
+			ts.Add(tokenId, name, storage)
 		}
 	}
 }
 
-func (tc TokenizedConsumers) Add(token, name string, proxy events.Consumer) {
-	consumers, ok := tc[token]
+func (tc TokenizedConsumers) Add(tokenId, name string, proxy events.Consumer) {
+	consumers, ok := tc[tokenId]
 	if !ok {
 		consumers = map[string]events.Consumer{}
-		tc[token] = consumers
+		tc[tokenId] = consumers
 	}
 	consumers[name] = proxy
 }
 
 func (tc TokenizedConsumers) AddAll(other TokenizedConsumers) {
-	for token, consumers := range other {
+	for tokenId, consumers := range other {
 		for name, consumer := range consumers {
-			tc.Add(token, name, consumer)
+			tc.Add(tokenId, name, consumer)
 		}
 	}
 }

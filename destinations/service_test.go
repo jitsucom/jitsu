@@ -35,6 +35,7 @@ func (tpm *testProxyMock) Close() error {
 // 5. remove all again
 func TestServiceInit(t *testing.T) {
 	viper.Set("server.destinations_reload_sec", 1)
+	viper.Set("server.auth", []string{"token1", "token2", "token3", "token4"})
 	appconfig.Init()
 
 	initialDestinations := `{
@@ -136,39 +137,39 @@ func TestServiceInit(t *testing.T) {
 }
 
 func initialConfigAsserts(t *testing.T, service *Service) {
-	require.Equal(t, 3, len(service.storagesByToken))
-	require.Equal(t, 3, len(service.consumersByToken))
+	require.Equal(t, 3, len(service.storagesByTokenId))
+	require.Equal(t, 3, len(service.consumersByTokenId))
 
-	require.Equal(t, 2, len(service.GetStorages("token1")))
-	require.Equal(t, 1, len(service.GetConsumers("token1")))
+	require.Equal(t, 2, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token1"))))
+	require.Equal(t, 1, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token1"))))
 
-	require.Equal(t, 1, len(service.GetStorages("token2")))
-	require.Equal(t, 1, len(service.GetConsumers("token2")))
+	require.Equal(t, 1, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token2"))))
+	require.Equal(t, 1, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token2"))))
 
-	require.Equal(t, 2, len(service.GetStorages("token3")))
-	require.Equal(t, 2, len(service.GetConsumers("token3")))
+	require.Equal(t, 2, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token3"))))
+	require.Equal(t, 2, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token3"))))
 }
 
 func changedConfigAsserts(t *testing.T, service *Service) {
-	require.Equal(t, 3, len(service.storagesByToken))
-	require.Equal(t, 3, len(service.consumersByToken))
+	require.Equal(t, 3, len(service.storagesByTokenId))
+	require.Equal(t, 3, len(service.consumersByTokenId))
 
-	require.Equal(t, 1, len(service.GetStorages("token1")))
-	require.Equal(t, 1, len(service.GetConsumers("token1")))
+	require.Equal(t, 1, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token1"))))
+	require.Equal(t, 1, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token1"))))
 
-	require.Equal(t, 0, len(service.GetStorages("token2")))
-	require.Equal(t, 0, len(service.GetConsumers("token2")))
+	require.Equal(t, 0, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token2"))))
+	require.Equal(t, 0, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token2"))))
 
-	require.Equal(t, 4, len(service.GetStorages("token3")))
-	require.Equal(t, 3, len(service.GetConsumers("token3")))
+	require.Equal(t, 4, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token3"))))
+	require.Equal(t, 3, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token3"))))
 
-	require.Equal(t, 2, len(service.GetStorages("token4")))
-	require.Equal(t, 2, len(service.GetConsumers("token4")))
+	require.Equal(t, 2, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token4"))))
+	require.Equal(t, 2, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token4"))))
 }
 
 func emptyConfigAsserts(t *testing.T, service *Service) {
-	require.Equal(t, 0, len(service.storagesByToken))
-	require.Equal(t, 0, len(service.consumersByToken))
+	require.Equal(t, 0, len(service.storagesByTokenId))
+	require.Equal(t, 0, len(service.consumersByTokenId))
 
 	require.Equal(t, 0, len(service.GetStorages("token1")))
 	require.Equal(t, 0, len(service.GetConsumers("token1")))

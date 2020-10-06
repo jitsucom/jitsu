@@ -2,116 +2,89 @@ package authorization
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
-	"github.com/google/martian/log"
-	"github.com/spf13/viper"
-	"reflect"
+	"github.com/ksensehq/eventnative/resources"
 	"strings"
 )
 
-type TokensPayload struct {
-	Js  []interface{} `json:"js,omitempty"`
-	Api []interface{} `json:"api,omitempty"`
+type Token struct {
+	Id           string   `mapstructure:"id" json:"id,omitempty"`
+	ClientSecret string   `mapstructure:"client_secret" json:"client_secret,omitempty"`
+	ServerSecret string   `mapstructure:"server_secret" json:"server_secret,omitempty"`
+	Origins      []string `mapstructure:"origins" json:"origins,omitempty"`
 }
 
-//parse tokens from formats:
-//{"js": value, "api": value} where value might be strings array or json objects array with object format:
-//{"token":"123", "origins":["origin1", "origin2"]}
-func parseFromBytes(b []byte) (map[string][]string, map[string][]string, error) {
+type TokensPayload struct {
+	Tokens []Token `json:"tokens,omitempty"`
+}
+
+type TokensHolder struct {
+	//origins by client token
+	clientTokensOrigins map[string][]string
+	//origins by server token
+	serverTokensOrigins map[string][]string
+
+	//all token ids
+	ids []string
+	//token by: client_secret/server_secret/id
+	all map[string]Token
+}
+
+func (th *TokensHolder) IsEmpty() bool {
+	return th == nil || len(th.ids) == 0
+}
+
+//parse tokens from json bytes
+func parseFromBytes(b []byte) (*TokensHolder, error) {
 	payload := &TokensPayload{}
 	err := json.Unmarshal(b, payload)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error unmarshalling tokens. Payload must be json with 'js' and 'api' keys of json array or string array formats: %v", err)
+		return nil, fmt.Errorf("Error unmarshalling tokens. Payload must be json with 'tokens' key: %v", err)
 	}
 
-	jsTokens, err := reformatObj(payload.Js)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	apiTokens, err := reformatObj(payload.Api)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return jsTokens, apiTokens, nil
+	return reformat(payload.Tokens), nil
 }
 
-//parse from viper string slice or from viper json string value
-func parseFromConfig(viperConfig *viper.Viper, key string) (tokensOrigins map[string][]string) {
-	tokensOrigins = map[string][]string{}
-
-	tokensStrArr := viperConfig.GetStringSlice(key)
-	if len(tokensStrArr) > 0 {
-		for _, t := range tokensStrArr {
-			trimmed := strings.TrimSpace(t)
-			if trimmed != "" {
-				tokensOrigins[trimmed] = []string{}
-			}
-		}
-		return
+func fromStrings(clientSecrets []string) *TokensHolder {
+	var tokens []Token
+	for _, clientSecret := range clientSecrets {
+		tokens = append(tokens, Token{ClientSecret: clientSecret})
 	}
-
-	jsonStr := viperConfig.GetString(key)
-	if jsonStr == "" {
-		return
-	}
-
-	var tokensArr []interface{}
-	var err error
-	if err = json.Unmarshal([]byte(jsonStr), &tokensArr); err != nil {
-		log.Errorf("Error parsing [%s] tokens from config: %v", key, err)
-		return
-	}
-
-	tokensOrigins, err = reformatObj(tokensArr)
-	if err != nil {
-		log.Errorf("Error parsing [%s] tokens from config: %v", key, err)
-	}
-
-	return
+	return reformat(tokens)
 }
 
-func reformatObj(tokensArr []interface{}) (map[string][]string, error) {
-	tokensOrigins := map[string][]string{}
-	for _, t := range tokensArr {
-		switch t.(type) {
-		case string:
-			token := t.(string)
-			trimmed := strings.TrimSpace(token)
-			if trimmed != "" {
-				tokensOrigins[trimmed] = []string{}
-			}
-		case map[string]interface{}:
-			tokenObj := t.(map[string]interface{})
-			token, ok := tokenObj["token"]
-			if !ok {
-				return nil, errors.New("Unknown authorization token format: each object must contain token field")
-			}
+func reformat(tokens []Token) *TokensHolder {
+	clientTokensOrigins := map[string][]string{}
+	serverTokensOrigins := map[string][]string{}
+	all := map[string]Token{}
+	var ids []string
 
-			var origins []string
-			trimmed := strings.TrimSpace(token.(string))
-			if trimmed != "" {
-				originsObj, ok := tokenObj["origins"]
-				if ok {
-					originsArr, ok := originsObj.([]interface{})
-					if !ok {
-						return nil, errors.New("Unknown authorization origins format: origins must be array of strings")
-					}
-
-					for _, originI := range originsArr {
-						origins = append(origins, originI.(string))
-					}
-				}
-
-				tokensOrigins[trimmed] = origins
-			}
-		default:
-			return nil, errors.New("Unknown authorization token format type: " + reflect.TypeOf(t).Name())
+	for _, tokenObj := range tokens {
+		if tokenObj.Id == "" {
+			//hash from client,server secret will be id
+			tokenObj.Id = resources.GetHash([]byte(tokenObj.ClientSecret + tokenObj.ServerSecret))
 		}
 
+		all[tokenObj.Id] = tokenObj
+		ids = append(ids, tokenObj.Id)
+
+		trimmedClientToken := strings.TrimSpace(tokenObj.ClientSecret)
+		if trimmedClientToken != "" {
+			clientTokensOrigins[trimmedClientToken] = tokenObj.Origins
+			all[trimmedClientToken] = tokenObj
+		}
+
+		trimmedServerToken := strings.TrimSpace(tokenObj.ServerSecret)
+		if trimmedServerToken != "" {
+			serverTokensOrigins[trimmedServerToken] = tokenObj.Origins
+			all[trimmedServerToken] = tokenObj
+		}
 	}
 
-	return tokensOrigins, nil
+	return &TokensHolder{
+		clientTokensOrigins: clientTokensOrigins,
+		serverTokensOrigins: serverTokensOrigins,
+		ids:                 ids,
+		all:                 all,
+	}
 }

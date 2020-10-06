@@ -174,8 +174,8 @@ func SetupRouter(destinations *destinations.Service) *gin.Engine {
 	apiEventHandler := handlers.NewEventHandler(destinations, events.NewApiPreprocessor()).Handler
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenAuth(jsEventHandler, appconfig.Instance.AuthorizationService.GetJsOrigins, ""))
-		apiV1.POST("/s2s/event", middleware.TokenAuth(apiEventHandler, appconfig.Instance.AuthorizationService.GetApiOrigins, "The token isn't a server token. Please use s2s integration token\n"))
+		apiV1.POST("/event", middleware.TokenAuth(jsEventHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
+		apiV1.POST("/s2s/event", middleware.TokenAuth(apiEventHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
 	}
 
 	return router

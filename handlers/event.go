@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
@@ -50,7 +51,9 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 	processed[apiTokenKey] = token
 	processed[timestamp.Key] = timestamp.NowUTC()
 
-	consumers := eh.destinationService.GetConsumers(token)
+	tokenId := appconfig.Instance.AuthorizationService.GetTokenId(token)
+
+	consumers := eh.destinationService.GetConsumers(tokenId)
 	if len(consumers) == 0 {
 		logging.Warnf("Unknown token[%s] request was received", token)
 	} else {
