@@ -168,10 +168,12 @@ func SetupRouter(destinations *events.DestinationService) *gin.Engine {
 
 	c2sEventHandler := handlers.NewEventHandler(destinations, events.NewC2SPreprocessor()).Handler
 	s2sEventHandler := handlers.NewEventHandler(destinations, events.NewS2SPreprocessor()).Handler
+	connectionTestHandler := handlers.NewConnectionTestHandler()
 	apiV1 := router.Group("/api/v1")
 	{
 		apiV1.POST("/event", middleware.TokenAuth(c2sEventHandler, appconfig.Instance.AuthorizationService.GetC2SOrigins, ""))
 		apiV1.POST("/s2s/event", middleware.TokenAuth(s2sEventHandler, appconfig.Instance.AuthorizationService.GetS2SOrigins, "The token isn't a server token. Please use s2s integration token\n"))
+		apiV1.POST("/test_connection", connectionTestHandler.Handler)
 	}
 
 	return router
