@@ -11,8 +11,8 @@ type Unit struct {
 	eventQueue *events.PersistentQueue
 	storage    events.StorageProxy
 
-	tokens []string
-	hash   string
+	tokenIds []string
+	hash     string
 }
 
 //Close eventsQueue if exists and storage
