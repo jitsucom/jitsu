@@ -234,7 +234,6 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 	return wrappedTx.tx.Commit()
 }
 
-//Select executes select query
 func (p *Postgres) Test() error {
 	_, err := p.dataSource.Query("SELECT 1;")
 	return err
