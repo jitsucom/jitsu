@@ -23,6 +23,7 @@ type BigQuery struct {
 	bqAdapter       *adapters.BigQuery
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
+	streamingWorker *StreamingWorker
 	breakOnError    bool
 }
 
@@ -63,7 +64,8 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 		breakOnError:    breakOnError,
 	}
 	if streamMode {
-		newStreamingWorker(eventQueue, processor, bq).start()
+		bq.streamingWorker = newStreamingWorker(eventQueue, processor, bq)
+		bq.streamingWorker.start()
 	} else {
 		bq.startBatch()
 	}
@@ -171,6 +173,10 @@ func (bq *BigQuery) Close() (multiErr error) {
 	}
 	if err := bq.bqAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing BigQuery client: %v", bq.Name(), err))
+	}
+
+	if bq.streamingWorker != nil {
+		bq.streamingWorker.Close()
 	}
 
 	return

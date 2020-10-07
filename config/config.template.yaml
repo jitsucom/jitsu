@@ -13,12 +13,12 @@ server:
     api:
       - 5f15eba2-db58-11ea-87d0-0242ac130003
       - 62faa226-db58-11ea-87d0-0242ac130003
-  auth_reload_sec: 60 #default value is 100.  If 'auth' is http or file:/// source than it will be reloaded every auth_reload_sec
+  auth_reload_sec: 60 #default value is 30.  If 'auth' is http or file:/// source than it will be reloaded every auth_reload_sec
   public_url: https://yourhost
   log:
     path: /home/eventnative/logs/ #omit this key to write log to stdout
     rotation_min: 60 #1440 (24 hours) default value
-  destinations_reload_sec: 60 #default value is 120.  If 'destinations' is http or file:/// source than it will be reloaded every destinations_reload_sec
+  destinations_reload_sec: 60 #default value is 40.  If 'destinations' is http or file:/// source than it will be reloaded every destinations_reload_sec
 
 geo.maxmind_path: https://statichost/GeoIP2-City.mmdb
 

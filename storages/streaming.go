@@ -1,7 +1,6 @@
 package storages
 
 import (
-	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
@@ -19,6 +18,8 @@ type StreamingWorker struct {
 	eventQueue       *events.PersistentQueue
 	schemaProcessor  *schema.Processor
 	streamingStorage StreamingStorage
+
+	closed bool
 }
 
 func newStreamingWorker(eventQueue *events.PersistentQueue, schemaProcessor *schema.Processor, streamingStorage StreamingStorage) *StreamingWorker {
@@ -35,11 +36,15 @@ func newStreamingWorker(eventQueue *events.PersistentQueue, schemaProcessor *sch
 func (sw *StreamingWorker) start() {
 	go func() {
 		for {
-			if appstatus.Instance.Idle {
+			if sw.closed {
 				break
 			}
+
 			fact, dequeuedTime, err := sw.eventQueue.DequeueBlock()
 			if err != nil {
+				if err == events.ErrQueueClosed && sw.closed {
+					continue
+				}
 				logging.Errorf("[%s] Error reading event fact from queue: %v", sw.streamingStorage.Name(), err)
 				continue
 			}
@@ -72,4 +77,9 @@ func (sw *StreamingWorker) start() {
 			}
 		}
 	}()
+}
+
+func (sw *StreamingWorker) Close() error {
+	sw.closed = true
+	return nil
 }

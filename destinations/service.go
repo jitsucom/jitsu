@@ -279,6 +279,7 @@ func (s *Service) remove(name string, unit *Unit) {
 	}
 
 	delete(s.unitsByName, name)
+	logging.Infof("[%s] has been removed!", name)
 }
 
 func (s *Service) Close() (multiErr error) {
