@@ -11,8 +11,6 @@ import (
 	"math/rand"
 )
 
-const clickHouseStorageType = "ClickHouse"
-
 //Store files to ClickHouse in two modes:
 //batch: (1 file = 1 transaction)
 //stream: (1 object = 1 transaction)
@@ -52,7 +50,7 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 		}
 
 		chAdapters = append(chAdapters, adapter)
-		tableHelpers = append(tableHelpers, NewTableHelper(adapter, monitorKeeper, clickHouseStorageType))
+		tableHelpers = append(tableHelpers, NewTableHelper(adapter, monitorKeeper, ClickHouseType))
 	}
 
 	ch := &ClickHouse{
@@ -85,7 +83,7 @@ func (ch *ClickHouse) Name() string {
 }
 
 func (ch *ClickHouse) Type() string {
-	return clickHouseStorageType
+	return ClickHouseType
 }
 
 //Insert fact in ClickHouse

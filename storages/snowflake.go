@@ -15,8 +15,6 @@ import (
 	"time"
 )
 
-const snowflakeStorageType = "Snowflake"
-
 //Store files to Snowflake in two modes:
 //batch: via aws s3 (or gcp) in batch mode (1 file = 1 transaction)
 //stream: via events queue in stream mode (1 object = 1 transaction)
@@ -56,7 +54,7 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(snowflakeAdapter, monitorKeeper, snowflakeStorageType)
+	tableHelper := NewTableHelper(snowflakeAdapter, monitorKeeper, SnowflakeType)
 
 	snowflake := &Snowflake{
 		name:             name,
@@ -228,7 +226,7 @@ func (s *Snowflake) Name() string {
 }
 
 func (s *Snowflake) Type() string {
-	return snowflakeStorageType
+	return SnowflakeType
 }
 
 func (s *Snowflake) Close() (multiErr error) {
