@@ -126,7 +126,7 @@ func (h *ConnectionTestHandler) Handler(c *gin.Context) {
 	}
 	err := testConnection(connectionConfig)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to test connection", Error: err})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: err.Error(), Error: err})
 		return
 	}
 	c.JSON(http.StatusOK, middleware.OkResponse{Status: "Connection established"})
