@@ -134,9 +134,6 @@ func main() {
 	uploader.Start()
 
 	adminToken := viper.GetString("server.admin_token")
-	if adminToken == "" {
-		logging.Fatal("Admin token is not configured")
-	}
 	router := SetupRouter(destinationsService, adminToken)
 
 	telemetry.ServerStart()

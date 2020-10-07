@@ -73,8 +73,7 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 }
 
 func (ar *AwsRedshift) Test() error {
-	_, err := ar.dataSourceProxy.dataSource.Query("SELECT 1;")
-	return err
+	return ar.dataSourceProxy.dataSource.Ping()
 }
 
 //Insert provided object in AwsRedshift in stream mode
