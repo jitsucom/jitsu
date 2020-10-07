@@ -24,6 +24,7 @@ type AwsRedshift struct {
 	redshiftAdapter *adapters.AwsRedshift
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
+	streamingWorker *StreamingWorker
 	breakOnError    bool
 }
 
@@ -63,7 +64,8 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 	}
 
 	if streamMode {
-		newStreamingWorker(eventQueue, processor, ar).start()
+		ar.streamingWorker = newStreamingWorker(eventQueue, processor, ar)
+		ar.streamingWorker.start()
 	} else {
 		ar.startBatch()
 	}
@@ -179,6 +181,10 @@ func (ar *AwsRedshift) Type() string {
 func (ar *AwsRedshift) Close() error {
 	if err := ar.redshiftAdapter.Close(); err != nil {
 		return fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.Name(), err)
+	}
+
+	if ar.streamingWorker != nil {
+		ar.streamingWorker.Close()
 	}
 
 	return nil

@@ -17,6 +17,7 @@ type Postgres struct {
 	adapter         *adapters.Postgres
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
+	streamingWorker *StreamingWorker
 	breakOnError    bool
 }
 
@@ -46,7 +47,8 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 	}
 
 	if streamMode {
-		newStreamingWorker(eventQueue, processor, p).start()
+		p.streamingWorker = newStreamingWorker(eventQueue, processor, p)
+		p.streamingWorker.start()
 	}
 
 	return p, nil
@@ -113,6 +115,9 @@ func (p *Postgres) Close() error {
 		return fmt.Errorf("[%s] Error closing postgres datasource: %v", p.Name(), err)
 	}
 
+	if p.streamingWorker != nil {
+		p.streamingWorker.Close()
+	}
 	return nil
 }
 

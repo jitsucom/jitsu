@@ -88,6 +88,7 @@ func main() {
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
 	go func() {
 		<-c
+		logging.Info("* Service is shutting down.. *")
 		telemetry.ServerStop()
 		appstatus.Instance.Idle = true
 		cancel()

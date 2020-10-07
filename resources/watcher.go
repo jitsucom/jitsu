@@ -29,6 +29,7 @@ func Watch(name, source string, loadFunc func(string) ([]byte, error), consumer 
 		consumer:    consumer,
 		reloadEvery: reloadEvery,
 	}
+	logging.Infof("Resource [%s] will be loaded every %d seconds", name, int(reloadEvery.Seconds()))
 	w.watch()
 }
 

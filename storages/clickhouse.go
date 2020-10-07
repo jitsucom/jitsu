@@ -19,6 +19,7 @@ type ClickHouse struct {
 	adapters        []*adapters.ClickHouse
 	tableHelpers    []*TableHelper
 	schemaProcessor *schema.Processor
+	streamingWorker *StreamingWorker
 	breakOnError    bool
 }
 
@@ -72,7 +73,8 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 	}
 
 	if streamMode {
-		newStreamingWorker(eventQueue, processor, ch).start()
+		ch.streamingWorker = newStreamingWorker(eventQueue, processor, ch)
+		ch.streamingWorker.start()
 	}
 
 	return ch, nil
@@ -150,6 +152,10 @@ func (ch *ClickHouse) Close() (multiErr error) {
 		if err := adapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing clickhouse datasource[%d]: %v", ch.Name(), i, err))
 		}
+	}
+
+	if ch.streamingWorker != nil {
+		ch.streamingWorker.Close()
 	}
 
 	return multiErr
