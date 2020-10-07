@@ -19,6 +19,11 @@ type ConnectionConfig struct {
 type ConnectionTestHandler struct {
 }
 
+type RedshiftConfig struct {
+	DbConfig *adapters.DataSourceConfig `json:"database"`
+	S3Config *adapters.S3Config         `json:"s3"`
+}
+
 type SnowflakeExternalConfig struct {
 	SnowflakeConfig adapters.SnowflakeConfig `json:"snowflake"`
 	S3Config        adapters.S3Config        `json:"s3"`
@@ -45,7 +50,6 @@ func testConnection(config ConnectionConfig) error {
 		}
 		defer postgres.Close()
 		return postgres.Test()
-
 	case "clickhouse":
 		var chConfig adapters.ClickHouseConfig
 		body, err := json.Marshal(config.ConnectionConfig)
@@ -81,9 +85,8 @@ func testConnection(config ConnectionConfig) error {
 			}
 		}
 		return nil
-
 	case "redshift":
-		var rsConfig adapters.RedshiftConfig
+		var rsConfig RedshiftConfig
 		body, err := json.Marshal(config.ConnectionConfig)
 		if err != nil {
 			return err
@@ -106,44 +109,6 @@ func testConnection(config ConnectionConfig) error {
 		}
 		defer redshift.Close()
 		return redshift.Test()
-	case "bigquery":
-		return errors.New("bigquery validation is not supported")
-	case "s3":
-		s3Config := adapters.S3Config{}
-		body, err := json.Marshal(config.ConnectionConfig)
-		if err != nil {
-			return err
-		}
-		if err = json.Unmarshal(body, &s3Config); err != nil {
-			return err
-		}
-		if err = s3Config.Validate(); err != nil {
-			return err
-		}
-		s3, err := adapters.NewS3(&s3Config)
-		defer s3.Close()
-		return err
-	case "snowflake":
-		snowflakeConfig := SnowflakeExternalConfig{}
-		body, err := json.Marshal(config.ConnectionConfig)
-		if err != nil {
-			return err
-		}
-		if err = json.Unmarshal(body, &snowflakeConfig); err != nil {
-			return err
-		}
-		if err = snowflakeConfig.SnowflakeConfig.Validate(); err != nil {
-			return err
-		}
-		if err = snowflakeConfig.S3Config.Validate(); err != nil {
-			return err
-		}
-		snowflake, err := adapters.NewSnowflake(context.Background(), &snowflakeConfig.SnowflakeConfig, &snowflakeConfig.S3Config)
-		if err != nil {
-			return err
-		}
-		defer snowflake.Close()
-		return snowflake.Test()
 	default:
 		return errors.New("unsupported destination type " + config.DestinationType)
 	}

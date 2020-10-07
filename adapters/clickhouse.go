@@ -375,8 +375,7 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 }
 
 func (ch *ClickHouse) Test() error {
-	_, err := ch.dataSource.Query("SELECT 1;")
-	return err
+	return ch.dataSource.Ping()
 }
 
 //Insert provided object in ClickHouse in stream mode

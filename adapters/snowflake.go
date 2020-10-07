@@ -260,8 +260,7 @@ func (s *Snowflake) Copy(wrappedTx *Transaction, fileKey, header, tableName stri
 }
 
 func (s *Snowflake) Test() error {
-	_, err := s.dataSource.Query("SELECT 1")
-	return err
+	return s.dataSource.Ping()
 }
 
 //Insert provided object in snowflake

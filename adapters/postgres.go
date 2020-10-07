@@ -235,8 +235,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 }
 
 func (p *Postgres) Test() error {
-	_, err := p.dataSource.Query("SELECT 1;")
-	return err
+	return p.dataSource.Ping()
 }
 
 //Insert provided object in postgres
