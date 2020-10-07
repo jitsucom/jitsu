@@ -6,8 +6,8 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/ksensehq/eventnative/adapters"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
-	"log"
 	"net/http"
 )
 
@@ -64,19 +64,20 @@ func testConnection(config ConnectionConfig) error {
 			return err
 		}
 		nonNullFields := map[string]bool{"eventn_ctx_event_id": true, "_timestamp": true}
-		dsnsAvailable := map[string]error{}
 		for i := range chConfig.Dsns {
+			var resultError error
+			resultError = nil
 			ch, err := adapters.NewClickHouse(context.Background(), chConfig.Dsns[i], chConfig.Database, chConfig.Cluster, chConfig.Tls, tableStatementFactory, nonNullFields)
 			if err != nil {
-				return err
+				resultError = err
+				continue
 			}
-			err = ch.Test()
+			resultError = ch.Test()
 			if err = ch.Close(); err != nil {
-				log.Printf("Failed to close clickhouse datasource %s", err)
+				logging.Warn("Failed to close clickhouse datasource %s", err)
 			}
-			dsnsAvailable[chConfig.Dsns[i]] = err
-			if err != nil {
-				return err
+			if resultError == nil {
+				return nil
 			}
 		}
 		return nil
