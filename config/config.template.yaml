@@ -6,13 +6,24 @@ server:
   name: event-us-01 #This parameter is required in cluster deployments. If not set - will be taken from os.Hostname()
   #might be http url of file source
   #auth: https://source_of_tokens
-  auth:
-    js:
+  #or might be full configured token object
+  #auth:
+  #  -
+  #    id: unique_tokenId
+  #    client_secret: bd33c5fa-d69f-11ea-87d0-0242ac130003
+  #    server_secret: 5f15eba2-db58-11ea-87d0-0242ac130003
+  #    origins:
+  #      - *abc.com
+  #      - efg.com
+  #  -
+  #    id: unique_tokenId2
+  #    client_secret: 123jsy213c5fa-c20765a0-d69f003
+  #  -
+  #    id: unique_tokenId3
+  #    server_secret: 231dasds-3211kb3rdf-412dkjnabf
+  auth: #plain strings - client_secrets
       - bd33c5fa-d69f-11ea-87d0-0242ac130003
       - c20765a0-d69f-15ea-82d0-0242ac130003
-    api:
-      - 5f15eba2-db58-11ea-87d0-0242ac130003
-      - 62faa226-db58-11ea-87d0-0242ac130003
   auth_reload_sec: 60 #default value is 30.  If 'auth' is http or file:/// source than it will be reloaded every auth_reload_sec
   public_url: https://yourhost
   log:
