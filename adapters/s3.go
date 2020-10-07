@@ -18,8 +18,8 @@ type S3 struct {
 }
 
 type S3Config struct {
-	AccessKeyID string `mapstructure:"access_key_id"`
-	SecretKey   string `mapstructure:"secret_access_key"`
+	AccessKeyID string `mapstructure:"access_key_id" json:"access_key_id"`
+	SecretKey   string `mapstructure:"secret_access_key" json:"secret_access_key"`
 	Bucket      string `mapstructure:"bucket"`
 	Region      string `mapstructure:"region"`
 	Endpoint    string `mapstructure:"endpoint"`
