@@ -39,26 +39,36 @@ func TestServiceInit(t *testing.T) {
 	appconfig.Init()
 
 	initialDestinations := `{
-  "redshift_1": {
-    "type": "redshift",
-    "only_tokens": ["token1", "token2"],
-    "datasource": {
-      "host": "host_redshift_1"
-    }
-  },
-  "pg_1": {
-    "type": "postgres",
-    "only_tokens": ["token1", "token3"],
-    "datasource": {
-      "host": "host_pg_1"
-    }
-  },
-  "pg_2": {
-    "type": "postgres",
-    "mode": "stream",
-    "only_tokens": ["token3"],
-    "datasource": {
-      "host": "host_pg_2"
+  "destinations": {
+    "redshift_1": {
+      "type": "redshift",
+      "only_tokens": [
+        "token1",
+        "token2"
+      ],
+      "datasource": {
+        "host": "host_redshift_1"
+      }
+    },
+    "pg_1": {
+      "type": "postgres",
+      "only_tokens": [
+        "token1",
+        "token3"
+      ],
+      "datasource": {
+        "host": "host_pg_1"
+      }
+    },
+    "pg_2": {
+      "type": "postgres",
+      "mode": "stream",
+      "only_tokens": [
+        "token3"
+      ],
+      "datasource": {
+        "host": "host_pg_2"
+      }
     }
   }
 }`
@@ -76,42 +86,56 @@ func TestServiceInit(t *testing.T) {
 
 	//change
 	changedDestinations := `{
-  "pg_1": {
-    "type": "postgres",
-    "only_tokens": ["token1", "token3", "token4"],
-    "datasource": {
-      "host": "host_pg_1"
-    }
-  },
-  "pg_2": {
-    "type": "postgres",
-    "mode": "stream",
-    "only_tokens": ["token3"],
-    "datasource": {
-      "host": "host_pg_2"
-    }
-  },
- "pg_3": {
-    "type": "postgres",
-    "mode": "stream",
-    "only_tokens": ["token4"],
-    "datasource": {
-      "host": "host_pg_3"
-    }
-  },
-"pg_4": {
-    "type": "postgres",
-    "only_tokens": ["token3"],
-    "datasource": {
-      "host": "host_pg_4"
-    }
-  },
-"pg_5": {
-    "type": "postgres",
-    "mode": "stream",
-    "only_tokens": ["token3"],
-    "datasource": {
-      "host": "host_pg_5"
+  "destinations": {
+    "pg_1": {
+      "type": "postgres",
+      "only_tokens": [
+        "token1",
+        "token3",
+        "token4"
+      ],
+      "datasource": {
+        "host": "host_pg_1"
+      }
+    },
+    "pg_2": {
+      "type": "postgres",
+      "mode": "stream",
+      "only_tokens": [
+        "token3"
+      ],
+      "datasource": {
+        "host": "host_pg_2"
+      }
+    },
+    "pg_3": {
+      "type": "postgres",
+      "mode": "stream",
+      "only_tokens": [
+        "token4"
+      ],
+      "datasource": {
+        "host": "host_pg_3"
+      }
+    },
+    "pg_4": {
+      "type": "postgres",
+      "only_tokens": [
+        "token3"
+      ],
+      "datasource": {
+        "host": "host_pg_4"
+      }
+    },
+    "pg_5": {
+      "type": "postgres",
+      "mode": "stream",
+      "only_tokens": [
+        "token3"
+      ],
+      "datasource": {
+        "host": "host_pg_5"
+      }
     }
   }
 }`
