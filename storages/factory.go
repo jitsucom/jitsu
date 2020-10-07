@@ -115,17 +115,17 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 
 	var storageProxy events.StorageProxy
 	switch destination.Type {
-	case "redshift":
+	case RedshiftType:
 		storageProxy = newProxy(createRedshift, storageConfig)
-	case "bigquery":
+	case BigQueryType:
 		storageProxy = newProxy(createBigQuery, storageConfig)
-	case "postgres":
+	case PostgresType:
 		storageProxy = newProxy(createPostgres, storageConfig)
-	case "clickhouse":
+	case ClickHouseType:
 		storageProxy = newProxy(createClickHouse, storageConfig)
-	case "s3":
+	case S3Type:
 		storageProxy = newProxy(createS3, storageConfig)
-	case "snowflake":
+	case SnowflakeType:
 		storageProxy = newProxy(createSnowflake, storageConfig)
 	default:
 		if eventQueue != nil {

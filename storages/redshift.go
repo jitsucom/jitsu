@@ -14,7 +14,6 @@ import (
 )
 
 const tableFileKeyDelimiter = "-table-"
-const redshiftStorageType = "Redshift"
 
 //Store files to aws RedShift in two modes:
 //batch: via aws s3 in batch mode (1 file = 1 transaction)
@@ -52,7 +51,7 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, monitorKeeper, redshiftStorageType)
+	tableHelper := NewTableHelper(redshiftAdapter, monitorKeeper, RedshiftType)
 
 	ar := &AwsRedshift{
 		name:            name,
@@ -174,7 +173,7 @@ func (ar *AwsRedshift) Name() string {
 }
 
 func (ar *AwsRedshift) Type() string {
-	return redshiftStorageType
+	return RedshiftType
 }
 
 func (ar *AwsRedshift) Close() error {

@@ -14,8 +14,6 @@ import (
 	"time"
 )
 
-const bqStorageType = "BigQuery"
-
 //Store files to google BigQuery in two modes:
 //batch: via google cloud storage in batch mode (1 file = 1 transaction)
 //stream: via events queue in stream mode (1 object = 1 transaction)
@@ -54,7 +52,7 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(bigQueryAdapter, monitorKeeper, bqStorageType)
+	tableHelper := NewTableHelper(bigQueryAdapter, monitorKeeper, BigQueryType)
 
 	bq := &BigQuery{
 		name:            name,
@@ -164,7 +162,7 @@ func (bq *BigQuery) Name() string {
 }
 
 func (bq *BigQuery) Type() string {
-	return bqStorageType
+	return BigQueryType
 }
 
 func (bq *BigQuery) Close() (multiErr error) {

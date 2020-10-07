@@ -9,8 +9,6 @@ import (
 	"github.com/ksensehq/eventnative/schema"
 )
 
-const postgresStorageType = "Postgres"
-
 //Store files to Postgres in two modes:
 //batch: (1 file = 1 transaction)
 //stream: (1 object = 1 transaction)
@@ -37,7 +35,7 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(adapter, monitorKeeper, postgresStorageType)
+	tableHelper := NewTableHelper(adapter, monitorKeeper, PostgresType)
 
 	p := &Postgres{
 		name:            storageName,
@@ -123,5 +121,5 @@ func (p *Postgres) Name() string {
 }
 
 func (p *Postgres) Type() string {
-	return postgresStorageType
+	return PostgresType
 }
