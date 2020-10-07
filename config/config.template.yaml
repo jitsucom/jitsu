@@ -15,6 +15,7 @@ server:
   log:
     path: /home/eventnative/logs/ #omit this key to write log to stdout
     rotation_min: 60 #1440 (24 hours) default value
+  admin_token: "K1zV69DPg0bo5HaU"
 
 geo.maxmind_path: https://statichost/GeoIP2-City.mmdb
 

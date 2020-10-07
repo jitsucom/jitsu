@@ -6,21 +6,17 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/ksensehq/eventnative/adapters"
+	"github.com/ksensehq/eventnative/middleware"
 	"log"
 	"net/http"
 )
 
 type ConnectionConfig struct {
-	DestinationType  string                 `json:"type"`
-	ConnectionConfig map[string]interface{} `json:"config"`
+	DestinationType  string      `json:"type"`
+	ConnectionConfig interface{} `json:"config"`
 }
 
 type ConnectionTestHandler struct {
-}
-
-type RedshiftConfig struct {
-	DbConfig adapters.DataSourceConfig `json:"database"`
-	S3Config adapters.S3Config         `json:"s3"`
 }
 
 type SnowflakeExternalConfig struct {
@@ -86,7 +82,7 @@ func testConnection(config ConnectionConfig) error {
 		return nil
 
 	case "redshift":
-		var rsConfig RedshiftConfig
+		var rsConfig adapters.RedshiftConfig
 		body, err := json.Marshal(config.ConnectionConfig)
 		if err != nil {
 			return err
@@ -98,10 +94,12 @@ func testConnection(config ConnectionConfig) error {
 		if err = rsConfig.DbConfig.Validate(); err != nil {
 			return err
 		}
-		if err = rsConfig.S3Config.Validate(); err != nil {
-			return err
+		if rsConfig.S3Config != nil {
+			if err = rsConfig.S3Config.Validate(); err != nil {
+				return err
+			}
 		}
-		redshift, err := adapters.NewAwsRedshift(context.Background(), &rsConfig.DbConfig, &rsConfig.S3Config)
+		redshift, err := adapters.NewAwsRedshift(context.Background(), rsConfig.DbConfig, rsConfig.S3Config)
 		if err != nil {
 			return err
 		}
@@ -109,23 +107,6 @@ func testConnection(config ConnectionConfig) error {
 		return redshift.Test()
 	case "bigquery":
 		return errors.New("bigquery validation is not supported")
-		//googleConfig := adapters.GoogleConfig{}
-		//body, err := json.Marshal(config.ConnectionConfig)
-		//if err != nil {
-		//	return err
-		//}
-		//if err = json.Unmarshal(body, &googleConfig); err != nil {
-		//	return err
-		//}
-		//if err = googleConfig.Validate(true); err != nil {
-		//	return err
-		//}
-		//bigQuery, err := adapters.NewBigQuery(context.Background(), &googleConfig)
-		//if err != nil {
-		//	return err
-		//}
-		//defer bigQuery.Close()
-		//return bigQuery.Test()
 	case "s3":
 		s3Config := adapters.S3Config{}
 		body, err := json.Marshal(config.ConnectionConfig)
@@ -167,15 +148,6 @@ func testConnection(config ConnectionConfig) error {
 	}
 }
 
-type OkResponse struct {
-	Status string `json:"status"`
-}
-
-type ErrorResponse struct {
-	Message string `json:"message"`
-	Error   error  `json:"error"`
-}
-
 func NewConnectionTestHandler() *ConnectionTestHandler {
 	return &ConnectionTestHandler{}
 }
@@ -183,13 +155,13 @@ func NewConnectionTestHandler() *ConnectionTestHandler {
 func (h *ConnectionTestHandler) Handler(c *gin.Context) {
 	connectionConfig := ConnectionConfig{}
 	if err := c.BindJSON(&connectionConfig); err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Message: "Failed to parse body", Error: err})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err})
 		return
 	}
 	err := testConnection(connectionConfig)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Message: "Failed to test connection", Error: err})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to test connection", Error: err})
 		return
 	}
-	c.JSON(http.StatusOK, OkResponse{Status: "Connection established"})
+	c.JSON(http.StatusOK, middleware.OkResponse{Status: "Connection established"})
 }

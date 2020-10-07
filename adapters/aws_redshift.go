@@ -25,6 +25,11 @@ type AwsRedshift struct {
 	s3Config        *S3Config
 }
 
+type RedshiftConfig struct {
+	DbConfig *DataSourceConfig `json:"database"`
+	S3Config *S3Config         `json:"s3"`
+}
+
 //NewAwsRedshift return configured AwsRedshift adapter instance
 func NewAwsRedshift(ctx context.Context, dsConfig *DataSourceConfig, s3Config *S3Config) (*AwsRedshift, error) {
 	postgres, err := NewPostgres(ctx, dsConfig)

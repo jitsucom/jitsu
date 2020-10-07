@@ -133,7 +133,11 @@ func main() {
 	}
 	uploader.Start()
 
-	router := SetupRouter(destinationsService)
+	adminToken := viper.GetString("server.admin_token")
+	if adminToken == "" {
+		logging.Fatal("Admin token is not configured")
+	}
+	router := SetupRouter(destinationsService, adminToken)
 
 	telemetry.ServerStart()
 	logging.Info("Started server: " + appconfig.Instance.Authority)
@@ -147,7 +151,7 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-func SetupRouter(destinations *events.DestinationService) *gin.Engine {
+func SetupRouter(destinations *events.DestinationService, adminToken string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -168,12 +172,13 @@ func SetupRouter(destinations *events.DestinationService) *gin.Engine {
 
 	c2sEventHandler := handlers.NewEventHandler(destinations, events.NewC2SPreprocessor()).Handler
 	s2sEventHandler := handlers.NewEventHandler(destinations, events.NewS2SPreprocessor()).Handler
-	connectionTestHandler := handlers.NewConnectionTestHandler()
+
+	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
 		apiV1.POST("/event", middleware.TokenAuth(c2sEventHandler, appconfig.Instance.AuthorizationService.GetC2SOrigins, ""))
 		apiV1.POST("/s2s/event", middleware.TokenAuth(s2sEventHandler, appconfig.Instance.AuthorizationService.GetS2SOrigins, "The token isn't a server token. Please use s2s integration token\n"))
-		apiV1.POST("/test_connection", connectionTestHandler.Handler)
+		apiV1.POST("/test_connection", adminTokenMiddleware.AdminAuth(handlers.NewConnectionTestHandler().Handler, "Admin token does not match"))
 	}
 
 	return router
