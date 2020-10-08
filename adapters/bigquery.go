@@ -68,6 +68,11 @@ func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	return nil
 }
 
+func (bq *BigQuery) Test() error {
+	_, err := bq.client.Query("SELECT 1;").Read(context.Background())
+	return err
+}
+
 //Insert provided object in BigQuery in stream mode
 func (bq *BigQuery) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(schema.Name).Inserter()

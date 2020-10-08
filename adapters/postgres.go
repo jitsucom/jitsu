@@ -234,6 +234,10 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 	return wrappedTx.tx.Commit()
 }
 
+func (p *Postgres) Test() error {
+	return p.dataSource.Ping()
+}
+
 //Insert provided object in postgres
 func (p *Postgres) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
 	wrappedTx, err := p.OpenTx()
