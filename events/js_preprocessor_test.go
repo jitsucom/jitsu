@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestC2SPreprocess(t *testing.T) {
+func TestJsPreprocess(t *testing.T) {
 	geoDataMock := &geo.Data{
 		Country: "US",
 		City:    "New York",
@@ -71,7 +71,7 @@ func TestC2SPreprocess(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c2sPreprocessor := &C2SPreprocessor{
+			c2sPreprocessor := &JsPreprocessor{
 				geoResolver: geo.Mock{"10.10.10.10": geoDataMock},
 				uaResolver:  useragent.Mock{},
 			}

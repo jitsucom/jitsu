@@ -18,12 +18,12 @@ type S3 struct {
 }
 
 type S3Config struct {
-	AccessKeyID string `mapstructure:"access_key_id" json:"access_key_id"`
-	SecretKey   string `mapstructure:"secret_access_key" json:"secret_access_key"`
-	Bucket      string `mapstructure:"bucket"`
-	Region      string `mapstructure:"region"`
-	Endpoint    string `mapstructure:"endpoint"`
-	Folder      string `mapstructure:"folder"`
+	AccessKeyID string `mapstructure:"access_key_id" json:"access_key_id,omitempty"`
+	SecretKey   string `mapstructure:"secret_access_key" json:"secret_access_key,omitempty"`
+	Bucket      string `mapstructure:"bucket" json:"bucket,omitempty"`
+	Region      string `mapstructure:"region" json:"region,omitempty"`
+	Endpoint    string `mapstructure:"endpoint" json:"endpoint,omitempty"`
+	Folder      string `mapstructure:"folder" json:"folder,omitempty"`
 }
 
 func (s3c *S3Config) Validate() error {

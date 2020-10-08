@@ -42,15 +42,15 @@ var (
 
 //SnowflakeConfig dto for deserialized datasource config for Snowflake
 type SnowflakeConfig struct {
-	Account    string             `mapstructure:"account"`
-	Port       int                `mapstructure:"port"`
-	Db         string             `mapstructure:"db"`
-	Schema     string             `mapstructure:"schema"`
-	Username   string             `mapstructure:"username"`
-	Password   string             `mapstructure:"password"`
-	Warehouse  string             `mapstructure:"warehouse"`
-	Stage      string             `mapstructure:"stage"`
-	Parameters map[string]*string `mapstructure:"parameters"`
+	Account    string             `mapstructure:"account" json:"account,omitempty"`
+	Port       int                `mapstructure:"port" json:"port,omitempty"`
+	Db         string             `mapstructure:"db" json:"db,omitempty"`
+	Schema     string             `mapstructure:"schema" json:"schema,omitempty"`
+	Username   string             `mapstructure:"username" json:"username,omitempty"`
+	Password   string             `mapstructure:"password" json:"password,omitempty"`
+	Warehouse  string             `mapstructure:"warehouse" json:"warehouse,omitempty"`
+	Stage      string             `mapstructure:"stage" json:"stage,omitempty"`
+	Parameters map[string]*string `mapstructure:"parameters" json:"parameters,omitempty"`
 }
 
 //Validate required fields in SnowflakeConfig

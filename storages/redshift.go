@@ -14,7 +14,6 @@ import (
 )
 
 const tableFileKeyDelimiter = "-table-"
-const redshiftStorageType = "Redshift"
 
 //Store files to aws RedShift in two modes:
 //batch: via aws s3 in batch mode (1 file = 1 transaction)
@@ -25,6 +24,7 @@ type AwsRedshift struct {
 	redshiftAdapter *adapters.AwsRedshift
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
+	streamingWorker *StreamingWorker
 	breakOnError    bool
 }
 
@@ -52,7 +52,7 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, monitorKeeper, redshiftStorageType)
+	tableHelper := NewTableHelper(redshiftAdapter, monitorKeeper, RedshiftType)
 
 	ar := &AwsRedshift{
 		name:            name,
@@ -64,7 +64,8 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 	}
 
 	if streamMode {
-		newStreamingWorker(eventQueue, processor, ar).start()
+		ar.streamingWorker = newStreamingWorker(eventQueue, processor, ar)
+		ar.streamingWorker.start()
 	} else {
 		ar.startBatch()
 	}
@@ -174,12 +175,16 @@ func (ar *AwsRedshift) Name() string {
 }
 
 func (ar *AwsRedshift) Type() string {
-	return redshiftStorageType
+	return RedshiftType
 }
 
 func (ar *AwsRedshift) Close() error {
 	if err := ar.redshiftAdapter.Close(); err != nil {
 		return fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.Name(), err)
+	}
+
+	if ar.streamingWorker != nil {
+		ar.streamingWorker.Close()
 	}
 
 	return nil

@@ -2,6 +2,7 @@ package logging
 
 import (
 	"fmt"
+	"github.com/google/martian/log"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"os"
@@ -10,6 +11,10 @@ import (
 )
 
 const logFileMaxSizeMB = 100
+
+type WriterProxy struct {
+	lWriter *lumberjack.Logger
+}
 
 //Create stdout or file or mock writers
 func NewWriter(config Config) (io.WriteCloser, error) {
@@ -41,9 +46,23 @@ func newRollingWriter(config Config) io.WriteCloser {
 	go func() {
 		for {
 			<-ticker.C
-			lWriter.Rotate()
+			if err := lWriter.Rotate(); err != nil {
+				log.Errorf("Error rotating log file: %v", err)
+			}
 		}
 	}()
 
-	return lWriter
+	return &WriterProxy{lWriter: lWriter}
+}
+
+func (wp *WriterProxy) Write(p []byte) (int, error) {
+	return wp.lWriter.Write(p)
+}
+
+func (wp *WriterProxy) Close() error {
+	if err := wp.lWriter.Rotate(); err != nil {
+		log.Errorf("Error rotating log file: %v", err)
+	}
+
+	return wp.lWriter.Close()
 }

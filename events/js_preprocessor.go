@@ -21,14 +21,14 @@ type Preprocessor interface {
 	Preprocess(fact Fact, r *http.Request) (Fact, error)
 }
 
-//C2SPreprocessor preprocess client 2 server integration events
-type C2SPreprocessor struct {
+//JsPreprocessor preprocess client 2 server integration events
+type JsPreprocessor struct {
 	geoResolver geo.Resolver
 	uaResolver  useragent.Resolver
 }
 
-func NewC2SPreprocessor() Preprocessor {
-	return &C2SPreprocessor{
+func NewJsPreprocessor() Preprocessor {
+	return &JsPreprocessor{
 		geoResolver: appconfig.Instance.GeoResolver,
 		uaResolver:  appconfig.Instance.UaResolver,
 	}
@@ -38,7 +38,7 @@ func NewC2SPreprocessor() Preprocessor {
 //resolve useragent from uaKey
 //put data to eventnKey
 //return same object
-func (c2sp *C2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) {
+func (jp *JsPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) {
 	if fact == nil {
 		return nil, nilFactErr
 	}
@@ -58,7 +58,7 @@ func (c2sp *C2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 		return nil, fmt.Errorf("Unable to cast %s to object: %v", eventnKey, eventnObject)
 	}
 
-	geoData, err := c2sp.geoResolver.Resolve(ip)
+	geoData, err := jp.geoResolver.Resolve(ip)
 	if err != nil {
 		logging.Error(err)
 	}
@@ -70,7 +70,7 @@ func (c2sp *C2SPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error
 	ua, ok := eventFact[uaKey]
 	if ok {
 		if uaStr, ok := ua.(string); ok {
-			eventFact[useragent.ParsedUaKey] = c2sp.uaResolver.Resolve(uaStr)
+			eventFact[useragent.ParsedUaKey] = jp.uaResolver.Resolve(uaStr)
 		}
 	}
 

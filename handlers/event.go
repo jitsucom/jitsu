@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/ksensehq/eventnative/appconfig"
+	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
@@ -13,12 +15,12 @@ const apiTokenKey = "api_key"
 
 //Accept all events
 type EventHandler struct {
-	destinationService *events.DestinationService
+	destinationService *destinations.Service
 	preprocessor       events.Preprocessor
 }
 
 //Accept all events according to token
-func NewEventHandler(destinationService *events.DestinationService, preprocessor events.Preprocessor) (eventHandler *EventHandler) {
+func NewEventHandler(destinationService *destinations.Service, preprocessor events.Preprocessor) (eventHandler *EventHandler) {
 	return &EventHandler{
 		destinationService: destinationService,
 		preprocessor:       preprocessor,
@@ -49,7 +51,9 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 	processed[apiTokenKey] = token
 	processed[timestamp.Key] = timestamp.NowUTC()
 
-	consumers := eh.destinationService.GetConsumers(token)
+	tokenId := appconfig.Instance.AuthorizationService.GetTokenId(token)
+
+	consumers := eh.destinationService.GetConsumers(tokenId)
 	if len(consumers) == 0 {
 		logging.Warnf("Unknown token[%s] request was received", token)
 	} else {

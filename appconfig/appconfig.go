@@ -26,7 +26,8 @@ var Instance *AppConfig
 func setDefaultParams() {
 	viper.SetDefault("server.port", "8001")
 	viper.SetDefault("server.static_files_dir", "./web")
-	viper.SetDefault("server.auth_reload_sec", 300)
+	viper.SetDefault("server.auth_reload_sec", 30)
+	viper.SetDefault("server.destinations_reload_sec", 40)
 	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
 	viper.SetDefault("log.show_in_server", false)

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
@@ -23,8 +24,7 @@ import (
 
 func SetTestDefaultParams() {
 	viper.Set("log.path", "")
-	viper.Set("server.auth", []string{"c2stoken"})
-	viper.Set("server.s2s_auth", `[{"token":"s2stoken", "origins":["whiteorigin*"]}]`)
+	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
 }
 
 func TestApiEvent(t *testing.T) {
@@ -52,7 +52,7 @@ func TestApiEvent(t *testing.T) {
 			"Unauthorized s2s endpoint",
 			"/api/v1/s2s/event?token=wrongtoken",
 			"",
-			"test_data/s2s_event_input.json",
+			"test_data/api_event_input.json",
 			"",
 			http.StatusUnauthorized,
 			"The token isn't a server token. Please use s2s integration token\n",
@@ -70,7 +70,7 @@ func TestApiEvent(t *testing.T) {
 			"Unauthorized s2s wrong origin",
 			"/api/v1/s2s/event?token=s2stoken",
 			"http://ksense.com",
-			"test_data/s2s_event_input.json",
+			"test_data/api_event_input.json",
 			"",
 			http.StatusUnauthorized,
 			"",
@@ -79,7 +79,7 @@ func TestApiEvent(t *testing.T) {
 		{
 			"C2S Api event consuming test",
 			"/api/v1/event?token=c2stoken",
-			"",
+			"https://whiteorigin.com/",
 			"test_data/event_input.json",
 			"test_data/fact_output.json",
 			http.StatusOK,
@@ -89,8 +89,8 @@ func TestApiEvent(t *testing.T) {
 			"S2S Api event consuming test",
 			"/api/v1/s2s/event?token=s2stoken",
 			"https://whiteorigin.com/",
-			"test_data/s2s_event_input.json",
-			"test_data/s2s_fact_output.json",
+			"test_data/api_event_input.json",
+			"test_data/api_fact_output.json",
 			http.StatusOK,
 			"",
 		},
@@ -104,10 +104,10 @@ func TestApiEvent(t *testing.T) {
 			defer appconfig.Instance.Close()
 
 			inmemWriter := logging.InitInMemoryWriter()
-			router := SetupRouter(events.NewDestinationService(map[string][]events.Consumer{
-				"c2stoken": {events.NewAsyncLogger(inmemWriter, false)},
-				"s2stoken": {events.NewAsyncLogger(inmemWriter, false)},
-			}, map[string][]events.StorageProxy{}), "")
+			router := SetupRouter(destinations.NewTestService(
+				map[string]map[string]events.Consumer{
+					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
+				}, map[string]map[string]events.StorageProxy{}), "")
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
