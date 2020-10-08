@@ -57,7 +57,7 @@ func (s3 *S3) Name() string {
 }
 
 func (s3 *S3) Type() string {
-	return "S3"
+	return S3Type
 }
 
 func (s3 *S3) Close() error {

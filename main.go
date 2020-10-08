@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
+	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/handlers"
 	"github.com/ksensehq/eventnative/logfiles"
@@ -31,6 +32,8 @@ const (
 	uploaderFileMask   = "-event-*-20*.log"
 	uploaderBatchSize  = 50
 	uploaderLoadEveryS = 60
+
+	destinationsKey = "destinations"
 )
 
 var (
@@ -85,6 +88,7 @@ func main() {
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
 	go func() {
 		<-c
+		logging.Info("* Service is shutting down.. *")
 		telemetry.ServerStop()
 		appstatus.Instance.Idle = true
 		cancel()
@@ -93,7 +97,8 @@ func main() {
 		os.Exit(0)
 	}()
 
-	destinationsViper := viper.Sub("destinations")
+	destinationsViper := viper.Sub(destinationsKey)
+	destinationsSource := viper.GetString(destinationsKey)
 
 	//override with config from os env
 	jsonConfig := viper.GetString("destinations_json")
@@ -103,14 +108,15 @@ func main() {
 		if err := envJsonViper.ReadConfig(bytes.NewBufferString(jsonConfig)); err != nil {
 			logging.Error("Error reading/parsing json config from DESTINATIONS_JSON", err)
 		} else {
-			destinationsViper = envJsonViper.Sub("destinations")
+			destinationsViper = envJsonViper.Sub(destinationsKey)
+			destinationsSource = envJsonViper.GetString(destinationsKey)
 		}
 	}
 
-	syncServiceType := viper.GetString("synchronization_service.type")
-	syncServiceEndpoint := viper.GetString("synchronization_service.endpoint")
-	connectionTimeoutSeconds := viper.GetUint("synchronization_service.connection_timeout_seconds")
-	monitorKeeper, err := storages.NewMonitorKeeper(syncServiceType, syncServiceEndpoint, connectionTimeoutSeconds)
+	monitorKeeper, err := storages.NewMonitorKeeper(
+		viper.GetString("synchronization_service.type"),
+		viper.GetString("synchronization_service.endpoint"),
+		viper.GetUint("synchronization_service.connection_timeout_seconds"))
 	if err != nil {
 		logging.Fatal("Failed to initiate monitor keeper ", err)
 	}
@@ -119,12 +125,11 @@ func main() {
 	logEventPath := viper.GetString("log.path")
 
 	//Create event destinations:
-	//per token
-	//storage
-	//consumer
-	batchStoragesByToken, streamingConsumersByToken := storages.Create(ctx, destinationsViper, logEventPath, monitorKeeper)
-
-	destinationsService := events.NewDestinationService(streamingConsumersByToken, batchStoragesByToken)
+	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsSource, logEventPath, monitorKeeper, storages.Create)
+	if err != nil {
+		logging.Fatal(err)
+	}
+	appconfig.Instance.ScheduleClosing(destinationsService)
 
 	//Uploader must read event logger directory
 	uploader, err := logfiles.NewUploader(logEventPath, appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, destinationsService)
@@ -148,7 +153,7 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-func SetupRouter(destinations *events.DestinationService, adminToken string) *gin.Engine {
+func SetupRouter(destinations *destinations.Service, adminToken string) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -167,14 +172,14 @@ func SetupRouter(destinations *events.DestinationService, adminToken string) *gi
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	c2sEventHandler := handlers.NewEventHandler(destinations, events.NewC2SPreprocessor()).Handler
-	s2sEventHandler := handlers.NewEventHandler(destinations, events.NewS2SPreprocessor()).Handler
+	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor()).Handler
+	apiEventHandler := handlers.NewEventHandler(destinations, events.NewApiPreprocessor()).Handler
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenAuth(c2sEventHandler, appconfig.Instance.AuthorizationService.GetC2SOrigins, ""))
-		apiV1.POST("/s2s/event", middleware.TokenAuth(s2sEventHandler, appconfig.Instance.AuthorizationService.GetS2SOrigins, "The token isn't a server token. Please use s2s integration token\n"))
+		apiV1.POST("/event", middleware.TokenAuth(jsEventHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
+		apiV1.POST("/s2s/event", middleware.TokenAuth(apiEventHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
 		apiV1.POST("/test_connection", adminTokenMiddleware.AdminAuth(handlers.NewConnectionTestHandler().Handler, "Admin token does not match"))
 	}
 

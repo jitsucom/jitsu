@@ -9,35 +9,34 @@ import (
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
-	"github.com/spf13/viper"
 )
 
 const (
 	defaultTableName = "events"
 
-	batchMode  = "batch"
-	streamMode = "stream"
+	BatchMode  = "batch"
+	StreamMode = "stream"
 )
 
 var unknownDestination = errors.New("Unknown destination type")
 
 type DestinationConfig struct {
-	OnlyTokens   []string    `mapstructure:"only_tokens"`
-	Type         string      `mapstructure:"type"`
-	Mode         string      `mapstructure:"mode"`
-	DataLayout   *DataLayout `mapstructure:"data_layout"`
-	BreakOnError bool        `mapstructure:"break_on_error"`
+	OnlyTokens   []string    `mapstructure:"only_tokens" json:"only_tokens,omitempty"`
+	Type         string      `mapstructure:"type" json:"type,omitempty"`
+	Mode         string      `mapstructure:"mode" json:"mode,omitempty"`
+	DataLayout   *DataLayout `mapstructure:"data_layout" json:"data_layout,omitempty"`
+	BreakOnError bool        `mapstructure:"break_on_error" json:"break_on_error,omitempty"`
 
-	DataSource *adapters.DataSourceConfig `mapstructure:"datasource"`
-	S3         *adapters.S3Config         `mapstructure:"s3"`
-	Google     *adapters.GoogleConfig     `mapstructure:"google"`
-	ClickHouse *adapters.ClickHouseConfig `mapstructure:"clickhouse"`
-	Snowflake  *adapters.SnowflakeConfig  `mapstructure:"snowflake"`
+	DataSource *adapters.DataSourceConfig `mapstructure:"datasource" json:"datasource,omitempty"`
+	S3         *adapters.S3Config         `mapstructure:"s3" json:"s3,omitempty"`
+	Google     *adapters.GoogleConfig     `mapstructure:"google" json:"google,omitempty"`
+	ClickHouse *adapters.ClickHouseConfig `mapstructure:"clickhouse" json:"clickhouse,omitempty"`
+	Snowflake  *adapters.SnowflakeConfig  `mapstructure:"snowflake" json:"snowflake,omitempty"`
 }
 
 type DataLayout struct {
-	Mapping           []string `mapstructure:"mapping"`
-	TableNameTemplate string   `mapstructure:"table_name_template"`
+	Mapping           []string `mapstructure:"mapping" json:"mapping,omitempty"`
+	TableNameTemplate string   `mapstructure:"table_name_template" json:"table_name_template,omitempty"`
 }
 
 type Config struct {
@@ -50,151 +49,92 @@ type Config struct {
 	eventQueue    *events.PersistentQueue
 }
 
-//Create event storage proxies and event consumers (loggers or event-queues) from incoming config
+//Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, destinations *viper.Viper, logEventPath string, monitorKeeper MonitorKeeper) (map[string][]events.StorageProxy, map[string][]events.Consumer) {
-	storageProxies := map[string][]events.StorageProxy{}
-	consumers := map[string][]events.Consumer{}
-	loggers := map[string]events.Consumer{}
-
-	if destinations == nil {
-		return storageProxies, consumers
+func Create(ctx context.Context, name, logEventPath string, destination DestinationConfig, monitorKeeper MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error) {
+	if destination.Type == "" {
+		destination.Type = name
+	}
+	if destination.Mode == "" {
+		destination.Mode = BatchMode
 	}
 
-	dc := map[string]DestinationConfig{}
-	if err := destinations.Unmarshal(&dc); err != nil {
-		logging.Error("Error initializing destinations: wrong config format: each destination must contains one key and config as a value e.g. destinations:\n  custom_name:\n      type: redshift ...", err)
-		return storageProxies, consumers
+	var mapping []string
+	var tableName string
+	if destination.DataLayout != nil {
+		mapping = destination.DataLayout.Mapping
+
+		if destination.DataLayout.TableNameTemplate != "" {
+			tableName = destination.DataLayout.TableNameTemplate
+		}
 	}
 
-	for name, d := range dc {
-		//common case
-		destination := d
-		if destination.Type == "" {
-			destination.Type = name
+	logging.Infof("[%s] Initializing destination of type: %s in mode: %s", name, destination.Type, destination.Mode)
+
+	if tableName == "" {
+		tableName = defaultTableName
+		logging.Infof("[%s] uses default table name: %s", name, tableName)
+	}
+
+	if len(mapping) == 0 {
+		logging.Warnf("[%s] doesn't have mapping rules", name)
+	} else {
+		logging.Infof("[%s] Configured field mapping rules:", name)
+		for _, m := range mapping {
+			logging.Infof("[%s] %s", name, m)
 		}
-		if destination.Mode == "" {
-			destination.Mode = batchMode
-		}
+	}
 
-		var mapping []string
-		var tableName string
-		if destination.DataLayout != nil {
-			mapping = destination.DataLayout.Mapping
+	if destination.Mode != BatchMode && destination.Mode != StreamMode {
+		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
+	}
 
-			if destination.DataLayout.TableNameTemplate != "" {
-				tableName = destination.DataLayout.TableNameTemplate
-			}
-		}
+	processor, err := schema.NewProcessor(tableName, mapping)
+	if err != nil {
+		return nil, nil, err
+	}
 
-		logging.Infof("[%s] Initializing destination of type: %s in mode: %s", name, destination.Type, destination.Mode)
-
-		if tableName == "" {
-			tableName = defaultTableName
-			logging.Infof("[%s] uses default table name: %s", name, tableName)
-		}
-
-		if len(mapping) == 0 {
-			logging.Warnf("[%s] doesn't have mapping rules", name)
-		} else {
-			logging.Infof("[%s] Configured field mapping rules:", name)
-			for _, m := range mapping {
-				logging.Infof("[%s] %s", name, m)
-			}
-		}
-
-		if destination.Mode != batchMode && destination.Mode != streamMode {
-			logError(name, destination.Type, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, batchMode, streamMode))
-			continue
-		}
-
-		processor, err := schema.NewProcessor(tableName, mapping)
+	var eventQueue *events.PersistentQueue
+	if destination.Mode == StreamMode {
+		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
+		eventQueue, err = events.NewPersistentQueue(queueName, logEventPath)
 		if err != nil {
-			logError(name, destination.Type, err)
-			continue
+			return nil, nil, err
 		}
-
-		var eventQueue *events.PersistentQueue
-		if destination.Mode == streamMode {
-			queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
-			eventQueue, err = events.NewPersistentQueue(queueName, logEventPath)
-			if err != nil {
-				logError(name, destination.Type, err)
-				continue
-			}
-
-			appconfig.Instance.ScheduleClosing(eventQueue)
-		}
-
-		storageConfig := &Config{
-			ctx:           ctx,
-			name:          name,
-			destination:   &destination,
-			processor:     processor,
-			streamMode:    destination.Mode == streamMode,
-			monitorKeeper: monitorKeeper,
-			eventQueue:    eventQueue,
-		}
-
-		var storageProxy events.StorageProxy
-		switch destination.Type {
-		case "redshift":
-			storageProxy = newProxy(createRedshift, storageConfig)
-		case "bigquery":
-			storageProxy = newProxy(createBigQuery, storageConfig)
-		case "postgres":
-			storageProxy = newProxy(createPostgres, storageConfig)
-		case "clickhouse":
-			storageProxy = newProxy(createClickHouse, storageConfig)
-		case "s3":
-			storageProxy = newProxy(createS3, storageConfig)
-		case "snowflake":
-			storageProxy = newProxy(createSnowflake, storageConfig)
-		default:
-			logError(name, destination.Type, unknownDestination)
-			continue
-		}
-
-		appconfig.Instance.ScheduleClosing(storageProxy)
-
-		tokens := destination.OnlyTokens
-		if len(tokens) == 0 {
-			logging.Warnf("[%s] only_tokens wasn't provided. All tokens will be stored.", name)
-			for token := range appconfig.Instance.AuthorizationService.GetAllTokens() {
-				tokens = append(tokens, token)
-			}
-		}
-
-		//append:
-		//storage per token
-		//consumer(event queue or logger) per token
-		for _, token := range tokens {
-			if storageConfig.streamMode {
-				consumers[token] = append(consumers[token], eventQueue)
-			} else {
-				logger, ok := loggers[token]
-				if !ok {
-					eventLogWriter, err := logging.NewWriter(logging.Config{
-						LoggerName:  "event-" + token,
-						ServerName:  appconfig.Instance.ServerName,
-						FileDir:     logEventPath,
-						RotationMin: viper.GetInt64("log.rotation_min")})
-					if err != nil {
-						appconfig.Instance.Close()
-						logging.Fatal(err)
-					}
-					logger = events.NewAsyncLogger(eventLogWriter, viper.GetBool("log.show_in_server"))
-					loggers[token] = logger
-					appconfig.Instance.ScheduleClosing(logger)
-				}
-				consumers[token] = append(consumers[token], logger)
-			}
-
-			storageProxies[token] = append(storageProxies[token], storageProxy)
-		}
-
 	}
-	return storageProxies, consumers
+
+	storageConfig := &Config{
+		ctx:           ctx,
+		name:          name,
+		destination:   &destination,
+		processor:     processor,
+		streamMode:    destination.Mode == StreamMode,
+		monitorKeeper: monitorKeeper,
+		eventQueue:    eventQueue,
+	}
+
+	var storageProxy events.StorageProxy
+	switch destination.Type {
+	case RedshiftType:
+		storageProxy = newProxy(createRedshift, storageConfig)
+	case BigQueryType:
+		storageProxy = newProxy(createBigQuery, storageConfig)
+	case PostgresType:
+		storageProxy = newProxy(createPostgres, storageConfig)
+	case ClickHouseType:
+		storageProxy = newProxy(createClickHouse, storageConfig)
+	case S3Type:
+		storageProxy = newProxy(createS3, storageConfig)
+	case SnowflakeType:
+		storageProxy = newProxy(createSnowflake, storageConfig)
+	default:
+		if eventQueue != nil {
+			eventQueue.Close()
+		}
+		return nil, nil, unknownDestination
+	}
+
+	return storageProxy, eventQueue, nil
 }
 
 func logError(destinationName, destinationType string, err error) {
@@ -283,7 +223,7 @@ func createS3(config *Config) (events.Storage, error) {
 		if config.eventQueue != nil {
 			config.eventQueue.Close()
 		}
-		return nil, fmt.Errorf("S3 destination doesn't support %s mode", streamMode)
+		return nil, fmt.Errorf("S3 destination doesn't support %s mode", StreamMode)
 	}
 	s3Config := config.destination.S3
 	if err := s3Config.Validate(); err != nil {

@@ -15,8 +15,6 @@ import (
 	"time"
 )
 
-const snowflakeStorageType = "Snowflake"
-
 //Store files to Snowflake in two modes:
 //batch: via aws s3 (or gcp) in batch mode (1 file = 1 transaction)
 //stream: via events queue in stream mode (1 object = 1 transaction)
@@ -26,6 +24,7 @@ type Snowflake struct {
 	snowflakeAdapter *adapters.Snowflake
 	tableHelper      *TableHelper
 	schemaProcessor  *schema.Processor
+	streamingWorker  *StreamingWorker
 	breakOnError     bool
 }
 
@@ -56,7 +55,7 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(snowflakeAdapter, monitorKeeper, snowflakeStorageType)
+	tableHelper := NewTableHelper(snowflakeAdapter, monitorKeeper, SnowflakeType)
 
 	snowflake := &Snowflake{
 		name:             name,
@@ -68,7 +67,8 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 	}
 
 	if streamMode {
-		newStreamingWorker(eventQueue, processor, snowflake).start()
+		snowflake.streamingWorker = newStreamingWorker(eventQueue, processor, snowflake)
+		snowflake.streamingWorker.start()
 	} else {
 		snowflake.startBatch()
 	}
@@ -228,7 +228,7 @@ func (s *Snowflake) Name() string {
 }
 
 func (s *Snowflake) Type() string {
-	return snowflakeStorageType
+	return SnowflakeType
 }
 
 func (s *Snowflake) Close() (multiErr error) {
@@ -238,6 +238,10 @@ func (s *Snowflake) Close() (multiErr error) {
 
 	if err := s.stageAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake stage: %v", s.Name(), err))
+	}
+
+	if s.streamingWorker != nil {
+		s.streamingWorker.Close()
 	}
 
 	return

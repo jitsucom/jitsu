@@ -9,8 +9,6 @@ import (
 	"github.com/ksensehq/eventnative/schema"
 )
 
-const postgresStorageType = "Postgres"
-
 //Store files to Postgres in two modes:
 //batch: (1 file = 1 transaction)
 //stream: (1 object = 1 transaction)
@@ -19,6 +17,7 @@ type Postgres struct {
 	adapter         *adapters.Postgres
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
+	streamingWorker *StreamingWorker
 	breakOnError    bool
 }
 
@@ -37,7 +36,7 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(adapter, monitorKeeper, postgresStorageType)
+	tableHelper := NewTableHelper(adapter, monitorKeeper, PostgresType)
 
 	p := &Postgres{
 		name:            storageName,
@@ -48,7 +47,8 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 	}
 
 	if streamMode {
-		newStreamingWorker(eventQueue, processor, p).start()
+		p.streamingWorker = newStreamingWorker(eventQueue, processor, p)
+		p.streamingWorker.start()
 	}
 
 	return p, nil
@@ -115,6 +115,9 @@ func (p *Postgres) Close() error {
 		return fmt.Errorf("[%s] Error closing postgres datasource: %v", p.Name(), err)
 	}
 
+	if p.streamingWorker != nil {
+		p.streamingWorker.Close()
+	}
 	return nil
 }
 
@@ -123,5 +126,5 @@ func (p *Postgres) Name() string {
 }
 
 func (p *Postgres) Type() string {
-	return postgresStorageType
+	return PostgresType
 }

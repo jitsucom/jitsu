@@ -14,8 +14,6 @@ import (
 	"time"
 )
 
-const bqStorageType = "BigQuery"
-
 //Store files to google BigQuery in two modes:
 //batch: via google cloud storage in batch mode (1 file = 1 transaction)
 //stream: via events queue in stream mode (1 object = 1 transaction)
@@ -25,6 +23,7 @@ type BigQuery struct {
 	bqAdapter       *adapters.BigQuery
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
+	streamingWorker *StreamingWorker
 	breakOnError    bool
 }
 
@@ -54,7 +53,7 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(bigQueryAdapter, monitorKeeper, bqStorageType)
+	tableHelper := NewTableHelper(bigQueryAdapter, monitorKeeper, BigQueryType)
 
 	bq := &BigQuery{
 		name:            name,
@@ -65,7 +64,8 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 		breakOnError:    breakOnError,
 	}
 	if streamMode {
-		newStreamingWorker(eventQueue, processor, bq).start()
+		bq.streamingWorker = newStreamingWorker(eventQueue, processor, bq)
+		bq.streamingWorker.start()
 	} else {
 		bq.startBatch()
 	}
@@ -164,7 +164,7 @@ func (bq *BigQuery) Name() string {
 }
 
 func (bq *BigQuery) Type() string {
-	return bqStorageType
+	return BigQueryType
 }
 
 func (bq *BigQuery) Close() (multiErr error) {
@@ -173,6 +173,10 @@ func (bq *BigQuery) Close() (multiErr error) {
 	}
 	if err := bq.bqAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing BigQuery client: %v", bq.Name(), err))
+	}
+
+	if bq.streamingWorker != nil {
+		bq.streamingWorker.Close()
 	}
 
 	return

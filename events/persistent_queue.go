@@ -11,12 +11,14 @@ import (
 
 const eventsPerPersistedFile = 2000
 
+var ErrQueueClosed = errors.New("queue is closed")
+
 type QueuedFact struct {
 	FactBytes    []byte
 	DequeuedTime time.Time
 }
 
-// QueuedFactBuilder creates and returns a new events.Fact.
+// QueuedFactBuilder creates and returns a new *events.QueuedFact (must be pointer).
 // This is used when we load a segment of the queue from disk.
 func QueuedFactBuilder() interface{} {
 	return &QueuedFact{}
@@ -46,7 +48,7 @@ func (pq *PersistentQueue) ConsumeTimed(f Fact, t time.Time) {
 		return
 	}
 
-	if err := pq.queue.Enqueue(QueuedFact{FactBytes: factBytes, DequeuedTime: t}); err != nil {
+	if err := pq.queue.Enqueue(&QueuedFact{FactBytes: factBytes, DequeuedTime: t}); err != nil {
 		logSkippedEvent(f, fmt.Errorf("Error putting event fact bytes to the persistent queue: %v", err))
 		return
 	}
@@ -55,9 +57,13 @@ func (pq *PersistentQueue) ConsumeTimed(f Fact, t time.Time) {
 func (pq *PersistentQueue) DequeueBlock() (Fact, time.Time, error) {
 	iface, err := pq.queue.DequeueBlock()
 	if err != nil {
+		if err == dque.ErrQueueClosed {
+			err = ErrQueueClosed
+		}
 		return nil, time.Time{}, err
 	}
-	wrappedFact, ok := iface.(QueuedFact)
+
+	wrappedFact, ok := iface.(*QueuedFact)
 	if !ok || len(wrappedFact.FactBytes) == 0 {
 		return nil, time.Time{}, errors.New("Dequeued object is not a QueuedFact instance or fact bytes is empty")
 	}

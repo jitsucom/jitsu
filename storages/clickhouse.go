@@ -11,8 +11,6 @@ import (
 	"math/rand"
 )
 
-const clickHouseStorageType = "ClickHouse"
-
 //Store files to ClickHouse in two modes:
 //batch: (1 file = 1 transaction)
 //stream: (1 object = 1 transaction)
@@ -21,6 +19,7 @@ type ClickHouse struct {
 	adapters        []*adapters.ClickHouse
 	tableHelpers    []*TableHelper
 	schemaProcessor *schema.Processor
+	streamingWorker *StreamingWorker
 	breakOnError    bool
 }
 
@@ -52,7 +51,7 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 		}
 
 		chAdapters = append(chAdapters, adapter)
-		tableHelpers = append(tableHelpers, NewTableHelper(adapter, monitorKeeper, clickHouseStorageType))
+		tableHelpers = append(tableHelpers, NewTableHelper(adapter, monitorKeeper, ClickHouseType))
 	}
 
 	ch := &ClickHouse{
@@ -74,7 +73,8 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 	}
 
 	if streamMode {
-		newStreamingWorker(eventQueue, processor, ch).start()
+		ch.streamingWorker = newStreamingWorker(eventQueue, processor, ch)
+		ch.streamingWorker.start()
 	}
 
 	return ch, nil
@@ -85,7 +85,7 @@ func (ch *ClickHouse) Name() string {
 }
 
 func (ch *ClickHouse) Type() string {
-	return clickHouseStorageType
+	return ClickHouseType
 }
 
 //Insert fact in ClickHouse
@@ -152,6 +152,10 @@ func (ch *ClickHouse) Close() (multiErr error) {
 		if err := adapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing clickhouse datasource[%d]: %v", ch.Name(), i, err))
 		}
+	}
+
+	if ch.streamingWorker != nil {
+		ch.streamingWorker.Close()
 	}
 
 	return multiErr
