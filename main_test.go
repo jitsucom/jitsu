@@ -107,7 +107,7 @@ func TestApiEvent(t *testing.T) {
 			router := SetupRouter(destinations.NewTestService(
 				map[string]map[string]events.Consumer{
 					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
-				}, map[string]map[string]events.StorageProxy{}))
+				}, map[string]map[string]events.StorageProxy{}), "")
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })

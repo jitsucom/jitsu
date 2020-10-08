@@ -59,7 +59,7 @@ Please see our extensive documentation [here](https://eventnative-docs.ksense.io
 ##  Community
 We are made for developers, by developers and would love to have you join our community.
  * [Wiki](https://github.com/ksensehq/eventnative/wiki) - Check out our development wiki.
- * [Slack](https://join.slack.com/t/eventnative/shared_invite/zt-gincgy2s-ZYwXXBjw_GIN1PhVzgaUNA) - Join our slack.
+ * [Slack](https://join.slack.com/t/eventnative/shared_invite/zt-ick4jl3k-Hj1SYVHCyJrZmyJAzaO~Uw) - Join our slack.
  * [Email](mailto:team@eventnative.org) - Send us an email.
  * Submit a pull request!
 
