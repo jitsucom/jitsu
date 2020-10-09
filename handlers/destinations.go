@@ -9,6 +9,7 @@ import (
 	"github.com/ksensehq/eventnative/middleware"
 	"github.com/ksensehq/eventnative/storages"
 	"net/http"
+	"strings"
 )
 
 func DestinationHandler(c *gin.Context) {
@@ -19,7 +20,7 @@ func DestinationHandler(c *gin.Context) {
 	}
 	err := testConnection(destinationConfig)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: err.Error(), Error: err})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: err.Error()})
 		return
 	}
 	c.Status(http.StatusOK)
@@ -46,7 +47,7 @@ func testConnection(config *storages.DestinationConfig) error {
 
 		var multiErr error
 		for _, dsn := range config.ClickHouse.Dsns {
-			ch, err := adapters.NewClickHouse(context.Background(), dsn, "", "", nil, nil, nil)
+			ch, err := adapters.NewClickHouse(context.Background(), strings.TrimSpace(dsn), "", "", nil, nil, nil)
 			if err != nil {
 				multiErr = multierror.Append(multiErr, err)
 				continue
