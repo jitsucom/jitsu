@@ -20,6 +20,10 @@ func TokenAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([]string
 		queryValues := c.Request.URL.Query()
 		token := queryValues.Get(TokenName)
 
+		if token == "" {
+			token = c.Request.Header.Get("x-auth-token")
+		}
+
 		origins, allowed := isAllowedOriginsFunc(token)
 		if !allowed {
 			c.Writer.WriteHeader(http.StatusUnauthorized)

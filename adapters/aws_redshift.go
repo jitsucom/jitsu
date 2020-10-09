@@ -25,11 +25,6 @@ type AwsRedshift struct {
 	s3Config        *S3Config
 }
 
-type RedshiftConfig struct {
-	DbConfig *DataSourceConfig `json:"database"`
-	S3Config *S3Config         `json:"s3"`
-}
-
 //NewAwsRedshift return configured AwsRedshift adapter instance
 func NewAwsRedshift(ctx context.Context, dsConfig *DataSourceConfig, s3Config *S3Config) (*AwsRedshift, error) {
 	postgres, err := NewPostgres(ctx, dsConfig)
@@ -70,10 +65,6 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 	}
 
 	return createDbSchemaInTransaction(ar.dataSourceProxy.ctx, wrappedTx, dbSchemaName)
-}
-
-func (ar *AwsRedshift) Test() error {
-	return ar.dataSourceProxy.dataSource.Ping()
 }
 
 //Insert provided object in AwsRedshift in stream mode
