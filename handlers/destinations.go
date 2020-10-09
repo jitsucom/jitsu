@@ -20,7 +20,7 @@ func DestinationHandler(c *gin.Context) {
 	}
 	err := testConnection(destinationConfig)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: err.Error(), Error: err})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: err.Error()})
 		return
 	}
 	c.Status(http.StatusOK)
