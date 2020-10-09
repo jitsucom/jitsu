@@ -374,10 +374,6 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 	return wrappedTx.tx.Commit()
 }
 
-func (ch *ClickHouse) Test() error {
-	return ch.dataSource.Ping()
-}
-
 //Insert provided object in ClickHouse in stream mode
 func (ch *ClickHouse) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
 	wrappedTx, err := ch.OpenTx()
