@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
-	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
@@ -25,6 +24,8 @@ type BigQuery struct {
 	schemaProcessor *schema.Processor
 	streamingWorker *StreamingWorker
 	breakOnError    bool
+
+	closed bool
 }
 
 func NewBigQuery(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.GoogleConfig, processor *schema.Processor,
@@ -80,7 +81,7 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 func (bq *BigQuery) startBatch() {
 	go func() {
 		for {
-			if appstatus.Instance.Idle {
+			if bq.closed {
 				break
 			}
 			//TODO configurable
@@ -168,6 +169,8 @@ func (bq *BigQuery) Type() string {
 }
 
 func (bq *BigQuery) Close() (multiErr error) {
+	bq.closed = true
+
 	if err := bq.gcsAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.Name(), err))
 	}

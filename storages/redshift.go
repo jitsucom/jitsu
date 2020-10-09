@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
-	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
@@ -26,6 +25,8 @@ type AwsRedshift struct {
 	schemaProcessor *schema.Processor
 	streamingWorker *StreamingWorker
 	breakOnError    bool
+
+	closed bool
 }
 
 //NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
@@ -80,7 +81,7 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 func (ar *AwsRedshift) startBatch() {
 	go func() {
 		for {
-			if appstatus.Instance.Idle {
+			if ar.closed {
 				break
 			}
 			//TODO configurable
@@ -179,6 +180,8 @@ func (ar *AwsRedshift) Type() string {
 }
 
 func (ar *AwsRedshift) Close() error {
+	ar.closed = true
+
 	if err := ar.redshiftAdapter.Close(); err != nil {
 		return fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.Name(), err)
 	}
