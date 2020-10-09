@@ -112,8 +112,10 @@ func (s *Service) GetAllIdsByToken(tokenIdentity []string) (ids []string) {
 
 	deduplication := map[string]bool{}
 	for _, tokenFilter := range tokenIdentity {
-		tokenObj, _ := s.tokensHolder.all[tokenFilter]
-		deduplication[tokenObj.Id] = true
+		tokenObj, ok := s.tokensHolder.all[tokenFilter]
+		if ok {
+			deduplication[tokenObj.Id] = true
+		}
 	}
 
 	for id := range deduplication {
