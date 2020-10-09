@@ -35,6 +35,7 @@ func TestApiEvent(t *testing.T) {
 		reqOrigin        string
 		reqBodyPath      string
 		expectedJsonPath string
+		xAuthToken       string
 
 		expectedHttpCode int
 		expectedErrMsg   string
@@ -45,6 +46,7 @@ func TestApiEvent(t *testing.T) {
 			"",
 			"test_data/event_input.json",
 			"",
+			"",
 			http.StatusUnauthorized,
 			"",
 		},
@@ -53,6 +55,7 @@ func TestApiEvent(t *testing.T) {
 			"/api/v1/s2s/event?token=wrongtoken",
 			"",
 			"test_data/api_event_input.json",
+			"",
 			"",
 			http.StatusUnauthorized,
 			"The token isn't a server token. Please use s2s integration token\n",
@@ -63,6 +66,7 @@ func TestApiEvent(t *testing.T) {
 			"",
 			"test_data/event_input.json",
 			"",
+			"",
 			http.StatusUnauthorized,
 			"",
 		},
@@ -71,6 +75,7 @@ func TestApiEvent(t *testing.T) {
 			"/api/v1/s2s/event?token=s2stoken",
 			"http://ksense.com",
 			"test_data/api_event_input.json",
+			"",
 			"",
 			http.StatusUnauthorized,
 			"",
@@ -82,17 +87,29 @@ func TestApiEvent(t *testing.T) {
 			"https://whiteorigin.com/",
 			"test_data/event_input.json",
 			"test_data/fact_output.json",
+			"",
 			http.StatusOK,
 			"",
 		},
 		{
 			"S2S Api event consuming test",
-			"/api/v1/s2s/event?token=s2stoken",
+			"/api/v1/s2s/event",
 			"https://whiteorigin.com/",
 			"test_data/api_event_input.json",
 			"test_data/api_fact_output.json",
+			"s2stoken",
 			http.StatusOK,
 			"",
+		},
+		{
+			"S2S Api malformed event test",
+			"/api/v1/s2s/event",
+			"https://whiteorigin.com/",
+			"test_data/malformed_input.json",
+			"",
+			"s2stoken",
+			http.StatusBadRequest,
+			`{"message":"Failed to parse body","error":{"Offset":2}}`,
 		},
 	}
 	for _, tt := range tests {
@@ -145,6 +162,9 @@ func TestApiEvent(t *testing.T) {
 			require.NoError(t, err)
 			if tt.reqOrigin != "" {
 				apiReq.Header.Add("Origin", tt.reqOrigin)
+			}
+			if tt.xAuthToken != "" {
+				apiReq.Header.Add("x-auth-token", tt.xAuthToken)
 			}
 			apiReq.Header.Add("x-real-ip", "95.82.232.185")
 			resp, err = http.DefaultClient.Do(apiReq)

@@ -259,10 +259,6 @@ func (s *Snowflake) Copy(wrappedTx *Transaction, fileKey, header, tableName stri
 	return err
 }
 
-func (s *Snowflake) Test() error {
-	return s.dataSource.Ping()
-}
-
 //Insert provided object in snowflake
 func (s *Snowflake) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
 	wrappedTx, err := s.OpenTx()
