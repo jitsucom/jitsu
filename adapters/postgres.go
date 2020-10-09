@@ -171,7 +171,12 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 		}
 		mappedType, ok := postgresToSchema[strings.ToLower(columnPostgresType)]
 		if !ok {
-			logging.Error("Unknown postgres column type:", columnPostgresType)
+			if columnPostgresType == "-" {
+				//skip dropped postgres field
+				continue
+			}
+			logging.Errorf("Unknown postgres [%s] column type: %s in schema: [%s] table: [%s]", columnName, columnPostgresType, p.config.Schema, tableName)
+
 			mappedType = typing.STRING
 		}
 		table.Columns[columnName] = schema.NewColumn(mappedType)
