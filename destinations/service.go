@@ -175,13 +175,6 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 			s.Unlock()
 		}
 
-		//create new
-		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, destination, s.monitorKeeper)
-		if err != nil {
-			logging.Errorf("[%s] Error initializing destination of type %s: %v", name, destination.Type, err)
-			continue
-		}
-
 		var tokenIds []string
 		//map token -> id
 		if len(destination.OnlyTokens) > 0 {
@@ -189,6 +182,19 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		} else {
 			logging.Warnf("[%s] only_tokens wasn't provided. All tokens will be stored.", name)
 			tokenIds = appconfig.Instance.AuthorizationService.GetAllTokenIds()
+		}
+
+		if len(tokenIds) == 0 {
+			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", name)
+			//authorization tokens weren't loaded => create this destination in next reloading cycle
+			continue
+		}
+
+		//create new
+		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, destination, s.monitorKeeper)
+		if err != nil {
+			logging.Errorf("[%s] Error initializing destination of type %s: %v", name, destination.Type, err)
+			continue
 		}
 
 		s.unitsByName[name] = &Unit{
