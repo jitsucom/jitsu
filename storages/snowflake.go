@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
-	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
@@ -26,6 +25,8 @@ type Snowflake struct {
 	schemaProcessor  *schema.Processor
 	streamingWorker  *StreamingWorker
 	breakOnError     bool
+
+	closed bool
 }
 
 //NewSnowflake return Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
@@ -117,7 +118,7 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 func (s *Snowflake) startBatch() {
 	go func() {
 		for {
-			if appstatus.Instance.Idle {
+			if s.closed {
 				break
 			}
 			//TODO configurable
@@ -232,6 +233,8 @@ func (s *Snowflake) Type() string {
 }
 
 func (s *Snowflake) Close() (multiErr error) {
+	s.closed = true
+
 	if err := s.snowflakeAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake datasource: %v", s.Name(), err))
 	}
