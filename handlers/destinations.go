@@ -64,6 +64,11 @@ func testConnection(config *storages.DestinationConfig) error {
 			if err := config.S3.Validate(); err != nil {
 				return err
 			}
+			s3, err := adapters.NewS3(config.S3)
+			if err != nil {
+				return err
+			}
+			s3.Close()
 		}
 
 		redshift, err := adapters.NewAwsRedshift(context.Background(), config.DataSource, config.S3)
