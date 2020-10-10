@@ -43,8 +43,6 @@ type Service struct {
 	sync.RWMutex
 	consumersByTokenId TokenizedConsumers
 	storagesByTokenId  TokenizedStorages
-
-	forceReloadFunc func()
 }
 
 //only for tests
@@ -91,9 +89,9 @@ func NewService(ctx context.Context, destinations *viper.Viper, destinationsSour
 
 	} else if destinationsSource != "" {
 		if strings.HasPrefix(destinationsSource, "http://") || strings.HasPrefix(destinationsSource, "https://") {
-			service.forceReloadFunc = resources.Watch(serviceName, destinationsSource, resources.LoadFromHttp, service.updateDestinations, time.Duration(reloadSec)*time.Second)
+			appconfig.Instance.AuthorizationService.DestinationsForceReload = resources.Watch(serviceName, destinationsSource, resources.LoadFromHttp, service.updateDestinations, time.Duration(reloadSec)*time.Second)
 		} else if strings.Contains(destinationsSource, "file://") {
-			service.forceReloadFunc = resources.Watch(serviceName, strings.Replace(destinationsSource, "file://", "", 1), resources.LoadFromFile, service.updateDestinations, time.Duration(reloadSec)*time.Second)
+			appconfig.Instance.AuthorizationService.DestinationsForceReload = resources.Watch(serviceName, strings.Replace(destinationsSource, "file://", "", 1), resources.LoadFromFile, service.updateDestinations, time.Duration(reloadSec)*time.Second)
 		} else if strings.HasPrefix(destinationsSource, "{") && strings.HasSuffix(destinationsSource, "}") {
 			service.updateDestinations([]byte(destinationsSource))
 		} else {
@@ -164,6 +162,14 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		//common case
 		destination := d
 
+		//map token -> id
+		if len(destination.OnlyTokens) > 0 {
+			destination.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIdsByToken(destination.OnlyTokens)
+		} else {
+			logging.Warnf("[%s] only_tokens wasn't provided. All tokens will be stored.", name)
+			destination.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIds()
+		}
+
 		hash := getHash(name, destination)
 		unit, ok := s.unitsByName[name]
 		if ok {
@@ -177,22 +183,10 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 			s.Unlock()
 		}
 
-		var tokenIds []string
-		//map token -> id
-		if len(destination.OnlyTokens) > 0 {
-			tokenIds = appconfig.Instance.AuthorizationService.GetAllIdsByToken(destination.OnlyTokens)
-		} else {
-			logging.Warnf("[%s] only_tokens wasn't provided. All tokens will be stored.", name)
-			tokenIds = appconfig.Instance.AuthorizationService.GetAllTokenIds()
-		}
-
-		if len(tokenIds) == 0 {
+		if len(destination.OnlyTokens) == 0 {
 			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", name)
-			//authorization tokens weren't loaded => create this destination in next reloading cycle
-			//we need force reload because destinations won't necessarily be changed
-			if s.forceReloadFunc != nil {
-				s.forceReloadFunc()
-			}
+			//authorization tokens weren't loaded => create this destination when authorization service will be reloaded
+			//and call force reload on this service
 			continue
 		}
 
@@ -206,7 +200,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		s.unitsByName[name] = &Unit{
 			eventQueue: eventQueue,
 			storage:    newStorageProxy,
-			tokenIds:   tokenIds,
+			tokenIds:   destination.OnlyTokens,
 			hash:       hash,
 		}
 
@@ -216,7 +210,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		//append:
 		//  storage per token id
 		//  consumers per client_secret and server_secret
-		for _, tokenId := range tokenIds {
+		for _, tokenId := range destination.OnlyTokens {
 			if destination.Mode == storages.StreamMode {
 				newConsumers.Add(tokenId, name, eventQueue)
 			} else {

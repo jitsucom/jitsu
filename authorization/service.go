@@ -22,6 +22,8 @@ type Service struct {
 	sync.RWMutex
 
 	tokensHolder *TokensHolder
+	//will call after every reloading
+	DestinationsForceReload func()
 }
 
 func NewService() (*Service, error) {
@@ -146,5 +148,10 @@ func (s *Service) updateTokens(payload []byte) {
 		s.Lock()
 		s.tokensHolder = tokenHolder
 		s.Unlock()
+
+		//we should reload destinations after all changes in authorization service
+		if s.DestinationsForceReload != nil {
+			s.DestinationsForceReload()
+		}
 	}
 }
