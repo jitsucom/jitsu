@@ -43,6 +43,8 @@ type Service struct {
 	sync.RWMutex
 	consumersByTokenId TokenizedConsumers
 	storagesByTokenId  TokenizedStorages
+
+	forceReloadFunc func()
 }
 
 //only for tests
@@ -89,9 +91,9 @@ func NewService(ctx context.Context, destinations *viper.Viper, destinationsSour
 
 	} else if destinationsSource != "" {
 		if strings.HasPrefix(destinationsSource, "http://") || strings.HasPrefix(destinationsSource, "https://") {
-			resources.Watch(serviceName, destinationsSource, resources.LoadFromHttp, service.updateDestinations, time.Duration(reloadSec)*time.Second)
+			service.forceReloadFunc = resources.Watch(serviceName, destinationsSource, resources.LoadFromHttp, service.updateDestinations, time.Duration(reloadSec)*time.Second)
 		} else if strings.Contains(destinationsSource, "file://") {
-			resources.Watch(serviceName, strings.Replace(destinationsSource, "file://", "", 1), resources.LoadFromFile, service.updateDestinations, time.Duration(reloadSec)*time.Second)
+			service.forceReloadFunc = resources.Watch(serviceName, strings.Replace(destinationsSource, "file://", "", 1), resources.LoadFromFile, service.updateDestinations, time.Duration(reloadSec)*time.Second)
 		} else if strings.HasPrefix(destinationsSource, "{") && strings.HasSuffix(destinationsSource, "}") {
 			service.updateDestinations([]byte(destinationsSource))
 		} else {
@@ -187,6 +189,10 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		if len(tokenIds) == 0 {
 			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", name)
 			//authorization tokens weren't loaded => create this destination in next reloading cycle
+			//we need force reload because destinations won't necessarily be changed
+			if s.forceReloadFunc != nil {
+				s.forceReloadFunc()
+			}
 			continue
 		}
 
