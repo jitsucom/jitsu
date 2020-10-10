@@ -28,14 +28,37 @@ func (tpm *testProxyMock) Close() error {
 	return nil
 }
 
-// 1. init
-// 2. change
-// 3. remove all
-// 4. init again
-// 5. remove all again
+// 1. create initial tokens(not all) & destinations
+// 2. change destination => reloading
+// 3. change tokens
+// 4. all destinations initialized (because of force update)
+// 5. remove all destinations
+// 6. initialize all destinations
+// 7. remove all destinations again
+
 func TestServiceInit(t *testing.T) {
 	viper.Set("server.destinations_reload_sec", 1)
-	viper.Set("server.auth", []string{"token1", "token2", "token3", "token4"})
+	viper.Set("server.auth_reload_sec", 1)
+
+	initialAuth := `{
+  "tokens": [
+    {
+      "client_secret": "token1"
+    },
+    {
+      "client_secret": "token2"
+    },
+    {
+      "client_secret": "token3"
+    },
+    {
+      "client_secret": "token4"
+    }
+  ]
+}`
+	authPayload := &payloadHolder{payload: []byte(initialAuth)}
+	mockAuthServer := startTestServer(authPayload)
+	viper.Set("server.auth", mockAuthServer.URL)
 	appconfig.Init()
 
 	initialDestinations := `{
@@ -69,13 +92,23 @@ func TestServiceInit(t *testing.T) {
       "datasource": {
         "host": "host_pg_2"
       }
+    },
+	"pg_with_unknown_token": {
+      "type": "postgres",
+      "mode": "stream",
+      "only_tokens": [
+        "token5"
+      ],
+      "datasource": {
+        "host": "host_pg_with_unknown_token"
+      }
     }
   }
 }`
 	payload := &payloadHolder{payload: []byte(initialDestinations)}
-	mockSourceServer := startTestServer(payload)
+	mockDestinationsServer := startTestServer(payload)
 
-	service, err := NewService(context.Background(), nil, mockSourceServer.URL, "/tmp", nil, createTestStorage)
+	service, err := NewService(context.Background(), nil, mockDestinationsServer.URL, "/tmp", nil, createTestStorage)
 	require.NoError(t, err)
 	require.NotNil(t, service)
 
@@ -143,6 +176,31 @@ func TestServiceInit(t *testing.T) {
 	time.Sleep(1 * time.Second)
 	changedConfigAsserts(t, service)
 
+	//add new token to authorization
+	fullAuth := `{
+  "tokens": [
+    {
+      "client_secret": "token1"
+    },
+    {
+      "client_secret": "token2"
+    },
+    {
+      "client_secret": "token3"
+    },
+    {
+      "client_secret": "token4"
+    },
+    {
+      "client_secret": "token5"
+    }
+  ]
+}`
+	authPayload.payload = []byte(fullAuth)
+	payload.payload = []byte(initialDestinations)
+	time.Sleep(2 * time.Second)
+	initialAllConfigAsserts(t, service)
+
 	//delete all
 	emptyDestinations := `{}`
 	payload.payload = []byte(emptyDestinations)
@@ -152,7 +210,7 @@ func TestServiceInit(t *testing.T) {
 	//init all again
 	payload.payload = []byte(initialDestinations)
 	time.Sleep(1 * time.Second)
-	initialConfigAsserts(t, service)
+	initialAllConfigAsserts(t, service)
 
 	//delete all one more time
 	payload.payload = []byte(emptyDestinations)
@@ -172,6 +230,26 @@ func initialConfigAsserts(t *testing.T, service *Service) {
 
 	require.Equal(t, 2, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token3"))))
 	require.Equal(t, 2, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token3"))))
+
+	require.Equal(t, 0, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token5"))))
+	require.Equal(t, 0, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token5"))))
+}
+
+func initialAllConfigAsserts(t *testing.T, service *Service) {
+	require.Equal(t, 4, len(service.storagesByTokenId))
+	require.Equal(t, 4, len(service.consumersByTokenId))
+
+	require.Equal(t, 2, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token1"))))
+	require.Equal(t, 1, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token1"))))
+
+	require.Equal(t, 1, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token2"))))
+	require.Equal(t, 1, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token2"))))
+
+	require.Equal(t, 2, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token3"))))
+	require.Equal(t, 2, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token3"))))
+
+	require.Equal(t, 1, len(service.GetStorages(appconfig.Instance.AuthorizationService.GetTokenId("token5"))))
+	require.Equal(t, 1, len(service.GetConsumers(appconfig.Instance.AuthorizationService.GetTokenId("token5"))))
 }
 
 func changedConfigAsserts(t *testing.T, service *Service) {

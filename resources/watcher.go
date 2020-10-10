@@ -20,7 +20,7 @@ type Watcher struct {
 
 //First load source then run goroutine to reload source every 'reloadEvery' duration
 //On every load check if content was changed => run consumer otherwise do nothing
-func Watch(name, source string, loadFunc func(string) ([]byte, error), consumer func([]byte), reloadEvery time.Duration) {
+func Watch(name, source string, loadFunc func(string) ([]byte, error), consumer func([]byte), reloadEvery time.Duration) func() {
 	w := &Watcher{
 		name:        name,
 		hash:        "",
@@ -31,6 +31,7 @@ func Watch(name, source string, loadFunc func(string) ([]byte, error), consumer 
 	}
 	logging.Infof("Resource [%s] will be loaded every %d seconds", name, int(reloadEvery.Seconds()))
 	w.watch()
+	return w.forceReload
 }
 
 func (w *Watcher) watch() {
@@ -57,10 +58,14 @@ func (w *Watcher) download() {
 
 	newHash := GetHash(payload)
 	if w.hash != newHash {
+		w.hash = newHash
 		w.consumer(payload)
 		logging.Infof("New resource [%s] has been loaded", w.name)
-		w.hash = newHash
 	}
+}
+
+func (w *Watcher) forceReload() {
+	w.hash = ""
 }
 
 func GetHash(payload []byte) string {
