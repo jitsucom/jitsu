@@ -17,6 +17,8 @@ For production deployment we suggest Docker:
 
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/feat-n.png" width="40px" /></a>
 
+Also, we have <a href="https://app.eventnative.com/#/register">a hosted version of EventNative</a> where you can experiment with the product without running your own server.
+
 ## Features
  * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://docs.eventnative.dev/javascript-reference/direct-tracking) and you're set!
  
