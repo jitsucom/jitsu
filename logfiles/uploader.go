@@ -4,17 +4,14 @@ import (
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/metrics"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"time"
 )
-
-//regex for reading already rotated and closed log files
-var tokenExtractRegexp = regexp.MustCompile("-event-(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
 //PeriodicUploader read already rotated and closed log files
 //Pass them to storages according to tokens
@@ -83,7 +80,7 @@ func (u *PeriodicUploader) Start() {
 					continue
 				}
 				//get token from filename
-				regexResult := tokenExtractRegexp.FindStringSubmatch(fileName)
+				regexResult := logging.TokenIdExtractRegexp.FindStringSubmatch(fileName)
 				if len(regexResult) != 2 {
 					logging.Errorf("Error processing file %s. Malformed name", filePath)
 					continue
@@ -105,10 +102,13 @@ func (u *PeriodicUploader) Start() {
 						continue
 					}
 					if !u.statusManager.isUploaded(fileName, storage.Name()) {
-						err := storage.Store(fileName, b)
+						rowsCount, err := storage.Store(fileName, b)
 						if err != nil {
 							deleteFile = false
 							logging.Errorf("[%s] Error storing file %s in destination: %v", storage.Name(), filePath, err)
+							metrics.ErrorEvents(tokenId, storage.Name(), rowsCount)
+						} else {
+							metrics.SuccessEvents(tokenId, storage.Name(), rowsCount)
 						}
 						u.statusManager.updateStatus(fileName, storage.Name(), err)
 					}

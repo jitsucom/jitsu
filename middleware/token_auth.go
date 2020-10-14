@@ -11,11 +11,26 @@ import (
 
 const TokenName = "token"
 
-//TokenAuth check that provided token:
+//TokenAuth check that provided token equals
+func TokenAuth(main gin.HandlerFunc, originalToken string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		queryValues := c.Request.URL.Query()
+		token := queryValues.Get(TokenName)
+
+		if token == originalToken {
+			main(c)
+		} else {
+			c.Writer.WriteHeader(http.StatusUnauthorized)
+			c.Writer.Write([]byte("Wrong token"))
+		}
+	}
+}
+
+//TokenOriginsAuth check that provided token:
 //1. is valid
 //2. exists in specific (js or api) token config
 //3. origins equal
-func TokenAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([]string, bool), errMsg string) gin.HandlerFunc {
+func TokenOriginsAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([]string, bool), errMsg string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		queryValues := c.Request.URL.Query()
 		token := queryValues.Get(TokenName)

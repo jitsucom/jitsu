@@ -12,9 +12,11 @@ import (
 	"github.com/ksensehq/eventnative/handlers"
 	"github.com/ksensehq/eventnative/logfiles"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/metrics"
 	"github.com/ksensehq/eventnative/middleware"
 	"github.com/ksensehq/eventnative/storages"
 	"github.com/ksensehq/eventnative/telemetry"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"math/rand"
 	"net/http"
 	"os"
@@ -81,6 +83,8 @@ func main() {
 	}
 
 	telemetry.Init(commit, tag, builtAt, viper.GetBool("server.telemetry.disabled.usage"))
+
+	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
 
 	//listen to shutdown signal to free up all resources
 	ctx, cancel := context.WithCancel(context.Background())
@@ -178,9 +182,13 @@ func SetupRouter(destinations *destinations.Service, adminToken string) *gin.Eng
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenAuth(jsEventHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
-		apiV1.POST("/s2s/event", middleware.TokenAuth(apiEventHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
+		apiV1.POST("/event", middleware.TokenOriginsAuth(jsEventHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
+		apiV1.POST("/s2s/event", middleware.TokenOriginsAuth(apiEventHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationHandler, "Admin token does not match"))
+	}
+
+	if metrics.Enabled {
+		router.GET("/prometheus", middleware.TokenAuth(gin.WrapH(promhttp.Handler()), adminToken))
 	}
 
 	return router

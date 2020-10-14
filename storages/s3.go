@@ -31,25 +31,33 @@ func NewS3(name string, s3Config *adapters.S3Config, processor *schema.Processor
 	return s3, nil
 }
 
-func (s3 *S3) Consume(fact events.Fact) {
+func (s3 *S3) Consume(fact events.Fact, tokenId string) {
 	logging.Errorf("[%s] S3 storage doesn't support streaming mode", s3.Name())
 }
 
 //Store file from byte payload to s3 with processing
-func (s3 *S3) Store(fileName string, payload []byte) error {
+//return rows count and err if can't store
+//or rows count and nil if stored
+func (s3 *S3) Store(fileName string, payload []byte) (int, error) {
 	flatData, err := s3.schemaProcessor.ProcessFilePayload(fileName, payload, s3.breakOnError)
 	if err != nil {
-		return err
+		return linesCount(payload), err
+	}
+
+	var rowsCount int
+	for _, fdata := range flatData {
+		rowsCount += fdata.GetPayloadLen()
 	}
 
 	for _, fdata := range flatData {
-		err := s3.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes(schema.JsonMarshallerInstance))
+		b, rows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+		err := s3.s3Adapter.UploadBytes(buildDataIntoFileName(fdata, rows), b)
 		if err != nil {
-			return err
+			return rowsCount, err
 		}
 	}
 
-	return nil
+	return rowsCount, nil
 }
 
 func (s3 *S3) Name() string {

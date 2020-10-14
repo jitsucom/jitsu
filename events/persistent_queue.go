@@ -16,6 +16,7 @@ var ErrQueueClosed = errors.New("queue is closed")
 type QueuedFact struct {
 	FactBytes    []byte
 	DequeuedTime time.Time
+	TokenId      string
 }
 
 // QueuedFactBuilder creates and returns a new *events.QueuedFact (must be pointer).
@@ -37,44 +38,44 @@ func NewPersistentQueue(queueName, fallbackDir string) (*PersistentQueue, error)
 	return &PersistentQueue{queue: queue}, nil
 }
 
-func (pq *PersistentQueue) Consume(f Fact) {
-	pq.ConsumeTimed(f, time.Now())
+func (pq *PersistentQueue) Consume(f Fact, tokenId string) {
+	pq.ConsumeTimed(f, time.Now(), tokenId)
 }
 
-func (pq *PersistentQueue) ConsumeTimed(f Fact, t time.Time) {
+func (pq *PersistentQueue) ConsumeTimed(f Fact, t time.Time, tokenId string) {
 	factBytes, err := json.Marshal(f)
 	if err != nil {
 		logSkippedEvent(f, fmt.Errorf("Error marshalling events fact: %v", err))
 		return
 	}
 
-	if err := pq.queue.Enqueue(&QueuedFact{FactBytes: factBytes, DequeuedTime: t}); err != nil {
+	if err := pq.queue.Enqueue(&QueuedFact{FactBytes: factBytes, DequeuedTime: t, TokenId: tokenId}); err != nil {
 		logSkippedEvent(f, fmt.Errorf("Error putting event fact bytes to the persistent queue: %v", err))
 		return
 	}
 }
 
-func (pq *PersistentQueue) DequeueBlock() (Fact, time.Time, error) {
+func (pq *PersistentQueue) DequeueBlock() (Fact, time.Time, string, error) {
 	iface, err := pq.queue.DequeueBlock()
 	if err != nil {
 		if err == dque.ErrQueueClosed {
 			err = ErrQueueClosed
 		}
-		return nil, time.Time{}, err
+		return nil, time.Time{}, "", err
 	}
 
 	wrappedFact, ok := iface.(*QueuedFact)
 	if !ok || len(wrappedFact.FactBytes) == 0 {
-		return nil, time.Time{}, errors.New("Dequeued object is not a QueuedFact instance or fact bytes is empty")
+		return nil, time.Time{}, "", errors.New("Dequeued object is not a QueuedFact instance or fact bytes is empty")
 	}
 
 	fact := Fact{}
 	err = json.Unmarshal(wrappedFact.FactBytes, &fact)
 	if err != nil {
-		return nil, time.Time{}, fmt.Errorf("Error unmarshalling events.Fact from bytes: %v", err)
+		return nil, time.Time{}, "", fmt.Errorf("Error unmarshalling events.Fact from bytes: %v", err)
 	}
 
-	return fact, wrappedFact.DequeuedTime, nil
+	return fact, wrappedFact.DequeuedTime, wrappedFact.TokenId, nil
 }
 
 func (pq *PersistentQueue) Close() error {

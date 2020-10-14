@@ -3,6 +3,7 @@ package storages
 import (
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/metrics"
 	"github.com/ksensehq/eventnative/schema"
 	"strings"
 	"time"
@@ -40,7 +41,7 @@ func (sw *StreamingWorker) start() {
 				break
 			}
 
-			fact, dequeuedTime, err := sw.eventQueue.DequeueBlock()
+			fact, dequeuedTime, tokenId, err := sw.eventQueue.DequeueBlock()
 			if err != nil {
 				if err == events.ErrQueueClosed && sw.closed {
 					continue
@@ -51,13 +52,14 @@ func (sw *StreamingWorker) start() {
 
 			//dequeued event was from retry call and retry timeout hasn't come
 			if time.Now().Before(dequeuedTime) {
-				sw.eventQueue.ConsumeTimed(fact, dequeuedTime)
+				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, tokenId)
 				continue
 			}
 
 			dataSchema, flattenObject, err := sw.schemaProcessor.ProcessFact(fact)
 			if err != nil {
 				logging.Errorf("[%s] Unable to process object %v: %v", sw.streamingStorage.Name(), fact, err)
+				metrics.ErrorEvent(tokenId, sw.streamingStorage.Name())
 				continue
 			}
 
@@ -71,10 +73,12 @@ func (sw *StreamingWorker) start() {
 				if strings.Contains(err.Error(), "connection refused") ||
 					strings.Contains(err.Error(), "EOF") ||
 					strings.Contains(err.Error(), "write: broken pipe") {
-					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second))
+					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenId)
 				}
+				metrics.ErrorEvent(tokenId, sw.streamingStorage.Name())
 				continue
 			}
+			metrics.SuccessEvent(tokenId, sw.streamingStorage.Name())
 		}
 	}()
 }
