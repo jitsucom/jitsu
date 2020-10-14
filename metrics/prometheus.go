@@ -10,7 +10,7 @@ var Enabled = false
 func Init(enabled bool) {
 	Enabled = enabled
 	if Enabled {
-		logging.Info("Initializing prometheus metrics..")
+		logging.Info("Initializing Prometheus metrics..")
 		initEvents()
 	} else {
 		logging.Warnf("Metrics isn't enabled")

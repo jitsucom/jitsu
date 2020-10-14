@@ -136,7 +136,7 @@ func (s *Snowflake) startBatch() {
 			}
 
 			for _, fileKey := range filesKeys {
-				tableName, token, rowsCount, err := extractDataFromFileName(fileKey)
+				tableName, tokenId, rowsCount, err := extractDataFromFileName(fileKey)
 				if err != nil {
 					logging.Errorf("[%s] stage file [%s] has wrong format: %v", s.Name(), fileKey, err)
 					continue
@@ -145,39 +145,39 @@ func (s *Snowflake) startBatch() {
 				payload, err := s.stageAdapter.GetObject(fileKey)
 				if err != nil {
 					logging.Errorf("[%s] Error getting file %s from stage in Snowflake storage: %v", s.Name(), fileKey, err)
-					metrics.ErrorEvents(token, s.Name(), rowsCount)
+					metrics.ErrorEvents(tokenId, s.Name(), rowsCount)
 					continue
 				}
 
 				lines := strings.Split(string(payload), "\n")
 				if len(lines) == 0 {
 					logging.Errorf("[%s] Error reading stage file %s payload in Snowflake storage: empty file", s.Name(), fileKey)
-					metrics.ErrorEvents(token, s.Name(), rowsCount)
+					metrics.ErrorEvents(tokenId, s.Name(), rowsCount)
 					continue
 				}
 				header := lines[0]
 				if header == "" {
 					logging.Errorf("[%s] Error reading stage file %s header in Snowflake storage: %v", s.Name(), fileKey, err)
-					metrics.ErrorEvents(token, s.Name(), rowsCount)
+					metrics.ErrorEvents(tokenId, s.Name(), rowsCount)
 					continue
 				}
 
 				wrappedTx, err := s.snowflakeAdapter.OpenTx()
 				if err != nil {
 					logging.Errorf("[%s] Error creating snowflake transaction: %v", s.Name(), err)
-					metrics.ErrorEvents(token, s.Name(), rowsCount)
+					metrics.ErrorEvents(tokenId, s.Name(), rowsCount)
 					continue
 				}
 
 				if err := s.snowflakeAdapter.Copy(wrappedTx, fileKey, header, tableName); err != nil {
 					logging.Errorf("[%s] Error copying file [%s] from stage to snowflake: %v", s.Name(), fileKey, err)
 					wrappedTx.Rollback()
-					metrics.ErrorEvents(token, s.Name(), rowsCount)
+					metrics.ErrorEvents(tokenId, s.Name(), rowsCount)
 					continue
 				}
 
 				wrappedTx.Commit()
-				metrics.SuccessEvents(token, s.Name(), rowsCount)
+				metrics.SuccessEvents(tokenId, s.Name(), rowsCount)
 
 				if err := s.stageAdapter.DeleteObject(fileKey); err != nil {
 					logging.Errorf("[%s] System error: file %s wasn't deleted from stage and will be inserted in db again: %v", s.Name(), fileKey, err)
@@ -230,7 +230,7 @@ func (s *Snowflake) Store(fileName string, payload []byte) (int, error) {
 	}
 
 	for _, fdata := range flatData {
-		b, rows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+		b, rows := fdata.GetPayloadBytes(schema.CsvMarshallerInstance)
 		err := s.stageAdapter.UploadBytes(buildDataIntoFileName(fdata, rows), b)
 		if err != nil {
 			return rowsCount, err

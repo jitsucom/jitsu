@@ -80,7 +80,7 @@ func (u *PeriodicUploader) Start() {
 					continue
 				}
 				//get token from filename
-				regexResult := logging.TokenExtractRegexp.FindStringSubmatch(fileName)
+				regexResult := logging.TokenIdExtractRegexp.FindStringSubmatch(fileName)
 				if len(regexResult) != 2 {
 					logging.Errorf("Error processing file %s. Malformed name", filePath)
 					continue
