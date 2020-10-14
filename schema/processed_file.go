@@ -19,9 +19,14 @@ func (pf ProcessedFile) GetPayload() []map[string]interface{} {
 	return pf.payload
 }
 
-//GetPayloadBytes return marshaling by marshaller func, joined with \n,  bytes
+//GetPayloadLen return count of rows(objects)
+func (pf ProcessedFile) GetPayloadLen() int {
+	return len(pf.payload)
+}
+
+//GetPayloadBytes return marshaling by marshaller func, joined with \n,  bytes and rows count
 //assume that payload can't be empty
-func (pf ProcessedFile) GetPayloadBytes(marshaller Marshaller) []byte {
+func (pf ProcessedFile) GetPayloadBytes(marshaller Marshaller) ([]byte, int) {
 	var buf *bytes.Buffer
 
 	var fields []string
@@ -45,5 +50,5 @@ func (pf ProcessedFile) GetPayloadBytes(marshaller Marshaller) []byte {
 		}
 	}
 
-	return buf.Bytes()
+	return buf.Bytes(), len(pf.payload)
 }

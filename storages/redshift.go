@@ -1,18 +1,23 @@
 package storages
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/metrics"
 	"github.com/ksensehq/eventnative/schema"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const tableFileKeyDelimiter = "-table-"
+const rowsFileKeyDelimiter = "-rows-"
 
 //Store files to aws RedShift in two modes:
 //batch: via aws s3 in batch mode (1 file = 1 transaction)
@@ -98,24 +103,30 @@ func (ar *AwsRedshift) startBatch() {
 			}
 
 			for _, fileKey := range filesKeys {
-				names := strings.Split(fileKey, tableFileKeyDelimiter)
-				if len(names) != 2 {
-					logging.Errorf("[%s] S3 file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", ar.Name(), fileKey, tableFileKeyDelimiter)
-					continue
-				}
-				wrappedTx, err := ar.redshiftAdapter.OpenTx()
+				tableName, token, rowsCount, err := extractDataFromFileName(fileKey)
 				if err != nil {
-					logging.Errorf("[%s] Error creating redshift transaction: %v", ar.Name(), err)
+					logging.Errorf("[%s] S3 file [%s] has wrong format: %v", ar.Name(), fileKey, err)
 					continue
 				}
 
-				if err := ar.redshiftAdapter.Copy(wrappedTx, fileKey, names[1]); err != nil {
+				wrappedTx, err := ar.redshiftAdapter.OpenTx()
+				if err != nil {
+					logging.Errorf("[%s] Error creating redshift transaction: %v", ar.Name(), err)
+					metrics.ErrorEvents(token, ar.Name(), rowsCount)
+					continue
+				}
+
+				if err := ar.redshiftAdapter.Copy(wrappedTx, fileKey, tableName); err != nil {
 					logging.Errorf("[%s] Error copying file [%s] from s3 to redshift: %v", ar.Name(), fileKey, err)
+					metrics.ErrorEvents(token, ar.Name(), rowsCount)
 					wrappedTx.Rollback()
 					continue
 				}
 
 				wrappedTx.Commit()
+
+				metrics.SuccessEvents(token, ar.Name(), rowsCount)
+
 				//TODO may be we need to have a journal for collecting already processed files names
 				// if ar.s3Adapter.DeleteObject fails => it will be processed next time => duplicate data
 				if err := ar.s3Adapter.DeleteObject(fileKey); err != nil {
@@ -143,32 +154,41 @@ func (ar *AwsRedshift) Insert(dataSchema *schema.Table, fact events.Fact) (err e
 }
 
 //Store file from byte payload to s3 with processing
-func (ar *AwsRedshift) Store(fileName string, payload []byte) error {
+//return rowsCount and err if err occurred
+//but return 0 and nil if no err
+//because Store method doesn't store data to AwsRedshift(only to S3)
+func (ar *AwsRedshift) Store(fileName string, payload []byte) (int, error) {
 	flatData, err := ar.schemaProcessor.ProcessFilePayload(fileName, payload, ar.breakOnError)
 	if err != nil {
-		return err
+		return linesCount(payload), err
+	}
+
+	var rowsCount int
+	for _, fdata := range flatData {
+		rowsCount += fdata.GetPayloadLen()
 	}
 
 	for _, fdata := range flatData {
 		dbSchema, err := ar.tableHelper.EnsureTable(ar.Name(), fdata.DataSchema)
 		if err != nil {
-			return err
+			return rowsCount, err
 		}
 
 		if err := ar.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
-			return err
+			return rowsCount, err
 		}
 	}
 
 	//TODO put them all in one folder and if all ok => move them all to next working folder
 	for _, fdata := range flatData {
-		err := ar.s3Adapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes(schema.JsonMarshallerInstance))
+		b, rows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+		err := ar.s3Adapter.UploadBytes(buildDataIntoFileName(fdata, rows), b)
 		if err != nil {
-			return err
+			return rowsCount, err
 		}
 	}
 
-	return nil
+	return 0, nil
 }
 
 func (ar *AwsRedshift) Name() string {
@@ -191,4 +211,45 @@ func (ar *AwsRedshift) Close() error {
 	}
 
 	return nil
+}
+
+//build file name
+//format: $servername-$apikey-datetime.log-rows-$intvalue-table-$tablename
+func buildDataIntoFileName(fdata *schema.ProcessedFile, rowsCount int) string {
+	return fdata.FileName + rowsFileKeyDelimiter + strconv.Itoa(rowsCount) + tableFileKeyDelimiter + fdata.DataSchema.Name
+}
+
+//parse file name:
+//expected name format: $servername-$apikey-datetime.log-rows-$intvalue-table-$tablename
+func extractDataFromFileName(fileKey string) (string, string, int, error) {
+	names := strings.Split(fileKey, tableFileKeyDelimiter)
+	if len(names) != 2 {
+		return "", "", 0, fmt.Errorf("error in tableFileKeyDelimiter part! Right format: $filename%s$rowcount%s$tablename.", rowsFileKeyDelimiter, tableFileKeyDelimiter)
+	}
+	fileNameRowsCount := strings.Split(names[0], rowsFileKeyDelimiter)
+	if len(fileNameRowsCount) != 2 {
+		return "", "", 0, fmt.Errorf("error in rowsFileKeyDelimiter part! Right format: $filename%s$rowcount%s$tablename.", rowsFileKeyDelimiter, tableFileKeyDelimiter)
+	}
+	rowsStr := fileNameRowsCount[1]
+	rowsCount, err := strconv.Atoi(rowsStr)
+	if err != nil {
+		return "", "", 0, errors.New("error in rows count part! Rows count must be int.")
+	}
+
+	regexTokenResult := logging.TokenExtractRegexp.FindStringSubmatch(fileNameRowsCount[0])
+	if len(regexTokenResult) != 2 {
+		return "", "", 0, fmt.Errorf("error in token part! Right format: $filename%s$rowcount%s$tablename.", rowsFileKeyDelimiter, tableFileKeyDelimiter)
+	}
+
+	return names[1], regexTokenResult[1], rowsCount, nil
+}
+
+//return rows count from byte array
+func linesCount(s []byte) int {
+	nl := []byte{'\n'}
+	n := bytes.Count(s, nl)
+	if len(s) > 0 && !bytes.HasSuffix(s, nl) {
+		n++
+	}
+	return n
 }

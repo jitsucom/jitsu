@@ -55,28 +55,35 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 }
 
 //Store file payload to Postgres with processing
-func (p *Postgres) Store(fileName string, payload []byte) error {
+//return rows count and err if can't store
+//or rows count and nil if stored
+func (p *Postgres) Store(fileName string, payload []byte) (int, error) {
 	flatData, err := p.schemaProcessor.ProcessFilePayload(fileName, payload, p.breakOnError)
 	if err != nil {
-		return err
+		return linesCount(payload), err
+	}
+
+	var rowsCount int
+	for _, fdata := range flatData {
+		rowsCount += fdata.GetPayloadLen()
 	}
 
 	//process db tables & schema
 	for _, fdata := range flatData {
 		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), fdata.DataSchema)
 		if err != nil {
-			return err
+			return rowsCount, err
 		}
 
 		if err := p.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
-			return err
+			return rowsCount, err
 		}
 	}
 
 	//insert all data in one transaction
 	tx, err := p.adapter.OpenTx()
 	if err != nil {
-		return fmt.Errorf("Error opening postgres transaction: %v", err)
+		return rowsCount, fmt.Errorf("Error opening postgres transaction: %v", err)
 	}
 
 	for _, fdata := range flatData {
@@ -84,7 +91,7 @@ func (p *Postgres) Store(fileName string, payload []byte) error {
 			if err := p.adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
 				if p.breakOnError {
 					tx.Rollback()
-					return err
+					return rowsCount, err
 				} else {
 					logging.Warnf("[%s] Unable to insert object %v reason: %v. This line will be skipped", p.Name(), object, err)
 				}
@@ -92,7 +99,7 @@ func (p *Postgres) Store(fileName string, payload []byte) error {
 		}
 	}
 
-	return tx.DirectCommit()
+	return rowsCount, tx.DirectCommit()
 }
 
 //Insert fact in Postgres

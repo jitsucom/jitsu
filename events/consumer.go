@@ -8,5 +8,5 @@ type Fact map[string]interface{}
 
 type Consumer interface {
 	io.Closer
-	Consume(fact Fact)
+	Consume(fact Fact, tokenId string)
 }

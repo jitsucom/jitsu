@@ -8,6 +8,7 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/metrics"
 	"github.com/ksensehq/eventnative/schema"
 	sf "github.com/snowflakedb/gosnowflake"
 	"strings"
@@ -135,42 +136,48 @@ func (s *Snowflake) startBatch() {
 			}
 
 			for _, fileKey := range filesKeys {
-				names := strings.Split(fileKey, tableFileKeyDelimiter)
-				if len(names) != 2 {
-					logging.Errorf("[%s] S3 file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", s.Name(), fileKey, tableFileKeyDelimiter)
+				tableName, token, rowsCount, err := extractDataFromFileName(fileKey)
+				if err != nil {
+					logging.Errorf("[%s] stage file [%s] has wrong format: %v", s.Name(), fileKey, err)
 					continue
 				}
 
 				payload, err := s.stageAdapter.GetObject(fileKey)
 				if err != nil {
 					logging.Errorf("[%s] Error getting file %s from stage in Snowflake storage: %v", s.Name(), fileKey, err)
+					metrics.ErrorEvents(token, s.Name(), rowsCount)
 					continue
 				}
 
 				lines := strings.Split(string(payload), "\n")
 				if len(lines) == 0 {
 					logging.Errorf("[%s] Error reading stage file %s payload in Snowflake storage: empty file", s.Name(), fileKey)
+					metrics.ErrorEvents(token, s.Name(), rowsCount)
 					continue
 				}
 				header := lines[0]
 				if header == "" {
 					logging.Errorf("[%s] Error reading stage file %s header in Snowflake storage: %v", s.Name(), fileKey, err)
+					metrics.ErrorEvents(token, s.Name(), rowsCount)
 					continue
 				}
 
 				wrappedTx, err := s.snowflakeAdapter.OpenTx()
 				if err != nil {
 					logging.Errorf("[%s] Error creating snowflake transaction: %v", s.Name(), err)
+					metrics.ErrorEvents(token, s.Name(), rowsCount)
 					continue
 				}
 
-				if err := s.snowflakeAdapter.Copy(wrappedTx, fileKey, header, names[1]); err != nil {
+				if err := s.snowflakeAdapter.Copy(wrappedTx, fileKey, header, tableName); err != nil {
 					logging.Errorf("[%s] Error copying file [%s] from stage to snowflake: %v", s.Name(), fileKey, err)
 					wrappedTx.Rollback()
+					metrics.ErrorEvents(token, s.Name(), rowsCount)
 					continue
 				}
 
 				wrappedTx.Commit()
+				metrics.SuccessEvents(token, s.Name(), rowsCount)
 
 				if err := s.stageAdapter.DeleteObject(fileKey); err != nil {
 					logging.Errorf("[%s] System error: file %s wasn't deleted from stage and will be inserted in db again: %v", s.Name(), fileKey, err)
@@ -197,31 +204,40 @@ func (s *Snowflake) Insert(dataSchema *schema.Table, fact events.Fact) (err erro
 }
 
 //Store file from byte payload to stage with processing
-func (s *Snowflake) Store(fileName string, payload []byte) error {
+//return rowsCount and err if err occurred
+//but return 0 and nil if no err
+//because Store method doesn't store data to Snowflake(only to stage(S3 or GCP)
+func (s *Snowflake) Store(fileName string, payload []byte) (int, error) {
 	flatData, err := s.schemaProcessor.ProcessFilePayload(fileName, payload, s.breakOnError)
 	if err != nil {
-		return err
+		return 0, err
+	}
+
+	var rowsCount int
+	for _, fdata := range flatData {
+		rowsCount += fdata.GetPayloadLen()
 	}
 
 	for _, fdata := range flatData {
 		dbSchema, err := s.tableHelper.EnsureTable(s.Name(), fdata.DataSchema)
 		if err != nil {
-			return err
+			return rowsCount, err
 		}
 
 		if err := s.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
-			return err
+			return rowsCount, err
 		}
 	}
 
 	for _, fdata := range flatData {
-		err := s.stageAdapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes(schema.CsvMarshallerInstance))
+		b, rows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+		err := s.stageAdapter.UploadBytes(buildDataIntoFileName(fdata, rows), b)
 		if err != nil {
-			return err
+			return rowsCount, err
 		}
 	}
 
-	return nil
+	return 0, nil
 }
 
 func (s *Snowflake) Name() string {
