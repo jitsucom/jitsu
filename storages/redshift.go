@@ -99,7 +99,7 @@ func (ar *AwsRedshift) startBatch() {
 			}
 
 			for _, fileKey := range filesKeys {
-				tableName, token, rowsCount, err := extractDataFromFileName(fileKey)
+				tableName, tokenId, rowsCount, err := extractDataFromFileName(fileKey)
 				if err != nil {
 					logging.Errorf("[%s] S3 file [%s] has wrong format: %v", ar.Name(), fileKey, err)
 					continue
@@ -108,20 +108,20 @@ func (ar *AwsRedshift) startBatch() {
 				wrappedTx, err := ar.redshiftAdapter.OpenTx()
 				if err != nil {
 					logging.Errorf("[%s] Error creating redshift transaction: %v", ar.Name(), err)
-					metrics.ErrorEvents(token, ar.Name(), rowsCount)
+					metrics.ErrorEvents(tokenId, ar.Name(), rowsCount)
 					continue
 				}
 
 				if err := ar.redshiftAdapter.Copy(wrappedTx, fileKey, tableName); err != nil {
 					logging.Errorf("[%s] Error copying file [%s] from s3 to redshift: %v", ar.Name(), fileKey, err)
-					metrics.ErrorEvents(token, ar.Name(), rowsCount)
+					metrics.ErrorEvents(tokenId, ar.Name(), rowsCount)
 					wrappedTx.Rollback()
 					continue
 				}
 
 				wrappedTx.Commit()
 
-				metrics.SuccessEvents(token, ar.Name(), rowsCount)
+				metrics.SuccessEvents(tokenId, ar.Name(), rowsCount)
 
 				//TODO may be we need to have a journal for collecting already processed files names
 				// if ar.s3Adapter.DeleteObject fails => it will be processed next time => duplicate data

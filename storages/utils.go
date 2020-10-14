@@ -34,7 +34,7 @@ func extractDataFromFileName(fileKey string) (string, string, int, error) {
 		return "", "", 0, errors.New("error in rows count part! Rows count must be int.")
 	}
 
-	regexTokenResult := logging.TokenExtractRegexp.FindStringSubmatch(fileNameRowsCount[0])
+	regexTokenResult := logging.TokenIdExtractRegexp.FindStringSubmatch(fileNameRowsCount[0])
 	if len(regexTokenResult) != 2 {
 		return "", "", 0, fmt.Errorf("error in token part! Right format: $filename%s$rowcount%s$tablename.", rowsFileKeyDelimiter, tableFileKeyDelimiter)
 	}

@@ -14,7 +14,7 @@ import (
 const logFileMaxSizeMB = 100
 
 //regex for reading already rotated and closed log files
-var TokenExtractRegexp = regexp.MustCompile("-event-(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
+var TokenIdExtractRegexp = regexp.MustCompile("-event-(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
 type WriterProxy struct {
 	lWriter *lumberjack.Logger
