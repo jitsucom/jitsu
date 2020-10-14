@@ -177,10 +177,10 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) (int, error) {
 
 	//TODO put them all in one folder and if all ok => move them all to next working folder
 	for _, fdata := range flatData {
-		b, rows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
-		err := ar.s3Adapter.UploadBytes(buildDataIntoFileName(fdata, rows), b)
+		b, fileRows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+		err := ar.s3Adapter.UploadBytes(buildDataIntoFileName(fdata, fileRows), b)
 		if err != nil {
-			return rowsCount, err
+			return fileRows, err
 		}
 	}
 

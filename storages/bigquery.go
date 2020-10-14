@@ -162,10 +162,10 @@ func (bq *BigQuery) Store(fileName string, payload []byte) (int, error) {
 	}
 
 	for _, fdata := range flatData {
-		b, rows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
-		err := bq.gcsAdapter.UploadBytes(buildDataIntoFileName(fdata, rows), b)
+		b, fileRows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+		err := bq.gcsAdapter.UploadBytes(buildDataIntoFileName(fdata, fileRows), b)
 		if err != nil {
-			return rowsCount, err
+			return fileRows, err
 		}
 	}
 
