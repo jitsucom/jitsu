@@ -182,13 +182,13 @@ func SetupRouter(destinations *destinations.Service, adminToken string) *gin.Eng
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenAuth(jsEventHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
-		apiV1.POST("/s2s/event", middleware.TokenAuth(apiEventHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
+		apiV1.POST("/event", middleware.TokenOriginsAuth(jsEventHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
+		apiV1.POST("/s2s/event", middleware.TokenOriginsAuth(apiEventHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationHandler, "Admin token does not match"))
 	}
 
 	if metrics.Enabled {
-		router.GET("/prometheus", adminTokenMiddleware.AdminAuth(gin.WrapH(promhttp.Handler()), "Admin token does not match"))
+		router.GET("/prometheus", middleware.TokenAuth(gin.WrapH(promhttp.Handler()), adminToken))
 	}
 
 	return router
