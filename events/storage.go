@@ -6,7 +6,7 @@ import (
 
 type Storage interface {
 	io.Closer
-	Store(fileName string, payload []byte) error
+	Store(fileName string, payload []byte) (int, error)
 	Name() string
 	Type() string
 }

@@ -8,8 +8,8 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/metrics"
 	"github.com/ksensehq/eventnative/schema"
-	"strings"
 	"time"
 )
 
@@ -98,21 +98,25 @@ func (bq *BigQuery) startBatch() {
 			}
 
 			for _, fileKey := range filesKeys {
-				names := strings.Split(fileKey, tableFileKeyDelimiter)
-				if len(names) != 2 {
-					logging.Errorf("[%s] Google cloud storage file [%s] has wrong format! Right format: $filename%s$tablename. This file will be skipped.", bq.Name(), fileKey, tableFileKeyDelimiter)
+				tableName, tokenId, rowsCount, err := extractDataFromFileName(fileKey)
+				if err != nil {
+					logging.Errorf("[%s] Google cloud storage file [%s] has wrong format: %v", bq.Name(), fileKey, err)
 					continue
 				}
 
-				if err := bq.bqAdapter.Copy(fileKey, names[1]); err != nil {
+				if err := bq.bqAdapter.Copy(fileKey, tableName); err != nil {
 					logging.Errorf("[%s] Error copying file [%s] from google cloud storage to BigQuery: %v", bq.Name(), fileKey, err)
+					metrics.ErrorEvents(tokenId, bq.Name(), rowsCount)
 					continue
 				}
 
 				if err := bq.gcsAdapter.DeleteObject(fileKey); err != nil {
 					logging.Errorf("[%s] System error: file %s wasn't deleted from google cloud storage and will be inserted in db again: %v", bq.Name(), fileKey, err)
+					metrics.ErrorEvents(tokenId, bq.Name(), rowsCount)
 					continue
 				}
+
+				metrics.SuccessEvents(tokenId, bq.Name(), rowsCount)
 			}
 		}
 	}()
@@ -133,31 +137,40 @@ func (bq *BigQuery) Insert(dataSchema *schema.Table, fact events.Fact) (err erro
 }
 
 //Store file from byte payload to google cloud storage with processing
-func (bq *BigQuery) Store(fileName string, payload []byte) error {
+//return rowsCount and err if err occurred
+//but return 0 and nil if no err
+//because Store method doesn't store data to BigQuery(only to GCP)
+func (bq *BigQuery) Store(fileName string, payload []byte) (int, error) {
 	flatData, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, bq.breakOnError)
 	if err != nil {
-		return err
+		return linesCount(payload), err
+	}
+
+	var rowsCount int
+	for _, fdata := range flatData {
+		rowsCount += fdata.GetPayloadLen()
 	}
 
 	for _, fdata := range flatData {
 		dbSchema, err := bq.tableHelper.EnsureTable(bq.Name(), fdata.DataSchema)
 		if err != nil {
-			return err
+			return rowsCount, err
 		}
 
 		if err := bq.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
-			return err
+			return rowsCount, err
 		}
 	}
 
 	for _, fdata := range flatData {
-		err := bq.gcsAdapter.UploadBytes(fdata.FileName+tableFileKeyDelimiter+fdata.DataSchema.Name, fdata.GetPayloadBytes(schema.JsonMarshallerInstance))
+		b, rows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+		err := bq.gcsAdapter.UploadBytes(buildDataIntoFileName(fdata, rows), b)
 		if err != nil {
-			return err
+			return rowsCount, err
 		}
 	}
 
-	return nil
+	return 0, nil
 }
 
 func (bq *BigQuery) Name() string {

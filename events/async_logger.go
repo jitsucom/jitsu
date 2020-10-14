@@ -16,7 +16,7 @@ type AsyncLogger struct {
 }
 
 //Consume event fact and put it to channel
-func (al *AsyncLogger) Consume(fact Fact) {
+func (al *AsyncLogger) Consume(fact Fact, tokenId string) {
 	al.logCh <- fact
 }
 

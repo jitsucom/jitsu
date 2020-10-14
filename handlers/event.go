@@ -58,7 +58,7 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 		logging.Warnf("Unknown token[%s] request was received", token)
 	} else {
 		for _, consumer := range consumers {
-			consumer.Consume(processed)
+			consumer.Consume(processed, tokenId)
 		}
 	}
 }

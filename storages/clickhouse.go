@@ -105,10 +105,17 @@ func (ch *ClickHouse) Insert(dataSchema *schema.Table, fact events.Fact) (err er
 }
 
 //Store file payload to ClickHouse with processing
-func (ch *ClickHouse) Store(fileName string, payload []byte) error {
+//return rows count and err if can't store
+//or rows count and nil if stored
+func (ch *ClickHouse) Store(fileName string, payload []byte) (int, error) {
 	flatData, err := ch.schemaProcessor.ProcessFilePayload(fileName, payload, ch.breakOnError)
 	if err != nil {
-		return err
+		return linesCount(payload), err
+	}
+
+	var rowsCount int
+	for _, fdata := range flatData {
+		rowsCount += fdata.GetPayloadLen()
 	}
 
 	adapter, tableHelper := ch.getAdapters()
@@ -116,18 +123,18 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 	for _, fdata := range flatData {
 		dbSchema, err := tableHelper.EnsureTable(ch.Name(), fdata.DataSchema)
 		if err != nil {
-			return err
+			return rowsCount, err
 		}
 
 		if err := ch.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
-			return err
+			return rowsCount, err
 		}
 	}
 
 	//insert all data in one transaction
 	tx, err := adapter.OpenTx()
 	if err != nil {
-		return fmt.Errorf("Error opening clickhouse transaction: %v", err)
+		return rowsCount, fmt.Errorf("Error opening clickhouse transaction: %v", err)
 	}
 
 	for _, fdata := range flatData {
@@ -135,7 +142,7 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 			if err := adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
 				if ch.breakOnError {
 					tx.Rollback()
-					return err
+					return rowsCount, err
 				} else {
 					logging.Warnf("[%s] Unable to insert object %v reason: %v. This line will be skipped", ch.Name(), object, err)
 				}
@@ -143,7 +150,7 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) error {
 		}
 	}
 
-	return tx.DirectCommit()
+	return rowsCount, tx.DirectCommit()
 }
 
 //Close adapters.ClickHouse
