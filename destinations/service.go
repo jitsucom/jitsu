@@ -236,9 +236,10 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 					//2 destinations with only 1 logger can be under 1 tokenId
 					newConsumers.Add(tokenId, tokenId, loggerUsage.logger)
 				}
-			}
 
-			newStorages.Add(tokenId, name, newStorageProxy)
+				//add storage only if batch mode
+				newStorages.Add(tokenId, name, newStorageProxy)
+			}
 		}
 	}
 
@@ -273,10 +274,12 @@ func (s *Service) remove(name string, unit *Unit) {
 		}
 
 		//storage
-		oldStorages := s.storagesByTokenId[tokenId]
-		delete(oldStorages, name)
-		if len(oldStorages) == 0 {
-			delete(s.storagesByTokenId, tokenId)
+		oldStorages, ok := s.storagesByTokenId[tokenId]
+		if ok {
+			delete(oldStorages, name)
+			if len(oldStorages) == 0 {
+				delete(s.storagesByTokenId, tokenId)
+			}
 		}
 	}
 
