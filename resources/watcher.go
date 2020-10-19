@@ -9,25 +9,27 @@ import (
 )
 
 type Watcher struct {
-	name        string
-	hash        string
-	source      string
-	reloadEvery time.Duration
+	name         string
+	hash         string
+	source       string
+	lastModified string
+	reloadEvery  time.Duration
 
-	loadFunc func(string) ([]byte, error)
+	loadFunc func(string, string) ([]byte, string, error)
 	consumer func([]byte)
 }
 
 //First load source then run goroutine to reload source every 'reloadEvery' duration
 //On every load check if content was changed => run consumer otherwise do nothing
-func Watch(name, source string, loadFunc func(string) ([]byte, error), consumer func([]byte), reloadEvery time.Duration) func() {
+func Watch(name, source string, loadFunc func(string, string) ([]byte, string, error), consumer func([]byte), reloadEvery time.Duration) func() {
 	w := &Watcher{
-		name:        name,
-		hash:        "",
-		source:      source,
-		loadFunc:    loadFunc,
-		consumer:    consumer,
-		reloadEvery: reloadEvery,
+		name:         name,
+		hash:         "",
+		source:       source,
+		lastModified: "",
+		loadFunc:     loadFunc,
+		consumer:     consumer,
+		reloadEvery:  reloadEvery,
 	}
 	logging.Infof("Resource [%s] will be loaded every %d seconds", name, int(reloadEvery.Seconds()))
 	w.watch()
@@ -50,11 +52,17 @@ func (w *Watcher) watch() {
 }
 
 func (w *Watcher) download() {
-	payload, err := w.loadFunc(w.source)
+	payload, lastModified, err := w.loadFunc(w.source, w.lastModified)
+	if err == ErrNoModified {
+		return
+	}
+
 	if err != nil {
 		logging.Errorf("Error reloading resource [%s]: %v", w.name, err)
 		return
 	}
+
+	w.lastModified = lastModified
 
 	newHash := GetHash(payload)
 	if w.hash != newHash {
@@ -66,6 +74,7 @@ func (w *Watcher) download() {
 
 func (w *Watcher) forceReload() {
 	w.hash = ""
+	w.lastModified = ""
 }
 
 func GetHash(payload []byte) string {
