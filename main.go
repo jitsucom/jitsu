@@ -97,7 +97,9 @@ func main() {
 		appstatus.Instance.Idle = true
 		cancel()
 		appconfig.Instance.Close()
+		telemetry.Flush()
 		time.Sleep(3 * time.Second)
+		telemetry.Close()
 		os.Exit(0)
 	}()
 

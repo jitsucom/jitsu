@@ -15,7 +15,11 @@ type Service struct {
 
 	usageOptOut bool
 
-	usageCh chan *Request
+	collector *Collector
+	usageCh   chan *Request
+
+	flushCh chan bool
+	closed  bool
 }
 
 func Init(commit, tag, builtAt string, usageOptOut bool) {
@@ -31,7 +35,11 @@ func Init(commit, tag, builtAt string, usageOptOut bool) {
 		url:         "https://track.ksense.io/api/v1/s2s/event?token=ttttd50c-d8f2-414c-bf3d-9902a5031fd2",
 		usageOptOut: usageOptOut,
 
+		collector: &Collector{},
+
 		usageCh: make(chan *Request, 100),
+
+		flushCh: make(chan bool, 1),
 	}
 
 	if !usageOptOut {
@@ -47,6 +55,12 @@ func ServerStop() {
 	instance.usage(&Usage{ServerStop: 1})
 }
 
+func Event() {
+	if !instance.usageOptOut {
+		instance.collector.Event()
+	}
+}
+
 func (s *Service) usage(usage *Usage) {
 	if !s.usageOptOut {
 		select {
@@ -57,12 +71,46 @@ func (s *Service) usage(usage *Usage) {
 }
 
 func (s *Service) startUsage() {
+	ticker := time.NewTicker(time.Hour)
 	go func() {
 		for {
+			if instance.closed {
+				break
+			}
+
+			select {
+			case <-ticker.C:
+				v := s.collector.Cut()
+				if v > 0 {
+					instance.usage(&Usage{Events: v})
+				}
+			case <-s.flushCh:
+				v := s.collector.Cut()
+				if v > 0 {
+					instance.usage(&Usage{Events: v})
+				}
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			if instance.closed {
+				break
+			}
+
 			req := <-s.usageCh
 			if b, err := req.MarshalJSON(); err == nil {
 				s.client.Post(s.url, "application/json", bytes.NewBuffer(b))
 			}
 		}
 	}()
+}
+
+func Flush() {
+	instance.flushCh <- true
+}
+
+func Close() {
+	instance.closed = true
 }
