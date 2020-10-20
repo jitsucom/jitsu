@@ -83,6 +83,7 @@ func main() {
 	}
 
 	telemetry.Init(commit, tag, builtAt, viper.GetBool("server.telemetry.disabled.usage"))
+	defer telemetry.Close()
 
 	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
 

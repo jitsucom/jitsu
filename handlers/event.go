@@ -7,6 +7,7 @@ import (
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
+	"github.com/ksensehq/eventnative/telemetry"
 	"github.com/ksensehq/eventnative/timestamp"
 	"net/http"
 )
@@ -57,6 +58,8 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 	if len(consumers) == 0 {
 		logging.Warnf("Unknown token[%s] request was received", token)
 	} else {
+		telemetry.Event()
+
 		for _, consumer := range consumers {
 			consumer.Consume(processed, tokenId)
 		}
