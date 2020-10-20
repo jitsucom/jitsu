@@ -83,7 +83,6 @@ func main() {
 	}
 
 	telemetry.Init(commit, tag, builtAt, viper.GetBool("server.telemetry.disabled.usage"))
-	defer telemetry.Close()
 
 	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
 
@@ -98,7 +97,9 @@ func main() {
 		appstatus.Instance.Idle = true
 		cancel()
 		appconfig.Instance.Close()
+		telemetry.Flush()
 		time.Sleep(3 * time.Second)
+		telemetry.Close()
 		os.Exit(0)
 	}()
 

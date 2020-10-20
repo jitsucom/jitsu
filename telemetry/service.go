@@ -18,7 +18,8 @@ type Service struct {
 	collector *Collector
 	usageCh   chan *Request
 
-	closed bool
+	flushCh chan bool
+	closed  bool
 }
 
 func Init(commit, tag, builtAt string, usageOptOut bool) {
@@ -37,6 +38,8 @@ func Init(commit, tag, builtAt string, usageOptOut bool) {
 		collector: &Collector{},
 
 		usageCh: make(chan *Request, 100),
+
+		flushCh: make(chan bool, 1),
 	}
 
 	if !usageOptOut {
@@ -53,7 +56,9 @@ func ServerStop() {
 }
 
 func Event() {
-	instance.collector.Event()
+	if !instance.usageOptOut {
+		instance.collector.Event()
+	}
 }
 
 func (s *Service) usage(usage *Usage) {
@@ -69,18 +74,28 @@ func (s *Service) startUsage() {
 	ticker := time.NewTicker(time.Hour)
 	go func() {
 		for {
+			if instance.closed {
+				break
+			}
+
 			select {
 			case <-ticker.C:
-			case close:
 				v := s.collector.Cut()
-				instance.usage(&Usage{Events: v})
+				if v > 0 {
+					instance.usage(&Usage{Events: v})
+				}
+			case <-s.flushCh:
+				v := s.collector.Cut()
+				if v > 0 {
+					instance.usage(&Usage{Events: v})
+				}
 			}
 		}
 	}()
 
 	go func() {
 		for {
-			if s.closed {
+			if instance.closed {
 				break
 			}
 
@@ -90,6 +105,10 @@ func (s *Service) startUsage() {
 			}
 		}
 	}()
+}
+
+func Flush() {
+	instance.flushCh <- true
 }
 
 func Close() {
