@@ -9,8 +9,9 @@ type InstanceInfo struct {
 }
 
 type Usage struct {
-	ServerStart int `json:"server_start,omitempty"`
-	ServerStop  int `json:"server_stop,omitempty"`
+	ServerStart int    `json:"server_start,omitempty"`
+	ServerStop  int    `json:"server_stop,omitempty"`
+	Events      uint64 `json:"events,omitempty"`
 }
 
 type Errors struct {
