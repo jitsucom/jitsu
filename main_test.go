@@ -6,6 +6,7 @@ import (
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
+	"github.com/ksensehq/eventnative/telemetry"
 	"github.com/ksensehq/eventnative/test"
 	"time"
 
@@ -114,6 +115,7 @@ func TestApiEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			telemetry.Init("test", "test", "test", true)
 			httpAuthority, _ := getLocalAuthority()
 
 			err := appconfig.Init()
