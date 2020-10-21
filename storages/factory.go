@@ -35,8 +35,9 @@ type DestinationConfig struct {
 }
 
 type DataLayout struct {
-	Mapping           []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
-	TableNameTemplate string   `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
+	MappingType       schema.FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
+	Mapping           []string                `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
+	TableNameTemplate string                  `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
 }
 
 type Config struct {
@@ -89,7 +90,11 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
 	}
 
-	processor, err := schema.NewProcessor(tableName, mapping)
+	mappingFieldType := schema.Default
+	if destination.DataLayout != nil {
+		mappingFieldType = destination.DataLayout.MappingType
+	}
+	processor, err := schema.NewProcessor(tableName, mapping, mappingFieldType)
 	if err != nil {
 		return nil, nil, err
 	}
