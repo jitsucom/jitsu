@@ -55,26 +55,26 @@ var (
 
 //ClickHouseConfig dto for deserialized clickhouse config
 type ClickHouseConfig struct {
-	Dsns     []string          `mapstructure:"dsns" json:"dsns,omitempty"`
-	Database string            `mapstructure:"db" json:"db,omitempty"`
-	Tls      map[string]string `mapstructure:"tls" json:"tls,omitempty"`
-	Cluster  string            `mapstructure:"cluster" json:"cluster,omitempty"`
-	Engine   *EngineConfig     `mapstructure:"engine" json:"engine,omitempty"`
+	Dsns     []string          `mapstructure:"dsns" json:"dsns,omitempty" yaml:"dsns,omitempty"`
+	Database string            `mapstructure:"db" json:"db,omitempty" yaml:"dsns,omitempty"`
+	Tls      map[string]string `mapstructure:"tls" json:"tls,omitempty" yaml:"dsns,omitempty"`
+	Cluster  string            `mapstructure:"cluster" json:"cluster,omitempty" yaml:"dsns,omitempty"`
+	Engine   *EngineConfig     `mapstructure:"engine" json:"engine,omitempty" yaml:"dsns,omitempty"`
 }
 
 //EngineConfig dto for deserialized clickhouse engine config
 type EngineConfig struct {
-	RawStatement    string        `mapstructure:"raw_statement" json:"raw_statement,omitempty"`
-	NonNullFields   []string      `mapstructure:"non_null_fields" json:"non_null_fields,omitempty"`
-	PartitionFields []FieldConfig `mapstructure:"partition_fields" json:"partition_fields,omitempty"`
-	OrderFields     []FieldConfig `mapstructure:"order_fields" json:"order_fields,omitempty"`
-	PrimaryKeys     []string      `mapstructure:"primary_keys" json:"primary_keys,omitempty"`
+	RawStatement    string        `mapstructure:"raw_statement" json:"raw_statement,omitempty" yaml:"raw_statement,omitempty"`
+	NonNullFields   []string      `mapstructure:"non_null_fields" json:"non_null_fields,omitempty" yaml:"non_null_fields,omitempty"`
+	PartitionFields []FieldConfig `mapstructure:"partition_fields" json:"partition_fields,omitempty" yaml:"partition_fields,omitempty"`
+	OrderFields     []FieldConfig `mapstructure:"order_fields" json:"order_fields,omitempty" yaml:"order_fields,omitempty"`
+	PrimaryKeys     []string      `mapstructure:"primary_keys" json:"primary_keys,omitempty" yaml:"primary_keys,omitempty"`
 }
 
 //FieldConfig dto for deserialized clickhouse engine fields
 type FieldConfig struct {
-	Function string `mapstructure:"function" json:"function,omitempty"`
-	Field    string `mapstructure:"field" json:"field,omitempty"`
+	Function string `mapstructure:"function" json:"function,omitempty" yaml:"function,omitempty"`
+	Field    string `mapstructure:"field" json:"field,omitempty" yaml:"field,omitempty"`
 }
 
 //Validate required fields in ClickHouseConfig
