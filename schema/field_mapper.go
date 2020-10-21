@@ -116,38 +116,9 @@ func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}
 					delete(sourceInner, sourceKey)
 					break
 				}
-				sourceNodeToTransfer, ok := sourceInner[sourceKey]
-				//source node doesn't exist
-				if !ok {
-					break
-				}
-				//dive into dest inner and put to last last key from mapping '/key2/../lastkey2'
-				for j := 0; j < len(rule.destination); j++ {
-					destKey := rule.destination[j]
-					if j == len(rule.destination)-1 {
-						destInner[destKey] = sourceNodeToTransfer
-						delete(sourceInner, sourceKey)
-						break
-					}
-
-					//dive or create
-					if sub, ok := destInner[destKey]; ok {
-						if subMap, ok := sub.(map[string]interface{}); ok {
-							destInner = subMap
-						} else {
-							//node isn't object node
-							break
-						}
-					} else {
-						subMap := map[string]interface{}{}
-						destInner[destKey] = subMap
-						destInner = subMap
-					}
-				}
-
+				applyRule(sourceInner, destInner, sourceKey, rule)
 				break
 			}
-
 			//dive
 			if sub, ok := sourceInner[sourceKey]; ok {
 				if subMap, ok := sub.(map[string]interface{}); ok {
@@ -155,7 +126,6 @@ func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}
 					continue
 				}
 			}
-
 			break
 		}
 	}
@@ -172,38 +142,9 @@ func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]inter
 		for i := 0; i < len(rule.source); i++ {
 			sourceKey := rule.source[i]
 			if i == len(rule.source)-1 {
-				sourceNodeToTransfer, ok := sourceInner[sourceKey]
-				//source node doesn't exist
-				if !ok {
-					break
-				}
-				//dive into dest inner and put to last last key from mapping '/key2/../lastkey2'
-				for j := 0; j < len(rule.destination); j++ {
-					destKey := rule.destination[j]
-					if j == len(rule.destination)-1 {
-						destInner[destKey] = sourceNodeToTransfer
-						delete(sourceInner, sourceKey)
-						break
-					}
-
-					//dive or create
-					if sub, ok := destInner[destKey]; ok {
-						if subMap, ok := sub.(map[string]interface{}); ok {
-							destInner = subMap
-						} else {
-							//node isn't object node
-							break
-						}
-					} else {
-						subMap := map[string]interface{}{}
-						destInner[destKey] = subMap
-						destInner = subMap
-					}
-				}
-
+				applyRule(sourceInner, destInner, sourceKey, rule)
 				break
 			}
-
 			//dive
 			if sub, ok := sourceInner[sourceKey]; ok {
 				if subMap, ok := sub.(map[string]interface{}); ok {
@@ -211,7 +152,6 @@ func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]inter
 					continue
 				}
 			}
-
 			break
 		}
 	}
@@ -221,6 +161,37 @@ func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]inter
 //Return object as is
 func (DummyMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
 	return object, nil
+}
+
+func applyRule(sourceInner map[string]interface{}, destInner map[string]interface{}, sourceKey string, rule *MappingRule) {
+	sourceNodeToTransfer, ok := sourceInner[sourceKey]
+	//source node doesn't exist
+	if !ok {
+		return
+	}
+	//dive into dest inner and put to last last key from mapping '/key2/../lastkey2'
+	for j := 0; j < len(rule.destination); j++ {
+		destKey := rule.destination[j]
+		if j == len(rule.destination)-1 {
+			destInner[destKey] = sourceNodeToTransfer
+			delete(sourceInner, sourceKey)
+			break
+		}
+
+		//dive or create
+		if sub, ok := destInner[destKey]; ok {
+			if subMap, ok := sub.(map[string]interface{}); ok {
+				destInner = subMap
+			} else {
+				//node isn't object node
+				break
+			}
+		} else {
+			subMap := map[string]interface{}{}
+			destInner[destKey] = subMap
+			destInner = subMap
+		}
+	}
 }
 
 func formatPrefixSuffix(key string) string {
