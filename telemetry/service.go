@@ -75,6 +75,7 @@ func (s *Service) startUsage() {
 	go func() {
 		for {
 			if instance.closed {
+				ticker.Stop()
 				break
 			}
 

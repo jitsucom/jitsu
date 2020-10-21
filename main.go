@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
+	"github.com/ksensehq/eventnative/cluster"
 	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/handlers"
@@ -15,6 +16,7 @@ import (
 	"github.com/ksensehq/eventnative/metrics"
 	"github.com/ksensehq/eventnative/middleware"
 	"github.com/ksensehq/eventnative/storages"
+	"github.com/ksensehq/eventnative/synchronization"
 	"github.com/ksensehq/eventnative/telemetry"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"math/rand"
@@ -119,19 +121,21 @@ func main() {
 		}
 	}
 
-	monitorKeeper, err := storages.NewMonitorKeeper(
+	//synchronization service
+	syncService, err := synchronization.NewService(
+		appconfig.Instance.ServerName,
 		viper.GetString("synchronization_service.type"),
 		viper.GetString("synchronization_service.endpoint"),
 		viper.GetUint("synchronization_service.connection_timeout_seconds"))
 	if err != nil {
-		logging.Fatal("Failed to initiate monitor keeper ", err)
+		logging.Fatal("Failed to initiate synchronization service", err)
 	}
 
 	//Get event logger path
 	logEventPath := viper.GetString("log.path")
 
 	//Create event destinations:
-	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsSource, logEventPath, monitorKeeper, storages.Create)
+	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsSource, logEventPath, syncService, storages.Create)
 	if err != nil {
 		logging.Fatal(err)
 	}
@@ -145,7 +149,7 @@ func main() {
 	uploader.Start()
 
 	adminToken := viper.GetString("server.admin_token")
-	router := SetupRouter(destinationsService, adminToken)
+	router := SetupRouter(destinationsService, adminToken, syncService)
 
 	telemetry.ServerStart()
 	logging.Info("Started server: " + appconfig.Instance.Authority)
@@ -159,7 +163,7 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-func SetupRouter(destinations *destinations.Service, adminToken string) *gin.Engine {
+func SetupRouter(destinations *destinations.Service, adminToken string, clusterManager cluster.Manager) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -187,6 +191,8 @@ func SetupRouter(destinations *destinations.Service, adminToken string) *gin.Eng
 		apiV1.POST("/event", middleware.TokenOriginsAuth(jsEventHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 		apiV1.POST("/s2s/event", middleware.TokenOriginsAuth(apiEventHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationHandler, "Admin token does not match"))
+
+		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler, "Admin token does not match"))
 	}
 
 	if metrics.Enabled {
