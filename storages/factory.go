@@ -21,22 +21,23 @@ const (
 var unknownDestination = errors.New("Unknown destination type")
 
 type DestinationConfig struct {
-	OnlyTokens   []string    `mapstructure:"only_tokens" json:"only_tokens,omitempty"`
-	Type         string      `mapstructure:"type" json:"type,omitempty"`
-	Mode         string      `mapstructure:"mode" json:"mode,omitempty"`
-	DataLayout   *DataLayout `mapstructure:"data_layout" json:"data_layout,omitempty"`
-	BreakOnError bool        `mapstructure:"break_on_error" json:"break_on_error,omitempty"`
+	OnlyTokens   []string    `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
+	Type         string      `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	Mode         string      `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
+	DataLayout   *DataLayout `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
+	BreakOnError bool        `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
 
-	DataSource *adapters.DataSourceConfig `mapstructure:"datasource" json:"datasource,omitempty"`
-	S3         *adapters.S3Config         `mapstructure:"s3" json:"s3,omitempty"`
-	Google     *adapters.GoogleConfig     `mapstructure:"google" json:"google,omitempty"`
-	ClickHouse *adapters.ClickHouseConfig `mapstructure:"clickhouse" json:"clickhouse,omitempty"`
-	Snowflake  *adapters.SnowflakeConfig  `mapstructure:"snowflake" json:"snowflake,omitempty"`
+	DataSource *adapters.DataSourceConfig `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
+	S3         *adapters.S3Config         `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
+	Google     *adapters.GoogleConfig     `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
+	ClickHouse *adapters.ClickHouseConfig `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
+	Snowflake  *adapters.SnowflakeConfig  `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
 }
 
 type DataLayout struct {
-	Mapping           []string `mapstructure:"mapping" json:"mapping,omitempty"`
-	TableNameTemplate string   `mapstructure:"table_name_template" json:"table_name_template,omitempty"`
+	MappingType       schema.FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
+	Mapping           []string                `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
+	TableNameTemplate string                  `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
 }
 
 type Config struct {
@@ -89,7 +90,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
 	}
 
-	processor, err := schema.NewProcessor(tableName, mapping)
+	processor, err := schema.NewProcessor(tableName, mapping, destination.DataLayout.MappingType)
 	if err != nil {
 		return nil, nil, err
 	}

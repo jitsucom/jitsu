@@ -22,8 +22,8 @@ type Processor struct {
 	tableNameExtractFunc TableNameExtractFunction
 }
 
-func NewProcessor(tableNameFuncExpression string, mappings []string) (*Processor, error) {
-	mapper, typeCasts, err := NewFieldMapper(mappings)
+func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType FieldMappingType) (*Processor, error) {
+	mapper, typeCasts, err := NewFieldMapper(mappingType, mappings)
 	if err != nil {
 		return nil, err
 	}
