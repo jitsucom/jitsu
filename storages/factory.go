@@ -90,7 +90,11 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
 	}
 
-	processor, err := schema.NewProcessor(tableName, mapping, destination.DataLayout.MappingType)
+	mappingFieldType := schema.Default
+	if destination.DataLayout != nil {
+		mappingFieldType = destination.DataLayout.MappingType
+	}
+	processor, err := schema.NewProcessor(tableName, mapping, mappingFieldType)
 	if err != nil {
 		return nil, nil, err
 	}
