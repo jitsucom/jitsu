@@ -17,6 +17,14 @@ const (
 	Strict  FieldMappingType = "strict"
 )
 
+func (f FieldMappingType) String() string {
+	if f == Strict {
+		return "Strict"
+	} else {
+		return "Default"
+	}
+}
+
 type FieldMapper struct {
 	rules []*MappingRule
 }
