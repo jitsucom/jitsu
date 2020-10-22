@@ -3,7 +3,7 @@
 
 server:
   port: 8001
-  name: event-us-01 #This parameter is required in cluster deployments. If not set - will be taken from os.Hostname()
+  name: event-us-01.domain.com #Optional. This parameter is required in cluster deployments. If not set - will be default (unnamed-server)
   #might be http url of file source
   #auth: https://source_of_tokens
   #or might be full configured token object
@@ -33,6 +33,7 @@ server:
   metrics:
     prometheus:
       enabled: true #Optional. Enable metrics collecting and /prometheus endpoint
+  admin_token: an_admin_token #Optional. Token for testing destination or cluster information endpoints
 
 geo.maxmind_path: https://statichost/GeoIP2-City.mmdb
 
@@ -143,3 +144,7 @@ destinations:
       mapping:
         - "/key1/key2 -> /key3"
       table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #template will be used for file naming
+synchronization_service: #Optional. This parameter is required in cluster deployments.
+  type: etcd #Now EventNative supports only etcd
+  endpoint: http://your_etcd_host
+  connection_timeout_seconds: 60 #Optional.
