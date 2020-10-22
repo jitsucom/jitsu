@@ -255,8 +255,10 @@ func (s *Snowflake) Close() (multiErr error) {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake datasource: %v", s.Name(), err))
 	}
 
-	if err := s.stageAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake stage: %v", s.Name(), err))
+	if s.stageAdapter != nil {
+		if err := s.stageAdapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake stage: %v", s.Name(), err))
+		}
 	}
 
 	if s.streamingWorker != nil {

@@ -62,7 +62,9 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 
 	var mapping []string
 	var tableName string
+	mappingFieldType := schema.Default
 	if destination.DataLayout != nil {
+		mappingFieldType = destination.DataLayout.MappingType
 		mapping = destination.DataLayout.Mapping
 
 		if destination.DataLayout.TableNameTemplate != "" {
@@ -80,7 +82,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	if len(mapping) == 0 {
 		logging.Warnf("[%s] doesn't have mapping rules", name)
 	} else {
-		logging.Infof("[%s] Configured field mapping rules:", name)
+		logging.Infof("[%s] Configured field mapping rules with [%s] mode:", name, mappingFieldType)
 		for _, m := range mapping {
 			logging.Infof("[%s] %s", name, m)
 		}
@@ -90,10 +92,6 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
 	}
 
-	mappingFieldType := schema.Default
-	if destination.DataLayout != nil {
-		mappingFieldType = destination.DataLayout.MappingType
-	}
 	processor, err := schema.NewProcessor(tableName, mapping, mappingFieldType)
 	if err != nil {
 		return nil, nil, err

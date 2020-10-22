@@ -22,6 +22,11 @@ const (
 	awsS3From = `FROM 's3://%s/%s'
 					           CREDENTIALS = (aws_key_id='%s' aws_secret_key='%s') 
                                %s`
+
+	createSFDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS %s`
+	addSFColumnTemplate                 = `ALTER TABLE %s.%s ADD COLUMN %s %s`
+	createSFTableTemplate               = `CREATE TABLE %s.%s (%s)`
+	insertSFTemplate                    = `INSERT INTO %s.%s (%s) VALUES (%s)`
 )
 
 var (
@@ -75,7 +80,7 @@ func (sc *SnowflakeConfig) Validate() error {
 		sc.Parameters = map[string]*string{}
 	}
 
-	sc.Schema = strings.ToUpper(sc.Schema)
+	sc.Schema = reformatValue(sc.Schema)
 	return nil
 }
 
@@ -137,7 +142,7 @@ func (s *Snowflake) CreateDbSchema(dbSchemaName string) error {
 		return err
 	}
 
-	return createDbSchemaInTransaction(s.ctx, wrappedTx, dbSchemaName)
+	return createDbSchemaInTransaction(s.ctx, wrappedTx, createSFDbSchemaIfNotExistsTemplate, dbSchemaName)
 }
 
 //CreateTable create database table with name,columns provided in schema.Table representation
@@ -154,12 +159,12 @@ func (s *Snowflake) CreateTable(tableSchema *schema.Table) error {
 			logging.Error("Unknown snowflake schema type:", column.GetType())
 			mappedType = schemaToSnowflake[typing.STRING]
 		}
-		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, columnName, mappedType))
+		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, reformatValue(columnName), mappedType))
 	}
 
 	//sorting columns asc
 	sort.Strings(columnsDDL)
-	createStmt, err := wrappedTx.tx.PrepareContext(s.ctx, fmt.Sprintf(createTableTemplate, s.config.Schema, tableSchema.Name, strings.Join(columnsDDL, ",")))
+	createStmt, err := wrappedTx.tx.PrepareContext(s.ctx, fmt.Sprintf(createSFTableTemplate, s.config.Schema, reformatValue(tableSchema.Name), strings.Join(columnsDDL, ",")))
 	if err != nil {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing create table %s statement: %v", tableSchema.Name, err)
@@ -187,7 +192,7 @@ func (s *Snowflake) PatchTableSchema(patchSchema *schema.Table) error {
 			logging.Error("Unknown snowflake schema type:", column.GetType().String())
 			mappedColumnType = schemaToSnowflake[typing.STRING]
 		}
-		alterStmt, err := wrappedTx.tx.PrepareContext(s.ctx, fmt.Sprintf(addColumnTemplate, s.config.Schema, patchSchema.Name, columnName, mappedColumnType))
+		alterStmt, err := wrappedTx.tx.PrepareContext(s.ctx, fmt.Sprintf(addSFColumnTemplate, s.config.Schema, reformatValue(patchSchema.Name), reformatValue(columnName), mappedColumnType))
 		if err != nil {
 			wrappedTx.Rollback()
 			return fmt.Errorf("Error preparing patching table %s schema statement: %v", patchSchema.Name, err)
@@ -206,7 +211,8 @@ func (s *Snowflake) PatchTableSchema(patchSchema *schema.Table) error {
 //GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
 func (s *Snowflake) GetTableSchema(tableName string) (*schema.Table, error) {
 	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
-	rows, err := s.dataSource.QueryContext(s.ctx, tableSchemaSFQuery, s.config.Schema, tableName)
+
+	rows, err := s.dataSource.QueryContext(s.ctx, tableSchemaSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
 	}
@@ -235,17 +241,10 @@ func (s *Snowflake) GetTableSchema(tableName string) (*schema.Table, error) {
 func (s *Snowflake) Copy(wrappedTx *Transaction, fileKey, header, tableName string) error {
 	var headerParts []string
 	for _, v := range strings.Split(header, "||") {
-		//add "" to number starting column names
-		if strings.HasPrefix(v, "0") || strings.HasPrefix(v, "1") || strings.HasPrefix(v, "2") ||
-			strings.HasPrefix(v, "3") || strings.HasPrefix(v, "4") || strings.HasPrefix(v, "5") ||
-			strings.HasPrefix(v, "6") || strings.HasPrefix(v, "7") || strings.HasPrefix(v, "8") ||
-			strings.HasPrefix(v, "9") {
-			v = `"` + v + `"`
-		}
-		headerParts = append(headerParts, v)
+		headerParts = append(headerParts, reformatValue(v))
 	}
 
-	statement := fmt.Sprintf(`COPY INTO "%s"."%s" (%s) `, s.config.Schema, tableName, strings.Join(headerParts, ","))
+	statement := fmt.Sprintf(`COPY INTO %s.%s (%s) `, s.config.Schema, reformatValue(tableName), strings.Join(headerParts, ","))
 	if s.s3Config != nil {
 		//s3 integration stage
 		statement += fmt.Sprintf(awsS3From, s.s3Config.Bucket, fileKey, s.s3Config.AccessKeyID, s.s3Config.SecretKey, copyStatementFileFormat)
@@ -278,7 +277,7 @@ func (s *Snowflake) InsertInTransaction(wrappedTx *Transaction, schema *schema.T
 	var header, placeholders string
 	var values []interface{}
 	for name, value := range valuesMap {
-		header += name + ","
+		header += reformatValue(name) + ","
 		placeholders += "?,"
 		values = append(values, value)
 	}
@@ -286,7 +285,7 @@ func (s *Snowflake) InsertInTransaction(wrappedTx *Transaction, schema *schema.T
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
 
-	insertStmt, err := wrappedTx.tx.PrepareContext(s.ctx, fmt.Sprintf(insertTemplate, s.config.Schema, schema.Name, header, placeholders))
+	insertStmt, err := wrappedTx.tx.PrepareContext(s.ctx, fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(schema.Name), header, placeholders))
 	if err != nil {
 		return fmt.Errorf("Error preparing insert table %s statement: %v", schema.Name, err)
 	}
@@ -302,4 +301,52 @@ func (s *Snowflake) InsertInTransaction(wrappedTx *Transaction, schema *schema.T
 //Close underlying sql.DB
 func (s *Snowflake) Close() (multiErr error) {
 	return s.dataSource.Close()
+}
+
+//Snowflake has table with schema, table names and there
+//quoted identifiers = without quotes
+//unquoted identifiers = uppercased
+func reformatToParam(value string) string {
+	if strings.Contains(value, `"`) {
+		return strings.ReplaceAll(value, `"`, ``)
+	} else {
+		return strings.ToUpper(value)
+	}
+}
+
+//Snowflake accept names (identifiers) started with '_' or letter
+//also names can contain only '_', letters, numbers, '$'
+//otherwise double quote them
+//https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html#unquoted-identifiers
+func reformatValue(value string) string {
+	if len(value) > 0 {
+		//must begin with a letter or underscore, or enclose in double quotes
+		firstSymbol := value[0]
+
+		if isNotLetterOrUnderscore(int32(firstSymbol)) {
+			return `"` + value + `"`
+		}
+
+		for _, symbol := range value {
+			if isNotLetterOrUnderscore(symbol) && isNotNumberOrDollar(symbol) {
+				return `"` + value + `"`
+			}
+		}
+
+	}
+
+	return value
+}
+
+//_: 95
+//A - Z: 65-90
+//a - z: 97-122
+func isNotLetterOrUnderscore(symbol int32) bool {
+	return symbol < 65 || (symbol != 95 && symbol > 90 && symbol < 97) || symbol > 122
+}
+
+//$: 36
+// 0 - 9: 48-57
+func isNotNumberOrDollar(symbol int32) bool {
+	return symbol != 36 && (symbol < 48 || symbol > 57)
 }
