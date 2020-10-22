@@ -132,7 +132,7 @@ func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 		return err
 	}
 
-	return createDbSchemaInTransaction(p.ctx, wrappedTx, dbSchemaName)
+	return createDbSchemaInTransaction(p.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName)
 }
 
 //CreateTable create database table with name,columns provided in schema.Table representation
@@ -338,8 +338,8 @@ func (t *Transaction) Rollback() {
 	}
 }
 
-func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, dbSchemaName string) error {
-	createStmt, err := wrappedTx.tx.PrepareContext(ctx, fmt.Sprintf(createDbSchemaIfNotExistsTemplate, dbSchemaName))
+func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, statementTemplate, dbSchemaName string) error {
+	createStmt, err := wrappedTx.tx.PrepareContext(ctx, fmt.Sprintf(statementTemplate, dbSchemaName))
 	if err != nil {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing create db schema %s statement: %v", dbSchemaName, err)
