@@ -68,7 +68,7 @@ func readInViperConfig() error {
 	return nil
 }
 
-//go:generate easyjson -all useragent/resolver.go telemetry/req_factory.go telemetry/models.go
+//go:generate easyjson -all useragent/resolver.go telemetry/models.go
 func main() {
 	// Setup seed for globalRand
 	rand.Seed(time.Now().Unix())
@@ -149,7 +149,10 @@ func main() {
 	uploader.Start()
 
 	adminToken := viper.GetString("server.admin_token")
-	router := SetupRouter(destinationsService, adminToken, syncService)
+	eventsCache := events.NewCache(100)
+	appconfig.Instance.ScheduleClosing(eventsCache)
+
+	router := SetupRouter(destinationsService, adminToken, syncService, eventsCache)
 
 	telemetry.ServerStart()
 	logging.Info("Started server: " + appconfig.Instance.Authority)
@@ -163,7 +166,7 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-func SetupRouter(destinations *destinations.Service, adminToken string, clusterManager cluster.Manager) *gin.Engine {
+func SetupRouter(destinations *destinations.Service, adminToken string, clusterManager cluster.Manager, eventsCache *events.Cache) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -182,17 +185,18 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor()).Handler
-	apiEventHandler := handlers.NewEventHandler(destinations, events.NewApiPreprocessor()).Handler
+	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor(), eventsCache)
+	apiEventHandler := handlers.NewEventHandler(destinations, events.NewApiPreprocessor(), eventsCache)
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenOriginsAuth(jsEventHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
-		apiV1.POST("/s2s/event", middleware.TokenOriginsAuth(apiEventHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
+		apiV1.POST("/event", middleware.TokenOriginsAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
+		apiV1.POST("/s2s/event", middleware.TokenOriginsAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationHandler, "Admin token does not match"))
 
 		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler, "Admin token does not match"))
+		apiV1.GET("/cache/events", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler, "Admin token does not match"))
 	}
 
 	if metrics.Enabled {

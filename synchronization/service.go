@@ -137,6 +137,8 @@ func (es *EtcdService) startHeartBeating() {
 
 			if err := es.heartBeat(); err != nil {
 				logging.Errorf("Error heart beat to etcd: %v", err)
+				//delay after error
+				time.Sleep(10 * time.Second)
 				continue
 			}
 
