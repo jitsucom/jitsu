@@ -40,6 +40,8 @@ func easyjsonD2b7633eDecodeGithubComKsensehqEventnativeTelemetry(in *jlexer.Lexe
 			out.ServerStart = int(in.Int())
 		case "server_stop":
 			out.ServerStop = int(in.Int())
+		case "events":
+			out.Events = uint64(in.Uint64())
 		default:
 			in.SkipRecursive()
 		}
@@ -69,6 +71,16 @@ func easyjsonD2b7633eEncodeGithubComKsensehqEventnativeTelemetry(out *jwriter.Wr
 			out.RawString(prefix)
 		}
 		out.Int(int(in.ServerStop))
+	}
+	if in.Events != 0 {
+		const prefix string = ",\"events\":"
+		if first {
+			first = false
+			out.RawString(prefix[1:])
+		} else {
+			out.RawString(prefix)
+		}
+		out.Uint64(uint64(in.Events))
 	}
 	out.RawByte('}')
 }

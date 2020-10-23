@@ -10,25 +10,34 @@ import (
 	"github.com/ksensehq/eventnative/telemetry"
 	"github.com/ksensehq/eventnative/timestamp"
 	"net/http"
+	"strconv"
+	"strings"
 )
 
 const apiTokenKey = "api_key"
+const defaultLimit = 100
+
+type CachedEventsResponse struct {
+	Events []events.Fact `json:"events"`
+}
 
 //Accept all events
 type EventHandler struct {
 	destinationService *destinations.Service
 	preprocessor       events.Preprocessor
+	eventsCache        *events.Cache
 }
 
 //Accept all events according to token
-func NewEventHandler(destinationService *destinations.Service, preprocessor events.Preprocessor) (eventHandler *EventHandler) {
+func NewEventHandler(destinationService *destinations.Service, preprocessor events.Preprocessor, eventsCache *events.Cache) (eventHandler *EventHandler) {
 	return &EventHandler{
 		destinationService: destinationService,
 		preprocessor:       preprocessor,
+		eventsCache:        eventsCache,
 	}
 }
 
-func (eh *EventHandler) Handler(c *gin.Context) {
+func (eh *EventHandler) PostHandler(c *gin.Context) {
 	payload := events.Fact{}
 	if err := c.BindJSON(&payload); err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err})
@@ -41,6 +50,8 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 		return
 	}
 	token := iface.(string)
+
+	eh.eventsCache.PutAsync(token, payload)
 
 	processed, err := eh.preprocessor.Preprocess(payload, c.Request)
 	if err != nil {
@@ -64,4 +75,31 @@ func (eh *EventHandler) Handler(c *gin.Context) {
 			consumer.Consume(processed, tokenId)
 		}
 	}
+}
+
+func (eh *EventHandler) GetHandler(c *gin.Context) {
+	apikeys := c.Query("apikeys")
+	limitStr := c.Query("limit_per_apikey")
+	var limit int
+	var err error
+	if limitStr == "" {
+		limit = defaultLimit
+	} else {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "limit_per_apikey must be int"})
+			return
+		}
+	}
+
+	response := CachedEventsResponse{Events: []events.Fact{}}
+	if len(apikeys) == 0 {
+		response.Events = eh.eventsCache.GetAll(limit)
+	} else {
+		for _, key := range strings.Split(apikeys, ",") {
+			response.Events = append(response.Events, eh.eventsCache.GetN(key, limit)...)
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
 }
