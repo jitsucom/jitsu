@@ -43,7 +43,7 @@ func (ce *CachedBucket) Put(value Fact) {
 }
 
 //Get return <= n elements from bucket with read lock
-func (ce *CachedBucket) Get(n int) []Fact {
+func (ce *CachedBucket) GetN(n int) []Fact {
 	ce.RLock()
 	defer ce.RUnlock()
 
@@ -140,21 +140,18 @@ func (c *Cache) Put(key string, value Fact) {
 //GetN return at most n facts by key
 func (c *Cache) GetN(key string, n int) []Fact {
 	c.RLock()
-
 	element, ok := c.perApiKey[key]
+	c.RUnlock()
 	if ok {
-		c.RUnlock()
-
-		return element.Get(n)
-	} else {
-		c.RUnlock()
-		return []Fact{}
+		return element.GetN(n)
 	}
+
+	return []Fact{}
 }
 
 //GetAll return at most n facts
 func (c *Cache) GetAll(n int) []Fact {
-	return c.all.Get(n)
+	return c.all.GetN(n)
 }
 
 func (c *Cache) Close() error {
