@@ -1,6 +1,9 @@
 {
   "_timestamp": "2020-06-16T23:00:00.000000Z",
   "api_key": "s2stoken",
+  "eventn_ctx":{
+    "event_id": "mockeduuid"
+  },
   "event_data": {
     "customkey": {
       "key1": "key2"

@@ -6,6 +6,7 @@ import (
 	"github.com/ksensehq/eventnative/geo"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/useragent"
+	"github.com/ksensehq/eventnative/uuid"
 	"net/http"
 )
 
@@ -24,6 +25,7 @@ func NewApiPreprocessor() Preprocessor {
 
 //Preprocess resolve geo from ip field or skip if geo.GeoDataKey field was provided
 //resolve useragent from uaKey or skip if useragent.ParsedUaKey field was provided
+//put eventn_ctx_event_id uuid if not set
 //return same object
 func (ap *ApiPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) {
 	if fact == nil {
@@ -34,6 +36,21 @@ func (ap *ApiPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) 
 	ip := extractIp(r)
 	if ip != "" {
 		fact[ipKey] = ip
+	}
+
+	//put eventn_ctx_event_id if not set (e.g. It is used for ClickHouse)
+	eventnObject, ok := fact[eventnKey]
+	if !ok {
+		eventnObject = map[string]interface{}{eventIdKey: uuid.New()}
+		fact[eventnKey] = eventnObject
+	} else {
+		if eventn, ok := eventnObject.(map[string]interface{}); ok {
+			if _, ok := eventn[eventIdKey]; !ok {
+				eventn[eventIdKey] = uuid.New()
+			}
+		} else {
+			fact[eventnKey+"_"+eventIdKey] = uuid.New()
+		}
 	}
 
 	if deviceCtx, ok := fact["device_ctx"]; ok {

@@ -30,18 +30,17 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 		return nil, err
 	}
 
-	//put default values and values from config
-	nonNullFields := map[string]bool{"eventn_ctx_event_id": true, "_timestamp": true}
+	nullableFields := map[string]bool{}
 	if config.Engine != nil {
-		for _, fieldName := range config.Engine.NonNullFields {
-			nonNullFields[fieldName] = true
+		for _, fieldName := range config.Engine.NullableFields {
+			nullableFields[fieldName] = true
 		}
 	}
 
 	var chAdapters []*adapters.ClickHouse
 	var tableHelpers []*TableHelper
 	for _, dsn := range config.Dsns {
-		adapter, err := adapters.NewClickHouse(ctx, dsn, config.Database, config.Cluster, config.Tls, tableStatementFactory, nonNullFields)
+		adapter, err := adapters.NewClickHouse(ctx, dsn, config.Database, config.Cluster, config.Tls, tableStatementFactory, nullableFields)
 		if err != nil {
 			//close all previous created adapters
 			for _, toClose := range chAdapters {
