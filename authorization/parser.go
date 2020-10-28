@@ -45,10 +45,13 @@ func parseFromBytes(b []byte) (*TokensHolder, error) {
 	return reformat(payload.Tokens), nil
 }
 
-func fromStrings(clientSecrets []string) *TokensHolder {
+func fromStrings(clientSecrets, serverSecrets []string) *TokensHolder {
 	var tokens []Token
 	for _, clientSecret := range clientSecrets {
 		tokens = append(tokens, Token{ClientSecret: clientSecret})
+	}
+	for _, serverSecret := range serverSecrets {
+		tokens = append(tokens, Token{ServerSecret: serverSecret})
 	}
 	return reformat(tokens)
 }
