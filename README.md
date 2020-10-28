@@ -5,14 +5,14 @@
    
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/quick-n.png" width="40px"></a>
 ## Quick Start
-The fastest way to get started is one click [deploy on Heroku](https://docs.eventnative.dev/deployment/deploy-on-heroku) with:
+The fastest way to get started is one click [deploy on Heroku](https://docs.eventnative.org/deployment/deploy-on-heroku) with:
 
 <a href="https://heroku.com/deploy?template=https://github.com/ksensehq/eventnative"><img src="https://raw.githubusercontent.com/ksensehq/eventnative/7eb28378b252ac7c3209457ca3766be806085e41/artwork/heroku.svg" width="200px" /></a>
 
 For production deployment we suggest Docker:
  * [Official ksense/eventnative](https://hub.docker.com/r/ksense/eventnative) image
- * [Docker deployment guide](https://docs.eventnative.dev/deployment/deploy-with-docker)
- * Also, you can [build EventNative from sources](https://docs.eventnative.dev/deployment/build-from-sources) and use configuration management of your choice
+ * [Docker deployment guide](https://docs.eventnative.org/deployment/deploy-with-docker)
+ * Also, you can [build EventNative from sources](https://docs.eventnative.org/deployment/build-from-sources) and use configuration management of your choice
 
 
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/feat-n.png" width="40px" /></a>
@@ -20,15 +20,15 @@ For production deployment we suggest Docker:
 Also, we have <a href="https://app.eventnative.com/#/register">a hosted version of EventNative</a> where you can experiment with the product without running your own server.
 
 ## Features
- * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://docs.eventnative.dev/javascript-reference/direct-tracking) and you're set!
+ * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://docs.eventnative.org/javascript-reference/direct-tracking) and you're set!
  
- * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.dev/javascript-reference).
+ * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.org/javascript-reference).
  
  * **Capture Events stopped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those without AdBlock.
 
- * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.dev/quick-start), [BigQuery](https://docs.eventnative.dev/quick-start), [PostgreSQL](https://www.postgresql.org/), [ClickHouse](https://clickhouse.tech/), [Snowflake](https://www.snowflake.com/). EventNative automatically pushes to all your configured destinations at once without additional overhead.
+ * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.org/quick-start), [BigQuery](https://docs.eventnative.org/quick-start), [PostgreSQL](https://www.postgresql.org/), [ClickHouse](https://clickhouse.tech/), [Snowflake](https://www.snowflake.com/). EventNative automatically pushes to all your configured destinations at once without additional overhead.
  
- * **High-Performance and Throughput**: EventNative is written in [Go](https://golang.org/) with performance in mind, you're only limited by local disk performance since we write events locally prior to sending them to your data warehouse in batches. Read more about scalability [here](https://docs.eventnative.dev/scaling-eventnative).
+ * **High-Performance and Throughput**: EventNative is written in [Go](https://golang.org/) with performance in mind, you're only limited by local disk performance since we write events locally prior to sending them to your data warehouse in batches. Read more about scalability [here](https://docs.eventnative.org/scaling-eventnative).
  
  * **Dynamic Schema and JSON Interface**: EventNative parses incoming requests and adjusts the underlying schema automatically. We map JSON events to tables and create necessary columns on the fly.
  
@@ -51,10 +51,10 @@ We host a [simple page that demonstrates how EventNative works](https://track-de
 ## Documentation
 
 Please see our extensive documentation [here](https://eventnative-docs.ksense.io). Key sections include:
- * [Deployment](https://docs.eventnative.dev/deployment) - Getting EventNative running on Heroku, Docker, and building from source.
- * [Configuration](https://docs.eventnative.dev/configuration) - How to modify EventNative's `yaml` file. 
- * [Geo Data](https://docs.eventnative.dev/geo-data-resolution) - Configuring data enrichment with [MaxMind](https://www.maxmind.com/en/home).
- * [Scaling](https://docs.eventnative.dev/scaling-eventnative) - How to setup a distributed deployment of EventNative. 
+ * [Deployment](https://docs.eventnative.org/deployment) - Getting EventNative running on Heroku, Docker, and building from source.
+ * [Configuration](https://docs.eventnative.org/configuration) - How to modify EventNative's `yaml` file. 
+ * [Geo Data](https://docs.eventnative.org/geo-data-resolution) - Configuring data enrichment with [MaxMind](https://www.maxmind.com/en/home).
+ * [Scaling](https://docs.eventnative.org/scaling-eventnative) - How to setup a distributed deployment of EventNative. 
  
 
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/ksensehq/eventnative/master/artwork/com-n.png" width="40px" /></a>
