@@ -59,8 +59,9 @@ destinations:
       secret_access_key: secretabc123
       bucket: my-bucket
       region: us-west-1
-      folder: redshift_one #Optional. Specify this parameter if several destinations use one s3 bucket
+      folder: redshift_one #optional. Specify this parameter if several destinations use one s3 bucket
     data_layout:
+      mapping_type: strict #optional. It is out of mapping behavior. When 'strict' - only fields from mapping rules will be in the result object.
       mapping:
         - "/key1/key2 -> /key3"
         - "/key1/key3 -> (integer) /key4"
@@ -116,9 +117,9 @@ destinations:
       cluster: clustername #required. If dsns count > 1 or if Replicated* engines are used in raw_statement
       engine: #optional. If not provided - 'ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id) PARTITION BY toYYYYMM(_timestamp)' will be created or Replicated* one if cluster is provided
         raw_statement: 'ENGINE = ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id)' #optional. String will be used in 'CREATE TABLE ... $RAW_ENGINE' statement
-        non_null_fields: #required if raw_statement is provided. You must specify all fields from partition clause, order clause, primary key clause
-          - _timestamp
-          - eventn_ctx_event_id
+        nullable_fields: #optional. Fields will have Nullable(DataType) column data type.
+          - middle_name
+          - salary
         #if raw_statement is provided - below parameters from 'engine' section will be skipped
         partition_fields:  #optional. If provided - it overrides PARTITION BY in CREATE TABLE statement
           - function: toYYYYMMDD #optional. It is used in 'PARTITION BY (toYYYYMMDD(_timestamp), event_type)'
