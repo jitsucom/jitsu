@@ -32,7 +32,7 @@ func Init(commit, tag, builtAt string, usageOptOut bool) {
 				MaxIdleConnsPerHost: 1000,
 			},
 		},
-		url:         "https://track.ksense.io/api/v1/s2s/event?token=ttttd50c-d8f2-414c-bf3d-9902a5031fd2",
+		url:         "https://t.jitsu.com/api/v1/s2s/event?token=ttttd50c-d8f2-414c-bf3d-9902a5031fd2",
 		usageOptOut: usageOptOut,
 
 		collector: &Collector{},
