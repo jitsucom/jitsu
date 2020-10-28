@@ -1,6 +1,6 @@
 {
   "name": "EventNative",
-  "description": "The easiest event capturing in the world. Please, read the guide before deploying: https://docs.eventnative.dev/deployment/deploy-on-heroku",
+  "description": "The easiest event capturing in the world. Please, read the guide before deploying: https://docs.eventnative.org/deployment/deploy-on-heroku",
   "success_url": "/p/welcome.html ",
   "repository": "https://github.com/ksensehq/eventnative",
   "logo": "https://gblobscdn.gitbook.com/spaces%2F-MDlF_We7UewTfEzZjEa%2Favatar-1596563957463.png",
@@ -18,11 +18,11 @@
       "required": true
     },
     "GEO_MAXMIND_PATH": {
-      "description": "Http url to hosted MaxMind db file if you want to enable geo resolution (leave empty otherwise). Read more about geo: https://dev.eventnative.dev/geo-data-resolution",
+      "description": "Http url to hosted MaxMind db file if you want to enable geo resolution (leave empty otherwise). Read more about geo: https://dev.eventnative.org/geo-data-resolution",
       "required": false
     },
     "DESTINATIONS_JSON": {
-      "description": "JSON config for destination (example value is given for RedShift). Please, read documentation first! https://dev.eventnative.dev/deployment/deploy-on-heroku",
+      "description": "JSON config for destination (example value is given for RedShift). Please, read documentation first! https://dev.eventnative.org/deployment/deploy-on-heroku",
       "value": "{\n  \"destinations\": {\n    \"redshift\": {\n      \"datasource\": {\n        \"host\": \"<your_host>\",\n        \"db\": \"<your_db>\",\n        \"username\": \"<your_username>\",\n        \"password\": \"<your_password>\"\n      },\n      \"s3\": {\n        \"access_key_id\": \"<your_access_key>\",\n        \"secret_access_key\": \"<your_secret_access_key>\",\n        \"bucket\": \"<your_bucket>\",\n        \"region\": \"<your_region>\"\n      },\n      \"data_layout\": {\n        \"table_name_template\": \"events\"\n      }\n    }\n  }\n}",
       "required": false
     },

@@ -138,7 +138,7 @@ class TrackerImpl implements Tracker {
     init(options: TrackerOptions, plugins: TrackerPlugin[] = []) {
         this.logger.debug('initializing', options, plugins, EVENTN_VERSION)
         this.cookieDomain = options['cookie_domain'] || getCookieDomain();
-        this.trackingHost = getHostWithProtocol(options['tracking_host'] || 'track.ksense.io');
+        this.trackingHost = getHostWithProtocol(options['tracking_host'] || 't.jitsu.com');
         this.idCookieName = options['cookie_name'] || '__eventn_id';
         this.apiKey = options['key'] || 'NONE';
         this.logger = initLogger();
