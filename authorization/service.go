@@ -12,8 +12,9 @@ import (
 )
 
 const (
-	serviceName  = "authorization"
-	viperAuthKey = "server.auth"
+	serviceName            = "authorization"
+	viperAuthKey           = "server.auth"
+	deprecatedViperAuthKey = "server.s2s_auth"
 
 	defaultTokenId = "defaultid"
 )
@@ -34,9 +35,15 @@ func NewService() (*Service, error) {
 		return nil, errors.New("server.auth_reload_sec can't be empty")
 	}
 
+	//deprecated viper key
+	deprecatedS2SAuth := viper.GetStringSlice(deprecatedViperAuthKey)
+
 	var tokens []Token
 	err := viper.UnmarshalKey(viperAuthKey, &tokens)
 	if err == nil {
+		for _, s2sauth := range deprecatedS2SAuth {
+			tokens = append(tokens, Token{ServerSecret: s2sauth})
+		}
 		service.tokensHolder = reformat(tokens)
 	} else {
 		auth := viper.GetStringSlice(viperAuthKey)
@@ -55,11 +62,11 @@ func NewService() (*Service, error) {
 				service.tokensHolder = tokensHolder
 			} else {
 				//plain token
-				service.tokensHolder = fromStrings(auth)
+				service.tokensHolder = fromStrings(auth, deprecatedS2SAuth)
 			}
 		} else {
 			//array of tokens
-			service.tokensHolder = fromStrings(auth)
+			service.tokensHolder = fromStrings(auth, deprecatedS2SAuth)
 		}
 
 	}
