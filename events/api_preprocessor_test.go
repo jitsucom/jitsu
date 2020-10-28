@@ -3,12 +3,15 @@ package events
 import (
 	"github.com/ksensehq/eventnative/geo"
 	"github.com/ksensehq/eventnative/useragent"
+	"github.com/ksensehq/eventnative/uuid"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
 )
 
 func TestApiPreprocess(t *testing.T) {
+	uuid.InitMock()
+
 	geoDataMock := &geo.Data{
 		Country: "US",
 		City:    "New York",
@@ -35,12 +38,13 @@ func TestApiPreprocess(t *testing.T) {
 			"Empty input object",
 			Fact{},
 			&http.Request{Header: http.Header{}},
-			Fact{"src": "api"},
+			Fact{"eventn_ctx": map[string]interface{}{"event_id": "mockeduuid"}, "src": "api"},
 			"",
 		},
 		{
-			"Process ok without device ctx",
+			"Process ok without device ctx and with eventn_ctx",
 			Fact{
+				"eventn_ctx":   map[string]interface{}{"key1": "key2"},
 				"event_origin": "api_test",
 				"src":          "123",
 				"event_data":   map[string]interface{}{"key1": "key2"},
@@ -48,6 +52,7 @@ func TestApiPreprocess(t *testing.T) {
 				"page_ctx":     map[string]interface{}{"referer": "www.site.com"}},
 			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
 			Fact{
+				"eventn_ctx":   map[string]interface{}{"event_id": "mockeduuid", "key1": "key2"},
 				"event_data":   map[string]interface{}{"key1": "key2"},
 				"event_origin": "api_test",
 				"user":         map[string]interface{}{"id": "123"},
@@ -58,7 +63,7 @@ func TestApiPreprocess(t *testing.T) {
 			"",
 		},
 		{
-			"Process ok with device ctx but without ip and ua",
+			"Process ok with device ctx but without ip and ua without eventn_ctx",
 			Fact{
 				"event_origin": "api_test",
 				"src":          "123",
@@ -68,6 +73,9 @@ func TestApiPreprocess(t *testing.T) {
 				"device_ctx":   map[string]interface{}{"ip": "10.10.10.10"}},
 			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
 			Fact{
+				"eventn_ctx": map[string]interface{}{
+					"event_id": "mockeduuid",
+				},
 				"device_ctx": map[string]interface{}{
 					"ip":       "10.10.10.10",
 					"location": (*geo.Data)(nil),
@@ -82,8 +90,9 @@ func TestApiPreprocess(t *testing.T) {
 			"",
 		},
 		{
-			"Process ok with device ctx with ip and ua",
+			"Process ok with device ctx with ip and ua and with eventn not object",
 			Fact{
+				"eventn_ctx":   "somevalue",
 				"event_origin": "api_test",
 				"src":          "123",
 				"event_data":   map[string]interface{}{"key1": "key2"},
@@ -92,6 +101,8 @@ func TestApiPreprocess(t *testing.T) {
 				"device_ctx":   map[string]interface{}{"ip": "20.20.20.20"}},
 			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
 			Fact{
+				"eventn_ctx":          "somevalue",
+				"eventn_ctx_event_id": "mockeduuid",
 				"device_ctx": map[string]interface{}{
 					"ip":       "20.20.20.20",
 					"location": geoDataMock,
@@ -106,8 +117,9 @@ func TestApiPreprocess(t *testing.T) {
 			"",
 		},
 		{
-			"Process ok with location and parsed ua",
+			"Process ok with location and parsed ua with eventn id",
 			Fact{
+				"eventn_ctx":   map[string]interface{}{"event_id": "123"},
 				"event_origin": "api_test",
 				"src":          "123",
 				"event_data":   map[string]interface{}{"key1": "key2"},
@@ -119,6 +131,7 @@ func TestApiPreprocess(t *testing.T) {
 				}},
 			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
 			Fact{
+				"eventn_ctx": map[string]interface{}{"event_id": "123"},
 				"device_ctx": map[string]interface{}{
 					"location":  map[string]interface{}{"custom_location": "123"},
 					"parsed_ua": map[string]interface{}{"custom_ua": "123"},
@@ -140,11 +153,12 @@ func TestApiPreprocess(t *testing.T) {
 				"weather": map[string]interface{}{"id": "123", "type": "good"}},
 			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
 			Fact{
-				"billing":   []string{"1", "2"},
-				"keys":      map[string]interface{}{"key1": "key2"},
-				"weather":   map[string]interface{}{"id": "123", "type": "good"},
-				"src":       "api",
-				"source_ip": "10.10.10.10",
+				"eventn_ctx": map[string]interface{}{"event_id": "mockeduuid"},
+				"billing":    []string{"1", "2"},
+				"keys":       map[string]interface{}{"key1": "key2"},
+				"weather":    map[string]interface{}{"id": "123", "type": "good"},
+				"src":        "api",
+				"source_ip":  "10.10.10.10",
 			},
 			"",
 		},

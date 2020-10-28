@@ -9,6 +9,7 @@ import (
 	"github.com/ksensehq/eventnative/synchronization"
 	"github.com/ksensehq/eventnative/telemetry"
 	"github.com/ksensehq/eventnative/test"
+	"github.com/ksensehq/eventnative/uuid"
 	"time"
 
 	"bou.ke/monkey"
@@ -30,6 +31,8 @@ func SetTestDefaultParams() {
 }
 
 func TestApiEvent(t *testing.T) {
+	uuid.InitMock()
+
 	SetTestDefaultParams()
 	tests := []struct {
 		name             string

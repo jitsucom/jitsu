@@ -27,6 +27,19 @@ func TestTableStatementFactory(t *testing.T) {
 			"CREATE TABLE \"db1\".\"test_table\"  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree(_timestamp) PARTITION BY (toYYYYMM(_timestamp)) ORDER BY (eventn_ctx_event_id)",
 		},
 		{
+			"Input config without cluster with order by",
+			&ClickHouseConfig{
+				Dsns:     []string{},
+				Database: "db1",
+				Engine: &EngineConfig{
+					OrderFields: []FieldConfig{{Field: "id"}},
+					PrimaryKeys: nil,
+				},
+				Cluster: "",
+			},
+			"CREATE TABLE \"db1\".\"test_table\"  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree(_timestamp) PARTITION BY (toYYYYMM(_timestamp)) ORDER BY (id)",
+		},
+		{
 			"Input config without cluster with overrides",
 			&ClickHouseConfig{
 				Dsns:     []string{},

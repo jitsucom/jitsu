@@ -19,7 +19,7 @@ import (
 const (
 	tableSchemaCHQuery        = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
 	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS %s %s`
-	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s Nullable(%s)`
+	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s %s`
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
 	onClusterCHClauseTemplate = ` ON CLUSTER %s `
 	columnCHNullableTemplate  = ` Nullable(%s) `
@@ -65,7 +65,7 @@ type ClickHouseConfig struct {
 //EngineConfig dto for deserialized clickhouse engine config
 type EngineConfig struct {
 	RawStatement    string        `mapstructure:"raw_statement" json:"raw_statement,omitempty" yaml:"raw_statement,omitempty"`
-	NonNullFields   []string      `mapstructure:"non_null_fields" json:"non_null_fields,omitempty" yaml:"non_null_fields,omitempty"`
+	NullableFields  []string      `mapstructure:"nullable_fields" json:"nullable_fields,omitempty" yaml:"nullable_fields,omitempty"`
 	PartitionFields []FieldConfig `mapstructure:"partition_fields" json:"partition_fields,omitempty" yaml:"partition_fields,omitempty"`
 	OrderFields     []FieldConfig `mapstructure:"order_fields" json:"order_fields,omitempty" yaml:"order_fields,omitempty"`
 	PrimaryKeys     []string      `mapstructure:"primary_keys" json:"primary_keys,omitempty" yaml:"primary_keys,omitempty"`
@@ -93,12 +93,6 @@ func (chc *ClickHouseConfig) Validate() error {
 
 	if chc.Database == "" {
 		return errors.New("db is required parameter")
-	}
-
-	if chc.Engine != nil {
-		if chc.Engine.RawStatement != "" && len(chc.Engine.NonNullFields) == 0 {
-			return errors.New("engine.non_null_fields is required parameter if engine.raw_statement is provided")
-		}
 	}
 
 	return nil
@@ -189,12 +183,12 @@ type ClickHouse struct {
 	cluster               string
 	dataSource            *sql.DB
 	tableStatementFactory *TableStatementFactory
-	nonNullFields         map[string]bool
+	nullableFields        map[string]bool
 }
 
 //NewClickHouse return configured ClickHouse adapter instance
 func NewClickHouse(ctx context.Context, connectionString, database, cluster string, tlsConfig map[string]string,
-	tableStatementFactory *TableStatementFactory, nonNullFields map[string]bool) (*ClickHouse, error) {
+	tableStatementFactory *TableStatementFactory, nullableFields map[string]bool) (*ClickHouse, error) {
 	//configure tls
 	if strings.Contains(connectionString, "https://") && tlsConfig != nil {
 		for tlsName, crtPath := range tlsConfig {
@@ -225,7 +219,7 @@ func NewClickHouse(ctx context.Context, connectionString, database, cluster stri
 		cluster:               cluster,
 		dataSource:            dataSource,
 		tableStatementFactory: tableStatementFactory,
-		nonNullFields:         nonNullFields,
+		nullableFields:        nullableFields,
 	}, nil
 }
 
@@ -281,10 +275,10 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 			mappedType = schemaToClickhouse[typing.STRING]
 		}
 		var addColumnDDL string
-		if _, ok := ch.nonNullFields[columnName]; ok {
-			addColumnDDL = columnName + " " + mappedType
-		} else {
+		if _, ok := ch.nullableFields[columnName]; ok {
 			addColumnDDL = columnName + fmt.Sprintf(columnCHNullableTemplate, mappedType)
+		} else {
+			addColumnDDL = columnName + " " + mappedType
 		}
 		columnsDDL = append(columnsDDL, addColumnDDL)
 	}
@@ -347,12 +341,18 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := schemaToClickhouse[column.GetType()]
+		mappedType, ok := schemaToClickhouse[column.GetType()]
 		if !ok {
 			logging.Error("Unknown clickhouse schema type:", column.GetType().String())
-			mappedColumnType = schemaToClickhouse[typing.STRING]
+			mappedType = schemaToClickhouse[typing.STRING]
 		}
-		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, mappedColumnType))
+		var columnTypeDDL string
+		if _, ok := ch.nullableFields[columnName]; ok {
+			columnTypeDDL = fmt.Sprintf(columnCHNullableTemplate, mappedType)
+		} else {
+			columnTypeDDL = mappedType
+		}
+		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, columnTypeDDL))
 		if err != nil {
 			wrappedTx.Rollback()
 			return fmt.Errorf("Error preparing patching table %s schema statement: %v", patchSchema.Name, err)
@@ -361,7 +361,7 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 		_, err = alterStmt.ExecContext(ch.ctx)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, mappedColumnType, err)
+			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, columnTypeDDL, err)
 		}
 	}
 
