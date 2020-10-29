@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/typing"
+	"sort"
 )
 
 type TableNameExtractFunction func(map[string]interface{}) (string, error)
@@ -38,23 +39,25 @@ func (c Columns) Header() (header []string) {
 }
 
 type Table struct {
-	Name    string
-	Columns Columns
-	Version int64
+	Name     string
+	Columns  Columns
+	PKFields []string
+	Version  int64
 }
 
 //Return true if there is at least one column
 func (t *Table) Exists() bool {
-	return t != nil && len(t.Columns) > 0
+	return t != nil && (len(t.Columns) > 0 || t.PKFields != nil)
 }
 
 // Diff calculates diff between current schema and another one.
 // Return schema to add to current schema (for being equal) or empty if
 // 1) another one is empty
 // 2) all fields from another schema exist in current schema
+// 3) primary key is the same at both schemas
 // Return err if another newType can't be cast to current type (column type changing case)
 func (t Table) Diff(another *Table) (*Table, error) {
-	diff := &Table{Name: t.Name, Columns: Columns{}}
+	diff := &Table{Name: t.Name, Columns: Columns{}, PKFields: nil}
 
 	if another == nil || len(another.Columns) == 0 {
 		return diff, nil
@@ -69,8 +72,25 @@ func (t Table) Diff(another *Table) (*Table, error) {
 			diff.Columns[name] = column
 		}
 	}
+	if !primaryKeyFieldsEqual(t.PKFields, another.PKFields) {
+		diff.PKFields = another.PKFields
+	}
 
 	return diff, nil
+}
+
+func primaryKeyFieldsEqual(oldFields []string, newFields []string) bool {
+	if len(oldFields) != len(newFields) {
+		return false
+	}
+	sort.Strings(oldFields)
+	sort.Strings(newFields)
+	for i := range oldFields {
+		if oldFields[i] != newFields[i] {
+			return false
+		}
+	}
+	return true
 }
 
 type Column struct {

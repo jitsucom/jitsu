@@ -78,7 +78,7 @@ func TestProcess(t *testing.T) {
 			},
 		},
 	}
-	p, err := NewProcessor(`{{.event_type}}_{{._timestamp.Format "2006_01"}}`, []string{}, Default)
+	p, err := NewProcessor(`{{.event_type}}_{{._timestamp.Format "2006_01"}}`, []string{}, Default, []string{})
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
