@@ -25,6 +25,10 @@ func initEvents() {
 	}, eventLabels)
 }
 
+func InitEvents(tokenId, destinationName string) {
+	SuccessEvents(tokenId, destinationName, 0)
+}
+
 func SuccessEvent(tokenId, destinationName string) {
 	SuccessEvents(tokenId, destinationName, 1)
 }
