@@ -103,6 +103,7 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *schema.Ta
 	for k, v := range schemaDiff.Columns {
 		dbTableSchema.Columns[k] = v
 	}
+	dbTableSchema.PKFields = schemaDiff.PKFields
 	dbTableSchema.Version = newVersion
 
 	return dbTableSchema, nil
