@@ -73,7 +73,11 @@ func (t Table) Diff(another *Table) (*Table, error) {
 		}
 	}
 	if !primaryKeyFieldsEqual(t.PKFields, another.PKFields) {
-		diff.PKFields = another.PKFields
+		if len(another.PKFields) == 0 {
+			diff.PKFields = []string{}
+		} else {
+			diff.PKFields = another.PKFields
+		}
 	}
 
 	return diff, nil
