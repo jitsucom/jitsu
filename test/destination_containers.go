@@ -6,7 +6,7 @@ import (
 	"github.com/docker/go-connections/nat"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/testcontainers/testcontainers-go"
-	tc "github.com/testcontainers/testcontainers-go/wait"
+	tcWait "github.com/testcontainers/testcontainers-go/wait"
 	"time"
 )
 
@@ -34,19 +34,18 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 	dbSettings["POSTGRES_USER"] = pgUser
 	dbSettings["POSTGRES_PASSWORD"] = pgPassword
 	dbSettings["POSTGRES_DB"] = pgDatabase
-
 	dbURL := func(port nat.Port) string {
 		return fmt.Sprintf("postgres://%s:%s@localhost:%s/%s?sslmode=disable", pgUser, pgPassword, port.Port(), pgDatabase)
 	}
-	req := testcontainers.ContainerRequest{
-		Image:        "postgres:12-alpine",
-		ExposedPorts: []string{pgPort},
-		Env:          dbSettings,
-		WaitingFor:   tc.ForSQL(pgPort, "postgres", dbURL).Timeout(time.Second * 15),
-	}
+
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-		ContainerRequest: req,
-		Started:          true,
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "postgres:12-alpine",
+			ExposedPorts: []string{pgPort},
+			Env:          dbSettings,
+			WaitingFor:   tcWait.ForSQL(pgPort, "postgres", dbURL).Timeout(time.Second * 15),
+		},
+		Started: true,
 	})
 	if err != nil {
 		return nil, err
@@ -59,7 +58,8 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 	if err != nil {
 		return nil, err
 	}
-	pgContainer := PostgresContainer{Container: container, Context: ctx, Host: host, Port: port.Int(), Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}
+	pgContainer := PostgresContainer{Container: container, Context: ctx, Host: host, Port: port.Int(),
+		Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}
 	return &pgContainer, nil
 }
 
