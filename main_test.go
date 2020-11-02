@@ -19,9 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
-	"strconv"
 	"testing"
 )
 
@@ -34,17 +32,7 @@ func TestApiEvent(t *testing.T) {
 	uuid.InitMock()
 
 	SetTestDefaultParams()
-	tests := []struct {
-		name             string
-		reqUrn           string
-		reqOrigin        string
-		reqBodyPath      string
-		expectedJsonPath string
-		xAuthToken       string
-
-		expectedHttpCode int
-		expectedErrMsg   string
-	}{
+	tests := []test.IntegrationTest{
 		{
 			"Unauthorized c2s endpoint",
 			"/api/v1/event?token=wrongtoken",
@@ -118,9 +106,9 @@ func TestApiEvent(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.Name, func(t *testing.T) {
 			telemetry.Init("test", "test", "test", true)
-			httpAuthority, _ := getLocalAuthority()
+			httpAuthority, _ := test.GetLocalAuthority()
 
 			err := appconfig.Init()
 			require.NoError(t, err)
@@ -153,37 +141,37 @@ func TestApiEvent(t *testing.T) {
 			resp, err := test.RenewGet("http://" + httpAuthority + "/ping")
 			require.NoError(t, err)
 
-			b, err := ioutil.ReadFile(tt.reqBodyPath)
+			b, err := ioutil.ReadFile(tt.ReqBodyPath)
 			require.NoError(t, err)
 
 			//check http OPTIONS
-			optReq, err := http.NewRequest("OPTIONS", "http://"+httpAuthority+tt.reqUrn, bytes.NewBuffer(b))
+			optReq, err := http.NewRequest("OPTIONS", "http://"+httpAuthority+tt.ReqUrn, bytes.NewBuffer(b))
 			require.NoError(t, err)
 			optResp, err := http.DefaultClient.Do(optReq)
 			require.NoError(t, err)
 			require.Equal(t, 200, optResp.StatusCode)
 
 			//check http POST
-			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+tt.reqUrn, bytes.NewBuffer(b))
+			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+tt.ReqUrn, bytes.NewBuffer(b))
 			require.NoError(t, err)
-			if tt.reqOrigin != "" {
-				apiReq.Header.Add("Origin", tt.reqOrigin)
+			if tt.ReqOrigin != "" {
+				apiReq.Header.Add("Origin", tt.ReqOrigin)
 			}
-			if tt.xAuthToken != "" {
-				apiReq.Header.Add("x-auth-token", tt.xAuthToken)
+			if tt.XAuthToken != "" {
+				apiReq.Header.Add("x-auth-token", tt.XAuthToken)
 			}
 			apiReq.Header.Add("x-real-ip", "95.82.232.185")
 			resp, err = http.DefaultClient.Do(apiReq)
 			require.NoError(t, err)
 
-			if tt.expectedHttpCode != 200 {
-				require.Equal(t, tt.expectedHttpCode, resp.StatusCode, "Http cods aren't equal")
+			if tt.ExpectedHttpCode != 200 {
+				require.Equal(t, tt.ExpectedHttpCode, resp.StatusCode, "Http cods aren't equal")
 
 				b, err := ioutil.ReadAll(resp.Body)
 				require.NoError(t, err)
 
 				resp.Body.Close()
-				require.Equal(t, tt.expectedErrMsg, string(b))
+				require.Equal(t, tt.ExpectedErrMsg, string(b))
 			} else {
 				require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"), "Cors header ACAO is empty")
 				require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
@@ -193,23 +181,10 @@ func TestApiEvent(t *testing.T) {
 				data := logging.InstanceMock.Data
 				require.Equal(t, 1, len(data))
 
-				fBytes, err := ioutil.ReadFile(tt.expectedJsonPath)
+				fBytes, err := ioutil.ReadFile(tt.ExpectedJsonPath)
 				require.NoError(t, err)
 				test.JsonBytesEqual(t, fBytes, data[0], "Logged facts aren't equal")
 			}
 		})
 	}
-}
-
-func getLocalAuthority() (string, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
-	if err != nil {
-		return "", err
-	}
-	l, err := net.ListenTCP("tcp", addr)
-	if err != nil {
-		return "", err
-	}
-	defer l.Close()
-	return l.Addr().(*net.TCPAddr).IP.String() + ":" + strconv.Itoa(l.Addr().(*net.TCPAddr).Port), nil
 }
