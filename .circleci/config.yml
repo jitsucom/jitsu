@@ -9,6 +9,7 @@ jobs:
       GO111MODULE: "on"
     steps:
       - checkout
+      - setup-docker-engine
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
