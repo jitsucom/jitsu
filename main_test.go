@@ -13,7 +13,6 @@ import (
 	"github.com/ksensehq/eventnative/telemetry"
 	"github.com/ksensehq/eventnative/test"
 	"github.com/ksensehq/eventnative/uuid"
-	"gotest.tools/assert"
 	"time"
 
 	"bou.ke/monkey"
@@ -293,5 +292,5 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	}
 	rows, err := container.CountRows("events")
 	require.NoError(t, err)
-	assert.Equal(t, expectedEventsCount, rows)
+	require.Equal(t, expectedEventsCount, rows)
 }
