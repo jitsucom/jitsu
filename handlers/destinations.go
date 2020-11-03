@@ -79,6 +79,24 @@ func testConnection(config *storages.DestinationConfig) error {
 
 		redshift.Close()
 		return nil
+	case storages.BigQueryType:
+		if err := config.Google.Validate(config.Mode != storages.BatchMode); err != nil {
+			return err
+		}
+
+		bq, err := adapters.NewBigQuery(context.Background(), config.Google)
+		if err != nil {
+			return err
+		}
+		defer bq.Close()
+		if config.Mode == storages.BatchMode {
+			googleStorage, err := adapters.NewGoogleCloudStorage(context.Background(), config.Google)
+			if err != nil {
+				return err
+			}
+			defer googleStorage.Close()
+		}
+		return bq.Test()
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}
