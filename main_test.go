@@ -2,14 +2,18 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
+	"github.com/ksensehq/eventnative/storages"
 	"github.com/ksensehq/eventnative/synchronization"
 	"github.com/ksensehq/eventnative/telemetry"
 	"github.com/ksensehq/eventnative/test"
 	"github.com/ksensehq/eventnative/uuid"
+	"gotest.tools/assert"
 	"time"
 
 	"bou.ke/monkey"
@@ -187,4 +191,107 @@ func TestApiEvent(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPostgresStreamInsert(t *testing.T) {
+	const configTemplate = `{"destinations": {
+  			"test": {
+        		"type": "postgres",
+        		"mode": "stream",
+				"only_tokens": ["s2stoken"],
+        		"data_layout": {
+          			"table_name_template": "events"
+				},
+        		"datasource": {
+          			"host": "%s",
+					"port": %d,
+          			"db": "%s",
+          			"schema": "%s",
+          			"username": "%s",
+          			"password": "%s",
+					"parameters": {
+						"sslmode": "disable"
+					}
+        		}
+      		}
+    	}}`
+	testPostgresStoreEvents(t, configTemplate, 5)
+}
+
+func TestPostgresStreamInsertWithPK(t *testing.T) {
+	const configTemplate = `{"destinations": {
+  			"test": {
+        		"type": "postgres",
+        		"mode": "stream",
+				"only_tokens": ["s2stoken"],
+        		"data_layout": {
+          			"table_name_template": "events",
+					"primary_key_fields": ["email"]
+				},
+        		"datasource": {
+          			"host": "%s",
+					"port": %d,
+          			"db": "%s",
+          			"schema": "%s",
+          			"username": "%s",
+          			"password": "%s",
+					"parameters": {
+						"sslmode": "disable"
+					}
+        		}
+      		}
+    	}}`
+	testPostgresStoreEvents(t, configTemplate, 1)
+}
+
+func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, expectedEventsCount int) {
+	ctx := context.Background()
+	container, err := test.NewPostgresContainer(ctx)
+	if err != nil {
+		t.Fatalf("failed to initialize container: %v", err)
+	}
+	defer container.Close()
+	telemetry.Init("test", "test", "test", true)
+	viper.Set("log.path", "")
+	viper.Set("server.auth", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
+
+	destinationConfig := fmt.Sprintf(pgDestinationConfigTemplate, container.Host, container.Port, container.Database, container.Schema, container.Username, container.Password)
+	viper.Set("dest", destinationConfig)
+	httpAuthority, _ := test.GetLocalAuthority()
+	err = appconfig.Init()
+	require.NoError(t, err)
+	defer appconfig.Instance.Close()
+	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", &synchronization.Dummy{}, storages.Create)
+	require.NoError(t, err)
+	defer dest.Close()
+	router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5))
+
+	server := &http.Server{
+		Addr:              httpAuthority,
+		Handler:           middleware.Cors(router),
+		ReadTimeout:       time.Second * 60,
+		ReadHeaderTimeout: time.Second * 60,
+		IdleTimeout:       time.Second * 65,
+	}
+	go func() {
+		log.Fatal(server.ListenAndServe())
+	}()
+
+	logging.Info("Started listen and serve " + httpAuthority)
+
+	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
+	require.NoError(t, err)
+	requestValue := []byte(`{"email": "test@domain.com"}`)
+	apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
+	require.NoError(t, err)
+	for i := 0; i < 5; i++ {
+		resp, err := http.DefaultClient.Do(apiReq)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
+		resp.Body.Close()
+		time.Sleep(200 * time.Millisecond)
+	}
+	rows, err := container.CountRows("events")
+	require.NoError(t, err)
+	assert.Equal(t, expectedEventsCount, rows)
 }
