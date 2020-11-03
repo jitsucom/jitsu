@@ -2,6 +2,7 @@ package test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"github.com/docker/go-connections/nat"
 	"github.com/ksensehq/eventnative/logging"
@@ -61,6 +62,24 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 	pgContainer := PostgresContainer{Container: container, Context: ctx, Host: host, Port: port.Int(),
 		Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}
 	return &pgContainer, nil
+}
+
+func (pgc *PostgresContainer) CountRows(table string) (int, error) {
+	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
+		pgc.Host, pgc.Port, pgc.Database, pgc.Username, pgc.Password)
+	dataSource, err := sql.Open("postgres", connectionString)
+	if err != nil {
+		return -1, err
+	}
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT count(*) from %s", table))
+	if err != nil {
+		return -1, err
+	}
+	defer rows.Close()
+	rows.Next()
+	var count int
+	err = rows.Scan(&count)
+	return count, err
 }
 
 func (pgc *PostgresContainer) Close() {

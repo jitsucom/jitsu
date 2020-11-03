@@ -40,6 +40,7 @@ require (
 	google.golang.org/api v0.15.1
 	google.golang.org/appengine v1.6.6 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
+	gotest.tools v0.0.0-20181223230014-1083505acf35
 	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
