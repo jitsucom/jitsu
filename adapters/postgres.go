@@ -277,6 +277,8 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, mappedColumnType, err)
 		}
 	}
+	// PKFields of the diff set to nil when no modification required. If the value is an empty array, it means that
+	// old primary key should be removed and no new created (primary key removal)
 	if patchSchema.PKFields != nil {
 		if err := p.alterPrimaryKey(wrappedTx, patchSchema, false); err != nil {
 			wrappedTx.Rollback()
