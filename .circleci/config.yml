@@ -2,14 +2,14 @@ version: 2.1
 
 definitions:
   images:
-    pg-image: &en-postgres
-    image: postgres:12-alpine
-    environment:
-      - POSTGRES_USER=test
-      - POSTGRES_PASSWORD=test
-      - POSTGRES_DB=test
-    ports:
-      - "5499:5432"
+    en-postgres: &en-postgres
+      image: postgres:12-alpine
+      environment:
+        - POSTGRES_USER=test
+        - POSTGRES_PASSWORD=test
+        - POSTGRES_DB=test
+      ports:
+        - "5499:5432"
 
 jobs:
   backend-test:
