@@ -199,7 +199,7 @@ func TestPostgresStreamInsert(t *testing.T) {
         		"mode": "stream",
 				"only_tokens": ["s2stoken"],
         		"data_layout": {
-          			"table_name_template": "events"
+          			"table_name_template": "events_without_pk"
 				},
         		"datasource": {
           			"host": "%s",
@@ -214,7 +214,7 @@ func TestPostgresStreamInsert(t *testing.T) {
         		}
       		}
     	}}`
-	testPostgresStoreEvents(t, configTemplate, 5)
+	testPostgresStoreEvents(t, configTemplate, 5, "events_without_pk")
 }
 
 func TestPostgresStreamInsertWithPK(t *testing.T) {
@@ -224,7 +224,7 @@ func TestPostgresStreamInsertWithPK(t *testing.T) {
         		"mode": "stream",
 				"only_tokens": ["s2stoken"],
         		"data_layout": {
-          			"table_name_template": "events",
+          			"table_name_template": "events_with_pk",
 					"primary_key_fields": ["email"]
 				},
         		"datasource": {
@@ -240,10 +240,10 @@ func TestPostgresStreamInsertWithPK(t *testing.T) {
         		}
       		}
     	}}`
-	testPostgresStoreEvents(t, configTemplate, 1)
+	testPostgresStoreEvents(t, configTemplate, 1, "events_with_pk")
 }
 
-func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, expectedEventsCount int) {
+func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, expectedEventsCount int, tableName string) {
 	ctx := context.Background()
 	container, err := test.NewPostgresContainer(ctx)
 	if err != nil {
@@ -290,7 +290,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 		resp.Body.Close()
 		time.Sleep(200 * time.Millisecond)
 	}
-	rows, err := container.CountRows("events")
+	rows, err := container.CountRows(tableName)
 	require.NoError(t, err)
 	require.Equal(t, expectedEventsCount, rows)
 }
