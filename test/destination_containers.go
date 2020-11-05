@@ -33,9 +33,8 @@ type PostgresContainer struct {
 	Password  string
 }
 
-// Creates new test container if port 5499 is not used. Otherwise uses Postgres that runs on 5499. That database should
-// have predefined user with credentials from pg* constants. This logic is required to run tests on CI environment where
-// containers or databases are created via CI server
+// Creates new test container if PG_TEST_PORT is not defined. Otherwise uses db at defined port. This logic is required
+// for running test at CI environment
 func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 	if os.Getenv("PG_TEST_PORT") != "" {
 		port, err := strconv.Atoi(os.Getenv("PG_TEST_PORT"))
