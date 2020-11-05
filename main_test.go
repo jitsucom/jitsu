@@ -314,6 +314,27 @@ func TestClickhouseStreamInsert(t *testing.T) {
 	testClickhouseStoreEvents(t, configTemplate, 5, "events_without_pk")
 }
 
+func TestClickhouseStreamInsertWithMerge(t *testing.T) {
+	const configTemplate = `{"destinations": {
+ 			"test": {
+       		"type": "clickhouse",
+       		"mode": "stream",
+				"only_tokens": ["s2stoken"],
+       		"data_layout": {
+         			"table_name_template": "events_with_pk"
+				},
+       		"clickhouse": {
+         			"dsns": [%s],
+         			"db": "%s",
+					"engine": {
+						"raw_statement": "ENGINE = ReplacingMergeTree(key) ORDER BY (key)"
+					}
+       		}
+     		}
+   	}}`
+	testClickhouseStoreEvents(t, configTemplate, 1, "events_with_pk")
+}
+
 func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEventsCount int, tableName string) {
 	ctx := context.Background()
 	container, err := test.NewClickhouseContainer(ctx)
@@ -355,7 +376,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
-	requestValue := []byte(`{"email": "test@domain.com"}`)
+	requestValue := []byte(`{"email": "test@domain.com", "key": 1}`)
 	apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
 	require.NoError(t, err)
 	for i := 0; i < 5; i++ {
