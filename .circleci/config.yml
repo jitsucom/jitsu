@@ -6,10 +6,10 @@ jobs:
     docker:
       - image: circleci/golang:1.14
       - image: circleci/postgres:12
-          environment:
-            POSTGRES_USER: test
-            POSTGRES_PASSWORD: test
-            POSTGRES_DB: test
+        environment:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
     environment:
       PG_TEST_PORT: 5432
       TEST_RESULTS: /tmp/test-results
