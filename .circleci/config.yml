@@ -1,9 +1,22 @@
 version: 2.1
+
+definitions:
+  images:
+    pg-image: &en-postgres
+    image: postgres:12-alpine
+    environment:
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=test
+      - POSTGRES_DB=test
+    ports:
+      - "5499:5432"
+
 jobs:
   backend-test:
     working_directory: /go/src/github.com/ksensehq/eventnative/
     docker:
       - image: circleci/golang:1.14
+      - *en-postgres
     environment:
       TEST_RESULTS: /tmp/test-results
       GO111MODULE: "on"
@@ -15,7 +28,6 @@ jobs:
             - go-mod-v1-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run: go get github.com/jstemmer/go-junit-report
-      - run: docker run --name en-postgres -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=test -p 5499:5432 -d postgres:12-alpine
       - run:
           name: Run unit tests
           command: |
