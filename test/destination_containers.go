@@ -8,15 +8,19 @@ import (
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
+	"net"
+	"strconv"
 	"time"
 )
 
 const (
-	pgPort     = "5432/tcp"
-	pgUser     = "test"
-	pgPassword = "test"
-	pgDatabase = "test"
-	pgSchema   = "public"
+	pgDefaultPort = "5432/tcp"
+	pgUser        = "test"
+	pgPassword    = "test"
+	pgDatabase    = "test"
+	pgSchema      = "public"
+
+	pgMappedPort = 5499
 )
 
 type PostgresContainer struct {
@@ -30,7 +34,14 @@ type PostgresContainer struct {
 	Password  string
 }
 
+// Creates new test container if port 5499 is not used. Otherwise uses Postgres that runs on 5499. That database should
+// have predefined user with credentials from pg* constants. This logic is required to run tests on CI environment where
+// containers or databases are created via CI server
 func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
+	if portIsUsed(pgMappedPort) {
+		return &PostgresContainer{Context: ctx, Host: "localhost", Port: pgMappedPort,
+			Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}, nil
+	}
 	dbSettings := make(map[string]string, 0)
 	dbSettings["POSTGRES_USER"] = pgUser
 	dbSettings["POSTGRES_PASSWORD"] = pgPassword
@@ -42,9 +53,9 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        "postgres:12-alpine",
-			ExposedPorts: []string{pgPort},
+			ExposedPorts: []string{pgDefaultPort},
 			Env:          dbSettings,
-			WaitingFor:   tcWait.ForSQL(pgPort, "postgres", dbURL).Timeout(time.Second * 15),
+			WaitingFor:   tcWait.ForSQL(pgDefaultPort, "postgres", dbURL).Timeout(time.Second * 15),
 		},
 		Started: true,
 	})
@@ -59,9 +70,16 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 	if err != nil {
 		return nil, err
 	}
-	pgContainer := PostgresContainer{Container: container, Context: ctx, Host: host, Port: port.Int(),
-		Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}
-	return &pgContainer, nil
+	return &PostgresContainer{Container: container, Context: ctx, Host: host, Port: port.Int(),
+		Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}, nil
+}
+
+func portIsUsed(port int) bool {
+	if ln, err := net.Listen("tcp", ":"+strconv.Itoa(port)); err == nil {
+		ln.Close()
+		return false
+	}
+	return true
 }
 
 func (pgc *PostgresContainer) CountRows(table string) (int, error) {
@@ -83,8 +101,10 @@ func (pgc *PostgresContainer) CountRows(table string) (int, error) {
 }
 
 func (pgc *PostgresContainer) Close() {
-	err := pgc.Container.Terminate(pgc.Context)
-	if err != nil {
-		logging.Error("Failed to stop container")
+	if pgc.Container != nil {
+		err := pgc.Container.Terminate(pgc.Context)
+		if err != nil {
+			logging.Error("Failed to stop container")
+		}
 	}
 }
