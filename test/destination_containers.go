@@ -9,6 +9,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
 	"net"
+	"os"
 	"strconv"
 	"time"
 )
@@ -19,8 +20,6 @@ const (
 	pgPassword    = "test"
 	pgDatabase    = "test"
 	pgSchema      = "public"
-
-	pgMappedPort = 5499
 )
 
 type PostgresContainer struct {
@@ -38,8 +37,12 @@ type PostgresContainer struct {
 // have predefined user with credentials from pg* constants. This logic is required to run tests on CI environment where
 // containers or databases are created via CI server
 func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
-	if portIsUsed(pgMappedPort) {
-		return &PostgresContainer{Context: ctx, Host: "localhost", Port: pgMappedPort,
+	if os.Getenv("PG_TEST_PORT") != "" {
+		port, err := strconv.Atoi(os.Getenv("PG_TEST_PORT"))
+		if err != nil {
+			return nil, err
+		}
+		return &PostgresContainer{Context: ctx, Host: "localhost", Port: port,
 			Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}, nil
 	}
 	dbSettings := make(map[string]string, 0)
