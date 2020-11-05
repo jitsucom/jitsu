@@ -8,7 +8,6 @@ import (
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
-	"net"
 	"os"
 	"strconv"
 	"time"
@@ -74,17 +73,6 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 	}
 	return &PostgresContainer{Container: container, Context: ctx, Host: host, Port: port.Int(),
 		Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}, nil
-}
-
-func portIsUsed(port int) bool {
-	ln, err := net.Listen("tcp", ":"+strconv.Itoa(port))
-	if err != nil {
-		logging.Infof("Port [%d] is used", port)
-		return true
-	}
-	logging.Infof("Port [%d] is free", port)
-	ln.Close()
-	return false
 }
 
 func (pgc *PostgresContainer) CountRows(table string) (int, error) {
