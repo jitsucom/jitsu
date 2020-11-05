@@ -9,8 +9,7 @@ jobs:
       GO111MODULE: "on"
     steps:
       - checkout
-      - setup_remote_docker:
-          docker_layer_caching: true
+      - setup_remote_docker
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "go.sum" }}
