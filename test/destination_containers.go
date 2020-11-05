@@ -75,11 +75,14 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 }
 
 func portIsUsed(port int) bool {
-	if ln, err := net.Listen("tcp", ":"+strconv.Itoa(port)); err == nil {
-		ln.Close()
-		return false
+	ln, err := net.Listen("tcp", ":"+strconv.Itoa(port))
+	if err != nil {
+		logging.Infof("Port [%d] is used", port)
+		return true
 	}
-	return true
+	logging.Infof("Port [%d] is free", port)
+	ln.Close()
+	return false
 }
 
 func (pgc *PostgresContainer) CountRows(table string) (int, error) {
