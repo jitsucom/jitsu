@@ -1,23 +1,17 @@
 version: 2.1
 
-definitions:
-  images:
-    en-postgres: &en-postgres
-      image: postgres:12-alpine
-      environment:
-        - POSTGRES_USER=test
-        - POSTGRES_PASSWORD=test
-        - POSTGRES_DB=test
-      ports:
-        - "5499:5432"
-
 jobs:
   backend-test:
     working_directory: /go/src/github.com/ksensehq/eventnative/
     docker:
       - image: circleci/golang:1.14
-      - *en-postgres
+      - image: circleci/postgres:12
+          environment:
+            POSTGRES_USER: test
+            POSTGRES_PASSWORD: test
+            POSTGRES_DB: test
     environment:
+      PG_TEST_PORT: 5432
       TEST_RESULTS: /tmp/test-results
       GO111MODULE: "on"
     steps:
