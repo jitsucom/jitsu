@@ -190,7 +190,11 @@ func TestApiEvent(t *testing.T) {
 			} else {
 				require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"), "Cors header ACAO is empty")
 				require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
+				b, err := ioutil.ReadAll(resp.Body)
+				require.NoError(t, err)
 				resp.Body.Close()
+
+				require.Equal(t, `{"status":"ok"}`, string(b))
 
 				time.Sleep(200 * time.Millisecond)
 				data := logging.InstanceMock.Data
