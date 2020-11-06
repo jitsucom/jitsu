@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/events"
-	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 	"math/rand"
 )
@@ -155,12 +154,8 @@ func (ch *ClickHouse) store(flatData map[string]*schema.ProcessedFile) (int, err
 	for _, fdata := range flatData {
 		for _, object := range fdata.GetPayload() {
 			if err := adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
-				if ch.breakOnError {
-					tx.Rollback()
-					return rowsCount, err
-				} else {
-					logging.Warnf("[%s] Unable to insert object %v reason: %v. This line will be skipped", ch.Name(), object, err)
-				}
+				tx.Rollback()
+				return rowsCount, err
 			}
 		}
 	}

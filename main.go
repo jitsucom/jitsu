@@ -173,6 +173,8 @@ func main() {
 	if err != nil {
 		logging.Fatal(err)
 	}
+	//close after all for saving last task statuses
+	defer metaStorage.Close()
 
 	//sources config
 	sourcesViper := viper.Sub(sourcesKey)
