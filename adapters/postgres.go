@@ -28,7 +28,7 @@ const (
   							AND  pg_namespace.nspname = $1
   							AND pg_class.relname = $2
   							AND pg_attribute.attnum > 0`
-	primaryKeyFields = `SELECT
+	primaryKeyFieldsQuery = `SELECT
 							pg_attribute.attname
 						FROM pg_index, pg_class, pg_attribute, pg_namespace
 						WHERE
@@ -41,7 +41,7 @@ const (
 					  	AND indisprimary`
 	createDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS "%s"`
 	addColumnTemplate                 = `ALTER TABLE "%s"."%s" ADD COLUMN %s %s`
-	dropPrimaryKey                    = "ALTER TABLE %s.%s DROP CONSTRAINT IF EXISTS %s"
+	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT IF EXISTS %s"
 	alterPrimaryKeyTemplate           = `ALTER TABLE "%s"."%s" ADD CONSTRAINT %s PRIMARY KEY (%s)`
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
@@ -202,7 +202,7 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 		return table, nil
 	}
 
-	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFields, p.config.Schema, tableName)
+	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("error querying primary keys for [%s.%s] schema: %v", p.config.Schema, tableName, err)
 	}
@@ -290,9 +290,9 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 }
 
 func (p *Postgres) alterPrimaryKey(wrappedTx *Transaction, patchSchema *schema.Table, initial bool) error {
-	constraint := PkFieldsToConstraint(p.config.Schema, patchSchema.Name)
+	constraint := pkFieldsToConstraint(p.config.Schema, patchSchema.Name)
 	if !initial {
-		dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(dropPrimaryKey, p.config.Schema, patchSchema.Name, constraint))
+		dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, patchSchema.Name, constraint))
 		if err != nil {
 			return fmt.Errorf("failed to prepare statement to drop primary key for table %s: %v", patchSchema.Name, err)
 		}
@@ -359,14 +359,14 @@ func (p *Postgres) InsertInTransaction(wrappedTx *Transaction, table *schema.Tab
 }
 
 func (p *Postgres) insertQuery(pkFields []string, tableName string, header string, placeholders string) string {
-	if pkFields == nil || len(pkFields) == 0 {
+	if len(pkFields) == 0 {
 		return fmt.Sprintf(insertTemplate, p.config.Schema, tableName, header, placeholders)
 	} else {
-		return fmt.Sprintf(mergeTemplate, p.config.Schema, tableName, header, placeholders, PkFieldsToConstraint(p.config.Schema, tableName), updateSection(header))
+		return fmt.Sprintf(mergeTemplate, p.config.Schema, tableName, header, placeholders, pkFieldsToConstraint(p.config.Schema, tableName), updateSection(header))
 	}
 }
 
-func PkFieldsToConstraint(schemaName string, tableName string) string {
+func pkFieldsToConstraint(schemaName string, tableName string) string {
 	return schemaName + "_" + tableName + "_pk"
 }
 
