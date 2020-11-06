@@ -17,7 +17,7 @@ type Lock interface {
 
 type MonitorKeeper interface {
 	io.Closer
-	//system: [source_id, destination_id], collection: ["", tableName]
+	//system: [source_id, destination_id], collection: [collectionName, tableName]
 
 	Lock(system string, collection string) (Lock, error)
 	Unlock(lock Lock) error

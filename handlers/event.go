@@ -21,10 +21,6 @@ type CachedEventsResponse struct {
 	Events []events.Fact `json:"events"`
 }
 
-type StatusResponse struct {
-	Status string `json:"status"`
-}
-
 //Accept all events
 type EventHandler struct {
 	destinationService *destinations.Service
@@ -80,7 +76,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, StatusResponse{Status: "ok"})
+	c.JSON(http.StatusOK, middleware.OkResponse())
 }
 
 func (eh *EventHandler) GetHandler(c *gin.Context) {

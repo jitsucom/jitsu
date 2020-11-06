@@ -30,8 +30,7 @@ type Service struct {
 	io.Closer
 	sync.RWMutex
 
-	ctx context.Context
-	//source Id -> collection -> driver
+	ctx     context.Context
 	sources map[string]*Unit
 	pool    *ants.PoolWithFunc
 
@@ -214,17 +213,17 @@ func (s *Service) GetLogs(sourceId string) (map[string]string, error) {
 		return nil, errors.New("Source doesn't exist")
 	}
 
-	statuses := map[string]string{}
+	logsMap := map[string]string{}
 	for collection, _ := range sourceUnit.DriverPerCollection {
-		status, err := s.metaStorage.GetCollectionLog(sourceId, collection)
+		log, err := s.metaStorage.GetCollectionLog(sourceId, collection)
 		if err != nil {
-			return nil, fmt.Errorf("Error getting collection status: %v", err)
+			return nil, fmt.Errorf("Error getting collection logs: %v", err)
 		}
 
-		statuses[collection] = status
+		logsMap[collection] = log
 	}
 
-	return statuses, nil
+	return logsMap, nil
 }
 
 func (s *Service) syncCollection(i interface{}) {
