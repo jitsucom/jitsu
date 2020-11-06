@@ -1,8 +1,9 @@
 package typing
 
 import (
+	"encoding/json"
 	"fmt"
-	"math"
+	"github.com/ksensehq/eventnative/logging"
 	"strings"
 	"time"
 )
@@ -68,24 +69,39 @@ func StringFromType(dataType DataType) (string, error) {
 	return str, nil
 }
 
+//ReformatValue process json.Number types into int64 or float64
+//note: json.Unmarshal returns json.Number type that can be int or float
+//      we have to check does json number have dot in string representation
+// if have -> return float64 otherwise int64
+func ReformatValue(v interface{}) interface{} {
+	jsonNumber, ok := v.(json.Number)
+	if !ok {
+		return v
+	}
+
+	if strings.Contains(jsonNumber.String(), ".") {
+		floatValue, err := jsonNumber.Float64()
+		if err != nil {
+			logging.Errorf("Error parsing %s into float64: %v", jsonNumber.String(), err)
+			return v
+		}
+		return interface{}(floatValue)
+	}
+
+	intValue, err := jsonNumber.Int64()
+	if err != nil {
+		logging.Errorf("Error parsing %s into int64: %v", jsonNumber.String(), err)
+		return v
+	}
+	return interface{}(intValue)
+}
+
 //TypeFromValue return DataType from v type
-//note: json.Unmarshal doesn't return int type at all, but returns float64 instead
-//      we have to check math.Trunc(floatV) == floatV and than it will be INT64
 func TypeFromValue(v interface{}) (DataType, error) {
 	switch v.(type) {
 	case string:
 		return STRING, nil
-	case float32:
-		floatV := float64(v.(float32))
-		if math.Trunc(floatV) == floatV {
-			return INT64, nil
-		}
-		return FLOAT64, nil
-	case float64:
-		floatV := v.(float64)
-		if math.Trunc(floatV) == floatV {
-			return INT64, nil
-		}
+	case float32, float64:
 		return FLOAT64, nil
 	case int, int8, int16, int32, int64:
 		return INT64, nil

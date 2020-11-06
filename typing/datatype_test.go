@@ -1,7 +1,9 @@
 package typing
 
 import (
+	"encoding/json"
 	"github.com/stretchr/testify/require"
+	"reflect"
 	"testing"
 )
 
@@ -145,15 +147,15 @@ func TestTypeFromValue(t *testing.T) {
 			"",
 		},
 		{
-			"Float32 with zero after point - int",
+			"Float32 with zero -> float64",
 			float32(123.0),
-			INT64,
+			FLOAT64,
 			"",
 		},
 		{
-			"Float64 with zero after point - int",
+			"Float64 -> float64",
 			123.0,
-			INT64,
+			FLOAT64,
 			"",
 		},
 		{
@@ -207,6 +209,63 @@ func TestTypeFromValue(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.expected, actual, "types aren't equal")
+			}
+		})
+	}
+}
+
+func TestReformat(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        interface{}
+		expectedType string
+	}{
+		{
+			"Unknown nil",
+			nil,
+			"",
+		},
+		{
+			"boolean",
+			true,
+			"bool",
+		},
+		{
+			"string",
+			"v",
+			"string",
+		},
+		{
+			"json float",
+			json.Number("5.5"),
+			"float64",
+		},
+		{
+			"json float with zero",
+			json.Number("5.0"),
+			"float64",
+		},
+		{
+			"json int",
+			json.Number("5"),
+			"int64",
+		},
+		{
+			"error wrong number",
+			json.Number("aa"),
+			"json.Number",
+		},
+		{
+			"error empty string",
+			json.Number(""),
+			"json.Number",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := ReformatValue(tt.input)
+			if tt.expectedType != "" {
+				require.Equal(t, tt.expectedType, reflect.TypeOf(actual).String(), "types aren't equal")
 			}
 		})
 	}

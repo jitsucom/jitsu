@@ -8,6 +8,12 @@ import (
 	"strings"
 )
 
+const (
+	errPrefix  = "[ERROR]:"
+	warnPrefix = "[WARN]:"
+	infoPrefix = "[INFO]:"
+)
+
 type Config struct {
 	LoggerName  string
 	ServerName  string
@@ -55,7 +61,7 @@ func Infof(format string, v ...interface{}) {
 }
 
 func Info(v ...interface{}) {
-	log.Println(append([]interface{}{"[INFO]:"}, v...)...)
+	log.Println(append([]interface{}{infoPrefix}, v...)...)
 }
 
 func Warnf(format string, v ...interface{}) {
@@ -63,7 +69,7 @@ func Warnf(format string, v ...interface{}) {
 }
 
 func Warn(v ...interface{}) {
-	log.Println(append([]interface{}{"[WARN]:"}, v...)...)
+	log.Println(append([]interface{}{warnPrefix}, v...)...)
 }
 
 func Fatal(v ...interface{}) {
@@ -71,7 +77,7 @@ func Fatal(v ...interface{}) {
 }
 
 func errMsg(values ...interface{}) string {
-	valuesStr := []string{"[ERROR]:"}
+	valuesStr := []string{errPrefix}
 	for _, v := range values {
 		valuesStr = append(valuesStr, fmt.Sprint(v))
 	}
