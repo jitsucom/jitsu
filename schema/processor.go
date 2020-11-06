@@ -121,12 +121,7 @@ func (p *Processor) ProcessObjects(objects []map[string]interface{}, breakOnErro
 	for _, object := range objects {
 		table, processedObject, err := p.processObject(object)
 		if err != nil {
-			if breakOnError {
-				return nil, err
-			} else {
-				logging.Warnf("Unable to process object %v reason: %v. This object will be skipped", object, err)
-				continue
-			}
+			return nil, err
 		}
 
 		//don't process empty object

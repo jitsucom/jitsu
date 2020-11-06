@@ -40,7 +40,7 @@ func (sh *SourcesHandler) SyncHandler(c *gin.Context) {
 		return
 	}
 
-	c.Status(http.StatusOK)
+	c.JSON(http.StatusOK, middleware.OkResponse())
 }
 
 func (sh *SourcesHandler) StatusHandler(c *gin.Context) {
