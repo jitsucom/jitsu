@@ -17,6 +17,8 @@ const (
 	Strict  FieldMappingType = "strict"
 )
 
+var systemFields = []string{"_timestamp", "eventn_ctx_event_id", "src"}
+
 func (f FieldMappingType) String() string {
 	if f == Strict {
 		return "Strict"
@@ -142,7 +144,6 @@ func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}
 
 func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
 	mappedObject := make(map[string]interface{})
-
 	for _, rule := range fm.rules {
 		//dive into source inner and map last key from mapping '/key1/../lastkey'
 		sourceInner := object
@@ -161,6 +162,11 @@ func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]inter
 				}
 			}
 			break
+		}
+	}
+	for _, field := range systemFields {
+		if val, ok := object[field]; ok {
+			mappedObject[field] = val
 		}
 	}
 	return mappedObject, nil
