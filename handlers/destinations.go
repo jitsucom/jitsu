@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-func DestinationHandler(c *gin.Context) {
+func DestinationsHandler(c *gin.Context) {
 	destinationConfig := &storages.DestinationConfig{}
 	if err := c.BindJSON(destinationConfig); err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err})
@@ -78,6 +78,55 @@ func testConnection(config *storages.DestinationConfig) error {
 		}
 
 		redshift.Close()
+		return nil
+	case storages.BigQueryType:
+		if err := config.Google.Validate(config.Mode != storages.BatchMode); err != nil {
+			return err
+		}
+
+		bq, err := adapters.NewBigQuery(context.Background(), config.Google)
+		if err != nil {
+			return err
+		}
+		defer bq.Close()
+		if config.Mode == storages.BatchMode {
+			googleStorage, err := adapters.NewGoogleCloudStorage(context.Background(), config.Google)
+			if err != nil {
+				return err
+			}
+			defer googleStorage.Close()
+		}
+		return bq.Test()
+	case storages.SnowflakeType:
+		if err := config.Snowflake.Validate(); err != nil {
+			return err
+		}
+		snowflake, err := adapters.NewSnowflake(context.Background(), config.Snowflake, nil)
+		if err != nil {
+			return err
+		}
+		defer snowflake.Close()
+		if config.Mode == storages.BatchMode {
+			if config.S3.Bucket != "" {
+				if err := config.S3.Validate(); err != nil {
+					return err
+				}
+				s3, err := adapters.NewS3(config.S3)
+				if err != nil {
+					return err
+				}
+				defer s3.Close()
+			} else if config.Google.Bucket != "" {
+				if err := config.Google.Validate(false); err != nil {
+					return err
+				}
+				gcp, err := adapters.NewGoogleCloudStorage(context.Background(), config.Google)
+				if err != nil {
+					return err
+				}
+				defer gcp.Close()
+			}
+		}
 		return nil
 	default:
 		return errors.New("unsupported destination type " + config.Type)

@@ -75,6 +75,8 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 			consumer.Consume(processed, tokenId)
 		}
 	}
+
+	c.JSON(http.StatusOK, middleware.OkResponse())
 }
 
 func (eh *EventHandler) GetHandler(c *gin.Context) {

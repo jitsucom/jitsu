@@ -12,6 +12,7 @@ require (
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/gin-gonic/gin v1.6.3
 	github.com/golang/protobuf v1.4.2 // indirect
+	github.com/gomodule/redigo v1.8.2
 	github.com/google/go-cmp v0.5.1 // indirect
 	github.com/google/martian v2.1.0+incompatible
 	github.com/google/uuid v1.1.2
@@ -22,6 +23,7 @@ require (
 	github.com/mailru/easyjson v0.7.6
 	github.com/mailru/go-clickhouse v1.3.0
 	github.com/oschwald/geoip2-golang v1.4.0
+	github.com/panjf2000/ants/v2 v2.4.3
 	github.com/prometheus/client_golang v0.9.3
 	github.com/snowflakedb/gosnowflake v1.3.8
 	github.com/spf13/viper v1.7.1

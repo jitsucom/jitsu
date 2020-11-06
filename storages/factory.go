@@ -143,10 +143,6 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	return storageProxy, eventQueue, nil
 }
 
-func logError(destinationName, destinationType string, err error) {
-	logging.Errorf("[%s] Error initializing destination of type %s: %v", destinationName, destinationType, err)
-}
-
 //Create aws Redshift destination
 func createRedshift(config *Config) (events.Storage, error) {
 	redshiftConfig := config.destination.DataSource

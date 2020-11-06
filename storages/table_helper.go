@@ -3,9 +3,7 @@ package storages
 import (
 	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
-	"io"
 )
 
 const unlockRetryCount = 5
@@ -58,11 +56,11 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *schema.Ta
 	}
 
 	//patch schema
-	lock, closer, err := th.monitorKeeper.Lock(destinationName, dbTableSchema.Name)
+	lock, err := th.monitorKeeper.Lock(destinationName, dbTableSchema.Name)
 	if err != nil {
 		return nil, fmt.Errorf("System error locking table %s in %s: %v", dataSchema.Name, th.storageType, err)
 	}
-	defer th.unlock(lock, closer, dataSchema.Name, 1)
+	defer th.monitorKeeper.Unlock(lock)
 
 	ver, err := th.monitorKeeper.GetVersion(destinationName, dbTableSchema.Name)
 	if err != nil {
@@ -111,11 +109,11 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *schema.Ta
 
 //lock table -> get existing schema -> create a new one if doesn't exist -> return schema with version
 func (th *TableHelper) getOrCreate(destinationName string, dataSchema *schema.Table) (*schema.Table, error) {
-	lock, closer, err := th.monitorKeeper.Lock(destinationName, dataSchema.Name)
+	lock, err := th.monitorKeeper.Lock(destinationName, dataSchema.Name)
 	if err != nil {
 		return nil, fmt.Errorf("System error locking table %s in %s: %v", dataSchema.Name, th.storageType, err)
 	}
-	defer th.unlock(lock, closer, dataSchema.Name, 1)
+	defer th.monitorKeeper.Unlock(lock)
 
 	//Get schema
 	dbTableSchema, err := th.manager.GetTableSchema(dataSchema.Name)
@@ -146,14 +144,4 @@ func (th *TableHelper) getOrCreate(destinationName string, dataSchema *schema.Ta
 	}
 
 	return dbTableSchema, nil
-}
-
-func (th *TableHelper) unlock(lock Lock, closer io.Closer, tableName string, retry int) {
-	if err := th.monitorKeeper.Unlock(lock, closer); err != nil {
-		if retry == unlockRetryCount {
-			logging.Errorf("System error unlocking table %s in %s after %d tries: %v", tableName, th.storageType, retry, err)
-		} else {
-			th.unlock(lock, closer, tableName, retry+1)
-		}
-	}
 }

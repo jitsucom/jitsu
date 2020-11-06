@@ -3,10 +3,10 @@ package schema
 import (
 	"bufio"
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/parsers"
 	"github.com/ksensehq/eventnative/timestamp"
 	"github.com/ksensehq/eventnative/typing"
 	"io"
@@ -115,6 +115,34 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnE
 	return filePerTable, nil
 }
 
+//ProcessObjects process source chunk payload objects
+//Return array of processed objects per table like {"table1": []objects, "table2": []objects}
+func (p *Processor) ProcessObjects(objects []map[string]interface{}, breakOnError bool) (map[string]*ProcessedFile, error) {
+	unitPerTable := map[string]*ProcessedFile{}
+
+	for _, object := range objects {
+		table, processedObject, err := p.processObject(object)
+		if err != nil {
+			return nil, err
+		}
+
+		//don't process empty object
+		if !table.Exists() {
+			continue
+		}
+
+		unit, ok := unitPerTable[table.Name]
+		if !ok {
+			unitPerTable[table.Name] = &ProcessedFile{DataSchema: table, payload: []map[string]interface{}{processedObject}}
+		} else {
+			unit.DataSchema.Columns.Merge(table.Columns)
+			unit.payload = append(unit.payload, processedObject)
+		}
+	}
+
+	return unitPerTable, nil
+}
+
 //ApplyDBTyping call ApplyDBTypingToObject to every object in input *ProcessedFile payload
 //return err if can't convert any field to DB schema type
 func (p *Processor) ApplyDBTyping(dbSchema *Table, pf *ProcessedFile) error {
@@ -145,9 +173,7 @@ func (p *Processor) ApplyDBTypingToObject(dbSchema *Table, object map[string]int
 
 //Return table representation of object and flatten object from file line
 func (p *Processor) processLine(line []byte) (*Table, map[string]interface{}, error) {
-	object := map[string]interface{}{}
-
-	err := json.Unmarshal(line, &object)
+	object, err := parsers.ParseJson(line)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -189,6 +215,9 @@ func (p *Processor) processObject(object map[string]interface{}) (*Table, map[st
 	//apply typecast and define column types
 	//mapping typecast overrides default typecast
 	for k, v := range flatObject {
+		//reformat from json.Number into int64 or float64 and put back
+		v = typing.ReformatValue(v)
+		flatObject[k] = v
 		//value type
 		resultColumnType, err := typing.TypeFromValue(v)
 		if err != nil {

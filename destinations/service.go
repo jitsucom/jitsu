@@ -37,7 +37,9 @@ type Service struct {
 	logEventPath         string
 	monitorKeeper        storages.MonitorKeeper
 
-	unitsByName           map[string]*Unit
+	//map for holding all destinations for closing
+	unitsByName map[string]*Unit
+	//map for holding all loggers for closing
 	loggersUsageByTokenId map[string]*LoggerUsage
 
 	sync.RWMutex
@@ -111,6 +113,18 @@ func (ds *Service) GetConsumers(tokenId string) (consumers []events.Consumer) {
 	return
 }
 
+func (ds *Service) GetStorageById(id string) (events.StorageProxy, bool) {
+	ds.RLock()
+	defer ds.RUnlock()
+
+	unit, ok := ds.unitsByName[id]
+	if !ok {
+		return nil, false
+	}
+
+	return unit.storage, true
+}
+
 func (ds *Service) GetStorages(tokenId string) (storages []events.StorageProxy) {
 	ds.RLock()
 	defer ds.RUnlock()
@@ -166,7 +180,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		if len(destination.OnlyTokens) > 0 {
 			destination.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIdsByToken(destination.OnlyTokens)
 		} else {
-			logging.Warnf("[%s] only_tokens wasn't provided. All tokens will be stored.", name)
+			logging.Warnf("[%s] only_tokens aren't provided. All tokens will be stored.", name)
 			destination.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIds()
 		}
 
@@ -253,7 +267,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 
 //remove destination from all collections and close it
 func (s *Service) remove(name string, unit *Unit) {
-	//remove from all collections: queue or logger(if needed) + storage
+	//remove from other collections: queue or logger(if needed) + storage
 	for _, tokenId := range unit.tokenIds {
 		oldConsumers := s.consumersByTokenId[tokenId]
 		if unit.eventQueue != nil {
