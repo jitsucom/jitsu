@@ -241,9 +241,5 @@ func (s *Service) Close() error {
 	s.closed = true
 	s.pool.Release()
 
-	if err := s.metaStorage.Close(); err != nil {
-		return fmt.Errorf("Error closing meta storage: %v", err)
-	}
-
 	return nil
 }

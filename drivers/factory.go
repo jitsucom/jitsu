@@ -30,7 +30,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 		return nil, errors.New("collections are empty. Please specify at least one collection")
 	}
 	if len(sourceConfig.Destinations) == 0 {
-		logging.Warnf("[%s] destinations aren't provided. Data will be stored into all destinations.", name)
+		return nil, errors.New("destinations are empty. Please specify at least one destination")
 	}
 
 	driverPerCollection := map[string]Driver{}

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/events"
-	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 )
 
@@ -119,12 +118,8 @@ func (p *Postgres) store(flatData map[string]*schema.ProcessedFile) (int, error)
 	for _, fdata := range flatData {
 		for _, object := range fdata.GetPayload() {
 			if err := p.adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
-				if p.breakOnError {
-					tx.Rollback()
-					return rowsCount, err
-				} else {
-					logging.Warnf("[%s] Unable to insert object %v reason: %v. This line will be skipped", p.Name(), object, err)
-				}
+				tx.Rollback()
+				return rowsCount, err
 			}
 		}
 	}
