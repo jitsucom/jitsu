@@ -194,7 +194,7 @@ func TestApiEvent(t *testing.T) {
 }
 
 func TestPostgresStreamInsert(t *testing.T) {
-	const configTemplate = `{"destinations": {
+	configTemplate := `{"destinations": {
   			"test": {
         		"type": "postgres",
         		"mode": "stream",
@@ -219,7 +219,7 @@ func TestPostgresStreamInsert(t *testing.T) {
 }
 
 func TestPostgresStreamInsertWithPK(t *testing.T) {
-	const configTemplate = `{"destinations": {
+	configTemplate := `{"destinations": {
   			"test": {
         		"type": "postgres",
         		"mode": "stream",
@@ -297,7 +297,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 }
 
 func TestClickhouseStreamInsert(t *testing.T) {
-	const configTemplate = `{"destinations": {
+	configTemplate := `{"destinations": {
   			"test": {
         		"type": "clickhouse",
         		"mode": "stream",
@@ -315,7 +315,7 @@ func TestClickhouseStreamInsert(t *testing.T) {
 }
 
 func TestClickhouseStreamInsertWithMerge(t *testing.T) {
-	const configTemplate = `{"destinations": {
+	configTemplate := `{"destinations": {
  			"test": {
        		"type": "clickhouse",
        		"mode": "stream",

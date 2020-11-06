@@ -22,6 +22,9 @@ const (
 
 	chDatabase           = "default"
 	chDatasourceTemplate = "http://default:@localhost:%d/default?read_timeout=5m&timeout=5m&enable_http_compression=1"
+
+	envClickhousePortVariable = "CH_TEST_PORT"
+	envPostgresPortVariable   = "PG_TEST_PORT"
 )
 
 type PostgresContainer struct {
@@ -38,8 +41,8 @@ type PostgresContainer struct {
 // Creates new Postgres test container if PG_TEST_PORT is not defined. Otherwise uses db at defined port. This logic is required
 // for running test at CI environment
 func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
-	if os.Getenv("PG_TEST_PORT") != "" {
-		port, err := strconv.Atoi(os.Getenv("PG_TEST_PORT"))
+	if os.Getenv(envPostgresPortVariable) != "" {
+		port, err := strconv.Atoi(os.Getenv(envPostgresPortVariable))
 		if err != nil {
 			return nil, err
 		}
@@ -117,8 +120,8 @@ type ClickHouseContainer struct {
 // Creates new Clickhouse test container if CH_TEST_PORT is not defined. Otherwise uses db at defined port.
 //This logic is required for running test at CI environment
 func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
-	if os.Getenv("CH_TEST_PORT") != "" {
-		port, err := strconv.Atoi(os.Getenv("CH_TEST_PORT"))
+	if os.Getenv(envClickhousePortVariable) != "" {
+		port, err := strconv.Atoi(os.Getenv(envClickhousePortVariable))
 		if err != nil {
 			return nil, err
 		}
@@ -132,7 +135,7 @@ func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
 	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        "yandex/clickhouse-server:20.3",
-			ExposedPorts: []string{"8123", "9000"},
+			ExposedPorts: []string{"8123/tcp", "9000/tcp"},
 			WaitingFor:   tcWait.ForSQL("8123/tcp", "clickhouse", dbURL).Timeout(time.Second * 15),
 		},
 		Started: true,
