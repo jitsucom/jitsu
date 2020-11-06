@@ -296,23 +296,23 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	require.Equal(t, expectedEventsCount, rows)
 }
 
-func TestClickhouseStreamInsert(t *testing.T) {
-	configTemplate := `{"destinations": {
-  			"test": {
-        		"type": "clickhouse",
-        		"mode": "stream",
-				"only_tokens": ["s2stoken"],
-        		"data_layout": {
-          			"table_name_template": "events_without_pk"
-				},
-        		"clickhouse": {
-          			"dsns": [%s],
-          			"db": "%s"
-        		}
-      		}
-    	}}`
-	testClickhouseStoreEvents(t, configTemplate, 5, "events_without_pk")
-}
+//func TestClickhouseStreamInsert(t *testing.T) {
+//	configTemplate := `{"destinations": {
+//  			"test": {
+//        		"type": "clickhouse",
+//        		"mode": "stream",
+//				"only_tokens": ["s2stoken"],
+//        		"data_layout": {
+//          			"table_name_template": "events_without_pk"
+//				},
+//        		"clickhouse": {
+//          			"dsns": [%s],
+//          			"db": "%s"
+//        		}
+//      		}
+//    	}}`
+//	testClickhouseStoreEvents(t, configTemplate, 5, "events_without_pk")
+//}
 
 func TestClickhouseStreamInsertWithMerge(t *testing.T) {
 	configTemplate := `{"destinations": {
