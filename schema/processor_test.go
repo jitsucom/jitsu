@@ -39,14 +39,14 @@ func TestProcess(t *testing.T) {
 							"_geo_data_region": NewColumn(typing.STRING),
 							"_timestamp":       NewColumn(typing.TIMESTAMP),
 							"event_type":       NewColumn(typing.STRING),
-							"key1":             NewColumn(typing.INT64),
+							"key1":             NewColumn(typing.FLOAT64),
 							"key3":             NewColumn(typing.STRING)}},
 				},
 
 				"user_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
 					{"_geo_data_country": "US", "_geo_data_city": "New York", "_timestamp": testTime2, "event_type": "user", "key1_key2": "splu", "key10_sib1_1": "k"},
 					{"_geo_data_country": "US", "_geo_data_city": "New York", "_timestamp": testTime2, "event_type": "user", "key1_key2": "splu", "key10_sib1_1": 50.0},
-					{"_geo_data_zip": 10128.0, "_timestamp": testTime3, "event_type": "user", "key1": "10", "key10": "[1,2,3,4]", "key3": "privvvv"},
+					{"_geo_data_zip": int64(10128), "_timestamp": testTime3, "event_type": "user", "key1": "10", "key10": "[1,2,3,4]", "key3": "privvvv"},
 				},
 					DataSchema: &Table{Name: "user_2020_08", PKFields: []string{}, Columns: Columns{
 						"_geo_data_city":    NewColumn(typing.STRING),
@@ -58,7 +58,7 @@ func TestProcess(t *testing.T) {
 						"key10":             NewColumn(typing.STRING),
 						"key10_sib1_1": Column{
 							dataType:       nil,
-							typeOccurrence: map[typing.DataType]bool{typing.STRING: true, typing.INT64: true},
+							typeOccurrence: map[typing.DataType]bool{typing.STRING: true, typing.FLOAT64: true},
 						},
 						"key1_key2": NewColumn(typing.STRING),
 						"key3":      NewColumn(typing.STRING)}},
@@ -94,9 +94,9 @@ func TestProcess(t *testing.T) {
 			for k, v := range actual {
 				expectedUnit := tt.expected[k]
 				require.NotNil(t, expectedUnit, k, "doesn't exist in actual result")
-				test.ObjectsEqual(t, expectedUnit.FileName, v.FileName, k, "results filenames aren't equal")
-				test.ObjectsEqual(t, expectedUnit.payload, v.payload, k, "results payloads aren't equal")
-				test.ObjectsEqual(t, expectedUnit.DataSchema, v.DataSchema, k, "results data schemas aren't equal")
+				test.ObjectsEqual(t, expectedUnit.FileName, v.FileName, k+" results filenames aren't equal")
+				test.ObjectsEqual(t, expectedUnit.payload, v.payload, k+" results payloads aren't equal")
+				test.ObjectsEqual(t, expectedUnit.DataSchema, v.DataSchema, k+" results data schemas aren't equal")
 
 			}
 		})

@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/events"
-	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 	"math/rand"
 )
@@ -112,6 +111,22 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) (int, error) {
 		return linesCount(payload), err
 	}
 
+	return ch.store(flatData)
+}
+
+//SyncStore store chunk payload to ClickHouse with processing
+//return rows count and err if can't store
+//or rows count and nil if stored
+func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (int, error) {
+	flatData, err := ch.schemaProcessor.ProcessObjects(objects, ch.breakOnError)
+	if err != nil {
+		return len(objects), err
+	}
+
+	return ch.store(flatData)
+}
+
+func (ch *ClickHouse) store(flatData map[string]*schema.ProcessedFile) (int, error) {
 	var rowsCount int
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
@@ -139,12 +154,8 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) (int, error) {
 	for _, fdata := range flatData {
 		for _, object := range fdata.GetPayload() {
 			if err := adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
-				if ch.breakOnError {
-					tx.Rollback()
-					return rowsCount, err
-				} else {
-					logging.Warnf("[%s] Unable to insert object %v reason: %v. This line will be skipped", ch.Name(), object, err)
-				}
+				tx.Rollback()
+				return rowsCount, err
 			}
 		}
 	}

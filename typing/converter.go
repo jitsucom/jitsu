@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/timestamp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -41,6 +42,8 @@ var (
 		rule{from: STRING, to: FLOAT64}:   stringToFloat,
 		rule{from: FLOAT64, to: INT64}: floatToInt,*/
 	}
+
+	charsInNumberStringReplacer = strings.NewReplacer(",", "", " ", "")
 )
 
 type typeNode struct {
@@ -178,7 +181,7 @@ func numberToFloat(v interface{}) (interface{}, error) {
 	}
 }
 
-func stringToInt(v interface{}) (interface{}, error) {
+func StringToInt(v interface{}) (interface{}, error) {
 	intValue, err := strconv.Atoi(v.(string))
 	if err != nil {
 		return nil, fmt.Errorf("Error stringToInt() for value: %v: %v", v, err)
@@ -187,7 +190,8 @@ func stringToInt(v interface{}) (interface{}, error) {
 	return int64(intValue), nil
 }
 
-func stringToFloat(v interface{}) (interface{}, error) {
+//StringToFloat return float64 value from string
+func StringToFloat(v interface{}) (interface{}, error) {
 	floatValue, err := strconv.ParseFloat(v.(string), 64)
 	if err != nil {
 		return nil, fmt.Errorf("Error stringToFloat() for value: %v: %v", v, err)
@@ -206,6 +210,11 @@ func stringToTimestamp(v interface{}) (interface{}, error) {
 	}
 
 	return t, nil
+}
+
+//StringWithCommasToFloat return float64 value from string (1,200.50)
+func StringWithCommasToFloat(v interface{}) (interface{}, error) {
+	return StringToFloat(charsInNumberStringReplacer.Replace(v.(string)))
 }
 
 func floatToInt(v interface{}) (interface{}, error) {

@@ -2,6 +2,7 @@ package storages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
@@ -106,11 +107,11 @@ func (bq *BigQuery) startBatch() {
 
 				if err := bq.bqAdapter.Copy(fileKey, tableName); err != nil {
 					logging.Errorf("[%s] Error copying file [%s] from google cloud storage to BigQuery: %v", bq.Name(), fileKey, err)
-					metrics.ErrorEvents(tokenId, bq.Name(), rowsCount)
+					metrics.ErrorTokenEvents(tokenId, bq.Name(), rowsCount)
 					continue
 				}
 
-				metrics.SuccessEvents(tokenId, bq.Name(), rowsCount)
+				metrics.SuccessTokenEvents(tokenId, bq.Name(), rowsCount)
 
 				if err := bq.gcsAdapter.DeleteObject(fileKey); err != nil {
 					logging.Errorf("[%s] System error: file %s wasn't deleted from google cloud storage and will be inserted in db again: %v", bq.Name(), fileKey, err)
@@ -172,6 +173,10 @@ func (bq *BigQuery) Store(fileName string, payload []byte) (int, error) {
 	return 0, nil
 }
 
+func (bq *BigQuery) SyncStore(objects []map[string]interface{}) (int, error) {
+	return 0, errors.New("BigQuery doesn't support sync store")
+}
+
 func (bq *BigQuery) Name() string {
 	return bq.name
 }
@@ -183,9 +188,12 @@ func (bq *BigQuery) Type() string {
 func (bq *BigQuery) Close() (multiErr error) {
 	bq.closed = true
 
-	if err := bq.gcsAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.Name(), err))
+	if bq.gcsAdapter != nil {
+		if err := bq.gcsAdapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.Name(), err))
+		}
 	}
+
 	if err := bq.bqAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing BigQuery client: %v", bq.Name(), err))
 	}

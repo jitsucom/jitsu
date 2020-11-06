@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/joncrlsn/dque"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/parsers"
 	"time"
 )
 
@@ -69,8 +70,7 @@ func (pq *PersistentQueue) DequeueBlock() (Fact, time.Time, string, error) {
 		return nil, time.Time{}, "", errors.New("Dequeued object is not a QueuedFact instance or fact bytes is empty")
 	}
 
-	fact := Fact{}
-	err = json.Unmarshal(wrappedFact.FactBytes, &fact)
+	fact, err := parsers.ParseJson(wrappedFact.FactBytes)
 	if err != nil {
 		return nil, time.Time{}, "", fmt.Errorf("Error unmarshalling events.Fact from bytes: %v", err)
 	}

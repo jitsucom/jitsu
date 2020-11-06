@@ -168,6 +168,7 @@ func TestStrictMap(t *testing.T) {
 			"Minify object test",
 			[]string{"/key1 -> /key10", "/key2-> /key11", "/key3->/key12"},
 			map[string]interface{}{
+				"src": "api",
 				"key1": map[string]interface{}{
 					"subkey1": map[string]interface{}{
 						"subsubkey1": 123,
@@ -186,6 +187,7 @@ func TestStrictMap(t *testing.T) {
 				"key5": 888,
 			},
 			map[string]interface{}{
+				"src": "api",
 				"key10": map[string]interface{}{
 					"subkey1": map[string]interface{}{
 						"subsubkey1": 123,

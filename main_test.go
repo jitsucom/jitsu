@@ -2,12 +2,14 @@ package main
 
 import (
 	"bytes"
+	"github.com/gin-gonic/gin/binding"
 	"context"
 	"fmt"
 	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/middleware"
+	"github.com/ksensehq/eventnative/sources"
 	"github.com/ksensehq/eventnative/storages"
 	"github.com/ksensehq/eventnative/synchronization"
 	"github.com/ksensehq/eventnative/telemetry"
@@ -34,6 +36,7 @@ func SetTestDefaultParams() {
 
 func TestApiEvent(t *testing.T) {
 	uuid.InitMock()
+	binding.EnableDecoderUseNumber = true
 
 	SetTestDefaultParams()
 	tests := []test.IntegrationTest{
@@ -122,7 +125,7 @@ func TestApiEvent(t *testing.T) {
 			router := SetupRouter(destinations.NewTestService(
 				map[string]map[string]events.Consumer{
 					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
-				}, map[string]map[string]events.StorageProxy{}), "", &synchronization.Dummy{}, events.NewCache(5))
+				}, map[string]map[string]events.StorageProxy{}), "", &synchronization.Dummy{}, events.NewCache(5), sources.NewTestService())
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -179,7 +182,11 @@ func TestApiEvent(t *testing.T) {
 			} else {
 				require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"), "Cors header ACAO is empty")
 				require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
+				b, err := ioutil.ReadAll(resp.Body)
+				require.NoError(t, err)
 				resp.Body.Close()
+
+				require.Equal(t, `{"status":"ok"}`, string(b))
 
 				time.Sleep(200 * time.Millisecond)
 				data := logging.InstanceMock.Data

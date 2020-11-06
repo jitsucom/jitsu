@@ -2,8 +2,17 @@ package synchronization
 
 import (
 	"github.com/ksensehq/eventnative/storages"
-	"io"
 )
+
+type DummyLock struct {
+}
+
+func (d *DummyLock) Unlock() {
+}
+
+func (d *DummyLock) Identifier() string {
+	return ""
+}
 
 //Dummy implementation for Service
 type Dummy struct {
@@ -14,11 +23,11 @@ func (d *Dummy) GetInstances() ([]string, error) {
 	return d.serverNameSingleArray, nil
 }
 
-func (d *Dummy) Lock(destinationName string, tableName string) (storages.Lock, io.Closer, error) {
-	return nil, nil, nil
+func (d *Dummy) Lock(destinationName string, tableName string) (storages.Lock, error) {
+	return &DummyLock{}, nil
 }
 
-func (d *Dummy) Unlock(lock storages.Lock, closer io.Closer) error {
+func (d *Dummy) Unlock(lock storages.Lock) error {
 	return nil
 }
 

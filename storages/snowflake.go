@@ -2,6 +2,7 @@ package storages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/ksensehq/eventnative/adapters"
@@ -145,39 +146,39 @@ func (s *Snowflake) startBatch() {
 				payload, err := s.stageAdapter.GetObject(fileKey)
 				if err != nil {
 					logging.Errorf("[%s] Error getting file %s from stage in Snowflake storage: %v", s.Name(), fileKey, err)
-					metrics.ErrorEvents(tokenId, s.Name(), rowsCount)
+					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
 					continue
 				}
 
 				lines := strings.Split(string(payload), "\n")
 				if len(lines) == 0 {
 					logging.Errorf("[%s] Error reading stage file %s payload in Snowflake storage: empty file", s.Name(), fileKey)
-					metrics.ErrorEvents(tokenId, s.Name(), rowsCount)
+					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
 					continue
 				}
 				header := lines[0]
 				if header == "" {
 					logging.Errorf("[%s] Error reading stage file %s header in Snowflake storage: %v", s.Name(), fileKey, err)
-					metrics.ErrorEvents(tokenId, s.Name(), rowsCount)
+					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
 					continue
 				}
 
 				wrappedTx, err := s.snowflakeAdapter.OpenTx()
 				if err != nil {
 					logging.Errorf("[%s] Error creating snowflake transaction: %v", s.Name(), err)
-					metrics.ErrorEvents(tokenId, s.Name(), rowsCount)
+					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
 					continue
 				}
 
 				if err := s.snowflakeAdapter.Copy(wrappedTx, fileKey, header, tableName); err != nil {
 					logging.Errorf("[%s] Error copying file [%s] from stage to snowflake: %v", s.Name(), fileKey, err)
 					wrappedTx.Rollback()
-					metrics.ErrorEvents(tokenId, s.Name(), rowsCount)
+					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
 					continue
 				}
 
 				wrappedTx.Commit()
-				metrics.SuccessEvents(tokenId, s.Name(), rowsCount)
+				metrics.SuccessTokenEvents(tokenId, s.Name(), rowsCount)
 
 				if err := s.stageAdapter.DeleteObject(fileKey); err != nil {
 					logging.Errorf("[%s] System error: file %s wasn't deleted from stage and will be inserted in db again: %v", s.Name(), fileKey, err)
@@ -238,6 +239,10 @@ func (s *Snowflake) Store(fileName string, payload []byte) (int, error) {
 	}
 
 	return 0, nil
+}
+
+func (s *Snowflake) SyncStore(objects []map[string]interface{}) (int, error) {
+	return 0, errors.New("Snowflake doesn't support sync store")
 }
 
 func (s *Snowflake) Name() string {
