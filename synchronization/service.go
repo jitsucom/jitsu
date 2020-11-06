@@ -10,6 +10,7 @@ import (
 	"github.com/ksensehq/eventnative/storages"
 	"io"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -25,14 +26,17 @@ type Service interface {
 //EtcdService - etcd implementation for Service
 type EtcdService struct {
 	serverName string
+	ctx        context.Context
 	client     *clientv3.Client
 
-	closed bool
+	mutex    sync.RWMutex
+	unlockMe map[string]*storages.RetryableLock
+	closed   bool
 }
 
 //NewService return EtcdService (etcd) if was configured or Dummy otherwise
 //starts EtcdService heart beat goroutine: see EtcdService.startHeartBeating()
-func NewService(serverName, syncServiceType, syncServiceEndpoint string, connectionTimeoutSeconds uint) (Service, error) {
+func NewService(ctx context.Context, serverName, syncServiceType, syncServiceEndpoint string, connectionTimeoutSeconds uint) (Service, error) {
 	if syncServiceType == "" || syncServiceEndpoint == "" {
 		logging.Warn("Using dummy synchronization service as no configuration is provided")
 		return &Dummy{serverNameSingleArray: []string{serverName}}, nil
@@ -48,7 +52,7 @@ func NewService(serverName, syncServiceType, syncServiceEndpoint string, connect
 			return nil, err
 		}
 
-		es := &EtcdService{serverName: serverName, client: client}
+		es := &EtcdService{ctx: ctx, serverName: serverName, client: client, unlockMe: map[string]*storages.RetryableLock{}}
 		es.startHeartBeating()
 
 		logging.Info("Using etcd synchronization service")
@@ -59,35 +63,40 @@ func NewService(serverName, syncServiceType, syncServiceEndpoint string, connect
 	}
 }
 
-func (es *EtcdService) Lock(destinationName string, tableName string) (storages.Lock, io.Closer, error) {
+func (es *EtcdService) Lock(system string, collection string) (storages.Lock, error) {
 	session, sessionError := concurrency.NewSession(es.client)
 	if sessionError != nil {
-		return nil, nil, sessionError
+		return nil, sessionError
 	}
-	l := concurrency.NewMutex(session, destinationName+"_"+tableName)
-	ctx := context.Background()
-	if err := l.Lock(ctx); err != nil {
-		return nil, nil, err
+	identifier := system + "_" + collection
+	l := concurrency.NewMutex(session, identifier)
+
+	if err := l.Lock(es.ctx); err != nil {
+		return nil, err
 	}
-	return l, session, nil
+
+	lock := storages.NewRetryableLock(identifier, l, session, 5)
+
+	es.mutex.Lock()
+	es.unlockMe[identifier] = lock
+	es.mutex.Unlock()
+
+	return lock, nil
 }
 
-func (es *EtcdService) Unlock(lock storages.Lock, closer io.Closer) error {
-	ctx := context.Background()
-	if err := lock.Unlock(ctx); err != nil {
-		return err
-	}
-	if closer != nil {
-		if closeError := closer.Close(); closeError != nil {
-			logging.Error("Unlocked successfully but failed to close resource ", closeError)
-		}
-	}
+func (es *EtcdService) Unlock(lock storages.Lock) error {
+	lock.Unlock()
+
+	es.mutex.Lock()
+	delete(es.unlockMe, lock.Identifier())
+	es.mutex.Unlock()
+
 	return nil
 }
 
-func (es *EtcdService) GetVersion(destinationName string, tableName string) (int64, error) {
+func (es *EtcdService) GetVersion(system string, collection string) (int64, error) {
 	ctx := context.Background()
-	response, err := es.client.Get(ctx, destinationName+"_"+tableName)
+	response, err := es.client.Get(ctx, system+"_"+collection)
 	if err != nil {
 		return -1, err
 	}
@@ -102,14 +111,14 @@ func (es *EtcdService) GetVersion(destinationName string, tableName string) (int
 	return version, nil
 }
 
-func (es *EtcdService) IncrementVersion(destinationName string, tableName string) (int64, error) {
-	version, err := es.GetVersion(destinationName, tableName)
+func (es *EtcdService) IncrementVersion(system string, collection string) (int64, error) {
+	version, err := es.GetVersion(system, collection)
 	if err != nil {
 		return -1, err
 	}
 	ctx := context.Background()
 	version = version + 1
-	_, putErr := es.client.Put(ctx, destinationName+"_"+tableName, strconv.FormatInt(version, 10))
+	_, putErr := es.client.Put(ctx, system+"_"+collection, strconv.FormatInt(version, 10))
 	return version, putErr
 }
 
@@ -163,6 +172,14 @@ func (es *EtcdService) heartBeat() error {
 
 func (es *EtcdService) Close() error {
 	es.closed = true
+
+	es.mutex.Lock()
+	for identifier, lock := range es.unlockMe {
+		logging.Infof("Unlocking [%s]..", identifier)
+
+		lock.Unlock()
+	}
+	es.mutex.Unlock()
 
 	return nil
 }

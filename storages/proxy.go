@@ -42,7 +42,7 @@ func (rsp *RetryableProxy) start() {
 			rsp.ready = true
 			rsp.Unlock()
 
-			logging.Infof("[%s] has been initialized!", rsp.config.name)
+			logging.Infof("[%s] destination has been initialized!", rsp.config.name)
 
 			break
 		}
