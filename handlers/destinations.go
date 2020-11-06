@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-func DestinationHandler(c *gin.Context) {
+func DestinationsHandler(c *gin.Context) {
 	destinationConfig := &storages.DestinationConfig{}
 	if err := c.BindJSON(destinationConfig); err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err})

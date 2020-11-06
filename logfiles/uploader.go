@@ -9,7 +9,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
 	"time"
 )
 
@@ -17,16 +16,15 @@ import (
 //Pass them to storages according to tokens
 //Keep uploading log file with result statuses
 type PeriodicUploader struct {
-	logEventPath   string
-	fileMask       string
-	filesBatchSize int
-	uploadEvery    time.Duration
+	logEventPath string
+	fileMask     string
+	uploadEvery  time.Duration
 
 	statusManager      *statusManager
 	destinationService *destinations.Service
 }
 
-func NewUploader(logEventPath, fileMask string, filesBatchSize, uploadEveryS int, destinationService *destinations.Service) (*PeriodicUploader, error) {
+func NewUploader(logEventPath, fileMask string, uploadEveryS int, destinationService *destinations.Service) (*PeriodicUploader, error) {
 	statusManager, err := newStatusManager(logEventPath)
 	if err != nil {
 		return nil, err
@@ -34,7 +32,6 @@ func NewUploader(logEventPath, fileMask string, filesBatchSize, uploadEveryS int
 	return &PeriodicUploader{
 		logEventPath:       logEventPath,
 		fileMask:           path.Join(logEventPath, fileMask),
-		filesBatchSize:     filesBatchSize,
 		uploadEvery:        time.Duration(uploadEveryS) * time.Second,
 		statusManager:      statusManager,
 		destinationService: destinationService,
@@ -62,12 +59,7 @@ func (u *PeriodicUploader) Start() {
 				return
 			}
 
-			sort.Strings(files)
-			batchSize := len(files)
-			if batchSize > u.filesBatchSize {
-				batchSize = u.filesBatchSize
-			}
-			for _, filePath := range files[:batchSize] {
+			for _, filePath := range files {
 				fileName := filepath.Base(filePath)
 
 				b, err := ioutil.ReadFile(filePath)
@@ -106,9 +98,9 @@ func (u *PeriodicUploader) Start() {
 						if err != nil {
 							deleteFile = false
 							logging.Errorf("[%s] Error storing file %s in destination: %v", storage.Name(), filePath, err)
-							metrics.ErrorEvents(tokenId, storage.Name(), rowsCount)
+							metrics.ErrorTokenEvents(tokenId, storage.Name(), rowsCount)
 						} else {
-							metrics.SuccessEvents(tokenId, storage.Name(), rowsCount)
+							metrics.SuccessTokenEvents(tokenId, storage.Name(), rowsCount)
 						}
 						u.statusManager.updateStatus(fileName, storage.Name(), err)
 					}

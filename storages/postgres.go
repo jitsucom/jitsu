@@ -63,6 +63,36 @@ func (p *Postgres) Store(fileName string, payload []byte) (int, error) {
 		return linesCount(payload), err
 	}
 
+	return p.store(flatData)
+}
+
+//SyncStore store chunk payload to Postgres with processing
+//return rows count and err if can't store
+//or rows count and nil if stored
+func (p *Postgres) SyncStore(objects []map[string]interface{}) (int, error) {
+	flatData, err := p.schemaProcessor.ProcessObjects(objects, p.breakOnError)
+	if err != nil {
+		return len(objects), err
+	}
+
+	return p.store(flatData)
+}
+
+//Insert fact in Postgres
+func (p *Postgres) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
+	dbSchema, err := p.tableHelper.EnsureTable(p.Name(), dataSchema)
+	if err != nil {
+		return err
+	}
+
+	if err := p.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
+		return err
+	}
+
+	return p.adapter.Insert(dataSchema, fact)
+}
+
+func (p *Postgres) store(flatData map[string]*schema.ProcessedFile) (int, error) {
 	var rowsCount int
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
@@ -100,20 +130,6 @@ func (p *Postgres) Store(fileName string, payload []byte) (int, error) {
 	}
 
 	return rowsCount, tx.DirectCommit()
-}
-
-//Insert fact in Postgres
-func (p *Postgres) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	dbSchema, err := p.tableHelper.EnsureTable(p.Name(), dataSchema)
-	if err != nil {
-		return err
-	}
-
-	if err := p.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
-		return err
-	}
-
-	return p.adapter.Insert(dataSchema, fact)
 }
 
 //Close adapters.Postgres

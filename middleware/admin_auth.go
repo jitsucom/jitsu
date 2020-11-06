@@ -5,6 +5,8 @@ import (
 	"net/http"
 )
 
+const AdminTokenErr = "Admin token does not match"
+
 type AdminToken struct {
 	Token string
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"flag"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/cluster"
@@ -13,8 +14,10 @@ import (
 	"github.com/ksensehq/eventnative/handlers"
 	"github.com/ksensehq/eventnative/logfiles"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/meta"
 	"github.com/ksensehq/eventnative/metrics"
 	"github.com/ksensehq/eventnative/middleware"
+	"github.com/ksensehq/eventnative/sources"
 	"github.com/ksensehq/eventnative/storages"
 	"github.com/ksensehq/eventnative/synchronization"
 	"github.com/ksensehq/eventnative/telemetry"
@@ -34,10 +37,10 @@ import (
 const (
 	//$serverName-event-$token-$timestamp.log
 	uploaderFileMask   = "-event-*-20*.log"
-	uploaderBatchSize  = 50
 	uploaderLoadEveryS = 60
 
 	destinationsKey = "destinations"
+	sourcesKey      = "sources"
 )
 
 var (
@@ -70,8 +73,11 @@ func readInViperConfig() error {
 
 //go:generate easyjson -all useragent/resolver.go telemetry/models.go
 func main() {
-	// Setup seed for globalRand
+	//Setup seed for globalRand
 	rand.Seed(time.Now().Unix())
+
+	//Setup handlers binding for json parsing numbers into json.Number (not only in float64)
+	binding.EnableDecoderUseNumber = true
 
 	//Setup default timezone for time.Now() calls
 	time.Local = time.UTC
@@ -105,24 +111,9 @@ func main() {
 		os.Exit(0)
 	}()
 
-	destinationsViper := viper.Sub(destinationsKey)
-	destinationsSource := viper.GetString(destinationsKey)
-
-	//override with config from os env
-	jsonConfig := viper.GetString("destinations_json")
-	if jsonConfig != "" && jsonConfig != "{}" {
-		envJsonViper := viper.New()
-		envJsonViper.SetConfigType("json")
-		if err := envJsonViper.ReadConfig(bytes.NewBufferString(jsonConfig)); err != nil {
-			logging.Error("Error reading/parsing json config from DESTINATIONS_JSON", err)
-		} else {
-			destinationsViper = envJsonViper.Sub(destinationsKey)
-			destinationsSource = envJsonViper.GetString(destinationsKey)
-		}
-	}
-
 	//synchronization service
 	syncService, err := synchronization.NewService(
+		ctx,
 		appconfig.Instance.ServerName,
 		viper.GetString("synchronization_service.type"),
 		viper.GetString("synchronization_service.endpoint"),
@@ -131,18 +122,85 @@ func main() {
 		logging.Fatal("Failed to initiate synchronization service", err)
 	}
 
+	// ** Destinations **
+
+	//destinations config
+	destinationsViper := viper.Sub(destinationsKey)
+	destinationsStr := viper.GetString(destinationsKey)
+
+	//override with config from os env
+	destinationsJsonConfig := viper.GetString("destinations_json")
+	if destinationsJsonConfig != "" && destinationsJsonConfig != "{}" {
+		envJsonViper := viper.New()
+		envJsonViper.SetConfigType("json")
+		if err := envJsonViper.ReadConfig(bytes.NewBufferString(destinationsJsonConfig)); err != nil {
+			logging.Error("Error reading/parsing json config from DESTINATIONS_JSON", err)
+		} else {
+			destinationsViper = envJsonViper.Sub(destinationsKey)
+			destinationsStr = envJsonViper.GetString(destinationsKey)
+		}
+	}
+
 	//Get event logger path
 	logEventPath := viper.GetString("log.path")
 
-	//Create event destinations:
-	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsSource, logEventPath, syncService, storages.Create)
+	//Create event destinations
+	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, syncService, storages.Create)
 	if err != nil {
 		logging.Fatal(err)
 	}
 	appconfig.Instance.ScheduleClosing(destinationsService)
 
+	// ** Sources **
+
+	//meta storage config
+	metaStorageViper := viper.Sub("meta.storage")
+
+	//override with config from os env
+	metaStorageJsonConfig := viper.GetString("meta_storage_json")
+	if metaStorageJsonConfig != "" && metaStorageJsonConfig != "{}" {
+		envJsonViper := viper.New()
+		envJsonViper.SetConfigType("json")
+		if err := envJsonViper.ReadConfig(bytes.NewBufferString(metaStorageJsonConfig)); err != nil {
+			logging.Error("Error reading/parsing json config from META_STORAGE_JSON", err)
+		} else {
+			metaStorageViper = envJsonViper.Sub("meta_storage")
+		}
+	}
+
+	//meta storage
+	metaStorage, err := meta.NewStorage(metaStorageViper)
+	if err != nil {
+		logging.Fatal(err)
+	}
+
+	//sources config
+	sourcesViper := viper.Sub(sourcesKey)
+
+	//override with config from os env
+	sourcesJsonConfig := viper.GetString("sources_json")
+	if sourcesJsonConfig != "" && sourcesJsonConfig != "{}" {
+		envJsonViper := viper.New()
+		envJsonViper.SetConfigType("json")
+		if err := envJsonViper.ReadConfig(bytes.NewBufferString(sourcesJsonConfig)); err != nil {
+			logging.Error("Error reading/parsing json config from SOURCES_JSON", err)
+		} else {
+			sourcesViper = envJsonViper.Sub(sourcesKey)
+		}
+	}
+
+	//sources sync tasks pool size
+	poolSize := viper.GetInt("server.sync_tasks.pool.size")
+
+	//Create sources
+	sourceService, err := sources.NewService(ctx, sourcesViper, destinationsService, metaStorage, syncService, poolSize)
+	if err != nil {
+		logging.Fatal(err)
+	}
+	appconfig.Instance.ScheduleClosing(sourceService)
+
 	//Uploader must read event logger directory
-	uploader, err := logfiles.NewUploader(logEventPath, appconfig.Instance.ServerName+uploaderFileMask, uploaderBatchSize, uploaderLoadEveryS, destinationsService)
+	uploader, err := logfiles.NewUploader(logEventPath, appconfig.Instance.ServerName+uploaderFileMask, uploaderLoadEveryS, destinationsService)
 	if err != nil {
 		logging.Fatal("Error while creating file uploader", err)
 	}
@@ -152,7 +210,7 @@ func main() {
 	eventsCache := events.NewCache(100)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
-	router := SetupRouter(destinationsService, adminToken, syncService, eventsCache)
+	router := SetupRouter(destinationsService, adminToken, syncService, eventsCache, sourceService)
 
 	telemetry.ServerStart()
 	logging.Info("Started server: " + appconfig.Instance.Authority)
@@ -166,7 +224,8 @@ func main() {
 	logging.Fatal(server.ListenAndServe())
 }
 
-func SetupRouter(destinations *destinations.Service, adminToken string, clusterManager cluster.Manager, eventsCache *events.Cache) *gin.Engine {
+func SetupRouter(destinations *destinations.Service, adminToken string, clusterManager cluster.Manager,
+	eventsCache *events.Cache, sources *sources.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -188,15 +247,19 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor(), eventsCache)
 	apiEventHandler := handlers.NewEventHandler(destinations, events.NewApiPreprocessor(), eventsCache)
 
+	sourcesHandler := handlers.NewSourcesHandler(sources)
+
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
 		apiV1.POST("/event", middleware.TokenOriginsAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 		apiV1.POST("/s2s/event", middleware.TokenOriginsAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
-		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationHandler, "Admin token does not match"))
+		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler, middleware.AdminTokenErr))
+		apiV1.POST("/sources/:id/sync", adminTokenMiddleware.AdminAuth(sourcesHandler.SyncHandler, middleware.AdminTokenErr))
+		apiV1.GET("/sources/:id/status", adminTokenMiddleware.AdminAuth(sourcesHandler.StatusHandler, middleware.AdminTokenErr))
 
-		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler, "Admin token does not match"))
-		apiV1.GET("/cache/events", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler, "Admin token does not match"))
+		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler, middleware.AdminTokenErr))
+		apiV1.GET("/cache/events", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler, middleware.AdminTokenErr))
 	}
 
 	if metrics.Enabled {

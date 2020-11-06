@@ -8,7 +8,6 @@ import (
 	"github.com/ksensehq/eventnative/appconfig"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/metrics"
 	"github.com/ksensehq/eventnative/schema"
 )
 
@@ -138,13 +137,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		return nil, nil, unknownDestination
 	}
 
-	metrics.InitEvents("", name)
-
 	return storageProxy, eventQueue, nil
-}
-
-func logError(destinationName, destinationType string, err error) {
-	logging.Errorf("[%s] Error initializing destination of type %s: %v", destinationName, destinationType, err)
 }
 
 //Create aws Redshift destination

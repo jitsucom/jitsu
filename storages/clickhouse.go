@@ -112,6 +112,22 @@ func (ch *ClickHouse) Store(fileName string, payload []byte) (int, error) {
 		return linesCount(payload), err
 	}
 
+	return ch.store(flatData)
+}
+
+//SyncStore store chunk payload to ClickHouse with processing
+//return rows count and err if can't store
+//or rows count and nil if stored
+func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (int, error) {
+	flatData, err := ch.schemaProcessor.ProcessObjects(objects, ch.breakOnError)
+	if err != nil {
+		return len(objects), err
+	}
+
+	return ch.store(flatData)
+}
+
+func (ch *ClickHouse) store(flatData map[string]*schema.ProcessedFile) (int, error) {
 	var rowsCount int
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()

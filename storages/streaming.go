@@ -59,7 +59,7 @@ func (sw *StreamingWorker) start() {
 			dataSchema, flattenObject, err := sw.schemaProcessor.ProcessFact(fact)
 			if err != nil {
 				logging.Errorf("[%s] Unable to process object %v: %v", sw.streamingStorage.Name(), fact, err)
-				metrics.ErrorEvent(tokenId, sw.streamingStorage.Name())
+				metrics.ErrorTokenEvent(tokenId, sw.streamingStorage.Name())
 				continue
 			}
 
@@ -75,10 +75,10 @@ func (sw *StreamingWorker) start() {
 					strings.Contains(err.Error(), "write: broken pipe") {
 					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenId)
 				}
-				metrics.ErrorEvent(tokenId, sw.streamingStorage.Name())
+				metrics.ErrorTokenEvent(tokenId, sw.streamingStorage.Name())
 				continue
 			}
-			metrics.SuccessEvent(tokenId, sw.streamingStorage.Name())
+			metrics.SuccessTokenEvent(tokenId, sw.streamingStorage.Name())
 		}
 	}()
 }
