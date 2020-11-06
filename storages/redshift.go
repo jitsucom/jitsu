@@ -2,6 +2,7 @@ package storages
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/appconfig"
@@ -108,20 +109,20 @@ func (ar *AwsRedshift) startBatch() {
 				wrappedTx, err := ar.redshiftAdapter.OpenTx()
 				if err != nil {
 					logging.Errorf("[%s] Error creating redshift transaction: %v", ar.Name(), err)
-					metrics.ErrorEvents(tokenId, ar.Name(), rowsCount)
+					metrics.ErrorTokenEvents(tokenId, ar.Name(), rowsCount)
 					continue
 				}
 
 				if err := ar.redshiftAdapter.Copy(wrappedTx, fileKey, tableName); err != nil {
 					logging.Errorf("[%s] Error copying file [%s] from s3 to redshift: %v", ar.Name(), fileKey, err)
-					metrics.ErrorEvents(tokenId, ar.Name(), rowsCount)
+					metrics.ErrorTokenEvents(tokenId, ar.Name(), rowsCount)
 					wrappedTx.Rollback()
 					continue
 				}
 
 				wrappedTx.Commit()
 
-				metrics.SuccessEvents(tokenId, ar.Name(), rowsCount)
+				metrics.SuccessTokenEvents(tokenId, ar.Name(), rowsCount)
 
 				//TODO may be we need to have a journal for collecting already processed files names
 				// if ar.s3Adapter.DeleteObject fails => it will be processed next time => duplicate data
@@ -185,6 +186,10 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) (int, error) {
 	}
 
 	return 0, nil
+}
+
+func (ar *AwsRedshift) SyncStore(objects []map[string]interface{}) (int, error) {
+	return 0, errors.New("RedShift doesn't support sync store")
 }
 
 func (ar *AwsRedshift) Name() string {

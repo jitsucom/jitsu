@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"errors"
 	"github.com/ksensehq/eventnative/adapters"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
@@ -58,6 +59,10 @@ func (s3 *S3) Store(fileName string, payload []byte) (int, error) {
 	}
 
 	return rowsCount, nil
+}
+
+func (s3 *S3) SyncStore(objects []map[string]interface{}) (int, error) {
+	return 0, errors.New("S3 doesn't support sync store")
 }
 
 func (s3 *S3) Name() string {

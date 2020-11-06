@@ -39,19 +39,7 @@ func (ap *ApiPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) 
 	}
 
 	//put eventn_ctx_event_id if not set (e.g. It is used for ClickHouse)
-	eventnObject, ok := fact[eventnKey]
-	if !ok {
-		eventnObject = map[string]interface{}{eventIdKey: uuid.New()}
-		fact[eventnKey] = eventnObject
-	} else {
-		if eventn, ok := eventnObject.(map[string]interface{}); ok {
-			if _, ok := eventn[eventIdKey]; !ok {
-				eventn[eventIdKey] = uuid.New()
-			}
-		} else {
-			fact[eventnKey+"_"+eventIdKey] = uuid.New()
-		}
-	}
+	EnrichWithEventId(fact, uuid.New())
 
 	if deviceCtx, ok := fact["device_ctx"]; ok {
 		if deviceCtxObject, ok := deviceCtx.(map[string]interface{}); ok {

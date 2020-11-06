@@ -12,6 +12,9 @@ func Init(enabled bool) {
 	if Enabled {
 		logging.Info("Initializing Prometheus metrics..")
 		initEvents()
+		initSourcesPool()
+		initSourceObjects()
+		initRedis()
 	} else {
 		logging.Warnf("Metrics isn't enabled")
 	}

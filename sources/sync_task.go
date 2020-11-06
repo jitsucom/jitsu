@@ -1,0 +1,152 @@
+package sources
+
+import (
+	"crypto/md5"
+	"fmt"
+	"github.com/ksensehq/eventnative/drivers"
+	"github.com/ksensehq/eventnative/events"
+	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/meta"
+	"github.com/ksensehq/eventnative/metrics"
+	"github.com/ksensehq/eventnative/storages"
+	"github.com/ksensehq/eventnative/timestamp"
+	"sort"
+	"time"
+)
+
+type SyncTask struct {
+	sourceId   string
+	collection string
+
+	identifier string
+
+	driver      drivers.Driver
+	metaStorage meta.Storage
+
+	destinations []events.Storage
+
+	lock storages.Lock
+}
+
+func (st *SyncTask) Sync() {
+	start := time.Now()
+	strWriter := logging.NewStringWriter()
+	strLogger := logging.NewSyncLogger(strWriter)
+	now := time.Now().UTC()
+
+	st.updateCollectionStatus(meta.StatusLoading, "Still Running..")
+
+	status := meta.StatusFailed
+	defer func() {
+		st.updateCollectionStatus(status, strWriter.String())
+		st.lock.Unlock()
+	}()
+
+	logging.Infof("[%s] Running sync task type: [%s]", st.identifier, st.driver.Type())
+	strLogger.Infof("[%s] Running sync task type: [%s]", st.identifier, st.driver.Type())
+	intervals, err := st.driver.GetAllAvailableIntervals()
+	if err != nil {
+		strLogger.Errorf("[%s] Error getting all available intervals: %v", st.identifier, err)
+		logging.Errorf("[%s] Error getting all available intervals: %v", st.identifier, err)
+		return
+	}
+
+	strLogger.Infof("[%s] Total intervals: [%d]", st.identifier, len(intervals))
+
+	var intervalsToSync []*drivers.TimeInterval
+	for _, interval := range intervals {
+		storedSignature, err := st.metaStorage.GetSignature(st.sourceId, st.collection, interval.String())
+		if err != nil {
+			strLogger.Errorf("[%s] Error getting interval [%s] signature: %v", st.identifier, interval.String(), err)
+			logging.Errorf("[%s] Error getting interval [%s] signature: %v", st.identifier, interval.String(), err)
+			return
+		}
+
+		nowSignature := interval.CalculateSignatureFrom(now)
+
+		//just for logs
+		var status string
+		if storedSignature == "" {
+			status = "NEW"
+			intervalsToSync = append(intervalsToSync, interval)
+		} else if storedSignature != nowSignature {
+			status = "REFRESH"
+			intervalsToSync = append(intervalsToSync, interval)
+		} else {
+			status = "UPTODATE"
+		}
+
+		strLogger.Infof("[%s] Interval [%s] %s", st.identifier, interval.String(), status)
+	}
+
+	logging.Infof("[%s] Intervals to sync: [%d]", st.identifier, len(intervalsToSync))
+	strLogger.Infof("[%s] Intervals to sync: [%d]", st.identifier, len(intervalsToSync))
+
+	for _, intervalToSync := range intervalsToSync {
+		strLogger.Infof("[%s] Running [%s] synchronization", st.identifier, intervalToSync.String())
+
+		objects, err := st.driver.GetObjectsFor(intervalToSync)
+		if err != nil {
+			strLogger.Errorf("[%s] Error [%s] synchronization: %v", st.identifier, intervalToSync.String(), err)
+			logging.Errorf("[%s] Error [%s] synchronization: %v", st.identifier, intervalToSync.String(), err)
+			return
+		}
+
+		for _, object := range objects {
+			//enrich with values
+			object["src"] = "source"
+			object[timestamp.Key] = timestamp.NowUTC()
+			events.EnrichWithEventId(object, getHash(object))
+			events.EnrichWithCollection(object, st.collection)
+		}
+
+		for _, storage := range st.destinations {
+			rowsCount, err := storage.SyncStore(objects)
+			if err != nil {
+				strLogger.Errorf("[%s] Error storing %d source objects in [%s] destination: %v", st.identifier, rowsCount, storage.Name(), err)
+				logging.Errorf("[%s] Error storing %d source objects in [%s] destination: %v", st.identifier, rowsCount, storage.Name(), err)
+				metrics.ErrorSourceEvents(st.sourceId, storage.Name(), rowsCount)
+				metrics.ErrorObjects(st.sourceId, rowsCount)
+				return
+			}
+
+			metrics.SuccessSourceEvents(st.sourceId, storage.Name(), rowsCount)
+			metrics.SuccessObjects(st.sourceId, rowsCount)
+		}
+
+		if err := st.metaStorage.SaveSignature(st.sourceId, st.collection, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
+			logging.Errorf("System error saving source [%s] collection [%s] signature: %v", st.sourceId, st.collection, err)
+		}
+
+		strLogger.Infof("[%s] Interval [%s] has been synchronized!", st.identifier, intervalToSync.String())
+	}
+
+	end := time.Now().Sub(start)
+	strLogger.Infof("[%s] FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", st.identifier, end.Seconds(), end.Minutes())
+	logging.Infof("[%s] type: [%s] intervals: [%d] FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", st.identifier, st.driver.Type(), len(intervalsToSync), end.Seconds(), end.Minutes())
+	status = meta.StatusOk
+}
+
+func (st *SyncTask) updateCollectionStatus(status, logs string) {
+	if err := st.metaStorage.SaveCollectionStatus(st.sourceId, st.collection, status); err != nil {
+		logging.Errorf("System error updating source [%s] collection [%s] status in storage: %v", st.sourceId, st.collection, err)
+	}
+	if err := st.metaStorage.SaveCollectionLog(st.sourceId, st.collection, logs); err != nil {
+		logging.Errorf("System error updating source [%s] collection [%s] log in storage: %v", st.sourceId, st.collection, err)
+	}
+}
+
+func getHash(m map[string]interface{}) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var str string
+	for _, k := range keys {
+		str += fmt.Sprint(m[k])
+	}
+
+	return fmt.Sprintf("%x", md5.Sum([]byte(str)))
+}
