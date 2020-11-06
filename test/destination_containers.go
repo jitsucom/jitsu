@@ -19,6 +19,12 @@ const (
 	pgPassword    = "test"
 	pgDatabase    = "test"
 	pgSchema      = "public"
+
+	chDatabase           = "default"
+	chDatasourceTemplate = "http://default:@localhost:%d/default?read_timeout=5m&timeout=5m&enable_http_compression=1"
+
+	envClickhousePortVariable = "CH_TEST_PORT"
+	envPostgresPortVariable   = "PG_TEST_PORT"
 )
 
 type PostgresContainer struct {
@@ -32,11 +38,11 @@ type PostgresContainer struct {
 	Password  string
 }
 
-// Creates new test container if PG_TEST_PORT is not defined. Otherwise uses db at defined port. This logic is required
+// Creates new Postgres test container if PG_TEST_PORT is not defined. Otherwise uses db at defined port. This logic is required
 // for running test at CI environment
 func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
-	if os.Getenv("PG_TEST_PORT") != "" {
-		port, err := strconv.Atoi(os.Getenv("PG_TEST_PORT"))
+	if os.Getenv(envPostgresPortVariable) != "" {
+		port, err := strconv.Atoi(os.Getenv(envPostgresPortVariable))
 		if err != nil {
 			return nil, err
 		}
@@ -96,6 +102,74 @@ func (pgc *PostgresContainer) CountRows(table string) (int, error) {
 func (pgc *PostgresContainer) Close() {
 	if pgc.Container != nil {
 		err := pgc.Container.Terminate(pgc.Context)
+		if err != nil {
+			logging.Error("Failed to stop container")
+		}
+	}
+}
+
+type ClickHouseContainer struct {
+	Container testcontainers.Container
+	Context   context.Context
+
+	Port     int
+	Dsns     []string
+	Database string
+}
+
+// Creates new Clickhouse test container if CH_TEST_PORT is not defined. Otherwise uses db at defined port.
+//This logic is required for running test at CI environment
+func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
+	if os.Getenv(envClickhousePortVariable) != "" {
+		port, err := strconv.Atoi(os.Getenv(envClickhousePortVariable))
+		if err != nil {
+			return nil, err
+		}
+		return &ClickHouseContainer{Context: ctx, Dsns: []string{fmt.Sprintf(chDatasourceTemplate, port)},
+			Database: chDatabase, Port: port}, nil
+	}
+	dbURL := func(port nat.Port) string {
+		return fmt.Sprintf(chDatasourceTemplate, port.Int())
+	}
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "yandex/clickhouse-server:20.3",
+			ExposedPorts: []string{"8123/tcp", "9000/tcp"},
+			WaitingFor:   tcWait.ForSQL("8123/tcp", "clickhouse", dbURL).Timeout(time.Second * 15),
+		},
+		Started: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	port, err := container.MappedPort(ctx, "8123")
+	if err != nil {
+		return nil, err
+	}
+	return &ClickHouseContainer{Container: container, Context: ctx,
+		Dsns: []string{fmt.Sprintf(chDatasourceTemplate, port.Int())}, Database: chDatabase, Port: port.Int()}, nil
+}
+
+func (ch *ClickHouseContainer) CountRows(table string) (int, error) {
+	dataSource, err := sql.Open("clickhouse", ch.Dsns[0])
+	if err != nil {
+		return -1, err
+	}
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT count(*) from %s", table))
+	if err != nil {
+		return -1, err
+	}
+	defer rows.Close()
+	rows.Next()
+	var count int
+	err = rows.Scan(&count)
+	return count, err
+}
+
+func (ch *ClickHouseContainer) Close() {
+	if ch.Container != nil {
+		err := ch.Container.Terminate(ch.Context)
 		if err != nil {
 			logging.Error("Failed to stop container")
 		}

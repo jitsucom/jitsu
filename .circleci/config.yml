@@ -5,6 +5,7 @@ jobs:
     working_directory: /go/src/github.com/ksensehq/eventnative/
     docker:
       - image: circleci/golang:1.14
+      - image: yandex/clickhouse-server:20.3
       - image: circleci/postgres:12
         environment:
           POSTGRES_USER: test
@@ -12,6 +13,7 @@ jobs:
           POSTGRES_DB: test
     environment:
       PG_TEST_PORT: 5432
+      CH_TEST_PORT: 8123
       TEST_RESULTS: /tmp/test-results
       GO111MODULE: "on"
     steps:
