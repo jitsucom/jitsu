@@ -188,9 +188,12 @@ func (bq *BigQuery) Type() string {
 func (bq *BigQuery) Close() (multiErr error) {
 	bq.closed = true
 
-	if err := bq.gcsAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.Name(), err))
+	if bq.gcsAdapter != nil {
+		if err := bq.gcsAdapter.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.Name(), err))
+		}
 	}
+
 	if err := bq.bqAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing BigQuery client: %v", bq.Name(), err))
 	}
