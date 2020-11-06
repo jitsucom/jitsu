@@ -13,6 +13,7 @@ import (
 	"github.com/ksensehq/eventnative/telemetry"
 	"github.com/ksensehq/eventnative/test"
 	"github.com/ksensehq/eventnative/uuid"
+	"strings"
 	"time"
 
 	"bou.ke/monkey"
@@ -193,7 +194,7 @@ func TestApiEvent(t *testing.T) {
 }
 
 func TestPostgresStreamInsert(t *testing.T) {
-	const configTemplate = `{"destinations": {
+	configTemplate := `{"destinations": {
   			"test": {
         		"type": "postgres",
         		"mode": "stream",
@@ -218,7 +219,7 @@ func TestPostgresStreamInsert(t *testing.T) {
 }
 
 func TestPostgresStreamInsertWithPK(t *testing.T) {
-	const configTemplate = `{"destinations": {
+	configTemplate := `{"destinations": {
   			"test": {
         		"type": "postgres",
         		"mode": "stream",
@@ -281,6 +282,101 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
 	requestValue := []byte(`{"email": "test@domain.com"}`)
+	apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
+	require.NoError(t, err)
+	for i := 0; i < 5; i++ {
+		resp, err := http.DefaultClient.Do(apiReq)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
+		resp.Body.Close()
+		time.Sleep(200 * time.Millisecond)
+	}
+	rows, err := container.CountRows(tableName)
+	require.NoError(t, err)
+	require.Equal(t, expectedEventsCount, rows)
+}
+
+func TestClickhouseStreamInsert(t *testing.T) {
+	configTemplate := `{"destinations": {
+  			"test": {
+        		"type": "clickhouse",
+        		"mode": "stream",
+				"only_tokens": ["s2stoken"],
+        		"data_layout": {
+          			"table_name_template": "events_without_pk"
+				},
+        		"clickhouse": {
+          			"dsns": [%s],
+          			"db": "%s"
+        		}
+      		}
+    	}}`
+	testClickhouseStoreEvents(t, configTemplate, 5, "events_without_pk")
+}
+
+func TestClickhouseStreamInsertWithMerge(t *testing.T) {
+	configTemplate := `{"destinations": {
+ 			"test": {
+       		"type": "clickhouse",
+       		"mode": "stream",
+				"only_tokens": ["s2stoken"],
+       		"data_layout": {
+         			"table_name_template": "events_with_pk"
+				},
+       		"clickhouse": {
+         			"dsns": [%s],
+         			"db": "%s",
+					"engine": {
+						"raw_statement": "ENGINE = ReplacingMergeTree(key) ORDER BY (key)"
+					}
+       		}
+     		}
+   	}}`
+	testClickhouseStoreEvents(t, configTemplate, 1, "events_with_pk")
+}
+
+func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEventsCount int, tableName string) {
+	ctx := context.Background()
+	container, err := test.NewClickhouseContainer(ctx)
+	if err != nil {
+		t.Fatalf("failed to initialize container: %v", err)
+	}
+	defer container.Close()
+	telemetry.Init("test", "test", "test", true)
+	viper.Set("log.path", "")
+	viper.Set("server.auth", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
+
+	dsns := make([]string, len(container.Dsns))
+	for i, dsn := range container.Dsns {
+		dsns[i] = "\"" + dsn + "\""
+	}
+	destinationConfig := fmt.Sprintf(configTemplate, strings.Join(dsns, ","), container.Database)
+	viper.Set("dest", destinationConfig)
+	httpAuthority, _ := test.GetLocalAuthority()
+	err = appconfig.Init()
+	require.NoError(t, err)
+	defer appconfig.Instance.Close()
+	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", &synchronization.Dummy{}, storages.Create)
+	require.NoError(t, err)
+	defer dest.Close()
+	router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5))
+
+	server := &http.Server{
+		Addr:              httpAuthority,
+		Handler:           middleware.Cors(router),
+		ReadTimeout:       time.Second * 60,
+		ReadHeaderTimeout: time.Second * 60,
+		IdleTimeout:       time.Second * 65,
+	}
+	go func() {
+		log.Fatal(server.ListenAndServe())
+	}()
+
+	logging.Info("Started listen and serve " + httpAuthority)
+
+	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
+	require.NoError(t, err)
+	requestValue := []byte(`{"email": "test@domain.com", "key": 1}`)
 	apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
 	require.NoError(t, err)
 	for i := 0; i < 5; i++ {
