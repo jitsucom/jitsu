@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"bytes"
+	"github.com/ksensehq/eventnative/safego"
 	"net/http"
 	"time"
 )
@@ -72,7 +73,7 @@ func (s *Service) usage(usage *Usage) {
 
 func (s *Service) startUsage() {
 	ticker := time.NewTicker(time.Hour)
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if instance.closed {
 				ticker.Stop()
@@ -92,9 +93,9 @@ func (s *Service) startUsage() {
 				}
 			}
 		}
-	}()
+	})
 
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if instance.closed {
 				break
@@ -105,7 +106,7 @@ func (s *Service) startUsage() {
 				s.client.Post(s.url, "application/json", bytes.NewBuffer(b))
 			}
 		}
-	}()
+	})
 }
 
 func Flush() {

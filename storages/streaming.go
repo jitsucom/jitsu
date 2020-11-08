@@ -4,6 +4,7 @@ import (
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/metrics"
+	"github.com/ksensehq/eventnative/safego"
 	"github.com/ksensehq/eventnative/schema"
 	"strings"
 	"time"
@@ -35,7 +36,7 @@ func newStreamingWorker(eventQueue *events.PersistentQueue, schemaProcessor *sch
 //1. read from queue
 //2. Insert in events.StreamingStorage
 func (sw *StreamingWorker) start() {
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if sw.closed {
 				break
@@ -80,7 +81,7 @@ func (sw *StreamingWorker) start() {
 			}
 			metrics.SuccessTokenEvent(tokenId, sw.streamingStorage.Name())
 		}
-	}()
+	})
 }
 
 func (sw *StreamingWorker) Close() error {

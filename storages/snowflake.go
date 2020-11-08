@@ -10,6 +10,7 @@ import (
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/metrics"
+	"github.com/ksensehq/eventnative/safego"
 	"github.com/ksensehq/eventnative/schema"
 	sf "github.com/snowflakedb/gosnowflake"
 	"strings"
@@ -118,7 +119,7 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 //2. load them to Snowflake via Copy request
 //3. delete file from stage
 func (s *Snowflake) startBatch() {
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if s.closed {
 				break
@@ -187,7 +188,7 @@ func (s *Snowflake) startBatch() {
 
 			}
 		}
-	}()
+	})
 }
 
 //Insert fact in Snowflake
