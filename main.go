@@ -17,6 +17,7 @@ import (
 	"github.com/ksensehq/eventnative/meta"
 	"github.com/ksensehq/eventnative/metrics"
 	"github.com/ksensehq/eventnative/middleware"
+	"github.com/ksensehq/eventnative/safego"
 	"github.com/ksensehq/eventnative/sources"
 	"github.com/ksensehq/eventnative/storages"
 	"github.com/ksensehq/eventnative/synchronization"
@@ -26,6 +27,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -88,6 +90,12 @@ func main() {
 
 	if err := appconfig.Init(); err != nil {
 		logging.Fatal(err)
+	}
+
+	safego.GlobalRecoverHandler = func(value interface{}) {
+		logging.Error("panic")
+		logging.Error(value)
+		logging.Error(string(debug.Stack()))
 	}
 
 	telemetry.Init(commit, tag, builtAt, viper.GetBool("server.telemetry.disabled.usage"))

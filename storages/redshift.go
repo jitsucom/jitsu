@@ -9,6 +9,7 @@ import (
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/metrics"
+	"github.com/ksensehq/eventnative/safego"
 	"github.com/ksensehq/eventnative/schema"
 	"time"
 )
@@ -81,7 +82,7 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 //2. load them to aws Redshift via Copy request
 //3. delete file from aws s3
 func (ar *AwsRedshift) startBatch() {
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if ar.closed {
 				break
@@ -130,10 +131,9 @@ func (ar *AwsRedshift) startBatch() {
 					logging.Errorf("[%s] System error: file %s wasn't deleted from s3 and will be inserted in db again: %v", ar.Name(), fileKey, err)
 					continue
 				}
-
 			}
 		}
-	}()
+	})
 }
 
 //Insert fact in Redshift

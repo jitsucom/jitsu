@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/appstatus"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/safego"
 	"time"
 )
 
@@ -38,7 +39,7 @@ func Watch(name, source string, loadFunc func(string, string) ([]byte, string, e
 
 func (w *Watcher) watch() {
 	w.download()
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if appstatus.Instance.Idle {
 				break
@@ -48,7 +49,7 @@ func (w *Watcher) watch() {
 
 			w.download()
 		}
-	}()
+	})
 }
 
 func (w *Watcher) download() {

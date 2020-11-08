@@ -3,6 +3,7 @@ package logging
 import (
 	"fmt"
 	"github.com/google/martian/log"
+	"github.com/ksensehq/eventnative/safego"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"os"
@@ -47,14 +48,14 @@ func newRollingWriter(config Config) io.WriteCloser {
 	}
 	rotation := time.Duration(config.RotationMin) * time.Minute
 	ticker := time.NewTicker(rotation)
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			<-ticker.C
 			if err := lWriter.Rotate(); err != nil {
 				log.Errorf("Error rotating log file: %v", err)
 			}
 		}
-	}()
+	})
 
 	return &WriterProxy{lWriter: lWriter}
 }
