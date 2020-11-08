@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
-	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/events"
-	"github.com/ksensehq/eventnative/schema"
+	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/schema"
 	"math/rand"
 )
 

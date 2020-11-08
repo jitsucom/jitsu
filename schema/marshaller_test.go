@@ -1,8 +1,8 @@
 package schema
 
 import (
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/timestamp"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/timestamp"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"

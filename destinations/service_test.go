@@ -2,9 +2,9 @@ package destinations
 
 import (
 	"context"
-	"github.com/ksensehq/eventnative/appconfig"
-	"github.com/ksensehq/eventnative/events"
-	"github.com/ksensehq/eventnative/storages"
+	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/storages"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"net/http"

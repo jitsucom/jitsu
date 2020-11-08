@@ -1,7 +1,7 @@
 version: 2.1
 jobs:
   backend-test:
-    working_directory: /go/src/github.com/ksensehq/eventnative/
+    working_directory: /go/src/github.com/jitsucom/eventnative/
     docker:
       - image: circleci/golang:1.14
     environment:
@@ -27,7 +27,7 @@ jobs:
           paths:
             - "/go/pkg/mod"
   build-latest-docker:
-    working_directory: /go/src/github.com/ksensehq/eventnative/
+    working_directory: /go/src/github.com/jitsucom/eventnative/
     environment:
       IMAGE_NAME: ksense/eventnative
     docker:
@@ -42,7 +42,7 @@ jobs:
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME
   build-tagged-docker:
-    working_directory: /go/src/github.com/ksensehq/eventnative/
+    working_directory: /go/src/github.com/jitsucom/eventnative/
     environment:
       IMAGE_NAME: ksense/eventnative
     docker:

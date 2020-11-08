@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"github.com/ksensehq/eventnative/logging"
+	"github.com/jitsucom/eventnative/logging"
 	"strings"
 )
 

@@ -3,7 +3,7 @@ package logging
 import (
 	"fmt"
 	"github.com/google/martian/log"
-	"github.com/ksensehq/eventnative/safego"
+	"github.com/jitsucom/eventnative/safego"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"os"

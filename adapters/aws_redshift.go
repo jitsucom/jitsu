@@ -3,7 +3,7 @@ package adapters
 import (
 	"context"
 	"fmt"
-	"github.com/ksensehq/eventnative/schema"
+	"github.com/jitsucom/eventnative/schema"
 	_ "github.com/lib/pq"
 )
 

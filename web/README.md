@@ -1,7 +1,7 @@
 # EventNative JavaScript Library
 
 EventNative is an open source, high-performance event collection service. Read more:
-* [Project Github page](https://github.com/ksensehq/eventnative/)
+* [Project Github page](https://github.com/jitsucom/eventnative/)
 * [Javascript integration documentation](https://docs.eventnative.org/javascript-integration)
 
 

@@ -2,7 +2,7 @@ package schema
 
 import (
 	"fmt"
-	"github.com/ksensehq/eventnative/typing"
+	"github.com/jitsucom/eventnative/typing"
 	"strings"
 )
 

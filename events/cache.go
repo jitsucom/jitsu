@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/ksensehq/eventnative/safego"
+	"github.com/jitsucom/eventnative/safego"
 	"sync"
 )
 
