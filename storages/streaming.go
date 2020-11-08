@@ -1,11 +1,11 @@
 package storages
 
 import (
-	"github.com/ksensehq/eventnative/events"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/metrics"
-	"github.com/ksensehq/eventnative/safego"
-	"github.com/ksensehq/eventnative/schema"
+	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/metrics"
+	"github.com/jitsucom/eventnative/safego"
+	"github.com/jitsucom/eventnative/schema"
 	"strings"
 	"time"
 )

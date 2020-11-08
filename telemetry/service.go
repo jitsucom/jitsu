@@ -2,7 +2,7 @@ package telemetry
 
 import (
 	"bytes"
-	"github.com/ksensehq/eventnative/safego"
+	"github.com/jitsucom/eventnative/safego"
 	"net/http"
 	"time"
 )

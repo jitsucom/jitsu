@@ -1,7 +1,7 @@
 package storages
 
 import (
-	"github.com/ksensehq/eventnative/schema"
+	"github.com/jitsucom/eventnative/schema"
 	"github.com/stretchr/testify/require"
 	"testing"
 )

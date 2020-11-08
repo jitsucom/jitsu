@@ -3,7 +3,7 @@ package telemetry
 import (
 	"crypto/md5"
 	"fmt"
-	"github.com/ksensehq/eventnative/timestamp"
+	"github.com/jitsucom/eventnative/timestamp"
 	"net"
 	"strings"
 )

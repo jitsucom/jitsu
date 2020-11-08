@@ -3,9 +3,9 @@ package storages
 import (
 	"context"
 	"fmt"
-	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/events"
-	"github.com/ksensehq/eventnative/schema"
+	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/schema"
 )
 
 //Store files to Postgres in two modes:

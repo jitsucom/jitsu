@@ -17,7 +17,7 @@ var (
 	_ easyjson.Marshaler
 )
 
-func easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo(in *jlexer.Lexer, out *MaxMindResolver) {
+func easyjsonA0535929DecodeGithubComjitsucomEventnativeGeo(in *jlexer.Lexer, out *MaxMindResolver) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -46,7 +46,7 @@ func easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo(in *jlexer.Lexer, out
 		in.Consumed()
 	}
 }
-func easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo(out *jwriter.Writer, in MaxMindResolver) {
+func easyjsonA0535929EncodeGithubComjitsucomEventnativeGeo(out *jwriter.Writer, in MaxMindResolver) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -56,27 +56,27 @@ func easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo(out *jwriter.Writer, 
 // MarshalJSON supports json.Marshaler interface
 func (v MaxMindResolver) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo(&w, v)
+	easyjsonA0535929EncodeGithubComjitsucomEventnativeGeo(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v MaxMindResolver) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo(w, v)
+	easyjsonA0535929EncodeGithubComjitsucomEventnativeGeo(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *MaxMindResolver) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo(&r, v)
+	easyjsonA0535929DecodeGithubComjitsucomEventnativeGeo(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *MaxMindResolver) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo(l, v)
+	easyjsonA0535929DecodeGithubComjitsucomEventnativeGeo(l, v)
 }
-func easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo1(in *jlexer.Lexer, out *DummyResolver) {
+func easyjsonA0535929DecodeGithubComjitsucomEventnativeGeo1(in *jlexer.Lexer, out *DummyResolver) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -105,7 +105,7 @@ func easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo1(in *jlexer.Lexer, ou
 		in.Consumed()
 	}
 }
-func easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo1(out *jwriter.Writer, in DummyResolver) {
+func easyjsonA0535929EncodeGithubComjitsucomEventnativeGeo1(out *jwriter.Writer, in DummyResolver) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -115,27 +115,27 @@ func easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo1(out *jwriter.Writer,
 // MarshalJSON supports json.Marshaler interface
 func (v DummyResolver) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo1(&w, v)
+	easyjsonA0535929EncodeGithubComjitsucomEventnativeGeo1(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v DummyResolver) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo1(w, v)
+	easyjsonA0535929EncodeGithubComjitsucomEventnativeGeo1(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *DummyResolver) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo1(&r, v)
+	easyjsonA0535929DecodeGithubComjitsucomEventnativeGeo1(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *DummyResolver) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo1(l, v)
+	easyjsonA0535929DecodeGithubComjitsucomEventnativeGeo1(l, v)
 }
-func easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo2(in *jlexer.Lexer, out *Data) {
+func easyjsonA0535929DecodeGithubComjitsucomEventnativeGeo2(in *jlexer.Lexer, out *Data) {
 	isTopLevel := in.IsStart()
 	if in.IsNull() {
 		if isTopLevel {
@@ -176,7 +176,7 @@ func easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo2(in *jlexer.Lexer, ou
 		in.Consumed()
 	}
 }
-func easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo2(out *jwriter.Writer, in Data) {
+func easyjsonA0535929EncodeGithubComjitsucomEventnativeGeo2(out *jwriter.Writer, in Data) {
 	out.RawByte('{')
 	first := true
 	_ = first
@@ -242,23 +242,23 @@ func easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo2(out *jwriter.Writer,
 // MarshalJSON supports json.Marshaler interface
 func (v Data) MarshalJSON() ([]byte, error) {
 	w := jwriter.Writer{}
-	easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo2(&w, v)
+	easyjsonA0535929EncodeGithubComjitsucomEventnativeGeo2(&w, v)
 	return w.Buffer.BuildBytes(), w.Error
 }
 
 // MarshalEasyJSON supports easyjson.Marshaler interface
 func (v Data) MarshalEasyJSON(w *jwriter.Writer) {
-	easyjsonA0535929EncodeGithubComKsensehqEventnativeGeo2(w, v)
+	easyjsonA0535929EncodeGithubComjitsucomEventnativeGeo2(w, v)
 }
 
 // UnmarshalJSON supports json.Unmarshaler interface
 func (v *Data) UnmarshalJSON(data []byte) error {
 	r := jlexer.Lexer{Data: data}
-	easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo2(&r, v)
+	easyjsonA0535929DecodeGithubComjitsucomEventnativeGeo2(&r, v)
 	return r.Error()
 }
 
 // UnmarshalEasyJSON supports easyjson.Unmarshaler interface
 func (v *Data) UnmarshalEasyJSON(l *jlexer.Lexer) {
-	easyjsonA0535929DecodeGithubComKsensehqEventnativeGeo2(l, v)
+	easyjsonA0535929DecodeGithubComjitsucomEventnativeGeo2(l, v)
 }

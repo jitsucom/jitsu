@@ -1,4 +1,4 @@
-module github.com/ksensehq/eventnative
+module github.com/jitsucom/eventnative
 
 go 1.14
 

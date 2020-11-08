@@ -1,7 +1,7 @@
 package synchronization
 
 import (
-	"github.com/ksensehq/eventnative/storages"
+	"github.com/jitsucom/eventnative/storages"
 )
 
 type DummyLock struct {

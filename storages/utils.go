@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/schema"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/schema"
 	"strconv"
 	"strings"
 )

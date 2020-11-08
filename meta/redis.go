@@ -3,8 +3,8 @@ package meta
 import (
 	"fmt"
 	"github.com/gomodule/redigo/redis"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/metrics"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/metrics"
 	"strconv"
 	"strings"
 	"time"

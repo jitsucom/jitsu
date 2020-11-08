@@ -1,7 +1,7 @@
 package useragent
 
 import (
-	"github.com/ksensehq/eventnative/test"
+	"github.com/jitsucom/eventnative/test"
 	"testing"
 )
 

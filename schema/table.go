@@ -2,8 +2,8 @@ package schema
 
 import (
 	"fmt"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/typing"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/typing"
 )
 
 type TableNameExtractFunction func(map[string]interface{}) (string, error)

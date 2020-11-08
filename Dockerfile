@@ -17,12 +17,12 @@ FROM main as builder
 RUN apk add git make bash npm
 
 # Copy project
-ADD . /go/src/github.com/ksensehq/eventnative
+ADD . /go/src/github.com/jitsucom/eventnative
 
-RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /go/src/github.com/ksensehq/eventnative
+RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /go/src/github.com/jitsucom/eventnative
 
 # Build
-WORKDIR /go/src/github.com/ksensehq/eventnative
+WORKDIR /go/src/github.com/jitsucom/eventnative
 USER $EVENTNATIVE_USER
 RUN make
 

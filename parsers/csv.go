@@ -3,7 +3,7 @@ package parsers
 import (
 	"encoding/csv"
 	"fmt"
-	"github.com/ksensehq/eventnative/logging"
+	"github.com/jitsucom/eventnative/logging"
 	"io"
 	"strings"
 )

@@ -1,6 +1,6 @@
 package adapters
 
-import "github.com/ksensehq/eventnative/schema"
+import "github.com/jitsucom/eventnative/schema"
 
 type TableManager interface {
 	GetTableSchema(tableName string) (*schema.Table, error)

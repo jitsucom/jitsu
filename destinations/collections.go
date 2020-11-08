@@ -1,6 +1,6 @@
 package destinations
 
-import "github.com/ksensehq/eventnative/events"
+import "github.com/jitsucom/eventnative/events"
 
 //map["tokenId"]map["destination_name"]interface
 //because 1 token id = ∞ storages

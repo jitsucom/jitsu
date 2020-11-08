@@ -1,11 +1,11 @@
 package logfiles
 
 import (
-	"github.com/ksensehq/eventnative/appstatus"
-	"github.com/ksensehq/eventnative/destinations"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/metrics"
-	"github.com/ksensehq/eventnative/safego"
+	"github.com/jitsucom/eventnative/appstatus"
+	"github.com/jitsucom/eventnative/destinations"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/metrics"
+	"github.com/jitsucom/eventnative/safego"
 	"io/ioutil"
 	"os"
 	"path"
