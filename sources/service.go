@@ -11,6 +11,7 @@ import (
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/meta"
 	"github.com/ksensehq/eventnative/metrics"
+	"github.com/ksensehq/eventnative/safego"
 	"github.com/ksensehq/eventnative/storages"
 	"github.com/panjf2000/ants/v2"
 	"github.com/spf13/viper"
@@ -37,6 +38,9 @@ type Service struct {
 	destinationsService *destinations.Service
 	metaStorage         meta.Storage
 	monitorKeeper       storages.MonitorKeeper
+
+	//for locking in single en node setup
+	syncCollectionLocks sync.Map
 
 	closed bool
 }
@@ -112,7 +116,7 @@ func (s *Service) init(sc map[string]drivers.SourceConfig) {
 
 //startMonitoring run goroutine for setting pool size metrics every 20 seconds
 func (s *Service) startMonitoring() {
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if s.closed {
 				break
@@ -123,7 +127,7 @@ func (s *Service) startMonitoring() {
 
 			time.Sleep(20 * time.Second)
 		}
-	}()
+	})
 }
 
 func (s *Service) Sync(sourceId string) (multiErr error) {
@@ -156,6 +160,13 @@ func (s *Service) Sync(sourceId string) (multiErr error) {
 	}
 
 	for collection, driver := range sourceUnit.DriverPerCollection {
+		identifier := sourceId + "_" + collection
+		_, loaded := s.syncCollectionLocks.LoadOrStore(identifier, true)
+		if loaded {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("Error local locking [%s] source [%s] collection: already locked", sourceId, collection))
+			continue
+		}
+
 		collectionLock, err := s.monitorKeeper.Lock(sourceId, collection)
 		if err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("Error locking [%s] source [%s] collection: %v", sourceId, collection, err))
@@ -165,7 +176,7 @@ func (s *Service) Sync(sourceId string) (multiErr error) {
 		err = s.pool.Invoke(SyncTask{
 			sourceId:     sourceId,
 			collection:   collection,
-			identifier:   sourceId + "_" + collection,
+			identifier:   identifier,
 			driver:       driver,
 			metaStorage:  s.metaStorage,
 			destinations: destinationStorages,
@@ -233,6 +244,7 @@ func (s *Service) syncCollection(i interface{}) {
 		return
 	}
 
+	defer s.syncCollectionLocks.Delete(synctTask.identifier)
 	synctTask.Sync()
 }
 

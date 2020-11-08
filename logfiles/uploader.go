@@ -5,6 +5,7 @@ import (
 	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/metrics"
+	"github.com/ksensehq/eventnative/safego"
 	"io/ioutil"
 	"os"
 	"path"
@@ -42,7 +43,7 @@ func NewUploader(logEventPath, fileMask string, uploadEveryS int, destinationSer
 //pass them to storages according to tokens
 //keep uploading log statuses file for every event log file
 func (u *PeriodicUploader) Start() {
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if appstatus.Instance.Idle {
 				break
@@ -118,5 +119,5 @@ func (u *PeriodicUploader) Start() {
 
 			time.Sleep(u.uploadEvery)
 		}
-	}()
+	})
 }

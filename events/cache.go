@@ -1,6 +1,9 @@
 package events
 
-import "sync"
+import (
+	"github.com/ksensehq/eventnative/safego"
+	"sync"
+)
 
 //CachedFact is channel holder for key and value
 type CachedFact struct {
@@ -87,7 +90,7 @@ func NewCache(capacityPerKey int) *Cache {
 
 //start goroutine for reading from putCh and put to cache (async put)
 func (c *Cache) start() {
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if c.closed {
 				break
@@ -98,7 +101,7 @@ func (c *Cache) start() {
 				c.Put(cf.key, cf.fact)
 			}
 		}
-	}()
+	})
 }
 
 //PutAsync put value into channel
