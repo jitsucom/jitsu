@@ -87,6 +87,12 @@ func (chc *ClickHouseConfig) Validate() error {
 		return errors.New("dsn is required parameter")
 	}
 
+	for _, dsn := range chc.Dsns {
+		if !strings.HasPrefix(dsn, "http") {
+			return errors.New("DSNs must have http:// or https:// prefix")
+		}
+	}
+
 	if chc.Cluster == "" && len(chc.Dsns) > 1 {
 		return errors.New("cluster is required parameter when dsns count > 1")
 	}
