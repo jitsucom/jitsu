@@ -7,6 +7,7 @@ import (
 	"github.com/coreos/etcd/clientv3/concurrency"
 	"github.com/ksensehq/eventnative/cluster"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/safego"
 	"github.com/ksensehq/eventnative/storages"
 	"io"
 	"strconv"
@@ -138,7 +139,7 @@ func (es *EtcdService) GetInstances() ([]string, error) {
 
 //starts a new goroutine for pushing serverName every 90 seconds to etcd with 120 seconds Lease
 func (es *EtcdService) startHeartBeating() {
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if es.closed {
 				break
@@ -153,7 +154,7 @@ func (es *EtcdService) startHeartBeating() {
 
 			time.Sleep(90 * time.Second)
 		}
-	}()
+	})
 }
 
 func (es *EtcdService) heartBeat() error {

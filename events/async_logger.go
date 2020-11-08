@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/safego"
 	"io"
 )
 
@@ -32,7 +33,7 @@ func (al *AsyncLogger) Close() (resultErr error) {
 func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) Consumer {
 	logger := &AsyncLogger{writer: writer, logCh: make(chan Fact, 20000), showInGlobalLogger: showInGlobalLogger}
 
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			fact := <-logger.logCh
 			bts, err := json.Marshal(fact)
@@ -54,7 +55,7 @@ func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) Consumer {
 				continue
 			}
 		}
-	}()
+	})
 
 	return logger
 }
