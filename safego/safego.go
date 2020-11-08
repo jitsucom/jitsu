@@ -14,7 +14,7 @@ type Execution struct {
 }
 
 //RunWithRestart run a new goroutine and add panic handler:
-//write logs, wait 3 seconds and restart the goroutine
+//write logs, wait 2 seconds and restart the goroutine
 func RunWithRestart(f func()) *Execution {
 	exec := Execution{
 		f:              f,
