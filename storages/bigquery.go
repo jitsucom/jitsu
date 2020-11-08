@@ -10,6 +10,7 @@ import (
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/metrics"
+	"github.com/ksensehq/eventnative/safego"
 	"github.com/ksensehq/eventnative/schema"
 	"time"
 )
@@ -80,7 +81,7 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 //2. load them to BigQuery via google api
 //3. delete file from google cloud storage
 func (bq *BigQuery) startBatch() {
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if bq.closed {
 				break
@@ -119,7 +120,7 @@ func (bq *BigQuery) startBatch() {
 				}
 			}
 		}
-	}()
+	})
 }
 
 //Insert fact in BigQuery

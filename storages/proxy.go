@@ -3,6 +3,7 @@ package storages
 import (
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
+	"github.com/ksensehq/eventnative/safego"
 	"sync"
 	"time"
 )
@@ -19,12 +20,12 @@ type RetryableProxy struct {
 
 func newProxy(factoryMethod func(*Config) (events.Storage, error), config *Config) events.StorageProxy {
 	rsp := &RetryableProxy{factoryMethod: factoryMethod, config: config}
-	go rsp.start()
+	rsp.start()
 	return rsp
 }
 
 func (rsp *RetryableProxy) start() {
-	go func() {
+	safego.RunWithRestart(func() {
 		for {
 			if rsp.closed {
 				break
@@ -46,7 +47,7 @@ func (rsp *RetryableProxy) start() {
 
 			break
 		}
-	}()
+	})
 }
 
 func (rsp *RetryableProxy) Get() (events.Storage, bool) {
