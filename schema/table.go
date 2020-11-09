@@ -54,7 +54,6 @@ func (t *Table) Exists() bool {
 // Return schema to add to current schema (for being equal) or empty if
 // 1) another one is empty
 // 2) all fields from another schema exist in current schema
-// 3) primary key is the same at both schemas
 // Return err if another newType can't be cast to current type (column type changing case)
 func (t Table) Diff(another *Table) (*Table, error) {
 	diff := &Table{Name: t.Name, Columns: Columns{}}
