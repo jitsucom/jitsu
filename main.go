@@ -116,11 +116,11 @@ func main() {
 		<-c
 		logging.Info("* Service is shutting down.. *")
 		telemetry.ServerStop()
-		notifications.Close()
 		appstatus.Instance.Idle = true
 		cancel()
 		appconfig.Instance.Close()
 		telemetry.Flush()
+		notifications.Close()
 		time.Sleep(3 * time.Second)
 		telemetry.Close()
 		os.Exit(0)
