@@ -151,6 +151,6 @@ synchronization_service: #Optional. This parameter is required in cluster deploy
   endpoint: http://your_etcd_host
   connection_timeout_seconds: 60 #optional.
 
-notifications: #optional. If configured - all system errors will be sent to notifier
+notifications: #optional. If configured - server starts, all system errors and panics info will be sent to notifier
   slack:
-    url: https://webhook_url #web hook url for sending notifications about system errors
+    url: https://webhook_url

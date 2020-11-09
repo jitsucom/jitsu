@@ -35,7 +35,7 @@ func (c Config) Validate() error {
 }
 
 //Initialize main logger
-//Global logger writes logs and send system error notifications
+//Global logger writes logs and sends system error notifications
 func InitGlobalLogger(config Config) error {
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("Error while creating global logger: %v", err)
