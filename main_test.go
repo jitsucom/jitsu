@@ -2,9 +2,9 @@ package main
 
 import (
 	"bytes"
-	"github.com/gin-gonic/gin/binding"
 	"context"
 	"fmt"
+	"github.com/gin-gonic/gin/binding"
 	"github.com/ksensehq/eventnative/destinations"
 	"github.com/ksensehq/eventnative/events"
 	"github.com/ksensehq/eventnative/logging"
@@ -268,10 +268,19 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	err = appconfig.Init()
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
-	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", &synchronization.Dummy{}, storages.Create)
+	monitor := &synchronization.Dummy{}
+	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", monitor, storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
-	router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5))
+	// NewService(ctx context.Context, sources *viper.Viper, destinationsService *destinations.Service,
+	//	metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper, poolSize int) (*Service, error)
+	//metastorage, err := storage.NewMetaStore("")
+	//require.NoError(t, err)
+	//sourcesService, err := sources.NewService(ctx, viper.GetViper(), dest, &meta.Dummy{}, monitor, 0)
+	//require.NoError(t, err)
+	//sourcesService := sources.NewTestService()
+	//router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5), sourcesService)
+	router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5), sources.NewTestService())
 
 	server := &http.Server{
 		Addr:              httpAuthority,
@@ -289,9 +298,9 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
 	requestValue := []byte(`{"email": "test@domain.com"}`)
-	apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
-	require.NoError(t, err)
 	for i := 0; i < 5; i++ {
+		apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
+		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(apiReq)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
@@ -366,7 +375,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", &synchronization.Dummy{}, storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
-	router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5))
+	router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5), sources.NewTestService())
 
 	server := &http.Server{
 		Addr:              httpAuthority,
@@ -384,9 +393,9 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
 	requestValue := []byte(`{"email": "test@domain.com", "key": 1}`)
-	apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
-	require.NoError(t, err)
 	for i := 0; i < 5; i++ {
+		apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
+		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(apiReq)
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
