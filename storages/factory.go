@@ -38,6 +38,7 @@ type DataLayout struct {
 	MappingType       schema.FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
 	Mapping           []string                `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 	TableNameTemplate string                  `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
+	PrimaryKeyFields  []string                `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
 }
 
 type Config struct {
@@ -62,6 +63,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 
 	var mapping []string
 	var tableName string
+	var pkFieldsList []string
 	mappingFieldType := schema.Default
 	if destination.DataLayout != nil {
 		mappingFieldType = destination.DataLayout.MappingType
@@ -70,6 +72,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		if destination.DataLayout.TableNameTemplate != "" {
 			tableName = destination.DataLayout.TableNameTemplate
 		}
+		pkFieldsList = destination.DataLayout.PrimaryKeyFields
 	}
 
 	logging.Infof("[%s] Initializing destination of type: %s in mode: %s", name, destination.Type, destination.Mode)
@@ -91,8 +94,11 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	if destination.Mode != BatchMode && destination.Mode != StreamMode {
 		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
 	}
-
-	processor, err := schema.NewProcessor(tableName, mapping, mappingFieldType)
+	pkFields := map[string]bool{}
+	for _, field := range pkFieldsList {
+		pkFields[field] = true
+	}
+	processor, err := schema.NewProcessor(tableName, mapping, mappingFieldType, pkFields)
 	if err != nil {
 		return nil, nil, err
 	}

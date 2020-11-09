@@ -28,10 +28,24 @@ const (
   							AND  pg_namespace.nspname = $1
   							AND pg_class.relname = $2
   							AND pg_attribute.attnum > 0`
+	primaryKeyFieldsQuery = `SELECT
+							pg_attribute.attname
+						FROM pg_index, pg_class, pg_attribute, pg_namespace
+						WHERE
+								pg_class.oid = $2::regclass AND
+								indrelid = pg_class.oid AND
+								nspname = $1 AND
+								pg_class.relnamespace = pg_namespace.oid AND
+								pg_attribute.attrelid = pg_class.oid AND
+								pg_attribute.attnum = any(pg_index.indkey)
+					  	AND indisprimary`
 	createDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS "%s"`
 	addColumnTemplate                 = `ALTER TABLE "%s"."%s" ADD COLUMN %s %s`
+	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT IF EXISTS %s"
+	alterPrimaryKeyTemplate           = `ALTER TABLE "%s"."%s" ADD CONSTRAINT %s PRIMARY KEY (%s)`
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
+	mergeTemplate                     = `INSERT INTO %s.%s(%s) VALUES(%s) ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
 )
 
 var (
@@ -157,7 +171,7 @@ func (p *Postgres) PatchTableSchema(patchSchema *schema.Table) error {
 
 //GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
 func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
-	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
+	table := &schema.Table{Name: tableName, Columns: schema.Columns{}, PKFields: map[string]bool{}}
 	rows, err := p.dataSource.QueryContext(p.ctx, tableSchemaQuery, p.config.Schema, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
@@ -183,6 +197,29 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)
+	}
+	if !table.Exists() {
+		return table, nil
+	}
+
+	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("error querying primary keys for [%s.%s] schema: %v", p.config.Schema, tableName, err)
+	}
+	defer pkFieldsRows.Close()
+	var pkFields []string
+	for pkFieldsRows.Next() {
+		var fieldName string
+		if err := pkFieldsRows.Scan(&fieldName); err != nil {
+			return nil, fmt.Errorf("error scanning primary key result: %v", err)
+		}
+		pkFields = append(pkFields, fieldName)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("pk last rows.Err: %v", err)
+	}
+	for _, field := range pkFields {
+		table.PKFields[field] = true
 	}
 
 	return table, nil
@@ -235,7 +272,43 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, mappedColumnType, err)
 		}
 	}
+	return wrappedTx.tx.Commit()
+}
 
+func (p *Postgres) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	constraint := buildConstraintName(p.config.Schema, patchTableSchema.Name)
+
+	if len(patchConstraint.PKFields) > 0 || patchConstraint.Remove {
+		dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, patchTableSchema.Name, constraint))
+		if err != nil {
+			wrappedTx.tx.Rollback()
+			return fmt.Errorf("failed to prepare statement to drop primary key for table %s: %v", patchTableSchema.Name, err)
+		}
+		_, err = dropPKStmt.ExecContext(p.ctx)
+		if err != nil {
+			wrappedTx.Rollback()
+			return fmt.Errorf("failed to drop primary key constraint for table %s: %v", patchTableSchema.Name, err)
+		}
+	}
+
+	if len(patchConstraint.PKFields) > 0 {
+		alterConstraintStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(alterPrimaryKeyTemplate,
+			p.config.Schema, patchTableSchema.Name, constraint, strings.Join(schema.PkToFieldsArray(patchConstraint.PKFields), ",")))
+		if err != nil {
+			wrappedTx.Rollback()
+			return fmt.Errorf("error preparing primary key setting to table %s: %v", patchTableSchema.Name, err)
+		}
+		_, err = alterConstraintStmt.ExecContext(p.ctx)
+		if err != nil {
+			wrappedTx.Rollback()
+			return fmt.Errorf("error setting primary key %s table: %v", patchTableSchema.Name, err)
+		}
+	}
 	return wrappedTx.tx.Commit()
 }
 
@@ -254,7 +327,7 @@ func (p *Postgres) Insert(schema *schema.Table, valuesMap map[string]interface{}
 	return wrappedTx.DirectCommit()
 }
 
-func (p *Postgres) InsertInTransaction(wrappedTx *Transaction, schema *schema.Table, valuesMap map[string]interface{}) error {
+func (p *Postgres) InsertInTransaction(wrappedTx *Transaction, table *schema.Table, valuesMap map[string]interface{}) error {
 	var header, placeholders string
 	var values []interface{}
 	i := 1
@@ -268,18 +341,39 @@ func (p *Postgres) InsertInTransaction(wrappedTx *Transaction, schema *schema.Ta
 
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
-
-	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(insertTemplate, p.config.Schema, schema.Name, header, placeholders))
+	query := p.insertQuery(schema.PkToFieldsArray(table.PKFields), table.Name, header, placeholders)
+	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
-		return fmt.Errorf("Error preparing insert table %s statement: %v", schema.Name, err)
+		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)
 	}
 
 	_, err = insertStmt.ExecContext(p.ctx, values...)
 	if err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", schema.Name, header, values, err)
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", table.Name, header, values, err)
 	}
 
 	return nil
+}
+
+func (p *Postgres) insertQuery(pkFields []string, tableName string, header string, placeholders string) string {
+	if len(pkFields) == 0 {
+		return fmt.Sprintf(insertTemplate, p.config.Schema, tableName, header, placeholders)
+	} else {
+		return fmt.Sprintf(mergeTemplate, p.config.Schema, tableName, header, placeholders, buildConstraintName(p.config.Schema, tableName), updateSection(header))
+	}
+}
+
+func buildConstraintName(schemaName string, tableName string) string {
+	return schemaName + "_" + tableName + "_pk"
+}
+
+func updateSection(header string) string {
+	split := strings.Split(header, ",")
+	var result string
+	for i, columnName := range split {
+		result = strings.TrimSpace(result) + columnName + "=$" + strconv.Itoa(i+1) + ","
+	}
+	return removeLastComma(result)
 }
 
 //TablesList return slice of postgres table names

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/typing"
+	"reflect"
 )
 
 type TableNameExtractFunction func(map[string]interface{}) (string, error)
@@ -38,9 +39,10 @@ func (c Columns) Header() (header []string) {
 }
 
 type Table struct {
-	Name    string
-	Columns Columns
-	Version int64
+	Name     string
+	Columns  Columns
+	PKFields map[string]bool
+	Version  int64
 }
 
 //Return true if there is at least one column
@@ -69,8 +71,53 @@ func (t Table) Diff(another *Table) (*Table, error) {
 			diff.Columns[name] = column
 		}
 	}
-
 	return diff, nil
+}
+
+func (t Table) PrimaryKeyFieldsEqual(another *Table) bool {
+	return reflect.DeepEqual(t.PKFields, another.PKFields)
+}
+
+type PKFieldsPatch struct {
+	PKFields map[string]bool
+	Remove   bool
+}
+
+func NewPkFieldsPatch(oldSchema *Table, newSchema *Table) *PKFieldsPatch {
+	fieldsPatch := map[string]bool{}
+	if !oldSchema.PrimaryKeyFieldsEqual(newSchema) {
+		fieldsPatch = newSchema.PKFields
+	}
+	removeKey := false
+	if len(oldSchema.PKFields) > 0 && len(newSchema.PKFields) == 0 {
+		removeKey = true
+	}
+	return &PKFieldsPatch{PKFields: fieldsPatch, Remove: removeKey}
+}
+
+// Return true if there is at least one field as a part of primary key
+func (p *PKFieldsPatch) Exists() bool {
+	return len(p.PKFields) > 0 || p.Remove
+}
+
+func (p *PKFieldsPatch) ToFieldsArray() []string {
+	var fieldsList []string
+	for field, isKeyField := range p.PKFields {
+		if isKeyField {
+			fieldsList = append(fieldsList, field)
+		}
+	}
+	return fieldsList
+}
+
+func PkToFieldsArray(pkFields map[string]bool) []string {
+	var fieldsList []string
+	for field, isKeyField := range pkFields {
+		if isKeyField {
+			fieldsList = append(fieldsList, field)
+		}
+	}
+	return fieldsList
 }
 
 type Column struct {
