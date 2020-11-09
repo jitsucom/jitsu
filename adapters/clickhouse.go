@@ -422,6 +422,11 @@ func (ch *ClickHouse) InsertInTransaction(wrappedTx *Transaction, schema *schema
 	return nil
 }
 
+func (ch *ClickHouse) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
+	logging.Warn("Constraints update is not supported for Snowflake yet")
+	return nil
+}
+
 //Close underlying sql.DB
 func (ch *ClickHouse) Close() error {
 	if err := ch.dataSource.Close(); err != nil {

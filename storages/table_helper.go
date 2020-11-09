@@ -49,9 +49,10 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *schema.Ta
 	if err != nil {
 		return nil, err
 	}
+	pkPatch := schema.NewPkFieldsPatch(dbTableSchema, dataSchema)
 
 	//if diff doesn't exist - do nothing
-	if !schemaDiff.Exists() {
+	if !schemaDiff.Exists() && !pkPatch.Exists() {
 		return dbTableSchema, nil
 	}
 
@@ -80,28 +81,43 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *schema.Ta
 		if err != nil {
 			return nil, err
 		}
+		pkPatch = schema.NewPkFieldsPatch(dbTableSchema, dataSchema)
 	}
 
 	//check if newSchemaDiff doesn't exist - do nothing
-	if !schemaDiff.Exists() {
+	if !schemaDiff.Exists() && !pkPatch.Exists() {
 		return dbTableSchema, nil
 	}
 
 	//patch and increment table version
-	if err := th.manager.PatchTableSchema(schemaDiff); err != nil {
-		return nil, err
+	if schemaDiff.Exists() {
+		if err := th.manager.PatchTableSchema(schemaDiff); err != nil {
+			return nil, err
+		}
+
+		newVersion, err := th.monitorKeeper.IncrementVersion(destinationName, dbTableSchema.Name)
+		if err != nil {
+			return nil, fmt.Errorf("Error incrementing version in storage [%s]: %v", th.storageType, err)
+		}
+
+		//Save
+		for k, v := range schemaDiff.Columns {
+			dbTableSchema.Columns[k] = v
+		}
+		dbTableSchema.Version = newVersion
 	}
 
-	newVersion, err := th.monitorKeeper.IncrementVersion(destinationName, dbTableSchema.Name)
-	if err != nil {
-		return nil, fmt.Errorf("Error incrementing version in storage [%s]: %v", th.storageType, err)
+	if pkPatch.Exists() {
+		if err := th.manager.UpdatePrimaryKey(dbTableSchema, pkPatch); err != nil {
+			return nil, fmt.Errorf("Failed to update primary key for [%s]: %v", th.storageType, err)
+		}
+		newVersion, err := th.monitorKeeper.IncrementVersion(destinationName, dbTableSchema.Name)
+		if err != nil {
+			return nil, fmt.Errorf("Error incrementing version in storage [%s]: %v", th.storageType, err)
+		}
+		dbTableSchema.PKFields = pkPatch.PKFields
+		dbTableSchema.Version = newVersion
 	}
-
-	//Save
-	for k, v := range schemaDiff.Columns {
-		dbTableSchema.Columns[k] = v
-	}
-	dbTableSchema.Version = newVersion
 
 	return dbTableSchema, nil
 }
@@ -131,8 +147,11 @@ func (th *TableHelper) getOrCreate(destinationName string, dataSchema *schema.Ta
 			return nil, fmt.Errorf("Error incrementing version of table %s in %s: %v", dataSchema.Name, th.storageType, err)
 		}
 
-		dbTableSchema = dataSchema
+		dbTableSchema.Name = dataSchema.Name
+		dbTableSchema.Columns = dataSchema.Columns
 		dbTableSchema.Version = ver
+		// Setting primary key fields as empty to initialize at EnsureTable() later
+		dbTableSchema.PKFields = map[string]bool{}
 	} else {
 		ver, err := th.monitorKeeper.GetVersion(destinationName, dbTableSchema.Name)
 		if err != nil {
