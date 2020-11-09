@@ -298,6 +298,11 @@ func (s *Snowflake) InsertInTransaction(wrappedTx *Transaction, schema *schema.T
 	return nil
 }
 
+func (s *Snowflake) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
+	logging.Warn("Constraints update is not supported for Snowflake yet")
+	return nil
+}
+
 //Close underlying sql.DB
 func (s *Snowflake) Close() (multiErr error) {
 	return s.dataSource.Close()

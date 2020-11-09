@@ -183,6 +183,11 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
 	return nil
 }
 
+func (bq *BigQuery) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
+	logging.Warn("Constraints update is not supported for BigQuery yet")
+	return nil
+}
+
 func (bq *BigQuery) Close() error {
 	return bq.client.Close()
 }
