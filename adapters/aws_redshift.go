@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
 	_ "github.com/lib/pq"
 )
@@ -108,7 +109,8 @@ func (ar *AwsRedshift) CreateTable(tableSchema *schema.Table) error {
 }
 
 func (ar *AwsRedshift) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
-	return ar.dataSourceProxy.UpdatePrimaryKey(patchTableSchema, patchConstraint)
+	logging.Warn("Constraints update is not supported for Redshift yet")
+	return nil
 }
 
 //Close underlying sql.DB
