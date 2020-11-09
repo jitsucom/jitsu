@@ -21,13 +21,13 @@ func TestHandlePanicAndRestart(t *testing.T) {
 	RunWithRestart(func() {
 		counter++
 		panic("panic")
-	})
+	}).WithRestartTimeout(time.Millisecond)
 
-	time.Sleep(1 * time.Second)
-	require.Equal(t, 1, counter, "counter must be 1")
+	time.Sleep(2 * time.Millisecond)
+	require.True(t, counter > 1, "counter must be > 1")
 
-	time.Sleep(2 * time.Second)
-	require.True(t, counter > 1, "counter must be 2")
+	time.Sleep(2 * time.Millisecond)
+	require.True(t, counter > 2, "counter must be > 2")
 
 	if counter == 0 {
 		t.Fail()

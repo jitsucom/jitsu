@@ -47,7 +47,7 @@ func (rsp *RetryableProxy) start() {
 
 			break
 		}
-	})
+	}).WithRestartTimeout(1 * time.Minute)
 }
 
 func (rsp *RetryableProxy) Get() (events.Storage, bool) {
