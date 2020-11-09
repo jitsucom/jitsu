@@ -115,7 +115,7 @@ func (st *SyncTask) Sync() {
 		}
 
 		if err := st.metaStorage.SaveSignature(st.sourceId, st.collection, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
-			logging.Errorf("System error saving source [%s] collection [%s] signature: %v", st.sourceId, st.collection, err)
+			logging.SystemErrorf("Unable to save source [%s] collection [%s] signature: %v", st.sourceId, st.collection, err)
 		}
 
 		strLogger.Infof("[%s] Interval [%s] has been synchronized!", st.identifier, intervalToSync.String())
@@ -129,10 +129,10 @@ func (st *SyncTask) Sync() {
 
 func (st *SyncTask) updateCollectionStatus(status, logs string) {
 	if err := st.metaStorage.SaveCollectionStatus(st.sourceId, st.collection, status); err != nil {
-		logging.Errorf("System error updating source [%s] collection [%s] status in storage: %v", st.sourceId, st.collection, err)
+		logging.SystemErrorf("Unable to update source [%s] collection [%s] status in storage: %v", st.sourceId, st.collection, err)
 	}
 	if err := st.metaStorage.SaveCollectionLog(st.sourceId, st.collection, logs); err != nil {
-		logging.Errorf("System error updating source [%s] collection [%s] log in storage: %v", st.sourceId, st.collection, err)
+		logging.SystemErrorf("Unable to update source [%s] collection [%s] log in storage: %v", st.sourceId, st.collection, err)
 	}
 }
 

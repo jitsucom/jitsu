@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gookit/color"
+	"github.com/ksensehq/eventnative/notifications"
 	"log"
 	"strings"
 )
@@ -34,6 +35,7 @@ func (c Config) Validate() error {
 }
 
 //Initialize main logger
+//Global logger writes logs and send system error notifications
 func InitGlobalLogger(config Config) error {
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("Error while creating global logger: %v", err)
@@ -46,6 +48,17 @@ func InitGlobalLogger(config Config) error {
 	log.SetFlags(log.Ldate | log.Ltime | log.LUTC)
 
 	return nil
+}
+
+func SystemErrorf(format string, v ...interface{}) {
+	SystemError(fmt.Sprintf(format, v...))
+}
+
+func SystemError(v ...interface{}) {
+	msg := []interface{}{"System error:"}
+	msg = append(msg, v...)
+	Error(msg...)
+	notifications.SystemError(msg...)
 }
 
 func Errorf(format string, v ...interface{}) {
