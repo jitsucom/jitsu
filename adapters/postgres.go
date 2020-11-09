@@ -32,7 +32,7 @@ const (
 							pg_attribute.attname
 						FROM pg_index, pg_class, pg_attribute, pg_namespace
 						WHERE
-								pg_class.oid = $2::regclass AND
+								pg_class.oid = $1.$2::regclass AND
 								indrelid = pg_class.oid AND
 								nspname = $1 AND
 								pg_class.relnamespace = pg_namespace.oid AND
