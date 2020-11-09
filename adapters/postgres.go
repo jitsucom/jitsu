@@ -171,7 +171,7 @@ func (p *Postgres) PatchTableSchema(patchSchema *schema.Table) error {
 
 //GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
 func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
-	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
+	table := &schema.Table{Name: tableName, Columns: schema.Columns{}, PKFields: map[string]bool{}}
 	rows, err := p.dataSource.QueryContext(p.ctx, tableSchemaQuery, p.config.Schema, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
@@ -218,7 +218,9 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("pk last rows.Err: %v", err)
 	}
-	table.PKFields = pkFields
+	for _, field := range pkFields {
+		table.PKFields[field] = true
+	}
 
 	return table, nil
 }
@@ -248,13 +250,6 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema 
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error creating [%s] table: %v", tableSchema.Name, err)
 	}
-
-	if len(tableSchema.PKFields) > 0 {
-		if err = p.alterPrimaryKey(wrappedTx, tableSchema, true); err != nil {
-			wrappedTx.Rollback()
-			return err
-		}
-	}
 	return wrappedTx.tx.Commit()
 }
 
@@ -277,42 +272,44 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, mappedColumnType, err)
 		}
 	}
-	// PKFields of the diff set to nil when no modification required. If the value is an empty array, it means that
-	// old primary key should be removed and no new created (primary key removal)
-	if patchSchema.PKFields != nil {
-		if err := p.alterPrimaryKey(wrappedTx, patchSchema, false); err != nil {
-			wrappedTx.Rollback()
-			return err
-		}
-	}
-
 	return wrappedTx.tx.Commit()
 }
 
-func (p *Postgres) alterPrimaryKey(wrappedTx *Transaction, patchSchema *schema.Table, initial bool) error {
-	constraint := pkFieldsToConstraint(p.config.Schema, patchSchema.Name)
-	if !initial {
-		dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, patchSchema.Name, constraint))
+func (p *Postgres) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	constraint := buildConstraintName(p.config.Schema, patchTableSchema.Name)
+
+	if len(patchConstraint.PKFields) > 0 || patchConstraint.Remove {
+		dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, patchTableSchema.Name, constraint))
 		if err != nil {
-			return fmt.Errorf("failed to prepare statement to drop primary key for table %s: %v", patchSchema.Name, err)
+			wrappedTx.tx.Rollback()
+			return fmt.Errorf("failed to prepare statement to drop primary key for table %s: %v", patchTableSchema.Name, err)
 		}
 		_, err = dropPKStmt.ExecContext(p.ctx)
 		if err != nil {
-			return fmt.Errorf("failed to drop primary key constraint for table %s: %v", patchSchema.Name, err)
+			wrappedTx.Rollback()
+			return fmt.Errorf("failed to drop primary key constraint for table %s: %v", patchTableSchema.Name, err)
 		}
 	}
 
-	if len(patchSchema.PKFields) > 0 {
-		alterConstraintStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(alterPrimaryKeyTemplate, p.config.Schema, patchSchema.Name, constraint, strings.Join(patchSchema.PKFields, ",")))
+	if len(patchConstraint.PKFields) > 0 {
+		alterConstraintStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(alterPrimaryKeyTemplate,
+			p.config.Schema, patchTableSchema.Name, constraint, strings.Join(schema.PkToFieldsArray(patchConstraint.PKFields), ",")))
 		if err != nil {
-			return fmt.Errorf("error preparing primary key setting to table %s: %v", patchSchema.Name, err)
+			wrappedTx.Rollback()
+			return fmt.Errorf("error preparing primary key setting to table %s: %v", patchTableSchema.Name, err)
 		}
 		_, err = alterConstraintStmt.ExecContext(p.ctx)
 		if err != nil {
-			return fmt.Errorf("error setting primary key %s table: %v", patchSchema.Name, err)
+			wrappedTx.Rollback()
+			return fmt.Errorf("error setting primary key %s table: %v", patchTableSchema.Name, err)
 		}
 	}
-	return nil
+	return wrappedTx.tx.Commit()
 }
 
 //Insert provided object in postgres
@@ -344,7 +341,7 @@ func (p *Postgres) InsertInTransaction(wrappedTx *Transaction, table *schema.Tab
 
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
-	query := p.insertQuery(table.PKFields, table.Name, header, placeholders)
+	query := p.insertQuery(schema.PkToFieldsArray(table.PKFields), table.Name, header, placeholders)
 	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)
@@ -362,11 +359,11 @@ func (p *Postgres) insertQuery(pkFields []string, tableName string, header strin
 	if len(pkFields) == 0 {
 		return fmt.Sprintf(insertTemplate, p.config.Schema, tableName, header, placeholders)
 	} else {
-		return fmt.Sprintf(mergeTemplate, p.config.Schema, tableName, header, placeholders, pkFieldsToConstraint(p.config.Schema, tableName), updateSection(header))
+		return fmt.Sprintf(mergeTemplate, p.config.Schema, tableName, header, placeholders, buildConstraintName(p.config.Schema, tableName), updateSection(header))
 	}
 }
 
-func pkFieldsToConstraint(schemaName string, tableName string) string {
+func buildConstraintName(schemaName string, tableName string) string {
 	return schemaName + "_" + tableName + "_pk"
 }
 

@@ -23,7 +23,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	pgParams["sslmode"] = "disable"
 
 	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: container.Port, Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: pgParams}
-	processor, err := schema.NewProcessor("users", []string{}, "", []string{})
+	processor, err := schema.NewProcessor("users", []string{}, "", map[string]bool{})
 	if err != nil {
 		panic(err)
 	}
@@ -41,7 +41,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	columns["name"] = schema.NewColumn(typing.STRING)
 
 	// all events should be merged as have the same PK value
-	tableWithMerge := &schema.Table{Name: "users", Version: 1, Columns: columns, PKFields: []string{"email"}}
+	tableWithMerge := &schema.Table{Name: "users", Version: 1, Columns: columns, PKFields: map[string]bool{"email": true}}
 	for i := 0; i < 5; i++ {
 		err = pg.Insert(tableWithMerge, data)
 		if err != nil {
@@ -53,7 +53,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	require.Equal(t, 1, rowsUnique)
 
 	// Update schema removing primary keys. Now each event should be stored
-	table := &schema.Table{Name: "users", Version: 1, Columns: columns, PKFields: []string{}}
+	table := &schema.Table{Name: "users", Version: 1, Columns: columns, PKFields: map[string]bool{}}
 	for i := 0; i < 5; i++ {
 		err = pg.Insert(table, data)
 		if err != nil {

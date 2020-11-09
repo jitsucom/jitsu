@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/typing"
-	"sort"
+	"reflect"
 )
 
 type TableNameExtractFunction func(map[string]interface{}) (string, error)
@@ -41,13 +41,13 @@ func (c Columns) Header() (header []string) {
 type Table struct {
 	Name     string
 	Columns  Columns
-	PKFields []string
+	PKFields map[string]bool
 	Version  int64
 }
 
 //Return true if there is at least one column
 func (t *Table) Exists() bool {
-	return t != nil && (len(t.Columns) > 0 || t.PKFields != nil)
+	return t != nil && len(t.Columns) > 0
 }
 
 // Diff calculates diff between current schema and another one.
@@ -57,7 +57,7 @@ func (t *Table) Exists() bool {
 // 3) primary key is the same at both schemas
 // Return err if another newType can't be cast to current type (column type changing case)
 func (t Table) Diff(another *Table) (*Table, error) {
-	diff := &Table{Name: t.Name, Columns: Columns{}, PKFields: nil}
+	diff := &Table{Name: t.Name, Columns: Columns{}}
 
 	if another == nil || len(another.Columns) == 0 {
 		return diff, nil
@@ -72,29 +72,53 @@ func (t Table) Diff(another *Table) (*Table, error) {
 			diff.Columns[name] = column
 		}
 	}
-	if !primaryKeyFieldsEqual(t.PKFields, another.PKFields) {
-		if len(another.PKFields) == 0 {
-			diff.PKFields = []string{}
-		} else {
-			diff.PKFields = another.PKFields
-		}
-	}
-
 	return diff, nil
 }
 
-func primaryKeyFieldsEqual(oldFields []string, newFields []string) bool {
-	if len(oldFields) != len(newFields) {
-		return false
+func (t Table) PrimaryKeyFieldsEqual(another *Table) bool {
+	return reflect.DeepEqual(t.PKFields, another.PKFields)
+}
+
+type PKFieldsPatch struct {
+	PKFields map[string]bool
+	Remove   bool
+}
+
+func NewPkFieldsPatch(oldSchema *Table, newSchema *Table) *PKFieldsPatch {
+	fieldsPatch := map[string]bool{}
+	if !oldSchema.PrimaryKeyFieldsEqual(newSchema) {
+		fieldsPatch = newSchema.PKFields
 	}
-	sort.Strings(oldFields)
-	sort.Strings(newFields)
-	for i := range oldFields {
-		if oldFields[i] != newFields[i] {
-			return false
+	removeKey := false
+	if len(oldSchema.PKFields) > 0 && len(newSchema.PKFields) == 0 {
+		removeKey = true
+	}
+	return &PKFieldsPatch{PKFields: fieldsPatch, Remove: removeKey}
+}
+
+// Return true if there is at least one field as a part of primary key
+func (p *PKFieldsPatch) Exists() bool {
+	return len(p.PKFields) > 0 || p.Remove
+}
+
+func (p *PKFieldsPatch) ToFieldsArray() []string {
+	var fieldsList []string
+	for field, isKeyField := range p.PKFields {
+		if isKeyField {
+			fieldsList = append(fieldsList, field)
 		}
 	}
-	return true
+	return fieldsList
+}
+
+func PkToFieldsArray(pkFields map[string]bool) []string {
+	var fieldsList []string
+	for field, isKeyField := range pkFields {
+		if isKeyField {
+			fieldsList = append(fieldsList, field)
+		}
+	}
+	return fieldsList
 }
 
 type Column struct {

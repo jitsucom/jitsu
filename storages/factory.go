@@ -63,7 +63,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 
 	var mapping []string
 	var tableName string
-	var pkFields []string
+	var pkFieldsList []string
 	mappingFieldType := schema.Default
 	if destination.DataLayout != nil {
 		mappingFieldType = destination.DataLayout.MappingType
@@ -72,7 +72,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		if destination.DataLayout.TableNameTemplate != "" {
 			tableName = destination.DataLayout.TableNameTemplate
 		}
-		pkFields = destination.DataLayout.PrimaryKeyFields
+		pkFieldsList = destination.DataLayout.PrimaryKeyFields
 	}
 
 	logging.Infof("[%s] Initializing destination of type: %s in mode: %s", name, destination.Type, destination.Mode)
@@ -94,7 +94,10 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	if destination.Mode != BatchMode && destination.Mode != StreamMode {
 		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
 	}
-
+	pkFields := map[string]bool{}
+	for _, field := range pkFieldsList {
+		pkFields[field] = true
+	}
 	processor, err := schema.NewProcessor(tableName, mapping, mappingFieldType, pkFields)
 	if err != nil {
 		return nil, nil, err

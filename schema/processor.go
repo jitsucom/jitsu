@@ -20,10 +20,10 @@ type Processor struct {
 	fieldMapper          Mapper
 	typeCasts            map[string]typing.DataType
 	tableNameExtractFunc TableNameExtractFunction
-	pkFields             []string
+	pkFields             map[string]bool
 }
 
-func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType FieldMappingType, primaryKeyFields []string) (*Processor, error) {
+func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType FieldMappingType, primaryKeyFields map[string]bool) (*Processor, error) {
 	mapper, typeCasts, err := NewFieldMapper(mappingType, mappings)
 	if err != nil {
 		return nil, err

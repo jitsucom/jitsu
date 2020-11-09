@@ -107,6 +107,10 @@ func (ar *AwsRedshift) CreateTable(tableSchema *schema.Table) error {
 	return ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
 }
 
+func (ar *AwsRedshift) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
+	return ar.dataSourceProxy.UpdatePrimaryKey(patchTableSchema, patchConstraint)
+}
+
 //Close underlying sql.DB
 func (ar *AwsRedshift) Close() error {
 	return ar.dataSourceProxy.Close()
