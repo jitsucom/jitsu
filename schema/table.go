@@ -145,7 +145,7 @@ func (c Column) GetType() typing.DataType {
 	}
 
 	if len(types) == 0 {
-		logging.Error("System error: Column typeOccurrence can't be empty")
+		logging.SystemError("Column typeOccurrence can't be empty")
 		return typing.UNKNOWN
 	}
 

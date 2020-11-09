@@ -182,7 +182,7 @@ func (s *Snowflake) startBatch() {
 				metrics.SuccessTokenEvents(tokenId, s.Name(), rowsCount)
 
 				if err := s.stageAdapter.DeleteObject(fileKey); err != nil {
-					logging.Errorf("[%s] System error: file %s wasn't deleted from stage and will be inserted in db again: %v", s.Name(), fileKey, err)
+					logging.SystemErrorf("[%s] file %s wasn't deleted from stage and will be inserted in db again: %v", s.Name(), fileKey, err)
 					continue
 				}
 
