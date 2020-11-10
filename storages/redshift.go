@@ -128,7 +128,7 @@ func (ar *AwsRedshift) startBatch() {
 				//TODO may be we need to have a journal for collecting already processed files names
 				// if ar.s3Adapter.DeleteObject fails => it will be processed next time => duplicate data
 				if err := ar.s3Adapter.DeleteObject(fileKey); err != nil {
-					logging.Errorf("[%s] System error: file %s wasn't deleted from s3 and will be inserted in db again: %v", ar.Name(), fileKey, err)
+					logging.SystemErrorf("[%s] file %s wasn't deleted from s3 and will be inserted in db again: %v", ar.Name(), fileKey, err)
 					continue
 				}
 			}

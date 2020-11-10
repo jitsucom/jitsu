@@ -147,10 +147,10 @@ func (s *Service) Sync(sourceId string) (multiErr error) {
 			if ok {
 				destinationStorages = append(destinationStorages, storage)
 			} else {
-				logging.Errorf("System error getting destination [%s] in source [%s]: destination isn't initialized", destinationId, sourceId)
+				logging.SystemErrorf("Unable to get destination [%s] in source [%s]: destination isn't initialized", destinationId, sourceId)
 			}
 		} else {
-			logging.Errorf("System error getting destination [%s] in source [%s]: doesn't exist", destinationId, sourceId)
+			logging.SystemErrorf("Unable to get destination [%s] in source [%s]: doesn't exist", destinationId, sourceId)
 		}
 
 	}
@@ -240,7 +240,7 @@ func (s *Service) GetLogs(sourceId string) (map[string]string, error) {
 func (s *Service) syncCollection(i interface{}) {
 	synctTask, ok := i.(SyncTask)
 	if !ok {
-		logging.Errorf("System error sync task has unknown type: %T", i)
+		logging.SystemErrorf("Sync task has unknown type: %T", i)
 		return
 	}
 

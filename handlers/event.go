@@ -46,7 +46,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 
 	iface, ok := c.Get(middleware.TokenName)
 	if !ok {
-		logging.Error("System error: token wasn't found in context")
+		logging.SystemError("Token wasn't found in context")
 		return
 	}
 	token := iface.(string)

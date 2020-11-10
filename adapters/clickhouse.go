@@ -56,10 +56,10 @@ var (
 //ClickHouseConfig dto for deserialized clickhouse config
 type ClickHouseConfig struct {
 	Dsns     []string          `mapstructure:"dsns" json:"dsns,omitempty" yaml:"dsns,omitempty"`
-	Database string            `mapstructure:"db" json:"db,omitempty" yaml:"dsns,omitempty"`
-	Tls      map[string]string `mapstructure:"tls" json:"tls,omitempty" yaml:"dsns,omitempty"`
-	Cluster  string            `mapstructure:"cluster" json:"cluster,omitempty" yaml:"dsns,omitempty"`
-	Engine   *EngineConfig     `mapstructure:"engine" json:"engine,omitempty" yaml:"dsns,omitempty"`
+	Database string            `mapstructure:"db" json:"db,omitempty" yaml:"db,omitempty"`
+	Tls      map[string]string `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
+	Cluster  string            `mapstructure:"cluster" json:"cluster,omitempty" yaml:"cluster,omitempty"`
+	Engine   *EngineConfig     `mapstructure:"engine" json:"engine,omitempty" yaml:"engine,omitempty"`
 }
 
 //EngineConfig dto for deserialized clickhouse engine config
@@ -419,6 +419,11 @@ func (ch *ClickHouse) InsertInTransaction(wrappedTx *Transaction, schema *schema
 		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", schema.Name, header, values, err)
 	}
 
+	return nil
+}
+
+func (ch *ClickHouse) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
+	logging.Warn("Constraints update is not supported for Snowflake yet")
 	return nil
 }
 

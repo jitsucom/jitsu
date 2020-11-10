@@ -145,7 +145,12 @@ destinations:
       mapping:
         - "/key1/key2 -> /key3"
       table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #template will be used for file naming
+
 synchronization_service: #Optional. This parameter is required in cluster deployments.
   type: etcd #Now EventNative supports only etcd
   endpoint: http://your_etcd_host
-  connection_timeout_seconds: 60 #Optional.
+  connection_timeout_seconds: 60 #optional.
+
+notifications: #optional. If configured - server starts, all system errors and panics info will be sent to notifier
+  slack:
+    url: https://webhook_url

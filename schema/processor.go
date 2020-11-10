@@ -20,9 +20,10 @@ type Processor struct {
 	fieldMapper          Mapper
 	typeCasts            map[string]typing.DataType
 	tableNameExtractFunc TableNameExtractFunction
+	pkFields             map[string]bool
 }
 
-func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType FieldMappingType) (*Processor, error) {
+func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType FieldMappingType, primaryKeyFields map[string]bool) (*Processor, error) {
 	mapper, typeCasts, err := NewFieldMapper(mappingType, mappings)
 	if err != nil {
 		return nil, err
@@ -67,7 +68,8 @@ func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType
 		flattener:            NewFlattener(),
 		fieldMapper:          mapper,
 		typeCasts:            typeCasts,
-		tableNameExtractFunc: tableNameExtractFunc}, nil
+		tableNameExtractFunc: tableNameExtractFunc,
+		pkFields:             primaryKeyFields}, nil
 }
 
 //ProcessFact return table representation, processed flatten object
@@ -208,7 +210,7 @@ func (p *Processor) processObject(object map[string]interface{}) (*Table, map[st
 		return nil, nil, fmt.Errorf("Unknown table name. Object {%v}", flatObject)
 	}
 
-	table := &Table{Name: tableName, Columns: Columns{}}
+	table := &Table{Name: tableName, Columns: Columns{}, PKFields: p.pkFields}
 
 	//apply typecast and define column types
 	//mapping typecast overrides default typecast

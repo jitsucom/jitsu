@@ -54,7 +54,7 @@ func (rl *RetryableLock) Unlock() {
 func (rl *RetryableLock) unlockWithRetry(retry int) {
 	if err := rl.unlock(); err != nil {
 		if retry == rl.retryCount {
-			logging.Errorf("System error unlocking [%s] after %d tries: %v", rl.identifier, retry, err)
+			logging.SystemErrorf("Unable to unlock [%s] after %d tries: %v", rl.identifier, retry, err)
 		} else {
 			rl.unlockWithRetry(retry + 1)
 		}

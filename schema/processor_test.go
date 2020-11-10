@@ -34,6 +34,7 @@ func TestProcess(t *testing.T) {
 					{"_geo_data_region": "NY", "_timestamp": testTime1, "event_type": "user", "key1": 120.0, "key3": "privvvv"},
 				},
 					DataSchema: &Table{Name: "user_2020_07",
+						PKFields: map[string]bool{},
 						Columns: Columns{
 							"_geo_data_region": NewColumn(typing.STRING),
 							"_timestamp":       NewColumn(typing.TIMESTAMP),
@@ -47,7 +48,7 @@ func TestProcess(t *testing.T) {
 					{"_geo_data_country": "US", "_geo_data_city": "New York", "_timestamp": testTime2, "event_type": "user", "key1_key2": "splu", "key10_sib1_1": 50.0},
 					{"_geo_data_zip": int64(10128), "_timestamp": testTime3, "event_type": "user", "key1": "10", "key10": "[1,2,3,4]", "key3": "privvvv"},
 				},
-					DataSchema: &Table{Name: "user_2020_08", Columns: Columns{
+					DataSchema: &Table{Name: "user_2020_08", PKFields: map[string]bool{}, Columns: Columns{
 						"_geo_data_city":    NewColumn(typing.STRING),
 						"_geo_data_country": NewColumn(typing.STRING),
 						"_geo_data_zip":     NewColumn(typing.INT64),
@@ -66,7 +67,7 @@ func TestProcess(t *testing.T) {
 				"notification_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
 					{"_geo_data_latitude": 40.7809, "_geo_data_longitude": -73.9502, "_timestamp": testTime4, "event_type": "notification", "key1_key2": "123", "key3": "privvvv", "key5": "[1,2,4,5]"},
 				},
-					DataSchema: &Table{Name: "notification_2020_08", Columns: Columns{
+					DataSchema: &Table{Name: "notification_2020_08", PKFields: map[string]bool{}, Columns: Columns{
 						"_geo_data_latitude":  NewColumn(typing.FLOAT64),
 						"_geo_data_longitude": NewColumn(typing.FLOAT64),
 						"_timestamp":          NewColumn(typing.TIMESTAMP),
@@ -78,7 +79,7 @@ func TestProcess(t *testing.T) {
 			},
 		},
 	}
-	p, err := NewProcessor(`{{.event_type}}_{{._timestamp.Format "2006_01"}}`, []string{}, Default)
+	p, err := NewProcessor(`{{.event_type}}_{{._timestamp.Format "2006_01"}}`, []string{}, Default, map[string]bool{})
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
