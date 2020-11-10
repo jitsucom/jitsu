@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ksensehq/eventnative/logging"
+	"github.com/jitsucom/eventnative/logging"
 )
 
 var unknownSource = errors.New("Unknown source type")

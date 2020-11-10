@@ -2,9 +2,9 @@ package authorization
 
 import (
 	"errors"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/resources"
-	"github.com/ksensehq/eventnative/uuid"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/resources"
+	"github.com/jitsucom/eventnative/uuid"
 	"github.com/spf13/viper"
 	"strings"
 	"sync"

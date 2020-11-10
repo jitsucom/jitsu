@@ -3,7 +3,7 @@ package typing
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/ksensehq/eventnative/logging"
+	"github.com/jitsucom/eventnative/logging"
 	"strings"
 	"time"
 )

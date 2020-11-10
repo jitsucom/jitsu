@@ -2,7 +2,7 @@ package typing
 
 import (
 	"fmt"
-	"github.com/ksensehq/eventnative/timestamp"
+	"github.com/jitsucom/eventnative/timestamp"
 	"strconv"
 	"strings"
 	"time"

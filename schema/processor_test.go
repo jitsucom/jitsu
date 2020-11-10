@@ -1,9 +1,9 @@
 package schema
 
 import (
-	"github.com/ksensehq/eventnative/test"
-	"github.com/ksensehq/eventnative/timestamp"
-	"github.com/ksensehq/eventnative/typing"
+	"github.com/jitsucom/eventnative/test"
+	"github.com/jitsucom/eventnative/timestamp"
+	"github.com/jitsucom/eventnative/typing"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"testing"

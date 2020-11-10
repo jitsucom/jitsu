@@ -3,7 +3,7 @@ package geo
 import (
 	"errors"
 	"fmt"
-	"github.com/ksensehq/eventnative/logging"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/oschwald/geoip2-golang"
 	"io/ioutil"
 	"net"

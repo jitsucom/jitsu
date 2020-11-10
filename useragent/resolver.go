@@ -2,7 +2,7 @@ package useragent
 
 import (
 	"fmt"
-	"github.com/ksensehq/eventnative/logging"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/ua-parser/uap-go/uaparser"
 )
 

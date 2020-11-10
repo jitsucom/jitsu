@@ -2,11 +2,11 @@ package events
 
 import (
 	"errors"
-	"github.com/ksensehq/eventnative/appconfig"
-	"github.com/ksensehq/eventnative/geo"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/useragent"
-	"github.com/ksensehq/eventnative/uuid"
+	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/geo"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/useragent"
+	"github.com/jitsucom/eventnative/uuid"
 	"net/http"
 )
 

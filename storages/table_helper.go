@@ -3,9 +3,9 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/notifications"
-	"github.com/ksensehq/eventnative/schema"
+	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/notifications"
+	"github.com/jitsucom/eventnative/schema"
 )
 
 const unlockRetryCount = 5

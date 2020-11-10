@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/appconfig"
-	"github.com/ksensehq/eventnative/events"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/schema"
+	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/schema"
 )
 
 const (

@@ -1,7 +1,7 @@
 package authorization
 
 import (
-	"github.com/ksensehq/eventnative/test"
+	"github.com/jitsucom/eventnative/test"
 	"github.com/stretchr/testify/require"
 	"testing"
 )

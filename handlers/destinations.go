@@ -5,9 +5,9 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
-	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/middleware"
-	"github.com/ksensehq/eventnative/storages"
+	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/middleware"
+	"github.com/jitsucom/eventnative/storages"
 	"net/http"
 	"strings"
 )

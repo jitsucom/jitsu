@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/safego"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/safego"
 	"io"
 )
 

@@ -4,6 +4,8 @@ import (
 	"time"
 )
 
+const defaultRestartTimeout = 2 * time.Second
+
 type RecoverHandler func(value interface{})
 
 var GlobalRecoverHandler RecoverHandler
@@ -11,6 +13,7 @@ var GlobalRecoverHandler RecoverHandler
 type Execution struct {
 	f              func()
 	recoverHandler RecoverHandler
+	restartTimeout time.Duration
 }
 
 //RunWithRestart run a new goroutine and add panic handler:
@@ -19,6 +22,7 @@ func RunWithRestart(f func()) *Execution {
 	exec := Execution{
 		f:              f,
 		recoverHandler: GlobalRecoverHandler,
+		restartTimeout: defaultRestartTimeout,
 	}
 	return exec.run()
 }
@@ -29,11 +33,16 @@ func (exec *Execution) run() *Execution {
 			if r := recover(); r != nil {
 				exec.recoverHandler(r)
 
-				time.Sleep(2 * time.Second)
+				time.Sleep(exec.restartTimeout)
 				exec.run()
 			}
 		}()
 		exec.f()
 	}()
+	return exec
+}
+
+func (exec *Execution) WithRestartTimeout(timeout time.Duration) *Execution {
+	exec.restartTimeout = timeout
 	return exec
 }
