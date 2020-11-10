@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gookit/color"
-	"github.com/ksensehq/eventnative/notifications"
+	"github.com/jitsucom/eventnative/notifications"
 	"log"
 	"strings"
 )
