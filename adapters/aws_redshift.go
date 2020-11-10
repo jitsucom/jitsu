@@ -3,8 +3,11 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"github.com/ksensehq/eventnative/logging"
 	"github.com/ksensehq/eventnative/schema"
+	"github.com/ksensehq/eventnative/typing"
 	_ "github.com/lib/pq"
+	"strings"
 )
 
 const (
@@ -94,7 +97,35 @@ func (ar *AwsRedshift) PatchTableSchema(patchSchema *schema.Table) error {
 
 //GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
 func (ar *AwsRedshift) GetTableSchema(tableName string) (*schema.Table, error) {
-	return ar.dataSourceProxy.GetTableSchema(tableName)
+	p := ar.dataSourceProxy
+	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
+	rows, err := p.dataSource.QueryContext(p.ctx, tableSchemaQuery, p.config.Schema, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var columnName, columnPostgresType string
+		if err := rows.Scan(&columnName, &columnPostgresType); err != nil {
+			return nil, fmt.Errorf("Error scanning result: %v", err)
+		}
+		mappedType, ok := postgresToSchema[strings.ToLower(columnPostgresType)]
+		if !ok {
+			if columnPostgresType == "-" {
+				//skip dropped postgres field
+				continue
+			}
+			logging.Errorf("Unknown postgres [%s] column type: %s in schema: [%s] table: [%s]", columnName, columnPostgresType, p.config.Schema, tableName)
+
+			mappedType = typing.STRING
+		}
+		table.Columns[columnName] = schema.NewColumn(mappedType)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("Last rows.Err: %v", err)
+	}
+	return table, nil
 }
 
 //CreateTable create database table with name,columns provided in schema.Table representation
@@ -108,7 +139,8 @@ func (ar *AwsRedshift) CreateTable(tableSchema *schema.Table) error {
 }
 
 func (ar *AwsRedshift) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
-	return ar.dataSourceProxy.UpdatePrimaryKey(patchTableSchema, patchConstraint)
+	logging.Warn("Constraints update is not supported for Redshift yet")
+	return nil
 }
 
 //Close underlying sql.DB
