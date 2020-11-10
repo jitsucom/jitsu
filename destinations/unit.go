@@ -3,7 +3,7 @@ package destinations
 import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
-	"github.com/ksensehq/eventnative/events"
+	"github.com/jitsucom/eventnative/events"
 )
 
 //Unit holds storage bundle for closing at once

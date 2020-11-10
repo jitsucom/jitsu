@@ -1,9 +1,9 @@
 package events
 
 import (
-	"github.com/ksensehq/eventnative/geo"
-	"github.com/ksensehq/eventnative/useragent"
-	"github.com/ksensehq/eventnative/uuid"
+	"github.com/jitsucom/eventnative/geo"
+	"github.com/jitsucom/eventnative/useragent"
+	"github.com/jitsucom/eventnative/uuid"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"

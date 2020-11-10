@@ -2,12 +2,12 @@ package integration_tests
 
 import (
 	"context"
-	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/schema"
-	"github.com/ksensehq/eventnative/storages"
-	"github.com/ksensehq/eventnative/synchronization"
-	"github.com/ksensehq/eventnative/test"
-	"github.com/ksensehq/eventnative/typing"
+	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/schema"
+	"github.com/jitsucom/eventnative/storages"
+	"github.com/jitsucom/eventnative/synchronization"
+	"github.com/jitsucom/eventnative/test"
+	"github.com/jitsucom/eventnative/typing"
 	"github.com/stretchr/testify/require"
 	"testing"
 )

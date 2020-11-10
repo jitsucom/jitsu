@@ -2,10 +2,10 @@ package storages
 
 import (
 	"errors"
-	"github.com/ksensehq/eventnative/adapters"
-	"github.com/ksensehq/eventnative/events"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/schema"
+	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/schema"
 )
 
 //Store files to aws s3 in batch mode

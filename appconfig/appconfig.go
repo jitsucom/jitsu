@@ -1,10 +1,10 @@
 package appconfig
 
 import (
-	"github.com/ksensehq/eventnative/authorization"
-	"github.com/ksensehq/eventnative/geo"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/useragent"
+	"github.com/jitsucom/eventnative/authorization"
+	"github.com/jitsucom/eventnative/geo"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/useragent"
 	"github.com/spf13/viper"
 	"io"
 )

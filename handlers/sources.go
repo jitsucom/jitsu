@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/middleware"
-	"github.com/ksensehq/eventnative/sources"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/middleware"
+	"github.com/jitsucom/eventnative/sources"
 	"net/http"
 )
 

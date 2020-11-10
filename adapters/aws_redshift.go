@@ -3,9 +3,9 @@ package adapters
 import (
 	"context"
 	"fmt"
-	"github.com/ksensehq/eventnative/logging"
-	"github.com/ksensehq/eventnative/schema"
-	"github.com/ksensehq/eventnative/typing"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/schema"
+	"github.com/jitsucom/eventnative/typing"
 	_ "github.com/lib/pq"
 	"strings"
 )

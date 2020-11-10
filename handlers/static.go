@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/ksensehq/eventnative/logging"
+	"github.com/jitsucom/eventnative/logging"
 	"io/ioutil"
 	"net/http"
 	"strings"

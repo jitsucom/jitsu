@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/ksensehq/eventnative/logging"
+	"github.com/jitsucom/eventnative/logging"
 	"net"
 	"net/http"
 	"net/url"
