@@ -1,8 +1,10 @@
 package storages
 
 import (
+	"errors"
 	"fmt"
 	"github.com/ksensehq/eventnative/adapters"
+	"github.com/ksensehq/eventnative/notifications"
 	"github.com/ksensehq/eventnative/schema"
 )
 
@@ -59,7 +61,9 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *schema.Ta
 	//patch schema
 	lock, err := th.monitorKeeper.Lock(destinationName, dbTableSchema.Name)
 	if err != nil {
-		return nil, fmt.Errorf("System error locking table %s in %s: %v", dataSchema.Name, th.storageType, err)
+		msg := fmt.Sprintf("System error: Unable to lock table %s in %s: %v", dataSchema.Name, th.storageType, err)
+		notifications.SystemError(msg)
+		return nil, errors.New(msg)
 	}
 	defer th.monitorKeeper.Unlock(lock)
 
@@ -126,7 +130,9 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *schema.Ta
 func (th *TableHelper) getOrCreate(destinationName string, dataSchema *schema.Table) (*schema.Table, error) {
 	lock, err := th.monitorKeeper.Lock(destinationName, dataSchema.Name)
 	if err != nil {
-		return nil, fmt.Errorf("System error locking table %s in %s: %v", dataSchema.Name, th.storageType, err)
+		msg := fmt.Sprintf("System error: Unable to lock table %s in %s: %v", dataSchema.Name, th.storageType, err)
+		notifications.SystemError(msg)
+		return nil, errors.New(msg)
 	}
 	defer th.monitorKeeper.Unlock(lock)
 

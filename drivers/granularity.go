@@ -22,7 +22,7 @@ func (g Granularity) Lower(t time.Time) time.Time {
 	case YEAR:
 		return time.Date(t.Year(), 1, 1, 0, 0, 0, 0, t.Location())
 	default:
-		logging.Error("System error unknown granularity:", g)
+		logging.SystemError("Unknown granularity:", g)
 		return time.Time{}
 	}
 }
@@ -36,7 +36,7 @@ func (g Granularity) Upper(t time.Time) time.Time {
 	case YEAR:
 		return time.Date(t.Year(), 1, 1, 0, 0, 0, 0, t.Location()).AddDate(1, 0, 0).Add(-time.Nanosecond)
 	default:
-		logging.Error("System error unknown granularity:", g)
+		logging.SystemError("Unknown granularity:", g)
 		return time.Time{}
 	}
 }
@@ -50,7 +50,7 @@ func (g Granularity) Format(t time.Time) string {
 	case YEAR:
 		return t.Format("2006")
 	default:
-		logging.Error("System error unknown granularity:", g)
+		logging.SystemError("Unknown granularity:", g)
 		return ""
 	}
 }
@@ -64,7 +64,7 @@ func (g Granularity) String() string {
 	case YEAR:
 		return string(YEAR)
 	default:
-		logging.Error("System error unknown granularity:", g)
+		logging.SystemError("Unknown granularity:", g)
 		return ""
 	}
 }

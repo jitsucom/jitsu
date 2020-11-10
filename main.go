@@ -17,6 +17,7 @@ import (
 	"github.com/ksensehq/eventnative/meta"
 	"github.com/ksensehq/eventnative/metrics"
 	"github.com/ksensehq/eventnative/middleware"
+	"github.com/ksensehq/eventnative/notifications"
 	"github.com/ksensehq/eventnative/safego"
 	"github.com/ksensehq/eventnative/sources"
 	"github.com/ksensehq/eventnative/storages"
@@ -96,11 +97,16 @@ func main() {
 		logging.Error("panic")
 		logging.Error(value)
 		logging.Error(string(debug.Stack()))
+		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
 	}
 
 	telemetry.Init(commit, tag, builtAt, viper.GetBool("server.telemetry.disabled.usage"))
-
 	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
+
+	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
+	if slackNotificationsWebHook != "" {
+		notifications.Init(slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
+	}
 
 	//listen to shutdown signal to free up all resources
 	ctx, cancel := context.WithCancel(context.Background())
@@ -114,6 +120,7 @@ func main() {
 		cancel()
 		appconfig.Instance.Close()
 		telemetry.Flush()
+		notifications.Close()
 		time.Sleep(3 * time.Second)
 		telemetry.Close()
 		os.Exit(0)
@@ -223,6 +230,7 @@ func main() {
 	router := SetupRouter(destinationsService, adminToken, syncService, eventsCache, sourceService)
 
 	telemetry.ServerStart()
+	notifications.ServerStart()
 	logging.Info("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,

@@ -115,7 +115,7 @@ func (bq *BigQuery) startBatch() {
 				metrics.SuccessTokenEvents(tokenId, bq.Name(), rowsCount)
 
 				if err := bq.gcsAdapter.DeleteObject(fileKey); err != nil {
-					logging.Errorf("[%s] System error: file %s wasn't deleted from google cloud storage and will be inserted in db again: %v", bq.Name(), fileKey, err)
+					logging.SystemErrorf("[%s] file %s wasn't deleted from google cloud storage and will be inserted in db again: %v", bq.Name(), fileKey, err)
 					continue
 				}
 			}

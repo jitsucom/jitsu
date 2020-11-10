@@ -414,7 +414,7 @@ type Transaction struct {
 
 func (t *Transaction) Commit() {
 	if err := t.tx.Commit(); err != nil {
-		logging.Errorf("System error: unable to commit %s transaction: %v", t.dbType, err)
+		logging.SystemErrorf("Unable to commit %s transaction: %v", t.dbType, err)
 	}
 }
 
@@ -428,7 +428,7 @@ func (t *Transaction) DirectCommit() error {
 
 func (t *Transaction) Rollback() {
 	if err := t.tx.Rollback(); err != nil {
-		logging.Errorf("System error: unable to rollback %s transaction: %v", t.dbType, err)
+		logging.SystemErrorf("Unable to rollback %s transaction: %v", t.dbType, err)
 	}
 }
 
