@@ -250,7 +250,10 @@ func (s *Service) syncCollection(i interface{}) {
 
 func (s *Service) Close() error {
 	s.closed = true
-	s.pool.Release()
+
+	if s.pool != nil {
+		s.pool.Release()
+	}
 
 	return nil
 }
