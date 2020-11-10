@@ -32,9 +32,9 @@ const (
 							pg_attribute.attname
 						FROM pg_index, pg_class, pg_attribute, pg_namespace
 						WHERE
-								pg_class.oid = $2::regclass AND
+								pg_class.oid = $1::regclass AND
 								indrelid = pg_class.oid AND
-								nspname = $1 AND
+								nspname = $2 AND
 								pg_class.relnamespace = pg_namespace.oid AND
 								pg_attribute.attrelid = pg_class.oid AND
 								pg_attribute.attnum = any(pg_index.indkey)
@@ -202,7 +202,7 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 		return table, nil
 	}
 
-	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema, tableName)
+	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema+"."+tableName, p.config.Schema)
 	if err != nil {
 		return nil, fmt.Errorf("error querying primary keys for [%s.%s] schema: %v", p.config.Schema, tableName, err)
 	}
