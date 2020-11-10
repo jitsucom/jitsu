@@ -8,13 +8,14 @@ require (
 	cloud.google.com/go/storage v1.5.0
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/coreos/etcd v3.3.25+incompatible
+	github.com/docker/go-connections v0.4.0
 	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/gin-gonic/gin v1.6.3
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/gomodule/redigo v1.8.2
 	github.com/google/go-cmp v0.5.1 // indirect
 	github.com/google/martian v2.1.0+incompatible
-	github.com/google/uuid v1.1.1
+	github.com/google/uuid v1.1.2
 	github.com/gookit/color v1.3.1
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
@@ -27,6 +28,7 @@ require (
 	github.com/snowflakedb/gosnowflake v1.3.8
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
+	github.com/testcontainers/testcontainers-go v0.9.0
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	go.opencensus.io v0.22.4 // indirect
 	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
@@ -40,7 +42,7 @@ require (
 	google.golang.org/api v0.15.1
 	google.golang.org/appengine v1.6.6 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
-	gopkg.in/yaml.v2 v2.3.0 // indirect
+	gotest.tools v0.0.0-20181223230014-1083505acf35
 	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
