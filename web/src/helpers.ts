@@ -16,6 +16,7 @@ export const setCookie = (name: string, value: string, expire: number, domain: s
 };
 
 export const generateId = () => Math.random().toString(36).substring(2, 12);
+export const generateRandom = () => Math.random().toString(36).substring(2, 7);
 
 export const parseQuery = (qs?: string) => {
     let queryString = qs || window.location.search.substring(1)

@@ -41,8 +41,6 @@ func TokenAuth(main gin.HandlerFunc, originalToken string) gin.HandlerFunc {
 			main(c)
 		} else {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{Message: "Wrong token"})
-			/*c.Writer.WriteHeader(http.StatusUnauthorized)
-			c.Writer.Write([]byte("Wrong token"))*/
 		}
 	}
 }
