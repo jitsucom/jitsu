@@ -34,82 +34,130 @@ func SetTestDefaultParams() {
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
 }
 
-func TestApiEvent(t *testing.T) {
+func TestCors(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
 
 	SetTestDefaultParams()
-	tests := []test.IntegrationTest{
+	tests := []struct {
+		Name       string
+		ReqUrn     string
+		ReqOrigin  string
+		XAuthToken string
+
+		ExpectedCorsHeaderValue string
+	}{
 		{
-			"Unauthorized c2s endpoint",
+			"Wrong token in event url",
 			"/api/v1/event?token=wrongtoken",
 			"",
-			"test_data/event_input.json",
 			"",
-			"",
-			http.StatusUnauthorized,
 			"",
 		},
 		{
-			"Unauthorized s2s endpoint",
+			"Wrong token in random url",
+			"/api.dadaba?p_dn1231dada=wrongtoken",
+			"",
+			"",
+			"",
+		},
+		{
+			"Wrong token in header event url",
+			"/api/v1/event",
+			"",
+			"wrongtoken",
+			"",
+		},
+		{
+			"Wrong token in header random url",
+			"/api.d2d3ba",
+			"",
+			"wrongtoken",
+			"",
+		},
+		{
+			"Wrong origin with token in event url",
+			"/api/v1/event?token=c2stoken",
+			"origin.com",
+			"",
+			"",
+		},
+		{
+			"Wrong origin with token in random url",
+			"/api.djla9a?p_dlkiud7=wrongtoken",
+			"origin.com",
+			"",
+			"",
+		},
+		{
+			"Wrong origin with token in header event url",
+			"/api/v1/event",
+			"origin.com",
+			"c2stoken",
+			"",
+		},
+		{
+			"Wrong origin with token in header random url",
+			"/api.dn12o31",
+			"origin.com",
+			"c2stoken",
+			"",
+		},
+		{
+			"Ok origin with token in event url",
+			"/api/v1/event?token=c2stoken",
+			"https://whiteorigin.com",
+			"",
+			"https://whiteorigin.com",
+		},
+		{
+			"Ok origin with token in random url",
+			"/api.dn1239?p_km12418hdasd=c2stoken",
+			"https://whiteorigin.com",
+			"",
+			"https://whiteorigin.com",
+		},
+		{
+			"Ok origin with token in header event url",
+			"/api/v1/event",
+			"http://whiteoriginmy.com",
+			"c2stoken",
+			"http://whiteoriginmy.com",
+		},
+		{
+			"Ok origin with token in header random url",
+			"/api.i12310h",
+			"http://whiteoriginmy.com",
+			"c2stoken",
+			"http://whiteoriginmy.com",
+		},
+		{
+			"S2S endpoint without cors",
 			"/api/v1/s2s/event?token=wrongtoken",
 			"",
-			"test_data/api_event_input.json",
 			"",
-			"",
-			http.StatusUnauthorized,
-			"The token isn't a server token. Please use s2s integration token\n",
-		},
-		{
-			"Unauthorized c2s endpoint with s2s token",
-			"/api/v1/event?token=s2stoken",
-			"",
-			"test_data/event_input.json",
-			"",
-			"",
-			http.StatusUnauthorized,
 			"",
 		},
 		{
-			"Unauthorized s2s wrong origin",
-			"/api/v1/s2s/event?token=s2stoken",
-			"http://ksense.com",
-			"test_data/api_event_input.json",
+			"static endpoint /t",
+			"/t/path",
 			"",
 			"",
-			http.StatusUnauthorized,
-			"",
-		},
-
-		{
-			"C2S Api event consuming test",
-			"/api/v1/event?token=c2stoken",
-			"https://whiteorigin.com/",
-			"test_data/event_input.json",
-			"test_data/fact_output.json",
-			"",
-			http.StatusOK,
-			"",
+			"*",
 		},
 		{
-			"S2S Api event consuming test",
-			"/api/v1/s2s/event",
-			"https://whiteorigin.com/",
-			"test_data/api_event_input.json",
-			"test_data/api_fact_output.json",
-			"s2stoken",
-			http.StatusOK,
+			"static endpoint /s",
+			"/s/path",
 			"",
+			"",
+			"*",
 		},
 		{
-			"S2S Api malformed event test",
-			"/api/v1/s2s/event",
-			"https://whiteorigin.com/",
-			"test_data/malformed_input.json",
+			"static endpoint /p",
+			"/p/path",
 			"",
-			"s2stoken",
-			http.StatusBadRequest,
-			`{"message":"Failed to parse body","error":{"Offset":2}}`,
+			"",
+			"*",
 		},
 	}
 	for _, tt := range tests {
@@ -133,7 +181,132 @@ func TestApiEvent(t *testing.T) {
 
 			server := &http.Server{
 				Addr:              httpAuthority,
-				Handler:           middleware.Cors(router),
+				Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
+				ReadTimeout:       time.Second * 60,
+				ReadHeaderTimeout: time.Second * 60,
+				IdleTimeout:       time.Second * 65,
+			}
+			go func() {
+				log.Fatal(server.ListenAndServe())
+			}()
+
+			logging.Info("Started listen and serve " + httpAuthority)
+
+			//check ping endpoint
+			_, err = test.RenewGet("http://" + httpAuthority + "/ping")
+			require.NoError(t, err)
+
+			//check http OPTIONS
+			optReq, err := http.NewRequest(http.MethodOptions, "http://"+httpAuthority+tt.ReqUrn, nil)
+			require.NoError(t, err)
+			if tt.ReqOrigin != "" {
+				optReq.Header.Add("Origin", tt.ReqOrigin)
+			}
+			if tt.XAuthToken != "" {
+				optReq.Header.Add("X-Auth-Token", tt.XAuthToken)
+			}
+			optResp, err := http.DefaultClient.Do(optReq)
+			require.NoError(t, err)
+			require.Equal(t, 200, optResp.StatusCode)
+
+			require.Equal(t, tt.ExpectedCorsHeaderValue, optResp.Header.Get("Access-Control-Allow-Origin"), "Cors header ACAO values aren't equal")
+			optResp.Body.Close()
+		})
+	}
+}
+
+func TestApiEvent(t *testing.T) {
+	uuid.InitMock()
+	binding.EnableDecoderUseNumber = true
+
+	SetTestDefaultParams()
+	tests := []test.Integration{
+		{
+			"Unauthorized c2s endpoint",
+			"/api/v1/event?token=wrongtoken",
+			"test_data/event_input.json",
+			"",
+			"",
+			http.StatusUnauthorized,
+			`{"message":"Wrong token","error":""}`,
+		},
+		{
+			"Unauthorized s2s endpoint",
+			"/api/v1/s2s/event?token=wrongtoken",
+			"test_data/api_event_input.json",
+			"",
+			"",
+			http.StatusUnauthorized,
+			`{"message":"The token isn't a server token. Please use s2s integration token","error":""}`,
+		},
+		{
+			"Unauthorized c2s endpoint with s2s token",
+			"/api/v1/event?token=s2stoken",
+			"test_data/event_input.json",
+			"",
+			"",
+			http.StatusUnauthorized,
+			`{"message":"Wrong token","error":""}`,
+		},
+		{
+			"C2S Api event consuming test",
+			"/api/v1/event?token=c2stoken",
+			"test_data/event_input.json",
+			"test_data/fact_output.json",
+			"",
+			http.StatusOK,
+			"",
+		},
+		{
+			"S2S Api event consuming test",
+			"/api/v1/s2s/event",
+			"test_data/api_event_input.json",
+			"test_data/api_fact_output.json",
+			"s2stoken",
+			http.StatusOK,
+			"",
+		},
+		{
+			"S2S Api malformed event test",
+			"/api/v1/s2s/event",
+			"test_data/malformed_input.json",
+			"",
+			"s2stoken",
+			http.StatusBadRequest,
+			`{"message":"Failed to parse body","error":"invalid character 'a' looking for beginning of object key string"}`,
+		},
+		{
+			"Randomized c2s endpoint",
+			"/api.dhb31?p_neoq231=c2stoken",
+			"test_data/event_input.json",
+			"test_data/fact_output.json",
+			"",
+			http.StatusOK,
+			"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			telemetry.Init("test", "test", "test", true)
+			httpAuthority, _ := test.GetLocalAuthority()
+
+			err := appconfig.Init()
+			require.NoError(t, err)
+			defer appconfig.Instance.Close()
+
+			inmemWriter := logging.InitInMemoryWriter()
+			router := SetupRouter(destinations.NewTestService(
+				map[string]map[string]events.Consumer{
+					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
+				}, map[string]map[string]events.StorageProxy{}), "", &synchronization.Dummy{}, events.NewCache(5), sources.NewTestService())
+
+			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
+			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
+			defer patch.Unpatch()
+
+			server := &http.Server{
+				Addr:              httpAuthority,
+				Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
 				ReadTimeout:       time.Second * 60,
 				ReadHeaderTimeout: time.Second * 60,
 				IdleTimeout:       time.Second * 65,
@@ -151,19 +324,9 @@ func TestApiEvent(t *testing.T) {
 			b, err := ioutil.ReadFile(tt.ReqBodyPath)
 			require.NoError(t, err)
 
-			//check http OPTIONS
-			optReq, err := http.NewRequest("OPTIONS", "http://"+httpAuthority+tt.ReqUrn, bytes.NewBuffer(b))
-			require.NoError(t, err)
-			optResp, err := http.DefaultClient.Do(optReq)
-			require.NoError(t, err)
-			require.Equal(t, 200, optResp.StatusCode)
-
 			//check http POST
 			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+tt.ReqUrn, bytes.NewBuffer(b))
 			require.NoError(t, err)
-			if tt.ReqOrigin != "" {
-				apiReq.Header.Add("Origin", tt.ReqOrigin)
-			}
 			if tt.XAuthToken != "" {
 				apiReq.Header.Add("x-auth-token", tt.XAuthToken)
 			}
@@ -180,7 +343,6 @@ func TestApiEvent(t *testing.T) {
 				resp.Body.Close()
 				require.Equal(t, tt.ExpectedErrMsg, string(b))
 			} else {
-				require.Equal(t, "*", resp.Header.Get("Access-Control-Allow-Origin"), "Cors header ACAO is empty")
 				require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
 				b, err := ioutil.ReadAll(resp.Body)
 				require.NoError(t, err)
@@ -276,7 +438,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 
 	server := &http.Server{
 		Addr:              httpAuthority,
-		Handler:           middleware.Cors(router),
+		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
 		ReadTimeout:       time.Second * 60,
 		ReadHeaderTimeout: time.Second * 60,
 		IdleTimeout:       time.Second * 65,
@@ -371,7 +533,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 
 	server := &http.Server{
 		Addr:              httpAuthority,
-		Handler:           middleware.Cors(router),
+		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
 		ReadTimeout:       time.Second * 60,
 		ReadHeaderTimeout: time.Second * 60,
 		IdleTimeout:       time.Second * 65,

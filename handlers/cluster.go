@@ -28,10 +28,7 @@ func NewClusterHandler(manager cluster.Manager) *ClusterHandler {
 func (ch *ClusterHandler) Handler(c *gin.Context) {
 	instanceNames, err := ch.manager.GetInstances()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{
-			Message: "Error getting cluster info",
-			Error:   err,
-		})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error getting cluster info", Error: err.Error()})
 		return
 	}
 
