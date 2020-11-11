@@ -5,10 +5,9 @@ import (
 	"strconv"
 )
 
-type IntegrationTest struct {
+type Integration struct {
 	Name             string
 	ReqUrn           string
-	ReqOrigin        string
 	ReqBodyPath      string
 	ExpectedJsonPath string
 	XAuthToken       string

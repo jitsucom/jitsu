@@ -40,7 +40,7 @@ func NewEventHandler(destinationService *destinations.Service, preprocessor even
 func (eh *EventHandler) PostHandler(c *gin.Context) {
 	payload := events.Fact{}
 	if err := c.BindJSON(&payload); err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
 		return
 	}
 
@@ -56,7 +56,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	processed, err := eh.preprocessor.Preprocess(payload, c.Request)
 	if err != nil {
 		logging.Error("Error processing event:", err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error processing event", Error: err})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error processing event", Error: err.Error()})
 		return
 	}
 

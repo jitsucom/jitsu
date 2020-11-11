@@ -234,7 +234,7 @@ func main() {
 	logging.Info("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
-		Handler:           middleware.Cors(router),
+		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
 		ReadTimeout:       time.Second * 60,
 		ReadHeaderTimeout: time.Second * 60,
 		IdleTimeout:       time.Second * 65,
@@ -247,6 +247,7 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
+	router.Use(gin.Recovery())
 
 	router.GET("/", handlers.NewRedirectHandler("/p/welcome.html").Handler)
 	router.GET("/ping", func(c *gin.Context) {
@@ -270,8 +271,9 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
-		apiV1.POST("/event", middleware.TokenOriginsAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
-		apiV1.POST("/s2s/event", middleware.TokenOriginsAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token\n"))
+		apiV1.POST("/event", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
+		apiV1.POST("/s2s/event", middleware.TokenFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token"))
+
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler, middleware.AdminTokenErr))
 		apiV1.POST("/sources/:id/sync", adminTokenMiddleware.AdminAuth(sourcesHandler.SyncHandler, middleware.AdminTokenErr))
 		apiV1.GET("/sources/:id/status", adminTokenMiddleware.AdminAuth(sourcesHandler.StatusHandler, middleware.AdminTokenErr))
@@ -279,6 +281,8 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler, middleware.AdminTokenErr))
 		apiV1.GET("/cache/events", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler, middleware.AdminTokenErr))
 	}
+
+	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
 	if metrics.Enabled {
 		router.GET("/prometheus", middleware.TokenAuth(gin.WrapH(promhttp.Handler()), adminToken))

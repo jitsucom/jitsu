@@ -1,5 +1,5 @@
 import {
-    generateId,
+    generateId, generateRandom,
     getCookie,
     getCookieDomain,
     getDataFromParams,
@@ -47,6 +47,7 @@ class TrackerImpl implements Tracker {
     private cookieDomain: string = "";
     private trackingHost: string = "";
     private idCookieName: string = "";
+    private randomizeUrl: boolean = false;
 
     private apiKey: string = "";
     private initialized: boolean = false;
@@ -103,7 +104,10 @@ class TrackerImpl implements Tracker {
                 }
             }
         }
-        const url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}`;
+        let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}`;
+        if (this.randomizeUrl){
+            url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}`;
+        }
         req.open('POST', url);
         req.setRequestHeader("Content-Type", "application/json");
         req.send(JSON.stringify(json))
@@ -139,6 +143,7 @@ class TrackerImpl implements Tracker {
         this.logger.debug('initializing', options, plugins, EVENTN_VERSION)
         this.cookieDomain = options['cookie_domain'] || getCookieDomain();
         this.trackingHost = getHostWithProtocol(options['tracking_host'] || 't.jitsu.com');
+        this.randomizeUrl = options['randomize_url'] || false;
         this.idCookieName = options['cookie_name'] || '__eventn_id';
         this.apiKey = options['key'] || 'NONE';
         this.logger = initLogger();
