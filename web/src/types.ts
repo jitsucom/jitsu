@@ -57,6 +57,7 @@ export type TrackerOptions = {
   key?: string
   ga_hook?: boolean
   segment_hook?: boolean
+  randomize_url?: boolean
 };
 
 interface UserProps {

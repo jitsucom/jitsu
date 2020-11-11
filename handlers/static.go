@@ -34,6 +34,7 @@ type jsConfig struct {
 	TrackingHost string `json:"tracking_host" form:"tracking_host"`
 	CookieDomain string `json:"cookie_domain,omitempty" form:"cookie_domain"`
 	GaHook       bool   `json:"ga_hook" form:"ga_hook"`
+	RandomizeUrl bool   `json:"randomize_url" form:"randomize_url"`
 }
 
 func NewStaticHandler(sourceDir, serverPublicUrl string) *StaticHandler {

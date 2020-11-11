@@ -36,7 +36,7 @@ func (sh *SourcesHandler) SyncHandler(c *gin.Context) {
 	err := sh.sourcesService.Sync(sourceId)
 	if err != nil {
 		logging.Error(err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Sync failed: " + err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Sync failed", Error: err.Error()})
 		return
 	}
 
@@ -53,14 +53,14 @@ func (sh *SourcesHandler) StatusHandler(c *gin.Context) {
 	statusesMap, err := sh.sourcesService.GetStatus(sourceId)
 	if err != nil {
 		logging.Error(err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Getting statuses failed:" + err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Getting statuses failed", Error: err.Error()})
 		return
 	}
 
 	logsMap, err := sh.sourcesService.GetLogs(sourceId)
 	if err != nil {
 		logging.Error(err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Getting statuses failed:" + err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Getting statuses failed", Error: err.Error()})
 		return
 	}
 
