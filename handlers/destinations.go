@@ -15,7 +15,7 @@ import (
 func DestinationsHandler(c *gin.Context) {
 	destinationConfig := &storages.DestinationConfig{}
 	if err := c.BindJSON(destinationConfig); err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err})
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
 		return
 	}
 	err := testConnection(destinationConfig)
