@@ -227,6 +227,13 @@ func main() {
 	eventsCache := events.NewCache(100)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
+	//banner in logs
+	if tag != "" && !viper.GetBool("server.disable_version_notification") {
+		vn := appconfig.NewVersionNotifier(ctx, tag)
+		vn.Start()
+		appconfig.Instance.ScheduleClosing(vn)
+	}
+
 	router := SetupRouter(destinationsService, adminToken, syncService, eventsCache, sourceService)
 
 	telemetry.ServerStart()

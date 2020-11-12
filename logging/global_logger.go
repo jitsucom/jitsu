@@ -44,8 +44,11 @@ func InitGlobalLogger(config Config) error {
 	if err != nil {
 		return err
 	}
-	log.SetOutput(writer)
-	log.SetFlags(log.Ldate | log.Ltime | log.LUTC)
+	dateTimeWriter := DateTimeWriterProxy{
+		writer: writer,
+	}
+	log.SetOutput(dateTimeWriter)
+	log.SetFlags(0)
 
 	return nil
 }

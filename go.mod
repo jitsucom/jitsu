@@ -14,6 +14,7 @@ require (
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/gomodule/redigo v1.8.2
 	github.com/google/go-cmp v0.5.1 // indirect
+	github.com/google/go-github/v32 v32.1.0
 	github.com/google/martian v2.1.0+incompatible
 	github.com/google/uuid v1.1.2
 	github.com/gookit/color v1.3.1
@@ -42,7 +43,6 @@ require (
 	google.golang.org/api v0.15.1
 	google.golang.org/appengine v1.6.6 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
-	gotest.tools v0.0.0-20181223230014-1083505acf35
 	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )

@@ -14,7 +14,7 @@ type SyncLogger struct {
 
 //Create SyncLogger
 func NewSyncLogger(writer io.WriteCloser) *SyncLogger {
-	logger := log.New(writer, "", log.Ldate|log.Ltime|log.LUTC)
+	logger := log.New(DateTimeWriterProxy{writer: writer}, "", 0)
 
 	return &SyncLogger{logger: logger, writer: writer}
 }
