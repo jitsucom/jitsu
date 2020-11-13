@@ -2,7 +2,7 @@
   "name": "@ksense/eventnative",
   "main": "dist/main.cjs.js",
   "module": "dist/main.esm.js",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "devDependencies": {
     "@babel/core": "^7.2.2",
     "@babel/preset-env": "^7.2.3",
