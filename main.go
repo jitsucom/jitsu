@@ -227,9 +227,9 @@ func main() {
 	eventsCache := events.NewCache(100)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
-	//banner in logs
-	if tag != "" && !viper.GetBool("server.disable_version_notification") {
-		vn := appconfig.NewVersionNotifier(ctx, tag)
+	//version reminder banner in logs
+	if tag != "" && !viper.GetBool("server.disable_version_reminder") {
+		vn := appconfig.NewVersionReminder(ctx, tag)
 		vn.Start()
 		appconfig.Instance.ScheduleClosing(vn)
 	}
