@@ -66,7 +66,7 @@ We are made for developers, by developers and would love to have you join our co
  * Submit a pull request!
 
 
-<a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/eventnative/bb6a40cc5f0a84d29b270f510ea4f632f3314e71/artwork/ksense-logo.svg" width="40px" /></a>
+
 ## Open Source
 
-EventNative is developed and maintained by [kSense](https://ksense.io/) under the MIT license. We charge for ETL from other datasources and let you connect your EventNative destination to kSense for analysis if you choose.
+EventNative is developed and maintained by [Jitsu](https://jitsu.com/) under the MIT license. We charge for hosted services available at [Jitsu](https://jitsu.com/)
