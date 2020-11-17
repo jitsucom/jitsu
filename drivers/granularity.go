@@ -8,10 +8,10 @@ import (
 type Granularity string
 
 const (
-	DAY     Granularity = "DAY"
-	MONTH   Granularity = "MONTH"
-	YEAR    Granularity = "YEAR"
-	FOREVER Granularity = "FOREVER"
+	DAY   Granularity = "DAY"
+	MONTH Granularity = "MONTH"
+	YEAR  Granularity = "YEAR"
+	ALL   Granularity = "ALL"
 )
 
 func (g Granularity) Lower(t time.Time) time.Time {
@@ -22,7 +22,7 @@ func (g Granularity) Lower(t time.Time) time.Time {
 		return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location())
 	case YEAR:
 		return time.Date(t.Year(), 1, 1, 0, 0, 0, 0, t.Location())
-	case FOREVER:
+	case ALL:
 		return time.Time{}
 	default:
 		logging.SystemError("Unknown granularity:", g)
@@ -38,7 +38,7 @@ func (g Granularity) Upper(t time.Time) time.Time {
 		return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location()).AddDate(0, 1, 0).Add(-time.Nanosecond)
 	case YEAR:
 		return time.Date(t.Year(), 1, 1, 0, 0, 0, 0, t.Location()).AddDate(1, 0, 0).Add(-time.Nanosecond)
-	case FOREVER:
+	case ALL:
 		return time.Time{}
 	default:
 		logging.SystemError("Unknown granularity:", g)
@@ -54,6 +54,8 @@ func (g Granularity) Format(t time.Time) string {
 		return t.Format("2006-01")
 	case YEAR:
 		return t.Format("2006")
+	case ALL:
+		return "ALL"
 	default:
 		logging.SystemError("Unknown granularity:", g)
 		return ""
@@ -68,8 +70,8 @@ func (g Granularity) String() string {
 		return string(MONTH)
 	case YEAR:
 		return string(YEAR)
-	case FOREVER:
-		return string(FOREVER)
+	case ALL:
+		return string(ALL)
 	default:
 		logging.SystemError("Unknown granularity:", g)
 		return ""

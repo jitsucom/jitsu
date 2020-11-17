@@ -61,7 +61,7 @@ func NewFirebase(ctx context.Context, config *FirebaseConfig, collection string)
 }
 
 func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
-	return []*TimeInterval{NewTimeInterval(FOREVER, time.Time{})}, nil
+	return []*TimeInterval{NewTimeInterval(ALL, time.Time{})}, nil
 }
 
 func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
