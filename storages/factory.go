@@ -113,7 +113,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 
 		rule, err := enrichment.NewRule(ruleConfig)
 		if err != nil {
-			return nil, nil, fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.Name, err)
+			return nil, nil, fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.String(), err)
 		}
 
 		enrichmentRules = append(enrichmentRules, rule)

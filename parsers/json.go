@@ -16,7 +16,7 @@ func ParseJson(b []byte) (map[string]interface{}, error) {
 	return obj, err
 }
 
-//Parse interface into json bytes than into map with json Numbers
+//Parse interface into json bytes then into map with json Numbers
 func ParseInterface(v interface{}) (map[string]interface{}, error) {
 	b, err := json.Marshal(v)
 	if err != nil {

@@ -39,8 +39,8 @@ func NewRule(ruleConfig *RuleConfig) (Rule, error) {
 
 //RuleConfig configuration for rules
 //Raw = false by default. (true only in js,api preprocessors)
-//if Raw = false - rule result will been marshalling/unmarshalling for correct type casting
-//in preprocessors rule result might be an any object because of marshalling/unmarshalling in logger/file uploader/queue
+//if Raw = false - rule result will be marshalled/unmarshalled for correct type casting
+//in preprocessors rule result might be an any object because it is marshalled/unmarshalled in logger/file uploader/queue
 type RuleConfig struct {
 	Name string `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 	From string `mapstructure:"from" json:"from,omitempty" yaml:"from,omitempty"`
@@ -54,6 +54,10 @@ func (r *RuleConfig) Validate() error {
 	r.To = strings.ToLower(r.To)
 	r.From = strings.ToLower(r.From)
 
+	if r.Name == "" {
+		return errors.New("'name' is required enrichment rule parameter")
+	}
+
 	if r.To == "" {
 		return errors.New("'to' is required enrichment rule parameter")
 	}
@@ -66,5 +70,5 @@ func (r *RuleConfig) Validate() error {
 }
 
 func (r *RuleConfig) String() string {
-	return fmt.Sprintf("Enrichment rule name: %s, from: %s, to: %s", r.Name, r.From, r.To)
+	return fmt.Sprintf("name: [%s], %s -> %s", r.Name, r.From, r.To)
 }
