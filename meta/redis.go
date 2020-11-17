@@ -19,7 +19,7 @@ type Redis struct {
 //source#sourceId:collection#collectionId:status [sourceId, collectionId] - hashtable with collection statuses
 //source#sourceId:collection#collectionId:log [sourceId, collectionId] - hashtable with reloading logs
 
-func NewRedis(host string, port int) (*Redis, error) {
+func NewRedis(host string, port int, password string) (*Redis, error) {
 	r := &Redis{pool: &redis.Pool{
 		MaxIdle:     100,
 		MaxActive:   600,
@@ -32,6 +32,7 @@ func NewRedis(host string, port int) (*Redis, error) {
 				host+":"+strconv.Itoa(port),
 				redis.DialConnectTimeout(10*time.Second),
 				redis.DialReadTimeout(10*time.Second),
+				redis.DialPassword(password),
 			)
 			if err != nil {
 				return nil, err
