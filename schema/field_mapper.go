@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/typing"
 	"strings"
 )
@@ -38,11 +39,8 @@ type StrictFieldMapper struct {
 type DummyMapper struct{}
 
 type MappingRule struct {
-	// "/key1/key2/key3 -> /key4/key5"
-	//[key1, key2, key3]
-	source []string
-	//[key4, key5]
-	destination []string
+	source      *jsonutils.JsonPath
+	destination *jsonutils.JsonPath
 }
 
 //NewFieldMapper return FieldMapper, fields to typecast and err
@@ -70,13 +68,9 @@ func NewFieldMapper(mappingType FieldMappingType, mappings []string) (Mapper, ma
 
 		//without type casting
 		if !strings.Contains(destination, ")") {
-			destinationParts := strings.Split(formatPrefixSuffix(destination), "/")
-			if len(destinationParts) == 1 && destinationParts[0] == "" {
-				destinationParts = []string{}
-			}
 			rules = append(rules, &MappingRule{
-				source:      strings.Split(formatPrefixSuffix(source), "/"),
-				destination: destinationParts,
+				source:      jsonutils.NewJsonPath(source),
+				destination: jsonutils.NewJsonPath(destination),
 			})
 			continue
 		}
@@ -87,10 +81,8 @@ func NewFieldMapper(mappingType FieldMappingType, mappings []string) (Mapper, ma
 			return nil, nil, fmt.Errorf("Malformed cast statement in data mapping [%s]. Use format: /field1/subfield1 -> (integer) /field2/subfield2", mapping)
 		}
 
-		// /key1/key2 -> []string{key1, key2}
-		destinationArr := strings.Split(formatPrefixSuffix(destParts[1]), "/")
-		// []string{key1, key2} -> key1_key2
-		formattedDestination := strings.Join(destinationArr, "_")
+		// /key1/key2 -> key1_key2
+		formattedDestination := strings.ReplaceAll(jsonutils.FormatPrefixSuffix(destParts[1]), "/", "_")
 
 		castType := strings.ReplaceAll(destParts[0], "(", "")
 		dataType, err := typing.TypeFromString(castType)
@@ -100,8 +92,8 @@ func NewFieldMapper(mappingType FieldMappingType, mappings []string) (Mapper, ma
 
 		fieldsToCast[formattedDestination] = dataType
 		rules = append(rules, &MappingRule{
-			source:      strings.Split(formatPrefixSuffix(source), "/"),
-			destination: destinationArr,
+			source:      jsonutils.NewJsonPath(source),
+			destination: jsonutils.NewJsonPath(destParts[1]),
 		})
 	}
 	if mappingType == Strict {
@@ -115,28 +107,19 @@ func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}
 	mappedObject := CopyMap(object)
 
 	for _, rule := range fm.rules {
-		//dive into source inner and map last key from mapping '/key1/../lastkey'
-		sourceInner := mappedObject
-		destInner := mappedObject
-		for i := 0; i < len(rule.source); i++ {
-			sourceKey := rule.source[i]
-			if i == len(rule.source)-1 {
-				//check if dest is empty => handle delete
-				if len(rule.destination) == 0 {
-					delete(sourceInner, sourceKey)
-					break
-				}
-				applyRule(sourceInner, destInner, sourceKey, rule)
-				break
+		value, ok := rule.source.GetAndRemove(mappedObject)
+		if ok {
+			//handle delete rules
+			if rule.destination.IsEmpty() {
+				continue
 			}
-			//dive
-			if sub, ok := sourceInner[sourceKey]; ok {
-				if subMap, ok := sub.(map[string]interface{}); ok {
-					sourceInner = subMap
-					continue
-				}
+
+			ok := rule.destination.Set(mappedObject, value)
+			if !ok {
+				//key wasn't set into destination object
+				//revert removing from source
+				rule.source.Set(mappedObject, value)
 			}
-			break
 		}
 	}
 	return mappedObject, nil
@@ -145,23 +128,19 @@ func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}
 func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
 	mappedObject := make(map[string]interface{})
 	for _, rule := range fm.rules {
-		//dive into source inner and map last key from mapping '/key1/../lastkey'
-		sourceInner := object
-		destInner := mappedObject
-		for i := 0; i < len(rule.source); i++ {
-			sourceKey := rule.source[i]
-			if i == len(rule.source)-1 {
-				applyRule(sourceInner, destInner, sourceKey, rule)
-				break
+		value, ok := rule.source.GetAndRemove(object)
+		if ok {
+			//handle delete rules
+			if rule.destination.IsEmpty() {
+				continue
 			}
-			//dive
-			if sub, ok := sourceInner[sourceKey]; ok {
-				if subMap, ok := sub.(map[string]interface{}); ok {
-					sourceInner = subMap
-					continue
-				}
+
+			ok := rule.destination.Set(mappedObject, value)
+			if !ok {
+				//key wasn't set into destination object
+				//revert removing from source
+				rule.source.Set(mappedObject, value)
 			}
-			break
 		}
 	}
 	for _, field := range systemFields {
@@ -175,47 +154,6 @@ func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]inter
 //Return object as is
 func (DummyMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
 	return object, nil
-}
-
-func applyRule(sourceInner map[string]interface{}, destInner map[string]interface{}, sourceKey string, rule *MappingRule) {
-	sourceNodeToTransfer, ok := sourceInner[sourceKey]
-	//source node doesn't exist
-	if !ok {
-		return
-	}
-	//dive into dest inner and put to last last key from mapping '/key2/../lastkey2'
-	for j := 0; j < len(rule.destination); j++ {
-		destKey := rule.destination[j]
-		if j == len(rule.destination)-1 {
-			destInner[destKey] = sourceNodeToTransfer
-			delete(sourceInner, sourceKey)
-			break
-		}
-
-		//dive or create
-		if sub, ok := destInner[destKey]; ok {
-			if subMap, ok := sub.(map[string]interface{}); ok {
-				destInner = subMap
-			} else {
-				//node isn't object node
-				break
-			}
-		} else {
-			subMap := map[string]interface{}{}
-			destInner[destKey] = subMap
-			destInner = subMap
-		}
-	}
-}
-
-func formatPrefixSuffix(key string) string {
-	if strings.HasPrefix(key, "/") {
-		key = key[1:]
-	}
-	if strings.HasSuffix(key, "/") {
-		key = key[:len(key)-1]
-	}
-	return key
 }
 
 func CopyMap(m map[string]interface{}) map[string]interface{} {
