@@ -8,6 +8,7 @@ import (
 )
 
 type Rule interface {
+	Name() string
 	Execute(fact map[string]interface{}) error
 }
 

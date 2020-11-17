@@ -23,7 +23,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	pgParams["sslmode"] = "disable"
 
 	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: container.Port, Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: pgParams}
-	processor, err := schema.NewProcessor("users", []string{}, "", map[string]bool{})
+	processor, err := schema.NewProcessor("users", []string{}, "", map[string]bool{}, nil)
 	if err != nil {
 		panic(err)
 	}
