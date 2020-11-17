@@ -101,8 +101,16 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		pkFields[field] = true
 	}
 
+	if len(destination.Enrichment) == 0 {
+		logging.Warnf("[%s] doesn't have enrichment rules", name)
+	} else {
+		logging.Infof("[%s] Configured enrichment rules:", name)
+	}
+
 	var enrichmentRules []enrichment.Rule
 	for _, ruleConfig := range destination.Enrichment {
+		logging.Infof("[%s] %s", name, ruleConfig.String())
+
 		rule, err := enrichment.NewRule(ruleConfig)
 		if err != nil {
 			return nil, nil, fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.Name, err)

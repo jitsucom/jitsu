@@ -11,13 +11,19 @@ import (
 const IpLookup = "ip_lookup"
 
 type IpLookupRule struct {
-	source      *jsonutils.JsonPath
-	destination *jsonutils.JsonPath
-	geoResolver geo.Resolver
+	source        *jsonutils.JsonPath
+	destination   *jsonutils.JsonPath
+	convertResult bool
+	geoResolver   geo.Resolver
 }
 
-func NewIpLookupRule(source, destination *jsonutils.JsonPath) (*IpLookupRule, error) {
-	return &IpLookupRule{source: source, destination: destination, geoResolver: appconfig.Instance.GeoResolver}, nil
+func NewIpLookupRule(source, destination *jsonutils.JsonPath, convertResult bool) (*IpLookupRule, error) {
+	return &IpLookupRule{
+		source:        source,
+		destination:   destination,
+		convertResult: convertResult,
+		geoResolver:   appconfig.Instance.GeoResolver,
+	}, nil
 }
 
 func (ir *IpLookupRule) Execute(fact map[string]interface{}) error {
@@ -37,14 +43,20 @@ func (ir *IpLookupRule) Execute(fact map[string]interface{}) error {
 		return nil
 	}
 
-	//cast all structs to map[string]interface{} for inner typecasting
-	rawObject, err := parsers.ParseInterface(geoData)
-	if err != nil {
-		logging.SystemErrorf("Error converting geo ip node: %v", err)
-		return nil
+	var result interface{}
+	result = geoData
+	if ir.convertResult {
+		//convert all structs to map[string]interface{} for inner typecasting
+		rawObject, err := parsers.ParseInterface(geoData)
+		if err != nil {
+			logging.SystemErrorf("Error converting geo ip node: %v", err)
+			return nil
+		}
+
+		result = rawObject
 	}
 
-	ok = ir.destination.Set(fact, rawObject)
+	ok = ir.destination.Set(fact, result)
 	if !ok {
 		logging.SystemError("Resolved geo data wasn't set in path: %s", ir.destination.String())
 	}
