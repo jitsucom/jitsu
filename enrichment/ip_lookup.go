@@ -5,6 +5,7 @@ import (
 	"github.com/jitsucom/eventnative/geo"
 	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/parsers"
 )
 
 const IpLookup = "ip_lookup"
@@ -36,10 +37,21 @@ func (ir *IpLookupRule) Execute(fact map[string]interface{}) error {
 		return nil
 	}
 
-	ok = ir.destination.Set(fact, geoData)
+	//cast all structs to map[string]interface{} for inner typecasting
+	rawObject, err := parsers.ParseInterface(geoData)
+	if err != nil {
+		logging.SystemErrorf("Error converting geo ip node: %v", err)
+		return nil
+	}
+
+	ok = ir.destination.Set(fact, rawObject)
 	if !ok {
 		logging.SystemError("Resolved geo data wasn't set in path: %s", ir.destination.String())
 	}
 
 	return nil
+}
+
+func (ir *IpLookupRule) Name() string {
+	return IpLookup
 }

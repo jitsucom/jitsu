@@ -4,6 +4,7 @@ import (
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/useragent"
 )
 
@@ -32,10 +33,21 @@ func (uap *UserAgentParseRule) Execute(fact map[string]interface{}) error {
 
 	parsedUa := uap.uaResolver.Resolve(ua)
 
-	ok = uap.destination.Set(fact, parsedUa)
+	//cast all structs to map[string]interface{} for inner typecasting
+	rawObject, err := parsers.ParseInterface(parsedUa)
+	if err != nil {
+		logging.SystemErrorf("Error converting parsed ua node: %v", err)
+		return nil
+	}
+
+	ok = uap.destination.Set(fact, rawObject)
 	if !ok {
 		logging.SystemError("Resolved useragent data wasn't set in path: %s", uap.destination.String())
 	}
 
 	return nil
+}
+
+func (uap *UserAgentParseRule) Name() string {
+	return UserAgentParse
 }
