@@ -3,6 +3,7 @@ package events
 import (
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/geo"
+	"github.com/jitsucom/eventnative/useragent"
 	"github.com/jitsucom/eventnative/uuid"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -111,6 +112,31 @@ func TestApiPreprocess(t *testing.T) {
 			"",
 		},
 		{
+			"Process ok with device ctx with ip and ua",
+			Fact{
+				"source_ip":    "10.10.10.10",
+				"event_origin": "api_test",
+				"src":          "123",
+				"event_data":   map[string]interface{}{"key1": "key2"},
+				"user":         map[string]interface{}{"id": "123"},
+				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
+				"device_ctx":   map[string]interface{}{"ip": "20.20.20.20", "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36"}},
+			Fact{
+				"eventn_ctx": map[string]interface{}{"event_id": "mockeduuid", "location": geoDataMock, "parsed_ua": useragent.MockData},
+				"device_ctx": map[string]interface{}{
+					"ip":         "20.20.20.20",
+					"user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
+				},
+				"event_data":   map[string]interface{}{"key1": "key2"},
+				"event_origin": "api_test",
+				"user":         map[string]interface{}{"id": "123"},
+				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
+				"src":          "api",
+				"source_ip":    "10.10.10.10",
+			},
+			"",
+		},
+		{
 			"Process ok with location and parsed ua with eventn id",
 			Fact{
 				"source_ip":    "10.10.10.10",
@@ -121,12 +147,16 @@ func TestApiPreprocess(t *testing.T) {
 				"user":         map[string]interface{}{"id": "123"},
 				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
 				"device_ctx": map[string]interface{}{
+					"ip":        "20.20.20.20",
+					"ua":        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
 					"location":  map[string]interface{}{"custom_location": "123"},
 					"parsed_ua": map[string]interface{}{"custom_ua": "123"},
 				}},
 			Fact{
 				"eventn_ctx": map[string]interface{}{"event_id": "123"},
 				"device_ctx": map[string]interface{}{
+					"ip":        "20.20.20.20",
+					"ua":        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
 					"location":  map[string]interface{}{"custom_location": "123"},
 					"parsed_ua": map[string]interface{}{"custom_ua": "123"},
 				},
@@ -161,6 +191,7 @@ func TestApiPreprocess(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			appconfig.Init()
 			appconfig.Instance.GeoResolver = geo.Mock{"20.20.20.20": geoDataMock}
+			appconfig.Instance.UaResolver = useragent.Mock{}
 			apiPreprocessor, err := NewApiPreprocessor()
 			require.NoError(t, err)
 

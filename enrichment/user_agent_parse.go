@@ -40,7 +40,7 @@ func (uap *UserAgentParseRule) Execute(fact map[string]interface{}) error {
 		//convert all structs to map[string]interface{} for inner typecasting
 		rawObject, err := parsers.ParseInterface(parsedUa)
 		if err != nil {
-			logging.SystemErrorf("Error converting geo ip node: %v", err)
+			logging.SystemErrorf("Error converting ua parse node: %v", err)
 			return nil
 		}
 

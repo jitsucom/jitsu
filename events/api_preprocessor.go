@@ -34,8 +34,8 @@ func NewApiPreprocessor() (Preprocessor, error) {
 	return &ApiPreprocessor{
 		ipLookupRule: ipLookupRule,
 		uaParseRule:  uaParseRule,
-		geoDataPath:  jsonutils.NewJsonPath("/" + eventIdKey + "/device_ctx/" + geo.GeoDataKey),
-		parsedUaPath: jsonutils.NewJsonPath("/" + eventIdKey + "/device_ctx/" + useragent.ParsedUaKey),
+		geoDataPath:  jsonutils.NewJsonPath("/device_ctx/" + geo.GeoDataKey),
+		parsedUaPath: jsonutils.NewJsonPath("/device_ctx/" + useragent.ParsedUaKey),
 	}, nil
 }
 
