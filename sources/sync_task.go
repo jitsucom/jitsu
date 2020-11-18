@@ -69,7 +69,7 @@ func (st *SyncTask) Sync() {
 		if storedSignature == "" {
 			status = "NEW"
 			intervalsToSync = append(intervalsToSync, interval)
-		} else if storedSignature != nowSignature {
+		} else if storedSignature != nowSignature || interval.IsAll() {
 			status = "REFRESH"
 			intervalsToSync = append(intervalsToSync, interval)
 		} else {
