@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
@@ -21,11 +22,12 @@ const (
 var unknownDestination = errors.New("Unknown destination type")
 
 type DestinationConfig struct {
-	OnlyTokens   []string    `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
-	Type         string      `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	Mode         string      `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
-	DataLayout   *DataLayout `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
-	BreakOnError bool        `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
+	OnlyTokens   []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
+	Type         string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	Mode         string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
+	DataLayout   *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
+	Enrichment   []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
+	BreakOnError bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
 
 	DataSource *adapters.DataSourceConfig `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	S3         *adapters.S3Config         `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
@@ -98,7 +100,26 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	for _, field := range pkFieldsList {
 		pkFields[field] = true
 	}
-	processor, err := schema.NewProcessor(tableName, mapping, mappingFieldType, pkFields)
+
+	if len(destination.Enrichment) == 0 {
+		logging.Warnf("[%s] doesn't have enrichment rules", name)
+	} else {
+		logging.Infof("[%s] Configured enrichment rules:", name)
+	}
+
+	var enrichmentRules []enrichment.Rule
+	for _, ruleConfig := range destination.Enrichment {
+		logging.Infof("[%s] %s", name, ruleConfig.String())
+
+		rule, err := enrichment.NewRule(ruleConfig)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Error creating enrichment rule [%s]: %v", ruleConfig.String(), err)
+		}
+
+		enrichmentRules = append(enrichmentRules, rule)
+	}
+
+	processor, err := schema.NewProcessor(tableName, mapping, mappingFieldType, pkFields, enrichmentRules)
 	if err != nil {
 		return nil, nil, err
 	}

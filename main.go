@@ -105,7 +105,7 @@ func main() {
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
 	if slackNotificationsWebHook != "" {
-		notifications.Init(slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
+		notifications.Init(notifications.ServiceName, slackNotificationsWebHook, appconfig.Instance.ServerName, logging.Errorf)
 	}
 
 	//listen to shutdown signal to free up all resources
@@ -270,8 +270,16 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor(), eventsCache)
-	apiEventHandler := handlers.NewEventHandler(destinations, events.NewApiPreprocessor(), eventsCache)
+	jsEventsPreprocessor, err := events.NewJsPreprocessor()
+	if err != nil {
+		logging.Fatal(err)
+	}
+	apiEventsPreprocessor, err := events.NewApiPreprocessor()
+	if err != nil {
+		logging.Fatal(err)
+	}
+	jsEventHandler := handlers.NewEventHandler(destinations, jsEventsPreprocessor, eventsCache)
+	apiEventHandler := handlers.NewEventHandler(destinations, apiEventsPreprocessor, eventsCache)
 
 	sourcesHandler := handlers.NewSourcesHandler(sources)
 
