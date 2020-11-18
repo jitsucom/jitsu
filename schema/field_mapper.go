@@ -106,43 +106,16 @@ func NewFieldMapper(mappingType FieldMappingType, mappings []string) (Mapper, ma
 func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
 	mappedObject := CopyMap(object)
 
-	for _, rule := range fm.rules {
-		value, ok := rule.source.GetAndRemove(mappedObject)
-		if ok {
-			//handle delete rules
-			if rule.destination.IsEmpty() {
-				continue
-			}
+	applyMapping(mappedObject, mappedObject, fm.rules)
 
-			ok := rule.destination.Set(mappedObject, value)
-			if !ok {
-				//key wasn't set into destination object
-				//revert removing from source
-				rule.source.Set(mappedObject, value)
-			}
-		}
-	}
 	return mappedObject, nil
 }
 
 func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
 	mappedObject := make(map[string]interface{})
-	for _, rule := range fm.rules {
-		value, ok := rule.source.GetAndRemove(object)
-		if ok {
-			//handle delete rules
-			if rule.destination.IsEmpty() {
-				continue
-			}
 
-			ok := rule.destination.Set(mappedObject, value)
-			if !ok {
-				//key wasn't set into destination object
-				//revert removing from source
-				rule.source.Set(mappedObject, value)
-			}
-		}
-	}
+	applyMapping(object, mappedObject, fm.rules)
+
 	for _, field := range systemFields {
 		if val, ok := object[field]; ok {
 			mappedObject[field] = val
@@ -154,6 +127,25 @@ func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]inter
 //Return object as is
 func (DummyMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
 	return object, nil
+}
+
+func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*MappingRule) {
+	for _, rule := range rules {
+		value, ok := rule.source.GetAndRemove(sourceObj)
+		if ok {
+			//handle delete rules
+			if rule.destination.IsEmpty() {
+				continue
+			}
+
+			ok := rule.destination.Set(destinationObj, value)
+			if !ok {
+				//key wasn't set into destination object
+				//set as is
+				rule.source.Set(destinationObj, value)
+			}
+		}
+	}
 }
 
 func CopyMap(m map[string]interface{}) map[string]interface{} {
