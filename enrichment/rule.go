@@ -70,5 +70,5 @@ func (r *RuleConfig) Validate() error {
 }
 
 func (r *RuleConfig) String() string {
-	return fmt.Sprintf("name: [%s], %s -> %s", r.Name, r.From, r.To)
+	return fmt.Sprintf("[%s] %s -> %s", r.Name, r.From, r.To)
 }
