@@ -7,6 +7,8 @@ import (
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"fmt"
+	"github.com/jitsucom/eventnative/timestamp"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"strings"
 	"time"
@@ -69,7 +71,7 @@ func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface
 		firebaseCollectionName := strings.TrimPrefix(f.collection, firebaseCollectionPrefix)
 		return f.loadCollection(firebaseCollectionName)
 	} else if f.collection == "users" {
-
+		return f.loadUsers()
 	}
 	return nil, fmt.Errorf("unknown collection: %s", f.collection)
 }
@@ -97,4 +99,38 @@ func (f *Firebase) Type() string {
 
 func (f *Firebase) Close() error {
 	return f.firestoreClient.Close()
+}
+
+func (f *Firebase) loadUsers() ([]map[string]interface{}, error) {
+	iter := f.authClient.Users(f.ctx, "")
+	var users []map[string]interface{}
+	for {
+		authUser, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		user := make(map[string]interface{})
+		user["email"] = authUser.Email
+		user["uid"] = authUser.UID
+		user["phone"] = authUser.PhoneNumber
+		var signInMethods []string
+		for _, info := range authUser.ProviderUserInfo {
+			signInMethods = append(signInMethods, info.ProviderID)
+		}
+		user["sign_in_methods"] = signInMethods
+		user["disabled"] = authUser.Disabled
+		user["created_at"] = f.unixTimestampToISOString(authUser.UserMetadata.CreationTimestamp)
+		user["last_login"] = f.unixTimestampToISOString(authUser.UserMetadata.LastLogInTimestamp)
+		user["last_refresh"] = f.unixTimestampToISOString(authUser.UserMetadata.LastRefreshTimestamp)
+		users = append(users, user)
+	}
+	return users, nil
+}
+
+func (f *Firebase) unixTimestampToISOString(nanoseconds int64) string {
+	t := time.Unix(nanoseconds/1000, 0)
+	return timestamp.ToISOFormat(t)
 }
