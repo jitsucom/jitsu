@@ -14,8 +14,11 @@ import (
 	"strings"
 )
 
-const apiTokenKey = "api_key"
-const defaultLimit = 100
+const (
+	apiTokenKey  = "api_key"
+	ipKey        = "source_ip"
+	defaultLimit = 100
+)
 
 type CachedEventsResponse struct {
 	Events []events.Fact `json:"events"`
@@ -53,7 +56,12 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 
 	eh.eventsCache.PutAsync(token, payload)
 
-	processed, err := eh.preprocessor.Preprocess(payload, c.Request)
+	ip := extractIp(c.Request)
+	if ip != "" {
+		payload[ipKey] = ip
+	}
+
+	processed, err := eh.preprocessor.Preprocess(payload)
 	if err != nil {
 		logging.Error("Error processing event:", err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error processing event", Error: err.Error()})
@@ -104,4 +112,19 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+func extractIp(r *http.Request) string {
+	ip := r.Header.Get("X-Real-IP")
+	if ip == "" {
+		ip = r.Header.Get("X-Forwarded-For")
+	}
+	if ip == "" {
+		remoteAddr := r.RemoteAddr
+		if remoteAddr != "" {
+			addrPort := strings.Split(remoteAddr, ":")
+			ip = addrPort[0]
+		}
+	}
+	return ip
 }

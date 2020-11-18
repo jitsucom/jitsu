@@ -43,8 +43,16 @@ func TestMap(t *testing.T) {
 		},
 		{
 			"Map unflatten object",
-			[]string{"/key1 -> /key10", "/key2/subkey2-> /key11", "/key4/subkey1 ->", "/key4/subkey3 ->",
-				"/key4/subkey4 -> /key4", "/key5 -> /key6/subkey1", "/key3/subkey1 -> /key7", "/key3 -> /key2/subkey1"},
+			[]string{
+				"/key1 -> /key10",
+				"/key2/subkey2-> /key11",
+				"/key4/subkey1 ->",
+				"/key4/subkey3 ->",
+				"/key4/subkey4 -> /key4",
+				"/key5 -> /key6/subkey1",
+				"/key3/subkey1 -> /key7",
+				"/key3 -> /key2/subkey1",
+			},
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": map[string]interface{}{

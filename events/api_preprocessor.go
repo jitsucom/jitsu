@@ -2,67 +2,70 @@ package events
 
 import (
 	"errors"
-	"github.com/jitsucom/eventnative/appconfig"
+	"fmt"
+	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/geo"
+	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/useragent"
 	"github.com/jitsucom/eventnative/uuid"
-	"net/http"
 )
 
 //ApiPreprocessor preprocess server 2 server integration events
 type ApiPreprocessor struct {
-	geoResolver geo.Resolver
-	uaResolver  useragent.Resolver
+	ipLookupRule enrichment.Rule
+	uaParseRule  enrichment.Rule
+
+	geoDataPath  *jsonutils.JsonPath
+	parsedUaPath *jsonutils.JsonPath
 }
 
-func NewApiPreprocessor() Preprocessor {
-	return &ApiPreprocessor{
-		geoResolver: appconfig.Instance.GeoResolver,
-		uaResolver:  appconfig.Instance.UaResolver,
+func NewApiPreprocessor() (Preprocessor, error) {
+	ipLookupRule, err := enrichment.NewRule(enrichment.DefaultApiIpRuleConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Error creating default api ip lookup enrichment rule: %v", err)
 	}
+
+	uaParseRule, err := enrichment.NewRule(enrichment.DefaultApiUaRuleConig)
+	if err != nil {
+		return nil, fmt.Errorf("Error creating default api ua parse enrichment rule: %v", err)
+	}
+
+	return &ApiPreprocessor{
+		ipLookupRule: ipLookupRule,
+		uaParseRule:  uaParseRule,
+		geoDataPath:  jsonutils.NewJsonPath("/device_ctx/" + geo.GeoDataKey),
+		parsedUaPath: jsonutils.NewJsonPath("/device_ctx/" + useragent.ParsedUaKey),
+	}, nil
 }
 
-//Preprocess resolve geo from ip field or skip if geo.GeoDataKey field was provided
-//resolve useragent from uaKey or skip if useragent.ParsedUaKey field was provided
-//put eventn_ctx_event_id uuid if not set
+//Preprocess executes default enrichment rules or skip if geo.GeoDataKey and useragent.ParsedUaKey were provided
+//put eventn_ctx_event_id = uuid if not set
+//put src = api
 //return same object
-func (ap *ApiPreprocessor) Preprocess(fact Fact, r *http.Request) (Fact, error) {
+func (ap *ApiPreprocessor) Preprocess(fact Fact) (Fact, error) {
 	if fact == nil {
 		return nil, errors.New("Input fact can't be nil")
 	}
 
 	fact["src"] = "api"
-	ip := extractIp(r)
-	if ip != "" {
-		fact[ipKey] = ip
-	}
 
 	//put eventn_ctx_event_id if not set (e.g. It is used for ClickHouse)
 	EnrichWithEventId(fact, uuid.New())
 
-	if deviceCtx, ok := fact["device_ctx"]; ok {
-		if deviceCtxObject, ok := deviceCtx.(map[string]interface{}); ok {
-			//geo.GeoDataKey node overwrite geo resolving
-			if _, ok := deviceCtxObject[geo.GeoDataKey]; !ok {
-				if ip, ok := deviceCtxObject["ip"]; ok {
-					geoData, err := ap.geoResolver.Resolve(ip.(string))
-					if err != nil {
-						logging.Error(err)
-					}
+	_, ok := ap.geoDataPath.Get(fact)
+	if !ok {
+		err := ap.ipLookupRule.Execute(fact)
+		if err != nil {
+			logging.SystemErrorf("Error executing default api ip lookup enrichment rule: %v", err)
+		}
+	}
 
-					deviceCtxObject[geo.GeoDataKey] = geoData
-				}
-			}
-
-			//useragent.ParsedUaKey node overwrite useragent resolving
-			if _, ok := deviceCtxObject[useragent.ParsedUaKey]; !ok {
-				if ua, ok := deviceCtxObject[uaKey]; ok {
-					if uaStr, ok := ua.(string); ok {
-						deviceCtxObject[useragent.ParsedUaKey] = ap.uaResolver.Resolve(uaStr)
-					}
-				}
-			}
+	_, ok = ap.parsedUaPath.Get(fact)
+	if !ok {
+		err := ap.uaParseRule.Execute(fact)
+		if err != nil {
+			logging.SystemErrorf("Error executing default api ua parse enrichment rule: %v", err)
 		}
 	}
 

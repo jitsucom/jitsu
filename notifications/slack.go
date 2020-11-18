@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	ServiceName         = "EventNative"
 	serverStartTemplate = `{
 	"attachments": [
 		{
@@ -20,7 +21,7 @@ const (
 					"type": "section",
 					"text": {
 						"type": "mrkdwn",
-						"text": "*EventNative* [%s]:"
+						"text": "*%s* [%s]:"
 					}
 				},
 				{
@@ -46,7 +47,7 @@ const (
 					"type": "section",
 					"text": {
 						"type": "mrkdwn",
-						"text": "*EventNative* [%s]:"
+						"text": "*%s* [%s]:"
 					}
 				},
 				{
@@ -70,6 +71,7 @@ var instance *SlackNotifier
 type SlackNotifier struct {
 	client           *http.Client
 	errorLoggingFunc func(format string, v ...interface{})
+	serviceName      string
 	webHookUrl       string
 	serverName       string
 
@@ -109,7 +111,7 @@ func (sn *SlackNotifier) start() {
 	})
 }
 
-func Init(url, serverName string, errorLoggingFunc func(format string, v ...interface{})) {
+func Init(serviceName, url, serverName string, errorLoggingFunc func(format string, v ...interface{})) {
 	instance = &SlackNotifier{
 		client: &http.Client{
 			Timeout: 10 * time.Second,
@@ -119,6 +121,7 @@ func Init(url, serverName string, errorLoggingFunc func(format string, v ...inte
 			},
 		},
 		errorLoggingFunc: errorLoggingFunc,
+		serviceName:      serviceName,
 		webHookUrl:       url,
 		serverName:       serverName,
 		messagesCh:       make(chan string, 1000),
@@ -128,7 +131,7 @@ func Init(url, serverName string, errorLoggingFunc func(format string, v ...inte
 
 func ServerStart() {
 	if instance != nil {
-		instance.messagesCh <- fmt.Sprintf(serverStartTemplate, instance.serverName, "Service has been started!")
+		instance.messagesCh <- fmt.Sprintf(serverStartTemplate, instance.serviceName, instance.serverName, "Service has been started!")
 	}
 }
 
@@ -142,7 +145,7 @@ func SystemError(msg ...interface{}) {
 		for _, v := range msg {
 			valuesStr = append(valuesStr, fmt.Sprint(v))
 		}
-		instance.messagesCh <- fmt.Sprintf(systemErrorTemplate, instance.serverName, strings.Join(valuesStr, " "))
+		instance.messagesCh <- fmt.Sprintf(systemErrorTemplate, instance.serviceName, instance.serverName, strings.Join(valuesStr, " "))
 	}
 }
 

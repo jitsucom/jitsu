@@ -1,10 +1,10 @@
 package events
 
 import (
+	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/geo"
 	"github.com/jitsucom/eventnative/useragent"
 	"github.com/stretchr/testify/require"
-	"net/http"
 	"testing"
 )
 
@@ -20,7 +20,6 @@ func TestJsPreprocess(t *testing.T) {
 	tests := []struct {
 		name        string
 		input       Fact
-		inputReq    *http.Request
 		expected    Fact
 		expectedErr string
 	}{
@@ -28,37 +27,30 @@ func TestJsPreprocess(t *testing.T) {
 			"Nil input object",
 			nil,
 			nil,
-			nil,
 			"Input fact can't be nil",
 		},
 		{
 			"Empty input object",
 			Fact{},
-			&http.Request{Header: http.Header{}},
-			nil,
-			"Unable to get eventn_ctx from map[]",
+			Fact{},
+			"",
 		},
 		{
 			"Error eventnKey is not an object",
 			Fact{eventnKey: "abc"},
-			&http.Request{Header: http.Header{}},
-			nil,
-			"Unable to cast eventn_ctx to object: abc",
+			Fact{eventnKey: "abc"},
+			"",
 		},
 		{
 			"Process ok without geo and ua",
 			Fact{"eventn_ctx": map[string]interface{}{}},
-			&http.Request{Header: http.Header{}},
 			Fact{
-				"eventn_ctx": map[string]interface{}{
-					"location": (*geo.Data)(nil),
-				}},
+				"eventn_ctx": map[string]interface{}{}},
 			"",
 		},
 		{
 			"Process ok",
-			Fact{"eventn_ctx": map[string]interface{}{"user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36"}},
-			&http.Request{Header: http.Header{"X-Forwarded-For": []string{"10.10.10.10"}}},
+			Fact{"source_ip": "10.10.10.10", "eventn_ctx": map[string]interface{}{"user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36"}},
 			Fact{
 				"eventn_ctx": map[string]interface{}{
 					"location":   geoDataMock,
@@ -71,12 +63,13 @@ func TestJsPreprocess(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c2sPreprocessor := &JsPreprocessor{
-				geoResolver: geo.Mock{"10.10.10.10": geoDataMock},
-				uaResolver:  useragent.Mock{},
-			}
+			appconfig.Init()
+			appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
+			appconfig.Instance.UaResolver = useragent.Mock{}
+			jsPreprocessor, err := NewJsPreprocessor()
+			require.NoError(t, err)
 
-			actualFact, actualErr := c2sPreprocessor.Preprocess(tt.input, tt.inputReq)
+			actualFact, actualErr := jsPreprocessor.Preprocess(tt.input)
 			if tt.expectedErr == "" {
 				require.NoError(t, actualErr)
 			} else {

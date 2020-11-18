@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
@@ -21,9 +22,11 @@ type Processor struct {
 	typeCasts            map[string]typing.DataType
 	tableNameExtractFunc TableNameExtractFunction
 	pkFields             map[string]bool
+	enrichmentRules      []enrichment.Rule
 }
 
-func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType FieldMappingType, primaryKeyFields map[string]bool) (*Processor, error) {
+func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType FieldMappingType, primaryKeyFields map[string]bool,
+	enrichmentRules []enrichment.Rule) (*Processor, error) {
 	mapper, typeCasts, err := NewFieldMapper(mappingType, mappings)
 	if err != nil {
 		return nil, err
@@ -69,7 +72,9 @@ func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType
 		fieldMapper:          mapper,
 		typeCasts:            typeCasts,
 		tableNameExtractFunc: tableNameExtractFunc,
-		pkFields:             primaryKeyFields}, nil
+		pkFields:             primaryKeyFields,
+		enrichmentRules:      enrichmentRules,
+	}, nil
 }
 
 //ProcessFact return table representation, processed flatten object
@@ -187,11 +192,19 @@ func (p *Processor) processLine(line []byte) (*Table, map[string]interface{}, er
 }
 
 //Return table representation of object and flatten, mapped object
-//1. remove toDelete fields from object
-//2. flatten object
+//1. execute enrichment rules
+//2. remove toDelete fields from object
 //3. map object
-//4. apply typecast
+//4. flatten object
+//5. apply typecast
 func (p *Processor) processObject(object map[string]interface{}) (*Table, map[string]interface{}, error) {
+	for _, rule := range p.enrichmentRules {
+		err := rule.Execute(object)
+		if err != nil {
+			return nil, nil, fmt.Errorf("Error executing enrichment rule: [%s] object {%v}: %v", rule.Name(), object, err)
+		}
+	}
+
 	mappedObject, err := p.fieldMapper.Map(object)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Error mapping object {%v}: %v", object, err)
