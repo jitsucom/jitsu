@@ -5,11 +5,12 @@ go 1.14
 require (
 	bou.ke/monkey v1.0.2
 	cloud.google.com/go/bigquery v1.4.0
+	cloud.google.com/go/firestore v1.1.1
 	cloud.google.com/go/storage v1.5.0
+	firebase.google.com/go/v4 v4.1.0
 	github.com/aws/aws-sdk-go v1.34.0
-	github.com/coreos/etcd v3.3.25+incompatible
+	github.com/coreos/etcd v3.3.13+incompatible
 	github.com/docker/go-connections v0.4.0
-	github.com/dustin/go-humanize v1.0.0 // indirect
 	github.com/gin-gonic/gin v1.6.3
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/gomodule/redigo v1.8.2
@@ -40,9 +41,8 @@ require (
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	golang.org/x/tools v0.0.0-20200806022845-90696ccdc692 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
-	google.golang.org/api v0.15.1
+	google.golang.org/api v0.17.0
 	google.golang.org/appengine v1.6.6 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
-	sigs.k8s.io/yaml v1.2.0 // indirect
 )
