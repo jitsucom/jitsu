@@ -6,12 +6,15 @@ import (
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/middleware"
 	"github.com/jitsucom/eventnative/telemetry"
 	"github.com/jitsucom/eventnative/timestamp"
+	"github.com/jitsucom/eventnative/uuid"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -21,7 +24,7 @@ const (
 )
 
 type CachedEventsResponse struct {
-	Events []events.Fact `json:"events"`
+	Events []meta.Event `json:"events"`
 }
 
 //Accept all events
@@ -54,7 +57,20 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	}
 	token := iface.(string)
 
-	eh.eventsCache.PutAsync(token, payload)
+	//put eventn_ctx_event_id if not set (e.g. It is used for ClickHouse)
+	eventId := uuid.New()
+	events.EnrichWithEventId(payload, eventId)
+
+	tokenId := appconfig.Instance.AuthorizationService.GetTokenId(token)
+
+	if eh.eventsCache != nil {
+		for _, proxy := range eh.destinationService.GetStorages(tokenId) {
+			destination, ok := proxy.Get()
+			if ok {
+				eh.eventsCache.PutAsync(destination.Name(), eventId, payload)
+			}
+		}
+	}
 
 	ip := extractIp(c.Request)
 	if ip != "" {
@@ -71,8 +87,6 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	processed[apiTokenKey] = token
 	processed[timestamp.Key] = timestamp.NowUTC()
 
-	tokenId := appconfig.Instance.AuthorizationService.GetTokenId(token)
-
 	consumers := eh.destinationService.GetConsumers(tokenId)
 	if len(consumers) == 0 {
 		logging.Warnf("Unknown token[%s] request was received", token)
@@ -88,26 +102,35 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 }
 
 func (eh *EventHandler) GetHandler(c *gin.Context) {
-	apikeys := c.Query("apikeys")
-	limitStr := c.Query("limit_per_apikey")
+	start, err := time.Parse(timestamp.Layout, c.Query("start"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing start query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
+		return
+	}
+	end, err := time.Parse(timestamp.Layout, c.Query("end"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing end query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
+		return
+	}
+	destinationIds := c.Query("destination_ids")
+	limitStr := c.Query("limit")
 	var limit int
-	var err error
 	if limitStr == "" {
 		limit = defaultLimit
 	} else {
 		limit, err = strconv.Atoi(limitStr)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "limit_per_apikey must be int"})
+			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "limit must be int"})
 			return
 		}
 	}
 
-	response := CachedEventsResponse{Events: []events.Fact{}}
-	if len(apikeys) == 0 {
-		response.Events = eh.eventsCache.GetAll(limit)
+	response := CachedEventsResponse{Events: []meta.Event{}}
+	if len(destinationIds) == 0 {
+		//response.Events = eh.eventsCache.GetAll(limit)
 	} else {
-		for _, key := range strings.Split(apikeys, ",") {
-			response.Events = append(response.Events, eh.eventsCache.GetN(key, limit)...)
+		for _, destinationId := range strings.Split(destinationIds, ",") {
+			response.Events = append(response.Events, eh.eventsCache.GetN(destinationId, start, end, limit)...)
 		}
 	}
 
