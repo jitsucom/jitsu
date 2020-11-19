@@ -35,6 +35,7 @@ func NewStorage(meta *viper.Viper) (Storage, error) {
 
 	host := meta.GetString("redis.host")
 	port := meta.GetInt("redis.port")
+	password := meta.GetString("redis.password")
 
-	return NewRedis(host, port)
+	return NewRedis(host, port, password)
 }

@@ -54,6 +54,23 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 			driverPerCollection[collection] = gpd
 		}
 		return driverPerCollection, nil
+	case FirebaseType:
+		firebaseCfg := &FirebaseConfig{}
+		err := unmarshalConfig(sourceConfig.Config, firebaseCfg)
+		if err != nil {
+			return nil, err
+		}
+		if err := firebaseCfg.Validate(); err != nil {
+			return nil, err
+		}
+		for _, collection := range sourceConfig.Collections {
+			firebase, err := NewFirebase(ctx, firebaseCfg, collection)
+			if err != nil {
+				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
+			}
+			driverPerCollection[collection] = firebase
+		}
+		return driverPerCollection, nil
 	default:
 		return nil, unknownSource
 	}
