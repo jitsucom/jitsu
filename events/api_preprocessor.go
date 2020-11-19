@@ -8,7 +8,6 @@ import (
 	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/useragent"
-	"github.com/jitsucom/eventnative/uuid"
 )
 
 //ApiPreprocessor preprocess server 2 server integration events
@@ -49,9 +48,6 @@ func (ap *ApiPreprocessor) Preprocess(fact Fact) (Fact, error) {
 	}
 
 	fact["src"] = "api"
-
-	//put eventn_ctx_event_id if not set (e.g. It is used for ClickHouse)
-	EnrichWithEventId(fact, uuid.New())
 
 	_, ok := ap.geoDataPath.Get(fact)
 	if !ok {

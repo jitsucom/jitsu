@@ -92,6 +92,10 @@ func Fatal(v ...interface{}) {
 	log.Fatal(errMsg(v...))
 }
 
+func Fatalf(format string, v ...interface{}) {
+	log.Fatalf(format, errMsg(v...))
+}
+
 func errMsg(values ...interface{}) string {
 	valuesStr := []string{errPrefix}
 	for _, v := range values {

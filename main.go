@@ -186,7 +186,7 @@ func main() {
 	//meta storage
 	metaStorage, err := meta.NewStorage(metaStorageViper)
 	if err != nil {
-		logging.Fatal(err)
+		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
 	//close after all for saving last task statuses
 	defer metaStorage.Close()
@@ -224,7 +224,7 @@ func main() {
 	uploader.Start()
 
 	adminToken := viper.GetString("server.admin_token")
-	eventsCache := events.NewCache(100)
+	eventsCache := events.NewCache(metaStorage, 100)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	//version reminder banner in logs

@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jitsucom/eventnative/enrichment"
-	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/timestamp"
@@ -78,7 +77,7 @@ func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType
 }
 
 //ProcessFact return table representation, processed flatten object
-func (p *Processor) ProcessFact(fact events.Fact) (*Table, map[string]interface{}, error) {
+func (p *Processor) ProcessFact(fact map[string]interface{}) (*Table, map[string]interface{}, error) {
 	return p.processObject(fact)
 }
 

@@ -74,6 +74,16 @@ func (t Table) Diff(another *Table) (*Table, error) {
 	return diff, nil
 }
 
+func (t Table) Serialize(object map[string]interface{}) (string, error) {
+	for name, value := range object {
+		column, ok := t.Columns[name]
+		if !ok {
+			return "", fmt
+		}
+		col.GetType()
+	}
+}
+
 func (t Table) PrimaryKeyFieldsEqual(another *Table) bool {
 	return reflect.DeepEqual(t.PKFields, another.PKFields)
 }
@@ -157,4 +167,10 @@ func (c Column) GetType() typing.DataType {
 	//put result to dataType (it will be wiped(in Merge) if a new type is added)
 	c.dataType = &common
 	return common
+}
+
+type Record struct {
+	Field string      `json:"field,omitempty"`
+	Type  string      `json:"type,omitempty"`
+	Value interface{} `json:"value,omitempty"`
 }
