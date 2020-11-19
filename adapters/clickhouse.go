@@ -18,7 +18,7 @@ import (
 
 const (
 	tableSchemaCHQuery        = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
-	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS %s %s`
+	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS "%s" %s`
 	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s %s`
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
 	onClusterCHClauseTemplate = ` ON CLUSTER "%s" `
