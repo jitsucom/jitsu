@@ -88,7 +88,9 @@ func (f *Firebase) loadCollection(firestoreCollectionName string) ([]map[string]
 		if err != nil {
 			return nil, err
 		}
-		documentJsons = append(documentJsons, snapshot.Data())
+		data := snapshot.Data()
+		data["_firestore_document_id"] = document.ID
+		documentJsons = append(documentJsons, data)
 	}
 	return documentJsons, nil
 }
