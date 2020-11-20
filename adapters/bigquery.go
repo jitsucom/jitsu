@@ -32,23 +32,16 @@ type BigQuery struct {
 	ctx           context.Context
 	client        *bigquery.Client
 	config        *GoogleConfig
-	queryLogger   *logging.QueryLogger
 	destinationId string
 }
 
-func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging.QueryLogger, destinationId string) (*BigQuery, error) {
-	if destinationId == "" {
-		return nil, fmt.Errorf("destinationId must be not empty")
-	}
-	if queryLogger == nil {
-		queryLogger = &logging.QueryLogger{}
-	}
+func NewBigQuery(ctx context.Context, config *GoogleConfig) (*BigQuery, error) {
 	client, err := bigquery.NewClient(ctx, config.Project, config.credentials)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating BigQuery client: %v", err)
 	}
 
-	return &BigQuery{ctx: ctx, client: client, config: config, queryLogger: queryLogger, destinationId: destinationId}, nil
+	return &BigQuery{ctx: ctx, client: client, config: config}, nil
 }
 
 //Transfer data from google cloud storage file to google BigQuery table as one batch

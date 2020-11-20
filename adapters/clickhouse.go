@@ -427,7 +427,7 @@ func (ch *ClickHouse) InsertInTransaction(wrappedTx *Transaction, schema *schema
 	placeholders = removeLastComma(placeholders)
 
 	query := fmt.Sprintf(insertCHTemplate, ch.database, schema.Name, header, placeholders)
-	ch.queryLogger.Log(ch.destinationId, query)
+	ch.queryLogger.LogWithValues(ch.destinationId, query, values)
 	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing insert table %s statement: %v", schema.Name, err)
