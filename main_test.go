@@ -431,7 +431,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 	monitor := &synchronization.Dummy{}
-	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", monitor, storages.Create)
+	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", monitor, nil, storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
 	router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5), sources.NewTestService())
@@ -526,7 +526,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 	err = appconfig.Init()
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
-	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", &synchronization.Dummy{}, storages.Create)
+	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", &synchronization.Dummy{}, nil, storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
 	router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5), sources.NewTestService())
