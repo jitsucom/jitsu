@@ -51,11 +51,13 @@ type Config struct {
 	streamMode    bool
 	monitorKeeper MonitorKeeper
 	eventQueue    *events.PersistentQueue
+	queryLogger   *logging.QueryLogger
 }
 
 //Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, name, logEventPath string, destination DestinationConfig, monitorKeeper MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error) {
+func Create(ctx context.Context, name, logEventPath string, destination DestinationConfig,
+	monitorKeeper MonitorKeeper, queryLogger *logging.QueryLogger) (events.StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = name
 	}
@@ -141,6 +143,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		streamMode:    destination.Mode == StreamMode,
 		monitorKeeper: monitorKeeper,
 		eventQueue:    eventQueue,
+		queryLogger:   queryLogger,
 	}
 
 	var storageProxy events.StorageProxy
@@ -187,7 +190,8 @@ func createRedshift(config *Config) (events.Storage, error) {
 		redshiftConfig.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewAwsRedshift(config.ctx, config.name, config.eventQueue, config.destination.S3, redshiftConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
+	return NewAwsRedshift(config.ctx, config.name, config.eventQueue, config.destination.S3, redshiftConfig,
+		config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.queryLogger)
 }
 
 //Create google BigQuery destination
@@ -207,7 +211,8 @@ func createBigQuery(config *Config) (events.Storage, error) {
 		logging.Warnf("[%s] dataset wasn't provided. Will be used default one: %s", config.name, gConfig.Dataset)
 	}
 
-	return NewBigQuery(config.ctx, config.name, config.eventQueue, gConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
+	return NewBigQuery(config.ctx, config.name, config.eventQueue, gConfig, config.processor,
+		config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.queryLogger)
 }
 
 //Create Postgres destination
@@ -230,7 +235,8 @@ func createPostgres(config *Config) (events.Storage, error) {
 		pgConfig.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewPostgres(config.ctx, pgConfig, config.processor, config.eventQueue, config.name, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
+	return NewPostgres(config.ctx, pgConfig, config.processor, config.eventQueue, config.name,
+		config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.queryLogger)
 }
 
 //Create ClickHouse destination
@@ -240,7 +246,8 @@ func createClickHouse(config *Config) (events.Storage, error) {
 		return nil, err
 	}
 
-	return NewClickHouse(config.ctx, config.name, config.eventQueue, chConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
+	return NewClickHouse(config.ctx, config.name, config.eventQueue, chConfig, config.processor,
+		config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.queryLogger)
 }
 
 //Create s3 destination
@@ -286,5 +293,6 @@ func createSnowflake(config *Config) (events.Storage, error) {
 		}
 	}
 
-	return NewSnowflake(config.ctx, config.name, config.eventQueue, config.destination.S3, config.destination.Google, snowflakeConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
+	return NewSnowflake(config.ctx, config.name, config.eventQueue, config.destination.S3, config.destination.Google,
+		snowflakeConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.queryLogger)
 }

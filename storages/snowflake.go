@@ -33,8 +33,9 @@ type Snowflake struct {
 }
 
 //NewSnowflake return Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
-func NewSnowflake(ctx context.Context, name string, eventQueue *events.PersistentQueue, s3Config *adapters.S3Config, gcpConfig *adapters.GoogleConfig,
-	snowflakeConfig *adapters.SnowflakeConfig, processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*Snowflake, error) {
+func NewSnowflake(ctx context.Context, name string, eventQueue *events.PersistentQueue, s3Config *adapters.S3Config,
+	gcpConfig *adapters.GoogleConfig, snowflakeConfig *adapters.SnowflakeConfig, processor *schema.Processor,
+	breakOnError, streamMode bool, monitorKeeper MonitorKeeper, queryLogger *logging.QueryLogger) (*Snowflake, error) {
 	var stageAdapter adapters.Stage
 	if !streamMode {
 		var err error
@@ -51,7 +52,7 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 		}
 	}
 
-	snowflakeAdapter, err := CreateSnowflakeAdapter(ctx, s3Config, *snowflakeConfig)
+	snowflakeAdapter, err := CreateSnowflakeAdapter(ctx, s3Config, *snowflakeConfig, queryLogger, name)
 	if err != nil {
 		if stageAdapter != nil {
 			stageAdapter.Close()
@@ -82,15 +83,16 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 
 //create snowflake adapter with schema
 //if schema doesn't exist - snowflake returns error. In this case connect without schema and create it
-func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, config adapters.SnowflakeConfig) (*adapters.Snowflake, error) {
-	snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config)
+func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, config adapters.SnowflakeConfig,
+	queryLogger *logging.QueryLogger, destinationId string) (*adapters.Snowflake, error) {
+	snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, destinationId)
 	if err != nil {
 		if sferr, ok := err.(*sf.SnowflakeError); ok {
 			//schema doesn't exist
 			if sferr.Number == sf.ErrObjectNotExistOrAuthorized {
 				snowflakeSchema := config.Schema
 				config.Schema = ""
-				snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config)
+				snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, destinationId)
 				if err != nil {
 					return nil, err
 				}
@@ -102,7 +104,7 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 				}
 				snowflakeAdapter.Close()
 
-				snowflakeAdapter, err = adapters.NewSnowflake(ctx, &config, s3Config)
+				snowflakeAdapter, err = adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, destinationId)
 				if err != nil {
 					return nil, err
 				}

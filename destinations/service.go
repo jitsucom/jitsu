@@ -32,10 +32,12 @@ type LoggerUsage struct {
 
 //Service is reloadable service of events destinations per token
 type Service struct {
-	storageFactoryMethod func(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error)
-	ctx                  context.Context
-	logEventPath         string
-	monitorKeeper        storages.MonitorKeeper
+	storageFactoryMethod func(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig,
+		monitorKeeper storages.MonitorKeeper, queryLogger *logging.QueryLogger) (events.StorageProxy, *events.PersistentQueue, error)
+	ctx           context.Context
+	logEventPath  string
+	monitorKeeper storages.MonitorKeeper
+	queryLogger   *logging.QueryLogger
 
 	//map for holding all destinations for closing
 	unitsByName map[string]*Unit
@@ -56,13 +58,16 @@ func NewTestService(consumersByTokenId TokenizedConsumers, storagesByTokenId Tok
 }
 
 //NewService return loaded Service instance and call resources.Watcher() if destinations source is http url or file path
-func NewService(ctx context.Context, destinations *viper.Viper, destinationsSource, logEventPath string, monitorKeeper storages.MonitorKeeper,
-	storageFactoryMethod func(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
+func NewService(ctx context.Context, destinations *viper.Viper, destinationsSource, logEventPath string,
+	monitorKeeper storages.MonitorKeeper, queryLogger *logging.QueryLogger,
+	storageFactoryMethod func(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig,
+		monitorKeeper storages.MonitorKeeper, queryLogger *logging.QueryLogger) (events.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
 	service := &Service{
 		storageFactoryMethod: storageFactoryMethod,
 		ctx:                  ctx,
 		logEventPath:         logEventPath,
 		monitorKeeper:        monitorKeeper,
+		queryLogger:          queryLogger,
 
 		unitsByName:           map[string]*Unit{},
 		loggersUsageByTokenId: map[string]*LoggerUsage{},
@@ -205,7 +210,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		}
 
 		//create new
-		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, destination, s.monitorKeeper)
+		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, destination, s.monitorKeeper, s.queryLogger)
 		if err != nil {
 			logging.Errorf("[%s] Error initializing destination of type %s: %v", name, destination.Type, err)
 			continue
