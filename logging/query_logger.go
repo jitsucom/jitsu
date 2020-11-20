@@ -3,7 +3,6 @@ package logging
 import (
 	"fmt"
 	"log"
-	"os"
 	"strings"
 )
 
@@ -12,17 +11,19 @@ type QueryLogger struct {
 	logger  *log.Logger
 }
 
-func NewQueryLogger(filePath string) *QueryLogger {
-	var logger *log.Logger
-	if filePath != "" {
-		f, err := os.OpenFile("text.log",
-			os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			log.Println(err)
-		}
-		logger = log.New(DateTimeWriterProxy{writer: f}, "query", 0)
+func NewQueryLogger(enabled bool, config *Config) (*QueryLogger, error) {
+	if !enabled {
+		return &QueryLogger{enabled: false}, nil
 	}
-	return &QueryLogger{enabled: true, logger: logger}
+	var logger *log.Logger
+	if config != nil {
+		writer, err := NewWriter(*config)
+		if err != nil {
+			return nil, err
+		}
+		logger = log.New(DateTimeWriterProxy{writer: writer}, "", 0)
+	}
+	return &QueryLogger{enabled: true, logger: logger}, nil
 }
 
 func (l *QueryLogger) Log(destinationId string, query string) {

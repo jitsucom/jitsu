@@ -24,6 +24,7 @@ type AppConfig struct {
 var Instance *AppConfig
 
 func setDefaultParams() {
+	viper.SetDefault("server.name", "unnamed-server")
 	viper.SetDefault("server.port", "8001")
 	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("server.auth_reload_sec", 30)
@@ -35,16 +36,13 @@ func setDefaultParams() {
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", "5")
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
+	viper.SetDefault("query_log.rotation_min", "5")
 }
 
 func Init() error {
 	setDefaultParams()
 
 	serverName := viper.GetString("server.name")
-	if serverName == "" {
-		serverName = "unnamed-server"
-	}
-
 	err := logging.InitGlobalLogger(logging.Config{
 		LoggerName:  "main",
 		ServerName:  serverName,
