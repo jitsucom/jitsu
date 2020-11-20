@@ -37,7 +37,6 @@ func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType
 	}
 
 	tmpl, err := template.New("table name extract").
-		Option("missingkey=error").
 		Parse(tableNameFuncExpression)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing table name template %v", err)
@@ -63,8 +62,11 @@ func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType
 		//revert type of _timestamp field
 		object[timestamp.Key] = ts
 
+		// format "<no value>" -> null
+		formatted := strings.ReplaceAll(buf.String(), "<no value>", "null")
 		// format "Abc dse" -> "abc_dse"
-		return strings.ToLower(strings.ReplaceAll(buf.String(), " ", "_")), nil
+		reformatted := strings.ReplaceAll(formatted, " ", "_")
+		return strings.ToLower(reformatted), nil
 	}
 
 	return &Processor{
