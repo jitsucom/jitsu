@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -108,7 +109,7 @@ func TestServiceInit(t *testing.T) {
 	payload := &payloadHolder{payload: []byte(initialDestinations)}
 	mockDestinationsServer := startTestServer(payload)
 
-	service, err := NewService(context.Background(), nil, mockDestinationsServer.URL, "/tmp", nil, createTestStorage)
+	service, err := NewService(context.Background(), nil, mockDestinationsServer.URL, "/tmp", nil, nil, createTestStorage)
 	require.NoError(t, err)
 	require.NotNil(t, service)
 
@@ -293,7 +294,7 @@ func startTestServer(ph *payloadHolder) *httptest.Server {
 		}))
 }
 
-func createTestStorage(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error) {
+func createTestStorage(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper, queryLogger *logging.QueryLogger) (events.StorageProxy, *events.PersistentQueue, error) {
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == storages.StreamMode {
 		eventQueue, _ = events.NewPersistentQueue(name, "/tmp")

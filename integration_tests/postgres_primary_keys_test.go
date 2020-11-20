@@ -28,7 +28,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 		panic(err)
 	}
 	monitor, err := synchronization.NewService(ctx, "test", "", "", 0)
-	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true, false, monitor)
+	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true, false, monitor, nil)
 	if err != nil {
 		require.Fail(t, "failed to initialize", err)
 	}
