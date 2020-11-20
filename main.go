@@ -160,7 +160,7 @@ func main() {
 	logEventPath := viper.GetString("log.path")
 
 	//Create event destinations
-	queryLogger := &logging.QueryLogger{}
+	queryLogger := logging.NewQueryLogger("")
 	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath,
 		syncService, queryLogger, storages.Create)
 	if err != nil {

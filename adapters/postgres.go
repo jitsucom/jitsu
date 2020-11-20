@@ -359,7 +359,7 @@ func (p *Postgres) InsertInTransaction(wrappedTx *Transaction, table *schema.Tab
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
 	query := p.insertQuery(schema.PkToFieldsArray(table.PKFields), table.Name, header, placeholders)
-	p.queryLogger.Log(p.destinationId, query)
+	p.queryLogger.LogWithValues(p.destinationId, query, values)
 	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)

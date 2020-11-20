@@ -1,8 +1,10 @@
 package logging
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"strings"
 )
 
 type QueryLogger struct {
@@ -31,6 +33,21 @@ func (l *QueryLogger) Log(destinationId string, query string) {
 		l.logger.Printf("[%s] %s\n", destinationId, query)
 	} else {
 		Debugf("[%s] %s", destinationId, query)
+	}
+}
+
+func (l *QueryLogger) LogWithValues(destinationId string, query string, values []interface{}) {
+	if !l.enabled {
+		return
+	}
+	var stringValues []string
+	for _, value := range values {
+		stringValues = append(stringValues, fmt.Sprint(value))
+	}
+	if l.logger != nil {
+		l.logger.Printf("[%s] %s values: [%s]\n", destinationId, query, strings.Join(stringValues, ", "))
+	} else {
+		Debugf("[%s] %s values: [%s]", destinationId, query, strings.Join(stringValues, ", "))
 	}
 }
 

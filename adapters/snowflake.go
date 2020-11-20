@@ -301,7 +301,7 @@ func (s *Snowflake) InsertInTransaction(wrappedTx *Transaction, schema *schema.T
 	placeholders = removeLastComma(placeholders)
 
 	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(schema.Name), header, placeholders)
-	s.queryLogger.Log(s.destinationId, query)
+	s.queryLogger.LogWithValues(s.destinationId, query, values)
 	insertStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing insert table %s statement: %v", schema.Name, err)
