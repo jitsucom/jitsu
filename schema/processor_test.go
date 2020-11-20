@@ -80,6 +80,15 @@ func TestProcessFilePayload(t *testing.T) {
 						"key5":                NewColumn(typing.STRING),
 						"key3":                NewColumn(typing.STRING)}},
 				},
+
+				"null_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
+					{"_geo_data_region": "null", "_timestamp": testTime3, "key1": 9999999.0},
+				},
+					DataSchema: &Table{Name: "null_2020_08", PKFields: map[string]bool{}, Columns: Columns{
+						"_geo_data_region": NewColumn(typing.STRING),
+						"_timestamp":       NewColumn(typing.TIMESTAMP),
+						"key1":             NewColumn(typing.FLOAT64)}},
+				},
 			},
 		},
 	}
