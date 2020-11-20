@@ -46,7 +46,9 @@ func NewRedis(host string, port int, password string) (*Redis, error) {
 	}}
 
 	//test connection
-	_, err := redis.String(r.pool.Get().Do("PING"))
+	connection := r.pool.Get()
+	defer connection.Close()
+	_, err := redis.String(connection.Do("PING"))
 	if err != nil {
 		return nil, fmt.Errorf("Error testing connection to Redis: %v", err)
 	}
@@ -57,7 +59,9 @@ func NewRedis(host string, port int, password string) (*Redis, error) {
 func (r *Redis) GetSignature(sourceId, collection, interval string) (string, error) {
 	key := "source#" + sourceId + ":collection#" + collection + ":chunks"
 	field := interval
-	signature, err := redis.String(r.pool.Get().Do("HGET", key, field))
+	connection := r.pool.Get()
+	defer connection.Close()
+	signature, err := redis.String(connection.Do("HGET", key, field))
 	noticeError(err)
 	if err != nil {
 		if err == redis.ErrNil {
@@ -73,7 +77,9 @@ func (r *Redis) GetSignature(sourceId, collection, interval string) (string, err
 func (r *Redis) SaveSignature(sourceId, collection, interval, signature string) error {
 	key := "source#" + sourceId + ":collection#" + collection + ":chunks"
 	field := interval
-	_, err := r.pool.Get().Do("HSET", key, field, signature)
+	connection := r.pool.Get()
+	defer connection.Close()
+	_, err := connection.Do("HSET", key, field, signature)
 	noticeError(err)
 	if err != redis.ErrNil {
 		return err
@@ -85,7 +91,9 @@ func (r *Redis) SaveSignature(sourceId, collection, interval, signature string) 
 func (r *Redis) GetCollectionStatus(sourceId, collection string) (string, error) {
 	key := "source#" + sourceId + ":collection#" + collection + ":status"
 	field := "current"
-	status, err := redis.String(r.pool.Get().Do("HGET", key, field))
+	connection := r.pool.Get()
+	defer connection.Close()
+	status, err := redis.String(connection.Do("HGET", key, field))
 	noticeError(err)
 	if err != nil {
 		if err == redis.ErrNil {
@@ -101,7 +109,9 @@ func (r *Redis) GetCollectionStatus(sourceId, collection string) (string, error)
 func (r *Redis) SaveCollectionStatus(sourceId, collection, status string) error {
 	key := "source#" + sourceId + ":collection#" + collection + ":status"
 	field := "current"
-	_, err := r.pool.Get().Do("HSET", key, field, status)
+	connection := r.pool.Get()
+	defer connection.Close()
+	_, err := connection.Do("HSET", key, field, status)
 	noticeError(err)
 	if err != redis.ErrNil {
 		return err
@@ -113,7 +123,9 @@ func (r *Redis) SaveCollectionStatus(sourceId, collection, status string) error 
 func (r *Redis) GetCollectionLog(sourceId, collection string) (string, error) {
 	key := "source#" + sourceId + ":collection#" + collection + ":log"
 	field := "current"
-	log, err := redis.String(r.pool.Get().Do("HGET", key, field))
+	connection := r.pool.Get()
+	defer connection.Close()
+	log, err := redis.String(connection.Do("HGET", key, field))
 	noticeError(err)
 	if err != nil {
 		if err == redis.ErrNil {
@@ -129,7 +141,9 @@ func (r *Redis) GetCollectionLog(sourceId, collection string) (string, error) {
 func (r *Redis) SaveCollectionLog(sourceId, collection, log string) error {
 	key := "source#" + sourceId + ":collection#" + collection + ":log"
 	field := "current"
-	_, err := r.pool.Get().Do("HSET", key, field, log)
+	connection := r.pool.Get()
+	defer connection.Close()
+	_, err := connection.Do("HSET", key, field, log)
 	noticeError(err)
 	if err != redis.ErrNil {
 		return err
