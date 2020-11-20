@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
 	"math/rand"
 )
@@ -23,7 +24,8 @@ type ClickHouse struct {
 }
 
 func NewClickHouse(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.ClickHouseConfig,
-	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*ClickHouse, error) {
+	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper,
+	queryLogger *logging.QueryLogger) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
@@ -39,7 +41,8 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 	var chAdapters []*adapters.ClickHouse
 	var tableHelpers []*TableHelper
 	for _, dsn := range config.Dsns {
-		adapter, err := adapters.NewClickHouse(ctx, dsn, config.Database, config.Cluster, config.Tls, tableStatementFactory, nullableFields)
+		adapter, err := adapters.NewClickHouse(ctx, dsn, config.Database, config.Cluster, config.Tls,
+			tableStatementFactory, nullableFields, queryLogger, name)
 		if err != nil {
 			//close all previous created adapters
 			for _, toClose := range chAdapters {

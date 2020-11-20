@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	errPrefix  = "[ERROR]:"
-	warnPrefix = "[WARN]:"
-	infoPrefix = "[INFO]:"
+	errPrefix   = "[ERROR]:"
+	warnPrefix  = "[WARN]:"
+	infoPrefix  = "[INFO]:"
+	debugPrefix = "[DEBUG]:"
 )
 
 type Config struct {
@@ -78,6 +79,14 @@ func Infof(format string, v ...interface{}) {
 
 func Info(v ...interface{}) {
 	log.Println(append([]interface{}{infoPrefix}, v...)...)
+}
+
+func Debugf(format string, v ...interface{}) {
+	Debug(fmt.Sprintf(format, v...))
+}
+
+func Debug(v ...interface{}) {
+	log.Println(append([]interface{}{debugPrefix}, v...)...)
 }
 
 func Warnf(format string, v ...interface{}) {
