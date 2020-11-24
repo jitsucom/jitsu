@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/metrics"
+	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/schema"
 	"time"
@@ -27,6 +29,7 @@ type AwsRedshift struct {
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
 	streamingWorker *StreamingWorker
+	fallbackLogger  *events.AsyncLogger
 	breakOnError    bool
 
 	closed bool
@@ -34,7 +37,7 @@ type AwsRedshift struct {
 
 //NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.PersistentQueue, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
-	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*AwsRedshift, error) {
+	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger) (*AwsRedshift, error) {
 	var s3Adapter *adapters.S3
 	if !streamMode {
 		var err error
@@ -64,6 +67,7 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 		redshiftAdapter: redshiftAdapter,
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
+		fallbackLogger:  fallbackLoggerFactoryMethod(),
 		breakOnError:    breakOnError,
 	}
 
@@ -150,12 +154,17 @@ func (ar *AwsRedshift) Insert(dataSchema *schema.Table, fact events.Fact) (err e
 	return ar.redshiftAdapter.Insert(dataSchema, fact)
 }
 
+//Store call StoreWithParseFunc with parsers.ParseJson func
+func (ar *AwsRedshift) Store(fileName string, payload []byte) (int, error) {
+	return ar.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+}
+
 //Store file from byte payload to s3 with processing
 //return rowsCount and err if err occurred
 //but return 0 and nil if no err
 //because Store method doesn't store data to AwsRedshift(only to S3)
-func (ar *AwsRedshift) Store(fileName string, payload []byte) (int, error) {
-	flatData, err := ar.schemaProcessor.ProcessFilePayload(fileName, payload, ar.breakOnError)
+func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
+	flatData, failedEvents, err := ar.schemaProcessor.ProcessFilePayload(fileName, payload, ar.breakOnError, parseFunc)
 	if err != nil {
 		return linesCount(payload), err
 	}
@@ -185,7 +194,17 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte) (int, error) {
 		}
 	}
 
+	//send failed events to fallback only if other events have been inserted ok
+	ar.Fallback(failedEvents...)
+
 	return 0, nil
+}
+
+//Fallback log event with error to fallback logger
+func (ar *AwsRedshift) Fallback(failedFacts ...*events.FailedFact) {
+	for _, failedFact := range failedFacts {
+		ar.fallbackLogger.ConsumeAny(failedFact)
+	}
 }
 
 func (ar *AwsRedshift) SyncStore(objects []map[string]interface{}) (int, error) {
@@ -200,7 +219,7 @@ func (ar *AwsRedshift) Type() string {
 	return RedshiftType
 }
 
-func (ar *AwsRedshift) Close() error {
+func (ar *AwsRedshift) Close() (multiErr error) {
 	ar.closed = true
 
 	if err := ar.redshiftAdapter.Close(); err != nil {
@@ -209,6 +228,10 @@ func (ar *AwsRedshift) Close() error {
 
 	if ar.streamingWorker != nil {
 		ar.streamingWorker.Close()
+	}
+
+	if err := ar.fallbackLogger.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ar.Name(), err))
 	}
 
 	return nil

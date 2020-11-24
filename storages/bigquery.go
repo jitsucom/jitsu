@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/metrics"
+	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/schema"
 	"time"
@@ -25,13 +26,14 @@ type BigQuery struct {
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
 	streamingWorker *StreamingWorker
+	fallbackLogger  *events.AsyncLogger
 	breakOnError    bool
 
 	closed bool
 }
 
 func NewBigQuery(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.GoogleConfig, processor *schema.Processor,
-	breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*BigQuery, error) {
+	breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger) (*BigQuery, error) {
 	var gcsAdapter *adapters.GoogleCloudStorage
 	if !streamMode {
 		var err error
@@ -64,8 +66,10 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 		bqAdapter:       bigQueryAdapter,
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
+		fallbackLogger:  fallbackLoggerFactoryMethod(),
 		breakOnError:    breakOnError,
 	}
+
 	if streamMode {
 		bq.streamingWorker = newStreamingWorker(eventQueue, processor, bq)
 		bq.streamingWorker.start()
@@ -137,12 +141,17 @@ func (bq *BigQuery) Insert(dataSchema *schema.Table, fact events.Fact) (err erro
 	return bq.bqAdapter.Insert(dataSchema, fact)
 }
 
-//Store file from byte payload to google cloud storage with processing
+//Store call StoreWithParseFunc with parsers.ParseJson func
+func (bq *BigQuery) Store(fileName string, payload []byte) (int, error) {
+	return bq.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+}
+
+//StoreWithParseFunc store file from byte payload to google cloud storage with processing
 //return rowsCount and err if err occurred
 //but return 0 and nil if no err
 //because Store method doesn't store data to BigQuery(only to GCP)
-func (bq *BigQuery) Store(fileName string, payload []byte) (int, error) {
-	flatData, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, bq.breakOnError)
+func (bq *BigQuery) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
+	flatData, failedEvents, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, bq.breakOnError, parseFunc)
 	if err != nil {
 		return linesCount(payload), err
 	}
@@ -171,11 +180,21 @@ func (bq *BigQuery) Store(fileName string, payload []byte) (int, error) {
 		}
 	}
 
+	//send failed events to fallback only if other events have been inserted ok
+	bq.Fallback(failedEvents...)
+
 	return 0, nil
 }
 
 func (bq *BigQuery) SyncStore(objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("BigQuery doesn't support sync store")
+}
+
+//Fallback log event with error to fallback logger
+func (bq *BigQuery) Fallback(failedFacts ...*events.FailedFact) {
+	for _, failedFact := range failedFacts {
+		bq.fallbackLogger.ConsumeAny(failedFact)
+	}
 }
 
 func (bq *BigQuery) Name() string {
@@ -201,6 +220,10 @@ func (bq *BigQuery) Close() (multiErr error) {
 
 	if bq.streamingWorker != nil {
 		bq.streamingWorker.Close()
+	}
+
+	if err := bq.fallbackLogger.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", bq.Name(), err))
 	}
 
 	return
