@@ -3,8 +3,10 @@ package storages
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
 )
 
@@ -17,11 +19,12 @@ type Postgres struct {
 	tableHelper     *TableHelper
 	schemaProcessor *schema.Processor
 	streamingWorker *StreamingWorker
+	fallbackLogger  *events.AsyncLogger
 	breakOnError    bool
 }
 
 func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor, eventQueue *events.PersistentQueue,
-	storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*Postgres, error) {
+	storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger) (*Postgres, error) {
 
 	adapter, err := adapters.NewPostgres(ctx, config)
 	if err != nil {
@@ -42,6 +45,7 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		adapter:         adapter,
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
+		fallbackLogger:  fallbackLoggerFactoryMethod(),
 		breakOnError:    breakOnError,
 	}
 
@@ -53,23 +57,42 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 	return p, nil
 }
 
-//Store file payload to Postgres with processing
+//Store call StoreWithParseFunc with parsers.ParseJson func
+func (p *Postgres) Store(fileName string, payload []byte) (int, error) {
+	return p.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+}
+
+//StoreWithParseFunc file payload to Postgres with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (p *Postgres) Store(fileName string, payload []byte) (int, error) {
-	flatData, err := p.schemaProcessor.ProcessFilePayload(fileName, payload, p.breakOnError)
+func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
+	flatData, failedEvents, err := p.schemaProcessor.ProcessFilePayload(fileName, payload, p.breakOnError, parseFunc)
 	if err != nil {
 		return linesCount(payload), err
 	}
 
-	return p.store(flatData)
+	rowsCount, err := p.store(flatData)
+
+	//send failed events to fallback only if other events have been inserted ok
+	if err == nil {
+		p.Fallback(failedEvents...)
+	}
+
+	return rowsCount, err
+}
+
+//Fallback log event with error to fallback logger
+func (p *Postgres) Fallback(failedFacts ...*events.FailedFact) {
+	for _, failedFact := range failedFacts {
+		p.fallbackLogger.ConsumeAny(failedFact)
+	}
 }
 
 //SyncStore store chunk payload to Postgres with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
 func (p *Postgres) SyncStore(objects []map[string]interface{}) (int, error) {
-	flatData, err := p.schemaProcessor.ProcessObjects(objects, p.breakOnError)
+	flatData, err := p.schemaProcessor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
 	}
@@ -128,15 +151,20 @@ func (p *Postgres) store(flatData map[string]*schema.ProcessedFile) (int, error)
 }
 
 //Close adapters.Postgres
-func (p *Postgres) Close() error {
+func (p *Postgres) Close() (multiErr error) {
 	if err := p.adapter.Close(); err != nil {
-		return fmt.Errorf("[%s] Error closing postgres datasource: %v", p.Name(), err)
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", p.Name(), err))
 	}
 
 	if p.streamingWorker != nil {
 		p.streamingWorker.Close()
 	}
-	return nil
+
+	if err := p.fallbackLogger.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", p.Name(), err))
+	}
+
+	return
 }
 
 func (p *Postgres) Name() string {

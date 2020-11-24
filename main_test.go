@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/fallback"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/middleware"
 	"github.com/jitsucom/eventnative/sources"
@@ -173,7 +174,8 @@ func TestCors(t *testing.T) {
 			router := SetupRouter(destinations.NewTestService(
 				map[string]map[string]events.Consumer{
 					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
-				}, map[string]map[string]events.StorageProxy{}), "", &synchronization.Dummy{}, events.NewCache(5), sources.NewTestService())
+				}, map[string]map[string]events.StorageProxy{}), "", &synchronization.InMemoryService{},
+				events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -298,7 +300,8 @@ func TestApiEvent(t *testing.T) {
 			router := SetupRouter(destinations.NewTestService(
 				map[string]map[string]events.Consumer{
 					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
-				}, map[string]map[string]events.StorageProxy{}), "", &synchronization.Dummy{}, events.NewCache(5), sources.NewTestService())
+				}, map[string]map[string]events.StorageProxy{}), "", &synchronization.InMemoryService{},
+				events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -430,11 +433,11 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	err = appconfig.Init()
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
-	monitor := &synchronization.Dummy{}
-	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", monitor, storages.Create)
+	monitor := &synchronization.InMemoryService{}
+	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5, monitor, storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
-	router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5), sources.NewTestService())
+	router := SetupRouter(dest, "", &synchronization.InMemoryService{}, events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 	server := &http.Server{
 		Addr:              httpAuthority,
@@ -526,10 +529,10 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 	err = appconfig.Init()
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
-	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", &synchronization.Dummy{}, storages.Create)
+	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5, &synchronization.InMemoryService{}, storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
-	router := SetupRouter(dest, "", &synchronization.Dummy{}, events.NewCache(5), sources.NewTestService())
+	router := SetupRouter(dest, "", &synchronization.InMemoryService{}, events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 	server := &http.Server{
 		Addr:              httpAuthority,

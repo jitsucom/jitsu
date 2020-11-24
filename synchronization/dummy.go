@@ -1,44 +1,57 @@
 package synchronization
 
 import (
+	"fmt"
 	"github.com/jitsucom/eventnative/storages"
+	"sync"
 )
 
-type DummyLock struct {
+type InMemoryLock struct {
+	identifier string
 }
 
-func (d *DummyLock) Unlock() {
+func (iml *InMemoryLock) Unlock() {
 }
 
-func (d *DummyLock) Identifier() string {
-	return ""
+func (iml *InMemoryLock) Identifier() string {
+	return iml.identifier
 }
 
-//Dummy implementation for Service
-type Dummy struct {
+//InMemoryService implementation for Service
+type InMemoryService struct {
 	serverNameSingleArray []string
+
+	//for locking in single en node setup
+	locks sync.Map
 }
 
-func (d *Dummy) GetInstances() ([]string, error) {
-	return d.serverNameSingleArray, nil
+func (ims *InMemoryService) GetInstances() ([]string, error) {
+	return ims.serverNameSingleArray, nil
 }
 
-func (d *Dummy) Lock(destinationName string, tableName string) (storages.Lock, error) {
-	return &DummyLock{}, nil
+func (ims *InMemoryService) Lock(system string, collection string) (storages.Lock, error) {
+	identifier := system + "_" + collection
+	_, loaded := ims.locks.LoadOrStore(identifier, true)
+	if loaded {
+		return nil, fmt.Errorf("Error in-memory locking [%s] system [%s] collection: already locked", system, collection)
+	}
+
+	return &InMemoryLock{identifier: identifier}, nil
 }
 
-func (d *Dummy) Unlock(lock storages.Lock) error {
+func (ims *InMemoryService) Unlock(lock storages.Lock) error {
+	ims.locks.Delete(lock.Identifier())
 	return nil
 }
 
-func (d *Dummy) GetVersion(destinationName string, tableName string) (int64, error) {
+func (ims *InMemoryService) GetVersion(system string, collection string) (int64, error) {
 	return 1, nil
 }
 
-func (d *Dummy) IncrementVersion(destinationName string, tableName string) (int64, error) {
+func (ims *InMemoryService) IncrementVersion(system string, collection string) (int64, error) {
 	return 1, nil
 }
 
-func (d *Dummy) Close() error {
+func (ims *InMemoryService) Close() error {
 	return nil
 }

@@ -3,7 +3,9 @@ package schema
 import (
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/enrichment"
+	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/geo"
+	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/test"
 	"github.com/jitsucom/eventnative/timestamp"
 	"github.com/jitsucom/eventnative/typing"
@@ -21,17 +23,22 @@ func TestProcessFilePayload(t *testing.T) {
 	testTime4, _ := time.Parse(timestamp.Layout, "2020-08-02T18:23:58.057807Z")
 
 	tests := []struct {
-		name          string
-		inputFilePath string
-		expected      map[string]*ProcessedFile
+		name           string
+		parseFunc      func([]byte) (map[string]interface{}, error)
+		inputFilePath  string
+		expected       map[string]*ProcessedFile
+		expectedFailed []events.FailedFact
 	}{
 		{
 			"Empty input file",
+			parsers.ParseJson,
 			"../test_data/fact_input_empty.log",
 			map[string]*ProcessedFile{},
+			[]events.FailedFact{},
 		},
 		{
 			"Input file with some errors",
+			parsers.ParseJson,
 			"../test_data/fact_input_with_error_lines.log",
 			map[string]*ProcessedFile{
 				"user_2020_07": {FileName: "testfile", payload: []map[string]interface{}{
@@ -90,6 +97,38 @@ func TestProcessFilePayload(t *testing.T) {
 						"key1":             NewColumn(typing.FLOAT64)}},
 				},
 			},
+			[]events.FailedFact{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "Error extracting table name. Template: {{.event_type}}_{{._timestamp.Format \"2006_01\"}}: Error extracting table name: _timestamp field doesn't exist"}},
+		},
+		{
+			"Input fallback file",
+			parsers.ParseFallbackJson,
+			"../test_data/fallback_fact_input.log",
+			map[string]*ProcessedFile{
+				"user_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
+					{"_geo_data_country": "US", "_geo_data_city": "New York", "_timestamp": testTime2, "event_type": "user", "key1_key2": "splu", "key10_sib1_1": "k"},
+				},
+					DataSchema: &Table{Name: "user_2020_08", PKFields: map[string]bool{}, Columns: Columns{
+						"_geo_data_city":    NewColumn(typing.STRING),
+						"_geo_data_country": NewColumn(typing.STRING),
+						"_timestamp":        NewColumn(typing.TIMESTAMP),
+						"event_type":        NewColumn(typing.STRING),
+						"key10_sib1_1":      NewColumn(typing.STRING),
+						"key1_key2":         NewColumn(typing.STRING)}},
+				},
+
+				"null_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
+					{"_geo_data_latitude": 40.7809, "_geo_data_longitude": -73.9502, "_timestamp": testTime4, "key1_key2": "123", "key3": "privvvv", "key5": "[1,2,4,5]"},
+				},
+					DataSchema: &Table{Name: "null_2020_08", PKFields: map[string]bool{}, Columns: Columns{
+						"_geo_data_latitude":  NewColumn(typing.FLOAT64),
+						"_geo_data_longitude": NewColumn(typing.FLOAT64),
+						"_timestamp":          NewColumn(typing.TIMESTAMP),
+						"key1_key2":           NewColumn(typing.STRING),
+						"key5":                NewColumn(typing.STRING),
+						"key3":                NewColumn(typing.STRING)}},
+				},
+			},
+			[]events.FailedFact{},
 		},
 	}
 	p, err := NewProcessor(`{{.event_type}}_{{._timestamp.Format "2006_01"}}`, []string{}, Default, map[string]bool{}, nil)
@@ -99,8 +138,16 @@ func TestProcessFilePayload(t *testing.T) {
 			fBytes, err := ioutil.ReadFile(tt.inputFilePath)
 			require.NoError(t, err)
 
-			actual, err := p.ProcessFilePayload("testfile", fBytes, false)
+			actual, failed, err := p.ProcessFilePayload("testfile", fBytes, false, tt.parseFunc)
 			require.NoError(t, err)
+
+			if len(tt.expectedFailed) > 0 {
+				for i, failedObj := range failed {
+					test.ObjectsEqual(t, tt.expectedFailed[i], *failedObj)
+				}
+			} else {
+				require.Empty(t, failed)
+			}
 
 			require.Equal(t, len(tt.expected), len(actual), "Result sizes aren't equal")
 
@@ -132,7 +179,7 @@ func TestProcessFact(t *testing.T) {
 		name           string
 		input          map[string]interface{}
 		expectedTable  *Table
-		expectedObject map[string]interface{}
+		expectedObject events.Fact
 		expectedErr    string
 	}{
 		{
@@ -140,14 +187,14 @@ func TestProcessFact(t *testing.T) {
 			map[string]interface{}{},
 			nil,
 			map[string]interface{}{},
-			"Error extracting table name from object {map[]}: Error extracting table name: _timestamp field doesn't exist",
+			"Error extracting table name. Template: events_{{._timestamp.Format \"2006_01\"}}: Error extracting table name: _timestamp field doesn't exist",
 		},
 		{
 			"input without ip and ua ok",
 			map[string]interface{}{"_timestamp": "2020-08-02T18:23:58.057807Z"},
 			&Table{Name: "events_2020_08", PKFields: map[string]bool{}, Columns: Columns{
 				"_timestamp": NewColumn(typing.TIMESTAMP)}},
-			map[string]interface{}{"_timestamp": testTime},
+			events.Fact{"_timestamp": testTime},
 			"",
 		},
 		{
@@ -174,7 +221,7 @@ func TestProcessFact(t *testing.T) {
 				"field4_longitude":     NewColumn(typing.FLOAT64),
 				"field4_zip":           NewColumn(typing.STRING),
 			}},
-			map[string]interface{}{
+			events.Fact{
 				"_timestamp":           testTime,
 				"field2_ip":            "10.10.10.10",
 				"field2_ua":            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36",
