@@ -25,8 +25,8 @@ type InMemoryService struct {
 	locks *sync.Map
 }
 
-func NewInMemoryService(serverNameSingleArray []string) (*InMemoryService, error) {
-	return &InMemoryService{serverNameSingleArray: serverNameSingleArray, locks: &sync.Map{}}, nil
+func NewInMemoryService(serverNameSingleArray []string) *InMemoryService {
+	return &InMemoryService{serverNameSingleArray: serverNameSingleArray, locks: &sync.Map{}}
 }
 
 func (ims *InMemoryService) GetInstances() ([]string, error) {

@@ -174,7 +174,7 @@ func TestCors(t *testing.T) {
 			router := SetupRouter(destinations.NewTestService(
 				map[string]map[string]events.Consumer{
 					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
-				}, map[string]map[string]events.StorageProxy{}), "", &synchronization.InMemoryService{},
+				}, map[string]map[string]events.StorageProxy{}), "", synchronization.NewInMemoryService([]string{}),
 				events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
@@ -300,7 +300,7 @@ func TestApiEvent(t *testing.T) {
 			router := SetupRouter(destinations.NewTestService(
 				map[string]map[string]events.Consumer{
 					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
-				}, map[string]map[string]events.StorageProxy{}), "", &synchronization.InMemoryService{},
+				}, map[string]map[string]events.StorageProxy{}), "", synchronization.NewInMemoryService([]string{}),
 				events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
@@ -433,11 +433,12 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	err = appconfig.Init()
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
-	monitor := &synchronization.InMemoryService{}
+	monitor := synchronization.NewInMemoryService([]string{})
 	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5, monitor, storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
-	router := SetupRouter(dest, "", &synchronization.InMemoryService{}, events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
+
+	router := SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 	server := &http.Server{
 		Addr:              httpAuthority,
@@ -529,10 +530,10 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 	err = appconfig.Init()
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
-	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5, &synchronization.InMemoryService{}, storages.Create)
+	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5, synchronization.NewInMemoryService([]string{}), storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
-	router := SetupRouter(dest, "", &synchronization.InMemoryService{}, events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
+	router := SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 	server := &http.Server{
 		Addr:              httpAuthority,
