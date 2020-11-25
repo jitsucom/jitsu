@@ -12,7 +12,7 @@ assemble: backend js
 	mkdir -p ./build/dist/web
 	cp ./web/dist/web/* ./build/dist/web/
 	cp ./web/welcome.html ./build/dist/web/
-	cp eventnative ./build/dist/
+	mv eventnative ./build/dist/
 
 backend:
 	echo "Using path $(PATH)"
