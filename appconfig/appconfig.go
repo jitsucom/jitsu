@@ -38,7 +38,7 @@ func setDefaultParams() {
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", "5")
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
-	viper.SetDefault("query_log.rotation_min", "5")
+	viper.SetDefault("sql_debug_log.rotation_min", "5")
 }
 
 func Init() error {
@@ -107,14 +107,14 @@ func Init() error {
 
 func InitQueryWriter(globalLogsWriter io.WriteCloser) (*io.WriteCloser, error) {
 	var queryLogsWriter *io.WriteCloser
-	if viper.IsSet("query_log.path") {
-		if viper.GetString("query_log.path") != "global" {
+	if viper.IsSet("sql_debug_log.path") {
+		if viper.GetString("sql_debug_log.path") != "global" {
 			queryLoggerConfig := logging.Config{
 				LoggerName:  "query",
 				ServerName:  viper.GetString("server.name"),
-				FileDir:     viper.GetString("query_log.path"),
-				RotationMin: viper.GetInt64("query_log.rotation_min"),
-				MaxBackups:  viper.GetInt("query_log.max_backups")}
+				FileDir:     viper.GetString("sql_debug_log.path"),
+				RotationMin: viper.GetInt64("sql_debug_log.rotation_min"),
+				MaxBackups:  viper.GetInt("sql_debug_log.max_backups")}
 			writer, err := logging.NewWriter(queryLoggerConfig)
 			queryLogsWriter = &writer
 			if err != nil {
