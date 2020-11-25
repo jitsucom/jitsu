@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/logfiles"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/parsers"
 	"io/ioutil"
 	"os"
@@ -16,7 +17,10 @@ import (
 	"sync"
 )
 
-const fallbackFileMaskPostfix = "-errors-*-20*.log"
+const (
+	fallbackFileMaskPostfix = "-errors-*-20*.log"
+	fallbackIdentifier      = "fallback"
+)
 
 var destinationIdExtractRegexp = regexp.MustCompile("-errors-(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
@@ -66,7 +70,7 @@ func (s *Service) Replay(fileName string) error {
 	//get destinationId from filename
 	regexResult := destinationIdExtractRegexp.FindStringSubmatch(fileName)
 	if len(regexResult) != 2 {
-		return fmt.Errorf("Error processing fallback file %s. Malformed name", fileName)
+		return fmt.Errorf("Error processing fallback file %s: Malformed name", fileName)
 	}
 
 	destinationId := regexResult[1]
@@ -86,12 +90,15 @@ func (s *Service) Replay(fileName string) error {
 		return fmt.Errorf("Destination [%s] hasn't been initialized yet", destinationId)
 	}
 
-	_, err = storage.StoreWithParseFunc(fileName, b, parsers.ParseFallbackJson)
+	rowsCount, err := storage.StoreWithParseFunc(fileName, b, parsers.ParseFallbackJson)
 	s.statusManager.UpdateStatus(fileName, storage.Name(), err)
 
 	if err != nil {
+		metrics.ErrorTokenEvents(fallbackIdentifier, storage.Name(), rowsCount)
 		return fmt.Errorf("[%s] Error storing fallback file %s in destination: %v", storage.Name(), fileName, err)
 	}
+
+	metrics.SuccessTokenEvents(fallbackIdentifier, storage.Name(), rowsCount)
 
 	err = os.Remove(filePath)
 	if err != nil {

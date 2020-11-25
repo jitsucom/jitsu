@@ -223,7 +223,7 @@ func (ar *AwsRedshift) Close() (multiErr error) {
 	ar.closed = true
 
 	if err := ar.redshiftAdapter.Close(); err != nil {
-		return fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.Name(), err)
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.Name(), err))
 	}
 
 	if ar.streamingWorker != nil {
@@ -234,5 +234,5 @@ func (ar *AwsRedshift) Close() (multiErr error) {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ar.Name(), err))
 	}
 
-	return nil
+	return
 }

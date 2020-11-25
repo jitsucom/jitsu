@@ -28,8 +28,10 @@ func NewFallbackHandler(fallbackService *fallback.Service) *FallbackHandler {
 func (fh *FallbackHandler) GetHandler(c *gin.Context) {
 	destinationIds := c.Query("destination_ids")
 	destinationsFilter := map[string]bool{}
-	for _, destinationId := range strings.Split(destinationIds, ",") {
-		destinationsFilter[destinationId] = true
+	if destinationIds != "" {
+		for _, destinationId := range strings.Split(destinationIds, ",") {
+			destinationsFilter[destinationId] = true
+		}
 	}
 
 	fileStatuses := fh.fallbackService.GetFileStatuses(destinationsFilter)
@@ -40,14 +42,14 @@ func (fh *FallbackHandler) GetHandler(c *gin.Context) {
 func (fh *FallbackHandler) ReplayHandler(c *gin.Context) {
 	req := &ReplayRequest{}
 	if err := c.BindJSON(req); err != nil {
-		logging.Error("Error parsing replay body: %v", err)
+		logging.Errorf("Error parsing replay body: %v", err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
 		return
 	}
 
 	err := fh.fallbackService.Replay(req.FileName)
 	if err != nil {
-		logging.Error("Error replaying file: [%s] from fallback: %v", req.FileName, err)
+		logging.Errorf("Error replaying file: [%s] from fallback: %v", req.FileName, err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to replay file: " + req.FileName, Error: err.Error()})
 		return
 	}

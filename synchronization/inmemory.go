@@ -22,7 +22,11 @@ type InMemoryService struct {
 	serverNameSingleArray []string
 
 	//for locking in single en node setup
-	locks sync.Map
+	locks *sync.Map
+}
+
+func NewInMemoryService(serverNameSingleArray []string) (*InMemoryService, error) {
+	return &InMemoryService{serverNameSingleArray: serverNameSingleArray, locks: &sync.Map{}}, nil
 }
 
 func (ims *InMemoryService) GetInstances() ([]string, error) {
