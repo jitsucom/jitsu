@@ -22,7 +22,7 @@ func NewQueryLogger(destinationId string, writer *io.WriteCloser) *QueryLogger {
 
 func (l *QueryLogger) Log(query string) {
 	if l.logger != nil {
-		l.logger.Printf("[%s] %s\n", l.destinationId, query)
+		l.logger.Printf("%s [%s] %s\n", debugPrefix, l.destinationId, query)
 	}
 }
 
@@ -32,6 +32,6 @@ func (l *QueryLogger) LogWithValues(query string, values []interface{}) {
 		for _, value := range values {
 			stringValues = append(stringValues, fmt.Sprint(value))
 		}
-		l.logger.Printf("[%s] %s values: [%s]\n", l.destinationId, query, strings.Join(stringValues, ", "))
+		l.logger.Printf("%s [%s] %s values: [%s]\n", debugPrefix, l.destinationId, query, strings.Join(stringValues, ", "))
 	}
 }
