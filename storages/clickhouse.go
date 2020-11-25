@@ -42,7 +42,7 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 	var tableHelpers []*TableHelper
 	for _, dsn := range config.Dsns {
 		adapter, err := adapters.NewClickHouse(ctx, dsn, config.Database, config.Cluster, config.Tls,
-			tableStatementFactory, nullableFields, queryLogger, name)
+			tableStatementFactory, nullableFields, queryLogger)
 		if err != nil {
 			//close all previous created adapters
 			for _, toClose := range chAdapters {

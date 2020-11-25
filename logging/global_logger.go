@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gookit/color"
 	"github.com/jitsucom/eventnative/notifications"
+	"io"
 	"log"
 	"strings"
 )
@@ -37,14 +38,7 @@ func (c Config) Validate() error {
 
 //Initialize main logger
 //Global logger writes logs and sends system error notifications
-func InitGlobalLogger(config Config) error {
-	if err := config.Validate(); err != nil {
-		return fmt.Errorf("Error while creating global logger: %v", err)
-	}
-	writer, err := NewWriter(config)
-	if err != nil {
-		return err
-	}
+func InitGlobalLogger(writer io.WriteCloser) error {
 	dateTimeWriter := DateTimeWriterProxy{
 		writer: writer,
 	}

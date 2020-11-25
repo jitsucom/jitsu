@@ -86,20 +86,16 @@ func (sc *SnowflakeConfig) Validate() error {
 
 //Snowflake is adapter for creating,patching (schema or table), inserting data to snowflake
 type Snowflake struct {
-	ctx           context.Context
-	config        *SnowflakeConfig
-	s3Config      *S3Config
-	dataSource    *sql.DB
-	destinationId string
-	queryLogger   *logging.QueryLogger
+	ctx         context.Context
+	config      *SnowflakeConfig
+	s3Config    *S3Config
+	dataSource  *sql.DB
+	queryLogger *logging.QueryLogger
 }
 
 //NewSnowflake return configured Snowflake adapter instance
 func NewSnowflake(ctx context.Context, config *SnowflakeConfig, s3Config *S3Config,
-	queryLogger *logging.QueryLogger, destinationId string) (*Snowflake, error) {
-	if destinationId == "" {
-		return nil, fmt.Errorf("destinationId must be not empty")
-	}
+	queryLogger *logging.QueryLogger) (*Snowflake, error) {
 	if queryLogger == nil {
 		queryLogger = &logging.QueryLogger{}
 	}
@@ -127,7 +123,7 @@ func NewSnowflake(ctx context.Context, config *SnowflakeConfig, s3Config *S3Conf
 		return nil, err
 	}
 
-	return &Snowflake{ctx: ctx, config: config, s3Config: s3Config, dataSource: dataSource, queryLogger: queryLogger, destinationId: destinationId}, nil
+	return &Snowflake{ctx: ctx, config: config, s3Config: s3Config, dataSource: dataSource, queryLogger: queryLogger}, nil
 }
 
 func (Snowflake) Name() string {
@@ -152,7 +148,7 @@ func (s *Snowflake) CreateDbSchema(dbSchemaName string) error {
 	}
 
 	return createDbSchemaInTransaction(s.ctx, wrappedTx, createSFDbSchemaIfNotExistsTemplate,
-		dbSchemaName, s.destinationId, s.queryLogger)
+		dbSchemaName, s.queryLogger)
 }
 
 //CreateTable create database table with name,columns provided in schema.Table representation
@@ -175,7 +171,7 @@ func (s *Snowflake) CreateTable(tableSchema *schema.Table) error {
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	query := fmt.Sprintf(createSFTableTemplate, s.config.Schema, reformatValue(tableSchema.Name), strings.Join(columnsDDL, ","))
-	s.queryLogger.Log(s.destinationId, query)
+	s.queryLogger.Log(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
@@ -206,7 +202,7 @@ func (s *Snowflake) PatchTableSchema(patchSchema *schema.Table) error {
 		}
 		query := fmt.Sprintf(addSFColumnTemplate, s.config.Schema,
 			reformatValue(patchSchema.Name), reformatValue(columnName), mappedColumnType)
-		s.queryLogger.Log(s.destinationId, query)
+		s.queryLogger.Log(query)
 		alterStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
@@ -301,7 +297,7 @@ func (s *Snowflake) InsertInTransaction(wrappedTx *Transaction, schema *schema.T
 	placeholders = removeLastComma(placeholders)
 
 	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(schema.Name), header, placeholders)
-	s.queryLogger.LogWithValues(s.destinationId, query, values)
+	s.queryLogger.LogWithValues(query, values)
 	insertStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing insert table %s statement: %v", schema.Name, err)

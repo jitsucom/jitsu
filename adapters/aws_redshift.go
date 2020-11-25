@@ -30,8 +30,8 @@ type AwsRedshift struct {
 
 //NewAwsRedshift return configured AwsRedshift adapter instance
 func NewAwsRedshift(ctx context.Context, dsConfig *DataSourceConfig, s3Config *S3Config,
-	queryLogger *logging.QueryLogger, destinationId string) (*AwsRedshift, error) {
-	postgres, err := NewPostgres(ctx, dsConfig, queryLogger, destinationId)
+	queryLogger *logging.QueryLogger) (*AwsRedshift, error) {
+	postgres, err := NewPostgres(ctx, dsConfig, queryLogger)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +69,7 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 	}
 
 	return createDbSchemaInTransaction(ar.dataSourceProxy.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName,
-		ar.dataSourceProxy.destinationId, ar.dataSourceProxy.queryLogger)
+		ar.dataSourceProxy.queryLogger)
 }
 
 //Insert provided object in AwsRedshift in stream mode
