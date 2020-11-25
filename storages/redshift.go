@@ -45,7 +45,7 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 		}
 	}
 
-	redshiftAdapter, err := adapters.NewAwsRedshift(ctx, redshiftConfig, s3Config, queryLogger, name)
+	redshiftAdapter, err := adapters.NewAwsRedshift(ctx, redshiftConfig, s3Config, queryLogger)
 	if err != nil {
 		return nil, err
 	}

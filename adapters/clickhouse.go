@@ -191,16 +191,12 @@ type ClickHouse struct {
 	tableStatementFactory *TableStatementFactory
 	nullableFields        map[string]bool
 	queryLogger           *logging.QueryLogger
-	destinationId         string
 }
 
 //NewClickHouse return configured ClickHouse adapter instance
 func NewClickHouse(ctx context.Context, connectionString, database, cluster string, tlsConfig map[string]string,
 	tableStatementFactory *TableStatementFactory, nullableFields map[string]bool,
-	queryLogger *logging.QueryLogger, destinationId string) (*ClickHouse, error) {
-	if destinationId == "" {
-		return nil, fmt.Errorf("destinationId must be not empty")
-	}
+	queryLogger *logging.QueryLogger) (*ClickHouse, error) {
 	if queryLogger == nil {
 		queryLogger = &logging.QueryLogger{}
 	}
@@ -236,7 +232,6 @@ func NewClickHouse(ctx context.Context, connectionString, database, cluster stri
 		dataSource:            dataSource,
 		tableStatementFactory: tableStatementFactory,
 		nullableFields:        nullableFields,
-		destinationId:         destinationId,
 		queryLogger:           queryLogger,
 	}, nil
 }
@@ -263,7 +258,7 @@ func (ch *ClickHouse) CreateDB(dbName string) error {
 	}
 
 	query := fmt.Sprintf(createCHDBTemplate, dbName, ch.getOnClusterClause())
-	ch.queryLogger.Log(ch.destinationId, query)
+	ch.queryLogger.Log(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
@@ -306,7 +301,7 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	statementStr := ch.tableStatementFactory.CreateTableStatement(tableSchema.Name, strings.Join(columnsDDL, ","))
-	ch.queryLogger.Log(ch.destinationId, statementStr)
+	ch.queryLogger.Log(statementStr)
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, statementStr)
 	if err != nil {
 		return fmt.Errorf("Error preparing create table [%s] statement [%s]: %v", tableSchema.Name, statementStr, err)
@@ -374,7 +369,7 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 			columnTypeDDL = mappedType
 		}
 		query := fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, columnTypeDDL)
-		ch.queryLogger.Log(ch.destinationId, query)
+		ch.queryLogger.Log(query)
 		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
@@ -427,7 +422,7 @@ func (ch *ClickHouse) InsertInTransaction(wrappedTx *Transaction, schema *schema
 	placeholders = removeLastComma(placeholders)
 
 	query := fmt.Sprintf(insertCHTemplate, ch.database, schema.Name, header, placeholders)
-	ch.queryLogger.LogWithValues(ch.destinationId, query, values)
+	ch.queryLogger.LogWithValues(query, values)
 	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing insert table %s statement: %v", schema.Name, err)
@@ -468,7 +463,7 @@ func (ch *ClickHouse) getOnClusterClause() string {
 func (ch *ClickHouse) createDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
 	query := fmt.Sprintf(createDistributedTableCHTemplate,
 		ch.database, originTableName, ch.getOnClusterClause(), ch.database, originTableName, ch.cluster, ch.database, originTableName)
-	ch.queryLogger.Log(ch.destinationId, query)
+	ch.queryLogger.Log(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
 		logging.Errorf("Error preparing create distributed table statement for [%s] : %v", originTableName, err)
@@ -483,7 +478,7 @@ func (ch *ClickHouse) createDistributedTableInTransaction(wrappedTx *Transaction
 //drop distributed table, ignore errors
 func (ch *ClickHouse) dropDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
 	query := fmt.Sprintf(dropDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
-	ch.queryLogger.Log(ch.destinationId, query)
+	ch.queryLogger.Log(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
 		logging.Errorf("Error preparing drop distributed table statement for [%s] : %v", originTableName, err)

@@ -160,25 +160,11 @@ func main() {
 	logEventPath := viper.GetString("log.path")
 
 	//Create event destinations
-	var queryLoggerConfig *logging.Config
-	queryLogsEnabled := false
-	if viper.IsSet("query_log.path") {
-		queryLogsEnabled = true
-		if viper.GetString("query_log.path") != "global" {
-			queryLoggerConfig = &logging.Config{
-				LoggerName:  "query",
-				ServerName:  viper.GetString("server.name"),
-				FileDir:     viper.GetString("query_log.path"),
-				RotationMin: viper.GetInt64("query_log.rotation_min"),
-				MaxBackups:  viper.GetInt("query_log.max_backups")}
-		}
-	}
-	queryLogger, err := logging.NewQueryLogger(queryLogsEnabled, queryLoggerConfig)
 	if err != nil {
 		logging.Fatal("Failed to create query logger for configuration", err)
 	}
 	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath,
-		syncService, queryLogger, storages.Create)
+		syncService, appconfig.Instance.QueryLogsWriter, storages.Create)
 	if err != nil {
 		logging.Fatal(err)
 	}

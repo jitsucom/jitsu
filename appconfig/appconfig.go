@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"fmt"
 	"github.com/jitsucom/eventnative/authorization"
 	"github.com/jitsucom/eventnative/geo"
 	"github.com/jitsucom/eventnative/logging"
@@ -17,6 +18,7 @@ type AppConfig struct {
 	UaResolver  useragent.Resolver
 
 	AuthorizationService *authorization.Service
+	QueryLogsWriter      *io.WriteCloser
 
 	closeMe []io.Closer
 }
@@ -43,12 +45,20 @@ func Init() error {
 	setDefaultParams()
 
 	serverName := viper.GetString("server.name")
-	err := logging.InitGlobalLogger(logging.Config{
+	globalLoggerConfig := logging.Config{
 		LoggerName:  "main",
 		ServerName:  serverName,
 		FileDir:     viper.GetString("server.log.path"),
 		RotationMin: viper.GetInt64("server.log.rotation_min"),
-		MaxBackups:  viper.GetInt("server.log.max_backups")})
+		MaxBackups:  viper.GetInt("server.log.max_backups")}
+	if err := globalLoggerConfig.Validate(); err != nil {
+		return fmt.Errorf("Error while creating global logger: %v", err)
+	}
+	globalLogsWriter, err := logging.NewWriter(globalLoggerConfig)
+	if err != nil {
+		return err
+	}
+	err = logging.InitGlobalLogger(globalLogsWriter)
 	if err != nil {
 		return err
 	}
@@ -64,6 +74,12 @@ func Init() error {
 
 	var appConfig AppConfig
 	appConfig.ServerName = serverName
+
+	queryLogsWriter, err := InitQueryWriter(globalLogsWriter)
+	if err != nil {
+		return err
+	}
+	appConfig.QueryLogsWriter = queryLogsWriter
 
 	port := viper.GetString("port")
 	if port == "" {
@@ -87,6 +103,28 @@ func Init() error {
 
 	Instance = &appConfig
 	return nil
+}
+
+func InitQueryWriter(globalLogsWriter io.WriteCloser) (*io.WriteCloser, error) {
+	var queryLogsWriter *io.WriteCloser
+	if viper.IsSet("query_log.path") {
+		if viper.GetString("query_log.path") != "global" {
+			queryLoggerConfig := logging.Config{
+				LoggerName:  "query",
+				ServerName:  viper.GetString("server.name"),
+				FileDir:     viper.GetString("query_log.path"),
+				RotationMin: viper.GetInt64("query_log.rotation_min"),
+				MaxBackups:  viper.GetInt("query_log.max_backups")}
+			writer, err := logging.NewWriter(queryLoggerConfig)
+			queryLogsWriter = &writer
+			if err != nil {
+				return nil, fmt.Errorf("Failed to initialize sql query logger: %v", err)
+			}
+		} else {
+			queryLogsWriter = &globalLogsWriter
+		}
+	}
+	return queryLogsWriter, nil
 }
 
 func (a *AppConfig) ScheduleClosing(c io.Closer) {

@@ -100,18 +100,14 @@ func (dsc *DataSourceConfig) Validate() error {
 
 //Postgres is adapter for creating,patching (schema or table), inserting data to postgres
 type Postgres struct {
-	ctx           context.Context
-	config        *DataSourceConfig
-	dataSource    *sql.DB
-	queryLogger   *logging.QueryLogger
-	destinationId string
+	ctx         context.Context
+	config      *DataSourceConfig
+	dataSource  *sql.DB
+	queryLogger *logging.QueryLogger
 }
 
 //NewPostgres return configured Postgres adapter instance
-func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, destinationId string) (*Postgres, error) {
-	if destinationId == "" {
-		return nil, fmt.Errorf("destinationId must be not empty")
-	}
+func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger) (*Postgres, error) {
 	if queryLogger == nil {
 		queryLogger = &logging.QueryLogger{}
 	}
@@ -130,7 +126,7 @@ func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *log
 		return nil, err
 	}
 
-	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, destinationId: destinationId, queryLogger: queryLogger}, nil
+	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger}, nil
 }
 
 func (Postgres) Name() string {
@@ -154,8 +150,7 @@ func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 		return err
 	}
 
-	return createDbSchemaInTransaction(p.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName,
-		p.destinationId, p.queryLogger)
+	return createDbSchemaInTransaction(p.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName, p.queryLogger)
 }
 
 //CreateTable create database table with name,columns provided in schema.Table representation
@@ -248,7 +243,7 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema 
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	query := fmt.Sprintf(createTableTemplate, p.config.Schema, tableSchema.Name, strings.Join(columnsDDL, ","))
-	p.queryLogger.Log(p.destinationId, query)
+	p.queryLogger.Log(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
@@ -272,7 +267,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 			mappedColumnType = schemaToPostgres[typing.STRING]
 		}
 		query := fmt.Sprintf(addColumnTemplate, p.config.Schema, patchSchema.Name, columnName, mappedColumnType)
-		p.queryLogger.Log(p.destinationId, query)
+		p.queryLogger.Log(query)
 		alterStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
@@ -298,7 +293,7 @@ func (p *Postgres) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstra
 
 	if len(patchConstraint.PKFields) > 0 || patchConstraint.Remove {
 		query := fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, patchTableSchema.Name, constraint)
-		p.queryLogger.Log(p.destinationId, query)
+		p.queryLogger.Log(query)
 		dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 		if err != nil {
 			wrappedTx.tx.Rollback()
@@ -314,7 +309,7 @@ func (p *Postgres) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstra
 	if len(patchConstraint.PKFields) > 0 {
 		query := fmt.Sprintf(alterPrimaryKeyTemplate,
 			p.config.Schema, patchTableSchema.Name, constraint, strings.Join(schema.PkToFieldsArray(patchConstraint.PKFields), ","))
-		p.queryLogger.Log(p.destinationId, query)
+		p.queryLogger.Log(query)
 		alterConstraintStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
@@ -359,7 +354,7 @@ func (p *Postgres) InsertInTransaction(wrappedTx *Transaction, table *schema.Tab
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
 	query := p.insertQuery(schema.PkToFieldsArray(table.PKFields), table.Name, header, placeholders)
-	p.queryLogger.LogWithValues(p.destinationId, query, values)
+	p.queryLogger.LogWithValues(query, values)
 	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)
@@ -451,9 +446,9 @@ func (t *Transaction) Rollback() {
 }
 
 func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, statementTemplate,
-	dbSchemaName string, destinationId string, queryLogger *logging.QueryLogger) error {
+	dbSchemaName string, queryLogger *logging.QueryLogger) error {
 	query := fmt.Sprintf(statementTemplate, dbSchemaName)
-	queryLogger.Log(destinationId, query)
+	queryLogger.Log(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()

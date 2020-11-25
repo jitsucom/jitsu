@@ -52,7 +52,7 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 		}
 	}
 
-	snowflakeAdapter, err := CreateSnowflakeAdapter(ctx, s3Config, *snowflakeConfig, queryLogger, name)
+	snowflakeAdapter, err := CreateSnowflakeAdapter(ctx, s3Config, *snowflakeConfig, queryLogger)
 	if err != nil {
 		if stageAdapter != nil {
 			stageAdapter.Close()
@@ -84,15 +84,15 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 //create snowflake adapter with schema
 //if schema doesn't exist - snowflake returns error. In this case connect without schema and create it
 func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, config adapters.SnowflakeConfig,
-	queryLogger *logging.QueryLogger, destinationId string) (*adapters.Snowflake, error) {
-	snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, destinationId)
+	queryLogger *logging.QueryLogger) (*adapters.Snowflake, error) {
+	snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger)
 	if err != nil {
 		if sferr, ok := err.(*sf.SnowflakeError); ok {
 			//schema doesn't exist
 			if sferr.Number == sf.ErrObjectNotExistOrAuthorized {
 				snowflakeSchema := config.Schema
 				config.Schema = ""
-				snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, destinationId)
+				snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger)
 				if err != nil {
 					return nil, err
 				}
@@ -104,7 +104,7 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 				}
 				snowflakeAdapter.Close()
 
-				snowflakeAdapter, err = adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, destinationId)
+				snowflakeAdapter, err = adapters.NewSnowflake(ctx, &config, s3Config, queryLogger)
 				if err != nil {
 					return nil, err
 				}

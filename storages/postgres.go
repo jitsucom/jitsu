@@ -25,7 +25,7 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 	eventQueue *events.PersistentQueue, storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper,
 	queryLogger *logging.QueryLogger) (*Postgres, error) {
 
-	adapter, err := adapters.NewPostgres(ctx, config, queryLogger, storageName)
+	adapter, err := adapters.NewPostgres(ctx, config, queryLogger)
 	if err != nil {
 		return nil, err
 	}
