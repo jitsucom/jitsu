@@ -108,7 +108,7 @@ func TestServiceInit(t *testing.T) {
 	payload := &payloadHolder{payload: []byte(initialDestinations)}
 	mockDestinationsServer := startTestServer(payload)
 
-	service, err := NewService(context.Background(), nil, mockDestinationsServer.URL, "/tmp", nil, createTestStorage)
+	service, err := NewService(context.Background(), nil, mockDestinationsServer.URL, "/tmp", "/tmp/fallback", 5, nil, createTestStorage)
 	require.NoError(t, err)
 	require.NotNil(t, service)
 
@@ -293,7 +293,7 @@ func startTestServer(ph *payloadHolder) *httptest.Server {
 		}))
 }
 
-func createTestStorage(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error) {
+func createTestStorage(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error) {
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == storages.StreamMode {
 		eventQueue, _ = events.NewPersistentQueue(name, "/tmp")

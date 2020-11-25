@@ -12,13 +12,18 @@ import (
 //AsyncLogger write json logs to file system in different goroutine
 type AsyncLogger struct {
 	writer             io.WriteCloser
-	logCh              chan Fact
+	logCh              chan interface{}
 	showInGlobalLogger bool
 }
 
 //Consume event fact and put it to channel
 func (al *AsyncLogger) Consume(fact Fact, tokenId string) {
 	al.logCh <- fact
+}
+
+//ConsumeAny put interface{} to the channel
+func (al *AsyncLogger) ConsumeAny(object interface{}) {
+	al.logCh <- object
 }
 
 //Close underlying log file writer
@@ -30,8 +35,8 @@ func (al *AsyncLogger) Close() (resultErr error) {
 }
 
 //Create AsyncLogger and run goroutine that's read from channel and write to file
-func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) Consumer {
-	logger := &AsyncLogger{writer: writer, logCh: make(chan Fact, 20000), showInGlobalLogger: showInGlobalLogger}
+func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger {
+	logger := &AsyncLogger{writer: writer, logCh: make(chan interface{}, 20000), showInGlobalLogger: showInGlobalLogger}
 
 	safego.RunWithRestart(func() {
 		for {

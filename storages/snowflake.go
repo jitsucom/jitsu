@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/metrics"
+	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/schema"
 	sf "github.com/snowflakedb/gosnowflake"
@@ -27,6 +28,7 @@ type Snowflake struct {
 	tableHelper      *TableHelper
 	schemaProcessor  *schema.Processor
 	streamingWorker  *StreamingWorker
+	fallbackLogger   *events.AsyncLogger
 	breakOnError     bool
 
 	closed bool
@@ -34,7 +36,8 @@ type Snowflake struct {
 
 //NewSnowflake return Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
 func NewSnowflake(ctx context.Context, name string, eventQueue *events.PersistentQueue, s3Config *adapters.S3Config, gcpConfig *adapters.GoogleConfig,
-	snowflakeConfig *adapters.SnowflakeConfig, processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper) (*Snowflake, error) {
+	snowflakeConfig *adapters.SnowflakeConfig, processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper,
+	fallbackLoggerFactoryMethod func() *events.AsyncLogger) (*Snowflake, error) {
 	var stageAdapter adapters.Stage
 	if !streamMode {
 		var err error
@@ -67,6 +70,7 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 		snowflakeAdapter: snowflakeAdapter,
 		tableHelper:      tableHelper,
 		schemaProcessor:  processor,
+		fallbackLogger:   fallbackLoggerFactoryMethod(),
 		breakOnError:     breakOnError,
 	}
 
@@ -205,12 +209,17 @@ func (s *Snowflake) Insert(dataSchema *schema.Table, fact events.Fact) (err erro
 	return s.snowflakeAdapter.Insert(dataSchema, fact)
 }
 
+//Store call StoreWithParseFunc with parsers.ParseJson func
+func (s *Snowflake) Store(fileName string, payload []byte) (int, error) {
+	return s.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+}
+
 //Store file from byte payload to stage with processing
 //return rowsCount and err if err occurred
 //but return 0 and nil if no err
 //because Store method doesn't store data to Snowflake(only to stage(S3 or GCP)
-func (s *Snowflake) Store(fileName string, payload []byte) (int, error) {
-	flatData, err := s.schemaProcessor.ProcessFilePayload(fileName, payload, s.breakOnError)
+func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
+	flatData, failedEvents, err := s.schemaProcessor.ProcessFilePayload(fileName, payload, s.breakOnError, parseFunc)
 	if err != nil {
 		return 0, err
 	}
@@ -239,7 +248,17 @@ func (s *Snowflake) Store(fileName string, payload []byte) (int, error) {
 		}
 	}
 
+	//send failed events to fallback only if other events have been inserted ok
+	s.Fallback(failedEvents...)
+
 	return 0, nil
+}
+
+//Fallback log event with error to fallback logger
+func (s *Snowflake) Fallback(failedFacts ...*events.FailedFact) {
+	for _, failedFact := range failedFacts {
+		s.fallbackLogger.ConsumeAny(failedFact)
+	}
 }
 
 func (s *Snowflake) SyncStore(objects []map[string]interface{}) (int, error) {
@@ -269,6 +288,10 @@ func (s *Snowflake) Close() (multiErr error) {
 
 	if s.streamingWorker != nil {
 		s.streamingWorker.Close()
+	}
+
+	if err := s.fallbackLogger.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", s.Name(), err))
 	}
 
 	return
