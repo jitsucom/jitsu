@@ -2,6 +2,27 @@ export const getCookieDomain = () => {
     return location.hostname.replace('www.', '');
 };
 
+let cookieParsingCache: Record<string, string>;
+
+export const getCookies = (useCache: boolean = false): Record<string, string> => {
+    if (useCache && cookieParsingCache) {
+        return cookieParsingCache;
+    }
+    let res: Record<string, string> = {};
+
+    let cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+        let cookie = cookies[i];
+        let idx = cookie.indexOf('=');
+        if (idx > 0) {
+            res[cookie.substr(i > 0 ? 1 : 0, i > 0 ? idx-1 : idx)] = cookie.substr(idx + 1);
+        }
+    }
+    cookieParsingCache = res;
+    return res;
+
+}
+
 export const getCookie = (name: string) => {
     if (!name) {
         return null;
@@ -12,7 +33,6 @@ export const getCookie = (name: string) => {
 export const setCookie = (name: string, value: string, expire: number, domain: string, secure: boolean) => {
     const expireString = expire === Infinity ? "; expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + expire;
     document.cookie = encodeURIComponent(name) + "=" + value + expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : "");
-    console.log(encodeURIComponent(name) + "=" + value + expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : ""))
 };
 
 export const generateId = () => Math.random().toString(36).substring(2, 12);
@@ -94,7 +114,7 @@ export function awaitCondition<T>(
     factory: () => T,
     timeout = 500,
     retries = 4
-) : Promise<T> {
+): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         if (condition()) {
             resolve(factory());
@@ -114,12 +134,14 @@ export function awaitCondition<T>(
 }
 
 
-
-
 export function awaitGlobalProp(prop: string, timeout = 500, retries = 4) {
     return awaitCondition(
-        () => {return (window as any)[prop] !== undefined},
-        () => {return (window as any)[prop]},
+        () => {
+            return (window as any)[prop] !== undefined
+        },
+        () => {
+            return (window as any)[prop]
+        },
         timeout, retries
     );
 }
