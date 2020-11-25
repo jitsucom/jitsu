@@ -41,3 +41,7 @@ func (ti *TimeInterval) CalculateSignatureFrom(t time.Time) string {
 func (ti *TimeInterval) String() string {
 	return ti.TimeZoneId + "_" + ti.granularity.String() + "_" + ti.granularity.Format(ti.time)
 }
+
+func (ti *TimeInterval) IsAll() bool {
+	return ti.granularity == ALL
+}

@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 const statusFileExtension = ".status"
@@ -18,14 +19,16 @@ type Status struct {
 	Err      string `json:"error"`
 }
 
-type statusManager struct {
-	logEventPath string
-	fileMask     string
+type StatusManager struct {
+	sync.RWMutex
+
+	filesPath string
+	fileMask  string
 	//fileLogName: {"storage1": Status, "storage2": Status}
 	fileStatuses map[string]map[string]*Status
 }
 
-func newStatusManager(logEventPath string) (*statusManager, error) {
+func NewStatusManager(logEventPath string) (*StatusManager, error) {
 	fileMask := path.Join(logEventPath, statusFileMask)
 	files, err := filepath.Glob(fileMask)
 	if err != nil {
@@ -55,14 +58,17 @@ func newStatusManager(logEventPath string) (*statusManager, error) {
 		fileStatuses[fileLogName] = statuses
 	}
 
-	return &statusManager{
-		logEventPath: logEventPath,
+	return &StatusManager{
+		filesPath:    logEventPath,
 		fileMask:     fileMask,
 		fileStatuses: fileStatuses,
 	}, nil
 }
 
-func (sm *statusManager) isUploaded(fileName, storage string) bool {
+func (sm *StatusManager) IsUploaded(fileName, storage string) bool {
+	sm.RLock()
+	defer sm.RUnlock()
+
 	statuses, ok := sm.fileStatuses[fileName]
 	if !ok {
 		return false
@@ -76,7 +82,27 @@ func (sm *statusManager) isUploaded(fileName, storage string) bool {
 	return status.Uploaded
 }
 
-func (sm *statusManager) updateStatus(fileName, storage string, storageErr error) {
+func (sm *StatusManager) Get(fileName, storage string) (*Status, bool) {
+	sm.RLock()
+	defer sm.RUnlock()
+
+	statuses, ok := sm.fileStatuses[fileName]
+	if !ok {
+		return nil, false
+	}
+
+	status, ok := statuses[storage]
+	if !ok {
+		return nil, false
+	}
+
+	return status, true
+}
+
+func (sm *StatusManager) UpdateStatus(fileName, storage string, storageErr error) {
+	sm.Lock()
+	defer sm.Unlock()
+
 	statusesPerStorage, ok := sm.fileStatuses[fileName]
 	if !ok {
 		statusesPerStorage = map[string]*Status{}
@@ -100,20 +126,23 @@ func (sm *statusManager) updateStatus(fileName, storage string, storageErr error
 	sm.persist(fileName, statusesPerStorage)
 }
 
-func (sm *statusManager) persist(fileName string, statusesPerStorage map[string]*Status) {
+func (sm *StatusManager) persist(fileName string, statusesPerStorage map[string]*Status) {
 	b, err := json.Marshal(statusesPerStorage)
 	if err != nil {
 		logging.Error("Error marshaling event log file statuses for file", fileName, err)
 		return
 	}
-	filePath := path.Join(sm.logEventPath, fileName+statusFileExtension)
+	filePath := path.Join(sm.filesPath, fileName+statusFileExtension)
 	if err := ioutil.WriteFile(filePath, b, 0644); err != nil {
 		logging.Error("Error writing event log status file", filePath, err)
 	}
 }
 
-func (sm *statusManager) cleanUp(fileName string) {
+func (sm *StatusManager) CleanUp(fileName string) {
+	sm.Lock()
+	defer sm.Unlock()
+
 	delete(sm.fileStatuses, fileName)
 
-	os.Remove(path.Join(sm.logEventPath, fileName+statusFileExtension))
+	os.Remove(path.Join(sm.filesPath, fileName+statusFileExtension))
 }

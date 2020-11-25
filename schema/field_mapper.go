@@ -102,13 +102,11 @@ func NewFieldMapper(mappingType FieldMappingType, mappings []string) (Mapper, ma
 	return &FieldMapper{rules: rules}, fieldsToCast, nil
 }
 
-//Map copy input object with applied deletes and mappings
+//Map changes input object and applies deletes and mappings
 func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
-	mappedObject := CopyMap(object)
+	applyMapping(object, object, fm.rules)
 
-	applyMapping(mappedObject, mappedObject, fm.rules)
-
-	return mappedObject, nil
+	return object, nil
 }
 
 func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
@@ -146,18 +144,4 @@ func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*Map
 			}
 		}
 	}
-}
-
-func CopyMap(m map[string]interface{}) map[string]interface{} {
-	cp := make(map[string]interface{})
-	for k, v := range m {
-		vm, ok := v.(map[string]interface{})
-		if ok {
-			cp[k] = CopyMap(vm)
-		} else {
-			cp[k] = v
-		}
-	}
-
-	return cp
 }

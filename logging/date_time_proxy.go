@@ -6,7 +6,7 @@ import (
 )
 
 type DateTimeWriterProxy struct {
-	writer io.WriteCloser
+	writer io.Writer
 }
 
 func (wp DateTimeWriterProxy) Write(bytes []byte) (int, error) {

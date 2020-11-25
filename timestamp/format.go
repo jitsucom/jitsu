@@ -14,3 +14,7 @@ const DeprecatedLayout = "2006-01-02T15:04:05.000Z"
 func NowUTC() string {
 	return time.Now().UTC().Format(Layout)
 }
+
+func ToISOFormat(t time.Time) string {
+	return t.Format(Layout)
+}

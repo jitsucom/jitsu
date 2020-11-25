@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"github.com/gookit/color"
 	"github.com/jitsucom/eventnative/notifications"
+	"io"
 	"log"
+	"os"
 	"strings"
 )
 
@@ -16,11 +18,12 @@ const (
 )
 
 type Config struct {
-	LoggerName  string
-	ServerName  string
-	FileDir     string
-	RotationMin int64
-	MaxBackups  int
+	LoggerName    string
+	ServerName    string
+	FileDir       string
+	RotationMin   int64
+	MaxBackups    int
+	RotateOnClose bool
 }
 
 func (c Config) Validate() error {
@@ -36,14 +39,26 @@ func (c Config) Validate() error {
 
 //Initialize main logger
 //Global logger writes logs and sends system error notifications
+//
+//   configured file logger            no file logger configured
+//     /             \                            |
+// os.Stdout      FileWriter                  os.Stdout
 func InitGlobalLogger(config Config) error {
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("Error while creating global logger: %v", err)
 	}
-	writer, err := NewWriter(config)
-	if err != nil {
-		return err
+
+	var writer io.Writer
+	if config.FileDir != "" {
+		fileWriter := NewRollingWriter(config)
+		writer = Dual{
+			fileWriter: fileWriter,
+			stdout:     os.Stdout,
+		}
+	} else {
+		writer = os.Stdout
 	}
+
 	dateTimeWriter := DateTimeWriterProxy{
 		writer: writer,
 	}

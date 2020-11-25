@@ -32,9 +32,11 @@ type LoggerUsage struct {
 
 //Service is reloadable service of events destinations per token
 type Service struct {
-	storageFactoryMethod func(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error)
+	storageFactoryMethod func(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error)
 	ctx                  context.Context
 	logEventPath         string
+	logFallbackPath      string
+	logRotationMin       int64
 	monitorKeeper        storages.MonitorKeeper
 
 	//map for holding all destinations for closing
@@ -56,12 +58,14 @@ func NewTestService(consumersByTokenId TokenizedConsumers, storagesByTokenId Tok
 }
 
 //NewService return loaded Service instance and call resources.Watcher() if destinations source is http url or file path
-func NewService(ctx context.Context, destinations *viper.Viper, destinationsSource, logEventPath string, monitorKeeper storages.MonitorKeeper,
-	storageFactoryMethod func(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
+func NewService(ctx context.Context, destinations *viper.Viper, destinationsSource, logEventPath, logFallbackPath string, logRotationMin int64, monitorKeeper storages.MonitorKeeper,
+	storageFactoryMethod func(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
 	service := &Service{
 		storageFactoryMethod: storageFactoryMethod,
 		ctx:                  ctx,
 		logEventPath:         logEventPath,
+		logFallbackPath:      logFallbackPath,
+		logRotationMin:       logRotationMin,
 		monitorKeeper:        monitorKeeper,
 
 		unitsByName:           map[string]*Unit{},
@@ -205,7 +209,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		}
 
 		//create new
-		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, destination, s.monitorKeeper)
+		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, s.logFallbackPath, s.logRotationMin, destination, s.monitorKeeper)
 		if err != nil {
 			logging.Errorf("[%s] Error initializing destination of type %s: %v", name, destination.Type, err)
 			continue
@@ -231,18 +235,16 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 				//get or create new logger
 				loggerUsage, ok := s.loggersUsageByTokenId[tokenId]
 				if !ok {
-					eventLogWriter, err := logging.NewWriter(logging.Config{
-						LoggerName:  "event-" + tokenId,
-						ServerName:  appconfig.Instance.ServerName,
-						FileDir:     s.logEventPath,
-						RotationMin: viper.GetInt64("log.rotation_min")})
-					if err != nil {
-						logging.Errorf("[%s] Error creating tokenized logger: %v", name, err)
-					} else {
-						logger := events.NewAsyncLogger(eventLogWriter, viper.GetBool("log.show_in_server"))
-						loggerUsage = &LoggerUsage{logger: logger, usage: 0}
-						s.loggersUsageByTokenId[tokenId] = loggerUsage
-					}
+					eventLogWriter := logging.NewRollingWriter(logging.Config{
+						LoggerName:    "event-" + tokenId,
+						ServerName:    appconfig.Instance.ServerName,
+						FileDir:       s.logEventPath,
+						RotationMin:   s.logRotationMin,
+						RotateOnClose: true,
+					})
+					logger := events.NewAsyncLogger(eventLogWriter, viper.GetBool("log.show_in_server"))
+					loggerUsage = &LoggerUsage{logger: logger, usage: 0}
+					s.loggersUsageByTokenId[tokenId] = loggerUsage
 				}
 
 				if loggerUsage != nil {

@@ -1,0 +1,2 @@
+{"event":{"_geo_data":{"country":"US","city":"New York"},"_timestamp":"2020-08-02T18:23:56.291383Z","event_type":"user","key1":{"key2":"splu"},"key10":{"sib1":{"1":"k"}}},"error":"some error"}
+{"event":{"_geo_data":{"latitude":40.7809,"longitude":-73.9502},"_timestamp":"2020-08-02T18:23:58.057807Z","key1":{"key2":"123"},"key3":"privvvv","key5":[1,2,4,5]},"error":"some error2"}
