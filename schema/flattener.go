@@ -76,7 +76,7 @@ func (f *Flattener) flatten(key string, value interface{}, destination map[strin
 		if err != nil {
 			return fmt.Errorf("Error marshaling array with key %s: %v", key, err)
 		}
-		destination[key] = string(b)
+		destination[key] = limitLength(string(b))
 	case reflect.Map:
 		unboxed := value.(map[string]interface{})
 		for k, v := range unboxed {
@@ -95,11 +95,8 @@ func (f *Flattener) flatten(key string, value interface{}, destination map[strin
 			switch value.(type) {
 			case string:
 				strValue, _ := value.(string)
-				if len(strValue) > maxStringLength {
-					strValue = strValue[:maxStringLength]
-				}
 
-				destination[key] = strValue
+				destination[key] = limitLength(strValue)
 			default:
 				destination[key] = value
 			}
@@ -107,4 +104,12 @@ func (f *Flattener) flatten(key string, value interface{}, destination map[strin
 	}
 
 	return nil
+}
+
+func limitLength(value string) string {
+	if len(value) > maxStringLength {
+		return value[:maxStringLength]
+	}
+
+	return value
 }
