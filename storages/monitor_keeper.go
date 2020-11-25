@@ -70,7 +70,7 @@ func (rl *RetryableLock) unlock() error {
 
 	if rl.resourceCloser != nil {
 		if closeError := rl.resourceCloser.Close(); closeError != nil {
-			logging.Error("Unlocked successfully but failed to close resource ", closeError)
+			logging.Errorf("%s unlocked successfully but failed to close resource: %v", rl.identifier, closeError)
 		}
 	}
 
