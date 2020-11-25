@@ -40,7 +40,7 @@ type EtcdService struct {
 func NewService(ctx context.Context, serverName, syncServiceType, syncServiceEndpoint string, connectionTimeoutSeconds uint) (Service, error) {
 	if syncServiceType == "" || syncServiceEndpoint == "" {
 		logging.Warn("Using in-memory synchronization service so as no configuration is provided")
-		return &InMemoryService{serverNameSingleArray: []string{serverName}}, nil
+		return NewInMemoryService([]string{serverName})
 	}
 
 	switch syncServiceType {

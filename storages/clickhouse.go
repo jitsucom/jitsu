@@ -203,7 +203,7 @@ func (ch *ClickHouse) Close() (multiErr error) {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ch.Name(), err))
 	}
 
-	return multiErr
+	return
 }
 
 //assume that adapters quantity == tableHelpers quantity
