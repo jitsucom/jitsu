@@ -59,8 +59,13 @@ func (sw *StreamingWorker) start() {
 
 			dataSchema, flattenObject, err := sw.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				logging.Errorf("[%s] Unable to process object %v: %v", sw.streamingStorage.Name(), fact, err)
+				serialized := fact.Serialize()
+				logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.Name(), serialized, err)
 				metrics.ErrorTokenEvent(tokenId, sw.streamingStorage.Name())
+				sw.streamingStorage.Fallback(&events.FailedFact{
+					Event: []byte(serialized),
+					Error: err.Error(),
+				})
 				continue
 			}
 
@@ -70,11 +75,16 @@ func (sw *StreamingWorker) start() {
 			}
 
 			if err := sw.streamingStorage.Insert(dataSchema, flattenObject); err != nil {
-				logging.Errorf("[%s] Error inserting to table [%s]: %v", sw.streamingStorage.Name(), dataSchema.Name, err)
+				logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.Name(), flattenObject.Serialize(), dataSchema.Name, err)
 				if strings.Contains(err.Error(), "connection refused") ||
 					strings.Contains(err.Error(), "EOF") ||
 					strings.Contains(err.Error(), "write: broken pipe") {
 					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenId)
+				} else {
+					sw.streamingStorage.Fallback(&events.FailedFact{
+						Event: []byte(fact.Serialize()),
+						Error: err.Error(),
+					})
 				}
 				metrics.ErrorTokenEvent(tokenId, sw.streamingStorage.Name())
 				continue

@@ -21,12 +21,12 @@ type PeriodicUploader struct {
 	fileMask     string
 	uploadEvery  time.Duration
 
-	statusManager      *statusManager
+	statusManager      *StatusManager
 	destinationService *destinations.Service
 }
 
 func NewUploader(logEventPath, fileMask string, uploadEveryS int, destinationService *destinations.Service) (*PeriodicUploader, error) {
-	statusManager, err := newStatusManager(logEventPath)
+	statusManager, err := NewStatusManager(logEventPath)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func (u *PeriodicUploader) Start() {
 						deleteFile = false
 						continue
 					}
-					if !u.statusManager.isUploaded(fileName, storage.Name()) {
+					if !u.statusManager.IsUploaded(fileName, storage.Name()) {
 						rowsCount, err := storage.Store(fileName, b)
 						if err != nil {
 							deleteFile = false
@@ -103,7 +103,7 @@ func (u *PeriodicUploader) Start() {
 						} else {
 							metrics.SuccessTokenEvents(tokenId, storage.Name(), rowsCount)
 						}
-						u.statusManager.updateStatus(fileName, storage.Name(), err)
+						u.statusManager.UpdateStatus(fileName, storage.Name(), err)
 					}
 				}
 
@@ -112,7 +112,7 @@ func (u *PeriodicUploader) Start() {
 					if err != nil {
 						logging.Error("Error deleting file", filePath, err)
 					} else {
-						u.statusManager.cleanUp(fileName)
+						u.statusManager.CleanUp(fileName)
 					}
 				}
 			}

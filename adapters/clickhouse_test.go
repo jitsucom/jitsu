@@ -96,7 +96,7 @@ func TestTableStatementFactory(t *testing.T) {
 				Database: "db1",
 				Cluster:  "cluster1",
 			},
-			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER cluster1  (a String,b String,c String,d String) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/db1/test_table', '{replica}', _timestamp) PARTITION BY (toYYYYMM(_timestamp)) ORDER BY (eventn_ctx_event_id)",
+			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER \"cluster1\"  (a String,b String,c String,d String) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/db1/test_table', '{replica}', _timestamp) PARTITION BY (toYYYYMM(_timestamp)) ORDER BY (eventn_ctx_event_id)",
 		},
 		{
 			"Input config with cluster with overrides",
@@ -114,7 +114,7 @@ func TestTableStatementFactory(t *testing.T) {
 					PrimaryKeys: []string{"id", "b"},
 				},
 			},
-			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER cluster1  (a String,b String,c String,d String) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/db1/test_table', '{replica}', _timestamp) PARTITION BY (toYYYYMMDD(_timestamp)) ORDER BY (id,a) PRIMARY KEY (id, b)",
+			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER \"cluster1\"  (a String,b String,c String,d String) ENGINE = ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/db1/test_table', '{replica}', _timestamp) PARTITION BY (toYYYYMMDD(_timestamp)) ORDER BY (id,a) PRIMARY KEY (id, b)",
 		},
 		{
 			"Input config with cluster without overrides with raw statement",
@@ -126,7 +126,7 @@ func TestTableStatementFactory(t *testing.T) {
 					RawStatement: "ENGINE = ReplacingMergeTree(d) ORDER BY (e) PRIMARY KEY (a)",
 				},
 			},
-			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER cluster1  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree(d) ORDER BY (e) PRIMARY KEY (a)",
+			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER \"cluster1\"  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree(d) ORDER BY (e) PRIMARY KEY (a)",
 		},
 		{
 			"Input config with cluster with overrides with raw statement",
@@ -145,7 +145,7 @@ func TestTableStatementFactory(t *testing.T) {
 					PrimaryKeys: []string{"id", "b"},
 				},
 			},
-			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER cluster1  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree(d) ORDER BY (e) PRIMARY KEY (a)",
+			"CREATE TABLE \"db1\".\"test_table\"  ON CLUSTER \"cluster1\"  (a String,b String,c String,d String) ENGINE = ReplacingMergeTree(d) ORDER BY (e) PRIMARY KEY (a)",
 		},
 	}
 	for _, tt := range tests {

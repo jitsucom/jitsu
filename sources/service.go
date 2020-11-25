@@ -39,9 +39,6 @@ type Service struct {
 	metaStorage         meta.Storage
 	monitorKeeper       storages.MonitorKeeper
 
-	//for locking in single en node setup
-	syncCollectionLocks sync.Map
-
 	closed bool
 }
 
@@ -161,11 +158,6 @@ func (s *Service) Sync(sourceId string) (multiErr error) {
 
 	for collection, driver := range sourceUnit.DriverPerCollection {
 		identifier := sourceId + "_" + collection
-		_, loaded := s.syncCollectionLocks.LoadOrStore(identifier, true)
-		if loaded {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("Error local locking [%s] source [%s] collection: already locked", sourceId, collection))
-			continue
-		}
 
 		collectionLock, err := s.monitorKeeper.Lock(sourceId, collection)
 		if err != nil {
@@ -244,7 +236,7 @@ func (s *Service) syncCollection(i interface{}) {
 		return
 	}
 
-	defer s.syncCollectionLocks.Delete(synctTask.identifier)
+	defer s.monitorKeeper.Unlock(synctTask.lock)
 	synctTask.Sync()
 }
 
