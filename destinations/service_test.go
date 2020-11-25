@@ -4,10 +4,10 @@ import (
 	"context"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/events"
-	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -294,7 +294,7 @@ func startTestServer(ph *payloadHolder) *httptest.Server {
 		}))
 }
 
-func createTestStorage(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper, queryLogger *logging.QueryLogger) (events.StorageProxy, *events.PersistentQueue, error) {
+func createTestStorage(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper, queryWriter *io.WriteCloser) (events.StorageProxy, *events.PersistentQueue, error) {
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == storages.StreamMode {
 		eventQueue, _ = events.NewPersistentQueue(name, "/tmp")
