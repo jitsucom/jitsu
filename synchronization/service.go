@@ -35,12 +35,12 @@ type EtcdService struct {
 	closed   bool
 }
 
-//NewService return EtcdService (etcd) if was configured or Dummy otherwise
+//NewService return EtcdService (etcd) if was configured or InMemoryService otherwise
 //starts EtcdService heart beat goroutine: see EtcdService.startHeartBeating()
 func NewService(ctx context.Context, serverName, syncServiceType, syncServiceEndpoint string, connectionTimeoutSeconds uint) (Service, error) {
 	if syncServiceType == "" || syncServiceEndpoint == "" {
-		logging.Warn("Using dummy synchronization service as no configuration is provided")
-		return &Dummy{serverNameSingleArray: []string{serverName}}, nil
+		logging.Warn("Using in-memory synchronization service so as no configuration is provided")
+		return NewInMemoryService([]string{serverName}), nil
 	}
 
 	switch syncServiceType {

@@ -44,18 +44,19 @@ type DataLayout struct {
 }
 
 type Config struct {
-	ctx           context.Context
-	name          string
-	destination   *DestinationConfig
-	processor     *schema.Processor
-	streamMode    bool
-	monitorKeeper MonitorKeeper
-	eventQueue    *events.PersistentQueue
+	ctx                         context.Context
+	name                        string
+	destination                 *DestinationConfig
+	processor                   *schema.Processor
+	streamMode                  bool
+	monitorKeeper               MonitorKeeper
+	eventQueue                  *events.PersistentQueue
+	fallBackLoggerFactoryMethod func() *events.AsyncLogger
 }
 
 //Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, name, logEventPath string, destination DestinationConfig, monitorKeeper MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error) {
+func Create(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64, destination DestinationConfig, monitorKeeper MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = name
 	}
@@ -141,6 +142,15 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		streamMode:    destination.Mode == StreamMode,
 		monitorKeeper: monitorKeeper,
 		eventQueue:    eventQueue,
+		fallBackLoggerFactoryMethod: func() *events.AsyncLogger {
+			return events.NewAsyncLogger(logging.NewRollingWriter(logging.Config{
+				LoggerName:    "errors-" + name,
+				ServerName:    appconfig.Instance.ServerName,
+				FileDir:       logFallbackPath,
+				RotationMin:   logRotationMin,
+				RotateOnClose: true,
+			}), false)
+		},
 	}
 
 	var storageProxy events.StorageProxy
@@ -187,7 +197,8 @@ func createRedshift(config *Config) (events.Storage, error) {
 		redshiftConfig.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewAwsRedshift(config.ctx, config.name, config.eventQueue, config.destination.S3, redshiftConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
+	return NewAwsRedshift(config.ctx, config.name, config.eventQueue, config.destination.S3, redshiftConfig, config.processor,
+		config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod)
 }
 
 //Create google BigQuery destination
@@ -207,7 +218,8 @@ func createBigQuery(config *Config) (events.Storage, error) {
 		logging.Warnf("[%s] dataset wasn't provided. Will be used default one: %s", config.name, gConfig.Dataset)
 	}
 
-	return NewBigQuery(config.ctx, config.name, config.eventQueue, gConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
+	return NewBigQuery(config.ctx, config.name, config.eventQueue, gConfig, config.processor, config.destination.BreakOnError,
+		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod)
 }
 
 //Create Postgres destination
@@ -230,7 +242,8 @@ func createPostgres(config *Config) (events.Storage, error) {
 		pgConfig.Parameters["connect_timeout"] = "600"
 	}
 
-	return NewPostgres(config.ctx, pgConfig, config.processor, config.eventQueue, config.name, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
+	return NewPostgres(config.ctx, pgConfig, config.processor, config.eventQueue, config.name, config.destination.BreakOnError,
+		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod)
 }
 
 //Create ClickHouse destination
@@ -240,7 +253,8 @@ func createClickHouse(config *Config) (events.Storage, error) {
 		return nil, err
 	}
 
-	return NewClickHouse(config.ctx, config.name, config.eventQueue, chConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
+	return NewClickHouse(config.ctx, config.name, config.eventQueue, chConfig, config.processor, config.destination.BreakOnError,
+		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod)
 }
 
 //Create s3 destination
@@ -256,7 +270,7 @@ func createS3(config *Config) (events.Storage, error) {
 		return nil, err
 	}
 
-	return NewS3(config.name, s3Config, config.processor, config.destination.BreakOnError)
+	return NewS3(config.name, s3Config, config.processor, config.destination.BreakOnError, config.fallBackLoggerFactoryMethod)
 }
 
 //Create Snowflake destination
@@ -286,5 +300,6 @@ func createSnowflake(config *Config) (events.Storage, error) {
 		}
 	}
 
-	return NewSnowflake(config.ctx, config.name, config.eventQueue, config.destination.S3, config.destination.Google, snowflakeConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper)
+	return NewSnowflake(config.ctx, config.name, config.eventQueue, config.destination.S3, config.destination.Google,
+		snowflakeConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod)
 }

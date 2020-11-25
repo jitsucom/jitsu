@@ -7,7 +7,7 @@ import (
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/parsers"
+	"github.com/jitsucom/eventnative/maputils"
 	"github.com/jitsucom/eventnative/timestamp"
 	"github.com/jitsucom/eventnative/typing"
 	"io"
@@ -21,6 +21,7 @@ type Processor struct {
 	fieldMapper          Mapper
 	typeCasts            map[string]typing.DataType
 	tableNameExtractFunc TableNameExtractFunction
+	tableNameExpression  string
 	pkFields             map[string]bool
 	enrichmentRules      []enrichment.Rule
 }
@@ -74,31 +75,44 @@ func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType
 		fieldMapper:          mapper,
 		typeCasts:            typeCasts,
 		tableNameExtractFunc: tableNameExtractFunc,
+		tableNameExpression:  tableNameFuncExpression,
 		pkFields:             primaryKeyFields,
 		enrichmentRules:      enrichmentRules,
 	}, nil
 }
 
 //ProcessFact return table representation, processed flatten object
-func (p *Processor) ProcessFact(fact events.Fact) (*Table, map[string]interface{}, error) {
+func (p *Processor) ProcessFact(fact events.Fact) (*Table, events.Fact, error) {
 	return p.processObject(fact)
 }
 
 //ProcessFilePayload process file payload lines divided with \n. Line by line where 1 line = 1 json
-//Return array of processed objects per table like {"table1": []objects, "table2": []objects}
-func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnError bool) (map[string]*ProcessedFile, error) {
+//Return array of processed objects per table like {"table1": []objects, "table2": []objects},
+//All failed events are moved to separate collection for sending to fallback
+func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnError bool, parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*ProcessedFile, []*events.FailedFact, error) {
+	var failedFacts []*events.FailedFact
 	filePerTable := map[string]*ProcessedFile{}
 	input := bytes.NewBuffer(payload)
 	reader := bufio.NewReaderSize(input, 64*1024)
 	line, readErr := reader.ReadBytes('\n')
 
 	for readErr == nil {
-		table, processedObject, err := p.processLine(line)
+		object, err := parseFunc(line)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		table, processedObject, err := p.processObject(object)
 		if err != nil {
 			if breakOnError {
-				return nil, err
+				return nil, nil, err
 			} else {
-				logging.Warnf("Unable to process object %s reason: %v. This line will be skipped", string(line), err)
+				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(line), err)
+				failedFacts = append(failedFacts, &events.FailedFact{
+					//remove last byte (\n)
+					Event: line[:len(line)-1],
+					Error: err.Error(),
+				})
 			}
 		}
 
@@ -115,16 +129,17 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnE
 
 		line, readErr = reader.ReadBytes('\n')
 		if readErr != nil && readErr != io.EOF {
-			logging.Errorf("Error reading line in [%s] file", fileName)
+			return nil, nil, fmt.Errorf("Error reading line in [%s] file: %v", fileName, readErr)
 		}
 	}
 
-	return filePerTable, nil
+	return filePerTable, failedFacts, nil
 }
 
 //ProcessObjects process source chunk payload objects
 //Return array of processed objects per table like {"table1": []objects, "table2": []objects}
-func (p *Processor) ProcessObjects(objects []map[string]interface{}, breakOnError bool) (map[string]*ProcessedFile, error) {
+//If at least 1 error occurred - this method return it
+func (p *Processor) ProcessObjects(objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
 	unitPerTable := map[string]*ProcessedFile{}
 
 	for _, object := range objects {
@@ -178,38 +193,25 @@ func (p *Processor) ApplyDBTypingToObject(dbSchema *Table, object map[string]int
 	return nil
 }
 
-//Return table representation of object and flatten object from file line
-func (p *Processor) processLine(line []byte) (*Table, map[string]interface{}, error) {
-	object, err := parsers.ParseJson(line)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	table, flattenObject, err := p.processObject(object)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return table, flattenObject, nil
-}
-
 //Return table representation of object and flatten, mapped object
-//1. execute enrichment rules
-//2. remove toDelete fields from object
-//3. map object
-//4. flatten object
-//5. apply typecast
-func (p *Processor) processObject(object map[string]interface{}) (*Table, map[string]interface{}, error) {
+//1. copy map and don't change input object
+//2. execute enrichment rules
+//3. remove toDelete fields from object
+//4. map object
+//5. flatten object
+//6. apply typecast
+func (p *Processor) processObject(objectsss map[string]interface{}) (*Table, map[string]interface{}, error) {
+	objectCopy := maputils.CopyMap(objectsss)
 	for _, rule := range p.enrichmentRules {
-		err := rule.Execute(object)
+		err := rule.Execute(objectCopy)
 		if err != nil {
-			return nil, nil, fmt.Errorf("Error executing enrichment rule: [%s] object {%v}: %v", rule.Name(), object, err)
+			return nil, nil, fmt.Errorf("Error executing enrichment rule: [%s]: %v", rule.Name(), err)
 		}
 	}
 
-	mappedObject, err := p.fieldMapper.Map(object)
+	mappedObject, err := p.fieldMapper.Map(objectCopy)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error mapping object {%v}: %v", object, err)
+		return nil, nil, fmt.Errorf("Error mapping object: %v", err)
 	}
 
 	flatObject, err := p.flattener.FlattenObject(mappedObject)
@@ -219,10 +221,10 @@ func (p *Processor) processObject(object map[string]interface{}) (*Table, map[st
 
 	tableName, err := p.tableNameExtractFunc(flatObject)
 	if err != nil {
-		return nil, nil, fmt.Errorf("Error extracting table name from object {%v}: %v", flatObject, err)
+		return nil, nil, fmt.Errorf("Error extracting table name. Template: %s: %v", p.tableNameExpression, err)
 	}
 	if tableName == "" {
-		return nil, nil, fmt.Errorf("Unknown table name. Object {%v}", flatObject)
+		return nil, nil, fmt.Errorf("Unknown table name. Template: %s", p.tableNameExpression)
 	}
 
 	table := &Table{Name: tableName, Columns: Columns{}, PKFields: p.pkFields}

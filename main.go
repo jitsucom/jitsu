@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/eventnative/cluster"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/fallback"
 	"github.com/jitsucom/eventnative/handlers"
 	"github.com/jitsucom/eventnative/logfiles"
 	"github.com/jitsucom/eventnative/logging"
@@ -156,11 +157,13 @@ func main() {
 		}
 	}
 
-	//Get event logger path
+	//Get logger configuration
 	logEventPath := viper.GetString("log.path")
+	logFallbackPath := viper.GetString("log.fallback")
+	logRotationMin := viper.GetInt64("log.rotation_min")
 
 	//Create event destinations
-	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, syncService, storages.Create)
+	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, logFallbackPath, logRotationMin, syncService, storages.Create)
 	if err != nil {
 		logging.Fatal(err)
 	}
@@ -227,6 +230,11 @@ func main() {
 	eventsCache := events.NewCache(100)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
+	fallbackService, err := fallback.NewService(logFallbackPath, destinationsService)
+	if err != nil {
+		logging.Fatal("Error creating fallback service:", err)
+	}
+
 	//version reminder banner in logs
 	if tag != "" && !viper.GetBool("server.disable_version_reminder") {
 		vn := appconfig.NewVersionReminder(ctx, tag)
@@ -234,7 +242,7 @@ func main() {
 		appconfig.Instance.ScheduleClosing(vn)
 	}
 
-	router := SetupRouter(destinationsService, adminToken, syncService, eventsCache, sourceService)
+	router := SetupRouter(destinationsService, adminToken, syncService, eventsCache, sourceService, fallbackService)
 
 	telemetry.ServerStart()
 	notifications.ServerStart()
@@ -250,7 +258,7 @@ func main() {
 }
 
 func SetupRouter(destinations *destinations.Service, adminToken string, clusterManager cluster.Manager,
-	eventsCache *events.Cache, sources *sources.Service) *gin.Engine {
+	eventsCache *events.Cache, sources *sources.Service, fallbackService *fallback.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -282,6 +290,7 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	apiEventHandler := handlers.NewEventHandler(destinations, apiEventsPreprocessor, eventsCache)
 
 	sourcesHandler := handlers.NewSourcesHandler(sources)
+	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
@@ -295,6 +304,9 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 
 		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler, middleware.AdminTokenErr))
 		apiV1.GET("/cache/events", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler, middleware.AdminTokenErr))
+
+		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler, middleware.AdminTokenErr))
+		apiV1.POST("/fallback/replay", adminTokenMiddleware.AdminAuth(fallbackHandler.ReplayHandler, middleware.AdminTokenErr))
 	}
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
