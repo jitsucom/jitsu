@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/parsers"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
 )
 
@@ -24,9 +25,9 @@ type Postgres struct {
 }
 
 func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor, eventQueue *events.PersistentQueue,
-	storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger) (*Postgres, error) {
+	storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger, queryLogger *logging.QueryLogger) (*Postgres, error) {
 
-	adapter, err := adapters.NewPostgres(ctx, config)
+	adapter, err := adapters.NewPostgres(ctx, config, queryLogger)
 	if err != nil {
 		return nil, err
 	}

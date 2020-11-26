@@ -163,7 +163,7 @@ func main() {
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
 	//Create event destinations
-	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, logFallbackPath, logRotationMin, syncService, storages.Create)
+	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, logFallbackPath, logRotationMin, syncService, appconfig.Instance.QueryLogsWriter, storages.Create)
 	if err != nil {
 		logging.Fatal(err)
 	}
