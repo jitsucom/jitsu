@@ -1,5 +1,5 @@
 {
-  "name": "@ksensehq/eventnative",
+  "name": "@ksense/eventnative",
   "main": "dist/eventnative.cjs.js",
   "module": "dist/eventnative.esm.js",
   "version": "1.0.13",
