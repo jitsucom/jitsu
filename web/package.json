@@ -1,5 +1,5 @@
 {
-  "name": "@ksense/eventnative",
+  "name": "@jitsu/eventnative",
   "main": "dist/npm/main.cjs.js",
   "module": "dist/npm/dist/main.esm.js",
   "types": "dist/npm/main.d.ts",
