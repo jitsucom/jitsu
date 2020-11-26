@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/eventnative/resources"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/spf13/viper"
+	"io"
 	"strings"
 	"sync"
 	"time"
@@ -33,13 +34,13 @@ type LoggerUsage struct {
 //Service is reloadable service of events destinations per token
 type Service struct {
 	storageFactoryMethod func(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64,
-		destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper, queryLogger *logging.QueryLogger) (events.StorageProxy, *events.PersistentQueue, error)
-	ctx                  context.Context
-	logEventPath         string
-	logFallbackPath      string
-	logRotationMin       int64
-	monitorKeeper        storages.MonitorKeeper,
-	queryWriter   *io.WriteCloser
+		destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper, queryWriter *io.Writer) (events.StorageProxy, *events.PersistentQueue, error)
+	ctx             context.Context
+	logEventPath    string
+	logFallbackPath string
+	logRotationMin  int64
+	monitorKeeper   storages.MonitorKeeper
+	queryWriter     *io.Writer
 
 	//map for holding all destinations for closing
 	unitsByName map[string]*Unit
@@ -60,8 +61,10 @@ func NewTestService(consumersByTokenId TokenizedConsumers, storagesByTokenId Tok
 }
 
 //NewService return loaded Service instance and call resources.Watcher() if destinations source is http url or file path
-func NewService(ctx context.Context, destinations *viper.Viper, destinationsSource, logEventPath, logFallbackPath string, logRotationMin int64, monitorKeeper storages.MonitorKeeper, queryLogger *logging.QueryLogger,
-	storageFactoryMethod func(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper, queryLogger *logging.QueryLogger) (events.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
+func NewService(ctx context.Context, destinations *viper.Viper, destinationsSource, logEventPath,
+	logFallbackPath string, logRotationMin int64, monitorKeeper storages.MonitorKeeper, queryWriter *io.Writer,
+	storageFactoryMethod func(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64,
+		destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper, queryWriter *io.Writer) (events.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
 	service := &Service{
 		storageFactoryMethod: storageFactoryMethod,
 		ctx:                  ctx,
@@ -69,7 +72,7 @@ func NewService(ctx context.Context, destinations *viper.Viper, destinationsSour
 		logFallbackPath:      logFallbackPath,
 		logRotationMin:       logRotationMin,
 		monitorKeeper:        monitorKeeper,
-		queryWriter:          queryLogWriter,
+		queryWriter:          queryWriter,
 
 		unitsByName:           map[string]*Unit{},
 		loggersUsageByTokenId: map[string]*LoggerUsage{},

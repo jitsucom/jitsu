@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/eventnative/useragent"
 	"github.com/spf13/viper"
 	"io"
+	"os"
 )
 
 type AppConfig struct {
@@ -18,7 +19,7 @@ type AppConfig struct {
 	UaResolver  useragent.Resolver
 
 	AuthorizationService *authorization.Service
-	QueryLogsWriter      *io.WriteCloser
+	QueryLogsWriter      *io.Writer
 
 	closeMe []io.Closer
 }
@@ -55,11 +56,23 @@ func Init() error {
 	if err := globalLoggerConfig.Validate(); err != nil {
 		return fmt.Errorf("Error while creating global logger: %v", err)
 	}
-	globalLogsWriter, err := logging.NewWriter(globalLoggerConfig)
-	if err != nil {
-		return err
+
+	//Global logger writes logs and sends system error notifications
+	//
+	//   configured file logger            no file logger configured
+	//     /             \                            |
+	// os.Stdout      FileWriter                  os.Stdout
+	var globalLogsWriter io.Writer
+	if globalLoggerConfig.FileDir != "" {
+		fileWriter := logging.NewRollingWriter(globalLoggerConfig)
+		globalLogsWriter = logging.Dual{
+			FileWriter: fileWriter,
+			Stdout:     os.Stdout,
+		}
+	} else {
+		globalLogsWriter = os.Stdout
 	}
-	err = logging.InitGlobalLogger(globalLogsWriter)
+	err := logging.InitGlobalLogger(globalLogsWriter)
 	if err != nil {
 		return err
 	}
@@ -80,7 +93,7 @@ func Init() error {
 	if err != nil {
 		return err
 	}
-	appConfig.QueryLogsWriter = queryLogsWriter
+	appConfig.QueryLogsWriter = &queryLogsWriter
 
 	port := viper.GetString("port")
 	if port == "" {
@@ -106,8 +119,8 @@ func Init() error {
 	return nil
 }
 
-func InitQueryWriter(globalLogsWriter io.WriteCloser) (*io.WriteCloser, error) {
-	var queryLogsWriter *io.WriteCloser
+func InitQueryWriter(globalLogsWriter io.Writer) (io.Writer, error) {
+	var queryLogsWriter io.Writer
 	if viper.IsSet("sql_debug_log.path") {
 		if viper.GetString("sql_debug_log.path") != "global" {
 			queryLoggerConfig := logging.Config{
@@ -116,13 +129,11 @@ func InitQueryWriter(globalLogsWriter io.WriteCloser) (*io.WriteCloser, error) {
 				FileDir:     viper.GetString("sql_debug_log.path"),
 				RotationMin: viper.GetInt64("sql_debug_log.rotation_min"),
 				MaxBackups:  viper.GetInt("sql_debug_log.max_backups")}
-			writer, err := logging.NewWriter(queryLoggerConfig)
-			queryLogsWriter = &writer
-			if err != nil {
-				return nil, fmt.Errorf("Failed to initialize sql query logger: %v", err)
-			}
+
+			writer := logging.NewRollingWriter(queryLoggerConfig)
+			queryLogsWriter = writer
 		} else {
-			queryLogsWriter = &globalLogsWriter
+			queryLogsWriter = globalLogsWriter
 		}
 	}
 	return queryLogsWriter, nil
