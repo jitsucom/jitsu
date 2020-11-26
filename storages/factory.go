@@ -59,7 +59,7 @@ type Config struct {
 //Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
 func Create(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64,
-	destination DestinationConfig, monitorKeeper MonitorKeeper, queryWriter *io.Writer) (events.StorageProxy, *events.PersistentQueue, error) {
+	destination DestinationConfig, monitorKeeper MonitorKeeper, queryWriter io.Writer) (events.StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = name
 	}

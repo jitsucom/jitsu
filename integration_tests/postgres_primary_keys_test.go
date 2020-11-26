@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/jitsucom/eventnative/synchronization"
@@ -32,7 +33,8 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	fallBackLoggerFactoryMethod := func() *events.AsyncLogger {
 		return nil
 	}
-	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true, false, monitor, fallBackLoggerFactoryMethod, nil)
+	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true,
+		false, monitor, fallBackLoggerFactoryMethod, &logging.QueryLogger{})
 	if err != nil {
 		require.Fail(t, "failed to initialize", err)
 	}

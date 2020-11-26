@@ -12,11 +12,10 @@ type RetryableProxy struct {
 	sync.RWMutex
 	factoryMethod func(*Config) (events.Storage, error)
 
-	config      *Config
-	storage     events.Storage
-	ready       bool
-	closed      bool
-	queryLogger *logging.QueryLogger
+	config  *Config
+	storage events.Storage
+	ready   bool
+	closed  bool
 }
 
 func newProxy(factoryMethod func(*Config) (events.Storage, error), config *Config) events.StorageProxy {
