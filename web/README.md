@@ -2,17 +2,17 @@
 
 EventNative is an open source, high-performance event collection service. Read more:
 * [Project Github page](https://github.com/jitsucom/eventnative/)
-* [Javascript integration documentation](https://docs.eventnative.org/javascript-integration)
+* [Javascript integration documentation](https://docs.eventnative.org/sending-data/javascript-reference)
 
 
 ## Install
-`npm install --save  @ksense/eventnative`
+`npm install --save @jitsu/eventnative` or `yarn add @jitsu/eventnative`
 
 ## Usage
-**Full version of JavaScript integration can be found [here](https://docs.eventnative.org/javascript-integration). A simplified version is presented below**
+**Full version of JavaScript integration can be found [here](https://docs.eventnative.org/sending-data/javascript-reference). A simplified version is presented below**
 
 ```javascript 
-const { eventN } = require('@ksense/eventnative');
+import eventN from '@ksense/eventnative';
 
 // initialization
 eventN.init({
