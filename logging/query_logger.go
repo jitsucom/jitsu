@@ -12,7 +12,7 @@ type QueryLogger struct {
 	destinationId string
 }
 
-func NewQueryLogger(destinationId string, writer *io.WriteCloser) *QueryLogger {
+func NewQueryLogger(destinationId string, writer *io.Writer) *QueryLogger {
 	var logger *log.Logger
 	if writer != nil {
 		logger = log.New(DateTimeWriterProxy{writer: *writer}, "", 0)

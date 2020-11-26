@@ -45,21 +45,21 @@ type DataLayout struct {
 }
 
 type Config struct {
-	ctx           context.Context
-	name          string
-	destination   *DestinationConfig
-	processor     *schema.Processor
-	streamMode    bool
-	monitorKeeper MonitorKeeper
-	eventQueue    *events.PersistentQueue
-	queryLogger   *logging.QueryLogger
+	ctx                         context.Context
+	name                        string
+	destination                 *DestinationConfig
+	processor                   *schema.Processor
+	streamMode                  bool
+	monitorKeeper               MonitorKeeper
+	eventQueue                  *events.PersistentQueue
+	queryLogger                 *logging.QueryLogger
 	fallBackLoggerFactoryMethod func() *events.AsyncLogger
 }
 
 //Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
 func Create(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64,
-	destination DestinationConfig, monitorKeeper MonitorKeeper, queryWriter *io.WriteCloser) (events.StorageProxy, *events.PersistentQueue, error) {
+	destination DestinationConfig, monitorKeeper MonitorKeeper, queryWriter *io.Writer) (events.StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = name
 	}

@@ -7,7 +7,6 @@ import (
 	"github.com/jitsucom/eventnative/notifications"
 	"io"
 	"log"
-	"os"
 	"strings"
 )
 
@@ -39,12 +38,7 @@ func (c Config) Validate() error {
 }
 
 //Initialize main logger
-//Global logger writes logs and sends system error notifications
-//
-//   configured file logger            no file logger configured
-//     /             \                            |
-// os.Stdout      FileWriter                  os.Stdout
-func InitGlobalLogger(writer io.WriteCloser) error {
+func InitGlobalLogger(writer io.Writer) error {
 	dateTimeWriter := DateTimeWriterProxy{
 		writer: writer,
 	}
