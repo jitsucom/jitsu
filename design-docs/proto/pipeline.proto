@@ -1,0 +1,49 @@
+syntax = "proto3";
+
+import "google/protobuf/struct.proto";
+
+
+//Defines a structure of batch header - all fields present in
+//table batch
+message BatchHeader {
+  repeated FieldDefinition fields = 1;
+  string destination_id = 2; //id of destination
+  string table = 3; //table in destination
+}
+
+//Definition of the field: type and name
+message FieldDefinition {
+  string name = 1;  //name of the field
+  DataType type = 3; //type of the value
+}
+
+//Record that has a types for each field
+message TypedRecord {
+  repeated TypeRecordField fields = 1;
+
+  //One field in typed record
+  message TypeRecordField {
+    FieldDefinition definition = 1; // name & type
+    DataType type = 2; //type of the value
+  }
+}
+
+//Data type
+message DataType {
+  string expr = 1; //expression that defines SQL type.
+}
+
+message DestinationStatus {
+  //keys are serialized destination_id/table_name
+  map<string, Status> status = 1;
+
+  enum Status {
+    OK = 0; FAILED = 1;
+  }
+}
+
+//Original event
+message EventError {
+  google.protobuf.Struct event = 1; //Original JSON event (after ContextEnrichment step)
+  string error = 2; //Error description
+}
