@@ -97,9 +97,13 @@ Batch and Stream pipelines are different, however they have same logical steps. 
 
 ### LookupEnrichment step
 
-During this step 
-
-### Multiplexing step
+During this step Enrichment rules are applied. Enrichment rule is a function F(src_node) → dst_node. So far
+we support two of them:
+ * **IP Lookup** - src_node should be a string node where rule is expected to see IP address. Result node is 
+ an object with geo data (country, city, etc)
+ * **User Agent Parser** - src_node should be a string node where rule is expected to see user agent string. Result node is 
+ an object parsed user agent: vendor, version, etc
+ 
 
 ### Mapping step
 
