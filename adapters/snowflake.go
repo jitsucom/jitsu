@@ -96,9 +96,6 @@ type Snowflake struct {
 //NewSnowflake return configured Snowflake adapter instance
 func NewSnowflake(ctx context.Context, config *SnowflakeConfig, s3Config *S3Config,
 	queryLogger *logging.QueryLogger) (*Snowflake, error) {
-	if queryLogger == nil {
-		queryLogger = &logging.QueryLogger{}
-	}
 	cfg := &sf.Config{
 		Account:   config.Account,
 		User:      config.Username,

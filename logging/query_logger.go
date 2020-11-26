@@ -12,10 +12,10 @@ type QueryLogger struct {
 	destinationId string
 }
 
-func NewQueryLogger(destinationId string, writer *io.Writer) *QueryLogger {
+func NewQueryLogger(destinationId string, writer io.Writer) *QueryLogger {
 	var logger *log.Logger
 	if writer != nil {
-		logger = log.New(DateTimeWriterProxy{writer: *writer}, "", 0)
+		logger = log.New(DateTimeWriterProxy{writer: writer}, "", 0)
 	}
 	return &QueryLogger{destinationId: destinationId, logger: logger}
 }
@@ -32,6 +32,6 @@ func (l *QueryLogger) LogWithValues(query string, values []interface{}) {
 		for _, value := range values {
 			stringValues = append(stringValues, fmt.Sprint(value))
 		}
-		l.logger.Printf("%s [%s] %s values: [%s]\n", debugPrefix, l.destinationId, query, strings.Join(stringValues, ", "))
+		l.logger.Printf("%s [%s] %s; values: [%s]\n", debugPrefix, l.destinationId, query, strings.Join(stringValues, ", "))
 	}
 }

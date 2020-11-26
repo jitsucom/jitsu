@@ -19,7 +19,7 @@ type AppConfig struct {
 	UaResolver  useragent.Resolver
 
 	AuthorizationService *authorization.Service
-	QueryLogsWriter      *io.Writer
+	QueryLogsWriter      io.Writer
 
 	closeMe []io.Closer
 }
@@ -89,11 +89,11 @@ func Init() error {
 	var appConfig AppConfig
 	appConfig.ServerName = serverName
 
-	queryLogsWriter, err := InitQueryWriter(globalLogsWriter)
+	queryLogsWriter, err := NewQueryWriter(globalLogsWriter)
 	if err != nil {
 		return err
 	}
-	appConfig.QueryLogsWriter = &queryLogsWriter
+	appConfig.QueryLogsWriter = queryLogsWriter
 
 	port := viper.GetString("port")
 	if port == "" {
@@ -119,12 +119,12 @@ func Init() error {
 	return nil
 }
 
-func InitQueryWriter(globalLogsWriter io.Writer) (io.Writer, error) {
+func NewQueryWriter(globalLogsWriter io.Writer) (io.Writer, error) {
 	var queryLogsWriter io.Writer
 	if viper.IsSet("sql_debug_log.path") {
 		if viper.GetString("sql_debug_log.path") != "global" {
 			queryLoggerConfig := logging.Config{
-				LoggerName:  "query",
+				LoggerName:  "sql-debug",
 				ServerName:  viper.GetString("server.name"),
 				FileDir:     viper.GetString("sql_debug_log.path"),
 				RotationMin: viper.GetInt64("sql_debug_log.rotation_min"),

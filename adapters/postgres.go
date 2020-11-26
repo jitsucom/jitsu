@@ -108,9 +108,6 @@ type Postgres struct {
 
 //NewPostgres return configured Postgres adapter instance
 func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger) (*Postgres, error) {
-	if queryLogger == nil {
-		queryLogger = &logging.QueryLogger{}
-	}
 	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
 		config.Host, config.Port, config.Db, config.Username, config.Password)
 	//concat provided connection parameters
