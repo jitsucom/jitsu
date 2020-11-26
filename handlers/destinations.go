@@ -85,7 +85,7 @@ func testConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		bq, err := adapters.NewBigQuery(context.Background(), config.Google)
+		bq, err := adapters.NewBigQuery(context.Background(), config.Google, nil)
 		if err != nil {
 			return err
 		}

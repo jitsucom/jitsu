@@ -3,6 +3,7 @@ package adapters
 import (
 	"cloud.google.com/go/bigquery"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
@@ -29,19 +30,19 @@ var (
 )
 
 type BigQuery struct {
-	ctx           context.Context
-	client        *bigquery.Client
-	config        *GoogleConfig
-	destinationId string
+	ctx         context.Context
+	client      *bigquery.Client
+	config      *GoogleConfig
+	queryLogger *logging.QueryLogger
 }
 
-func NewBigQuery(ctx context.Context, config *GoogleConfig) (*BigQuery, error) {
+func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging.QueryLogger) (*BigQuery, error) {
 	client, err := bigquery.NewClient(ctx, config.Project, config.credentials)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating BigQuery client: %v", err)
 	}
 
-	return &BigQuery{ctx: ctx, client: client, config: config}, nil
+	return &BigQuery{ctx: ctx, client: client, config: config, queryLogger: queryLogger}, nil
 }
 
 //Transfer data from google cloud storage file to google BigQuery table as one batch
@@ -77,7 +78,7 @@ func (bq *BigQuery) Test() error {
 //Insert provided object in BigQuery in stream mode
 func (bq *BigQuery) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(schema.Name).Inserter()
-
+	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", schema.Name), valuesMap)
 	return inserter.Put(bq.ctx, BQItem{values: valuesMap})
 }
 
@@ -131,7 +132,7 @@ func (bq *BigQuery) CreateTable(tableSchema *schema.Table) error {
 		}
 		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: mappedType})
 	}
-
+	bq.logQuery("Creating table for schema: ", bqSchema)
 	if err := bqTable.Create(bq.ctx, &bigquery.TableMetadata{Name: tableSchema.Name, Schema: bqSchema}); err != nil {
 		return fmt.Errorf("Error creating [%s] BigQuery table %v", tableSchema.Name, err)
 	}
@@ -144,7 +145,9 @@ func (bq *BigQuery) CreateDataset(dataset string) error {
 	bqDataset := bq.client.Dataset(dataset)
 	if _, err := bqDataset.Metadata(bq.ctx); err != nil {
 		if isNotFoundErr(err) {
-			if err := bqDataset.Create(bq.ctx, &bigquery.DatasetMetadata{Name: dataset}); err != nil {
+			datasetMetadata := &bigquery.DatasetMetadata{Name: dataset}
+			bq.logQuery("Creating dataset: ", datasetMetadata)
+			if err := bqDataset.Create(bq.ctx, datasetMetadata); err != nil {
 				return fmt.Errorf("Error creating dataset %s in BigQuery: %v", dataset, err)
 			}
 		} else {
@@ -182,6 +185,15 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
 	}
 
 	return nil
+}
+
+func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}) {
+	entityJson, err := json.Marshal(entity)
+	if err != nil {
+		logging.Warnf("Failed to serialize entity for logging: %s", fmt.Sprint(entity))
+	} else {
+		bq.queryLogger.Log(messageTemplate + string(entityJson))
+	}
 }
 
 func (bq *BigQuery) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {

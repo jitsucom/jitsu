@@ -42,7 +42,7 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 		}
 	}
 
-	bigQueryAdapter, err := adapters.NewBigQuery(ctx, config)
+	bigQueryAdapter, err := adapters.NewBigQuery(ctx, config, queryLogger)
 	if err != nil {
 		return nil, err
 	}
