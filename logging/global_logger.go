@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/eventnative/notifications"
 	"io"
 	"log"
+	"os"
 	"strings"
 )
 
@@ -18,11 +19,12 @@ const (
 )
 
 type Config struct {
-	LoggerName  string
-	ServerName  string
-	FileDir     string
-	RotationMin int64
-	MaxBackups  int
+	LoggerName    string
+	ServerName    string
+	FileDir       string
+	RotationMin   int64
+	MaxBackups    int
+	RotateOnClose bool
 }
 
 func (c Config) Validate() error {
@@ -38,6 +40,10 @@ func (c Config) Validate() error {
 
 //Initialize main logger
 //Global logger writes logs and sends system error notifications
+//
+//   configured file logger            no file logger configured
+//     /             \                            |
+// os.Stdout      FileWriter                  os.Stdout
 func InitGlobalLogger(writer io.WriteCloser) error {
 	dateTimeWriter := DateTimeWriterProxy{
 		writer: writer,

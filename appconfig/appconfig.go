@@ -35,8 +35,9 @@ func setDefaultParams() {
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
+	viper.SetDefault("log.fallback", "/home/eventnative/logs/fallback")
 	viper.SetDefault("log.show_in_server", false)
-	viper.SetDefault("log.rotation_min", "5")
+	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
 	viper.SetDefault("sql_debug_log.rotation_min", "5")
 }

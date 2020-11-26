@@ -3,6 +3,7 @@ package integration_tests
 import (
 	"context"
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/jitsucom/eventnative/synchronization"
@@ -24,11 +25,14 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 
 	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: container.Port, Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: pgParams}
 	processor, err := schema.NewProcessor("users", []string{}, "", map[string]bool{}, nil)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 	monitor, err := synchronization.NewService(ctx, "test", "", "", 0)
-	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true, false, monitor, nil)
+	require.NoError(t, err)
+
+	fallBackLoggerFactoryMethod := func() *events.AsyncLogger {
+		return nil
+	}
+	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true, false, monitor, fallBackLoggerFactoryMethod, nil)
 	if err != nil {
 		require.Fail(t, "failed to initialize", err)
 	}

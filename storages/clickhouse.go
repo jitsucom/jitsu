@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
 	"math/rand"
 )
@@ -20,12 +21,13 @@ type ClickHouse struct {
 	tableHelpers    []*TableHelper
 	schemaProcessor *schema.Processor
 	streamingWorker *StreamingWorker
+	fallbackLogger  *events.AsyncLogger
 	breakOnError    bool
 }
 
 func NewClickHouse(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.ClickHouseConfig,
 	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper,
-	queryLogger *logging.QueryLogger) (*ClickHouse, error) {
+	fallbackLoggerFactoryMethod func() *events.AsyncLogger, queryLogger *logging.QueryLogger) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
@@ -73,6 +75,8 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 		return nil, err
 	}
 
+	ch.fallbackLogger = fallbackLoggerFactoryMethod()
+
 	if streamMode {
 		ch.streamingWorker = newStreamingWorker(eventQueue, processor, ch)
 		ch.streamingWorker.start()
@@ -105,23 +109,42 @@ func (ch *ClickHouse) Insert(dataSchema *schema.Table, fact events.Fact) (err er
 	return adapter.Insert(dataSchema, fact)
 }
 
-//Store file payload to ClickHouse with processing
+//Fallback log event with error to fallback logger
+func (ch *ClickHouse) Fallback(failedFacts ...*events.FailedFact) {
+	for _, failedFact := range failedFacts {
+		ch.fallbackLogger.ConsumeAny(failedFact)
+	}
+}
+
+//Store call StoreWithParseFunc with parsers.ParseJson func
+func (ch *ClickHouse) Store(fileName string, payload []byte) (int, error) {
+	return ch.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+}
+
+//StoreWithParseFunc store file payload to ClickHouse with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (ch *ClickHouse) Store(fileName string, payload []byte) (int, error) {
-	flatData, err := ch.schemaProcessor.ProcessFilePayload(fileName, payload, ch.breakOnError)
+func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
+	flatData, failedEvents, err := ch.schemaProcessor.ProcessFilePayload(fileName, payload, ch.breakOnError, parseFunc)
 	if err != nil {
 		return linesCount(payload), err
 	}
 
-	return ch.store(flatData)
+	rowsCount, err := ch.store(flatData)
+
+	//send failed events to fallback only if other events have been inserted ok
+	if err == nil {
+		ch.Fallback(failedEvents...)
+	}
+
+	return rowsCount, err
 }
 
 //SyncStore store chunk payload to ClickHouse with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
 func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (int, error) {
-	flatData, err := ch.schemaProcessor.ProcessObjects(objects, ch.breakOnError)
+	flatData, err := ch.schemaProcessor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
 	}
@@ -178,7 +201,11 @@ func (ch *ClickHouse) Close() (multiErr error) {
 		ch.streamingWorker.Close()
 	}
 
-	return multiErr
+	if err := ch.fallbackLogger.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ch.Name(), err))
+	}
+
+	return
 }
 
 //assume that adapters quantity == tableHelpers quantity

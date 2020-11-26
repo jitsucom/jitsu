@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/middleware"
 	"github.com/jitsucom/eventnative/storages"
 	"net/http"
@@ -15,6 +16,7 @@ import (
 func DestinationsHandler(c *gin.Context) {
 	destinationConfig := &storages.DestinationConfig{}
 	if err := c.BindJSON(destinationConfig); err != nil {
+		logging.Error("Error parsing destinations body: %v", err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
 		return
 	}

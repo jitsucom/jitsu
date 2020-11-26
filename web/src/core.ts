@@ -1,33 +1,23 @@
 import {
     generateId, generateRandom,
     getCookie,
-    getCookieDomain,
+    getCookieDomain, getCookies,
     getDataFromParams,
     getHostWithProtocol,
     parseQuery,
     reformatDate,
     setCookie,
 } from './helpers'
+import {Event, Logger, EventCtx, EventnEvent, Tracker, TrackerOptions, TrackerPlugin} from './types'
 
 
-function getVersion() {
-
-    try {
-        if (require !== undefined) {
-            return require("../package.json")['version'];
-        } else {
-            return "UNKNOWN";
-        }
-
-    } catch (e) {
-        return "UNKNOWN"
-    }
+const VERSION_INFO = {
+    env: '__buildEnv__',
+    date: '__buildDate__',
+    version: '__buildVersion__'
 }
 
-const EVENTN_VERSION = getVersion();
-
-
-import {Event, Logger, EventCtx, EventnEvent, Tracker, TrackerOptions, TrackerPlugin} from './types'
+const EVENTN_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
 
 
 function initLogger(): Logger {
@@ -38,6 +28,7 @@ function initLogger(): Logger {
     }), {}) as Logger;
     return logger;
 }
+
 
 class TrackerImpl implements Tracker {
     logger: Logger = initLogger();
@@ -51,6 +42,7 @@ class TrackerImpl implements Tracker {
 
     private apiKey: string = "";
     private initialized: boolean = false;
+    private _3pCookies: Record<string, boolean> = {};
 
     id(props: Record<string, any>, doNotSendEvent?: boolean): void {
         this.userProperties = {...this.userProperties, ...props}
@@ -81,7 +73,7 @@ class TrackerImpl implements Tracker {
         };
     }
 
-    send3p(sourceType: string, object: any, type?: string) {
+    _send3p(sourceType: string, object: any, type?: string) {
         let eventType = '3rdparty'
         if (type && type !== '') {
             eventType = type
@@ -105,7 +97,7 @@ class TrackerImpl implements Tracker {
             }
         }
         let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}`;
-        if (this.randomizeUrl){
+        if (this.randomizeUrl) {
             url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}`;
         }
         req.open('POST', url);
@@ -122,6 +114,7 @@ class TrackerImpl implements Tracker {
                 anonymous_id: this.anonymousId,
                 ...this.userProperties
             },
+            ids: this._getIds(),
             user_agent: navigator.userAgent,
             utc_time: reformatDate(now.toISOString()),
             local_tz_offset: now.getTimezoneOffset(),
@@ -132,7 +125,19 @@ class TrackerImpl implements Tracker {
         };
     }
 
-    track(type: string, data: any) {
+    private _getIds(): Record<string, string> {
+        let cookies = getCookies(false);
+        let res: Record<string, string> = {};
+        for (let [key, value] of Object.entries(cookies)) {
+            if (this._3pCookies[key]) {
+                res[key.charAt(0) == '_' ? key.substr(1) : key] = value;
+            }
+        }
+        return res;
+    }
+
+    track(type: string, payload?: any) {
+        let data = payload || {};
         this.logger.debug('track event of type', type, data)
         const e = this.makeEvent(type, 'eventn');
         (e as EventnEvent).eventn_data = data;
@@ -140,13 +145,19 @@ class TrackerImpl implements Tracker {
     }
 
     init(options: TrackerOptions, plugins: TrackerPlugin[] = []) {
-        this.logger.debug('initializing', options, plugins, EVENTN_VERSION)
+        this.logger.debug('Initializing', options, plugins, EVENTN_VERSION)
         this.cookieDomain = options['cookie_domain'] || getCookieDomain();
         this.trackingHost = getHostWithProtocol(options['tracking_host'] || 't.jitsu.com');
         this.randomizeUrl = options['randomize_url'] || false;
         this.idCookieName = options['cookie_name'] || '__eventn_id';
         this.apiKey = options['key'] || 'NONE';
         this.logger = initLogger();
+        if (options.capture_3rd_party_cookies === false) {
+            this._3pCookies = {}
+        } else  {
+            (options.capture_3rd_party_cookies || ['_ga', '_fbp', '_ym_uid', 'ajs_user_id', 'ajs_anonymous_id'])
+                .forEach(name => this._3pCookies[name] = true)
+        }
         this.anonymousId = this.getAnonymousId();
         for (let i = 0; i < plugins.length; i += 1) {
             plugins[i](this);
@@ -177,7 +188,7 @@ class TrackerImpl implements Tracker {
                     type = chain.payload.event()
                 }
 
-                this.send3p('ajs', payload, type);
+                this._send3p('ajs', payload, type);
             } catch (e) {
                 this.logger.warn('Failed to send an event', e)
             }
@@ -187,11 +198,12 @@ class TrackerImpl implements Tracker {
         analytics.addSourceMiddleware(interceptor);
         analytics['__en_intercepted'] = true
     }
+
 }
 
 export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []): Tracker => {
     if (window) {
-            (window as any)["__eventNDebug"] = {
+        (window as any)["__eventNDebug"] = {
             clientVersion: EVENTN_VERSION
         }
     }

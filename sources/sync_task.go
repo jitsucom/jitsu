@@ -37,10 +37,7 @@ func (st *SyncTask) Sync() {
 	st.updateCollectionStatus(meta.StatusLoading, "Still Running..")
 
 	status := meta.StatusFailed
-	defer func() {
-		st.updateCollectionStatus(status, strWriter.String())
-		st.lock.Unlock()
-	}()
+	defer st.updateCollectionStatus(status, strWriter.String())
 
 	logging.Infof("[%s] Running sync task type: [%s]", st.identifier, st.driver.Type())
 	strLogger.Infof("[%s] Running sync task type: [%s]", st.identifier, st.driver.Type())

@@ -6,7 +6,6 @@ import (
 	"github.com/jitsucom/eventnative/safego"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
-	"os"
 	"path/filepath"
 	"regexp"
 	"time"
@@ -18,22 +17,11 @@ const logFileMaxSizeMB = 100
 var TokenIdExtractRegexp = regexp.MustCompile("-event-(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
 type WriterProxy struct {
-	lWriter *lumberjack.Logger
+	lWriter       *lumberjack.Logger
+	rotateOnClose bool
 }
 
-//Create stdout or file or mock writers
-func NewWriter(config Config) (io.WriteCloser, error) {
-	if err := config.Validate(); err != nil {
-		return nil, fmt.Errorf("Error while creating %v logger: %v", config.LoggerName, err)
-	}
-	if config.FileDir != "" {
-		return newRollingWriter(config), nil
-	} else {
-		return os.Stdout, nil
-	}
-}
-
-func newRollingWriter(config Config) io.WriteCloser {
+func NewRollingWriter(config Config) io.WriteCloser {
 	fileNamePath := filepath.Join(config.FileDir, fmt.Sprintf("%s-%s.log", config.ServerName, config.LoggerName))
 	lWriter := &lumberjack.Logger{
 		Filename: fileNamePath,
@@ -57,7 +45,7 @@ func newRollingWriter(config Config) io.WriteCloser {
 		}
 	})
 
-	return &WriterProxy{lWriter: lWriter}
+	return &WriterProxy{lWriter: lWriter, rotateOnClose: config.RotateOnClose}
 }
 
 func (wp *WriterProxy) Write(p []byte) (int, error) {
@@ -65,8 +53,10 @@ func (wp *WriterProxy) Write(p []byte) (int, error) {
 }
 
 func (wp *WriterProxy) Close() error {
-	if err := wp.lWriter.Rotate(); err != nil {
-		log.Errorf("Error rotating log file: %v", err)
+	if wp.rotateOnClose {
+		if err := wp.lWriter.Rotate(); err != nil {
+			log.Errorf("Error rotating log file: %v", err)
+		}
 	}
 
 	return wp.lWriter.Close()

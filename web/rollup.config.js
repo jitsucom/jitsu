@@ -1,8 +1,10 @@
+import replace from '@rollup/plugin-replace';
 import typescript from 'rollup-plugin-typescript';
 import {terser} from 'rollup-plugin-terser';
 import strip from '@rollup/plugin-strip';
 import babel from '@rollup/plugin-babel';
 import path from 'path';
+import copy from 'rollup-plugin-copy'
 
 /**
  * Generates JS module to re-export tracker plugins
@@ -42,21 +44,6 @@ const typescriptPlugin = typescript({
     alwaysStrict: false,
 });
 
-/*
-const addLogging = (plugin, label) => {
-  const origTransform = plugin.transform;
-
-  plugin.transform = function (code, id) {
-    console.log(`${label} in:`, id);
-    const res = origTransform.apply(this, [code, id])
-    console.log(`${label} out:`, res);
-    return res;
-  }
-}
-
-// addLogging(typescriptPlugin, 'ts');
-// addLogging(stripLoggerPlugin, 'strip')
-*/
 
 export default [
     {
@@ -70,14 +57,14 @@ export default [
             }),
         ],
         output: {
-            file: `build/track.js`,
+            file: `dist/web/track.js`,
             format: 'iife',
             sourcemap: false,
         },
     },
     {
         input: 'src/inline.js',
-        output: {file: `build/inline.js`, format: 'cjs'},
+        output: {file: `dist/web/inline.js`, format: 'cjs'},
         plugins: [
             babel({babelHelpers: 'bundled'}),
             terser({
@@ -87,10 +74,39 @@ export default [
     },
     {
         input: `src/main.ts`,
-        plugins: [typescriptPlugin],
+        plugins: [
+            typescriptPlugin,
+            terser({
+                mangle: false,
+                module: true,
+                keep_classnames: true,
+                keep_fnames: true,
+                compress: {
+                    defaults: false,
+                    global_defs: {
+                        "@alert": "console.log"
+                    }
+                },
+                //drop_console: true,
+                output: {
+                    comments: false,
+                    beautify: true
+                },
+            }),
+            replace({
+                __buildEnv__: 'production',
+                __buildDate__: () => new Date().toISOString(),
+                __buildVersion__:  process.env['npm_package_version']
+            }),
+            copy({
+                targets: [
+                    {src: 'src/types.ts', dest: 'dist/npm', rename: 'main.d.ts'}
+                ]
+            })
+        ],
         output: [
-            {file: `dist/main.esm.js`, format: 'es'},
-            {file: `dist/main.cjs.js`, format: 'cjs'},
+            {file: `dist/npm/main.esm.js`, format: 'es'},
+            {file: `dist/npm/main.cjs.js`, format: 'cjs'},
         ]
     }
 ];
