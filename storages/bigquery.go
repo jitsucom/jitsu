@@ -33,7 +33,7 @@ type BigQuery struct {
 }
 
 func NewBigQuery(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.GoogleConfig, processor *schema.Processor,
-	breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger) (*BigQuery, error) {
+	breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger, queryLogger *logging.QueryLogger) (*BigQuery, error) {
 	var gcsAdapter *adapters.GoogleCloudStorage
 	if !streamMode {
 		var err error
@@ -43,7 +43,7 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 		}
 	}
 
-	bigQueryAdapter, err := adapters.NewBigQuery(ctx, config)
+	bigQueryAdapter, err := adapters.NewBigQuery(ctx, config, queryLogger)
 	if err != nil {
 		return nil, err
 	}

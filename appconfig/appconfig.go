@@ -1,12 +1,14 @@
 package appconfig
 
 import (
+	"fmt"
 	"github.com/jitsucom/eventnative/authorization"
 	"github.com/jitsucom/eventnative/geo"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/useragent"
 	"github.com/spf13/viper"
 	"io"
+	"os"
 )
 
 type AppConfig struct {
@@ -17,6 +19,7 @@ type AppConfig struct {
 	UaResolver  useragent.Resolver
 
 	AuthorizationService *authorization.Service
+	QueryLogsWriter      io.Writer
 
 	closeMe []io.Closer
 }
@@ -24,6 +27,7 @@ type AppConfig struct {
 var Instance *AppConfig
 
 func setDefaultParams() {
+	viper.SetDefault("server.name", "unnamed-server")
 	viper.SetDefault("server.port", "8001")
 	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("server.auth_reload_sec", 30)
@@ -36,22 +40,39 @@ func setDefaultParams() {
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
+	viper.SetDefault("sql_debug_log.rotation_min", "5")
 }
 
 func Init() error {
 	setDefaultParams()
 
 	serverName := viper.GetString("server.name")
-	if serverName == "" {
-		serverName = "unnamed-server"
-	}
-
-	err := logging.InitGlobalLogger(logging.Config{
+	globalLoggerConfig := logging.Config{
 		LoggerName:  "main",
 		ServerName:  serverName,
 		FileDir:     viper.GetString("server.log.path"),
 		RotationMin: viper.GetInt64("server.log.rotation_min"),
-		MaxBackups:  viper.GetInt("server.log.max_backups")})
+		MaxBackups:  viper.GetInt("server.log.max_backups")}
+	if err := globalLoggerConfig.Validate(); err != nil {
+		return fmt.Errorf("Error while creating global logger: %v", err)
+	}
+
+	//Global logger writes logs and sends system error notifications
+	//
+	//   configured file logger            no file logger configured
+	//     /             \                            |
+	// os.Stdout      FileWriter                  os.Stdout
+	var globalLogsWriter io.Writer
+	if globalLoggerConfig.FileDir != "" {
+		fileWriter := logging.NewRollingWriter(globalLoggerConfig)
+		globalLogsWriter = logging.Dual{
+			FileWriter: fileWriter,
+			Stdout:     os.Stdout,
+		}
+	} else {
+		globalLogsWriter = os.Stdout
+	}
+	err := logging.InitGlobalLogger(globalLogsWriter)
 	if err != nil {
 		return err
 	}
@@ -67,6 +88,12 @@ func Init() error {
 
 	var appConfig AppConfig
 	appConfig.ServerName = serverName
+
+	queryLogsWriter, err := NewQueryWriter(globalLogsWriter)
+	if err != nil {
+		return err
+	}
+	appConfig.QueryLogsWriter = queryLogsWriter
 
 	port := viper.GetString("port")
 	if port == "" {
@@ -90,6 +117,26 @@ func Init() error {
 
 	Instance = &appConfig
 	return nil
+}
+
+func NewQueryWriter(globalLogsWriter io.Writer) (io.Writer, error) {
+	var queryLogsWriter io.Writer
+	if viper.IsSet("sql_debug_log.path") {
+		if viper.GetString("sql_debug_log.path") != "global" {
+			queryLoggerConfig := logging.Config{
+				LoggerName:  "sql-debug",
+				ServerName:  viper.GetString("server.name"),
+				FileDir:     viper.GetString("sql_debug_log.path"),
+				RotationMin: viper.GetInt64("sql_debug_log.rotation_min"),
+				MaxBackups:  viper.GetInt("sql_debug_log.max_backups")}
+
+			writer := logging.NewRollingWriter(queryLoggerConfig)
+			queryLogsWriter = writer
+		} else {
+			queryLogsWriter = globalLogsWriter
+		}
+	}
+	return queryLogsWriter, nil
 }
 
 func (a *AppConfig) ScheduleClosing(c io.Closer) {
