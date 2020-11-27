@@ -1,6 +1,11 @@
 package events
 
-const collectionIdKey = "collection_id"
+import "github.com/jitsucom/eventnative/drivers"
+
+const (
+	collectionIdKey = "collection_id"
+	timeChunkKey    = "time_interval"
+)
 
 func EnrichWithEventId(object map[string]interface{}, eventId string) {
 	eventnObject, ok := object[eventnKey]
@@ -32,4 +37,8 @@ func EnrichWithCollection(object map[string]interface{}, collection string) {
 			object[eventnKey+"_"+collectionIdKey] = collection
 		}
 	}
+}
+
+func EnrichWithTimeInterval(object map[string]interface{}, interval *drivers.TimeInterval) {
+	object[eventnKey+"_"+timeChunkKey] = interval.String()
 }
