@@ -48,7 +48,7 @@ Batch and Stream pipelines are different, however they have same logical steps. 
    * For every record: apply LookupEnrichment step
    * Multiplex records to destinations
    * For each destinations: evaluate `table_name_template` expression to get a destination table name. If result 
-   is empty string or `nil`, skip this destination
+   is empty string or `nil`, skip this destination. If evaluation failed, event is written to `events/failed`
    * For each destination/table pair:
       * Check status in status file of log (see DestinationStatus). If pair has been processed, ignore it
       * Apply LookupEnrichment step  
@@ -74,7 +74,7 @@ Batch and Stream pipelines are different, however they have same logical steps. 
 * Apply mutliplexing, put each multiplexed event to destination queue. Queue items are persisted in
 `events/queue`.
 * Separate thread processes each queue. For each event:
-  * Run table_name_template expression. If result is not null or empty construct empty BatchHeader
+  * Run `table_name_template expression`. If result is not null or empty construct empty BatchHeader. If evaluation failed, event is written to `events/failed`
   * Apply LookupEnrichment step to event  
   * Apply MappingStep (get TypedRecord)
   * Merge TypedRecord into BatchHeader (add field types)
@@ -91,7 +91,7 @@ Batch and Stream pipelines are different, however they have same logical steps. 
 ### ContextEnrichment step
   
  * Get IP from where request came from
- * If request is processed by JavaScript endpoint - read user agent header, content type header and so on
+ * If request is processed by JavaScript endpoint - read user agent-header, content-type header and so on
  * Add UTC timestamp (/_timestamp field)
  * etc
 
@@ -149,6 +149,7 @@ After all mappings are applied, JSON is flattened
 If some fields has not been casted explicitely, casting is done based on JSON node type:
  * **string** is casted to TEXT
  * **number** is casted to DOUBLE PRECISION
+ * **integer** is casted to BIGINT
  * **boolean** is casted to BOOLEAN
  * **array** is casted to JSON
  
