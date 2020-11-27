@@ -71,6 +71,24 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 			driverPerCollection[collection] = firebase
 		}
 		return driverPerCollection, nil
+	case GoogleAnalyticsType:
+		gaConfig := &GoogleAnalyticsConfig{}
+		err := unmarshalConfig(sourceConfig.Config, gaConfig)
+		if err != nil {
+			return nil, err
+		}
+		gaConfig.AuthType = "authorized_user"
+		if err := gaConfig.Validate(); err != nil {
+			return nil, err
+		}
+		for _, collection := range sourceConfig.Collections {
+			ga, err := NewGoogleAnalytics(ctx, gaConfig, collection)
+			if err != nil {
+				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
+			}
+			driverPerCollection[collection] = ga
+		}
+		return driverPerCollection, nil
 	default:
 		return nil, unknownSource
 	}
