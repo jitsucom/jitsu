@@ -19,7 +19,14 @@ type GoogleAnalyticsConfig struct {
 	ViewId       string   `mapstructure:"view_id" json:"view_id,omitempty" yaml:"view_id,omitempty"`
 }
 
-const dayLayout = "2006-01-01"
+const (
+	dayLayout               = "2006-01-01"
+	reportsCollection       = "report"
+	usersActivityCollection = "users_activity"
+	metricsConfigPrefix     = "metric:"
+	dimensionsConfigPrefix  = "dimension:"
+	gaFieldsPrefix          = "ga:"
+)
 
 func (gac *GoogleAnalyticsConfig) Validate() error {
 	if gac.ClientId == "" {
@@ -73,9 +80,10 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 		{StartDate: interval.LowerEndpoint().Format(dayLayout),
 			EndDate: interval.UpperEndpoint().Format(dayLayout)},
 	}
-	if g.collection == "report" {
+
+	if g.collection == reportsCollection {
 		return g.loadReport(g.config.ViewId, dateRanges, g.config.ReportFields)
-	} else if g.collection == "users_activity" {
+	} else if g.collection == usersActivityCollection {
 		return nil, nil
 	} else {
 		return nil, fmt.Errorf("Unknown collection %s: only 'report' and 'users_activity' are supported", g.collection)
@@ -94,10 +102,10 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 	var metrics []*ga.Metric
 	var dimensions []*ga.Dimension
 	for _, field := range reportFields {
-		if strings.HasPrefix(field, "metric:") {
-			metrics = append(metrics, &ga.Metric{Expression: "ga:" + strings.TrimPrefix(field, "metric:")})
-		} else if strings.HasPrefix(field, "dimension:") {
-			dimensions = append(dimensions, &ga.Dimension{Name: "ga:" + strings.TrimPrefix(field, "dimension:")})
+		if strings.HasPrefix(field, metricsConfigPrefix) {
+			metrics = append(metrics, &ga.Metric{Expression: gaFieldsPrefix + strings.TrimPrefix(field, metricsConfigPrefix)})
+		} else if strings.HasPrefix(field, dimensionsConfigPrefix) {
+			dimensions = append(dimensions, &ga.Dimension{Name: gaFieldsPrefix + strings.TrimPrefix(field, dimensionsConfigPrefix)})
 		} else {
 			return nil, fmt.Errorf("Unknown report field %s. Should have 'metrics:' or 'dimensions:' prefix", field)
 		}
@@ -133,11 +141,11 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 			metrics := row.Metrics
 
 			for i := 0; i < len(dimHeaders) && i < len(dims); i++ {
-				gaEvent[dimHeaders[i]] = dims[i]
+				gaEvent[strings.TrimPrefix(dimHeaders[i], gaFieldsPrefix)] = dims[i]
 			}
 			for _, metric := range metrics {
 				for j := 0; j < len(metricHeaders) && j < len(metric.Values); j++ {
-					gaEvent[metricHeaders[j].Name] = metric.Values[j]
+					gaEvent[strings.TrimPrefix(metricHeaders[j].Name, gaFieldsPrefix)] = metric.Values[j]
 				}
 			}
 			result = append(result, gaEvent)
