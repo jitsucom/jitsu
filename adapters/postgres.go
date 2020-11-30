@@ -100,13 +100,14 @@ func (dsc *DataSourceConfig) Validate() error {
 
 //Postgres is adapter for creating,patching (schema or table), inserting data to postgres
 type Postgres struct {
-	ctx        context.Context
-	config     *DataSourceConfig
-	dataSource *sql.DB
+	ctx         context.Context
+	config      *DataSourceConfig
+	dataSource  *sql.DB
+	queryLogger *logging.QueryLogger
 }
 
 //NewPostgres return configured Postgres adapter instance
-func NewPostgres(ctx context.Context, config *DataSourceConfig) (*Postgres, error) {
+func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger) (*Postgres, error) {
 	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
 		config.Host, config.Port, config.Db, config.Username, config.Password)
 	//concat provided connection parameters
@@ -122,7 +123,7 @@ func NewPostgres(ctx context.Context, config *DataSourceConfig) (*Postgres, erro
 		return nil, err
 	}
 
-	return &Postgres{ctx: ctx, config: config, dataSource: dataSource}, nil
+	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger}, nil
 }
 
 func (Postgres) Name() string {
@@ -146,7 +147,7 @@ func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 		return err
 	}
 
-	return createDbSchemaInTransaction(p.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName)
+	return createDbSchemaInTransaction(p.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName, p.queryLogger)
 }
 
 //CreateTable create database table with name,columns provided in schema.Table representation
@@ -238,7 +239,9 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema 
 
 	//sorting columns asc
 	sort.Strings(columnsDDL)
-	createStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(createTableTemplate, p.config.Schema, tableSchema.Name, strings.Join(columnsDDL, ",")))
+	query := fmt.Sprintf(createTableTemplate, p.config.Schema, tableSchema.Name, strings.Join(columnsDDL, ","))
+	p.queryLogger.Log(query)
+	createStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing create table %s statement: %v", tableSchema.Name, err)
@@ -260,7 +263,9 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSc
 			logging.Error("Unknown postgres schema type:", column.GetType().String())
 			mappedColumnType = SchemaToPostgres[typing.STRING]
 		}
-		alterStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(addColumnTemplate, p.config.Schema, patchSchema.Name, columnName, mappedColumnType))
+		query := fmt.Sprintf(addColumnTemplate, p.config.Schema, patchSchema.Name, columnName, mappedColumnType)
+		p.queryLogger.Log(query)
+		alterStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
 			return fmt.Errorf("Error preparing patching table %s schema statement: %v", patchSchema.Name, err)
@@ -284,7 +289,9 @@ func (p *Postgres) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstra
 	constraint := buildConstraintName(p.config.Schema, patchTableSchema.Name)
 
 	if len(patchConstraint.PKFields) > 0 || patchConstraint.Remove {
-		dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, patchTableSchema.Name, constraint))
+		query := fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, patchTableSchema.Name, constraint)
+		p.queryLogger.Log(query)
+		dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 		if err != nil {
 			wrappedTx.tx.Rollback()
 			return fmt.Errorf("failed to prepare statement to drop primary key for table %s: %v", patchTableSchema.Name, err)
@@ -297,8 +304,10 @@ func (p *Postgres) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstra
 	}
 
 	if len(patchConstraint.PKFields) > 0 {
-		alterConstraintStmt, err := wrappedTx.tx.PrepareContext(p.ctx, fmt.Sprintf(alterPrimaryKeyTemplate,
-			p.config.Schema, patchTableSchema.Name, constraint, strings.Join(schema.PkToFieldsArray(patchConstraint.PKFields), ",")))
+		query := fmt.Sprintf(alterPrimaryKeyTemplate,
+			p.config.Schema, patchTableSchema.Name, constraint, strings.Join(schema.PkToFieldsArray(patchConstraint.PKFields), ","))
+		p.queryLogger.Log(query)
+		alterConstraintStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
 			return fmt.Errorf("error preparing primary key setting to table %s: %v", patchTableSchema.Name, err)
@@ -342,6 +351,7 @@ func (p *Postgres) InsertInTransaction(wrappedTx *Transaction, table *schema.Tab
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
 	query := p.insertQuery(schema.PkToFieldsArray(table.PKFields), table.Name, header, placeholders)
+	p.queryLogger.LogWithValues(query, values)
 	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)
@@ -432,8 +442,11 @@ func (t *Transaction) Rollback() {
 	}
 }
 
-func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, statementTemplate, dbSchemaName string) error {
-	createStmt, err := wrappedTx.tx.PrepareContext(ctx, fmt.Sprintf(statementTemplate, dbSchemaName))
+func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, statementTemplate,
+	dbSchemaName string, queryLogger *logging.QueryLogger) error {
+	query := fmt.Sprintf(statementTemplate, dbSchemaName)
+	queryLogger.Log(query)
+	createStmt, err := wrappedTx.tx.PrepareContext(ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing create db schema %s statement: %v", dbSchemaName, err)

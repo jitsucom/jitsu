@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/meta"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/jitsucom/eventnative/synchronization"
@@ -36,7 +37,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	}
 
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
-	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true, false, monitor, fallBackLoggerFactoryMethod, eventsCache)
+	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true, false, monitor, fallBackLoggerFactoryMethod, &logging.QueryLogger{}, eventsCache)
 	if err != nil {
 		require.Fail(t, "failed to initialize", err)
 	}
