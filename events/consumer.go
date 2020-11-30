@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/maputils"
 	"io"
 )
 
@@ -28,4 +29,8 @@ func (f Fact) Serialize() string {
 	}
 
 	return string(b)
+}
+
+func (f Fact) Clone() Fact {
+	return maputils.CopyMap(f)
 }
