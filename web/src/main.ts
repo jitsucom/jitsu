@@ -4,7 +4,11 @@ import segment from './segment-plugin';
 import {TrackerPlugin} from './types'
 
 export const eventN = initTracker();
+
+export default eventN;
+
 const originalInit = eventN.init;
+
 if (originalInit) {
   eventN.init = (opts) => {
     const plugins: TrackerPlugin[] = [];

@@ -41,7 +41,8 @@ type AwsRedshift struct {
 
 //NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.PersistentQueue, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
-	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger, eventsCache *caching.EventsCache) (*AwsRedshift, error) {
+	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger,
+    queryLogger *logging.QueryLogger, eventsCache *caching.EventsCache) (*AwsRedshift, error) {
 	var s3Adapter *adapters.S3
 	if !streamMode {
 		var err error
@@ -51,7 +52,7 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 		}
 	}
 
-	redshiftAdapter, err := adapters.NewAwsRedshift(ctx, redshiftConfig, s3Config)
+	redshiftAdapter, err := adapters.NewAwsRedshift(ctx, redshiftConfig, s3Config, queryLogger)
 	if err != nil {
 		return nil, err
 	}

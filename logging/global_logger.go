@@ -7,14 +7,14 @@ import (
 	"github.com/jitsucom/eventnative/notifications"
 	"io"
 	"log"
-	"os"
 	"strings"
 )
 
 const (
-	errPrefix  = "[ERROR]:"
-	warnPrefix = "[WARN]:"
-	infoPrefix = "[INFO]:"
+	errPrefix   = "[ERROR]:"
+	warnPrefix  = "[WARN]:"
+	infoPrefix  = "[INFO]:"
+	debugPrefix = "[DEBUG]:"
 )
 
 type Config struct {
@@ -38,27 +38,7 @@ func (c Config) Validate() error {
 }
 
 //Initialize main logger
-//Global logger writes logs and sends system error notifications
-//
-//   configured file logger            no file logger configured
-//     /             \                            |
-// os.Stdout      FileWriter                  os.Stdout
-func InitGlobalLogger(config Config) error {
-	if err := config.Validate(); err != nil {
-		return fmt.Errorf("Error while creating global logger: %v", err)
-	}
-
-	var writer io.Writer
-	if config.FileDir != "" {
-		fileWriter := NewRollingWriter(config)
-		writer = Dual{
-			fileWriter: fileWriter,
-			stdout:     os.Stdout,
-		}
-	} else {
-		writer = os.Stdout
-	}
-
+func InitGlobalLogger(writer io.Writer) error {
 	dateTimeWriter := DateTimeWriterProxy{
 		writer: writer,
 	}
@@ -93,6 +73,14 @@ func Infof(format string, v ...interface{}) {
 
 func Info(v ...interface{}) {
 	log.Println(append([]interface{}{infoPrefix}, v...)...)
+}
+
+func Debugf(format string, v ...interface{}) {
+	Debug(fmt.Sprintf(format, v...))
+}
+
+func Debug(v ...interface{}) {
+	log.Println(append([]interface{}{debugPrefix}, v...)...)
 }
 
 func Warnf(format string, v ...interface{}) {
