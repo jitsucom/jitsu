@@ -96,21 +96,20 @@ func (ec *EventsCache) Error(destinationId, eventId string, errMsg string) {
 
 //put create new fact in storage
 func (ec *EventsCache) put(destinationId, eventId string, value events.Fact) {
-	clone := value.Clone()
 	if eventId == "" {
-		logging.SystemErrorf("[EventsCache] Put(): Event id can't be empty. Destination [%s] Event: %s", destinationId, clone.Serialize())
+		logging.SystemErrorf("[EventsCache] Put(): Event id can't be empty. Destination [%s] Event: %s", destinationId, value.Serialize())
 		return
 	}
 
-	b, err := json.Marshal(clone)
+	b, err := json.Marshal(value)
 	if err != nil {
-		logging.SystemErrorf("[%s] Error marshalling event [%v] before caching: %v", destinationId, clone, err)
+		logging.SystemErrorf("[%s] Error marshalling event [%v] before caching: %v", destinationId, value, err)
 		return
 	}
 
 	eventsInCache, err := ec.storage.AddEvent(destinationId, eventId, string(b), time.Now().UTC())
 	if err != nil {
-		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationId, clone.Serialize(), err)
+		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationId, value.Serialize(), err)
 		return
 	}
 

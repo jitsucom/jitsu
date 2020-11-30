@@ -86,7 +86,8 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 
 	//caching
 	for destinationId := range eh.destinationService.GetDestinationIds(tokenId) {
-		eh.eventsCache.Put(destinationId, eventId, payload)
+		//clone payload map for preventing concurrent changes while serialization
+		eh.eventsCache.Put(destinationId, eventId, payload.Clone())
 	}
 
 	ip := extractIp(c.Request)
