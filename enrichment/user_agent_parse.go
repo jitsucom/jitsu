@@ -49,7 +49,7 @@ func (uap *UserAgentParseRule) Execute(fact map[string]interface{}) error {
 
 	ok = uap.destination.Set(fact, result)
 	if !ok {
-		logging.SystemError("Resolved useragent data wasn't set in path: %s", uap.destination.String())
+		logging.SystemErrorf("Resolved useragent data wasn't set in path: %s", uap.destination.String())
 	}
 
 	return nil

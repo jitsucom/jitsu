@@ -10,6 +10,12 @@ import (
 type TableNameExtractFunction func(map[string]interface{}) (string, error)
 type Columns map[string]Column
 
+type Field struct {
+	Field string      `json:"field,omitempty"`
+	Type  string      `json:"type,omitempty"`
+	Value interface{} `json:"value,omitempty"`
+}
+
 //Merge add all columns from other to current instance
 //wipe column.type if a new one was added
 func (c Columns) Merge(other Columns) {

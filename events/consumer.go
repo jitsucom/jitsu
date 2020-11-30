@@ -10,8 +10,9 @@ import (
 type Fact map[string]interface{}
 
 type FailedFact struct {
-	Event json.RawMessage `json:"event,omitempty"`
-	Error string          `json:"error,omitempty"`
+	Event   json.RawMessage `json:"event,omitempty"`
+	Error   string          `json:"error,omitempty"`
+	EventId string          `json:"event_id,omitempty"`
 }
 
 type Consumer interface {

@@ -1,6 +1,10 @@
 package events
 
-const collectionIdKey = "collection_id"
+const (
+	eventnKey       = "eventn_ctx"
+	eventIdKey      = "event_id"
+	collectionIdKey = "collection_id"
+)
 
 func EnrichWithEventId(object map[string]interface{}, eventId string) {
 	eventnObject, ok := object[eventnKey]

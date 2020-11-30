@@ -3,6 +3,7 @@ package meta
 import (
 	"github.com/spf13/viper"
 	"io"
+	"time"
 )
 
 const (
@@ -17,6 +18,7 @@ const (
 type Storage interface {
 	io.Closer
 
+	//sources
 	GetSignature(sourceId, collection, interval string) (string, error)
 	SaveSignature(sourceId, collection, interval, signature string) error
 
@@ -24,6 +26,19 @@ type Storage interface {
 	SaveCollectionStatus(sourceId, collection, status string) error
 	GetCollectionLog(sourceId, collection string) (string, error)
 	SaveCollectionLog(sourceId, collection, log string) error
+
+	//events counters
+	SuccessEvents(destinationId string, now time.Time, value int) error
+	ErrorEvents(destinationId string, now time.Time, value int) error
+
+	//events caching
+	AddEvent(destinationId, eventId, payload string, now time.Time) (int, error)
+	UpdateSucceedEvent(destinationId, eventId, success string) error
+	UpdateErrorEvent(destinationId, eventId, error string) error
+	RemoveLastEvent(destinationId string) error
+
+	GetEvents(destinationId string, start, end time.Time, n int) ([]Event, error)
+	GetTotalEvents(destinationId string) (int, error)
 
 	Type() string
 }
