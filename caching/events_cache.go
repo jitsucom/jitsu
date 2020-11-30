@@ -70,7 +70,7 @@ func (ec *EventsCache) start() {
 	})
 }
 
-//PutAsync put value into channel
+//Put put value into channel which will be read and written to storage
 func (ec *EventsCache) Put(destinationId, eventId string, value events.Fact) {
 	select {
 	case ec.originalCh <- &originalFact{destinationId: destinationId, eventId: eventId, eventFact: value}:
@@ -78,7 +78,7 @@ func (ec *EventsCache) Put(destinationId, eventId string, value events.Fact) {
 	}
 }
 
-//SucceedAsync update value into channel
+//Succeed put value into channel which will be read and updated in storage
 func (ec *EventsCache) Succeed(destinationId, eventId string, processed events.Fact, table *schema.Table, types map[typing.DataType]string) {
 	select {
 	case ec.succeedCh <- &succeedFact{destinationId: destinationId, eventId: eventId, processed: processed, table: table, types: types}:
@@ -86,7 +86,7 @@ func (ec *EventsCache) Succeed(destinationId, eventId string, processed events.F
 	}
 }
 
-//ErrorAsync update value into channel
+//Error put value into channel which will be read and updated in storage
 func (ec *EventsCache) Error(destinationId, eventId string, errMsg string) {
 	select {
 	case ec.failedCh <- &failedFact{destinationId: destinationId, eventId: eventId, error: errMsg}:
@@ -97,7 +97,7 @@ func (ec *EventsCache) Error(destinationId, eventId string, errMsg string) {
 //put create new fact in storage
 func (ec *EventsCache) put(destinationId, eventId string, value events.Fact) {
 	if eventId == "" {
-		logging.SystemErrorf("[EventsCache] Put(): Event id can't be empty. Destination [%s] event %v", destinationId, value)
+		logging.SystemErrorf("[EventsCache] Put(): Event id can't be empty. Destination [%s] Event: %s", destinationId, value.Serialize())
 		return
 	}
 
@@ -116,7 +116,7 @@ func (ec *EventsCache) put(destinationId, eventId string, value events.Fact) {
 	//delete old if overflow
 	if eventsInCache > ec.capacityPerDestination {
 		toDelete := eventsInCache - ec.capacityPerDestination
-		logging.Infof("Events cache size: [%d] capacity: [%d] elements to delete: [%d]", eventsInCache, ec.capacityPerDestination, toDelete)
+		logging.Infof("[%s] Events cache size: [%d] capacity: [%d] elements to delete: [%d]", destinationId, eventsInCache, ec.capacityPerDestination, toDelete)
 		for i := 0; i < toDelete; i++ {
 			err := ec.storage.RemoveLastEvent(destinationId)
 			if err != nil {
@@ -130,7 +130,7 @@ func (ec *EventsCache) put(destinationId, eventId string, value events.Fact) {
 //succeed serialize and update processed fact in storage
 func (ec *EventsCache) succeed(destinationId, eventId string, processed events.Fact, table *schema.Table, types map[typing.DataType]string) {
 	if eventId == "" {
-		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %v", destinationId, processed)
+		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %s", destinationId, processed.Serialize())
 		return
 	}
 
@@ -139,13 +139,13 @@ func (ec *EventsCache) succeed(destinationId, eventId string, processed events.F
 	for name, value := range processed {
 		column, ok := table.Columns[name]
 		if !ok {
-			logging.SystemErrorf("Error serializing table [%s] schema: %v object: %s field: %s", table.Name, table.Columns, processed.Serialize(), name)
+			logging.SystemErrorf("[%s] Error serializing table [%s] schema: %v object: %s field: %s", destinationId, table.Name, table.Columns, processed.Serialize(), name)
 			return
 		}
 
 		dbFieldType, ok := types[column.GetType()]
 		if !ok {
-			logging.Warnf("Error getting column type [%s] mapping from %v", column.GetType(), types)
+			logging.Warnf("[%s] Error getting column type [%s] mapping from %v", destinationId, column.GetType(), types)
 			dbFieldType = "UNKNOWN"
 		}
 		fields = append(fields, &schema.Field{
