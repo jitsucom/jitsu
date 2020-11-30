@@ -200,7 +200,7 @@ func main() {
 	appconfig.Instance.ScheduleClosing(inMemoryEventsCache)
 
 	//Create event destinations
-	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, logFallbackPath, logRotationMin, syncService, eventsCache, storages.Create)
+	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, logFallbackPath, logRotationMin, syncService, appconfig.Instance.QueryLogsWriter, eventsCache, storages.Create)
 	if err != nil {
 		logging.Fatal(err)
 	}
