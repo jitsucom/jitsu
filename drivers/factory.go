@@ -77,7 +77,6 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 		if err != nil {
 			return nil, err
 		}
-		gaConfig.AuthType = "authorized_user"
 		if err := gaConfig.Validate(); err != nil {
 			return nil, err
 		}
