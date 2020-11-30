@@ -34,6 +34,7 @@ func setDefaultParams() {
 	viper.SetDefault("server.destinations_reload_sec", 40)
 	viper.SetDefault("server.sync_tasks.pool.size", 500)
 	viper.SetDefault("server.disable_version_reminder", false)
+	viper.SetDefault("server.cache.events.size", 100)
 	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
 	viper.SetDefault("log.fallback", "/home/eventnative/logs/fallback")

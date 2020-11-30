@@ -82,7 +82,7 @@ func NewProcessor(tableNameFuncExpression string, mappings []string, mappingType
 }
 
 //ProcessFact return table representation, processed flatten object
-func (p *Processor) ProcessFact(fact events.Fact) (*Table, events.Fact, error) {
+func (p *Processor) ProcessFact(fact map[string]interface{}) (*Table, events.Fact, error) {
 	return p.processObject(fact)
 }
 
@@ -108,10 +108,12 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnE
 				return nil, nil, err
 			} else {
 				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(line), err)
+
 				failedFacts = append(failedFacts, &events.FailedFact{
 					//remove last byte (\n)
-					Event: line[:len(line)-1],
-					Error: err.Error(),
+					Event:   line[:len(line)-1],
+					Error:   err.Error(),
+					EventId: events.ExtractEventId(object),
 				})
 			}
 		}

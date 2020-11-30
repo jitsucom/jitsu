@@ -30,14 +30,14 @@ const (
 )
 
 var (
-	schemaToSnowflake = map[typing.DataType]string{
+	SchemaToSnowflake = map[typing.DataType]string{
 		typing.STRING:    "character varying(8192)",
 		typing.INT64:     "bigint",
 		typing.FLOAT64:   "numeric(38,18)",
 		typing.TIMESTAMP: "timestamp(6)",
 	}
 
-	snowflakeToSchema = map[string]typing.DataType{
+	SnowflakeToSchema = map[string]typing.DataType{
 		"text":          typing.STRING,
 		"number0":       typing.INT64,
 		"number18":      typing.FLOAT64,
@@ -157,10 +157,10 @@ func (s *Snowflake) CreateTable(tableSchema *schema.Table) error {
 
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := schemaToSnowflake[column.GetType()]
+		mappedType, ok := SchemaToSnowflake[column.GetType()]
 		if !ok {
 			logging.Error("Unknown snowflake schema type:", column.GetType())
-			mappedType = schemaToSnowflake[typing.STRING]
+			mappedType = SchemaToSnowflake[typing.STRING]
 		}
 		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, reformatValue(columnName), mappedType))
 	}
@@ -192,10 +192,10 @@ func (s *Snowflake) PatchTableSchema(patchSchema *schema.Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := schemaToPostgres[column.GetType()]
+		mappedColumnType, ok := SchemaToPostgres[column.GetType()]
 		if !ok {
 			logging.Error("Unknown snowflake schema type:", column.GetType().String())
-			mappedColumnType = schemaToSnowflake[typing.STRING]
+			mappedColumnType = SchemaToSnowflake[typing.STRING]
 		}
 		query := fmt.Sprintf(addSFColumnTemplate, s.config.Schema,
 			reformatValue(patchSchema.Name), reformatValue(columnName), mappedColumnType)
@@ -231,7 +231,7 @@ func (s *Snowflake) GetTableSchema(tableName string) (*schema.Table, error) {
 		if err := rows.Scan(&columnName, &columnSnowflakeType); err != nil {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
-		mappedType, ok := snowflakeToSchema[strings.ToLower(columnSnowflakeType)]
+		mappedType, ok := SnowflakeToSchema[strings.ToLower(columnSnowflakeType)]
 		if !ok {
 			logging.Error("Unknown snowflake column type:", columnSnowflakeType)
 			mappedType = typing.STRING

@@ -7,12 +7,6 @@ import (
 	"github.com/jitsucom/eventnative/logging"
 )
 
-const (
-	eventnKey  = "eventn_ctx"
-	uaKey      = "user_agent"
-	eventIdKey = "event_id"
-)
-
 var nilFactErr = errors.New("Input fact can't be nil")
 
 type Preprocessor interface {

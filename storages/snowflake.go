@@ -7,12 +7,15 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/schema"
+	"github.com/jitsucom/eventnative/typing"
 	sf "github.com/snowflakedb/gosnowflake"
 	"strings"
 	"time"
@@ -29,6 +32,7 @@ type Snowflake struct {
 	schemaProcessor  *schema.Processor
 	streamingWorker  *StreamingWorker
 	fallbackLogger   *events.AsyncLogger
+	eventsCache      *caching.EventsCache
 	breakOnError     bool
 
 	closed bool
@@ -37,7 +41,7 @@ type Snowflake struct {
 //NewSnowflake return Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
 func NewSnowflake(ctx context.Context, name string, eventQueue *events.PersistentQueue, s3Config *adapters.S3Config, gcpConfig *adapters.GoogleConfig,
 	snowflakeConfig *adapters.SnowflakeConfig, processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper,
-	fallbackLoggerFactoryMethod func() *events.AsyncLogger, queryLogger *logging.QueryLogger) (*Snowflake, error) {
+	fallbackLoggerFactoryMethod func() *events.AsyncLogger, queryLogger *logging.QueryLogger, eventsCache *caching.EventsCache) (*Snowflake, error) {
 	var stageAdapter adapters.Stage
 	if !streamMode {
 		var err error
@@ -71,11 +75,12 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 		tableHelper:      tableHelper,
 		schemaProcessor:  processor,
 		fallbackLogger:   fallbackLoggerFactoryMethod(),
+		eventsCache:      eventsCache,
 		breakOnError:     breakOnError,
 	}
 
 	if streamMode {
-		snowflake.streamingWorker = newStreamingWorker(eventQueue, processor, snowflake)
+		snowflake.streamingWorker = newStreamingWorker(eventQueue, processor, snowflake, eventsCache)
 		snowflake.streamingWorker.start()
 	} else {
 		snowflake.startBatch()
@@ -180,11 +185,13 @@ func (s *Snowflake) startBatch() {
 					logging.Errorf("[%s] Error copying file [%s] from stage to snowflake: %v", s.Name(), fileKey, err)
 					wrappedTx.Rollback()
 					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
+					counters.ErrorEvents(s.Name(), rowsCount)
 					continue
 				}
 
 				wrappedTx.Commit()
 				metrics.SuccessTokenEvents(tokenId, s.Name(), rowsCount)
+				counters.SuccessEvents(s.Name(), rowsCount)
 
 				if err := s.stageAdapter.DeleteObject(fileKey); err != nil {
 					logging.SystemErrorf("[%s] file %s wasn't deleted from stage and will be inserted in db again: %v", s.Name(), fileKey, err)
@@ -230,6 +237,19 @@ func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, parseFun
 		rowsCount += fdata.GetPayloadLen()
 	}
 
+	//events cache
+	defer func() {
+		for _, fdata := range flatData {
+			for _, object := range fdata.GetPayload() {
+				if err != nil {
+					s.eventsCache.Error(s.Name(), events.ExtractEventId(object), err.Error())
+				} else {
+					s.eventsCache.Succeed(s.Name(), events.ExtractEventId(object), object, fdata.DataSchema, s.ColumnTypesMapping())
+				}
+			}
+		}
+	}()
+
 	for _, fdata := range flatData {
 		dbSchema, err := s.tableHelper.EnsureTable(s.Name(), fdata.DataSchema)
 		if err != nil {
@@ -251,6 +271,10 @@ func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, parseFun
 
 	//send failed events to fallback only if other events have been inserted ok
 	s.Fallback(failedEvents...)
+	counters.ErrorEvents(s.Name(), len(failedEvents))
+	for _, failedFact := range failedEvents {
+		s.eventsCache.Error(s.Name(), failedFact.EventId, failedFact.Error)
+	}
 
 	return 0, nil
 }
@@ -264,6 +288,10 @@ func (s *Snowflake) Fallback(failedFacts ...*events.FailedFact) {
 
 func (s *Snowflake) SyncStore(objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("Snowflake doesn't support sync store")
+}
+
+func (s *Snowflake) ColumnTypesMapping() map[typing.DataType]string {
+	return adapters.SchemaToSnowflake
 }
 
 func (s *Snowflake) Name() string {

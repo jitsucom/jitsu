@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
@@ -54,12 +55,13 @@ type Config struct {
 	eventQueue                  *events.PersistentQueue
 	queryLogger                 *logging.QueryLogger
 	fallBackLoggerFactoryMethod func() *events.AsyncLogger
+	eventsCache                 *caching.EventsCache
 }
 
 //Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
 func Create(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64,
-	destination DestinationConfig, monitorKeeper MonitorKeeper, queryWriter io.Writer) (events.StorageProxy, *events.PersistentQueue, error) {
+	destination DestinationConfig, monitorKeeper MonitorKeeper, queryWriter io.Writer, eventsCache *caching.EventsCache) (events.StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = name
 	}
@@ -157,6 +159,7 @@ func Create(ctx context.Context, name, logEventPath, logFallbackPath string, log
 				RotateOnClose: true,
 			}), false)
 		},
+		eventsCache: eventsCache,
 	}
 
 	var storageProxy events.StorageProxy
@@ -204,7 +207,7 @@ func createRedshift(config *Config) (events.Storage, error) {
 	}
 
 	return NewAwsRedshift(config.ctx, config.name, config.eventQueue, config.destination.S3, redshiftConfig, config.processor,
-		config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger)
+		config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger, config.eventsCache)
 }
 
 //Create google BigQuery destination
@@ -225,7 +228,7 @@ func createBigQuery(config *Config) (events.Storage, error) {
 	}
 
 	return NewBigQuery(config.ctx, config.name, config.eventQueue, gConfig, config.processor, config.destination.BreakOnError,
-		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger)
+		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger, config.eventsCache)
 }
 
 //Create Postgres destination
@@ -249,7 +252,7 @@ func createPostgres(config *Config) (events.Storage, error) {
 	}
 
 	return NewPostgres(config.ctx, pgConfig, config.processor, config.eventQueue, config.name, config.destination.BreakOnError,
-		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger)
+		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger, config.eventsCache)
 }
 
 //Create ClickHouse destination
@@ -260,7 +263,7 @@ func createClickHouse(config *Config) (events.Storage, error) {
 	}
 
 	return NewClickHouse(config.ctx, config.name, config.eventQueue, chConfig, config.processor, config.destination.BreakOnError,
-		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger)
+		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger, config.eventsCache)
 }
 
 //Create s3 destination
@@ -276,7 +279,8 @@ func createS3(config *Config) (events.Storage, error) {
 		return nil, err
 	}
 
-	return NewS3(config.name, s3Config, config.processor, config.destination.BreakOnError, config.fallBackLoggerFactoryMethod)
+	return NewS3(config.name, s3Config, config.processor, config.destination.BreakOnError, config.fallBackLoggerFactoryMethod,
+		config.eventsCache)
 }
 
 //Create Snowflake destination
@@ -307,5 +311,6 @@ func createSnowflake(config *Config) (events.Storage, error) {
 	}
 
 	return NewSnowflake(config.ctx, config.name, config.eventQueue, config.destination.S3, config.destination.Google,
-		snowflakeConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger)
+		snowflakeConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper,
+		config.fallBackLoggerFactoryMethod, config.queryLogger, config.eventsCache)
 }
