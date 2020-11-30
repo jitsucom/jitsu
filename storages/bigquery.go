@@ -7,12 +7,15 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/schema"
+	"github.com/jitsucom/eventnative/typing"
 	"time"
 )
 
@@ -27,13 +30,14 @@ type BigQuery struct {
 	schemaProcessor *schema.Processor
 	streamingWorker *StreamingWorker
 	fallbackLogger  *events.AsyncLogger
+	eventsCache     *caching.EventsCache
 	breakOnError    bool
 
 	closed bool
 }
 
 func NewBigQuery(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.GoogleConfig, processor *schema.Processor,
-	breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger) (*BigQuery, error) {
+	breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger, eventsCache *caching.EventsCache) (*BigQuery, error) {
 	var gcsAdapter *adapters.GoogleCloudStorage
 	if !streamMode {
 		var err error
@@ -67,11 +71,12 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
 		fallbackLogger:  fallbackLoggerFactoryMethod(),
+		eventsCache:     eventsCache,
 		breakOnError:    breakOnError,
 	}
 
 	if streamMode {
-		bq.streamingWorker = newStreamingWorker(eventQueue, processor, bq)
+		bq.streamingWorker = newStreamingWorker(eventQueue, processor, bq, eventsCache)
 		bq.streamingWorker.start()
 	} else {
 		bq.startBatch()
@@ -113,10 +118,12 @@ func (bq *BigQuery) startBatch() {
 				if err := bq.bqAdapter.Copy(fileKey, tableName); err != nil {
 					logging.Errorf("[%s] Error copying file [%s] from google cloud storage to BigQuery: %v", bq.Name(), fileKey, err)
 					metrics.ErrorTokenEvents(tokenId, bq.Name(), rowsCount)
+					counters.ErrorEvents(bq.Name(), rowsCount)
 					continue
 				}
 
 				metrics.SuccessTokenEvents(tokenId, bq.Name(), rowsCount)
+				counters.SuccessEvents(bq.Name(), rowsCount)
 
 				if err := bq.gcsAdapter.DeleteObject(fileKey); err != nil {
 					logging.SystemErrorf("[%s] file %s wasn't deleted from google cloud storage and will be inserted in db again: %v", bq.Name(), fileKey, err)
@@ -161,6 +168,19 @@ func (bq *BigQuery) StoreWithParseFunc(fileName string, payload []byte, parseFun
 		rowsCount += fdata.GetPayloadLen()
 	}
 
+	//events cache
+	defer func() {
+		for _, fdata := range flatData {
+			for _, object := range fdata.GetPayload() {
+				if err != nil {
+					bq.eventsCache.Error(bq.Name(), events.ExtractEventId(object), err.Error())
+				} else {
+					bq.eventsCache.Succeed(bq.Name(), events.ExtractEventId(object), object, fdata.DataSchema, bq.ColumnTypesMapping())
+				}
+			}
+		}
+	}()
+
 	for _, fdata := range flatData {
 		dbSchema, err := bq.tableHelper.EnsureTable(bq.Name(), fdata.DataSchema)
 		if err != nil {
@@ -182,6 +202,10 @@ func (bq *BigQuery) StoreWithParseFunc(fileName string, payload []byte, parseFun
 
 	//send failed events to fallback only if other events have been inserted ok
 	bq.Fallback(failedEvents...)
+	counters.ErrorEvents(bq.Name(), len(failedEvents))
+	for _, failedFact := range failedEvents {
+		bq.eventsCache.Error(bq.Name(), failedFact.EventId, failedFact.Error)
+	}
 
 	return 0, nil
 }
@@ -195,6 +219,10 @@ func (bq *BigQuery) Fallback(failedFacts ...*events.FailedFact) {
 	for _, failedFact := range failedFacts {
 		bq.fallbackLogger.ConsumeAny(failedFact)
 	}
+}
+
+func (bq *BigQuery) ColumnTypesMapping() map[typing.DataType]string {
+	return adapters.SchemaToBigQueryString
 }
 
 func (bq *BigQuery) Name() string {

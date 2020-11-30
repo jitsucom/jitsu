@@ -1,39 +1,88 @@
 package events
 
 import (
-	"encoding/json"
-	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/safego"
-	"github.com/jitsucom/eventnative/schema"
-	"time"
+	"sync"
 )
 
+//CachedFact is channel holder for key and value
 type CachedFact struct {
-	destinationId string
-	eventId       string
-	fact          Fact
-
-	table     *schema.Table
-	processed Fact
-	error     string
+	key  string
+	fact Fact
 }
 
+//CachedBucket is slice of events(facts) under the hood
+//swapPointer is used for overwrite values without copying underlying slice
+type CachedBucket struct {
+	sync.RWMutex
+
+	facts       []Fact
+	swapPointer int
+	capacity    int
+}
+
+//Put value in underlying slice with lock
+//e.g. capacity = 3
+// swapPointer = 0, [1, 2, 3] + 4 = [3, 2, 4]
+// swapPointer = 1, [3, 2, 4] + 5 = [3, 4, 5]
+// swapPointer = 0, [3, 4, 5] + 6 = [5, 4, 6]
+func (ce *CachedBucket) Put(value Fact) {
+	ce.Lock()
+
+	if len(ce.facts) == ce.capacity {
+		lastIndex := len(ce.facts) - 1
+		last := ce.facts[lastIndex]
+		ce.facts[ce.swapPointer] = last
+		ce.facts[lastIndex] = value
+		ce.swapPointer += 1
+		if ce.swapPointer == ce.capacity-1 {
+			ce.swapPointer = 0
+		}
+	} else {
+		ce.facts = append(ce.facts, value)
+	}
+
+	ce.Unlock()
+}
+
+//Get return <= n elements from bucket with read lock
+func (ce *CachedBucket) GetN(n int) []Fact {
+	ce.RLock()
+	defer ce.RUnlock()
+
+	if len(ce.facts) <= n {
+		return ce.facts
+	}
+
+	return ce.facts[:n]
+}
+
+//Cache keep capacityPerKey last elements
+//1. per key (perApiKey map)
+//2. without key filter (all)
 type Cache struct {
-	storage                meta.Storage
-	putCh                  chan *CachedFact
-	putCh                  chan *CachedFact
-	capacityPerDestination int
+	sync.RWMutex
 
-	closed bool
+	putCh chan *CachedFact
+
+	perApiKey map[string]*CachedBucket
+	all       *CachedBucket
+
+	capacityPerKey int
+	closed         bool
 }
 
-//return Cache and start goroutine for async operations
-func NewCache(storage meta.Storage, capacityPerDestination int) *Cache {
+//return Cache and start goroutine for async puts
+func NewCache(capacityPerKey int) *Cache {
 	c := &Cache{
-		storage:                storage,
-		putCh:                  make(chan *CachedFact, 1000000),
-		capacityPerDestination: capacityPerDestination,
+		putCh:          make(chan *CachedFact, 1000000),
+		perApiKey:      map[string]*CachedBucket{},
+		capacityPerKey: capacityPerKey,
+		all: &CachedBucket{
+			facts:       make([]Fact, 0, capacityPerKey),
+			swapPointer: 0,
+			capacity:    capacityPerKey,
+		},
 	}
 	c.start()
 	return c
@@ -49,80 +98,65 @@ func (c *Cache) start() {
 
 			cf := <-c.putCh
 			if cf != nil {
-				c.Put(cf.destinationId, cf.eventId, cf.fact)
-			}
-		}
-	})
-
-	safego.RunWithRestart(func() {
-		for {
-			if c.closed {
-				break
-			}
-
-			cf := <-c.putCh
-			if cf != nil {
-				c.Put(cf.destinationId, cf.eventId, cf.fact)
+				c.Put(cf.key, cf.fact)
 			}
 		}
 	})
 }
 
 //PutAsync put value into channel
-func (c *Cache) PutAsync(destinationId, eventId string, value Fact) {
+func (c *Cache) PutAsync(key string, value Fact) {
 	select {
-	case c.putCh <- &CachedFact{destinationId: destinationId, eventId: eventId, fact: value}:
+	case c.putCh <- &CachedFact{key: key, fact: value}:
 	default:
 	}
+
 }
 
-//UpdateAsync update value into channel
-func (c *Cache) UpdateAsync(destinationId, eventId string, value Fact) {
-	select {
-	case c.putCh <- &CachedFact{destinationId: destinationId, eventId: eventId, fact: value}:
-	default:
-	}
-}
+//Put fact to map per key and to all with lock
+func (c *Cache) Put(key string, value Fact) {
+	//all
+	c.all.Put(value)
 
-//Put fact into storage
-func (c *Cache) Put(destinationId, eventId string, value Fact) {
-	b, err := json.Marshal(value)
-	if err != nil {
-		logging.SystemError("[%s] Error marshalling event [%v] before caching: %v", destinationId, value, err)
-		return
-	}
-	eventsInCache, err := c.storage.AddEvent(destinationId, eventId, string(b), time.Now().UTC())
-	if err != nil {
-		logging.SystemError("[%s] Error saving event [%v] in cache: %v", destinationId, value, err)
-		return
-	}
+	//per key
+	c.RLock()
+	element, ok := c.perApiKey[key]
+	c.RUnlock()
 
-	if eventsInCache > c.capacityPerDestination {
-		err := c.storage.RemoveLastEvent(destinationId)
-		if err != nil {
-			logging.SystemError("[%s] Error removing event from cache: %v", destinationId, err)
-			return
+	if !ok {
+		c.Lock()
+		element, ok = c.perApiKey[key]
+		if !ok {
+			element = &CachedBucket{
+				facts:       make([]Fact, 0, c.capacityPerKey),
+				swapPointer: 0,
+				capacity:    c.capacityPerKey,
+			}
+			c.perApiKey[key] = element
 		}
+		c.Unlock()
 	}
+
+	element.Put(value)
 }
 
 //GetN return at most n facts by key
-func (c *Cache) GetN(destinationId string, start, end time.Time, n int) []meta.Event {
-	events, err := c.storage.GetEvents(destinationId, start, end, n)
-	if err != nil {
-		logging.SystemErrorf("Error getting %d cached events for [%s] destination: %v", n, destinationId, err)
-		return []meta.Event{}
+func (c *Cache) GetN(key string, n int) []Fact {
+	c.RLock()
+	element, ok := c.perApiKey[key]
+	c.RUnlock()
+	if ok {
+		return element.GetN(n)
 	}
 
-	return events
+	return []Fact{}
 }
 
-/*
 //GetAll return at most n facts
 func (c *Cache) GetAll(n int) []Fact {
 	return c.all.GetN(n)
 }
-*/
+
 func (c *Cache) Close() error {
 	c.closed = true
 	return nil

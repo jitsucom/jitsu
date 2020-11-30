@@ -10,6 +10,12 @@ import (
 type TableNameExtractFunction func(map[string]interface{}) (string, error)
 type Columns map[string]Column
 
+type Field struct {
+	Field string      `json:"field,omitempty"`
+	Type  string      `json:"type,omitempty"`
+	Value interface{} `json:"value,omitempty"`
+}
+
 //Merge add all columns from other to current instance
 //wipe column.type if a new one was added
 func (c Columns) Merge(other Columns) {
@@ -72,16 +78,6 @@ func (t Table) Diff(another *Table) (*Table, error) {
 		}
 	}
 	return diff, nil
-}
-
-func (t Table) Serialize(object map[string]interface{}) (string, error) {
-	for name, value := range object {
-		column, ok := t.Columns[name]
-		if !ok {
-			return "", fmt
-		}
-		col.GetType()
-	}
 }
 
 func (t Table) PrimaryKeyFieldsEqual(another *Table) bool {
@@ -167,10 +163,4 @@ func (c Column) GetType() typing.DataType {
 	//put result to dataType (it will be wiped(in Merge) if a new type is added)
 	c.dataType = &common
 	return common
-}
-
-type Record struct {
-	Field string      `json:"field,omitempty"`
-	Type  string      `json:"type,omitempty"`
-	Value interface{} `json:"value,omitempty"`
 }

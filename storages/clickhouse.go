@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
+	"github.com/jitsucom/eventnative/typing"
 	"math/rand"
 )
 
@@ -21,12 +24,13 @@ type ClickHouse struct {
 	schemaProcessor *schema.Processor
 	streamingWorker *StreamingWorker
 	fallbackLogger  *events.AsyncLogger
+	eventsCache     *caching.EventsCache
 	breakOnError    bool
 }
 
 func NewClickHouse(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.ClickHouseConfig,
 	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper,
-	fallbackLoggerFactoryMethod func() *events.AsyncLogger) (*ClickHouse, error) {
+	fallbackLoggerFactoryMethod func() *events.AsyncLogger, eventsCache *caching.EventsCache) (*ClickHouse, error) {
 	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
 	if err != nil {
 		return nil, err
@@ -60,6 +64,7 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 		adapters:        chAdapters,
 		tableHelpers:    tableHelpers,
 		schemaProcessor: processor,
+		eventsCache:     eventsCache,
 		breakOnError:    breakOnError,
 	}
 
@@ -76,7 +81,7 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 	ch.fallbackLogger = fallbackLoggerFactoryMethod()
 
 	if streamMode {
-		ch.streamingWorker = newStreamingWorker(eventQueue, processor, ch)
+		ch.streamingWorker = newStreamingWorker(eventQueue, processor, ch, eventsCache)
 		ch.streamingWorker.start()
 	}
 
@@ -107,13 +112,6 @@ func (ch *ClickHouse) Insert(dataSchema *schema.Table, fact events.Fact) (err er
 	return adapter.Insert(dataSchema, fact)
 }
 
-//Fallback log event with error to fallback logger
-func (ch *ClickHouse) Fallback(failedFacts ...*events.FailedFact) {
-	for _, failedFact := range failedFacts {
-		ch.fallbackLogger.ConsumeAny(failedFact)
-	}
-}
-
 //Store call StoreWithParseFunc with parsers.ParseJson func
 func (ch *ClickHouse) Store(fileName string, payload []byte) (int, error) {
 	return ch.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
@@ -133,6 +131,10 @@ func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, parseF
 	//send failed events to fallback only if other events have been inserted ok
 	if err == nil {
 		ch.Fallback(failedEvents...)
+		counters.ErrorEvents(ch.Name(), len(failedEvents))
+		for _, failedFact := range failedEvents {
+			ch.eventsCache.Error(ch.Name(), failedFact.EventId, failedFact.Error)
+		}
 	}
 
 	return rowsCount, err
@@ -150,11 +152,34 @@ func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (int, error) {
 	return ch.store(flatData)
 }
 
-func (ch *ClickHouse) store(flatData map[string]*schema.ProcessedFile) (int, error) {
-	var rowsCount int
+func (ch *ClickHouse) ColumnTypesMapping() map[typing.DataType]string {
+	return adapters.SchemaToClickhouse
+}
+
+//Fallback log event with error to fallback logger
+func (ch *ClickHouse) Fallback(failedFacts ...*events.FailedFact) {
+	for _, failedFact := range failedFacts {
+		ch.fallbackLogger.ConsumeAny(failedFact)
+	}
+}
+
+func (ch *ClickHouse) store(flatData map[string]*schema.ProcessedFile) (rowsCount int, err error) {
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
+
+	//events cache
+	defer func() {
+		for _, fdata := range flatData {
+			for _, object := range fdata.GetPayload() {
+				if err != nil {
+					ch.eventsCache.Error(ch.Name(), events.ExtractEventId(object), err.Error())
+				} else {
+					ch.eventsCache.Succeed(ch.Name(), events.ExtractEventId(object), object, fdata.DataSchema, ch.ColumnTypesMapping())
+				}
+			}
+		}
+	}()
 
 	adapter, tableHelper := ch.getAdapters()
 	//process db tables & schema
@@ -169,7 +194,6 @@ func (ch *ClickHouse) store(flatData map[string]*schema.ProcessedFile) (int, err
 		}
 	}
 
-	//insert all data in one transaction
 	tx, err := adapter.OpenTx()
 	if err != nil {
 		return rowsCount, fmt.Errorf("Error opening clickhouse transaction: %v", err)
@@ -178,7 +202,6 @@ func (ch *ClickHouse) store(flatData map[string]*schema.ProcessedFile) (int, err
 	for _, fdata := range flatData {
 		for _, object := range fdata.GetPayload() {
 			if err := adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
-				tx.Rollback()
 				return rowsCount, err
 			}
 		}

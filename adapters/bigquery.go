@@ -13,6 +13,13 @@ import (
 )
 
 var (
+	SchemaToBigQueryString = map[typing.DataType]string{
+		typing.STRING:    string(bigquery.StringFieldType),
+		typing.INT64:     string(bigquery.IntegerFieldType),
+		typing.FLOAT64:   string(bigquery.FloatFieldType),
+		typing.TIMESTAMP: string(bigquery.TimestampFieldType),
+	}
+
 	SchemaToBigQuery = map[typing.DataType]bigquery.FieldType{
 		typing.STRING:    bigquery.StringFieldType,
 		typing.INT64:     bigquery.IntegerFieldType,

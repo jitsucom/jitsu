@@ -2,6 +2,9 @@ package destinations
 
 import "github.com/jitsucom/eventnative/events"
 
+//map["tokenId"]map["destination_name"]true
+type TokenizedIds map[string]map[string]bool
+
 //map["tokenId"]map["destination_name"]interface
 //because 1 token id = ∞ storages
 type TokenizedStorages map[string]map[string]events.StorageProxy
@@ -40,6 +43,23 @@ func (tc TokenizedConsumers) AddAll(other TokenizedConsumers) {
 	for tokenId, consumers := range other {
 		for name, consumer := range consumers {
 			tc.Add(tokenId, name, consumer)
+		}
+	}
+}
+
+func (ti TokenizedIds) Add(tokenId, name string) {
+	ids, ok := ti[tokenId]
+	if !ok {
+		ids = map[string]bool{}
+		ti[tokenId] = ids
+	}
+	ids[name] = true
+}
+
+func (ti TokenizedIds) AddAll(other TokenizedIds) {
+	for tokenId, ids := range other {
+		for id := range ids {
+			ti.Add(tokenId, id)
 		}
 	}
 }

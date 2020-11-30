@@ -110,7 +110,7 @@ func (ar *AwsRedshift) GetTableSchema(tableName string) (*schema.Table, error) {
 		if err := rows.Scan(&columnName, &columnPostgresType); err != nil {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
-		mappedType, ok := postgresToSchema[strings.ToLower(columnPostgresType)]
+		mappedType, ok := PostgresToSchema[strings.ToLower(columnPostgresType)]
 		if !ok {
 			if columnPostgresType == "-" {
 				//skip dropped postgres field

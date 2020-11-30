@@ -58,7 +58,7 @@ func (ir *IpLookupRule) Execute(fact map[string]interface{}) error {
 
 	ok = ir.destination.Set(fact, result)
 	if !ok {
-		logging.SystemError("Resolved geo data wasn't set in path: %s", ir.destination.String())
+		logging.SystemErrorf("Resolved geo data wasn't set in path: %s", ir.destination.String())
 	}
 
 	return nil

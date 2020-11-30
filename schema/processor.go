@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jitsucom/eventnative/enrichment"
+	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/maputils"
 	"github.com/jitsucom/eventnative/timestamp"
@@ -107,10 +108,12 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, breakOnE
 				return nil, nil, err
 			} else {
 				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(line), err)
+
 				failedFacts = append(failedFacts, &events.FailedFact{
 					//remove last byte (\n)
-					Event: line[:len(line)-1],
-					Error: err.Error(),
+					Event:   line[:len(line)-1],
+					Error:   err.Error(),
+					EventId: events.ExtractEventId(object),
 				})
 			}
 		}
