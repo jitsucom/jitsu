@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	dayLayout               = "2006-01-01"
+	dayLayout               = "2006-01-02"
 	reportsCollection       = "report"
 	usersActivityCollection = "users_activity"
 	gaFieldsPrefix          = "ga:"
@@ -30,20 +30,21 @@ type ReportFieldsConfig struct {
 }
 
 type GoogleAuthConfig struct {
-	ClientId     string `mapstructure:"client_id" json:"client_id,omitempty" yaml:"client_id,omitempty"`
-	ClientSecret string `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
-	RefreshToken string `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
+	ClientId     string                 `mapstructure:"client_id" json:"client_id,omitempty" yaml:"client_id,omitempty"`
+	ClientSecret string                 `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
+	RefreshToken string                 `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
+	AccountKey   map[string]interface{} `mapstructure:"account_key" json:"account_key,omitempty" yaml:"account_key,omitempty"`
 }
 
-type GoogleAuthorizationJSON struct {
+type GoogleAuthorizedUserJSON struct {
 	ClientId     string `mapstructure:"client_id" json:"client_id,omitempty" yaml:"client_id,omitempty"`
 	ClientSecret string `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
 	RefreshToken string `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
 	AuthType     string `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 }
 
-func (gac *GoogleAuthConfig) ToGoogleAuthJson() GoogleAuthorizationJSON {
-	return GoogleAuthorizationJSON{ClientId: gac.ClientId, ClientSecret: gac.ClientSecret,
+func (gac *GoogleAuthConfig) ToGoogleAuthJSON() GoogleAuthorizedUserJSON {
+	return GoogleAuthorizedUserJSON{ClientId: gac.ClientId, ClientSecret: gac.ClientSecret,
 		RefreshToken: gac.RefreshToken, AuthType: "authorized_user"}
 }
 
@@ -51,15 +52,15 @@ func (gac *GoogleAnalyticsConfig) Validate() error {
 	if gac.ViewId == "" {
 		return gac.emptyFieldError("view_id")
 	}
-	if gac.AuthConfig.ClientId == "" {
-		return gac.emptyFieldError("auth.client_id")
-	}
-	if gac.AuthConfig.ClientSecret == "" {
-		return gac.emptyFieldError("auth.client_secret")
-	}
-	if gac.AuthConfig.RefreshToken == "" {
-		return gac.emptyFieldError("auth.refresh_token")
-	}
+	//if gac.AuthConfig.ClientId == "" {
+	//	return gac.emptyFieldError("auth.client_id")
+	//}
+	//if gac.AuthConfig.ClientSecret == "" {
+	//	return gac.emptyFieldError("auth.client_secret")
+	//}
+	//if gac.AuthConfig.RefreshToken == "" {
+	//	return gac.emptyFieldError("auth.refresh_token")
+	//}
 	return nil
 }
 
@@ -76,12 +77,20 @@ type GoogleAnalytics struct {
 }
 
 func NewGoogleAnalytics(ctx context.Context, config *GoogleAnalyticsConfig, collection string) (*GoogleAnalytics, error) {
-	credentialsJSON, err := json.Marshal(config.AuthConfig.ToGoogleAuthJson())
+	credentialsJSON, err := config.AuthConfig.resolveAuth()
 	if err != nil {
 		return nil, err
 	}
 	service, err := ga.NewService(ctx, option.WithCredentialsJSON(credentialsJSON))
 	return &GoogleAnalytics{ctx: ctx, config: config, collection: collection, service: service}, nil
+}
+
+func (gac *GoogleAuthConfig) resolveAuth() ([]byte, error) {
+	if gac.AccountKey != nil {
+		return json.Marshal(gac.AccountKey)
+	} else {
+		return json.Marshal(gac.ToGoogleAuthJSON())
+	}
 }
 
 func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*TimeInterval, error) {
@@ -103,8 +112,6 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 
 	if g.collection == reportsCollection {
 		return g.loadReport(g.config.ViewId, dateRanges, g.config.ReportFields.Dimensions, g.config.ReportFields.Metrics)
-	} else if g.collection == usersActivityCollection {
-		return nil, nil
 	} else {
 		return nil, fmt.Errorf("Unknown collection %s: only 'report' and 'users_activity' are supported", g.collection)
 	}
