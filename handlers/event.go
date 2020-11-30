@@ -85,8 +85,8 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	tokenId := appconfig.Instance.AuthorizationService.GetTokenId(token)
 
 	//caching
-	for id := range eh.destinationService.GetDestinationIds(tokenId) {
-		eh.eventsCache.Put(id, eventId, payload)
+	for destinationId := range eh.destinationService.GetDestinationIds(tokenId) {
+		eh.eventsCache.Put(destinationId, eventId, payload)
 	}
 
 	ip := extractIp(c.Request)
@@ -193,6 +193,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 			})
 		}
 		response.ResponseEvents += len(eventsArray)
+		response.TotalEvents += eh.eventsCache.GetTotal(destinationId)
 	}
 
 	c.JSON(http.StatusOK, response)
