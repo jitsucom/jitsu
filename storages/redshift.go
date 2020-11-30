@@ -7,12 +7,15 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/schema"
+	"github.com/jitsucom/eventnative/typing"
 	"time"
 )
 
@@ -30,6 +33,7 @@ type AwsRedshift struct {
 	schemaProcessor *schema.Processor
 	streamingWorker *StreamingWorker
 	fallbackLogger  *events.AsyncLogger
+	eventsCache     *caching.EventsCache
 	breakOnError    bool
 
 	closed bool
@@ -37,7 +41,7 @@ type AwsRedshift struct {
 
 //NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.PersistentQueue, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
-	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger) (*AwsRedshift, error) {
+	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger, eventsCache *caching.EventsCache) (*AwsRedshift, error) {
 	var s3Adapter *adapters.S3
 	if !streamMode {
 		var err error
@@ -68,11 +72,12 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
 		fallbackLogger:  fallbackLoggerFactoryMethod(),
+		eventsCache:     eventsCache,
 		breakOnError:    breakOnError,
 	}
 
 	if streamMode {
-		ar.streamingWorker = newStreamingWorker(eventQueue, processor, ar)
+		ar.streamingWorker = newStreamingWorker(eventQueue, processor, ar, eventsCache)
 		ar.streamingWorker.start()
 	} else {
 		ar.startBatch()
@@ -121,6 +126,7 @@ func (ar *AwsRedshift) startBatch() {
 				if err := ar.redshiftAdapter.Copy(wrappedTx, fileKey, tableName); err != nil {
 					logging.Errorf("[%s] Error copying file [%s] from s3 to redshift: %v", ar.Name(), fileKey, err)
 					metrics.ErrorTokenEvents(tokenId, ar.Name(), rowsCount)
+					counters.ErrorEvents(ar.Name(), rowsCount)
 					wrappedTx.Rollback()
 					continue
 				}
@@ -128,6 +134,7 @@ func (ar *AwsRedshift) startBatch() {
 				wrappedTx.Commit()
 
 				metrics.SuccessTokenEvents(tokenId, ar.Name(), rowsCount)
+				counters.SuccessEvents(ar.Name(), rowsCount)
 
 				//TODO may be we need to have a journal for collecting already processed files names
 				// if ar.s3Adapter.DeleteObject fails => it will be processed next time => duplicate data
@@ -174,6 +181,19 @@ func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, parse
 		rowsCount += fdata.GetPayloadLen()
 	}
 
+	//events cache
+	defer func() {
+		for _, fdata := range flatData {
+			for _, object := range fdata.GetPayload() {
+				if err != nil {
+					ar.eventsCache.Error(ar.Name(), events.ExtractEventId(object), err.Error())
+				} else {
+					ar.eventsCache.Succeed(ar.Name(), events.ExtractEventId(object), object, fdata.DataSchema, ar.ColumnTypesMapping())
+				}
+			}
+		}
+	}()
+
 	for _, fdata := range flatData {
 		dbSchema, err := ar.tableHelper.EnsureTable(ar.Name(), fdata.DataSchema)
 		if err != nil {
@@ -196,6 +216,10 @@ func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, parse
 
 	//send failed events to fallback only if other events have been inserted ok
 	ar.Fallback(failedEvents...)
+	counters.ErrorEvents(ar.Name(), len(failedEvents))
+	for _, failedFact := range failedEvents {
+		ar.eventsCache.Error(ar.Name(), failedFact.EventId, failedFact.Error)
+	}
 
 	return 0, nil
 }
@@ -209,6 +233,10 @@ func (ar *AwsRedshift) Fallback(failedFacts ...*events.FailedFact) {
 
 func (ar *AwsRedshift) SyncStore(objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("RedShift doesn't support sync store")
+}
+
+func (ar *AwsRedshift) ColumnTypesMapping() map[typing.DataType]string {
+	return adapters.SchemaToPostgres
 }
 
 func (ar *AwsRedshift) Name() string {

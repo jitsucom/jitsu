@@ -1,12 +1,13 @@
 package handlers
 
 import (
+	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/middleware"
 	"github.com/jitsucom/eventnative/telemetry"
 	"github.com/jitsucom/eventnative/timestamp"
@@ -23,23 +24,38 @@ const (
 	defaultLimit = 100
 )
 
+type CachedEvent struct {
+	Original json.RawMessage `json:"original,omitempty"`
+	Success  json.RawMessage `json:"success,omitempty"`
+	Error    string          `json:"error,omitempty"`
+}
+
+type OldCachedEventsResponse struct {
+	Events []events.Fact `json:"events"`
+}
+
 type CachedEventsResponse struct {
-	Events []meta.Event `json:"events"`
+	TotalEvents    int           `json:"total_events"`
+	ResponseEvents int           `json:"response_events"`
+	Events         []CachedEvent `json:"events"`
 }
 
 //Accept all events
 type EventHandler struct {
-	destinationService *destinations.Service
-	preprocessor       events.Preprocessor
-	eventsCache        *events.Cache
+	destinationService  *destinations.Service
+	preprocessor        events.Preprocessor
+	eventsCache         *caching.EventsCache
+	inMemoryEventsCache *events.Cache
 }
 
 //Accept all events according to token
-func NewEventHandler(destinationService *destinations.Service, preprocessor events.Preprocessor, eventsCache *events.Cache) (eventHandler *EventHandler) {
+func NewEventHandler(destinationService *destinations.Service, preprocessor events.Preprocessor, eventsCache *caching.EventsCache,
+	inMemoryEventsCache *events.Cache) (eventHandler *EventHandler) {
 	return &EventHandler{
-		destinationService: destinationService,
-		preprocessor:       preprocessor,
-		eventsCache:        eventsCache,
+		destinationService:  destinationService,
+		preprocessor:        preprocessor,
+		eventsCache:         eventsCache,
+		inMemoryEventsCache: inMemoryEventsCache,
 	}
 }
 
@@ -58,19 +74,19 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	}
 	token := iface.(string)
 
+	//Deprecated
+	eh.inMemoryEventsCache.PutAsync(token, payload)
+
 	//put eventn_ctx_event_id if not set (e.g. It is used for ClickHouse)
-	eventId := uuid.New()
-	events.EnrichWithEventId(payload, eventId)
+	events.EnrichWithEventId(payload, uuid.New())
+	//get eventId if it is in request
+	eventId := events.ExtractEventId(payload)
 
 	tokenId := appconfig.Instance.AuthorizationService.GetTokenId(token)
 
-	if eh.eventsCache != nil {
-		for _, proxy := range eh.destinationService.GetStorages(tokenId) {
-			destination, ok := proxy.Get()
-			if ok {
-				eh.eventsCache.PutAsync(destination.Name(), eventId, payload)
-			}
-		}
+	//caching
+	for id := range eh.destinationService.GetDestinationIds(tokenId) {
+		eh.eventsCache.Put(id, eventId, payload)
 	}
 
 	ip := extractIp(c.Request)
@@ -102,18 +118,57 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, middleware.OkResponse())
 }
 
+func (eh *EventHandler) OldGetHandler(c *gin.Context) {
+	apikeys := c.Query("apikeys")
+	limitStr := c.Query("limit_per_apikey")
+	var limit int
+	var err error
+	if limitStr == "" {
+		limit = defaultLimit
+	} else {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "limit_per_apikey must be int"})
+			return
+		}
+	}
+
+	response := OldCachedEventsResponse{Events: []events.Fact{}}
+	if len(apikeys) == 0 {
+		response.Events = eh.inMemoryEventsCache.GetAll(limit)
+	} else {
+		for _, key := range strings.Split(apikeys, ",") {
+			response.Events = append(response.Events, eh.inMemoryEventsCache.GetN(key, limit)...)
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
 func (eh *EventHandler) GetHandler(c *gin.Context) {
-	start, err := time.Parse(timestamp.Layout, c.Query("start"))
+	destinationIds := c.Query("destination_ids")
+	if destinationIds == "" {
+		logging.Errorf("Empty destination ids in events cache handler")
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "destination_ids is required parameter."})
+		return
+	}
+
+	startStr := c.Query("start")
+	start, err := time.Parse(timestamp.Layout, startStr)
 	if err != nil {
+		logging.Errorf("Error parsing start query param [%s] in events cache handler: %v", startStr, err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing start query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
 		return
 	}
-	end, err := time.Parse(timestamp.Layout, c.Query("end"))
+
+	endStr := c.Query("end")
+	end, err := time.Parse(timestamp.Layout, endStr)
 	if err != nil {
+		logging.Errorf("Error parsing end query param [%s] in events cache handler: %v", endStr, err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing end query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
 		return
 	}
-	destinationIds := c.Query("destination_ids")
+
 	limitStr := c.Query("limit")
 	var limit int
 	if limitStr == "" {
@@ -121,18 +176,23 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	} else {
 		limit, err = strconv.Atoi(limitStr)
 		if err != nil {
+			logging.Errorf("Error parsing limit [%s] to int in events cache handler: %v", limitStr, err)
 			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "limit must be int"})
 			return
 		}
 	}
 
-	response := CachedEventsResponse{Events: []meta.Event{}}
-	if len(destinationIds) == 0 {
-		//response.Events = eh.eventsCache.GetAll(limit)
-	} else {
-		for _, destinationId := range strings.Split(destinationIds, ",") {
-			response.Events = append(response.Events, eh.eventsCache.GetN(destinationId, start, end, limit)...)
+	response := CachedEventsResponse{Events: []CachedEvent{}}
+	for _, destinationId := range strings.Split(destinationIds, ",") {
+		eventsArray := eh.eventsCache.GetN(destinationId, start, end, limit)
+		for _, event := range eventsArray {
+			response.Events = append(response.Events, CachedEvent{
+				Original: []byte(event.Original),
+				Success:  []byte(event.Success),
+				Error:    event.Error,
+			})
 		}
+		response.ResponseEvents += len(eventsArray)
 	}
 
 	c.JSON(http.StatusOK, response)

@@ -34,14 +34,14 @@ const (
 )
 
 var (
-	schemaToClickhouse = map[typing.DataType]string{
+	SchemaToClickhouse = map[typing.DataType]string{
 		typing.STRING:    "String",
 		typing.INT64:     "Int64",
 		typing.FLOAT64:   "Float64",
 		typing.TIMESTAMP: "DateTime",
 	}
 
-	clickhouseToSchema = map[string]typing.DataType{
+	ClickhouseToSchema = map[string]typing.DataType{
 		"String":             typing.STRING,
 		"Nullable(String)":   typing.STRING,
 		"Int64":              typing.INT64,
@@ -275,10 +275,10 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := schemaToClickhouse[column.GetType()]
+		mappedType, ok := SchemaToClickhouse[column.GetType()]
 		if !ok {
 			logging.Error("Unknown clickhouse schema type:", column.GetType())
-			mappedType = schemaToClickhouse[typing.STRING]
+			mappedType = SchemaToClickhouse[typing.STRING]
 		}
 		var addColumnDDL string
 		if _, ok := ch.nullableFields[columnName]; ok {
@@ -324,7 +324,7 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*schema.Table, error) {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
 
-		mappedType, ok := clickhouseToSchema[columnClickhouseType]
+		mappedType, ok := ClickhouseToSchema[columnClickhouseType]
 		if !ok {
 			logging.Error("Unknown clickhouse column type:", columnClickhouseType)
 			mappedType = typing.STRING
@@ -347,10 +347,10 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		mappedType, ok := schemaToClickhouse[column.GetType()]
+		mappedType, ok := SchemaToClickhouse[column.GetType()]
 		if !ok {
 			logging.Error("Unknown clickhouse schema type:", column.GetType().String())
-			mappedType = schemaToClickhouse[typing.STRING]
+			mappedType = SchemaToClickhouse[typing.STRING]
 		}
 		var columnTypeDDL string
 		if _, ok := ch.nullableFields[columnName]; ok {

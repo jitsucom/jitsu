@@ -27,15 +27,18 @@ type Storage interface {
 	GetCollectionLog(sourceId, collection string) (string, error)
 	SaveCollectionLog(sourceId, collection, log string) error
 
-	//events caching
-	SuccessEvent(destinationId string, now time.Time) error
-	ErrorEvent(destinationId string, now time.Time) error
+	//events counters
+	SuccessEvents(destinationId string, now time.Time, value int) error
+	ErrorEvents(destinationId string, now time.Time, value int) error
 
+	//events caching
 	AddEvent(destinationId, eventId, payload string, now time.Time) (int, error)
-	UpdateEvent(destinationId, eventId, success, error string) error
+	UpdateSucceedEvent(destinationId, eventId, success string) error
+	UpdateErrorEvent(destinationId, eventId, error string) error
 	RemoveLastEvent(destinationId string) error
 
 	GetEvents(destinationId string, start, end time.Time, n int) ([]Event, error)
+	GetTotalEvents(destinationId string) (int, error)
 
 	Type() string
 }

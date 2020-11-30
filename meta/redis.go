@@ -11,6 +11,9 @@ import (
 	"time"
 )
 
+var updateOneFieldCachedEvent = redis.NewScript(3, `if redis.call('exists',KEYS[1]) == 1 then redis.call('hset', KEYS[1], KEYS[2], KEYS[3]) end`)
+var updateTwoFieldsCachedEvent = redis.NewScript(5, `if redis.call('exists',KEYS[1]) == 1 then redis.call('hmset', KEYS[1], KEYS[2], KEYS[3], KEYS[4], KEYS[5]) end`)
+
 type Redis struct {
 	pool *redis.Pool
 }
@@ -30,6 +33,7 @@ type Redis struct {
 //last_events:destination#destinationId:id#eventn_ctx_event_id [original, success, error] - hashtable with original event json, processed with schema json, error json
 //last_events_index:destination#destinationId [timestamp_long eventn_ctx_event_id] - sorted set of eventIds and timestamps
 func NewRedis(host string, port int, password string) (*Redis, error) {
+	logging.Infof("Initializing redis [%s:%d]...", host, port)
 	r := &Redis{pool: &redis.Pool{
 		MaxIdle:     100,
 		MaxActive:   600,
@@ -91,7 +95,7 @@ func (r *Redis) SaveSignature(sourceId, collection, interval, signature string) 
 	defer connection.Close()
 	_, err := connection.Do("HSET", key, field, signature)
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
@@ -123,7 +127,7 @@ func (r *Redis) SaveCollectionStatus(sourceId, collection, status string) error 
 	defer connection.Close()
 	_, err := connection.Do("HSET", key, field, status)
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
@@ -155,70 +159,75 @@ func (r *Redis) SaveCollectionLog(sourceId, collection, log string) error {
 	defer connection.Close()
 	_, err := connection.Do("HSET", key, field, log)
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
 	return nil
 }
 
-func (r *Redis) SuccessEvent(destinationId string, now time.Time) error {
-	return r.incrementEventsCount(destinationId, "success", now)
+func (r *Redis) SuccessEvents(destinationId string, now time.Time, value int) error {
+	return r.incrementEventsCount(destinationId, "success", now, value)
 }
 
-func (r *Redis) ErrorEvent(destinationId string, now time.Time) error {
-	return r.incrementEventsCount(destinationId, "errors", now)
+func (r *Redis) ErrorEvents(destinationId string, now time.Time, value int) error {
+	return r.incrementEventsCount(destinationId, "errors", now, value)
 }
 
 func (r *Redis) AddEvent(destinationId, eventId, payload string, now time.Time) (int, error) {
 	conn := r.pool.Get()
+	defer conn.Close()
 	//add event
 	lastEventsKey := "last_events:destination#" + destinationId + ":id#" + eventId
 	field := "original"
-	err := conn.Send("HSET", lastEventsKey, field, payload)
+	_, err := conn.Do("HSET", lastEventsKey, field, payload)
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return 0, err
 	}
 
 	//enrich index
 	lastEventsIndexKey := "last_events_index:destination#" + destinationId
-	err = conn.Send("ZADD", lastEventsIndexKey, field, now.Unix(), eventId)
+	_, err = conn.Do("ZADD", lastEventsIndexKey, now.Unix(), eventId)
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return 0, err
 	}
 
-	//get index len
-	err = conn.Send("ZCOUNT", lastEventsIndexKey, "-inf", "+inf")
+	//get index length
+	count, err := redis.Int(conn.Do("ZCOUNT", lastEventsIndexKey, "-inf", "+inf"))
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return 0, err
 	}
 
-	err = conn.Flush()
-	noticeError(err)
-	if err != redis.ErrNil {
-		return 0, err
-	}
-
-	return redis.Int(conn.Receive())
+	return count, nil
 }
 
-func (r *Redis) UpdateEvent(destinationId, eventId, success, error string) error {
+func (r *Redis) UpdateSucceedEvent(destinationId, eventId, success string) error {
 	lastEventsKey := "last_events:destination#" + destinationId + ":id#" + eventId
-	payload := []interface{}{lastEventsKey}
-	if success != "" {
-		payload = append(payload, "success", success)
-	}
 
-	if error != "" {
-		payload = append(payload, "error", error)
-	}
+	conn := r.pool.Get()
+	defer conn.Close()
 
-	_, err := r.pool.Get().Do("HMSET", payload...)
+	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "")
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Redis) UpdateErrorEvent(destinationId, eventId, error string) error {
+	lastEventsKey := "last_events:destination#" + destinationId + ":id#" + eventId
+
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := updateOneFieldCachedEvent.Do(conn, lastEventsKey, "error", error)
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
@@ -227,27 +236,25 @@ func (r *Redis) UpdateEvent(destinationId, eventId, success, error string) error
 
 func (r *Redis) RemoveLastEvent(destinationId string) error {
 	conn := r.pool.Get()
+	defer conn.Close()
 	//remove last event from index
 	lastEventsIndexKey := "last_events_index:destination#" + destinationId
-	values, err := redis.Values(conn.Do("ZPOPMIN", lastEventsIndexKey))
+	values, err := redis.Strings(conn.Do("ZPOPMIN", lastEventsIndexKey))
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
 	if len(values) != 2 {
-		return fmt.Errorf("Error response format")
+		return fmt.Errorf("Error response format: %v", values)
 	}
 
-	eventId, ok := values[0].(string)
-	if !ok {
-		return fmt.Errorf("Error eventId format")
-	}
+	eventId := values[0]
 
 	lastEventsKey := "last_events:destination#" + destinationId + ":id#" + eventId
-	_, err = conn.Do("HDEL", lastEventsKey)
+	_, err = conn.Do("DEL", lastEventsKey)
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
@@ -256,12 +263,13 @@ func (r *Redis) RemoveLastEvent(destinationId string) error {
 
 func (r *Redis) GetEvents(destinationId string, start, end time.Time, n int) ([]Event, error) {
 	conn := r.pool.Get()
+	defer conn.Close()
 
 	//get index
 	lastEventsIndexKey := "last_events_index:destination#" + destinationId
 	eventIds, err := redis.Strings(conn.Do("ZRANGEBYSCORE", lastEventsIndexKey, start.Unix(), end.Unix(), "LIMIT", 0, n))
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return nil, err
 	}
 
@@ -270,7 +278,7 @@ func (r *Redis) GetEvents(destinationId string, start, end time.Time, n int) ([]
 		lastEventsKey := "last_events:destination#" + destinationId + ":id#" + eventId
 		event, err := redis.Values(conn.Do("HGETALL", lastEventsKey))
 		noticeError(err)
-		if err != redis.ErrNil {
+		if err != nil && err != redis.ErrNil {
 			return nil, err
 		}
 
@@ -278,7 +286,7 @@ func (r *Redis) GetEvents(destinationId string, start, end time.Time, n int) ([]
 			eventObj := Event{}
 			err := redis.ScanStruct(event, &eventObj)
 			if err != nil {
-				return nil, fmt.Errorf("Error deserializing event struct: %v", err)
+				return nil, fmt.Errorf("Error deserializing event struct key [%s]: %v", lastEventsKey, err)
 			}
 
 			events = append(events, eventObj)
@@ -286,6 +294,20 @@ func (r *Redis) GetEvents(destinationId string, start, end time.Time, n int) ([]
 	}
 
 	return events, nil
+}
+
+func (r *Redis) GetTotalEvents(destinationId string) (int, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	lastEventsIndexKey := "last_events_index:destination#" + destinationId
+	count, err := redis.Int(conn.Do("ZCOUNT", lastEventsIndexKey, "-inf", "+inf"))
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
 func (r *Redis) Type() string {
@@ -297,15 +319,16 @@ func (r *Redis) Close() error {
 }
 
 //increment success or errors keys depends on input status string
-func (r *Redis) incrementEventsCount(destinationId, status string, now time.Time) error {
+func (r *Redis) incrementEventsCount(destinationId, status string, now time.Time, value int) error {
 	conn := r.pool.Get()
+	defer conn.Close()
 	//increment hourly events
 	dayKey := now.Format(timestamp.DayLayout)
 	hourlyEventsKey := "hourly_events:destination#" + destinationId + ":day#" + dayKey + ":" + status
 	fieldHour := strconv.Itoa(now.Hour())
 	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, 1)
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
@@ -313,9 +336,9 @@ func (r *Redis) incrementEventsCount(destinationId, status string, now time.Time
 	monthKey := now.Format(timestamp.MonthLayout)
 	dailyEventsKey := "daily_events:destination#" + destinationId + ":month#" + monthKey + ":" + status
 	fieldDay := strconv.Itoa(now.Day())
-	_, err = conn.Do("HINCRBY", dailyEventsKey, fieldDay, 1)
+	_, err = conn.Do("HINCRBY", dailyEventsKey, fieldDay, value)
 	noticeError(err)
-	if err != redis.ErrNil {
+	if err != nil && err != redis.ErrNil {
 		return err
 	}
 

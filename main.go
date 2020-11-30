@@ -8,7 +8,9 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/appstatus"
+	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/cluster"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/fallback"
@@ -162,15 +164,6 @@ func main() {
 	logFallbackPath := viper.GetString("log.fallback")
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
-	//Create event destinations
-	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, logFallbackPath, logRotationMin, syncService, storages.Create)
-	if err != nil {
-		logging.Fatal(err)
-	}
-	appconfig.Instance.ScheduleClosing(destinationsService)
-
-	// ** Sources **
-
 	//meta storage config
 	metaStorageViper := viper.Sub("meta.storage")
 
@@ -193,6 +186,27 @@ func main() {
 	}
 	//close after all for saving last task statuses
 	defer metaStorage.Close()
+
+	//events counters
+	counters.InitEvents(metaStorage)
+
+	//events cache
+	eventsCacheSize := viper.GetInt("server.cache.events.size")
+	eventsCache := caching.NewEventsCache(metaStorage, eventsCacheSize)
+	appconfig.Instance.ScheduleClosing(eventsCache)
+
+	//Deprecated
+	inMemoryEventsCache := events.NewCache(eventsCacheSize)
+	appconfig.Instance.ScheduleClosing(inMemoryEventsCache)
+
+	//Create event destinations
+	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, logFallbackPath, logRotationMin, syncService, eventsCache, storages.Create)
+	if err != nil {
+		logging.Fatal(err)
+	}
+	appconfig.Instance.ScheduleClosing(destinationsService)
+
+	// ** Sources **
 
 	//sources config
 	sourcesViper := viper.Sub(sourcesKey)
@@ -227,8 +241,6 @@ func main() {
 	uploader.Start()
 
 	adminToken := viper.GetString("server.admin_token")
-	eventsCache := events.NewCache(metaStorage, 100)
-	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	fallbackService, err := fallback.NewService(logFallbackPath, destinationsService)
 	if err != nil {
@@ -242,7 +254,7 @@ func main() {
 		appconfig.Instance.ScheduleClosing(vn)
 	}
 
-	router := SetupRouter(destinationsService, adminToken, syncService, eventsCache, sourceService, fallbackService)
+	router := SetupRouter(destinationsService, adminToken, syncService, eventsCache, inMemoryEventsCache, sourceService, fallbackService)
 
 	telemetry.ServerStart()
 	notifications.ServerStart()
@@ -258,7 +270,7 @@ func main() {
 }
 
 func SetupRouter(destinations *destinations.Service, adminToken string, clusterManager cluster.Manager,
-	eventsCache *events.Cache, sources *sources.Service, fallbackService *fallback.Service) *gin.Engine {
+	eventsCache *caching.EventsCache, inMemoryEventsCache *events.Cache, sources *sources.Service, fallbackService *fallback.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -286,8 +298,8 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	if err != nil {
 		logging.Fatal(err)
 	}
-	jsEventHandler := handlers.NewEventHandler(destinations, jsEventsPreprocessor, eventsCache)
-	apiEventHandler := handlers.NewEventHandler(destinations, apiEventsPreprocessor, eventsCache)
+	jsEventHandler := handlers.NewEventHandler(destinations, jsEventsPreprocessor, eventsCache, inMemoryEventsCache)
+	apiEventHandler := handlers.NewEventHandler(destinations, apiEventsPreprocessor, eventsCache, inMemoryEventsCache)
 
 	sourcesHandler := handlers.NewSourcesHandler(sources)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
@@ -303,7 +315,8 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 		apiV1.GET("/sources/:id/status", adminTokenMiddleware.AdminAuth(sourcesHandler.StatusHandler, middleware.AdminTokenErr))
 
 		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler, middleware.AdminTokenErr))
-		apiV1.GET("/cache/events", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler, middleware.AdminTokenErr))
+		apiV1.GET("/cache/events", adminTokenMiddleware.AdminAuth(jsEventHandler.OldGetHandler, middleware.AdminTokenErr))
+		apiV1.GET("/events/cache", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler, middleware.AdminTokenErr))
 
 		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler, middleware.AdminTokenErr))
 		apiV1.POST("/fallback/replay", adminTokenMiddleware.AdminAuth(fallbackHandler.ReplayHandler, middleware.AdminTokenErr))

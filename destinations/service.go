@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/resources"
@@ -32,12 +33,13 @@ type LoggerUsage struct {
 
 //Service is reloadable service of events destinations per token
 type Service struct {
-	storageFactoryMethod func(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error)
+	storageFactoryMethod func(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache) (events.StorageProxy, *events.PersistentQueue, error)
 	ctx                  context.Context
 	logEventPath         string
 	logFallbackPath      string
 	logRotationMin       int64
 	monitorKeeper        storages.MonitorKeeper
+	eventsCache          *caching.EventsCache
 
 	//map for holding all destinations for closing
 	unitsByName map[string]*Unit
@@ -45,21 +47,24 @@ type Service struct {
 	loggersUsageByTokenId map[string]*LoggerUsage
 
 	sync.RWMutex
-	consumersByTokenId TokenizedConsumers
-	storagesByTokenId  TokenizedStorages
+	consumersByTokenId      TokenizedConsumers
+	storagesByTokenId       TokenizedStorages
+	destinationsIdByTokenId TokenizedIds
 }
 
 //only for tests
-func NewTestService(consumersByTokenId TokenizedConsumers, storagesByTokenId TokenizedStorages) *Service {
+func NewTestService(consumersByTokenId TokenizedConsumers, storagesByTokenId TokenizedStorages, destinationsIdByTokenId TokenizedIds) *Service {
 	return &Service{
-		consumersByTokenId: consumersByTokenId,
-		storagesByTokenId:  storagesByTokenId,
+		consumersByTokenId:      consumersByTokenId,
+		storagesByTokenId:       storagesByTokenId,
+		destinationsIdByTokenId: destinationsIdByTokenId,
 	}
 }
 
 //NewService return loaded Service instance and call resources.Watcher() if destinations source is http url or file path
-func NewService(ctx context.Context, destinations *viper.Viper, destinationsSource, logEventPath, logFallbackPath string, logRotationMin int64, monitorKeeper storages.MonitorKeeper,
-	storageFactoryMethod func(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper) (events.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
+func NewService(ctx context.Context, destinations *viper.Viper, destinationsSource, logEventPath, logFallbackPath string, logRotationMin int64, monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache,
+	storageFactoryMethod func(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64, destination storages.DestinationConfig,
+		monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache) (events.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
 	service := &Service{
 		storageFactoryMethod: storageFactoryMethod,
 		ctx:                  ctx,
@@ -67,12 +72,14 @@ func NewService(ctx context.Context, destinations *viper.Viper, destinationsSour
 		logFallbackPath:      logFallbackPath,
 		logRotationMin:       logRotationMin,
 		monitorKeeper:        monitorKeeper,
+		eventsCache:          eventsCache,
 
 		unitsByName:           map[string]*Unit{},
 		loggersUsageByTokenId: map[string]*LoggerUsage{},
 
-		consumersByTokenId: map[string]map[string]events.Consumer{},
-		storagesByTokenId:  map[string]map[string]events.StorageProxy{},
+		consumersByTokenId:      map[string]map[string]events.Consumer{},
+		storagesByTokenId:       map[string]map[string]events.StorageProxy{},
+		destinationsIdByTokenId: map[string]map[string]bool{},
 	}
 
 	reloadSec := viper.GetInt("server.destinations_reload_sec")
@@ -138,6 +145,16 @@ func (ds *Service) GetStorages(tokenId string) (storages []events.StorageProxy) 
 	return
 }
 
+func (ds *Service) GetDestinationIds(tokenId string) map[string]bool {
+	ids := map[string]bool{}
+	ds.RLock()
+	defer ds.RUnlock()
+	for id := range ds.destinationsIdByTokenId[tokenId] {
+		ids[id] = true
+	}
+	return ids
+}
+
 func (s *Service) updateDestinations(payload []byte) {
 	dc, err := parseFromBytes(payload)
 	if err != nil {
@@ -176,6 +193,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	// create or recreate
 	newConsumers := TokenizedConsumers{}
 	newStorages := TokenizedStorages{}
+	newIds := TokenizedIds{}
 	for name, d := range dc {
 		//common case
 		destination := d
@@ -209,7 +227,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		}
 
 		//create new
-		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, s.logFallbackPath, s.logRotationMin, destination, s.monitorKeeper)
+		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, s.logFallbackPath, s.logRotationMin, destination, s.monitorKeeper, s.eventsCache)
 		if err != nil {
 			logging.Errorf("[%s] Error initializing destination of type %s: %v", name, destination.Type, err)
 			continue
@@ -229,6 +247,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		//  storage per token id
 		//  consumers per client_secret and server_secret
 		for _, tokenId := range destination.OnlyTokens {
+			newIds.Add(tokenId, name)
 			if destination.Mode == storages.StreamMode {
 				newConsumers.Add(tokenId, name, eventQueue)
 			} else {
@@ -262,12 +281,14 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	s.Lock()
 	s.consumersByTokenId.AddAll(newConsumers)
 	s.storagesByTokenId.AddAll(newStorages)
+	s.destinationsIdByTokenId.AddAll(newIds)
 	s.Unlock()
 
 	StatusInstance.Reloading = false
 }
 
 //remove destination from all collections and close it
+//method must be called with locks
 func (s *Service) remove(name string, unit *Unit) {
 	//remove from other collections: queue or logger(if needed) + storage
 	for _, tokenId := range unit.tokenIds {
@@ -295,6 +316,15 @@ func (s *Service) remove(name string, unit *Unit) {
 			delete(oldStorages, name)
 			if len(oldStorages) == 0 {
 				delete(s.storagesByTokenId, tokenId)
+			}
+		}
+
+		//id
+		ids, ok := s.destinationsIdByTokenId[tokenId]
+		if ok {
+			delete(ids, name)
+			if len(ids) == 0 {
+				delete(s.destinationsIdByTokenId, tokenId)
 			}
 		}
 	}
