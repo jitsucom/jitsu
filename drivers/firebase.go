@@ -40,11 +40,10 @@ type Firebase struct {
 	ctx             context.Context
 	firestoreClient *firestore.Client
 	authClient      *auth.Client
-
-	collection string
+	collection      *Collection
 }
 
-func NewFirebase(ctx context.Context, config *FirebaseConfig, collection string) (*Firebase, error) {
+func NewFirebase(ctx context.Context, config *FirebaseConfig, collection *Collection) (*Firebase, error) {
 	app, err := firebase.NewApp(context.Background(),
 		&firebase.Config{ProjectID: config.ProjectId},
 		option.WithCredentialsJSON([]byte(config.Credentials)))
@@ -67,10 +66,10 @@ func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 }
 
 func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
-	if strings.HasPrefix(f.collection, firebaseCollectionPrefix) {
-		firebaseCollectionName := strings.TrimPrefix(f.collection, firebaseCollectionPrefix)
+	if strings.HasPrefix(f.collection.Name, firebaseCollectionPrefix) {
+		firebaseCollectionName := strings.TrimPrefix(f.collection.Name, firebaseCollectionPrefix)
 		return f.loadCollection(firebaseCollectionName)
-	} else if f.collection == "users" {
+	} else if f.collection.Name == "users" {
 		return f.loadUsers()
 	}
 	return nil, fmt.Errorf("unknown collection: %s", f.collection)
