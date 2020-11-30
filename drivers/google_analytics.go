@@ -4,42 +4,61 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/eventnative/logging"
 	ga "google.golang.org/api/analyticsreporting/v4"
 	"google.golang.org/api/option"
 	"strings"
 	"time"
 )
 
-type GoogleAnalyticsConfig struct {
-	ClientId     string   `mapstructure:"client_id" json:"client_id,omitempty" yaml:"client_id,omitempty"`
-	ClientSecret string   `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
-	RefreshToken string   `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
-	AuthType     string   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	ReportFields []string `mapstructure:"report_fields" json:"report_fields,omitempty" yaml:"report_fields,omitempty"`
-	ViewId       string   `mapstructure:"view_id" json:"view_id,omitempty" yaml:"view_id,omitempty"`
-}
-
 const (
 	dayLayout               = "2006-01-01"
 	reportsCollection       = "report"
 	usersActivityCollection = "users_activity"
-	metricsConfigPrefix     = "metric:"
-	dimensionsConfigPrefix  = "dimension:"
 	gaFieldsPrefix          = "ga:"
 )
 
+type GoogleAnalyticsConfig struct {
+	AuthConfig   *GoogleAuthConfig   `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
+	ViewId       string              `mapstructure:"view_id" json:"view_id,omitempty" yaml:"view_id,omitempty"`
+	ReportFields *ReportFieldsConfig `mapstructure:"report_fields" json:"report_fields,omitempty" yaml:"report_fields,omitempty"`
+}
+
+type ReportFieldsConfig struct {
+	Dimensions []string `mapstructure:"dimensions" json:"dimensions,omitempty" yaml:"dimensions,omitempty"`
+	Metrics    []string `mapstructure:"metrics" json:"metrics,omitempty" yaml:"metrics,omitempty"`
+}
+
+type GoogleAuthConfig struct {
+	ClientId     string `mapstructure:"client_id" json:"client_id,omitempty" yaml:"client_id,omitempty"`
+	ClientSecret string `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
+	RefreshToken string `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
+}
+
+type GoogleAuthorizationJSON struct {
+	ClientId     string `mapstructure:"client_id" json:"client_id,omitempty" yaml:"client_id,omitempty"`
+	ClientSecret string `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
+	RefreshToken string `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
+	AuthType     string `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+}
+
+func (gac *GoogleAuthConfig) ToGoogleAuthJson() GoogleAuthorizationJSON {
+	return GoogleAuthorizationJSON{ClientId: gac.ClientId, ClientSecret: gac.ClientSecret,
+		RefreshToken: gac.RefreshToken, AuthType: "authorized_user"}
+}
+
 func (gac *GoogleAnalyticsConfig) Validate() error {
-	if gac.ClientId == "" {
-		return gac.emptyFieldError("Client Id")
+	if gac.ViewId == "" {
+		return gac.emptyFieldError("view_id")
 	}
-	if gac.ClientSecret == "" {
-		return gac.emptyFieldError("Client secret")
+	if gac.AuthConfig.ClientId == "" {
+		return gac.emptyFieldError("auth.client_id")
 	}
-	if gac.RefreshToken == "" {
-		return gac.emptyFieldError("Refresh token")
+	if gac.AuthConfig.ClientSecret == "" {
+		return gac.emptyFieldError("auth.client_secret")
 	}
-	if gac.AuthType != "authorized_user" {
-		return fmt.Errorf("Only authorized_user type is allowed")
+	if gac.AuthConfig.RefreshToken == "" {
+		return gac.emptyFieldError("auth.refresh_token")
 	}
 	return nil
 }
@@ -57,7 +76,7 @@ type GoogleAnalytics struct {
 }
 
 func NewGoogleAnalytics(ctx context.Context, config *GoogleAnalyticsConfig, collection string) (*GoogleAnalytics, error) {
-	credentialsJSON, err := json.Marshal(config)
+	credentialsJSON, err := json.Marshal(config.AuthConfig.ToGoogleAuthJson())
 	if err != nil {
 		return nil, err
 	}
@@ -76,13 +95,14 @@ func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 }
 
 func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
+	logging.Debug("Sync time interval:", interval.String())
 	dateRanges := []*ga.DateRange{
 		{StartDate: interval.LowerEndpoint().Format(dayLayout),
 			EndDate: interval.UpperEndpoint().Format(dayLayout)},
 	}
 
 	if g.collection == reportsCollection {
-		return g.loadReport(g.config.ViewId, dateRanges, g.config.ReportFields)
+		return g.loadReport(g.config.ViewId, dateRanges, g.config.ReportFields.Dimensions, g.config.ReportFields.Metrics)
 	} else if g.collection == usersActivityCollection {
 		return nil, nil
 	} else {
@@ -98,17 +118,14 @@ func (g *GoogleAnalytics) Close() error {
 	return nil
 }
 
-func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, reportFields []string) ([]map[string]interface{}, error) {
-	var metrics []*ga.Metric
-	var dimensions []*ga.Dimension
-	for _, field := range reportFields {
-		if strings.HasPrefix(field, metricsConfigPrefix) {
-			metrics = append(metrics, &ga.Metric{Expression: gaFieldsPrefix + strings.TrimPrefix(field, metricsConfigPrefix)})
-		} else if strings.HasPrefix(field, dimensionsConfigPrefix) {
-			dimensions = append(dimensions, &ga.Dimension{Name: gaFieldsPrefix + strings.TrimPrefix(field, dimensionsConfigPrefix)})
-		} else {
-			return nil, fmt.Errorf("Unknown report field %s. Should have 'metrics:' or 'dimensions:' prefix", field)
-		}
+func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, dimensions []string, metrics []string) ([]map[string]interface{}, error) {
+	var gaDimensions []*ga.Dimension
+	for _, dimension := range dimensions {
+		gaDimensions = append(gaDimensions, &ga.Dimension{Name: dimension})
+	}
+	var gaMetrics []*ga.Metric
+	for _, metric := range metrics {
+		gaMetrics = append(gaMetrics, &ga.Metric{Expression: metric})
 	}
 
 	req := &ga.GetReportsRequest{
@@ -116,8 +133,8 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 			{
 				ViewId:     viewId,
 				DateRanges: dateRanges,
-				Metrics:    metrics,
-				Dimensions: dimensions,
+				Metrics:    gaMetrics,
+				Dimensions: gaDimensions,
 			},
 		},
 	}
@@ -132,6 +149,7 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 		metricHeaders := header.MetricHeader.MetricHeaderEntries
 		rows := report.Data.Rows
 
+		logging.Debug("Rows to sync:", len(rows))
 		if rows == nil {
 			continue
 		}
