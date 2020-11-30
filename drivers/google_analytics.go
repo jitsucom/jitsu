@@ -69,14 +69,13 @@ func (gac *GoogleAnalyticsConfig) emptyFieldError(fieldName string) error {
 }
 
 type GoogleAnalytics struct {
-	ctx     context.Context
-	config  *GoogleAnalyticsConfig
-	service *ga.Service
-
-	collection string
+	ctx        context.Context
+	config     *GoogleAnalyticsConfig
+	service    *ga.Service
+	collection *Collection
 }
 
-func NewGoogleAnalytics(ctx context.Context, config *GoogleAnalyticsConfig, collection string) (*GoogleAnalytics, error) {
+func NewGoogleAnalytics(ctx context.Context, config *GoogleAnalyticsConfig, collection *Collection) (*GoogleAnalytics, error) {
 	credentialsJSON, err := config.AuthConfig.resolveAuth()
 	if err != nil {
 		return nil, err
@@ -110,7 +109,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 			EndDate: interval.UpperEndpoint().Format(dayLayout)},
 	}
 
-	if g.collection == reportsCollection {
+	if g.collection.Name == reportsCollection {
 		return g.loadReport(g.config.ViewId, dateRanges, g.config.ReportFields.Dimensions, g.config.ReportFields.Metrics)
 	} else {
 		return nil, fmt.Errorf("Unknown collection %s: only 'report' and 'users_activity' are supported", g.collection)
