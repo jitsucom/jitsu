@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
+	"github.com/jitsucom/eventnative/typing"
 )
 
 //Store files to Postgres in two modes:
@@ -21,11 +24,13 @@ type Postgres struct {
 	schemaProcessor *schema.Processor
 	streamingWorker *StreamingWorker
 	fallbackLogger  *events.AsyncLogger
+	eventsCache     *caching.EventsCache
 	breakOnError    bool
 }
 
 func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor, eventQueue *events.PersistentQueue,
-	storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger, queryLogger *logging.QueryLogger) (*Postgres, error) {
+	storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger,
+	queryLogger *logging.QueryLogger, eventsCache *caching.EventsCache) (*Postgres, error) {
 
 	adapter, err := adapters.NewPostgres(ctx, config, queryLogger)
 	if err != nil {
@@ -47,11 +52,12 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 		tableHelper:     tableHelper,
 		schemaProcessor: processor,
 		fallbackLogger:  fallbackLoggerFactoryMethod(),
+		eventsCache:     eventsCache,
 		breakOnError:    breakOnError,
 	}
 
 	if streamMode {
-		p.streamingWorker = newStreamingWorker(eventQueue, processor, p)
+		p.streamingWorker = newStreamingWorker(eventQueue, processor, p, eventsCache)
 		p.streamingWorker.start()
 	}
 
@@ -77,6 +83,10 @@ func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, parseFunc
 	//send failed events to fallback only if other events have been inserted ok
 	if err == nil {
 		p.Fallback(failedEvents...)
+		counters.ErrorEvents(p.Name(), len(failedEvents))
+		for _, failedFact := range failedEvents {
+			p.eventsCache.Error(p.Name(), failedFact.EventId, failedFact.Error)
+		}
 	}
 
 	return rowsCount, err
@@ -115,11 +125,27 @@ func (p *Postgres) Insert(dataSchema *schema.Table, fact events.Fact) (err error
 	return p.adapter.Insert(dataSchema, fact)
 }
 
-func (p *Postgres) store(flatData map[string]*schema.ProcessedFile) (int, error) {
-	var rowsCount int
+func (p *Postgres) ColumnTypesMapping() map[typing.DataType]string {
+	return adapters.SchemaToPostgres
+}
+
+func (p *Postgres) store(flatData map[string]*schema.ProcessedFile) (rowsCount int, err error) {
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
+
+	//events cache
+	defer func() {
+		for _, fdata := range flatData {
+			for _, object := range fdata.GetPayload() {
+				if err != nil {
+					p.eventsCache.Error(p.Name(), events.ExtractEventId(object), err.Error())
+				} else {
+					p.eventsCache.Succeed(p.Name(), events.ExtractEventId(object), object, fdata.DataSchema, p.ColumnTypesMapping())
+				}
+			}
+		}
+	}()
 
 	//process db tables & schema
 	for _, fdata := range flatData {

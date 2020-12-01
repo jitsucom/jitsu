@@ -35,14 +35,14 @@ func TestApiPreprocess(t *testing.T) {
 		{
 			"Empty input object",
 			Fact{},
-			Fact{"eventn_ctx": map[string]interface{}{"event_id": "mockeduuid"}, "src": "api"},
+			Fact{"src": "api"},
 			"",
 		},
 		{
 			"Process ok without device ctx and with eventn_ctx",
 			Fact{
 				"source_ip":    "10.10.10.10",
-				"eventn_ctx":   map[string]interface{}{"key1": "key2"},
+				"eventn_ctx":   map[string]interface{}{"key1": "key2", "event_id": "mockeduuid"},
 				"event_origin": "api_test",
 				"src":          "123",
 				"event_data":   map[string]interface{}{"key1": "key2"},
@@ -70,9 +70,6 @@ func TestApiPreprocess(t *testing.T) {
 				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
 				"device_ctx":   map[string]interface{}{"ip": "10.10.10.10"}},
 			Fact{
-				"eventn_ctx": map[string]interface{}{
-					"event_id": "mockeduuid",
-				},
 				"device_ctx": map[string]interface{}{
 					"ip": "10.10.10.10",
 				},
@@ -97,8 +94,7 @@ func TestApiPreprocess(t *testing.T) {
 				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
 				"device_ctx":   map[string]interface{}{"ip": "20.20.20.20"}},
 			Fact{
-				"eventn_ctx":          "somevalue",
-				"eventn_ctx_event_id": "mockeduuid",
+				"eventn_ctx": "somevalue",
 				"device_ctx": map[string]interface{}{
 					"ip": "20.20.20.20",
 				},
@@ -122,7 +118,7 @@ func TestApiPreprocess(t *testing.T) {
 				"page_ctx":     map[string]interface{}{"referer": "www.site.com"},
 				"device_ctx":   map[string]interface{}{"ip": "20.20.20.20", "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36"}},
 			Fact{
-				"eventn_ctx": map[string]interface{}{"event_id": "mockeduuid", "location": geoDataMock, "parsed_ua": useragent.MockData},
+				"eventn_ctx": map[string]interface{}{"location": geoDataMock, "parsed_ua": useragent.MockData},
 				"device_ctx": map[string]interface{}{
 					"ip":         "20.20.20.20",
 					"user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.198 Safari/537.36",
@@ -177,12 +173,11 @@ func TestApiPreprocess(t *testing.T) {
 				"keys":      map[string]interface{}{"key1": "key2"},
 				"weather":   map[string]interface{}{"id": "123", "type": "good"}},
 			Fact{
-				"eventn_ctx": map[string]interface{}{"event_id": "mockeduuid"},
-				"billing":    []string{"1", "2"},
-				"keys":       map[string]interface{}{"key1": "key2"},
-				"weather":    map[string]interface{}{"id": "123", "type": "good"},
-				"src":        "api",
-				"source_ip":  "10.10.10.10",
+				"billing":   []string{"1", "2"},
+				"keys":      map[string]interface{}{"key1": "key2"},
+				"weather":   map[string]interface{}{"id": "123", "type": "good"},
+				"src":       "api",
+				"source_ip": "10.10.10.10",
 			},
 			"",
 		},

@@ -4,10 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
+	"github.com/jitsucom/eventnative/typing"
 )
 
 //Store files to aws s3 in batch mode
@@ -16,10 +19,12 @@ type S3 struct {
 	s3Adapter       *adapters.S3
 	schemaProcessor *schema.Processor
 	fallbackLogger  *events.AsyncLogger
+	eventsCache     *caching.EventsCache
 	breakOnError    bool
 }
 
-func NewS3(name string, s3Config *adapters.S3Config, processor *schema.Processor, breakOnError bool, fallbackLoggerFactoryMethod func() *events.AsyncLogger) (*S3, error) {
+func NewS3(name string, s3Config *adapters.S3Config, processor *schema.Processor, breakOnError bool, fallbackLoggerFactoryMethod func() *events.AsyncLogger,
+	eventsCache *caching.EventsCache) (*S3, error) {
 	s3Adapter, err := adapters.NewS3(s3Config)
 	if err != nil {
 		return nil, err
@@ -30,6 +35,7 @@ func NewS3(name string, s3Config *adapters.S3Config, processor *schema.Processor
 		s3Adapter:       s3Adapter,
 		schemaProcessor: processor,
 		fallbackLogger:  fallbackLoggerFactoryMethod(),
+		eventsCache:     eventsCache,
 		breakOnError:    breakOnError,
 	}
 
@@ -59,6 +65,19 @@ func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, parseFunc func
 		rowsCount += fdata.GetPayloadLen()
 	}
 
+	//events cache
+	defer func() {
+		for _, fdata := range flatData {
+			for _, object := range fdata.GetPayload() {
+				if err != nil {
+					s3.eventsCache.Error(s3.Name(), events.ExtractEventId(object), err.Error())
+				} else {
+					s3.eventsCache.Succeed(s3.Name(), events.ExtractEventId(object), object, fdata.DataSchema, s3.ColumnTypesMapping())
+				}
+			}
+		}
+	}()
+
 	for _, fdata := range flatData {
 		b, rows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
 		err := s3.s3Adapter.UploadBytes(buildDataIntoFileName(fdata, rows), b)
@@ -69,6 +88,10 @@ func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, parseFunc func
 
 	//send failed events to fallback only if other events have been inserted ok
 	s3.Fallback(failedEvents...)
+	counters.ErrorEvents(s3.Name(), len(failedEvents))
+	for _, failedFact := range failedEvents {
+		s3.eventsCache.Error(s3.Name(), failedFact.EventId, failedFact.Error)
+	}
 
 	return rowsCount, nil
 }
@@ -82,6 +105,10 @@ func (s3 *S3) Fallback(failedFacts ...*events.FailedFact) {
 
 func (s3 *S3) SyncStore(objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("S3 doesn't support sync store")
+}
+
+func (s3 *S3) ColumnTypesMapping() map[typing.DataType]string {
+	return map[typing.DataType]string{}
 }
 
 func (s3 *S3) Name() string {

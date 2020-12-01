@@ -3,7 +3,9 @@ package integration_tests
 import (
 	"context"
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/storages"
@@ -33,8 +35,9 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	fallBackLoggerFactoryMethod := func() *events.AsyncLogger {
 		return nil
 	}
-	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true,
-		false, monitor, fallBackLoggerFactoryMethod, &logging.QueryLogger{})
+
+	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
+	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true, false, monitor, fallBackLoggerFactoryMethod, &logging.QueryLogger{}, eventsCache)
 	if err != nil {
 		require.Fail(t, "failed to initialize", err)
 	}

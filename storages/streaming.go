@@ -1,6 +1,8 @@
 package storages
 
 import (
+	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/metrics"
@@ -20,15 +22,18 @@ type StreamingWorker struct {
 	eventQueue       *events.PersistentQueue
 	schemaProcessor  *schema.Processor
 	streamingStorage StreamingStorage
+	eventsCache      *caching.EventsCache
 
 	closed bool
 }
 
-func newStreamingWorker(eventQueue *events.PersistentQueue, schemaProcessor *schema.Processor, streamingStorage StreamingStorage) *StreamingWorker {
+func newStreamingWorker(eventQueue *events.PersistentQueue, schemaProcessor *schema.Processor, streamingStorage StreamingStorage,
+	eventsCache *caching.EventsCache) *StreamingWorker {
 	return &StreamingWorker{
 		eventQueue:       eventQueue,
 		schemaProcessor:  schemaProcessor,
 		streamingStorage: streamingStorage,
+		eventsCache:      eventsCache,
 	}
 }
 
@@ -47,7 +52,7 @@ func (sw *StreamingWorker) start() {
 				if err == events.ErrQueueClosed && sw.closed {
 					continue
 				}
-				logging.Errorf("[%s] Error reading event fact from queue: %v", sw.streamingStorage.Name(), err)
+				logging.SystemErrorf("[%s] Error reading event fact from queue: %v", sw.streamingStorage.Name(), err)
 				continue
 			}
 
@@ -57,15 +62,21 @@ func (sw *StreamingWorker) start() {
 				continue
 			}
 
+			serialized := fact.Serialize()
+
 			dataSchema, flattenObject, err := sw.schemaProcessor.ProcessFact(fact)
 			if err != nil {
-				serialized := fact.Serialize()
 				logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.Name(), serialized, err)
 				metrics.ErrorTokenEvent(tokenId, sw.streamingStorage.Name())
+				counters.ErrorEvents(sw.streamingStorage.Name(), 1)
+				//cache
+				sw.eventsCache.Error(sw.streamingStorage.Name(), events.ExtractEventId(fact), err.Error())
 				sw.streamingStorage.Fallback(&events.FailedFact{
-					Event: []byte(serialized),
-					Error: err.Error(),
+					Event:   []byte(serialized),
+					Error:   err.Error(),
+					EventId: events.ExtractEventId(fact),
 				})
+
 				continue
 			}
 
@@ -82,13 +93,25 @@ func (sw *StreamingWorker) start() {
 					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenId)
 				} else {
 					sw.streamingStorage.Fallback(&events.FailedFact{
-						Event: []byte(fact.Serialize()),
-						Error: err.Error(),
+						Event:   []byte(serialized),
+						Error:   err.Error(),
+						EventId: events.ExtractEventId(flattenObject),
 					})
 				}
+
+				counters.ErrorEvents(sw.streamingStorage.Name(), 1)
+				//cache
+				sw.eventsCache.Error(sw.streamingStorage.Name(), events.ExtractEventId(fact), err.Error())
+
 				metrics.ErrorTokenEvent(tokenId, sw.streamingStorage.Name())
 				continue
 			}
+
+			counters.SuccessEvents(sw.streamingStorage.Name(), 1)
+
+			//cache
+			sw.eventsCache.Succeed(sw.streamingStorage.Name(), events.ExtractEventId(fact), flattenObject, dataSchema, sw.streamingStorage.ColumnTypesMapping())
+
 			metrics.SuccessTokenEvent(tokenId, sw.streamingStorage.Name())
 		}
 	})

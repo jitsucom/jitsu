@@ -49,14 +49,14 @@ const (
 )
 
 var (
-	schemaToPostgres = map[typing.DataType]string{
+	SchemaToPostgres = map[typing.DataType]string{
 		typing.STRING:    "character varying(8192)",
 		typing.INT64:     "bigint",
 		typing.FLOAT64:   "numeric(38,18)",
 		typing.TIMESTAMP: "timestamp",
 	}
 
-	postgresToSchema = map[string]typing.DataType{
+	PostgresToSchema = map[string]typing.DataType{
 		"character varying(512)":      typing.STRING,
 		"character varying(8192)":     typing.STRING,
 		"bigint":                      typing.INT64,
@@ -184,7 +184,7 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 		if err := rows.Scan(&columnName, &columnPostgresType); err != nil {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
-		mappedType, ok := postgresToSchema[strings.ToLower(columnPostgresType)]
+		mappedType, ok := PostgresToSchema[strings.ToLower(columnPostgresType)]
 		if !ok {
 			if columnPostgresType == "-" {
 				//skip dropped postgres field
@@ -229,10 +229,10 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema *schema.Table) error {
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := schemaToPostgres[column.GetType()]
+		mappedType, ok := SchemaToPostgres[column.GetType()]
 		if !ok {
 			logging.Error("Unknown postgres schema type:", column.GetType())
-			mappedType = schemaToPostgres[typing.STRING]
+			mappedType = SchemaToPostgres[typing.STRING]
 		}
 		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, columnName, mappedType))
 	}
@@ -258,10 +258,10 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema 
 
 func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSchema *schema.Table) error {
 	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := schemaToPostgres[column.GetType()]
+		mappedColumnType, ok := SchemaToPostgres[column.GetType()]
 		if !ok {
 			logging.Error("Unknown postgres schema type:", column.GetType().String())
-			mappedColumnType = schemaToPostgres[typing.STRING]
+			mappedColumnType = SchemaToPostgres[typing.STRING]
 		}
 		query := fmt.Sprintf(addColumnTemplate, p.config.Schema, patchSchema.Name, columnName, mappedColumnType)
 		p.queryLogger.Log(query)
