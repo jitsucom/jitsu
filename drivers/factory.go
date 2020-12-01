@@ -11,6 +11,12 @@ import (
 
 var unknownSource = errors.New("Unknown source type")
 
+const (
+	collectionNameField       = "name"
+	collectionTableNameField  = "table_name"
+	collectionParametersField = "parameters"
+)
+
 type SourceConfig struct {
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
@@ -33,20 +39,22 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 	}
 
 	var collections []*Collection
-	for _, collectionConfig := range sourceConfig.Collections {
-		collectionName, ok := collectionConfig.(string)
-		if ok {
-			collections = append(collections, &Collection{Name: collectionName})
-		} else {
-			collectionConfigMap := cast.ToStringMap(collectionConfig)
-			collectionName := getStringParameter(collectionConfigMap, "name")
+	for _, collection := range sourceConfig.Collections {
+		switch collection.(type) {
+		case string:
+			collections = append(collections, &Collection{Name: collection.(string)})
+		case map[interface{}]interface{}:
+			collectionConfigMap := cast.ToStringMap(collection)
+			collectionName := getStringParameter(collectionConfigMap, collectionNameField)
 			if collectionName == "" {
-				return nil, fmt.Errorf("failed to parse source collections as array of string or collections structure")
+				return nil, fmt.Errorf("[name] field of collection is not configured")
 			}
 			collection := Collection{Name: collectionName,
-				TableName:  getStringParameter(collectionConfigMap, "table_name"),
-				Parameters: cast.ToStringMap(collectionConfigMap["parameters"])}
+				TableName:  getStringParameter(collectionConfigMap, collectionTableNameField),
+				Parameters: cast.ToStringMap(collectionConfigMap[collectionParametersField])}
 			collections = append(collections, &collection)
+		default:
+			return nil, fmt.Errorf("failed to parse source collections as array of string or collections structure")
 		}
 	}
 
