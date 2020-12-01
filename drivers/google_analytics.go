@@ -2,7 +2,6 @@ package drivers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
@@ -28,30 +27,11 @@ type ReportFieldsConfig struct {
 	Metrics    []string `mapstructure:"metrics" json:"metrics,omitempty" yaml:"metrics,omitempty"`
 }
 
-type GoogleAuthConfig struct {
-	ClientId     string                 `mapstructure:"client_id" json:"client_id,omitempty" yaml:"client_id,omitempty"`
-	ClientSecret string                 `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
-	RefreshToken string                 `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
-	AccountKey   map[string]interface{} `mapstructure:"account_key" json:"account_key,omitempty" yaml:"account_key,omitempty"`
-}
-
-type GoogleAuthorizedUserJSON struct {
-	ClientId     string `mapstructure:"client_id" json:"client_id,omitempty" yaml:"client_id,omitempty"`
-	ClientSecret string `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
-	RefreshToken string `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
-	AuthType     string `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-}
-
-func (gac *GoogleAuthConfig) ToGoogleAuthJSON() GoogleAuthorizedUserJSON {
-	return GoogleAuthorizedUserJSON{ClientId: gac.ClientId, ClientSecret: gac.ClientSecret,
-		RefreshToken: gac.RefreshToken, AuthType: "authorized_user"}
-}
-
 func (gac *GoogleAnalyticsConfig) Validate() error {
 	if gac.ViewId == "" {
 		return fmt.Errorf("view_id field must not be empty")
 	}
-	if gac.AuthConfig.AccountKey == nil {
+	if gac.AuthConfig.ServiceAccountKey == nil {
 		if gac.AuthConfig.ClientId == "" {
 			return gac.authorizationConfigurationError()
 		}
@@ -66,8 +46,8 @@ func (gac *GoogleAnalyticsConfig) Validate() error {
 }
 
 func (gac *GoogleAnalyticsConfig) authorizationConfigurationError() error {
-	return fmt.Errorf("authorization is not configured. You need to configure [account_key] field or " +
-		"[client_id, client_secret, refresh_token] set of fields]")
+	return fmt.Errorf("authorization is not configured. You need to configure [service_account_key] field or " +
+		"[client_id, client_secret, refresh_token] set of fields")
 }
 
 type GoogleAnalytics struct {
@@ -87,21 +67,13 @@ func NewGoogleAnalytics(ctx context.Context, config *GoogleAnalyticsConfig, coll
 	if len(reportFieldsConfig.Metrics) == 0 || len(reportFieldsConfig.Dimensions) == 0 {
 		return nil, errors.New("metrics and dimensions must not be empty")
 	}
-	credentialsJSON, err := config.AuthConfig.resolveAuth()
+	credentialsJSON, err := config.AuthConfig.Marshal()
 	if err != nil {
 		return nil, err
 	}
 	service, err := ga.NewService(ctx, option.WithCredentialsJSON(credentialsJSON))
 	return &GoogleAnalytics{ctx: ctx, config: config, collection: collection, service: service,
 		reportFieldsConfig: &reportFieldsConfig}, nil
-}
-
-func (gac *GoogleAuthConfig) resolveAuth() ([]byte, error) {
-	if gac.AccountKey != nil {
-		return json.Marshal(gac.AccountKey)
-	} else {
-		return json.Marshal(gac.ToGoogleAuthJSON())
-	}
 }
 
 func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*TimeInterval, error) {
