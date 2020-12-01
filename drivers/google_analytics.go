@@ -31,18 +31,7 @@ func (gac *GoogleAnalyticsConfig) Validate() error {
 	if gac.ViewId == "" {
 		return fmt.Errorf("view_id field must not be empty")
 	}
-	if gac.AuthConfig.ServiceAccountKey == nil {
-		if gac.AuthConfig.ClientId == "" {
-			return gac.authorizationConfigurationError()
-		}
-		if gac.AuthConfig.ClientSecret == "" {
-			return gac.authorizationConfigurationError()
-		}
-		if gac.AuthConfig.RefreshToken == "" {
-			return gac.authorizationConfigurationError()
-		}
-	}
-	return nil
+	return gac.AuthConfig.Validate()
 }
 
 func (gac *GoogleAnalyticsConfig) authorizationConfigurationError() error {
