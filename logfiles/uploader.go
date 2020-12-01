@@ -2,6 +2,7 @@ package logfiles
 
 import (
 	"github.com/jitsucom/eventnative/appstatus"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/metrics"
@@ -100,8 +101,10 @@ func (u *PeriodicUploader) Start() {
 							deleteFile = false
 							logging.Errorf("[%s] Error storing file %s in destination: %v", storage.Name(), filePath, err)
 							metrics.ErrorTokenEvents(tokenId, storage.Name(), rowsCount)
+							counters.ErrorEvents(storage.Name(), rowsCount)
 						} else {
 							metrics.SuccessTokenEvents(tokenId, storage.Name(), rowsCount)
+							counters.SuccessEvents(storage.Name(), rowsCount)
 						}
 						u.statusManager.UpdateStatus(fileName, storage.Name(), err)
 					}

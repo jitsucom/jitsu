@@ -1,0 +1,18 @@
+{
+  "name": "@ksense/eventnative",
+  "main": "dist/eventnative.cjs.js",
+  "module": "dist/eventnative.esm.js",
+  "version": "1.0.13",
+  "devDependencies": {
+    "rollup": "^1.0.0"
+  },
+  "dependencies": {
+    "@jitsu/eventnative": "1.1.0"
+  },
+  "scripts": {
+    "build": "rollup -c"
+  },
+  "files": [
+    "dist/*"
+  ]
+}

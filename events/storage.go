@@ -1,6 +1,7 @@
 package events
 
 import (
+	"github.com/jitsucom/eventnative/typing"
 	"io"
 )
 
@@ -10,6 +11,7 @@ type Storage interface {
 	StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error)
 	SyncStore([]map[string]interface{}) (int, error)
 	Fallback(fact ...*FailedFact)
+	ColumnTypesMapping() map[typing.DataType]string
 	Name() string
 	Type() string
 }

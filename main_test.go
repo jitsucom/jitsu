@@ -5,10 +5,12 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin/binding"
+	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/fallback"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/middleware"
 	"github.com/jitsucom/eventnative/sources"
 	"github.com/jitsucom/eventnative/storages"
@@ -171,11 +173,10 @@ func TestCors(t *testing.T) {
 			defer appconfig.Instance.Close()
 
 			inmemWriter := logging.InitInMemoryWriter()
-			router := SetupRouter(destinations.NewTestService(
-				map[string]map[string]events.Consumer{
-					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
-				}, map[string]map[string]events.StorageProxy{}), "", synchronization.NewInMemoryService([]string{}),
-				events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
+			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)}},
+				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
+			router := SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
+				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -297,11 +298,10 @@ func TestApiEvent(t *testing.T) {
 			defer appconfig.Instance.Close()
 
 			inmemWriter := logging.InitInMemoryWriter()
-			router := SetupRouter(destinations.NewTestService(
-				map[string]map[string]events.Consumer{
-					"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)},
-				}, map[string]map[string]events.StorageProxy{}), "", synchronization.NewInMemoryService([]string{}),
-				events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
+			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)}},
+				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
+			router := SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
+				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -434,11 +434,12 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 	monitor := synchronization.NewInMemoryService([]string{})
-	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5, monitor, nil, storages.Create)
+	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
+	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5, monitor, nil, eventsCache, storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
 
-	router := SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
+	router := SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 	server := &http.Server{
 		Addr:              httpAuthority,
@@ -530,10 +531,12 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 	err = appconfig.Init()
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
-	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5, synchronization.NewInMemoryService([]string{}), nil, storages.Create)
+	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
+	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5,
+		synchronization.NewInMemoryService([]string{}), nil, eventsCache, storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
-	router := SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
+	router := SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
 
 	server := &http.Server{
 		Addr:              httpAuthority,

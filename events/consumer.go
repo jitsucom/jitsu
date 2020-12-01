@@ -4,14 +4,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/maputils"
 	"io"
 )
 
 type Fact map[string]interface{}
 
 type FailedFact struct {
-	Event json.RawMessage `json:"event,omitempty"`
-	Error string          `json:"error,omitempty"`
+	Event   json.RawMessage `json:"event,omitempty"`
+	Error   string          `json:"error,omitempty"`
+	EventId string          `json:"event_id,omitempty"`
 }
 
 type Consumer interface {
@@ -27,4 +29,8 @@ func (f Fact) Serialize() string {
 	}
 
 	return string(b)
+}
+
+func (f Fact) Clone() Fact {
+	return maputils.CopyMap(f)
 }

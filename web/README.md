@@ -12,7 +12,7 @@ EventNative is an open source, high-performance event collection service. Read m
 **Full version of JavaScript integration can be found [here](https://docs.eventnative.org/sending-data/javascript-reference). A simplified version is presented below**
 
 ```javascript 
-import eventN from '@ksense/eventnative';
+import eventN from '@jitsu/eventnative';
 
 // initialization
 eventN.init({
