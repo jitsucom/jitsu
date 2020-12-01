@@ -76,19 +76,18 @@ func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface
 }
 
 func (f *Firebase) loadCollection(firestoreCollectionName string) ([]map[string]interface{}, error) {
-	collectionData := f.firestoreClient.Collection(firestoreCollectionName)
-	documents, err := collectionData.DocumentRefs(f.ctx).GetAll()
-	if err != nil {
-		return nil, err
-	}
 	var documentJsons []map[string]interface{}
-	for _, document := range documents {
-		snapshot, err := document.Get(f.ctx)
-		if err != nil {
-			return nil, err
+	iter := f.firestoreClient.Collection(firestoreCollectionName).Documents(f.ctx)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
 		}
-		data := snapshot.Data()
-		data["_firestore_document_id"] = document.ID
+		if err != nil {
+			return nil, fmt.Errorf("failed to get API keys from firestore: %v", err)
+		}
+		data := doc.Data()
+		data["_firestore_document_id"] = doc.Ref.ID
 		documentJsons = append(documentJsons, data)
 	}
 	return documentJsons, nil
