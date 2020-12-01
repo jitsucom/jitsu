@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+var accountKeyConfigurationError = errors.New("service_account_key must be map, JSON file path or JSON content string")
+
 const (
 	GooglePlayType      = "google_play"
 	FirebaseType        = "firebase"
@@ -28,14 +30,14 @@ func (gac *GoogleAuthConfig) Marshal() ([]byte, error) {
 		case string:
 			accountKeyFile := gac.ServiceAccountKey.(string)
 			if accountKeyFile == "" {
-				return nil, errors.New("GooglePlay key file is required parameter")
+				return nil, accountKeyConfigurationError
 			} else if strings.HasPrefix(accountKeyFile, "{") {
 				return []byte(accountKeyFile), nil
 			} else {
 				return ioutil.ReadFile(accountKeyFile)
 			}
 		default:
-			return nil, errors.New("GooglePlay account key must be map, JSON file path or JSON content string")
+			return nil, accountKeyConfigurationError
 		}
 	} else {
 		return json.Marshal(gac.ToGoogleAuthJSON())
