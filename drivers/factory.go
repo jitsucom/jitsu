@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/spf13/cast"
 )
 
 var unknownSource = errors.New("Unknown source type")
@@ -32,16 +33,20 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 	}
 
 	var collections []*Collection
-	for _, collection := range sourceConfig.Collections {
-		c, ok := collection.(Collection)
+	for _, collectionConfig := range sourceConfig.Collections {
+		collectionName, ok := collectionConfig.(string)
 		if ok {
-			collections = append(collections, &c)
+			collections = append(collections, &Collection{Name: collectionName})
 		} else {
-			collectionName, ok := collection.(string)
-			if !ok {
+			collectionConfigMap := cast.ToStringMap(collectionConfig)
+			collectionName := getStringParameter(collectionConfigMap, "name")
+			if collectionName == "" {
 				return nil, fmt.Errorf("failed to parse source collections as array of string or collections structure")
 			}
-			collections = append(collections, &Collection{Name: collectionName})
+			collection := Collection{Name: collectionName,
+				TableName:  getStringParameter(collectionConfigMap, "table_name"),
+				Parameters: cast.ToStringMap(collectionConfigMap["parameters"])}
+			collections = append(collections, &collection)
 		}
 	}
 
@@ -111,6 +116,14 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 	default:
 		return nil, unknownSource
 	}
+}
+
+func getStringParameter(dict map[string]interface{}, parameterName string) string {
+	value, ok := dict[parameterName]
+	if !ok {
+		return ""
+	}
+	return value.(string)
 }
 
 func unmarshalConfig(config map[string]interface{}, object interface{}) error {

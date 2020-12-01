@@ -3,6 +3,7 @@ package drivers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
 	ga "google.golang.org/api/analyticsreporting/v4"
@@ -12,16 +13,14 @@ import (
 )
 
 const (
-	dayLayout               = "2006-01-02"
-	reportsCollection       = "report"
-	usersActivityCollection = "users_activity"
-	gaFieldsPrefix          = "ga:"
+	dayLayout         = "2006-01-02"
+	reportsCollection = "report"
+	gaFieldsPrefix    = "ga:"
 )
 
 type GoogleAnalyticsConfig struct {
-	AuthConfig   *GoogleAuthConfig   `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
-	ViewId       string              `mapstructure:"view_id" json:"view_id,omitempty" yaml:"view_id,omitempty"`
-	ReportFields *ReportFieldsConfig `mapstructure:"report_fields" json:"report_fields,omitempty" yaml:"report_fields,omitempty"`
+	AuthConfig *GoogleAuthConfig `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
+	ViewId     string            `mapstructure:"view_id" json:"view_id,omitempty" yaml:"view_id,omitempty"`
 }
 
 type ReportFieldsConfig struct {
@@ -50,38 +49,51 @@ func (gac *GoogleAuthConfig) ToGoogleAuthJSON() GoogleAuthorizedUserJSON {
 
 func (gac *GoogleAnalyticsConfig) Validate() error {
 	if gac.ViewId == "" {
-		return gac.emptyFieldError("view_id")
+		return fmt.Errorf("view_id field must not be empty")
 	}
-	//if gac.AuthConfig.ClientId == "" {
-	//	return gac.emptyFieldError("auth.client_id")
-	//}
-	//if gac.AuthConfig.ClientSecret == "" {
-	//	return gac.emptyFieldError("auth.client_secret")
-	//}
-	//if gac.AuthConfig.RefreshToken == "" {
-	//	return gac.emptyFieldError("auth.refresh_token")
-	//}
+	if gac.AuthConfig.AccountKey == nil {
+		if gac.AuthConfig.ClientId == "" {
+			return gac.authorizationConfigurationError()
+		}
+		if gac.AuthConfig.ClientSecret == "" {
+			return gac.authorizationConfigurationError()
+		}
+		if gac.AuthConfig.RefreshToken == "" {
+			return gac.authorizationConfigurationError()
+		}
+	}
 	return nil
 }
 
-func (gac *GoogleAnalyticsConfig) emptyFieldError(fieldName string) error {
-	return fmt.Errorf("%s must not be empty", fieldName)
+func (gac *GoogleAnalyticsConfig) authorizationConfigurationError() error {
+	return fmt.Errorf("authorization is not configured. You need to configure [account_key] field or " +
+		"[client_id, client_secret, refresh_token] set of fields]")
 }
 
 type GoogleAnalytics struct {
-	ctx        context.Context
-	config     *GoogleAnalyticsConfig
-	service    *ga.Service
-	collection *Collection
+	ctx                context.Context
+	config             *GoogleAnalyticsConfig
+	service            *ga.Service
+	collection         *Collection
+	reportFieldsConfig *ReportFieldsConfig
 }
 
 func NewGoogleAnalytics(ctx context.Context, config *GoogleAnalyticsConfig, collection *Collection) (*GoogleAnalytics, error) {
+	var reportFieldsConfig ReportFieldsConfig
+	err := unmarshalConfig(collection.Parameters, &reportFieldsConfig)
+	if err != nil {
+		return nil, err
+	}
+	if len(reportFieldsConfig.Metrics) == 0 || len(reportFieldsConfig.Dimensions) == 0 {
+		return nil, errors.New("metrics and dimensions must not be empty")
+	}
 	credentialsJSON, err := config.AuthConfig.resolveAuth()
 	if err != nil {
 		return nil, err
 	}
 	service, err := ga.NewService(ctx, option.WithCredentialsJSON(credentialsJSON))
-	return &GoogleAnalytics{ctx: ctx, config: config, collection: collection, service: service}, nil
+	return &GoogleAnalytics{ctx: ctx, config: config, collection: collection, service: service,
+		reportFieldsConfig: &reportFieldsConfig}, nil
 }
 
 func (gac *GoogleAuthConfig) resolveAuth() ([]byte, error) {
@@ -110,7 +122,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 	}
 
 	if g.collection.Name == reportsCollection {
-		return g.loadReport(g.config.ViewId, dateRanges, g.config.ReportFields.Dimensions, g.config.ReportFields.Metrics)
+		return g.loadReport(g.config.ViewId, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
 	} else {
 		return nil, fmt.Errorf("Unknown collection %s: only 'report' and 'users_activity' are supported", g.collection)
 	}
