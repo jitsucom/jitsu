@@ -148,7 +148,7 @@ After all mappings are applied, JSON is flattened
 
 If some fields has not been casted explicitly, casting is done based on JSON node type:
  * **string** is casted to TEXT
- * **number** is casted to DOUBLE PRECISION
+ * **double** is casted to DOUBLE PRECISION
  * **integer** is casted to BIGINT
  * **boolean** is casted to BOOLEAN
  * **array** is casted to JSON
