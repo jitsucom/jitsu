@@ -190,7 +190,7 @@ func TestIsConvertible(t *testing.T) {
 			"string->int64",
 			STRING,
 			INT64,
-			false,
+			true,
 		},
 		{
 			"string->float64",
