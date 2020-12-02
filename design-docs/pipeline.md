@@ -119,28 +119,13 @@ mapping:
       dst: /dst/field/path # could be just_field_name, without leading. Before inserting all / (except
       # first one) will be replaced wth '_'
       action: move | remove | cast #  
-      type: Lowcardinality(String) # for cast - SQL type (depend on destination)
+      type: Lowcardinality(String) # for 'move' (optional) and 'cast' (required) actions - SQL type (depend on destination)
 ```
 Following field actions are supported:
 
 * **move** — move JSON subtree to another node. 
 * **remove** - remove JSON subtree (dst param is not needed)
 * **cast** – assign an explicit type to a node (dst param is not needed)
-
-Actions can be chained: 
-
-```yaml
-  fields:
-    - src: /src
-      dst: /dst
-      # first one) will be replaced wth '_'
-      action: move  
-      type: Lowcardinality(String) # for cast - SQL type (depend on destination)
-    - src: /dst
-      action: cast  
-      type: Lowcardinality(String) # for cast - SQL type (depend on destination)
-
-```
 
 After all mappings are applied, JSON is flattened
 
