@@ -9,7 +9,7 @@ completed.
 ### Collateral materials
 
 * Please, see a collateral design picture at `pipeline.fig` (designed in Figma) to understand
-the context. Whiteout the pictured the design doc might be incomprehensible.
+the context. Without the pictured the design doc might be incomprehensible.
 * Data structures can be found in `proto/pipeline.proto` files.
 
 ## Definitions
@@ -25,14 +25,14 @@ is an example of non-DB destination. It has structured records (events) and INSE
 EventNative's destination can operate in two modes:
  
  * **Stream** — data (events) is being sent to destination as soon as possible
- * **Batch** — data is being written to local disk and sent to destination in batches, ince in N (configurable)
+ * **Batch** — data is being written to local disk and sent to destination in batches, once in N (configurable)
  minutes
  
 ## Processing pipeline
 
 Once event is accepted by HTTP end-point it undergoes **ContextEnrichment** step. The logic is different for different
 sources of event. The purpose of this event is to add addition information to event which can be useful for further processing (see
-[detailed description of the step below](#LookupEnrichment-step) ).
+[detailed description of the step below](#ContextEnrichment-step) ).
  
 After JSON is enriched it goes to Batch or/and Stream pipeline depending on destination type. Partially
 multiplexing happens here. If destinations config contains destination of both types, event will be sent to both routes.
@@ -43,20 +43,20 @@ Batch and Stream pipelines are different, however they have same logical steps. 
 ## Batch processing
 
  * First, event is being written in `events/incoming` directory to current log file.
- * Log file are being rotated once in N (=5 by default) minutes and processed in a separate thread
- * Log file processing. Get all unprocessed logs (all files in `events/incoming` that not in process)
+ * Log files are being rotated once in N (=5 by default) minutes and processed in a separate thread
+ * Log files processing. Get all unprocessed logs (all files in `events/incoming` that not in process)
    * For every record: apply LookupEnrichment step
    * Multiplex records to destinations
-   * For each destinations: evaluate `table_name_template` expression to get a destination table name. If result 
-   is empty string or `nil`, skip this destination. If evaluation failed, event is written to `events/failed`
+   * For each destination: evaluate `table_name_template` expression to get a destination table name. If result 
+   is empty string, skip this destination. If evaluation failed, event is written to `events/failed`
    * For each destination/table pair:
       * Check status in status file of log (see DestinationStatus). If pair has been processed, ignore it
       * Apply LookupEnrichment step  
       * Apply MappingStep (get TypedRecord)
-      * Maintain up-to date BatchHeader in memory. If new field appears in TypedRecord, at it to BatchHeader
+      * Maintain up-to date BatchHeader in memory. If new field appears in TypedRecord, add it to BatchHeader
       * On type conflict: apply type promotion. If conflict types have common ancestor, change the type in BatchHeader to it. Otherwise, skip record
       and write it to `events/failed`
-      * Write TypedRecord to corresponding batch file (on local disk or cloud storage - depending on destination)
+      * Write TypedRecord to corresponding batch file (on local disk or cloud storage - depending on a destination)
    * Once batch file is prepared, proceed to **table patching**. For each destination/table pair:
       * Get table structure
       * Acquire destination lock (using distributed lock service)
@@ -65,16 +65,15 @@ Batch and Stream pipelines are different, however they have same logical steps. 
       * If column is present, but type is not the same (_ignore_ so far, run type promotion in next version)
       * If column is present in the table, but missing in BatchHeader - ignore
       * Release destination lock
-  * For each batch file: bulk insert it to destination. On success update log status file see (DestinationStatus) and 
-  And mark destination/table pair as OK (mark is as FAILED) otherwise. If all pairs are marked as OK, rotate log file
+  * For each batch file: bulk insert it to destination. On success update log status file see (DestinationStatus) and mark destination/table pair as OK (mark is as FAILED) otherwise. If all pairs are marked as OK, rotate log file
   to `events/archive`
       
 ## Stream processing
 
 * Apply mutliplexing, put each multiplexed event to destination queue. Queue items are persisted in
-`events/queue`.
+`events/queue.dst=${destination_id}` dir.
 * Separate thread processes each queue. For each event:
-  * Run `table_name_template expression`. If result is not null or empty construct empty BatchHeader. If evaluation failed, event is written to `events/failed`
+  * Run `table_name_template expression`. If result is empty skip this event otherwise construct BatchHeader. If evaluation failed, event is written to `events/failed`
   * Apply LookupEnrichment step to event  
   * Apply MappingStep (get TypedRecord)
   * Merge TypedRecord into BatchHeader (add field types)
@@ -92,6 +91,7 @@ Batch and Stream pipelines are different, however they have same logical steps. 
   
  * Get IP from where request came from
  * If request is processed by JavaScript endpoint - read user agent-header, content-type header and so on
+ * If request is processed by Server API - Add /src field
  * Add UTC timestamp (/_timestamp field)
  * etc
 
@@ -113,42 +113,27 @@ Mapping can configured with YML descriptor (see meaning of config parameters as 
 
 ```yaml
 mapping:
-  keep_unmapped: true # if fields that are not explicitely mapped should be kept or removed
+  keep_unmapped: true # if fields that are not explicitly mapped should be kept or removed
   fields:
     - src: /src/field/path # JSON path
       dst: /dst/field/path # could be just_field_name, without leading. Before inserting all / (except
       # first one) will be replaced wth '_'
       action: move | remove | cast #  
-      type: Lowcardinality(String) # for cast - SQL type (depend on destination)
+      type: Lowcardinality(String) # for 'move' (optional) and 'cast' (required) actions - SQL type (depend on destination)
 ```
 Following field actions are supported:
 
 * **move** — move JSON subtree to another node. 
-* **remove** - remove JSON subtree (dst param  is not needed)
+* **remove** - remove JSON subtree (dst param is not needed)
 * **cast** – assign an explicit type to a node (dst param is not needed)
-
-Actions can be chained: 
-
-```yaml
-  fields:
-    - src: /src
-      dst: /dst
-      # first one) will be replaced wth '_'
-      action: move  
-      type: Lowcardinality(String) # for cast - SQL type (depend on destination)
-    - src: /dst
-      action: cast  
-      type: Lowcardinality(String) # for cast - SQL type (depend on destination)
-
-```
 
 After all mappings are applied, JSON is flattened
 
 #### Implicit type cast
 
-If some fields has not been casted explicitely, casting is done based on JSON node type:
+If some fields has not been casted explicitly, casting is done based on JSON node type:
  * **string** is casted to TEXT
- * **number** is casted to DOUBLE PRECISION
+ * **double** is casted to DOUBLE PRECISION
  * **integer** is casted to BIGINT
  * **boolean** is casted to BOOLEAN
  * **array** is casted to JSON
@@ -184,9 +169,9 @@ is very similar to URL query string, but instead of `?` parameters are delimited
 | `events/incoming`    | Incoming events (batch mode only)  | Original JSON after ContextEnrichment step | `incoming.tok=${tok}\|id=${uid}.log` where {tok} is used API token id |
 | `events/incoming`<br>(status files)    |Status of each batch: to which destinations and tables data has been sent succesfully  | DestinationStatus JSON | `incoming.tok=${tok}\|id=${uid}.log.status` |
 | `events/archive`     | Events that has been already processed  | Original JSON after ContextEnrichment step | `yyyy-mm-dd/tok=${tok}\|${uid}.log` where {tok} is used API token id |
-| `events/batches`    | Batches files: collection of TypedRecord after multiplexing and before sending to destination. Only for some destinations which do batch load from local disk (for others same files will be kept on cloud storage). Each file is a function of (BatchHeader, TypedRecord[])  |Specific to destination, usually CSV | `batch.dest={destination_id}.table={table}.log` where {tok} is used API token id |
+| `events/batches`    | Batches files: collection of TypedRecord after multiplexing and before sending to destination. Only for some destinations which do batch load from local disk (for others same files will be kept on cloud storage). Each file is a function of (BatchHeader, TypedRecord[])  |Specific to destination, usually CSV or JSON| `batch.dst={destination_id}.table={table}.log` where {tok} is used API token id |
 | `events/failed`    | Events that haven't been saved to destination due to error   | Collection of EventError (see .proto file): original JSON (after ContextEnrichment step) wrapped with EventError structure | `batch.dst=${destination_id}.log`  |
-| `events/queue`    | Streaming mode only: persistence for event queue   | Binary  | `queue.dst=${destination_id}.log`  |
+| `events/queue.dst=${destination_id}`    | Streaming mode only: persistence for event queue   | Binary  | `${partition_number}.dque` and `lock.lock`  |
 
 ## Internal data structures
 
