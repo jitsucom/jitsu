@@ -27,6 +27,7 @@ type SourceConfig struct {
 
 type Collection struct {
 	Name       string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
+	Type       string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	TableName  string                 `mapstructure:"table_name" json:"table_name,omitempty" yaml:"table_name,omitempty"`
 	Parameters map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
 }
@@ -42,14 +43,18 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 	for _, collection := range sourceConfig.Collections {
 		switch collection.(type) {
 		case string:
-			collections = append(collections, &Collection{Name: collection.(string)})
+			collections = append(collections, &Collection{Name: collection.(string), Type: collection.(string)})
 		case map[interface{}]interface{}:
 			collectionConfigMap := cast.ToStringMap(collection)
 			collectionName := getStringParameter(collectionConfigMap, collectionNameField)
 			if collectionName == "" {
 				return nil, errors.New("[name] field of collection is not configured")
 			}
-			collection := Collection{Name: collectionName,
+			collectionType := getStringParameter(collectionConfigMap, "type")
+			if collectionType == "" {
+				collectionType = collectionName
+			}
+			collection := Collection{Name: collectionName, Type: collectionType,
 				TableName:  getStringParameter(collectionConfigMap, collectionTableNameField),
 				Parameters: cast.ToStringMap(collectionConfigMap[collectionParametersField])}
 			collections = append(collections, &collection)
