@@ -157,9 +157,9 @@ func (s *Service) Sync(sourceId string) (multiErr error) {
 	}
 
 	for collection, driver := range sourceUnit.DriverPerCollection {
-		identifier := sourceId + "_" + collection.Name
+		identifier := sourceId + "_" + collection
 
-		collectionLock, err := s.monitorKeeper.Lock(sourceId, collection.Name)
+		collectionLock, err := s.monitorKeeper.Lock(sourceId, collection)
 		if err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("Error locking [%s] source [%s] collection: %v", sourceId, collection, err))
 			continue
@@ -167,7 +167,7 @@ func (s *Service) Sync(sourceId string) (multiErr error) {
 
 		err = s.pool.Invoke(SyncTask{
 			sourceId:     sourceId,
-			collection:   collection.Name,
+			collection:   collection,
 			identifier:   identifier,
 			driver:       driver,
 			metaStorage:  s.metaStorage,
@@ -195,12 +195,12 @@ func (s *Service) GetStatus(sourceId string) (map[string]string, error) {
 
 	statuses := map[string]string{}
 	for collection, _ := range sourceUnit.DriverPerCollection {
-		status, err := s.metaStorage.GetCollectionStatus(sourceId, collection.Name)
+		status, err := s.metaStorage.GetCollectionStatus(sourceId, collection)
 		if err != nil {
 			return nil, fmt.Errorf("Error getting collection status: %v", err)
 		}
 
-		statuses[collection.Name] = status
+		statuses[collection] = status
 	}
 
 	return statuses, nil
@@ -218,12 +218,12 @@ func (s *Service) GetLogs(sourceId string) (map[string]string, error) {
 
 	logsMap := map[string]string{}
 	for collection, _ := range sourceUnit.DriverPerCollection {
-		log, err := s.metaStorage.GetCollectionLog(sourceId, collection.Name)
+		log, err := s.metaStorage.GetCollectionLog(sourceId, collection)
 		if err != nil {
 			return nil, fmt.Errorf("Error getting collection logs: %v", err)
 		}
 
-		logsMap[collection.Name] = log
+		logsMap[collection] = log
 	}
 
 	return logsMap, nil

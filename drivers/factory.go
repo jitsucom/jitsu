@@ -27,13 +27,14 @@ type SourceConfig struct {
 
 type Collection struct {
 	Name       string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
+	Type       string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	TableName  string                 `mapstructure:"table_name" json:"table_name,omitempty" yaml:"table_name,omitempty"`
 	Parameters map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
 }
 
 //Create source drivers per collection
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*Collection]Driver, error) {
+func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[string]Driver, error) {
 	if sourceConfig.Type == "" {
 		sourceConfig.Type = name
 	}
@@ -42,19 +43,23 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 	for _, collection := range sourceConfig.Collections {
 		switch collection.(type) {
 		case string:
-			collections = append(collections, &Collection{Name: collection.(string)})
+			collections = append(collections, &Collection{Name: collection.(string), Type: collection.(string)})
 		case map[interface{}]interface{}:
 			collectionConfigMap := cast.ToStringMap(collection)
 			collectionName := getStringParameter(collectionConfigMap, collectionNameField)
 			if collectionName == "" {
-				return nil, fmt.Errorf("[name] field of collection is not configured")
+				return nil, errors.New("[name] field of collection is not configured")
 			}
-			collection := Collection{Name: collectionName,
+			collectionType := getStringParameter(collectionConfigMap, "type")
+			if collectionType == "" {
+				collectionType = collectionName
+			}
+			collection := Collection{Name: collectionName, Type: collectionType,
 				TableName:  getStringParameter(collectionConfigMap, collectionTableNameField),
 				Parameters: cast.ToStringMap(collectionConfigMap[collectionParametersField])}
 			collections = append(collections, &collection)
 		default:
-			return nil, fmt.Errorf("failed to parse source collections as array of string or collections structure")
+			return nil, errors.New("failed to parse source collections as array of string or collections structure")
 		}
 	}
 
@@ -66,7 +71,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 		return nil, errors.New("destinations are empty. Please specify at least one destination")
 	}
 
-	driverPerCollection := map[*Collection]Driver{}
+	driverPerCollection := map[string]Driver{}
 
 	switch sourceConfig.Type {
 	case GooglePlayType:
@@ -84,7 +89,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 			if err != nil {
 				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
 			}
-			driverPerCollection[collection] = gpd
+			driverPerCollection[collection.Name] = gpd
 		}
 		return driverPerCollection, nil
 	case FirebaseType:
@@ -101,7 +106,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 			if err != nil {
 				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
 			}
-			driverPerCollection[collection] = firebase
+			driverPerCollection[collection.Name] = firebase
 		}
 		return driverPerCollection, nil
 	case GoogleAnalyticsType:
@@ -118,7 +123,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 			if err != nil {
 				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
 			}
-			driverPerCollection[collection] = ga
+			driverPerCollection[collection.Name] = ga
 		}
 		return driverPerCollection, nil
 	default:
@@ -131,7 +136,11 @@ func getStringParameter(dict map[string]interface{}, parameterName string) strin
 	if !ok {
 		return ""
 	}
-	return value.(string)
+	str, ok := value.(string)
+	if ok {
+		return str
+	}
+	return ""
 }
 
 func unmarshalConfig(config map[string]interface{}, object interface{}) error {

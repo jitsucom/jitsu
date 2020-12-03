@@ -3,13 +3,12 @@ package drivers
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"strings"
 )
 
 var accountKeyConfigurationError = errors.New("service_account_key must be map, JSON file path or JSON content string")
-var authorizationConfigurationError = fmt.Errorf("authorization is not configured. You need to configure " +
+var authorizationConfigurationError = errors.New("authorization is not configured. You need to configure " +
 	"[service_account_key] field or [client_id, client_secret, refresh_token] set of fields")
 
 const (

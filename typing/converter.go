@@ -36,10 +36,10 @@ var (
 		rule{from: INT64, to: FLOAT64}: numberToFloat,
 
 		rule{from: STRING, to: TIMESTAMP}: stringToTimestamp,
-		rule{from: STRING, to: INT64}:     stringToInt,
 
 		// Future
 		/*rule{from: STRING, to: FLOAT64}:   stringToFloat,
+		rule{from: STRING, to: INT64}:     stringToInt,
 		rule{from: FLOAT64, to: INT64}: floatToInt,*/
 	}
 
