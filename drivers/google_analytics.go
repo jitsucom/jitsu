@@ -108,7 +108,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 			EndDate: interval.UpperEndpoint().Format(dayLayout)},
 	}
 
-	if g.collection.Name == reportsCollection {
+	if g.collection.Type == reportsCollection {
 		return g.loadReport(g.config.ViewId, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
 	} else {
 		return nil, fmt.Errorf("Unknown collection %s: only 'report' is supported", g.collection)
