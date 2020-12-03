@@ -33,7 +33,7 @@ type Collection struct {
 
 //Create source drivers per collection
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*Collection]Driver, error) {
+func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[string]Driver, error) {
 	if sourceConfig.Type == "" {
 		sourceConfig.Type = name
 	}
@@ -66,7 +66,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 		return nil, errors.New("destinations are empty. Please specify at least one destination")
 	}
 
-	driverPerCollection := map[*Collection]Driver{}
+	driverPerCollection := map[string]Driver{}
 
 	switch sourceConfig.Type {
 	case GooglePlayType:
@@ -84,7 +84,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 			if err != nil {
 				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
 			}
-			driverPerCollection[collection] = gpd
+			driverPerCollection[collection.Name] = gpd
 		}
 		return driverPerCollection, nil
 	case FirebaseType:
@@ -101,7 +101,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 			if err != nil {
 				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
 			}
-			driverPerCollection[collection] = firebase
+			driverPerCollection[collection.Name] = firebase
 		}
 		return driverPerCollection, nil
 	case GoogleAnalyticsType:
@@ -118,7 +118,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[*
 			if err != nil {
 				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
 			}
-			driverPerCollection[collection] = ga
+			driverPerCollection[collection.Name] = ga
 		}
 		return driverPerCollection, nil
 	default:
