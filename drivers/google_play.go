@@ -98,12 +98,12 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 		nameParts := strings.Split(attrs.Name, "_")
 
 		var intervalStr string
-		if gp.collection.Name == SalesCollection {
+		if gp.collection.Type == SalesCollection {
 			if len(nameParts) != 2 {
 				return nil, fmt.Errorf("GooglePlay file on gcp has wrong name: [%s]", attrs.Name)
 			}
 			intervalStr = strings.ReplaceAll(nameParts[1], ".zip", "")
-		} else if gp.collection.Name == EarningsCollection {
+		} else if gp.collection.Type == EarningsCollection {
 			if len(nameParts) != 3 {
 				return nil, fmt.Errorf("GooglePlay file on gcp has wrong name: [%s]", attrs.Name)
 			}
@@ -129,10 +129,10 @@ func (gp *GooglePlay) GetObjectsFor(interval *TimeInterval) ([]map[string]interf
 
 	var objects []map[string]interface{}
 	var err error
-	if gp.collection.Name == SalesCollection {
+	if gp.collection.Type == SalesCollection {
 		key := "sales/salesreport_" + interval.LowerEndpoint().Format(intervalLayout) + ".zip"
 		objects, err = gp.getFileObjects(bucket, key)
-	} else if gp.collection.Name == EarningsCollection {
+	} else if gp.collection.Type == EarningsCollection {
 		prefix := "earnings/earnings_" + interval.LowerEndpoint().Format(intervalLayout)
 		objects, err = gp.getFilesObjects(bucket, prefix)
 	} else {
@@ -173,9 +173,9 @@ func (gp *GooglePlay) getFilesObjects(bucket *storage.BucketHandle, prefix strin
 func (gp *GooglePlay) getFileObjects(bucket *storage.BucketHandle, key string) ([]map[string]interface{}, error) {
 	var objects []map[string]interface{}
 	typeCasts := map[string]func(interface{}) (interface{}, error){}
-	if gp.collection.Name == SalesCollection {
+	if gp.collection.Type == SalesCollection {
 		typeCasts = salesTypeCasts
-	} else if gp.collection.Name == EarningsCollection {
+	} else if gp.collection.Type == EarningsCollection {
 		typeCasts = earningsTypeCasts
 	}
 
