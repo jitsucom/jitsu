@@ -89,20 +89,31 @@ Batch and Stream pipelines are different, however they have same logical steps. 
 
 ### ContextEnrichment step
   
- * Get IP from where request came from
- * If request is processed by JavaScript endpoint - read user agent-header, content-type header and so on
- * If request is processed by Server API - Add /src field
+ * Add IP from where request came from (/source_ip field)
  * Add UTC timestamp (/_timestamp field)
- * etc
+ * Add API secret token (/api_key field)
+ * If request is processed by JavaScript endpoint - read and add user-agent header (/eventn_ctx/user_agent field)
+ * If request is processed by Server API - add 'api' value (/src field)
+
 
 ### LookupEnrichment step
 
 During this step Enrichment rules are applied. Enrichment rule is a function F(src_node) → dst_node. So far
 we support two of them:
- * **IP Lookup** - src_node should be a string node where rule is expected to see IP address. Result node is 
+ * **IP Lookup** - src node `from` should be a string node where rule is expected to see IP address. Result node `to` is 
  an object with geo data (country, city, etc)
- * **User Agent Parser** - src_node should be a string node where rule is expected to see user agent string. Result node is 
+ * **User Agent Parser** - src_node `from` should be a string node where rule is expected to see user agent string. Result node `to` is 
  an object parsed user agent: vendor, version, etc
+ 
+Two implicit Enrichment rules applied to all JavaScript events as well:
+```yaml
+ - name: ip_lookup
+   from: /source_ip
+   to: /eventn_ctx/location     
+ - name: user_agent_parse
+   from: /eventn_ctx/user_agent
+   to: /eventn_ctx/parsed_ua     
+```
  
 
 ### Mapping step
