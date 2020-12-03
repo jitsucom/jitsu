@@ -47,14 +47,14 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 			collectionConfigMap := cast.ToStringMap(collection)
 			collectionName := getStringParameter(collectionConfigMap, collectionNameField)
 			if collectionName == "" {
-				return nil, fmt.Errorf("[name] field of collection is not configured")
+				return nil, errors.New("[name] field of collection is not configured")
 			}
 			collection := Collection{Name: collectionName,
 				TableName:  getStringParameter(collectionConfigMap, collectionTableNameField),
 				Parameters: cast.ToStringMap(collectionConfigMap[collectionParametersField])}
 			collections = append(collections, &collection)
 		default:
-			return nil, fmt.Errorf("failed to parse source collections as array of string or collections structure")
+			return nil, errors.New("failed to parse source collections as array of string or collections structure")
 		}
 	}
 
@@ -131,7 +131,11 @@ func getStringParameter(dict map[string]interface{}, parameterName string) strin
 	if !ok {
 		return ""
 	}
-	return value.(string)
+	str, ok := value.(string)
+	if ok {
+		return str
+	}
+	return ""
 }
 
 func unmarshalConfig(config map[string]interface{}, object interface{}) error {

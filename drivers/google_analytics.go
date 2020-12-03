@@ -84,13 +84,16 @@ func NewGoogleAnalytics(ctx context.Context, config *GoogleAnalyticsConfig, coll
 		return nil, err
 	}
 	service, err := ga.NewService(ctx, option.WithCredentialsJSON(credentialsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create GA servive: %v", err)
+	}
 	return &GoogleAnalytics{ctx: ctx, config: config, collection: collection, service: service,
 		reportFieldsConfig: &reportFieldsConfig}, nil
 }
 
 func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	var intervals []*TimeInterval
-	now := time.Now()
+	now := time.Now().UTC()
 	for i := 0; i < 12; i++ {
 		date := now.AddDate(0, -i, 0)
 		intervals = append(intervals, NewTimeInterval(MONTH, date))
@@ -108,7 +111,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 	if g.collection.Name == reportsCollection {
 		return g.loadReport(g.config.ViewId, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
 	} else {
-		return nil, fmt.Errorf("Unknown collection %s: only 'report' and 'users_activity' are supported", g.collection)
+		return nil, fmt.Errorf("Unknown collection %s: only 'report' is supported", g.collection)
 	}
 }
 
@@ -152,9 +155,6 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 		rows := report.Data.Rows
 
 		logging.Debug("Rows to sync:", len(rows))
-		if rows == nil {
-			continue
-		}
 		for _, row := range rows {
 			gaEvent := make(map[string]interface{})
 			dims := row.Dimensions
