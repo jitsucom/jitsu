@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/typing"
 	ga "google.golang.org/api/analyticsreporting/v4"
 	"google.golang.org/api/option"
 	"strings"
@@ -15,6 +16,28 @@ const (
 	dayLayout         = "2006-01-02"
 	reportsCollection = "report"
 	gaFieldsPrefix    = "ga:"
+)
+
+var (
+	metricsCast = map[string]func(interface{}) (interface{}, error){
+		"ga:sessions":         typing.StringToInt,
+		"ga:users":            typing.StringToInt,
+		"ga:visitors":         typing.StringToInt,
+		"ga:bounces":          typing.StringToInt,
+		"ga:goal1Completions": typing.StringToInt,
+		"ga:goal2Completions": typing.StringToInt,
+		"ga:goal3Completions": typing.StringToInt,
+		"ga:goal4Completions": typing.StringToInt,
+		"ga:adClicks":         typing.StringToInt,
+		"ga:newUsers":         typing.StringToInt,
+		"ga:pageviews":        typing.StringToInt,
+		"ga:uniquePageviews":  typing.StringToInt,
+
+		"ga:adCost":             typing.StringToFloat,
+		"ga:avgSessionDuration": typing.StringToFloat,
+		"ga:timeOnPage":         typing.StringToFloat,
+		"ga:avgTimeOnPage":      typing.StringToFloat,
+	}
 )
 
 type GoogleAnalyticsConfig struct {
@@ -142,7 +165,18 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 			}
 			for _, metric := range metrics {
 				for j := 0; j < len(metricHeaders) && j < len(metric.Values); j++ {
-					gaEvent[strings.TrimPrefix(metricHeaders[j].Name, gaFieldsPrefix)] = metric.Values[j]
+					fieldName := strings.TrimPrefix(metricHeaders[j].Name, gaFieldsPrefix)
+					stringValue := metric.Values[j]
+					convertFunc, ok := metricsCast[metricHeaders[j].Name]
+					if ok {
+						convertedValue, err := convertFunc(stringValue)
+						if err != nil {
+							return nil, err
+						}
+						gaEvent[fieldName] = convertedValue
+					} else {
+						gaEvent[fieldName] = stringValue
+					}
 				}
 			}
 			result = append(result, gaEvent)
