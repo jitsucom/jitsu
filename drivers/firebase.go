@@ -66,10 +66,10 @@ func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 }
 
 func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
-	if strings.HasPrefix(f.collection.Name, firebaseCollectionPrefix) {
-		firebaseCollectionName := strings.TrimPrefix(f.collection.Name, firebaseCollectionPrefix)
+	if strings.HasPrefix(f.collection.Type, firebaseCollectionPrefix) {
+		firebaseCollectionName := strings.TrimPrefix(f.collection.Type, firebaseCollectionPrefix)
 		return f.loadCollection(firebaseCollectionName)
-	} else if f.collection.Name == "users" {
+	} else if f.collection.Type == "users" {
 		return f.loadUsers()
 	}
 	return nil, fmt.Errorf("unknown collection: %s", f.collection)
