@@ -22,7 +22,7 @@ const testHtmlPath = path.resolve("./test.html");
 
 
 function prepareJsFile(file) {
-    let fullFilePath = path.join(__dirname, useProdFiles ? "./build" : "./src", file);
+    let fullFilePath = path.join(__dirname, useProdFiles ? "./dist/web" : "./src", file);
     return () => {
         let content = fs.readFileSync(fullFilePath, 'utf8');
         return content.replace('"use strict";', '')
