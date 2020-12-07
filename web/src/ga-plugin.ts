@@ -16,7 +16,7 @@ export default (globalPropName: string = 'ga'): TrackerPlugin => {
               } else {
                 originalSendHitTask(model);
               }
-              t.send3p('ga', mapGaPayload(parseQuery(payLoad)));
+              t._send3p('ga', mapGaPayload(parseQuery(payLoad)));
             });
           }
         );

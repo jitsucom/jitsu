@@ -95,7 +95,7 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collect
 	}
 	service, err := ga.NewService(ctx, option.WithCredentialsJSON(credentialsJSON))
 	if err != nil {
-		return nil, fmt.Errorf("failed to create GA servive: %v", err)
+		return nil, fmt.Errorf("failed to create GA service: %v", err)
 	}
 	return &GoogleAnalytics{ctx: ctx, config: config, collection: collection, service: service,
 		reportFieldsConfig: &reportFieldsConfig}, nil
