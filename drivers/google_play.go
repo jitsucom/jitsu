@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"cloud.google.com/go/storage"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/parsers"
@@ -45,11 +44,8 @@ var (
 )
 
 type GooglePlayConfig struct {
-	AccountId string      `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
-	KeyFile   interface{} `mapstructure:"key_file" json:"key_file,omitempty" yaml:"key_file,omitempty"`
-
-	//will be set on validation
-	credentials option.ClientOption
+	AccountId  string            `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
+	AccountKey *GoogleAuthConfig `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
 }
 
 func (gpc *GooglePlayConfig) Validate() error {
@@ -60,33 +56,7 @@ func (gpc *GooglePlayConfig) Validate() error {
 	if gpc.AccountId == "" {
 		return errors.New("GooglePlay account_id is required")
 	}
-
-	switch gpc.KeyFile.(type) {
-	case map[string]interface{}:
-		keyFileObject := gpc.KeyFile.(map[string]interface{})
-		if len(keyFileObject) == 0 {
-			return errors.New("GooglePlay key_file is required parameter")
-		}
-		b, err := json.Marshal(keyFileObject)
-		if err != nil {
-			return fmt.Errorf("GooglePlay malformed key_file: %v", err)
-		}
-		gpc.credentials = option.WithCredentialsJSON(b)
-	case string:
-		keyFile := gpc.KeyFile.(string)
-		if keyFile == "" {
-			return errors.New("GooglePlay key file is required parameter")
-		}
-		if strings.Contains(keyFile, "{") {
-			gpc.credentials = option.WithCredentialsJSON([]byte(keyFile))
-		} else {
-			gpc.credentials = option.WithCredentialsFile(keyFile)
-		}
-	default:
-		return errors.New("GooglePlay key_file must be string or json object")
-	}
-
-	return nil
+	return gpc.AccountKey.Validate()
 }
 
 type GooglePlay struct {
@@ -94,11 +64,15 @@ type GooglePlay struct {
 	client *storage.Client
 	ctx    context.Context
 
-	collection string
+	collection *Collection
 }
 
-func NewGooglePlay(ctx context.Context, config *GooglePlayConfig, collection string) (*GooglePlay, error) {
-	client, err := storage.NewClient(ctx, config.credentials)
+func NewGooglePlay(ctx context.Context, config *GooglePlayConfig, collection *Collection) (*GooglePlay, error) {
+	credentialsJSON, err := config.AccountKey.Marshal()
+	if err != nil {
+		return nil, err
+	}
+	client, err := storage.NewClient(ctx, option.WithCredentialsJSON(credentialsJSON))
 	if err != nil {
 		return nil, fmt.Errorf("GooglePlay error creating google cloud storage client: %v", err)
 	}
@@ -110,7 +84,7 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	bucketName := bucketPrefix + gp.config.AccountId
 	bucket := gp.client.Bucket(bucketName)
 
-	it := bucket.Objects(gp.ctx, &storage.Query{Prefix: gp.collection})
+	it := bucket.Objects(gp.ctx, &storage.Query{Prefix: gp.collection.Name})
 	var intervals []*TimeInterval
 	for {
 		attrs, err := it.Next()
@@ -124,12 +98,12 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 		nameParts := strings.Split(attrs.Name, "_")
 
 		var intervalStr string
-		if gp.collection == SalesCollection {
+		if gp.collection.Type == SalesCollection {
 			if len(nameParts) != 2 {
 				return nil, fmt.Errorf("GooglePlay file on gcp has wrong name: [%s]", attrs.Name)
 			}
 			intervalStr = strings.ReplaceAll(nameParts[1], ".zip", "")
-		} else if gp.collection == EarningsCollection {
+		} else if gp.collection.Type == EarningsCollection {
 			if len(nameParts) != 3 {
 				return nil, fmt.Errorf("GooglePlay file on gcp has wrong name: [%s]", attrs.Name)
 			}
@@ -155,10 +129,10 @@ func (gp *GooglePlay) GetObjectsFor(interval *TimeInterval) ([]map[string]interf
 
 	var objects []map[string]interface{}
 	var err error
-	if gp.collection == SalesCollection {
+	if gp.collection.Type == SalesCollection {
 		key := "sales/salesreport_" + interval.LowerEndpoint().Format(intervalLayout) + ".zip"
 		objects, err = gp.getFileObjects(bucket, key)
-	} else if gp.collection == EarningsCollection {
+	} else if gp.collection.Type == EarningsCollection {
 		prefix := "earnings/earnings_" + interval.LowerEndpoint().Format(intervalLayout)
 		objects, err = gp.getFilesObjects(bucket, prefix)
 	} else {
@@ -199,9 +173,9 @@ func (gp *GooglePlay) getFilesObjects(bucket *storage.BucketHandle, prefix strin
 func (gp *GooglePlay) getFileObjects(bucket *storage.BucketHandle, key string) ([]map[string]interface{}, error) {
 	var objects []map[string]interface{}
 	typeCasts := map[string]func(interface{}) (interface{}, error){}
-	if gp.collection == SalesCollection {
+	if gp.collection.Type == SalesCollection {
 		typeCasts = salesTypeCasts
-	} else if gp.collection == EarningsCollection {
+	} else if gp.collection.Type == EarningsCollection {
 		typeCasts = earningsTypeCasts
 	}
 
