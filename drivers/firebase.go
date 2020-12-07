@@ -7,6 +7,7 @@ import (
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"fmt"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/timestamp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -14,7 +15,10 @@ import (
 	"time"
 )
 
-const firebaseCollectionPrefix = "firestore_"
+const (
+	firebaseType             = "firebase"
+	firebaseCollectionPrefix = "firestore_"
+)
 
 type FirebaseConfig struct {
 	ProjectId   string `mapstructure:"project_id" json:"project_id,omitempty" yaml:"project_id,omitempty"`
@@ -43,7 +47,21 @@ type Firebase struct {
 	collection      *Collection
 }
 
-func NewFirebase(ctx context.Context, config *FirebaseConfig, collection *Collection) (*Firebase, error) {
+func init() {
+	if err := RegisterDriverConstructor(firebaseType, NewFirebase); err != nil {
+		logging.Errorf("Failed to register driver %s: %s", firebaseType, err)
+	}
+}
+
+func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+	config := &FirebaseConfig{}
+	err := unmarshalConfig(sourceConfig.Config, config)
+	if err != nil {
+		return nil, err
+	}
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
 	app, err := firebase.NewApp(context.Background(),
 		&firebase.Config{ProjectID: config.ProjectId},
 		option.WithCredentialsJSON([]byte(config.Credentials)))
@@ -94,7 +112,7 @@ func (f *Firebase) loadCollection(firestoreCollectionName string) ([]map[string]
 }
 
 func (f *Firebase) Type() string {
-	return FirebaseType
+	return firebaseType
 }
 
 func (f *Firebase) Close() error {
