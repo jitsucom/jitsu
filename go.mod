@@ -28,6 +28,7 @@ require (
 	github.com/panjf2000/ants/v2 v2.4.3
 	github.com/prometheus/client_golang v0.9.3
 	github.com/snowflakedb/gosnowflake v1.3.8
+	github.com/spf13/cast v1.3.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.6.1
 	github.com/testcontainers/testcontainers-go v0.9.0

@@ -95,6 +95,7 @@ func (st *SyncTask) Sync() {
 			object[timestamp.Key] = timestamp.NowUTC()
 			events.EnrichWithEventId(object, getHash(object))
 			events.EnrichWithCollection(object, st.collection)
+			events.EnrichWithTimeInterval(object, intervalToSync)
 		}
 
 		for _, storage := range st.destinations {
