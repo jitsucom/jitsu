@@ -11,12 +11,6 @@ var accountKeyConfigurationError = errors.New("service_account_key must be map, 
 var authorizationConfigurationError = errors.New("authorization is not configured. You need to configure " +
 	"[service_account_key] field or [client_id, client_secret, refresh_token] set of fields")
 
-const (
-	GooglePlayType      = "google_play"
-	FirebaseType        = "firebase"
-	GoogleAnalyticsType = "google_analytics"
-)
-
 type GoogleAuthConfig struct {
 	ClientId          string      `mapstructure:"client_id" json:"client_id,omitempty" yaml:"client_id,omitempty"`
 	ClientSecret      string      `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
