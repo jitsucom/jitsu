@@ -118,8 +118,9 @@ export type Logger = {
  * User properties (ids)
  */
 interface UserProps {
-  anonymous_id: string
-  [propName: string]: any
+  anonymous_id: string        //anonymous is (cookie based),
+  //id: string                  //user id (non anonymous). If not set, first known id (from propName below) will be used
+  [propName: string]: any     //any other forms of ids
 }
 
 
@@ -135,23 +136,28 @@ interface ThirdpartyIds {
  * Internal structure of Event Context
  */
 export interface EventCtx {
-  event_id: string
-  user: UserProps
-  user_agent: string
-  utc_time: string
-  local_tz_offset: number
-  referer: string
-  ids?: ThirdpartyIds
-  url: string
-  page_title: string
-  [propName: string]: any
+  event_id: string                 //unique event id
+  user: UserProps                  //user properties
+  ids?: ThirdpartyIds              //user ids from external systems
+  user_agent: string               //user
+  utc_time: string                 //current UTC time in ISO 8601
+  local_tz_offset: number          //local timezone offset (in minutes)
+  referer: string                  //document referer
+  url: string                      //current url
+  page_title: string               //page title
+  utm: Record<string, string>      //utm tags (without utm prefix, e.g key will be "source", not utm_source. See
+                                   //see UTM_TYPES for all supported utm tags
+  click_id: Record<string, string> //all external click ids (passed through URL). See CLICK_IDS for supported all supported click ids
+  [propName: string]: any          //context is extendable, any extra properties can be added here
 }
 
 export type Event = {
-  api_key: string
-  src: string
-  event_type: string
-  eventn_ctx: EventCtx
+  api_key: string                  //JS api key
+  src: string                      //src
+  event_type: string               //event type: eventn if event is coming directly from EventNative tracking code
+                                   //or id of 3rdparty source (so far ajs | ga for google analytics)
+
+  eventn_ctx: EventCtx             //Context of event (see above)
 }
 
 export type EventnEvent = Event & {
