@@ -18,6 +18,14 @@ export type Tracker = {
    * @param payload event payload
    */
   track: (typeName: string, payload?: EventPayload) => void
+
+  // /**
+  //  * Similar to track(), but send unstructured payload to EventNative processing pipeline. No
+  //  * additional detection (user-agent, url and so on will be done). No payload structure is enforced
+  //  * @param payload
+  //  */
+  // rawTrack: (payload: any) => void
+
   /**
    * Sets a user data
    * @param userData user data (as map id_type --> value, such as "email": "a@bcd.com"
