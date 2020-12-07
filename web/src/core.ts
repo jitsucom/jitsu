@@ -8,7 +8,7 @@ import {
     reformatDate,
     setCookie,
 } from './helpers'
-import {Event, Logger, EventCtx, EventnEvent, Tracker, TrackerOptions, TrackerPlugin} from './types'
+import {Event, Logger, EventCtx, Tracker, TrackerOptions, TrackerPlugin, EventPayload, UserProps} from './types'
 
 
 const VERSION_INFO = {
@@ -27,6 +27,19 @@ function initLogger(): Logger {
         }
     }), {}) as Logger;
     return logger;
+}
+
+function putId(props: UserProps): UserProps {
+    if (props.id) {
+        return props;
+    }
+    for (let [key, value] of Object.entries(props)) {
+        if (key !== "id" && key !== "anonymous_id") {
+            props.id = value;
+            return props;
+        }
+    }
+    return props;
 }
 
 
@@ -64,12 +77,13 @@ class TrackerImpl implements Tracker {
         return newId;
     }
 
-    makeEvent(event_type: string, src: string): Event {
+    makeEvent(event_type: string, src: string, payload: EventPayload): Event {
         return {
             api_key: this.apiKey,
             src,
             event_type,
             eventn_ctx: this.getCtx(),
+            ...payload
         };
     }
 
@@ -79,8 +93,9 @@ class TrackerImpl implements Tracker {
             eventType = type
         }
 
-        const e = this.makeEvent(eventType, sourceType) as any;
-        e.src_payload = object;
+        const e = this.makeEvent(eventType, sourceType, {
+            src_payload: object
+        });
         this.sendJson(e);
     }
 
@@ -110,10 +125,10 @@ class TrackerImpl implements Tracker {
         let now = new Date();
         return {
             event_id: generateId(),
-            user: {
+            user: putId({
                 anonymous_id: this.anonymousId,
                 ...this.userProperties
-            },
+            }),
             ids: this._getIds(),
             user_agent: navigator.userAgent,
             utc_time: reformatDate(now.toISOString()),
@@ -121,6 +136,12 @@ class TrackerImpl implements Tracker {
             referer: document.referrer,
             url: window.location.href,
             page_title: document.title,
+            doc_path: document.location.pathname,
+            doc_host: document.location.hostname,
+            screen_resolution: screen.width + "x" + screen.height,
+            vp_size: Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0) + "x" + Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0),
+            user_language: navigator.language,
+            doc_encoding: document.characterSet,
             ...getDataFromParams(parseQuery())
         };
     }
@@ -136,11 +157,10 @@ class TrackerImpl implements Tracker {
         return res;
     }
 
-    track(type: string, payload?: any) {
+    track(type: string, payload?: EventPayload) {
         let data = payload || {};
         this.logger.debug('track event of type', type, data)
-        const e = this.makeEvent(type, 'eventn');
-        (e as EventnEvent).eventn_data = data;
+        const e = this.makeEvent(type, 'eventn', payload || {});
         this.sendJson(e);
     }
 
