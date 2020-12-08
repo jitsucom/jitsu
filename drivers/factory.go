@@ -9,7 +9,10 @@ import (
 	"github.com/spf13/cast"
 )
 
-var unknownSource = errors.New("Unknown source type")
+var (
+	unknownSource      = errors.New("Unknown source type")
+	driverConstructors = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+)
 
 const (
 	collectionNameField       = "name"
@@ -30,6 +33,13 @@ type Collection struct {
 	Type       string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	TableName  string                 `mapstructure:"table_name" json:"table_name,omitempty" yaml:"table_name,omitempty"`
 	Parameters map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
+}
+
+//RegisterDriverConstructor registers function to create new driver instance per driver type
+func RegisterDriverConstructor(driverType string,
+	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) error {
+	driverConstructors[driverType] = createDriverFunc
+	return nil
 }
 
 //Create source drivers per collection
@@ -73,62 +83,18 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 
 	driverPerCollection := map[string]Driver{}
 
-	switch sourceConfig.Type {
-	case GooglePlayType:
-		gpCfg := &GooglePlayConfig{}
-		err := unmarshalConfig(sourceConfig.Config, gpCfg)
-		if err != nil {
-			return nil, err
-		}
-		if err := gpCfg.Validate(); err != nil {
-			return nil, err
-		}
-
-		for _, collection := range collections {
-			gpd, err := NewGooglePlay(ctx, gpCfg, collection)
-			if err != nil {
-				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
-			}
-			driverPerCollection[collection.Name] = gpd
-		}
-		return driverPerCollection, nil
-	case FirebaseType:
-		firebaseCfg := &FirebaseConfig{}
-		err := unmarshalConfig(sourceConfig.Config, firebaseCfg)
-		if err != nil {
-			return nil, err
-		}
-		if err := firebaseCfg.Validate(); err != nil {
-			return nil, err
-		}
-		for _, collection := range collections {
-			firebase, err := NewFirebase(ctx, firebaseCfg, collection)
-			if err != nil {
-				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
-			}
-			driverPerCollection[collection.Name] = firebase
-		}
-		return driverPerCollection, nil
-	case GoogleAnalyticsType:
-		gaConfig := &GoogleAnalyticsConfig{}
-		err := unmarshalConfig(sourceConfig.Config, gaConfig)
-		if err != nil {
-			return nil, err
-		}
-		if err := gaConfig.Validate(); err != nil {
-			return nil, err
-		}
-		for _, collection := range collections {
-			ga, err := NewGoogleAnalytics(ctx, gaConfig, collection)
-			if err != nil {
-				return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
-			}
-			driverPerCollection[collection.Name] = ga
-		}
-		return driverPerCollection, nil
-	default:
+	createDriverFunc, ok := driverConstructors[sourceConfig.Type]
+	if !ok {
 		return nil, unknownSource
 	}
+	for _, collection := range collections {
+		driver, err := createDriverFunc(ctx, sourceConfig, collection)
+		if err != nil {
+			return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
+		}
+		driverPerCollection[collection.Name] = driver
+	}
+	return driverPerCollection, nil
 }
 
 func getStringParameter(dict map[string]interface{}, parameterName string) string {
