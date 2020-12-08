@@ -49,7 +49,7 @@ type Firebase struct {
 
 func init() {
 	if err := RegisterDriverConstructor(firebaseType, NewFirebase); err != nil {
-		logging.Errorf("Failed to register driver %s: %s", firebaseType, err)
+		logging.Errorf("Failed to register driver %s: %v", firebaseType, err)
 	}
 }
 
