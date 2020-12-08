@@ -71,7 +71,7 @@ type GooglePlay struct {
 
 func init() {
 	if err := RegisterDriverConstructor(googlePlayType, NewGooglePlay); err != nil {
-		logging.Errorf("Failed to register driver %s: %s", googlePlayType, err)
+		logging.Errorf("Failed to register driver %s: %v", googlePlayType, err)
 	}
 }
 
