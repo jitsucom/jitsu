@@ -8,16 +8,24 @@ export type Tracker = {
    * Sends a third-party event (event intercepted from third-party system, such as analytics.js or GA). Should
    * not be called directly
    * @param typeName event name of event
-   * @param payload third-party payload
+   * @param _3pData third-party payload. The structure depend on
    * @param type event-type
    */
-  _send3p: (typeName: string, payload: any, type?: string) => void
+  _send3p: (typeName: string, _3pPayload: any, type?: string) => void
   /**
    * Sends a track event to server
    * @param name event name
    * @param payload event payload
    */
-  track: (typeName: string, payload?: any) => void
+  track: (typeName: string, payload?: EventPayload) => void
+
+  // /**
+  //  * Similar to track(), but send unstructured payload to EventNative processing pipeline. No
+  //  * additional detection (user-agent, url and so on will be done). No payload structure is enforced
+  //  * @param payload
+  //  */
+  // rawTrack: (payload: any) => void
+
   /**
    * Sets a user data
    * @param userData user data (as map id_type --> value, such as "email": "a@bcd.com"
@@ -117,25 +125,37 @@ export type Logger = {
 /**
  * User properties (ids)
  */
-interface UserProps {
-  anonymous_id: string        //anonymous is (cookie based),
-  //id: string                  //user id (non anonymous). If not set, first known id (from propName below) will be used
-  [propName: string]: any     //any other forms of ids
+export interface UserProps {
+  anonymous_id: string             //anonymous is (cookie based),
+  id: string                       //user id (non anonymous). If not set, first known id (from propName below) will be used
+  [propName: string]: any          //any other forms of ids
 }
 
 
 /**
  * Ids for third-party tracking systems
  */
-interface ThirdpartyIds {
+export type ThirdpartyIds = {
   [id: string]: string
+}
+
+export type Conversion = {
+  //The purpose of this set is mainly to minic GA's set of parameters
+  //(see https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters)
+
+  transaction_id?: string | number  //id of transaction
+  affiliation?: string | number     //affiliation id
+  revenue?: number                  //revenue
+  shipping_cost?: number            //shipping cost
+  tax?: number                      //tax cost
+
 }
 
 
 /**
- * Internal structure of Event Context
+ * Event context. Data that is present in any event type. Is assembled automatically
  */
-export interface EventCtx {
+export type EventCtx = {
   event_id: string                 //unique event id
   user: UserProps                  //user properties
   ids?: ThirdpartyIds              //user ids from external systems
@@ -145,24 +165,39 @@ export interface EventCtx {
   referer: string                  //document referer
   url: string                      //current url
   page_title: string               //page title
-  utm: Record<string, string>      //utm tags (without utm prefix, e.g key will be "source", not utm_source. See
                                    //see UTM_TYPES for all supported utm tags
+  doc_path: string                 //document path
+  doc_host: string                 //document host
+  screen_resolution: string        //screen resolution
+  vp_size: string                  //viewport size
+  user_language: string            //user language
+
+  doc_encoding: string
+
+  utm: Record<string, string>      //utm tags (without utm prefix, e.g key will be "source", not utm_source. See
   click_id: Record<string, string> //all external click ids (passed through URL). See CLICK_IDS for supported all supported click ids
   [propName: string]: any          //context is extendable, any extra properties can be added here
 }
 
+/**
+ * Optional data that can be added to each event. Consist from optional fields,
+ */
+export type EventPayload = {
+  conversion?: Conversion          //Conversion data if events indicates a conversion
+  src_payload?: any,               //Third-party payload if event is intercepted from third-party source
+  [propName: string]: any          //payload is extendable, any extra properties can be added here
+}
+
+
+/**
+ * Event object. A final object which is send to server
+ */
 export type Event = {
   api_key: string                  //JS api key
   src: string                      //src
-  event_type: string               //event type: eventn if event is coming directly from EventNative tracking code
-                                   //or id of 3rdparty source (so far ajs | ga for google analytics)
-
+  event_type: string               //event type, either
   eventn_ctx: EventCtx             //Context of event (see above)
-}
+} & EventPayload
 
-export type EventnEvent = Event & {
-  eventn_data: any
-  src: 'eventn'
-}
 
 export type TrackerPlugin = (t: Tracker) => void;

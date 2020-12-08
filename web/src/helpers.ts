@@ -60,6 +60,7 @@ const UTM_TYPES: Record<string, string> = {
 const CLICK_IDS: Record<string, boolean> = {
     gclid: true,
     fbclid: true,
+    dclid: true
 };
 
 export const getDataFromParams = (params: Record<string, string>) => {
