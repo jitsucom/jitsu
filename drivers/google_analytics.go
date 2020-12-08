@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	dayLayout         = "2006-01-02"
-	reportsCollection = "report"
-	gaFieldsPrefix    = "ga:"
+	dayLayout           = "2006-01-02"
+	reportsCollection   = "report"
+	gaFieldsPrefix      = "ga:"
+	googleAnalyticsType = "google_analytics"
 )
 
 var (
@@ -57,11 +58,6 @@ func (gac *GoogleAnalyticsConfig) Validate() error {
 	return gac.AuthConfig.Validate()
 }
 
-func (gac *GoogleAnalyticsConfig) authorizationConfigurationError() error {
-	return fmt.Errorf("authorization is not configured. You need to configure [service_account_key] field or " +
-		"[client_id, client_secret, refresh_token] set of fields")
-}
-
 type GoogleAnalytics struct {
 	ctx                context.Context
 	config             *GoogleAnalyticsConfig
@@ -70,9 +66,23 @@ type GoogleAnalytics struct {
 	reportFieldsConfig *ReportFieldsConfig
 }
 
-func NewGoogleAnalytics(ctx context.Context, config *GoogleAnalyticsConfig, collection *Collection) (*GoogleAnalytics, error) {
+func init() {
+	if err := RegisterDriverConstructor(googleAnalyticsType, NewGoogleAnalytics); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", googleAnalyticsType, err)
+	}
+}
+
+func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+	config := &GoogleAnalyticsConfig{}
+	err := unmarshalConfig(sourceConfig.Config, config)
+	if err != nil {
+		return nil, err
+	}
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
 	var reportFieldsConfig ReportFieldsConfig
-	err := unmarshalConfig(collection.Parameters, &reportFieldsConfig)
+	err = unmarshalConfig(collection.Parameters, &reportFieldsConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +126,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 }
 
 func (g *GoogleAnalytics) Type() string {
-	return GoogleAnalyticsType
+	return googleAnalyticsType
 }
 
 func (g *GoogleAnalytics) Close() error {
