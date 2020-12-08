@@ -68,7 +68,7 @@ type GoogleAnalytics struct {
 
 func init() {
 	if err := RegisterDriverConstructor(googleAnalyticsType, NewGoogleAnalytics); err != nil {
-		logging.Errorf("Failed to register driver %s: %s", googleAnalyticsType, err)
+		logging.Errorf("Failed to register driver %s: %v", googleAnalyticsType, err)
 	}
 }
 
