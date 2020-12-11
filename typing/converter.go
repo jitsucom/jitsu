@@ -248,10 +248,6 @@ func StringToFloat(v interface{}) (interface{}, error) {
 	return floatValue, nil
 }
 
-func stringToInt(v interface{}) (interface{}, error) {
-	return strconv.Atoi(fmt.Sprint(v))
-}
-
 func stringToTimestamp(v interface{}) (interface{}, error) {
 	t, err := time.Parse(timestamp.Layout, v.(string))
 	if err != nil {
