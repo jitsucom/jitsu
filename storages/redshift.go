@@ -1,58 +1,65 @@
 package storages
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
-	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/parsers"
-	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/schema"
-	"github.com/jitsucom/eventnative/typing"
-	"time"
 )
 
 const tableFileKeyDelimiter = "-table-"
 const rowsFileKeyDelimiter = "-rows-"
 
 //Store files to aws RedShift in two modes:
-//batch: via aws s3 in batch mode (1 file = 1 transaction)
-//stream: via events queue in stream mode (1 object = 1 transaction)
+//batch: via aws s3 in batch mode (1 file = 1 statement)
+//stream: via events queue in stream mode (1 object = 1 statement)
 type AwsRedshift struct {
 	name            string
 	s3Adapter       *adapters.S3
 	redshiftAdapter *adapters.AwsRedshift
 	tableHelper     *TableHelper
-	schemaProcessor *schema.Processor
+	schemaProcessor *schema.MappingStep
 	streamingWorker *StreamingWorker
-	fallbackLogger  *events.AsyncLogger
+	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
-	breakOnError    bool
-
-	closed bool
 }
 
 //NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
-func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.PersistentQueue, s3Config *adapters.S3Config, redshiftConfig *adapters.DataSourceConfig,
-	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger,
-    queryLogger *logging.QueryLogger, eventsCache *caching.EventsCache) (*AwsRedshift, error) {
+func NewAwsRedshift(config *Config) (events.Storage, error) {
+	redshiftConfig := config.destination.DataSource
+	if err := redshiftConfig.Validate(); err != nil {
+		return nil, err
+	}
+	//enrich with default parameters
+	if redshiftConfig.Port <= 0 {
+		redshiftConfig.Port = 5439
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.name, redshiftConfig.Port)
+	}
+	if redshiftConfig.Schema == "" {
+		redshiftConfig.Schema = "public"
+		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.name, redshiftConfig.Schema)
+	}
+	//default connect timeout seconds
+	if _, ok := redshiftConfig.Parameters["connect_timeout"]; !ok {
+		redshiftConfig.Parameters["connect_timeout"] = "600"
+	}
+
 	var s3Adapter *adapters.S3
-	if !streamMode {
+	if !config.streamMode {
 		var err error
-		s3Adapter, err = adapters.NewS3(s3Config)
+		s3Adapter, err = adapters.NewS3(config.destination.S3)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	redshiftAdapter, err := adapters.NewAwsRedshift(ctx, redshiftConfig, s3Config, queryLogger)
+	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
+	redshiftAdapter, err := adapters.NewAwsRedshift(config.ctx, redshiftConfig, config.destination.S3, queryLogger, config.sqlTypeCasts)
 	if err != nil {
 		return nil, err
 	}
@@ -64,180 +71,128 @@ func NewAwsRedshift(ctx context.Context, name string, eventQueue *events.Persist
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, monitorKeeper, RedshiftType)
+	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift)
 
 	ar := &AwsRedshift{
-		name:            name,
+		name:            config.name,
 		s3Adapter:       s3Adapter,
 		redshiftAdapter: redshiftAdapter,
 		tableHelper:     tableHelper,
-		schemaProcessor: processor,
-		fallbackLogger:  fallbackLoggerFactoryMethod(),
-		eventsCache:     eventsCache,
-		breakOnError:    breakOnError,
+		schemaProcessor: config.processor,
+		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:     config.eventsCache,
 	}
 
-	if streamMode {
-		ar.streamingWorker = newStreamingWorker(eventQueue, processor, ar, eventsCache)
+	if config.streamMode {
+		ar.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ar, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
 		ar.streamingWorker.start()
-	} else {
-		ar.startBatch()
 	}
 
 	return ar, nil
 }
 
-//Periodically (every 30 seconds):
-//1. get all files from aws s3
-//2. load them to aws Redshift via Copy request
-//3. delete file from aws s3
-func (ar *AwsRedshift) startBatch() {
-	safego.RunWithRestart(func() {
-		for {
-			if ar.closed {
-				break
-			}
-			//TODO configurable
-			time.Sleep(30 * time.Second)
-
-			filesKeys, err := ar.s3Adapter.ListBucket(appconfig.Instance.ServerName)
-			if err != nil {
-				logging.Errorf("[%s] Error reading files from s3: %v", ar.Name(), err)
-				continue
-			}
-
-			if len(filesKeys) == 0 {
-				continue
-			}
-
-			for _, fileKey := range filesKeys {
-				tableName, tokenId, rowsCount, err := extractDataFromFileName(fileKey)
-				if err != nil {
-					logging.Errorf("[%s] S3 file [%s] has wrong format: %v", ar.Name(), fileKey, err)
-					continue
-				}
-
-				wrappedTx, err := ar.redshiftAdapter.OpenTx()
-				if err != nil {
-					logging.Errorf("[%s] Error creating redshift transaction: %v", ar.Name(), err)
-					metrics.ErrorTokenEvents(tokenId, ar.Name(), rowsCount)
-					continue
-				}
-
-				if err := ar.redshiftAdapter.Copy(wrappedTx, fileKey, tableName); err != nil {
-					logging.Errorf("[%s] Error copying file [%s] from s3 to redshift: %v", ar.Name(), fileKey, err)
-					metrics.ErrorTokenEvents(tokenId, ar.Name(), rowsCount)
-					counters.ErrorEvents(ar.Name(), rowsCount)
-					wrappedTx.Rollback()
-					continue
-				}
-
-				wrappedTx.Commit()
-
-				metrics.SuccessTokenEvents(tokenId, ar.Name(), rowsCount)
-				counters.SuccessEvents(ar.Name(), rowsCount)
-
-				//TODO may be we need to have a journal for collecting already processed files names
-				// if ar.s3Adapter.DeleteObject fails => it will be processed next time => duplicate data
-				if err := ar.s3Adapter.DeleteObject(fileKey); err != nil {
-					logging.SystemErrorf("[%s] file %s wasn't deleted from s3 and will be inserted in db again: %v", ar.Name(), fileKey, err)
-					continue
-				}
-			}
-		}
-	})
-}
-
-//Insert fact in Redshift
-func (ar *AwsRedshift) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	dbSchema, err := ar.tableHelper.EnsureTable(ar.Name(), dataSchema)
+//Insert event in Redshift
+func (ar *AwsRedshift) Insert(table *adapters.Table, event events.Event) (err error) {
+	dbTable, err := ar.tableHelper.EnsureTable(ar.Name(), table)
 	if err != nil {
 		return err
 	}
 
-	if err := ar.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
-		return err
+	err = ar.redshiftAdapter.Insert(dbTable, event)
+
+	//renew current db schema and retry
+	if err != nil {
+		dbTable, err := ar.tableHelper.RefreshTableSchema(ar.Name(), table)
+		if err != nil {
+			return err
+		}
+
+		return ar.redshiftAdapter.Insert(dbTable, event)
 	}
 
-	return ar.redshiftAdapter.Insert(dataSchema, fact)
+	return nil
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (ar *AwsRedshift) Store(fileName string, payload []byte) (int, error) {
-	return ar.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+func (ar *AwsRedshift) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+	return ar.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
-//Store file from byte payload to s3 with processing
-//return rowsCount and err if err occurred
-//but return 0 and nil if no err
-//because Store method doesn't store data to AwsRedshift(only to S3)
-func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
-	flatData, failedEvents, err := ar.schemaProcessor.ProcessFilePayload(fileName, payload, ar.breakOnError, parseFunc)
+//StoreWithParseFunc file payload to AwsRedshift with processing
+//return result per table, failed events count and err if occurred
+func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	flatData, failedEvents, err := ar.schemaProcessor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
-		return linesCount(payload), err
+		return nil, linesCount(payload), err
 	}
 
-	var rowsCount int
+	//update cache with failed events
+	for _, failedEvent := range failedEvents {
+		ar.eventsCache.Error(ar.Name(), failedEvent.EventId, failedEvent.Error)
+	}
+
+	storeFailedEvents := true
+	tableResults := map[string]*events.StoreResult{}
 	for _, fdata := range flatData {
-		rowsCount += fdata.GetPayloadLen()
-	}
+		table := ar.tableHelper.MapTableSchema(fdata.BatchHeader)
+		err := ar.storeTable(fdata, table)
+		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		if err != nil {
+			storeFailedEvents = false
+		}
 
-	//events cache
-	defer func() {
-		for _, fdata := range flatData {
-			for _, object := range fdata.GetPayload() {
-				if err != nil {
-					ar.eventsCache.Error(ar.Name(), events.ExtractEventId(object), err.Error())
-				} else {
-					ar.eventsCache.Succeed(ar.Name(), events.ExtractEventId(object), object, fdata.DataSchema, ar.ColumnTypesMapping())
-				}
+		//events cache
+		for _, object := range fdata.GetPayload() {
+			if err != nil {
+				ar.eventsCache.Error(ar.Name(), events.ExtractEventId(object), err.Error())
+			} else {
+				ar.eventsCache.Succeed(ar.Name(), events.ExtractEventId(object), object, table)
 			}
 		}
-	}()
-
-	for _, fdata := range flatData {
-		dbSchema, err := ar.tableHelper.EnsureTable(ar.Name(), fdata.DataSchema)
-		if err != nil {
-			return rowsCount, err
-		}
-
-		if err := ar.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
-			return rowsCount, err
-		}
 	}
 
-	//TODO put them all in one folder and if all ok => move them all to next working folder
-	for _, fdata := range flatData {
-		b, fileRows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
-		err := ar.s3Adapter.UploadBytes(buildDataIntoFileName(fdata, fileRows), b)
-		if err != nil {
-			return fileRows, err
-		}
+	//store failed events to fallback only if other events have been inserted ok
+	if storeFailedEvents {
+		ar.Fallback(failedEvents...)
 	}
 
-	//send failed events to fallback only if other events have been inserted ok
-	ar.Fallback(failedEvents...)
-	counters.ErrorEvents(ar.Name(), len(failedEvents))
-	for _, failedFact := range failedEvents {
-		ar.eventsCache.Error(ar.Name(), failedFact.EventId, failedFact.Error)
+	return tableResults, len(failedEvents), nil
+}
+
+//check table schema
+//and store data into one table via s3
+func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
+	dbTable, err := ar.tableHelper.EnsureTable(ar.Name(), table)
+	if err != nil {
+		return err
 	}
 
-	return 0, nil
+	b := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+	if err := ar.s3Adapter.UploadBytes(fdata.FileName, b); err != nil {
+		return err
+	}
+
+	if err := ar.redshiftAdapter.Copy(fdata.FileName, dbTable.Name); err != nil {
+		return fmt.Errorf("Error copying file [%s] from s3 to redshift: %v", fdata.FileName, err)
+	}
+
+	if err := ar.s3Adapter.DeleteObject(fdata.FileName); err != nil {
+		logging.SystemErrorf("[%s] file %s wasn't deleted from s3: %v", ar.Name(), fdata.FileName, err)
+	}
+
+	return nil
 }
 
 //Fallback log event with error to fallback logger
-func (ar *AwsRedshift) Fallback(failedFacts ...*events.FailedFact) {
-	for _, failedFact := range failedFacts {
-		ar.fallbackLogger.ConsumeAny(failedFact)
+func (ar *AwsRedshift) Fallback(failedEvents ...*events.FailedEvent) {
+	for _, failedEvent := range failedEvents {
+		ar.fallbackLogger.ConsumeAny(failedEvent)
 	}
 }
 
 func (ar *AwsRedshift) SyncStore(objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("RedShift doesn't support sync store")
-}
-
-func (ar *AwsRedshift) ColumnTypesMapping() map[typing.DataType]string {
-	return adapters.SchemaToPostgres
 }
 
 func (ar *AwsRedshift) Name() string {
@@ -249,14 +204,14 @@ func (ar *AwsRedshift) Type() string {
 }
 
 func (ar *AwsRedshift) Close() (multiErr error) {
-	ar.closed = true
-
 	if err := ar.redshiftAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.Name(), err))
 	}
 
 	if ar.streamingWorker != nil {
-		ar.streamingWorker.Close()
+		if err := ar.streamingWorker.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", ar.Name(), err))
+		}
 	}
 
 	if err := ar.fallbackLogger.Close(); err != nil {

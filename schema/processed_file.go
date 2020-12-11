@@ -8,8 +8,8 @@ import (
 
 //ProcessedFile collect data in payload and return it in two formats
 type ProcessedFile struct {
-	FileName   string
-	DataSchema *Table
+	FileName    string
+	BatchHeader *BatchHeader
 
 	payload []map[string]interface{}
 }
@@ -24,15 +24,22 @@ func (pf ProcessedFile) GetPayloadLen() int {
 	return len(pf.payload)
 }
 
-//GetPayloadBytes return marshaling by marshaller func, joined with \n,  bytes and rows count
+//GetPayloadBytes return marshaling by marshaller func, joined with \n,  bytes
 //assume that payload can't be empty
-func (pf ProcessedFile) GetPayloadBytes(marshaller Marshaller) ([]byte, int) {
+func (pf ProcessedFile) GetPayloadBytes(marshaller Marshaller) []byte {
+	b, _ := pf.GetPayloadBytesWithHeader(marshaller)
+	return b
+}
+
+//GetPayloadBytes return marshaling by marshaller func, joined with \n,  bytes
+//assume that payload can't be empty
+func (pf ProcessedFile) GetPayloadBytesWithHeader(marshaller Marshaller) ([]byte, []string) {
 	var buf *bytes.Buffer
 
 	var fields []string
 	//for csv writers using || delimiter
 	if marshaller.NeedHeader() {
-		fields = pf.DataSchema.Columns.Header()
+		fields = pf.BatchHeader.Fields.Header()
 		buf = bytes.NewBuffer([]byte(strings.Join(fields, "||")))
 	}
 
@@ -50,5 +57,5 @@ func (pf ProcessedFile) GetPayloadBytes(marshaller Marshaller) ([]byte, int) {
 		}
 	}
 
-	return buf.Bytes(), len(pf.payload)
+	return buf.Bytes(), fields
 }

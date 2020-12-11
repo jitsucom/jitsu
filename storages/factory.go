@@ -5,13 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/adapters"
-	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
-	"io"
 )
 
 const (
@@ -41,27 +39,29 @@ type DestinationConfig struct {
 type DataLayout struct {
 	MappingType       schema.FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
 	Mapping           []string                `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
+	Mappings          *schema.Mapping         `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
 	TableNameTemplate string                  `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
 	PrimaryKeyFields  []string                `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
 }
 
 type Config struct {
-	ctx                         context.Context
-	name                        string
-	destination                 *DestinationConfig
-	processor                   *schema.Processor
-	streamMode                  bool
-	monitorKeeper               MonitorKeeper
-	eventQueue                  *events.PersistentQueue
-	queryLogger                 *logging.QueryLogger
-	fallBackLoggerFactoryMethod func() *events.AsyncLogger
-	eventsCache                 *caching.EventsCache
+	ctx           context.Context
+	name          string
+	destination   *DestinationConfig
+	processor     *schema.MappingStep
+	streamMode    bool
+	monitorKeeper MonitorKeeper
+	eventQueue    *events.PersistentQueue
+	eventsCache   *caching.EventsCache
+	loggerFactory *logging.Factory
+	pkFields      map[string]bool
+	sqlTypeCasts  map[string]string
 }
 
 //Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64,
-	destination DestinationConfig, monitorKeeper MonitorKeeper, queryWriter io.Writer, eventsCache *caching.EventsCache) (events.StorageProxy, *events.PersistentQueue, error) {
+func Create(ctx context.Context, name, logEventPath string, destination DestinationConfig, monitorKeeper MonitorKeeper,
+	eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (events.StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = name
 	}
@@ -69,42 +69,34 @@ func Create(ctx context.Context, name, logEventPath, logFallbackPath string, log
 		destination.Mode = BatchMode
 	}
 
-	var mapping []string
+	logging.Infof("[%s] Initializing destination of type: %s in mode: %s", name, destination.Type, destination.Mode)
+
 	var tableName string
-	var pkFieldsList []string
+	var oldStyleMappings []string
+	var newStyleMapping *schema.Mapping
+	pkFields := map[string]bool{}
 	mappingFieldType := schema.Default
 	if destination.DataLayout != nil {
 		mappingFieldType = destination.DataLayout.MappingType
-		mapping = destination.DataLayout.Mapping
+		oldStyleMappings = destination.DataLayout.Mapping
+		newStyleMapping = destination.DataLayout.Mappings
 
 		if destination.DataLayout.TableNameTemplate != "" {
 			tableName = destination.DataLayout.TableNameTemplate
 		}
-		pkFieldsList = destination.DataLayout.PrimaryKeyFields
-	}
 
-	logging.Infof("[%s] Initializing destination of type: %s in mode: %s", name, destination.Type, destination.Mode)
+		for _, field := range destination.DataLayout.PrimaryKeyFields {
+			pkFields[field] = true
+		}
+	}
 
 	if tableName == "" {
 		tableName = defaultTableName
 		logging.Infof("[%s] uses default table name: %s", name, tableName)
 	}
 
-	if len(mapping) == 0 {
-		logging.Warnf("[%s] doesn't have mapping rules", name)
-	} else {
-		logging.Infof("[%s] Configured field mapping rules with [%s] mode:", name, mappingFieldType)
-		for _, m := range mapping {
-			logging.Infof("[%s] %s", name, m)
-		}
-	}
-
 	if destination.Mode != BatchMode && destination.Mode != StreamMode {
 		return nil, nil, fmt.Errorf("Unknown destination mode: %s. Available mode: [%s, %s]", destination.Mode, BatchMode, StreamMode)
-	}
-	pkFields := map[string]bool{}
-	for _, field := range pkFieldsList {
-		pkFields[field] = true
 	}
 
 	if len(destination.Enrichment) == 0 {
@@ -113,7 +105,13 @@ func Create(ctx context.Context, name, logEventPath, logFallbackPath string, log
 		logging.Infof("[%s] Configured enrichment rules:", name)
 	}
 
-	var enrichmentRules []enrichment.Rule
+	//default enrichment rules
+	enrichmentRules := []enrichment.Rule{
+		enrichment.DefaultJsIpRule,
+		enrichment.DefaultJsUaRule,
+	}
+
+	//configured enrichment rules
 	for _, ruleConfig := range destination.Enrichment {
 		logging.Infof("[%s] %s", name, ruleConfig.String())
 
@@ -125,21 +123,42 @@ func Create(ctx context.Context, name, logEventPath, logFallbackPath string, log
 		enrichmentRules = append(enrichmentRules, rule)
 	}
 
-	processor, err := schema.NewProcessor(tableName, mapping, mappingFieldType, pkFields, enrichmentRules)
+	fieldMapper, sqlTypeCasts, err := schema.NewFieldMapper(mappingFieldType, oldStyleMappings, newStyleMapping)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	//write current mapping configuration to logs
+	if newStyleMapping != nil && len(newStyleMapping.Fields) != 0 {
+		mappingMode := "keep unmapped fields"
+		if newStyleMapping.KeepUnmapped != nil && !*newStyleMapping.KeepUnmapped {
+			mappingMode = "remove unmapped fields"
+		}
+		logging.Infof("[%s] Configured field mapping rules with [%s] mode:", name, mappingMode)
+		for _, mrc := range newStyleMapping.Fields {
+			logging.Infof("[%s] %s", name, mrc.String())
+		}
+	} else if len(oldStyleMappings) > 0 {
+		logging.Infof("[%s] Configured field mapping rules with [%s] mode:", name, mappingFieldType)
+		for _, m := range oldStyleMappings {
+			logging.Infof("[%s] %s", name, m)
+		}
+	} else {
+		logging.Warnf("[%s] doesn't have mapping rules", name)
+	}
+
+	processor, err := schema.NewMappingStep(name, tableName, fieldMapper, enrichmentRules, destination.BreakOnError)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == StreamMode {
-		queueName := fmt.Sprintf("%s-%s", appconfig.Instance.ServerName, name)
-		eventQueue, err = events.NewPersistentQueue(queueName, logEventPath)
+		eventQueue, err = events.NewPersistentQueue("queue.dst="+name, logEventPath)
 		if err != nil {
 			return nil, nil, err
 		}
 	}
-
-	queryLogger := logging.NewQueryLogger(name, queryWriter)
 
 	storageConfig := &Config{
 		ctx:           ctx,
@@ -149,33 +168,26 @@ func Create(ctx context.Context, name, logEventPath, logFallbackPath string, log
 		streamMode:    destination.Mode == StreamMode,
 		monitorKeeper: monitorKeeper,
 		eventQueue:    eventQueue,
-		queryLogger:   queryLogger,
-		fallBackLoggerFactoryMethod: func() *events.AsyncLogger {
-			return events.NewAsyncLogger(logging.NewRollingWriter(logging.Config{
-				LoggerName:    "errors-" + name,
-				ServerName:    appconfig.Instance.ServerName,
-				FileDir:       logFallbackPath,
-				RotationMin:   logRotationMin,
-				RotateOnClose: true,
-			}), false)
-		},
-		eventsCache: eventsCache,
+		eventsCache:   eventsCache,
+		loggerFactory: loggerFactory,
+		pkFields:      pkFields,
+		sqlTypeCasts:  sqlTypeCasts,
 	}
 
 	var storageProxy events.StorageProxy
 	switch destination.Type {
 	case RedshiftType:
-		storageProxy = newProxy(createRedshift, storageConfig)
+		storageProxy = newProxy(NewAwsRedshift, storageConfig)
 	case BigQueryType:
-		storageProxy = newProxy(createBigQuery, storageConfig)
+		storageProxy = newProxy(NewBigQuery, storageConfig)
 	case PostgresType:
-		storageProxy = newProxy(createPostgres, storageConfig)
+		storageProxy = newProxy(NewPostgres, storageConfig)
 	case ClickHouseType:
-		storageProxy = newProxy(createClickHouse, storageConfig)
+		storageProxy = newProxy(NewClickHouse, storageConfig)
 	case S3Type:
-		storageProxy = newProxy(createS3, storageConfig)
+		storageProxy = newProxy(NewS3, storageConfig)
 	case SnowflakeType:
-		storageProxy = newProxy(createSnowflake, storageConfig)
+		storageProxy = newProxy(NewSnowflake, storageConfig)
 	default:
 		if eventQueue != nil {
 			eventQueue.Close()
@@ -184,133 +196,4 @@ func Create(ctx context.Context, name, logEventPath, logFallbackPath string, log
 	}
 
 	return storageProxy, eventQueue, nil
-}
-
-//Create aws Redshift destination
-func createRedshift(config *Config) (events.Storage, error) {
-	redshiftConfig := config.destination.DataSource
-	if err := redshiftConfig.Validate(); err != nil {
-		return nil, err
-	}
-	//enrich with default parameters
-	if redshiftConfig.Port <= 0 {
-		redshiftConfig.Port = 5439
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.name, redshiftConfig.Port)
-	}
-	if redshiftConfig.Schema == "" {
-		redshiftConfig.Schema = "public"
-		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.name, redshiftConfig.Schema)
-	}
-	//default connect timeout seconds
-	if _, ok := redshiftConfig.Parameters["connect_timeout"]; !ok {
-		redshiftConfig.Parameters["connect_timeout"] = "600"
-	}
-
-	return NewAwsRedshift(config.ctx, config.name, config.eventQueue, config.destination.S3, redshiftConfig, config.processor,
-		config.destination.BreakOnError, config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger, config.eventsCache)
-}
-
-//Create google BigQuery destination
-func createBigQuery(config *Config) (events.Storage, error) {
-	gConfig := config.destination.Google
-	if err := gConfig.Validate(config.streamMode); err != nil {
-		return nil, err
-	}
-
-	if gConfig.Project == "" {
-		return nil, errors.New("BigQuery project(bq_project) is required parameter")
-	}
-
-	//enrich with default parameters
-	if gConfig.Dataset == "" {
-		gConfig.Dataset = "default"
-		logging.Warnf("[%s] dataset wasn't provided. Will be used default one: %s", config.name, gConfig.Dataset)
-	}
-
-	return NewBigQuery(config.ctx, config.name, config.eventQueue, gConfig, config.processor, config.destination.BreakOnError,
-		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger, config.eventsCache)
-}
-
-//Create Postgres destination
-func createPostgres(config *Config) (events.Storage, error) {
-	pgConfig := config.destination.DataSource
-	if err := pgConfig.Validate(); err != nil {
-		return nil, err
-	}
-	//enrich with default parameters
-	if pgConfig.Port <= 0 {
-		pgConfig.Port = 5432
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.name, pgConfig.Port)
-	}
-	if pgConfig.Schema == "" {
-		pgConfig.Schema = "public"
-		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.name, pgConfig.Schema)
-	}
-	//default connect timeout seconds
-	if _, ok := pgConfig.Parameters["connect_timeout"]; !ok {
-		pgConfig.Parameters["connect_timeout"] = "600"
-	}
-
-	return NewPostgres(config.ctx, pgConfig, config.processor, config.eventQueue, config.name, config.destination.BreakOnError,
-		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger, config.eventsCache)
-}
-
-//Create ClickHouse destination
-func createClickHouse(config *Config) (events.Storage, error) {
-	chConfig := config.destination.ClickHouse
-	if err := chConfig.Validate(); err != nil {
-		return nil, err
-	}
-
-	return NewClickHouse(config.ctx, config.name, config.eventQueue, chConfig, config.processor, config.destination.BreakOnError,
-		config.streamMode, config.monitorKeeper, config.fallBackLoggerFactoryMethod, config.queryLogger, config.eventsCache)
-}
-
-//Create s3 destination
-func createS3(config *Config) (events.Storage, error) {
-	if config.streamMode {
-		if config.eventQueue != nil {
-			config.eventQueue.Close()
-		}
-		return nil, fmt.Errorf("S3 destination doesn't support %s mode", StreamMode)
-	}
-	s3Config := config.destination.S3
-	if err := s3Config.Validate(); err != nil {
-		return nil, err
-	}
-
-	return NewS3(config.name, s3Config, config.processor, config.destination.BreakOnError, config.fallBackLoggerFactoryMethod,
-		config.eventsCache)
-}
-
-//Create Snowflake destination
-func createSnowflake(config *Config) (events.Storage, error) {
-	snowflakeConfig := config.destination.Snowflake
-	if err := snowflakeConfig.Validate(); err != nil {
-		return nil, err
-	}
-	if snowflakeConfig.Schema == "" {
-		snowflakeConfig.Schema = "PUBLIC"
-		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.name, snowflakeConfig.Schema)
-	}
-
-	//default client_session_keep_alive
-	if _, ok := snowflakeConfig.Parameters["client_session_keep_alive"]; !ok {
-		t := "true"
-		snowflakeConfig.Parameters["client_session_keep_alive"] = &t
-	}
-
-	if config.destination.Google != nil {
-		if err := config.destination.Google.Validate(config.streamMode); err != nil {
-			return nil, err
-		}
-		//stage is required when gcp integration
-		if snowflakeConfig.Stage == "" {
-			return nil, errors.New("Snowflake stage is required parameter in GCP integration")
-		}
-	}
-
-	return NewSnowflake(config.ctx, config.name, config.eventQueue, config.destination.S3, config.destination.Google,
-		snowflakeConfig, config.processor, config.destination.BreakOnError, config.streamMode, config.monitorKeeper,
-		config.fallBackLoggerFactoryMethod, config.queryLogger, config.eventsCache)
 }

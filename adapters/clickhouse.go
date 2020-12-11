@@ -8,12 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/typing"
 	"github.com/mailru/go-clickhouse"
 	"io/ioutil"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -39,17 +39,25 @@ var (
 		typing.INT64:     "Int64",
 		typing.FLOAT64:   "Float64",
 		typing.TIMESTAMP: "DateTime",
+		typing.BOOL:      "UInt8",
+		typing.UNKNOWN:   "String",
 	}
 
-	ClickhouseToSchema = map[string]typing.DataType{
-		"String":             typing.STRING,
-		"Nullable(String)":   typing.STRING,
-		"Int64":              typing.INT64,
-		"Nullable(Int64)":    typing.INT64,
-		"Float64":            typing.FLOAT64,
-		"Nullable(Float64)":  typing.FLOAT64,
-		"DateTime":           typing.TIMESTAMP,
-		"Nullable(DateTime)": typing.TIMESTAMP,
+	defaultValues = map[string]interface{}{
+		"int32":                    0,
+		"int64":                    0,
+		"float32":                  0.0,
+		"float64":                  0.0,
+		"datetime":                 time.Time{},
+		"uint8":                    false,
+		"string":                   "",
+		"lowcardinality(int32)":    0,
+		"lowcardinality(int64)":    0,
+		"lowcardinality(float32)":  0,
+		"lowcardinality(float64)":  0,
+		"lowcardinality(datetime)": time.Time{},
+		"lowcardinality(uint8)":    false,
+		"lowcardinality(string)":   "",
 	}
 )
 
@@ -191,12 +199,13 @@ type ClickHouse struct {
 	tableStatementFactory *TableStatementFactory
 	nullableFields        map[string]bool
 	queryLogger           *logging.QueryLogger
+	mappingTypeCasts      map[string]string
 }
 
 //NewClickHouse return configured ClickHouse adapter instance
 func NewClickHouse(ctx context.Context, connectionString, database, cluster string, tlsConfig map[string]string,
 	tableStatementFactory *TableStatementFactory, nullableFields map[string]bool,
-	queryLogger *logging.QueryLogger) (*ClickHouse, error) {
+	queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*ClickHouse, error) {
 	//configure tls
 	if strings.Contains(connectionString, "https://") && tlsConfig != nil {
 		for tlsName, crtPath := range tlsConfig {
@@ -212,6 +221,15 @@ func NewClickHouse(ctx context.Context, connectionString, database, cluster stri
 			}
 		}
 	}
+
+	//enrich with ?wait_end_of_query=1 (for waiting on cluster execution result)
+	if strings.Contains(connectionString, "?") {
+		connectionString += "&"
+	} else {
+		connectionString += "?"
+	}
+
+	connectionString += "wait_end_of_query=1"
 	//connect
 	dataSource, err := sql.Open("clickhouse", connectionString)
 	if err != nil {
@@ -229,6 +247,7 @@ func NewClickHouse(ctx context.Context, connectionString, database, cluster stri
 		tableStatementFactory: tableStatementFactory,
 		nullableFields:        nullableFields,
 		queryLogger:           queryLogger,
+		mappingTypeCasts:      reformatMappings(mappingTypeCasts, SchemaToClickhouse),
 	}, nil
 }
 
@@ -257,39 +276,35 @@ func (ch *ClickHouse) CreateDB(dbName string) error {
 	ch.queryLogger.Log(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing create db %s statement: %v", dbName, err)
 	}
 
 	_, err = createStmt.ExecContext(ch.ctx)
 
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error creating [%s] db: %v", dbName, err)
 	}
 	return wrappedTx.tx.Commit()
 }
 
-//CreateTable create database table with name,columns provided in schema.Table representation
+//CreateTable create database table with name,columns provided in Table representation
 //New tables will have MergeTree() or ReplicatedMergeTree() engine depends on config.cluster empty or not
-func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
-	wrappedTx, err := ch.OpenTx()
-	if err != nil {
-		return err
-	}
-
+func (ch *ClickHouse) CreateTable(tableSchema *Table) error {
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := SchemaToClickhouse[column.GetType()]
-		if !ok {
-			logging.Error("Unknown clickhouse schema type:", column.GetType())
-			mappedType = SchemaToClickhouse[typing.STRING]
+		//get sql type
+		sqlType := column.SqlType
+		castedSqlType, ok := ch.mappingTypeCasts[columnName]
+		if ok {
+			sqlType = castedSqlType
 		}
+
+		//get nullable or plain
 		var addColumnDDL string
 		if _, ok := ch.nullableFields[columnName]; ok {
-			addColumnDDL = columnName + fmt.Sprintf(columnCHNullableTemplate, mappedType)
+			addColumnDDL = columnName + fmt.Sprintf(columnCHNullableTemplate, sqlType)
 		} else {
-			addColumnDDL = columnName + " " + mappedType
+			addColumnDDL = columnName + " " + sqlType
 		}
 		columnsDDL = append(columnsDDL, addColumnDDL)
 	}
@@ -298,26 +313,23 @@ func (ch *ClickHouse) CreateTable(tableSchema *schema.Table) error {
 	sort.Strings(columnsDDL)
 	statementStr := ch.tableStatementFactory.CreateTableStatement(tableSchema.Name, strings.Join(columnsDDL, ","))
 	ch.queryLogger.Log(statementStr)
-	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, statementStr)
-	if err != nil {
-		return fmt.Errorf("Error preparing create table [%s] statement [%s]: %v", tableSchema.Name, statementStr, err)
-	}
 
-	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
-		return fmt.Errorf("Error creating [%s] table with statement [%s]: %v", tableSchema.Name, statementStr, err)
+	_, err := ch.dataSource.ExecContext(ch.ctx, statementStr)
+	if err != nil {
+		return fmt.Errorf("Error creating table [%s] statement [%s]: %v", tableSchema.Name, statementStr, err)
 	}
 
 	//create distributed table if ReplicatedMergeTree engine
 	if ch.cluster != "" {
-		ch.createDistributedTableInTransaction(wrappedTx, tableSchema.Name)
+		ch.createDistributedTableInTransaction(tableSchema.Name)
 	}
 
-	return wrappedTx.tx.Commit()
+	return nil
 }
 
-//GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
-func (ch *ClickHouse) GetTableSchema(tableName string) (*schema.Table, error) {
-	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
+//GetTableSchema return table (name,columns with name and types) representation wrapped in Table struct
+func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
+	table := &Table{Name: tableName, Columns: map[string]Column{}}
 	rows, err := ch.dataSource.QueryContext(ch.ctx, tableSchemaCHQuery, ch.database, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
@@ -330,12 +342,7 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*schema.Table, error) {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
 
-		mappedType, ok := ClickhouseToSchema[columnClickhouseType]
-		if !ok {
-			logging.Error("Unknown clickhouse column type:", columnClickhouseType)
-			mappedType = typing.STRING
-		}
-		table.Columns[columnName] = schema.NewColumn(mappedType)
+		table.Columns[columnName] = Column{SqlType: columnClickhouseType}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)
@@ -344,25 +351,28 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*schema.Table, error) {
 	return table, nil
 }
 
-//PatchTableSchema add new columns(from provided schema.Table) to existing table
+//PatchTableSchema add new columns(from provided Table) to existing table
 //drop and create distributed table
-func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
+func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 	wrappedTx, err := ch.OpenTx()
 	if err != nil {
 		return err
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		mappedType, ok := SchemaToClickhouse[column.GetType()]
-		if !ok {
-			logging.Error("Unknown clickhouse schema type:", column.GetType().String())
-			mappedType = SchemaToClickhouse[typing.STRING]
+		//get sql type
+		sqlType := column.SqlType
+		castedSqlType, ok := ch.mappingTypeCasts[columnName]
+		if ok {
+			sqlType = castedSqlType
 		}
+
+		//get nullable or plain
 		var columnTypeDDL string
 		if _, ok := ch.nullableFields[columnName]; ok {
-			columnTypeDDL = fmt.Sprintf(columnCHNullableTemplate, mappedType)
+			columnTypeDDL = fmt.Sprintf(columnCHNullableTemplate, sqlType)
 		} else {
-			columnTypeDDL = mappedType
+			columnTypeDDL = sqlType
 		}
 		query := fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, columnTypeDDL)
 		ch.queryLogger.Log(query)
@@ -382,59 +392,93 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *schema.Table) error {
 	//drop and create distributed table if ReplicatedMergeTree engine
 	if ch.cluster != "" {
 		ch.dropDistributedTableInTransaction(wrappedTx, patchSchema.Name)
-		ch.createDistributedTableInTransaction(wrappedTx, patchSchema.Name)
+		ch.createDistributedTableInTransaction(patchSchema.Name)
 	}
 
 	return wrappedTx.tx.Commit()
 }
 
 //Insert provided object in ClickHouse in stream mode
-func (ch *ClickHouse) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
+func (ch *ClickHouse) Insert(table *Table, valuesMap map[string]interface{}) error {
+	var header, placeholders []string
+	var values []interface{}
+	for name, value := range valuesMap {
+		header = append(header, name)
+		placeholders = append(placeholders, ch.getPlaceholder(name))
+		values = append(values, value)
+	}
+
 	wrappedTx, err := ch.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	if err := ch.InsertInTransaction(wrappedTx, schema, valuesMap); err != nil {
+	query := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(header, ", "), strings.Join(placeholders, ", "))
+	ch.queryLogger.LogWithValues(query, values)
+	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
+	if err != nil {
 		wrappedTx.Rollback()
-		return err
+		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)
+	}
+
+	_, err = insertStmt.ExecContext(ch.ctx, values...)
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", table.Name, header, values, err)
 	}
 
 	return wrappedTx.DirectCommit()
 }
 
-//Insert provided object in ClickHouse in transaction
-func (ch *ClickHouse) InsertInTransaction(wrappedTx *Transaction, schema *schema.Table, valuesMap map[string]interface{}) error {
-	var header, placeholders string
-	var values []interface{}
-	for name, value := range valuesMap {
-		header += name + ","
-		//?, ?, ?, etc
-		placeholders += "?,"
-		values = append(values, value)
+//BulkInsert insert objects into table in one prepared statement
+func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	var header, placeholders []string
+	for name := range table.Columns {
+		header = append(header, name)
+		placeholders = append(placeholders, ch.getPlaceholder(name))
 	}
 
-	header = removeLastComma(header)
-	placeholders = removeLastComma(placeholders)
+	query := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(header, ", "), strings.Join(placeholders, ", "))
 
-	query := fmt.Sprintf(insertCHTemplate, ch.database, schema.Name, header, placeholders)
-	ch.queryLogger.LogWithValues(query, values)
+	wrappedTx, err := ch.OpenTx()
+	if err != nil {
+		return err
+	}
+
 	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
-		return fmt.Errorf("Error preparing insert table %s statement: %v", schema.Name, err)
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error preparing bulk insert statement [%s] table %s statement: %v", query, table.Name, err)
 	}
 
-	_, err = insertStmt.ExecContext(ch.ctx, values...)
-	if err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", schema.Name, header, values, err)
+	for _, row := range objects {
+		var values []interface{}
+		for _, column := range header {
+			value, ok := row[column]
+			if ok {
+				values = append(values, ch.reformatValue(value))
+			} else {
+				column, _ := table.Columns[column]
+				defaultValue, ok := ch.getDefaultValue(column.SqlType)
+				if ok {
+					values = append(values, defaultValue)
+				} else {
+					values = append(values, value)
+				}
+
+			}
+		}
+
+		ch.queryLogger.LogWithValues(query, values)
+
+		_, err = insertStmt.ExecContext(ch.ctx, values...)
+		if err != nil {
+			wrappedTx.Rollback()
+			return fmt.Errorf("Error bulk inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
+		}
 	}
 
-	return nil
-}
-
-func (ch *ClickHouse) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
-	logging.Warn("Constraints update is not supported for Snowflake yet")
-	return nil
+	return wrappedTx.DirectCommit()
 }
 
 //Close underlying sql.DB
@@ -456,18 +500,15 @@ func (ch *ClickHouse) getOnClusterClause() string {
 }
 
 //create distributed table, ignore errors
-func (ch *ClickHouse) createDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
-	query := fmt.Sprintf(createDistributedTableCHTemplate,
+func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string) {
+	statement := fmt.Sprintf(createDistributedTableCHTemplate,
 		ch.database, originTableName, ch.getOnClusterClause(), ch.database, originTableName, ch.cluster, ch.database, originTableName)
-	ch.queryLogger.Log(query)
-	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
-	if err != nil {
-		logging.Errorf("Error preparing create distributed table statement for [%s] : %v", originTableName, err)
-		return
-	}
+	ch.queryLogger.Log(statement)
 
-	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
-		logging.Errorf("Error creating distributed table for [%s] : %v", originTableName, err)
+	_, err := ch.dataSource.ExecContext(ch.ctx, statement)
+	if err != nil {
+		logging.Errorf("Error creating distributed table statement with statement [%s] for [%s] : %v", originTableName, statement, err)
+		return
 	}
 }
 
@@ -484,6 +525,46 @@ func (ch *ClickHouse) dropDistributedTableInTransaction(wrappedTx *Transaction, 
 	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
 		logging.Errorf("Error dropping distributed table for [%s] : %v", originTableName, err)
 	}
+}
+
+func (ch *ClickHouse) getPlaceholder(columnName string) string {
+	castType, ok := ch.mappingTypeCasts[columnName]
+	if ok {
+		return fmt.Sprintf("cast(?, '%s')", castType)
+	}
+
+	return "?"
+}
+
+//return nil if column type is nullable or default value for input type
+func (ch *ClickHouse) getDefaultValue(sqlType string) (interface{}, bool) {
+	if !strings.Contains(strings.ToLower(sqlType), "nullable") {
+		//get default value based on type
+		dv, ok := defaultValues[strings.ToLower(sqlType)]
+		if ok {
+			return dv, true
+		} else {
+			logging.SystemErrorf("Unknown clickhouse default value for %s", sqlType)
+		}
+	}
+
+	return nil, false
+}
+
+//if value is boolean - reformat it [true = 1; false = 0] ClickHouse supports UInt8 instead of boolean
+//otherwise return value as is
+func (ch *ClickHouse) reformatValue(v interface{}) interface{} {
+	//reformat boolean
+	booleanValue, ok := v.(bool)
+	if ok {
+		if booleanValue {
+			return 1
+		} else {
+			return 0
+		}
+	}
+
+	return v
 }
 
 func extractStatement(fieldConfigs []FieldConfig) string {

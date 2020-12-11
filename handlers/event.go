@@ -6,12 +6,12 @@ import (
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/destinations"
+	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/middleware"
 	"github.com/jitsucom/eventnative/telemetry"
 	"github.com/jitsucom/eventnative/timestamp"
-	"github.com/jitsucom/eventnative/uuid"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,8 +19,6 @@ import (
 )
 
 const (
-	apiTokenKey  = "api_key"
-	ipKey        = "source_ip"
 	defaultLimit = 100
 )
 
@@ -31,7 +29,7 @@ type CachedEvent struct {
 }
 
 type OldCachedEventsResponse struct {
-	Events []events.Fact `json:"events"`
+	Events []events.Event `json:"events"`
 }
 
 type CachedEventsResponse struct {
@@ -60,9 +58,9 @@ func NewEventHandler(destinationService *destinations.Service, preprocessor even
 }
 
 func (eh *EventHandler) PostHandler(c *gin.Context) {
-	payload := events.Fact{}
+	payload := events.Event{}
 	if err := c.BindJSON(&payload); err != nil {
-		logging.Error("Error parsing event body: %v", err)
+		logging.Errorf("Error parsing event body: %v", err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
 		return
 	}
@@ -74,45 +72,35 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	}
 	token := iface.(string)
 
-	//Deprecated
-	eh.inMemoryEventsCache.PutAsync(token, payload)
+	//** Context enrichment **
+	enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.preprocessor)
 
-	//put eventn_ctx_event_id if not set (e.g. It is used for ClickHouse)
-	events.EnrichWithEventId(payload, uuid.New())
-	//get eventId if it is in request
+	//** Caching **
+	//clone payload for preventing concurrent changes while serialization
+	cachingEvent := payload.Clone()
+
+	//Deprecated cache
+	eh.inMemoryEventsCache.PutAsync(token, cachingEvent)
+
+	//Persisted cache
 	eventId := events.ExtractEventId(payload)
-
+	if eventId == "" {
+		logging.SystemErrorf("Empty extracted eventn_ctx_event_id in: %s", payload.Serialize())
+	}
 	tokenId := appconfig.Instance.AuthorizationService.GetTokenId(token)
-
-	//caching
 	for destinationId := range eh.destinationService.GetDestinationIds(tokenId) {
-		//clone payload map for preventing concurrent changes while serialization
-		eh.eventsCache.Put(destinationId, eventId, payload.Clone())
+		eh.eventsCache.Put(destinationId, eventId, cachingEvent)
 	}
 
-	ip := extractIp(c.Request)
-	if ip != "" {
-		payload[ipKey] = ip
-	}
-
-	processed, err := eh.preprocessor.Preprocess(payload)
-	if err != nil {
-		logging.Error("Error processing event:", err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error processing event", Error: err.Error()})
-		return
-	}
-
-	processed[apiTokenKey] = token
-	processed[timestamp.Key] = timestamp.NowUTC()
-
+	//** Multiplexing **
 	consumers := eh.destinationService.GetConsumers(tokenId)
 	if len(consumers) == 0 {
-		logging.Warnf("Unknown token[%s] request was received", token)
+		logging.Warnf("Unknown token[%s] request was received. Event: %s", token, payload.Serialize())
 	} else {
 		telemetry.Event()
 
 		for _, consumer := range consumers {
-			consumer.Consume(processed, tokenId)
+			consumer.Consume(payload, tokenId)
 		}
 	}
 
@@ -134,7 +122,7 @@ func (eh *EventHandler) OldGetHandler(c *gin.Context) {
 		}
 	}
 
-	response := OldCachedEventsResponse{Events: []events.Fact{}}
+	response := OldCachedEventsResponse{Events: []events.Event{}}
 	if len(apikeys) == 0 {
 		response.Events = eh.inMemoryEventsCache.GetAll(limit)
 	} else {
@@ -198,19 +186,4 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
-}
-
-func extractIp(r *http.Request) string {
-	ip := r.Header.Get("X-Real-IP")
-	if ip == "" {
-		ip = r.Header.Get("X-Forwarded-For")
-	}
-	if ip == "" {
-		remoteAddr := r.RemoteAddr
-		if remoteAddr != "" {
-			addrPort := strings.Split(remoteAddr, ":")
-			ip = addrPort[0]
-		}
-	}
-	return ip
 }

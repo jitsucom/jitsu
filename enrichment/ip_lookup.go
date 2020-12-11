@@ -11,57 +11,56 @@ import (
 const IpLookup = "ip_lookup"
 
 type IpLookupRule struct {
-	source        *jsonutils.JsonPath
-	destination   *jsonutils.JsonPath
-	convertResult bool
-	geoResolver   geo.Resolver
+	source                  *jsonutils.JsonPath
+	destination             *jsonutils.JsonPath
+	geoResolver             geo.Resolver
+	enrichmentConditionFunc func(map[string]interface{}) bool
 }
 
-func NewIpLookupRule(source, destination *jsonutils.JsonPath, convertResult bool) (*IpLookupRule, error) {
+func NewIpLookupRule(source, destination *jsonutils.JsonPath) (*IpLookupRule, error) {
 	return &IpLookupRule{
-		source:        source,
-		destination:   destination,
-		convertResult: convertResult,
-		geoResolver:   appconfig.Instance.GeoResolver,
+		source:      source,
+		destination: destination,
+		geoResolver: appconfig.Instance.GeoResolver,
+		//always do enrichment
+		enrichmentConditionFunc: func(m map[string]interface{}) bool {
+			return true
+		},
 	}, nil
 }
 
-func (ir *IpLookupRule) Execute(fact map[string]interface{}) error {
-	ipIface, ok := ir.source.Get(fact)
+func (ir *IpLookupRule) Execute(event map[string]interface{}) {
+	if !ir.enrichmentConditionFunc(event) {
+		return
+	}
+
+	ipIface, ok := ir.source.Get(event)
 	if !ok {
-		return nil
+		return
 	}
 
 	ip, ok := ipIface.(string)
 	if !ok {
-		return nil
+		return
 	}
 
 	geoData, err := ir.geoResolver.Resolve(ip)
 	if err != nil {
 		logging.SystemErrorf("Error resolving geo ip [%s]: %v", ip, err)
-		return nil
+		return
 	}
 
-	var result interface{}
-	result = geoData
-	if ir.convertResult {
-		//convert all structs to map[string]interface{} for inner typecasting
-		rawObject, err := parsers.ParseInterface(geoData)
-		if err != nil {
-			logging.SystemErrorf("Error converting geo ip node: %v", err)
-			return nil
-		}
-
-		result = rawObject
+	//convert all structs to map[string]interface{} for inner typecasting
+	result, err := parsers.ParseInterface(geoData)
+	if err != nil {
+		logging.SystemErrorf("Error converting geo ip node: %v", err)
+		return
 	}
 
-	ok = ir.destination.Set(fact, result)
-	if !ok {
-		logging.SystemErrorf("Resolved geo data wasn't set in path: %s", ir.destination.String())
+	err = ir.destination.Set(event, result)
+	if err != nil {
+		logging.SystemErrorf("Resolved geo data wasn't set: %v", err)
 	}
-
-	return nil
 }
 
 func (ir *IpLookupRule) Name() string {

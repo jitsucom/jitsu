@@ -1,54 +1,55 @@
 package storages
 
 import (
-	"context"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
-	"github.com/jitsucom/eventnative/typing"
 	"math/rand"
 )
 
 //Store files to ClickHouse in two modes:
-//batch: (1 file = 1 transaction)
-//stream: (1 object = 1 transaction)
+//batch: (1 file = 1 statement)
+//stream: (1 object = 1 statement)
 type ClickHouse struct {
 	name            string
 	adapters        []*adapters.ClickHouse
 	tableHelpers    []*TableHelper
-	schemaProcessor *schema.Processor
+	schemaProcessor *schema.MappingStep
 	streamingWorker *StreamingWorker
-	fallbackLogger  *events.AsyncLogger
+	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
-	breakOnError    bool
 }
 
-func NewClickHouse(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.ClickHouseConfig,
-	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper,
-	fallbackLoggerFactoryMethod func() *events.AsyncLogger, queryLogger *logging.QueryLogger, eventsCache *caching.EventsCache) (*ClickHouse, error) {
-	tableStatementFactory, err := adapters.NewTableStatementFactory(config)
+func NewClickHouse(config *Config) (events.Storage, error) {
+	chConfig := config.destination.ClickHouse
+	if err := chConfig.Validate(); err != nil {
+		return nil, err
+	}
+
+	tableStatementFactory, err := adapters.NewTableStatementFactory(chConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	nullableFields := map[string]bool{}
-	if config.Engine != nil {
-		for _, fieldName := range config.Engine.NullableFields {
+	if chConfig.Engine != nil {
+		for _, fieldName := range chConfig.Engine.NullableFields {
 			nullableFields[fieldName] = true
 		}
 	}
 
+	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
+
 	var chAdapters []*adapters.ClickHouse
 	var tableHelpers []*TableHelper
-	for _, dsn := range config.Dsns {
-		adapter, err := adapters.NewClickHouse(ctx, dsn, config.Database, config.Cluster, config.Tls,
-			tableStatementFactory, nullableFields, queryLogger)
+	for _, dsn := range chConfig.Dsns {
+		adapter, err := adapters.NewClickHouse(config.ctx, dsn, chConfig.Database, chConfig.Cluster, chConfig.Tls,
+			tableStatementFactory, nullableFields, queryLogger, config.sqlTypeCasts)
 		if err != nil {
 			//close all previous created adapters
 			for _, toClose := range chAdapters {
@@ -58,32 +59,31 @@ func NewClickHouse(ctx context.Context, name string, eventQueue *events.Persiste
 		}
 
 		chAdapters = append(chAdapters, adapter)
-		tableHelpers = append(tableHelpers, NewTableHelper(adapter, monitorKeeper, ClickHouseType))
+		tableHelpers = append(tableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse))
 	}
 
 	ch := &ClickHouse{
-		name:            name,
+		name:            config.name,
 		adapters:        chAdapters,
 		tableHelpers:    tableHelpers,
-		schemaProcessor: processor,
-		eventsCache:     eventsCache,
-		breakOnError:    breakOnError,
+		schemaProcessor: config.processor,
+		eventsCache:     config.eventsCache,
+		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
 	}
 
 	adapter, _ := ch.getAdapters()
-	err = adapter.CreateDB(config.Database)
+	err = adapter.CreateDB(chConfig.Database)
 	if err != nil {
 		//close all previous created adapters
 		for _, toClose := range chAdapters {
 			toClose.Close()
 		}
+		ch.fallbackLogger.Close()
 		return nil, err
 	}
 
-	ch.fallbackLogger = fallbackLoggerFactoryMethod()
-
-	if streamMode {
-		ch.streamingWorker = newStreamingWorker(eventQueue, processor, ch, eventsCache)
+	if config.streamMode {
+		ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelpers...)
 		ch.streamingWorker.start()
 	}
 
@@ -98,8 +98,8 @@ func (ch *ClickHouse) Type() string {
 	return ClickHouseType
 }
 
-//Insert fact in ClickHouse
-func (ch *ClickHouse) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
+//Insert event in ClickHouse (1 retry if err)
+func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (err error) {
 	adapter, tableHelper := ch.getAdapters()
 
 	dbSchema, err := tableHelper.EnsureTable(ch.Name(), dataSchema)
@@ -107,109 +107,114 @@ func (ch *ClickHouse) Insert(dataSchema *schema.Table, fact events.Fact) (err er
 		return err
 	}
 
-	if err := ch.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
-		return err
+	err = adapter.Insert(dbSchema, event)
+
+	//renew current db schema and retry
+	if err != nil {
+		dbSchema, err := tableHelper.RefreshTableSchema(ch.Name(), dataSchema)
+		if err != nil {
+			return err
+		}
+
+		return adapter.Insert(dbSchema, event)
 	}
 
-	return adapter.Insert(dataSchema, fact)
+	return nil
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (ch *ClickHouse) Store(fileName string, payload []byte) (int, error) {
-	return ch.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+func (ch *ClickHouse) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+	return ch.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //StoreWithParseFunc store file payload to ClickHouse with processing
-//return rows count and err if can't store
-//or rows count and nil if stored
-func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
-	flatData, failedEvents, err := ch.schemaProcessor.ProcessFilePayload(fileName, payload, ch.breakOnError, parseFunc)
+//return result per table, failed events count and err if occurred
+func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	flatData, failedEvents, err := ch.schemaProcessor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
-		return linesCount(payload), err
+		return nil, linesCount(payload), err
 	}
 
-	rowsCount, err := ch.store(flatData)
+	//update cache with failed events
+	for _, failedEvent := range failedEvents {
+		ch.eventsCache.Error(ch.Name(), failedEvent.EventId, failedEvent.Error)
+	}
 
-	//send failed events to fallback only if other events have been inserted ok
-	if err == nil {
-		ch.Fallback(failedEvents...)
-		counters.ErrorEvents(ch.Name(), len(failedEvents))
-		for _, failedFact := range failedEvents {
-			ch.eventsCache.Error(ch.Name(), failedFact.EventId, failedFact.Error)
+	storeFailedEvents := true
+	tableResults := map[string]*events.StoreResult{}
+	for _, fdata := range flatData {
+		adapter, tableHelper := ch.getAdapters()
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
+		err := ch.storeTable(adapter, tableHelper, fdata, table)
+		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		if err != nil {
+			storeFailedEvents = false
+		}
+
+		//events cache
+		for _, object := range fdata.GetPayload() {
+			if err != nil {
+				ch.eventsCache.Error(ch.Name(), events.ExtractEventId(object), err.Error())
+			} else {
+				ch.eventsCache.Succeed(ch.Name(), events.ExtractEventId(object), object, table)
+			}
 		}
 	}
 
-	return rowsCount, err
+	//store failed events to fallback only if other events have been inserted ok
+	if storeFailedEvents {
+		ch.Fallback(failedEvents...)
+	}
+
+	return tableResults, len(failedEvents), nil
+}
+
+//check table schema
+//and store data into one table
+func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *TableHelper, fdata *schema.ProcessedFile, table *adapters.Table) error {
+	dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
+	if err != nil {
+		return err
+	}
+
+	if err := adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //SyncStore store chunk payload to ClickHouse with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (int, error) {
+func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (rowsCount int, err error) {
 	flatData, err := ch.schemaProcessor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
 	}
 
-	return ch.store(flatData)
-}
-
-func (ch *ClickHouse) ColumnTypesMapping() map[typing.DataType]string {
-	return adapters.SchemaToClickhouse
-}
-
-//Fallback log event with error to fallback logger
-func (ch *ClickHouse) Fallback(failedFacts ...*events.FailedFact) {
-	for _, failedFact := range failedFacts {
-		ch.fallbackLogger.ConsumeAny(failedFact)
-	}
-}
-
-func (ch *ClickHouse) store(flatData map[string]*schema.ProcessedFile) (rowsCount int, err error) {
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
 
-	//events cache
-	defer func() {
-		for _, fdata := range flatData {
-			for _, object := range fdata.GetPayload() {
-				if err != nil {
-					ch.eventsCache.Error(ch.Name(), events.ExtractEventId(object), err.Error())
-				} else {
-					ch.eventsCache.Succeed(ch.Name(), events.ExtractEventId(object), object, fdata.DataSchema, ch.ColumnTypesMapping())
-				}
-			}
-		}
-	}()
-
-	adapter, tableHelper := ch.getAdapters()
-	//process db tables & schema
 	for _, fdata := range flatData {
-		dbSchema, err := tableHelper.EnsureTable(ch.Name(), fdata.DataSchema)
+		adapter, tableHelper := ch.getAdapters()
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
+		err := ch.storeTable(adapter, tableHelper, fdata, table)
 		if err != nil {
 			return rowsCount, err
 		}
-
-		if err := ch.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
-			return rowsCount, err
-		}
 	}
 
-	tx, err := adapter.OpenTx()
-	if err != nil {
-		return rowsCount, fmt.Errorf("Error opening clickhouse transaction: %v", err)
-	}
+	return rowsCount, nil
+}
 
-	for _, fdata := range flatData {
-		for _, object := range fdata.GetPayload() {
-			if err := adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
-				return rowsCount, err
-			}
-		}
+//Fallback log event with error to fallback logger
+func (ch *ClickHouse) Fallback(failedEvents ...*events.FailedEvent) {
+	for _, failedEvent := range failedEvents {
+		ch.fallbackLogger.ConsumeAny(failedEvent)
 	}
-
-	return rowsCount, tx.DirectCommit()
 }
 
 //Close adapters.ClickHouse
@@ -221,7 +226,9 @@ func (ch *ClickHouse) Close() (multiErr error) {
 	}
 
 	if ch.streamingWorker != nil {
-		ch.streamingWorker.Close()
+		if err := ch.streamingWorker.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", ch.Name(), err))
+		}
 	}
 
 	if err := ch.fallbackLogger.Close(); err != nil {
