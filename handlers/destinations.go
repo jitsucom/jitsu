@@ -35,7 +35,7 @@ func testConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		postgres, err := adapters.NewPostgres(context.Background(), config.DataSource, nil)
+		postgres, err := adapters.NewPostgres(context.Background(), config.DataSource, nil, map[string]string{})
 		if err != nil {
 			return err
 		}
@@ -50,7 +50,7 @@ func testConnection(config *storages.DestinationConfig) error {
 		var multiErr error
 		for _, dsn := range config.ClickHouse.Dsns {
 			ch, err := adapters.NewClickHouse(context.Background(), strings.TrimSpace(dsn),
-				"", "", nil, nil, nil, nil)
+				"", "", nil, nil, nil, nil, map[string]string{})
 			if err != nil {
 				multiErr = multierror.Append(multiErr, err)
 				continue
@@ -75,7 +75,7 @@ func testConnection(config *storages.DestinationConfig) error {
 			s3.Close()
 		}
 
-		redshift, err := adapters.NewAwsRedshift(context.Background(), config.DataSource, config.S3, nil)
+		redshift, err := adapters.NewAwsRedshift(context.Background(), config.DataSource, config.S3, nil, map[string]string{})
 		if err != nil {
 			return err
 		}
@@ -87,7 +87,7 @@ func testConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		bq, err := adapters.NewBigQuery(context.Background(), config.Google, nil)
+		bq, err := adapters.NewBigQuery(context.Background(), config.Google, nil, map[string]string{})
 		if err != nil {
 			return err
 		}
@@ -104,7 +104,7 @@ func testConnection(config *storages.DestinationConfig) error {
 		if err := config.Snowflake.Validate(); err != nil {
 			return err
 		}
-		snowflake, err := adapters.NewSnowflake(context.Background(), config.Snowflake, nil, nil)
+		snowflake, err := adapters.NewSnowflake(context.Background(), config.Snowflake, nil, nil, map[string]string{})
 		if err != nil {
 			return err
 		}

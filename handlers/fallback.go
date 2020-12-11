@@ -9,12 +9,16 @@ import (
 	"strings"
 )
 
+const rawJsonFormat = "raw_json"
+
 type FallbackFilesResponse struct {
 	Files []*fallback.FileStatus `json:"files"`
 }
 
 type ReplayRequest struct {
-	FileName string `json:"file_name"`
+	FileName      string `json:"file_name"`
+	DestinationId string `json:"destination_id"`
+	FileFormat    string `json:"file_format"`
 }
 
 type FallbackHandler struct {
@@ -47,7 +51,7 @@ func (fh *FallbackHandler) ReplayHandler(c *gin.Context) {
 		return
 	}
 
-	err := fh.fallbackService.Replay(req.FileName)
+	err := fh.fallbackService.Replay(req.FileName, req.DestinationId, req.FileName == rawJsonFormat)
 	if err != nil {
 		logging.Errorf("Error replaying file: [%s] from fallback: %v", req.FileName, err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to replay file: " + req.FileName, Error: err.Error()})

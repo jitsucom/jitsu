@@ -90,8 +90,8 @@ Batch and Stream pipelines are different, however they have same logical steps. 
 ### ContextEnrichment step
   
  * Get IP from where request came from
- * If request is processed by JavaScript endpoint - read user agent-header, content-type header and so on
- * If request is processed by Server API - Add /src field
+ * If request is processed by JavaScript API - read user agent-header and put to /eventn_ctx/user_agent
+ * If request is processed by Server API - Add /src and /eventn_ctx/event_id fields
  * Add UTC timestamp (/_timestamp field)
  * etc
 
@@ -118,14 +118,16 @@ mapping:
     - src: /src/field/path # JSON path
       dst: /dst/field/path # could be just_field_name, without leading. Before inserting all / (except
       # first one) will be replaced wth '_'
-      action: move | remove | cast #  
+      action: move | remove | cast | constant
       type: Lowcardinality(String) # for 'move' (optional) and 'cast' (required) actions - SQL type (depend on destination)
+      value: # Value for setting as constant to 'dst'. Required only for 'constant' action. Other actions will ignore this field.
 ```
 Following field actions are supported:
 
 * **move** — move JSON subtree to another node. 
 * **remove** - remove JSON subtree (dst param is not needed)
 * **cast** – assign an explicit type to a node (dst param is not needed)
+* **constant** – assign an explicit type to a node (dst param is not needed)
 
 After all mappings are applied, JSON is flattened
 
@@ -166,11 +168,11 @@ is very similar to URL query string, but instead of `?` parameters are delimited
 
 | Sub-dir              | Purpose                            | Data format                                | Filename pattern |
 | -------------        | -------------                      |-------------                               | ---------------- |
-| `events/incoming`    | Incoming events (batch mode only)  | Original JSON after ContextEnrichment step | `incoming.tok=${tok}\|id=${uid}.log` where {tok} is used API token id |
+| `events/incoming`    | Incoming events (batch mode only)  | Original JSON after ContextEnrichment step | `incoming.tok=${tok}\.log` where {tok} is used API token id |
 | `events/incoming`<br>(status files)    |Status of each batch: to which destinations and tables data has been sent succesfully  | DestinationStatus JSON | `incoming.tok=${tok}\|id=${uid}.log.status` |
-| `events/archive`     | Events that has been already processed  | Original JSON after ContextEnrichment step | `yyyy-mm-dd/tok=${tok}\|${uid}.log` where {tok} is used API token id |
+| `events/archive`     | Events that has been already processed  | Original JSON after ContextEnrichment step | `yyyy-mm-dd/tok=${tok}-yyyy-mm-ddTHH:mm:ss.SSS.log` where {tok} is used API token id |
 | `events/batches`    | Batches files: collection of TypedRecord after multiplexing and before sending to destination. Only for some destinations which do batch load from local disk (for others same files will be kept on cloud storage). Each file is a function of (BatchHeader, TypedRecord[])  |Specific to destination, usually CSV or JSON| `batch.dst={destination_id}.table={table}.log` where {tok} is used API token id |
-| `events/failed`    | Events that haven't been saved to destination due to error   | Collection of EventError (see .proto file): original JSON (after ContextEnrichment step) wrapped with EventError structure | `batch.dst=${destination_id}.log`  |
+| `events/failed`    | Events that haven't been saved to destination due to error   | Collection of EventError (see .proto file): original JSON (after ContextEnrichment step) wrapped with EventError structure | `failed.dst=${destination_id}.log`  |
 | `events/queue.dst=${destination_id}`    | Streaming mode only: persistence for event queue   | Binary  | `${partition_number}.dque` and `lock.lock`  |
 
 ## Internal data structures

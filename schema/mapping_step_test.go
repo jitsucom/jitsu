@@ -27,31 +27,30 @@ func TestProcessFilePayload(t *testing.T) {
 		parseFunc      func([]byte) (map[string]interface{}, error)
 		inputFilePath  string
 		expected       map[string]*ProcessedFile
-		expectedFailed []events.FailedFact
+		expectedFailed []events.FailedEvent
 	}{
 		{
 			"Empty input file",
 			parsers.ParseJson,
 			"../test_data/fact_input_empty.log",
 			map[string]*ProcessedFile{},
-			[]events.FailedFact{},
+			[]events.FailedEvent{},
 		},
 		{
-			"Input file with some errors",
+			"Input file with some errors and one skipped line",
 			parsers.ParseJson,
 			"../test_data/fact_input_with_error_lines.log",
 			map[string]*ProcessedFile{
 				"user_2020_07": {FileName: "testfile", payload: []map[string]interface{}{
 					{"_geo_data_region": "NY", "_timestamp": testTime1, "event_type": "user", "key1": 120.0, "key3": "privvvv"},
 				},
-					DataSchema: &Table{Name: "user_2020_07",
-						PKFields: map[string]bool{},
-						Columns: Columns{
-							"_geo_data_region": NewColumn(typing.STRING),
-							"_timestamp":       NewColumn(typing.TIMESTAMP),
-							"event_type":       NewColumn(typing.STRING),
-							"key1":             NewColumn(typing.FLOAT64),
-							"key3":             NewColumn(typing.STRING)}},
+					BatchHeader: &BatchHeader{TableName: "user_2020_07",
+						Fields: Fields{
+							"_geo_data_region": NewField(typing.STRING),
+							"_timestamp":       NewField(typing.TIMESTAMP),
+							"event_type":       NewField(typing.STRING),
+							"key1":             NewField(typing.FLOAT64),
+							"key3":             NewField(typing.STRING)}},
 				},
 
 				"user_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
@@ -59,45 +58,45 @@ func TestProcessFilePayload(t *testing.T) {
 					{"_geo_data_country": "US", "_geo_data_city": "New York", "_timestamp": testTime2, "event_type": "user", "key1_key2": "splu", "key10_sib1_1": 50.0},
 					{"_geo_data_zip": int64(10128), "_timestamp": testTime3, "event_type": "user", "key1": "10", "key10": "[1,2,3,4]", "key3": "privvvv"},
 				},
-					DataSchema: &Table{Name: "user_2020_08", PKFields: map[string]bool{}, Columns: Columns{
-						"_geo_data_city":    NewColumn(typing.STRING),
-						"_geo_data_country": NewColumn(typing.STRING),
-						"_geo_data_zip":     NewColumn(typing.INT64),
-						"_timestamp":        NewColumn(typing.TIMESTAMP),
-						"event_type":        NewColumn(typing.STRING),
-						"key1":              NewColumn(typing.STRING),
-						"key10":             NewColumn(typing.STRING),
-						"key10_sib1_1": Column{
+					BatchHeader: &BatchHeader{TableName: "user_2020_08", Fields: Fields{
+						"_geo_data_city":    NewField(typing.STRING),
+						"_geo_data_country": NewField(typing.STRING),
+						"_geo_data_zip":     NewField(typing.INT64),
+						"_timestamp":        NewField(typing.TIMESTAMP),
+						"event_type":        NewField(typing.STRING),
+						"key1":              NewField(typing.STRING),
+						"key10":             NewField(typing.STRING),
+						"key10_sib1_1": Field{
 							dataType:       nil,
 							typeOccurrence: map[typing.DataType]bool{typing.STRING: true, typing.FLOAT64: true},
 						},
-						"key1_key2": NewColumn(typing.STRING),
-						"key3":      NewColumn(typing.STRING)}},
+						"key1_key2": NewField(typing.STRING),
+						"key3":      NewField(typing.STRING)}},
 				},
 
 				"notification_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
 					{"_geo_data_latitude": 40.7809, "_geo_data_longitude": -73.9502, "_timestamp": testTime4, "event_type": "notification", "key1_key2": "123", "key3": "privvvv", "key5": "[1,2,4,5]"},
 				},
-					DataSchema: &Table{Name: "notification_2020_08", PKFields: map[string]bool{}, Columns: Columns{
-						"_geo_data_latitude":  NewColumn(typing.FLOAT64),
-						"_geo_data_longitude": NewColumn(typing.FLOAT64),
-						"_timestamp":          NewColumn(typing.TIMESTAMP),
-						"event_type":          NewColumn(typing.STRING),
-						"key1_key2":           NewColumn(typing.STRING),
-						"key5":                NewColumn(typing.STRING),
-						"key3":                NewColumn(typing.STRING)}},
+					BatchHeader: &BatchHeader{TableName: "notification_2020_08", Fields: Fields{
+						"_geo_data_latitude":  NewField(typing.FLOAT64),
+						"_geo_data_longitude": NewField(typing.FLOAT64),
+						"_timestamp":          NewField(typing.TIMESTAMP),
+						"event_type":          NewField(typing.STRING),
+						"key1_key2":           NewField(typing.STRING),
+						"key5":                NewField(typing.STRING),
+						"key3":                NewField(typing.STRING)}},
 				},
 
 				"null_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
 					{"_geo_data_region": "null", "_timestamp": testTime3, "key1": 9999999.0},
 				},
-					DataSchema: &Table{Name: "null_2020_08", PKFields: map[string]bool{}, Columns: Columns{
-						"_geo_data_region": NewColumn(typing.STRING),
-						"_timestamp":       NewColumn(typing.TIMESTAMP),
-						"key1":             NewColumn(typing.FLOAT64)}},
+					BatchHeader: &BatchHeader{TableName: "null_2020_08", Fields: Fields{
+						"_geo_data_region": NewField(typing.STRING),
+						"_timestamp":       NewField(typing.TIMESTAMP),
+						"key1":             NewField(typing.FLOAT64)}},
 				},
 			},
-			[]events.FailedFact{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "Error extracting table name. Template: {{.event_type}}_{{._timestamp.Format \"2006_01\"}}: Error extracting table name: _timestamp field doesn't exist"}},
+			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "Error extracting table name. Template: {{if .event_type}}{{if eq .event_type \"skipped\"}}{{else}}{{.event_type}}_{{._timestamp.Format \"2006_01\"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format \"2006_01\"}}{{end}}: Error extracting table name: _timestamp field doesn't exist"}},
 		},
 		{
 			"Input fallback file",
@@ -107,41 +106,42 @@ func TestProcessFilePayload(t *testing.T) {
 				"user_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
 					{"_geo_data_country": "US", "_geo_data_city": "New York", "_timestamp": testTime2, "event_type": "user", "key1_key2": "splu", "key10_sib1_1": "k"},
 				},
-					DataSchema: &Table{Name: "user_2020_08", PKFields: map[string]bool{}, Columns: Columns{
-						"_geo_data_city":    NewColumn(typing.STRING),
-						"_geo_data_country": NewColumn(typing.STRING),
-						"_timestamp":        NewColumn(typing.TIMESTAMP),
-						"event_type":        NewColumn(typing.STRING),
-						"key10_sib1_1":      NewColumn(typing.STRING),
-						"key1_key2":         NewColumn(typing.STRING)}},
+					BatchHeader: &BatchHeader{TableName: "user_2020_08", Fields: Fields{
+						"_geo_data_city":    NewField(typing.STRING),
+						"_geo_data_country": NewField(typing.STRING),
+						"_timestamp":        NewField(typing.TIMESTAMP),
+						"event_type":        NewField(typing.STRING),
+						"key10_sib1_1":      NewField(typing.STRING),
+						"key1_key2":         NewField(typing.STRING)}},
 				},
 
 				"null_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
 					{"_geo_data_latitude": 40.7809, "_geo_data_longitude": -73.9502, "_timestamp": testTime4, "key1_key2": "123", "key3": "privvvv", "key5": "[1,2,4,5]"},
 				},
-					DataSchema: &Table{Name: "null_2020_08", PKFields: map[string]bool{}, Columns: Columns{
-						"_geo_data_latitude":  NewColumn(typing.FLOAT64),
-						"_geo_data_longitude": NewColumn(typing.FLOAT64),
-						"_timestamp":          NewColumn(typing.TIMESTAMP),
-						"key1_key2":           NewColumn(typing.STRING),
-						"key5":                NewColumn(typing.STRING),
-						"key3":                NewColumn(typing.STRING)}},
+					BatchHeader: &BatchHeader{TableName: "null_2020_08", Fields: Fields{
+						"_geo_data_latitude":  NewField(typing.FLOAT64),
+						"_geo_data_longitude": NewField(typing.FLOAT64),
+						"_timestamp":          NewField(typing.TIMESTAMP),
+						"key1_key2":           NewField(typing.STRING),
+						"key5":                NewField(typing.STRING),
+						"key3":                NewField(typing.STRING)}},
 				},
 			},
-			[]events.FailedFact{},
+			[]events.FailedEvent{},
 		},
 	}
-	p, err := NewProcessor(`{{.event_type}}_{{._timestamp.Format "2006_01"}}`, []string{}, Default, map[string]bool{}, nil)
+	p, err := NewMappingStep("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, false)
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fBytes, err := ioutil.ReadFile(tt.inputFilePath)
 			require.NoError(t, err)
 
-			actual, failed, err := p.ProcessFilePayload("testfile", fBytes, false, tt.parseFunc)
+			actual, failed, err := p.ProcessFilePayload("testfile", fBytes, map[string]bool{}, tt.parseFunc)
 			require.NoError(t, err)
 
 			if len(tt.expectedFailed) > 0 {
+				require.Equal(t, len(tt.expectedFailed), len(failed), "Failed objects quantity isn't equal")
 				for i, failedObj := range failed {
 					test.ObjectsEqual(t, tt.expectedFailed[i], *failedObj)
 				}
@@ -156,7 +156,7 @@ func TestProcessFilePayload(t *testing.T) {
 				require.NotNil(t, expectedUnit, k, "doesn't exist in actual result")
 				test.ObjectsEqual(t, expectedUnit.FileName, v.FileName, k+" results filenames aren't equal")
 				test.ObjectsEqual(t, expectedUnit.payload, v.payload, k+" results payloads aren't equal")
-				test.ObjectsEqual(t, expectedUnit.DataSchema, v.DataSchema, k+" results data schemas aren't equal")
+				test.ObjectsEqual(t, expectedUnit.BatchHeader, v.BatchHeader, k+" results data schemas aren't equal")
 
 			}
 		})
@@ -176,14 +176,14 @@ func TestProcessFact(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		input          map[string]interface{}
-		expectedTable  *Table
-		expectedObject events.Fact
-		expectedErr    string
+		name                string
+		input               map[string]interface{}
+		expectedBatchHeader *BatchHeader
+		expectedObject      events.Event
+		expectedErr         string
 	}{
 		{
-			"Empty input fact - error",
+			"Empty input event - error",
 			map[string]interface{}{},
 			nil,
 			map[string]interface{}{},
@@ -192,9 +192,9 @@ func TestProcessFact(t *testing.T) {
 		{
 			"input without ip and ua ok",
 			map[string]interface{}{"_timestamp": "2020-08-02T18:23:58.057807Z"},
-			&Table{Name: "events_2020_08", PKFields: map[string]bool{}, Columns: Columns{
-				"_timestamp": NewColumn(typing.TIMESTAMP)}},
-			events.Fact{"_timestamp": testTime},
+			&BatchHeader{TableName: "events_2020_08", Fields: Fields{
+				"_timestamp": NewField(typing.TIMESTAMP)}},
+			events.Event{"_timestamp": testTime},
 			"",
 		},
 		{
@@ -206,22 +206,22 @@ func TestProcessFact(t *testing.T) {
 					"ip": "10.10.10.10",
 				},
 			},
-			&Table{Name: "events_2020_08", PKFields: map[string]bool{}, Columns: Columns{
-				"_timestamp":           NewColumn(typing.TIMESTAMP),
-				"field2_ip":            NewColumn(typing.STRING),
-				"field2_ua":            NewColumn(typing.STRING),
-				"field3_device_family": NewColumn(typing.STRING),
-				"field3_os_family":     NewColumn(typing.STRING),
-				"field3_os_version":    NewColumn(typing.STRING),
-				"field3_ua_family":     NewColumn(typing.STRING),
-				"field3_ua_version":    NewColumn(typing.STRING),
-				"field4_city":          NewColumn(typing.STRING),
-				"field4_country":       NewColumn(typing.STRING),
-				"field4_latitude":      NewColumn(typing.FLOAT64),
-				"field4_longitude":     NewColumn(typing.FLOAT64),
-				"field4_zip":           NewColumn(typing.STRING),
+			&BatchHeader{TableName: "events_2020_08", Fields: Fields{
+				"_timestamp":           NewField(typing.TIMESTAMP),
+				"field2_ip":            NewField(typing.STRING),
+				"field2_ua":            NewField(typing.STRING),
+				"field3_device_family": NewField(typing.STRING),
+				"field3_os_family":     NewField(typing.STRING),
+				"field3_os_version":    NewField(typing.STRING),
+				"field3_ua_family":     NewField(typing.STRING),
+				"field3_ua_version":    NewField(typing.STRING),
+				"field4_city":          NewField(typing.STRING),
+				"field4_country":       NewField(typing.STRING),
+				"field4_latitude":      NewField(typing.FLOAT64),
+				"field4_longitude":     NewField(typing.FLOAT64),
+				"field4_zip":           NewField(typing.STRING),
 			}},
-			events.Fact{
+			events.Event{
 				"_timestamp":           testTime,
 				"field2_ip":            "10.10.10.10",
 				"field2_ua":            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/83.0.4103.116 Safari/537.36",
@@ -255,12 +255,15 @@ func TestProcessFact(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	p, err := NewProcessor(`events_{{._timestamp.Format "2006_01"}}`,
-		[]string{"/field1->/field2"}, Default, map[string]bool{}, []enrichment.Rule{uaRule, ipRule})
+	fieldMapper, _, err := NewFieldMapper(Default, []string{"/field1->/field2"}, nil)
+	require.NoError(t, err)
+
+	p, err := NewMappingStep("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, false)
+
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			table, actual, err := p.ProcessFact(tt.input)
+			batchHeader, actual, err := p.ProcessEvent(tt.input)
 
 			if tt.expectedErr != "" {
 				require.Error(t, err)
@@ -268,7 +271,7 @@ func TestProcessFact(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 
-				test.ObjectsEqual(t, tt.expectedTable, table, "Table schema results aren't equal")
+				test.ObjectsEqual(t, tt.expectedBatchHeader, batchHeader, "BatchHeader results aren't equal")
 				test.ObjectsEqual(t, tt.expectedObject, actual, "Processed objects aren't equal")
 			}
 		})

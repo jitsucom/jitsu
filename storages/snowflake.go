@@ -6,19 +6,12 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
-	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/parsers"
-	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/schema"
-	"github.com/jitsucom/eventnative/typing"
 	sf "github.com/snowflakedb/gosnowflake"
-	"strings"
-	"time"
 )
 
 //Store files to Snowflake in two modes:
@@ -29,36 +22,57 @@ type Snowflake struct {
 	stageAdapter     adapters.Stage
 	snowflakeAdapter *adapters.Snowflake
 	tableHelper      *TableHelper
-	schemaProcessor  *schema.Processor
+	schemaProcessor  *schema.MappingStep
 	streamingWorker  *StreamingWorker
-	fallbackLogger   *events.AsyncLogger
+	fallbackLogger   *logging.AsyncLogger
 	eventsCache      *caching.EventsCache
-	breakOnError     bool
-
-	closed bool
 }
 
 //NewSnowflake return Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
-func NewSnowflake(ctx context.Context, name string, eventQueue *events.PersistentQueue, s3Config *adapters.S3Config, gcpConfig *adapters.GoogleConfig,
-	snowflakeConfig *adapters.SnowflakeConfig, processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper,
-	fallbackLoggerFactoryMethod func() *events.AsyncLogger, queryLogger *logging.QueryLogger, eventsCache *caching.EventsCache) (*Snowflake, error) {
+func NewSnowflake(config *Config) (events.Storage, error) {
+	snowflakeConfig := config.destination.Snowflake
+	if err := snowflakeConfig.Validate(); err != nil {
+		return nil, err
+	}
+	if snowflakeConfig.Schema == "" {
+		snowflakeConfig.Schema = "PUBLIC"
+		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.name, snowflakeConfig.Schema)
+	}
+
+	//default client_session_keep_alive
+	if _, ok := snowflakeConfig.Parameters["client_session_keep_alive"]; !ok {
+		t := "true"
+		snowflakeConfig.Parameters["client_session_keep_alive"] = &t
+	}
+
+	if config.destination.Google != nil {
+		if err := config.destination.Google.Validate(config.streamMode); err != nil {
+			return nil, err
+		}
+		//stage is required when gcp integration
+		if snowflakeConfig.Stage == "" {
+			return nil, errors.New("Snowflake stage is required parameter in GCP integration")
+		}
+	}
+
 	var stageAdapter adapters.Stage
-	if !streamMode {
+	if !config.streamMode {
 		var err error
-		if s3Config != nil {
-			stageAdapter, err = adapters.NewS3(s3Config)
+		if config.destination.S3 != nil {
+			stageAdapter, err = adapters.NewS3(config.destination.S3)
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			stageAdapter, err = adapters.NewGoogleCloudStorage(ctx, gcpConfig)
+			stageAdapter, err = adapters.NewGoogleCloudStorage(config.ctx, config.destination.Google)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
 
-	snowflakeAdapter, err := CreateSnowflakeAdapter(ctx, s3Config, *snowflakeConfig, queryLogger)
+	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
+	snowflakeAdapter, err := CreateSnowflakeAdapter(config.ctx, config.destination.S3, *snowflakeConfig, queryLogger, config.sqlTypeCasts)
 	if err != nil {
 		if stageAdapter != nil {
 			stageAdapter.Close()
@@ -66,24 +80,21 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(snowflakeAdapter, monitorKeeper, SnowflakeType)
+	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake)
 
 	snowflake := &Snowflake{
-		name:             name,
+		name:             config.name,
 		stageAdapter:     stageAdapter,
 		snowflakeAdapter: snowflakeAdapter,
 		tableHelper:      tableHelper,
-		schemaProcessor:  processor,
-		fallbackLogger:   fallbackLoggerFactoryMethod(),
-		eventsCache:      eventsCache,
-		breakOnError:     breakOnError,
+		schemaProcessor:  config.processor,
+		fallbackLogger:   config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:      config.eventsCache,
 	}
 
-	if streamMode {
-		snowflake.streamingWorker = newStreamingWorker(eventQueue, processor, snowflake, eventsCache)
+	if config.streamMode {
+		snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
 		snowflake.streamingWorker.start()
-	} else {
-		snowflake.startBatch()
 	}
 
 	return snowflake, nil
@@ -92,15 +103,15 @@ func NewSnowflake(ctx context.Context, name string, eventQueue *events.Persisten
 //create snowflake adapter with schema
 //if schema doesn't exist - snowflake returns error. In this case connect without schema and create it
 func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, config adapters.SnowflakeConfig,
-	queryLogger *logging.QueryLogger) (*adapters.Snowflake, error) {
-	snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger)
+	queryLogger *logging.QueryLogger, sqlTypeCasts map[string]string) (*adapters.Snowflake, error) {
+	snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypeCasts)
 	if err != nil {
 		if sferr, ok := err.(*sf.SnowflakeError); ok {
 			//schema doesn't exist
 			if sferr.Number == sf.ErrObjectNotExistOrAuthorized {
 				snowflakeSchema := config.Schema
 				config.Schema = ""
-				snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger)
+				snowflakeAdapter, err := adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypeCasts)
 				if err != nil {
 					return nil, err
 				}
@@ -112,7 +123,7 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 				}
 				snowflakeAdapter.Close()
 
-				snowflakeAdapter, err = adapters.NewSnowflake(ctx, &config, s3Config, queryLogger)
+				snowflakeAdapter, err = adapters.NewSnowflake(ctx, &config, s3Config, queryLogger, sqlTypeCasts)
 				if err != nil {
 					return nil, err
 				}
@@ -124,174 +135,108 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 	return snowflakeAdapter, nil
 }
 
-//Periodically (every 30 seconds):
-//1. get all files from stage (aws s3 or gcp)
-//2. load them to Snowflake via Copy request
-//3. delete file from stage
-func (s *Snowflake) startBatch() {
-	safego.RunWithRestart(func() {
-		for {
-			if s.closed {
-				break
-			}
-			//TODO configurable
-			time.Sleep(30 * time.Second)
-
-			filesKeys, err := s.stageAdapter.ListBucket(appconfig.Instance.ServerName)
-			if err != nil {
-				logging.Errorf("[%s] Error reading files from stage: %v", s.Name(), err)
-				continue
-			}
-
-			if len(filesKeys) == 0 {
-				continue
-			}
-
-			for _, fileKey := range filesKeys {
-				tableName, tokenId, rowsCount, err := extractDataFromFileName(fileKey)
-				if err != nil {
-					logging.Errorf("[%s] stage file [%s] has wrong format: %v", s.Name(), fileKey, err)
-					continue
-				}
-
-				payload, err := s.stageAdapter.GetObject(fileKey)
-				if err != nil {
-					logging.Errorf("[%s] Error getting file %s from stage in Snowflake storage: %v", s.Name(), fileKey, err)
-					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
-					continue
-				}
-
-				lines := strings.Split(string(payload), "\n")
-				if len(lines) == 0 {
-					logging.Errorf("[%s] Error reading stage file %s payload in Snowflake storage: empty file", s.Name(), fileKey)
-					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
-					continue
-				}
-				header := lines[0]
-				if header == "" {
-					logging.Errorf("[%s] Error reading stage file %s header in Snowflake storage: %v", s.Name(), fileKey, err)
-					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
-					continue
-				}
-
-				wrappedTx, err := s.snowflakeAdapter.OpenTx()
-				if err != nil {
-					logging.Errorf("[%s] Error creating snowflake transaction: %v", s.Name(), err)
-					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
-					continue
-				}
-
-				if err := s.snowflakeAdapter.Copy(wrappedTx, fileKey, header, tableName); err != nil {
-					logging.Errorf("[%s] Error copying file [%s] from stage to snowflake: %v", s.Name(), fileKey, err)
-					wrappedTx.Rollback()
-					metrics.ErrorTokenEvents(tokenId, s.Name(), rowsCount)
-					counters.ErrorEvents(s.Name(), rowsCount)
-					continue
-				}
-
-				wrappedTx.Commit()
-				metrics.SuccessTokenEvents(tokenId, s.Name(), rowsCount)
-				counters.SuccessEvents(s.Name(), rowsCount)
-
-				if err := s.stageAdapter.DeleteObject(fileKey); err != nil {
-					logging.SystemErrorf("[%s] file %s wasn't deleted from stage and will be inserted in db again: %v", s.Name(), fileKey, err)
-					continue
-				}
-
-			}
-		}
-	})
-}
-
-//Insert fact in Snowflake
-func (s *Snowflake) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	dbSchema, err := s.tableHelper.EnsureTable(s.Name(), dataSchema)
+//Insert event in Snowflake (1 retry if err)
+func (s *Snowflake) Insert(table *adapters.Table, event events.Event) (err error) {
+	dbTable, err := s.tableHelper.EnsureTable(s.Name(), table)
 	if err != nil {
 		return err
 	}
 
-	if err := s.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
-		return err
+	err = s.snowflakeAdapter.Insert(dbTable, event)
+
+	//renew current db schema and retry
+	if err != nil {
+		dbTable, err := s.tableHelper.RefreshTableSchema(s.Name(), table)
+		if err != nil {
+			return err
+		}
+
+		return s.snowflakeAdapter.Insert(dbTable, event)
 	}
 
-	return s.snowflakeAdapter.Insert(dataSchema, fact)
+	return nil
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (s *Snowflake) Store(fileName string, payload []byte) (int, error) {
-	return s.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+func (s *Snowflake) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+	return s.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //Store file from byte payload to stage with processing
-//return rowsCount and err if err occurred
-//but return 0 and nil if no err
-//because Store method doesn't store data to Snowflake(only to stage(S3 or GCP)
-func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
-	flatData, failedEvents, err := s.schemaProcessor.ProcessFilePayload(fileName, payload, s.breakOnError, parseFunc)
+//return result per table, failed events count and err if occurred
+func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	flatData, failedEvents, err := s.schemaProcessor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
-		return 0, err
+		return nil, linesCount(payload), err
 	}
 
-	var rowsCount int
+	//update cache with failed events
+	for _, failedEvent := range failedEvents {
+		s.eventsCache.Error(s.Name(), failedEvent.EventId, failedEvent.Error)
+	}
+
+	storeFailedEvents := true
+	tableResults := map[string]*events.StoreResult{}
 	for _, fdata := range flatData {
-		rowsCount += fdata.GetPayloadLen()
-	}
+		table := s.tableHelper.MapTableSchema(fdata.BatchHeader)
+		err := s.storeTable(fdata, table)
+		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		if err != nil {
+			storeFailedEvents = false
+		}
 
-	//events cache
-	defer func() {
-		for _, fdata := range flatData {
-			for _, object := range fdata.GetPayload() {
-				if err != nil {
-					s.eventsCache.Error(s.Name(), events.ExtractEventId(object), err.Error())
-				} else {
-					s.eventsCache.Succeed(s.Name(), events.ExtractEventId(object), object, fdata.DataSchema, s.ColumnTypesMapping())
-				}
+		//events cache
+		for _, object := range fdata.GetPayload() {
+			if err != nil {
+				s.eventsCache.Error(s.Name(), events.ExtractEventId(object), err.Error())
+			} else {
+				s.eventsCache.Succeed(s.Name(), events.ExtractEventId(object), object, table)
 			}
 		}
-	}()
-
-	for _, fdata := range flatData {
-		dbSchema, err := s.tableHelper.EnsureTable(s.Name(), fdata.DataSchema)
-		if err != nil {
-			return rowsCount, err
-		}
-
-		if err := s.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
-			return rowsCount, err
-		}
 	}
 
-	for _, fdata := range flatData {
-		b, fileRows := fdata.GetPayloadBytes(schema.CsvMarshallerInstance)
-		err := s.stageAdapter.UploadBytes(buildDataIntoFileName(fdata, fileRows), b)
-		if err != nil {
-			return fileRows, err
-		}
+	//store failed events to fallback only if other events have been inserted ok
+	if storeFailedEvents {
+		s.Fallback(failedEvents...)
 	}
 
-	//send failed events to fallback only if other events have been inserted ok
-	s.Fallback(failedEvents...)
-	counters.ErrorEvents(s.Name(), len(failedEvents))
-	for _, failedFact := range failedEvents {
-		s.eventsCache.Error(s.Name(), failedFact.EventId, failedFact.Error)
+	return tableResults, len(failedEvents), nil
+}
+
+//check table schema
+//and store data into one table via stage (google cloud storage or s3)
+func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
+	dbTable, err := s.tableHelper.EnsureTable(s.Name(), table)
+	if err != nil {
+		return err
 	}
 
-	return 0, nil
+	b, header := fdata.GetPayloadBytesWithHeader(schema.CsvMarshallerInstance)
+	if err := s.stageAdapter.UploadBytes(fdata.FileName, b); err != nil {
+		return err
+	}
+
+	if err := s.snowflakeAdapter.Copy(fdata.FileName, dbTable.Name, header); err != nil {
+		return fmt.Errorf("Error copying file [%s] from stage to snowflake: %v", fdata.FileName, err)
+	}
+
+	if err := s.stageAdapter.DeleteObject(fdata.FileName); err != nil {
+		logging.SystemErrorf("[%s] file %s wasn't deleted from stage: %v", s.Name(), fdata.FileName, err)
+	}
+
+	return nil
 }
 
 //Fallback log event with error to fallback logger
-func (s *Snowflake) Fallback(failedFacts ...*events.FailedFact) {
-	for _, failedFact := range failedFacts {
-		s.fallbackLogger.ConsumeAny(failedFact)
+func (s *Snowflake) Fallback(failedEvents ...*events.FailedEvent) {
+	for _, failedEvent := range failedEvents {
+		s.fallbackLogger.ConsumeAny(failedEvent)
 	}
 }
 
 func (s *Snowflake) SyncStore(objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("Snowflake doesn't support sync store")
-}
-
-func (s *Snowflake) ColumnTypesMapping() map[typing.DataType]string {
-	return adapters.SchemaToSnowflake
 }
 
 func (s *Snowflake) Name() string {
@@ -303,8 +248,6 @@ func (s *Snowflake) Type() string {
 }
 
 func (s *Snowflake) Close() (multiErr error) {
-	s.closed = true
-
 	if err := s.snowflakeAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake datasource: %v", s.Name(), err))
 	}
@@ -316,7 +259,9 @@ func (s *Snowflake) Close() (multiErr error) {
 	}
 
 	if s.streamingWorker != nil {
-		s.streamingWorker.Close()
+		if err := s.streamingWorker.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", s.Name(), err))
+		}
 	}
 
 	if err := s.fallbackLogger.Close(); err != nil {

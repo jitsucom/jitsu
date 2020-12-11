@@ -1,60 +1,64 @@
 package storages
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
-	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/parsers"
-	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/schema"
-	"github.com/jitsucom/eventnative/typing"
-	"time"
 )
 
 //Store files to google BigQuery in two modes:
-//batch: via google cloud storage in batch mode (1 file = 1 transaction)
-//stream: via events queue in stream mode (1 object = 1 transaction)
+//batch: via google cloud storage in batch mode (1 file = 1 operation)
+//stream: via events queue in stream mode (1 object = 1 operation)
 type BigQuery struct {
 	name            string
 	gcsAdapter      *adapters.GoogleCloudStorage
 	bqAdapter       *adapters.BigQuery
 	tableHelper     *TableHelper
-	schemaProcessor *schema.Processor
+	schemaProcessor *schema.MappingStep
 	streamingWorker *StreamingWorker
-	fallbackLogger  *events.AsyncLogger
+	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
-	breakOnError    bool
-
-	closed bool
 }
 
-func NewBigQuery(ctx context.Context, name string, eventQueue *events.PersistentQueue, config *adapters.GoogleConfig,
-	processor *schema.Processor, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger,
-	queryLogger *logging.QueryLogger, eventsCache *caching.EventsCache) (*BigQuery, error) {
+func NewBigQuery(config *Config) (events.Storage, error) {
+	gConfig := config.destination.Google
+	if err := gConfig.Validate(config.streamMode); err != nil {
+		return nil, err
+	}
+
+	if gConfig.Project == "" {
+		return nil, errors.New("BigQuery project(bq_project) is required parameter")
+	}
+
+	//enrich with default parameters
+	if gConfig.Dataset == "" {
+		gConfig.Dataset = "default"
+		logging.Warnf("[%s] dataset wasn't provided. Will be used default one: %s", config.name, gConfig.Dataset)
+	}
+
 	var gcsAdapter *adapters.GoogleCloudStorage
-	if !streamMode {
+	if !config.streamMode {
 		var err error
-		gcsAdapter, err = adapters.NewGoogleCloudStorage(ctx, config)
+		gcsAdapter, err = adapters.NewGoogleCloudStorage(config.ctx, gConfig)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	bigQueryAdapter, err := adapters.NewBigQuery(ctx, config, queryLogger)
+	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
+	bigQueryAdapter, err := adapters.NewBigQuery(config.ctx, gConfig, queryLogger, config.sqlTypeCasts)
 	if err != nil {
 		return nil, err
 	}
 
 	//create dataset if doesn't exist
-	err = bigQueryAdapter.CreateDataset(config.Dataset)
+	err = bigQueryAdapter.CreateDataset(gConfig.Dataset)
 	if err != nil {
 		bigQueryAdapter.Close()
 		if gcsAdapter != nil {
@@ -63,152 +67,117 @@ func NewBigQuery(ctx context.Context, name string, eventQueue *events.Persistent
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(bigQueryAdapter, monitorKeeper, BigQueryType)
+	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString)
 
 	bq := &BigQuery{
-		name:            name,
+		name:            config.name,
 		gcsAdapter:      gcsAdapter,
 		bqAdapter:       bigQueryAdapter,
 		tableHelper:     tableHelper,
-		schemaProcessor: processor,
-		fallbackLogger:  fallbackLoggerFactoryMethod(),
-		eventsCache:     eventsCache,
-		breakOnError:    breakOnError,
+		schemaProcessor: config.processor,
+		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:     config.eventsCache,
 	}
 
-	if streamMode {
-		bq.streamingWorker = newStreamingWorker(eventQueue, processor, bq, eventsCache)
+	if config.streamMode {
+		bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
 		bq.streamingWorker.start()
-	} else {
-		bq.startBatch()
 	}
 
 	return bq, nil
 }
 
-//Periodically (every 30 seconds):
-//1. get all files from google cloud storage
-//2. load them to BigQuery via google api
-//3. delete file from google cloud storage
-func (bq *BigQuery) startBatch() {
-	safego.RunWithRestart(func() {
-		for {
-			if bq.closed {
-				break
-			}
-			//TODO configurable
-			time.Sleep(30 * time.Second)
-
-			filesKeys, err := bq.gcsAdapter.ListBucket(appconfig.Instance.ServerName)
-			if err != nil {
-				logging.Errorf("[%s] Error reading files from google cloud storage: %v", bq.Name(), err)
-				continue
-			}
-
-			if len(filesKeys) == 0 {
-				continue
-			}
-
-			for _, fileKey := range filesKeys {
-				tableName, tokenId, rowsCount, err := extractDataFromFileName(fileKey)
-				if err != nil {
-					logging.Errorf("[%s] Google cloud storage file [%s] has wrong format: %v", bq.Name(), fileKey, err)
-					continue
-				}
-
-				if err := bq.bqAdapter.Copy(fileKey, tableName); err != nil {
-					logging.Errorf("[%s] Error copying file [%s] from google cloud storage to BigQuery: %v", bq.Name(), fileKey, err)
-					metrics.ErrorTokenEvents(tokenId, bq.Name(), rowsCount)
-					counters.ErrorEvents(bq.Name(), rowsCount)
-					continue
-				}
-
-				metrics.SuccessTokenEvents(tokenId, bq.Name(), rowsCount)
-				counters.SuccessEvents(bq.Name(), rowsCount)
-
-				if err := bq.gcsAdapter.DeleteObject(fileKey); err != nil {
-					logging.SystemErrorf("[%s] file %s wasn't deleted from google cloud storage and will be inserted in db again: %v", bq.Name(), fileKey, err)
-					continue
-				}
-			}
-		}
-	})
-}
-
-//Insert fact in BigQuery
-func (bq *BigQuery) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	dbSchema, err := bq.tableHelper.EnsureTable(bq.Name(), dataSchema)
+//Insert event in BigQuery
+func (bq *BigQuery) Insert(dataSchema *adapters.Table, event events.Event) (err error) {
+	dbTable, err := bq.tableHelper.EnsureTable(bq.Name(), dataSchema)
 	if err != nil {
 		return err
 	}
 
-	if err := bq.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
-		return err
+	err = bq.bqAdapter.Insert(dbTable, event)
+
+	//renew current db schema and retry
+	if err != nil {
+		dbTable, err := bq.tableHelper.RefreshTableSchema(bq.Name(), dataSchema)
+		if err != nil {
+			return err
+		}
+
+		return bq.bqAdapter.Insert(dbTable, event)
 	}
 
-	return bq.bqAdapter.Insert(dataSchema, fact)
+	return nil
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (bq *BigQuery) Store(fileName string, payload []byte) (int, error) {
-	return bq.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+func (bq *BigQuery) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+	return bq.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
-//StoreWithParseFunc store file from byte payload to google cloud storage with processing
-//return rowsCount and err if err occurred
-//but return 0 and nil if no err
-//because Store method doesn't store data to BigQuery(only to GCP)
-func (bq *BigQuery) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
-	flatData, failedEvents, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, bq.breakOnError, parseFunc)
+//StoreWithParseFunc store file from byte payload to BigQuery with processing
+//return result per table, failed events count and err if occurred
+func (bq *BigQuery) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	flatData, failedEvents, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
-		return linesCount(payload), err
+		return nil, linesCount(payload), err
 	}
 
-	var rowsCount int
+	//update cache with failed events
+	for _, failedEvent := range failedEvents {
+		bq.eventsCache.Error(bq.Name(), failedEvent.EventId, failedEvent.Error)
+	}
+
+	storeFailedEvents := true
+	tableResults := map[string]*events.StoreResult{}
 	for _, fdata := range flatData {
-		rowsCount += fdata.GetPayloadLen()
-	}
+		table := bq.tableHelper.MapTableSchema(fdata.BatchHeader)
+		err := bq.storeTable(fdata, table)
+		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		if err != nil {
+			storeFailedEvents = false
+		}
 
-	//events cache
-	defer func() {
-		for _, fdata := range flatData {
-			for _, object := range fdata.GetPayload() {
-				if err != nil {
-					bq.eventsCache.Error(bq.Name(), events.ExtractEventId(object), err.Error())
-				} else {
-					bq.eventsCache.Succeed(bq.Name(), events.ExtractEventId(object), object, fdata.DataSchema, bq.ColumnTypesMapping())
-				}
+		//events cache
+		for _, object := range fdata.GetPayload() {
+			if err != nil {
+				bq.eventsCache.Error(bq.Name(), events.ExtractEventId(object), err.Error())
+			} else {
+				bq.eventsCache.Succeed(bq.Name(), events.ExtractEventId(object), object, table)
 			}
 		}
-	}()
-
-	for _, fdata := range flatData {
-		dbSchema, err := bq.tableHelper.EnsureTable(bq.Name(), fdata.DataSchema)
-		if err != nil {
-			return rowsCount, err
-		}
-
-		if err := bq.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
-			return rowsCount, err
-		}
 	}
 
-	for _, fdata := range flatData {
-		b, fileRows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
-		err := bq.gcsAdapter.UploadBytes(buildDataIntoFileName(fdata, fileRows), b)
-		if err != nil {
-			return fileRows, err
-		}
+	//store failed events to fallback only if other events have been inserted ok
+	if storeFailedEvents {
+		bq.Fallback(failedEvents...)
 	}
 
-	//send failed events to fallback only if other events have been inserted ok
-	bq.Fallback(failedEvents...)
-	counters.ErrorEvents(bq.Name(), len(failedEvents))
-	for _, failedFact := range failedEvents {
-		bq.eventsCache.Error(bq.Name(), failedFact.EventId, failedFact.Error)
+	return tableResults, len(failedEvents), nil
+}
+
+//check table schema
+//and store data into one table via google cloud storage
+func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
+	dbTable, err := bq.tableHelper.EnsureTable(bq.Name(), table)
+	if err != nil {
+		return err
 	}
 
-	return 0, nil
+	b := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+	if err := bq.gcsAdapter.UploadBytes(fdata.FileName, b); err != nil {
+		return err
+	}
+
+	if err := bq.bqAdapter.Copy(fdata.FileName, dbTable.Name); err != nil {
+		return fmt.Errorf("Error copying file [%s] from gcp to bigquery: %v", fdata.FileName, err)
+	}
+
+	if err := bq.gcsAdapter.DeleteObject(fdata.FileName); err != nil {
+		logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.Name(), fdata.FileName, err)
+	}
+
+	return nil
 }
 
 func (bq *BigQuery) SyncStore(objects []map[string]interface{}) (int, error) {
@@ -216,14 +185,10 @@ func (bq *BigQuery) SyncStore(objects []map[string]interface{}) (int, error) {
 }
 
 //Fallback log event with error to fallback logger
-func (bq *BigQuery) Fallback(failedFacts ...*events.FailedFact) {
-	for _, failedFact := range failedFacts {
-		bq.fallbackLogger.ConsumeAny(failedFact)
+func (bq *BigQuery) Fallback(failedEvents ...*events.FailedEvent) {
+	for _, failedEvent := range failedEvents {
+		bq.fallbackLogger.ConsumeAny(failedEvent)
 	}
-}
-
-func (bq *BigQuery) ColumnTypesMapping() map[typing.DataType]string {
-	return adapters.SchemaToBigQueryString
 }
 
 func (bq *BigQuery) Name() string {
@@ -235,8 +200,6 @@ func (bq *BigQuery) Type() string {
 }
 
 func (bq *BigQuery) Close() (multiErr error) {
-	bq.closed = true
-
 	if bq.gcsAdapter != nil {
 		if err := bq.gcsAdapter.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.Name(), err))
@@ -248,7 +211,9 @@ func (bq *BigQuery) Close() (multiErr error) {
 	}
 
 	if bq.streamingWorker != nil {
-		bq.streamingWorker.Close()
+		if err := bq.streamingWorker.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", bq.Name(), err))
+		}
 	}
 
 	if err := bq.fallbackLogger.Close(); err != nil {
