@@ -60,6 +60,7 @@ const UTM_TYPES: Record<string, string> = {
 const CLICK_IDS: Record<string, boolean> = {
     gclid: true,
     fbclid: true,
+    dclid: true
 };
 
 export const getDataFromParams = (params: Record<string, string>) => {
@@ -76,7 +77,7 @@ export const getDataFromParams = (params: Record<string, string>) => {
         if (utm) {
             result.utm[utm] = val;
         } else if (CLICK_IDS[name]) {
-            result.click_id[name] = params;
+            result.click_id[name] = val;
         }
     }
     return result;

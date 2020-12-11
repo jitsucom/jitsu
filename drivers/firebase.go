@@ -7,6 +7,7 @@ import (
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"fmt"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/timestamp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -14,7 +15,10 @@ import (
 	"time"
 )
 
-const firebaseCollectionPrefix = "firestore_"
+const (
+	firebaseType             = "firebase"
+	firebaseCollectionPrefix = "firestore_"
+)
 
 type FirebaseConfig struct {
 	ProjectId   string `mapstructure:"project_id" json:"project_id,omitempty" yaml:"project_id,omitempty"`
@@ -40,11 +44,24 @@ type Firebase struct {
 	ctx             context.Context
 	firestoreClient *firestore.Client
 	authClient      *auth.Client
-
-	collection string
+	collection      *Collection
 }
 
-func NewFirebase(ctx context.Context, config *FirebaseConfig, collection string) (*Firebase, error) {
+func init() {
+	if err := RegisterDriverConstructor(firebaseType, NewFirebase); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", firebaseType, err)
+	}
+}
+
+func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+	config := &FirebaseConfig{}
+	err := unmarshalConfig(sourceConfig.Config, config)
+	if err != nil {
+		return nil, err
+	}
+	if err := config.Validate(); err != nil {
+		return nil, err
+	}
 	app, err := firebase.NewApp(context.Background(),
 		&firebase.Config{ProjectID: config.ProjectId},
 		option.WithCredentialsJSON([]byte(config.Credentials)))
@@ -67,36 +84,35 @@ func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 }
 
 func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
-	if strings.HasPrefix(f.collection, firebaseCollectionPrefix) {
-		firebaseCollectionName := strings.TrimPrefix(f.collection, firebaseCollectionPrefix)
+	if strings.HasPrefix(f.collection.Type, firebaseCollectionPrefix) {
+		firebaseCollectionName := strings.TrimPrefix(f.collection.Type, firebaseCollectionPrefix)
 		return f.loadCollection(firebaseCollectionName)
-	} else if f.collection == "users" {
+	} else if f.collection.Type == "users" {
 		return f.loadUsers()
 	}
 	return nil, fmt.Errorf("unknown collection: %s", f.collection)
 }
 
 func (f *Firebase) loadCollection(firestoreCollectionName string) ([]map[string]interface{}, error) {
-	collectionData := f.firestoreClient.Collection(firestoreCollectionName)
-	documents, err := collectionData.DocumentRefs(f.ctx).GetAll()
-	if err != nil {
-		return nil, err
-	}
 	var documentJsons []map[string]interface{}
-	for _, document := range documents {
-		snapshot, err := document.Get(f.ctx)
-		if err != nil {
-			return nil, err
+	iter := f.firestoreClient.Collection(firestoreCollectionName).Documents(f.ctx)
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
 		}
-		data := snapshot.Data()
-		data["_firestore_document_id"] = document.ID
+		if err != nil {
+			return nil, fmt.Errorf("failed to get API keys from firestore: %v", err)
+		}
+		data := doc.Data()
+		data["_firestore_document_id"] = doc.Ref.ID
 		documentJsons = append(documentJsons, data)
 	}
 	return documentJsons, nil
 }
 
 func (f *Firebase) Type() string {
-	return FirebaseType
+	return firebaseType
 }
 
 func (f *Firebase) Close() error {
