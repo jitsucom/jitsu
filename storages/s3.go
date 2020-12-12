@@ -13,11 +13,11 @@ import (
 
 //Store files to aws s3 in batch mode
 type S3 struct {
-	name            string
-	s3Adapter       *adapters.S3
-	schemaProcessor *schema.MappingStep
-	fallbackLogger  *logging.AsyncLogger
-	eventsCache     *caching.EventsCache
+	name           string
+	s3Adapter      *adapters.S3
+	processor      *schema.Processor
+	fallbackLogger *logging.AsyncLogger
+	eventsCache    *caching.EventsCache
 }
 
 func NewS3(config *Config) (events.Storage, error) {
@@ -38,11 +38,11 @@ func NewS3(config *Config) (events.Storage, error) {
 	}
 
 	s3 := &S3{
-		name:            config.name,
-		s3Adapter:       s3Adapter,
-		schemaProcessor: config.processor,
-		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
-		eventsCache:     config.eventsCache,
+		name:           config.name,
+		s3Adapter:      s3Adapter,
+		processor:      config.processor,
+		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:    config.eventsCache,
 	}
 
 	return s3, nil
@@ -61,7 +61,7 @@ func (s3 *S3) Store(fileName string, payload []byte, alreadyUploadedTables map[s
 //return result per table, failed events count and err if occurred
 func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
 	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
-	flatData, failedEvents, err := s3.schemaProcessor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+	flatData, failedEvents, err := s3.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
 	}

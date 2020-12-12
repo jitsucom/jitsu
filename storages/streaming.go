@@ -22,7 +22,7 @@ type StreamingStorage interface {
 //StreamingWorker reads events from queue and using events.StreamingStorage writes them
 type StreamingWorker struct {
 	eventQueue       *events.PersistentQueue
-	schemaProcessor  *schema.MappingStep
+	processor        *schema.Processor
 	streamingStorage StreamingStorage
 	eventsCache      *caching.EventsCache
 	archiveLogger    *logging.AsyncLogger
@@ -31,11 +31,11 @@ type StreamingWorker struct {
 	closed bool
 }
 
-func newStreamingWorker(eventQueue *events.PersistentQueue, schemaProcessor *schema.MappingStep, streamingStorage StreamingStorage,
+func newStreamingWorker(eventQueue *events.PersistentQueue, processor *schema.Processor, streamingStorage StreamingStorage,
 	eventsCache *caching.EventsCache, archiveLogger *logging.AsyncLogger, tableHelper ...*TableHelper) *StreamingWorker {
 	return &StreamingWorker{
 		eventQueue:       eventQueue,
-		schemaProcessor:  schemaProcessor,
+		processor:        processor,
 		streamingStorage: streamingStorage,
 		eventsCache:      eventsCache,
 		archiveLogger:    archiveLogger,
@@ -68,7 +68,7 @@ func (sw *StreamingWorker) start() {
 				continue
 			}
 
-			batchHeader, flattenObject, err := sw.schemaProcessor.ProcessEvent(fact)
+			batchHeader, flattenObject, err := sw.processor.ProcessEvent(fact)
 			if err != nil {
 				if err == schema.ErrSkipObject {
 					logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.Name(), events.ExtractEventId(fact), err)

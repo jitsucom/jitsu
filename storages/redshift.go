@@ -23,7 +23,7 @@ type AwsRedshift struct {
 	s3Adapter       *adapters.S3
 	redshiftAdapter *adapters.AwsRedshift
 	tableHelper     *TableHelper
-	schemaProcessor *schema.MappingStep
+	processor       *schema.Processor
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
@@ -78,7 +78,7 @@ func NewAwsRedshift(config *Config) (events.Storage, error) {
 		s3Adapter:       s3Adapter,
 		redshiftAdapter: redshiftAdapter,
 		tableHelper:     tableHelper,
-		schemaProcessor: config.processor,
+		processor:       config.processor,
 		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:     config.eventsCache,
 	}
@@ -122,7 +122,7 @@ func (ar *AwsRedshift) Store(fileName string, payload []byte, alreadyUploadedTab
 //return result per table, failed events count and err if occurred
 func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
 	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
-	flatData, failedEvents, err := ar.schemaProcessor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+	flatData, failedEvents, err := ar.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
 	}

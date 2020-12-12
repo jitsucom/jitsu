@@ -48,7 +48,7 @@ type Config struct {
 	ctx           context.Context
 	name          string
 	destination   *DestinationConfig
-	processor     *schema.MappingStep
+	processor     *schema.Processor
 	streamMode    bool
 	monitorKeeper MonitorKeeper
 	eventQueue    *events.PersistentQueue
@@ -147,7 +147,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		logging.Warnf("[%s] doesn't have mapping rules", name)
 	}
 
-	processor, err := schema.NewMappingStep(name, tableName, fieldMapper, enrichmentRules, destination.BreakOnError)
+	processor, err := schema.NewProcessor(name, tableName, fieldMapper, enrichmentRules, destination.BreakOnError)
 	if err != nil {
 		return nil, nil, err
 	}

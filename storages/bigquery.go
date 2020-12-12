@@ -20,7 +20,7 @@ type BigQuery struct {
 	gcsAdapter      *adapters.GoogleCloudStorage
 	bqAdapter       *adapters.BigQuery
 	tableHelper     *TableHelper
-	schemaProcessor *schema.MappingStep
+	processor       *schema.Processor
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
@@ -70,13 +70,13 @@ func NewBigQuery(config *Config) (events.Storage, error) {
 	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString)
 
 	bq := &BigQuery{
-		name:            config.name,
-		gcsAdapter:      gcsAdapter,
-		bqAdapter:       bigQueryAdapter,
-		tableHelper:     tableHelper,
-		schemaProcessor: config.processor,
-		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
-		eventsCache:     config.eventsCache,
+		name:           config.name,
+		gcsAdapter:     gcsAdapter,
+		bqAdapter:      bigQueryAdapter,
+		tableHelper:    tableHelper,
+		processor:      config.processor,
+		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:    config.eventsCache,
 	}
 
 	if config.streamMode {
@@ -118,7 +118,7 @@ func (bq *BigQuery) Store(fileName string, payload []byte, alreadyUploadedTables
 //return result per table, failed events count and err if occurred
 func (bq *BigQuery) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
 	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
-	flatData, failedEvents, err := bq.schemaProcessor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+	flatData, failedEvents, err := bq.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
 	}

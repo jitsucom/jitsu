@@ -96,7 +96,7 @@ func TestProcessFilePayload(t *testing.T) {
 						"key1":             NewField(typing.FLOAT64)}},
 				},
 			},
-			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "Error extracting table name. Template: {{if .event_type}}{{if eq .event_type \"skipped\"}}{{else}}{{.event_type}}_{{._timestamp.Format \"2006_01\"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format \"2006_01\"}}{{end}}: Error extracting table name: _timestamp field doesn't exist"}},
+			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "Error extracting table name: _timestamp field doesn't exist"}},
 		},
 		{
 			"Input fallback file",
@@ -130,7 +130,7 @@ func TestProcessFilePayload(t *testing.T) {
 			[]events.FailedEvent{},
 		},
 	}
-	p, err := NewMappingStep("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, false)
+	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, false)
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -187,7 +187,7 @@ func TestProcessFact(t *testing.T) {
 			map[string]interface{}{},
 			nil,
 			map[string]interface{}{},
-			"Error extracting table name. Template: events_{{._timestamp.Format \"2006_01\"}}: Error extracting table name: _timestamp field doesn't exist",
+			"Error extracting table name: _timestamp field doesn't exist",
 		},
 		{
 			"input without ip and ua ok",
@@ -258,7 +258,7 @@ func TestProcessFact(t *testing.T) {
 	fieldMapper, _, err := NewFieldMapper(Default, []string{"/field1->/field2"}, nil)
 	require.NoError(t, err)
 
-	p, err := NewMappingStep("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, false)
+	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, false)
 
 	require.NoError(t, err)
 	for _, tt := range tests {

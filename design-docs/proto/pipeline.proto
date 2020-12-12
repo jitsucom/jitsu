@@ -2,43 +2,41 @@ syntax = "proto3";
 
 import "google/protobuf/struct.proto";
 
+//Defines a structure of DWN table or structure of changes to apply to table
+message Table {
+  string name = 1; //table name in destination
+  map<string, Column> columns = 2; //column names and sql types
+  map<string, bool> pk_fields = 3; //set of fields in primary key
+  bool delete_pk_fields = 4; //flag to delete primary key
+  int64 version = 5; //version of table (it is used for optimistic locking table changes in multi-node EventNative deployment)
+
+  message Column{
+      string sql_type = 1; //string representation of SQL type
+  }
+}
+
 
 //Defines a structure of batch header - all fields present in
 //table batch
 message BatchHeader {
-  repeated FieldDefinition fields = 1;
-  string destination_id = 2; //id of destination
-  string table = 3; //table in destination
+  string table_name = 1; //table in destination
+  map<string, Field> fields = 2;
 }
 
-//Definition of the field: type and name
-message FieldDefinition {
-  string name = 1;  //name of the field
-  DataType type = 3; //type of the value
+//Definition of the field: occurred types and calculated type
+message Field {
+  string type = 1; //calculated type of the value
+  map<string, bool> type_occurrence = 2; //set of existed field data types in input batch file
 }
 
-//Record that has a types for each field
-message TypedRecord {
-  repeated TypeRecordField fields = 1;
-
-  //One field in typed record
-  message TypeRecordField {
-    FieldDefinition definition = 1; // name & type
-    DataType type = 2; //type of the value
-  }
-}
-
-//Data type
-message DataType {
-  string expr = 1; //expression that defines SQL type.
-}
-
+//Definition of destination - table pairs uploading status
 message DestinationStatus {
   //keys are serialized destination_id/table_name
   map<string, Status> status = 1;
 
-  enum Status {
-    OK = 0; FAILED = 1;
+  message Status {
+    bool uploaded = 1;
+    string error = 2;
   }
 }
 

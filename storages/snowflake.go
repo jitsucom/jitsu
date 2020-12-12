@@ -22,7 +22,7 @@ type Snowflake struct {
 	stageAdapter     adapters.Stage
 	snowflakeAdapter *adapters.Snowflake
 	tableHelper      *TableHelper
-	schemaProcessor  *schema.MappingStep
+	processor        *schema.Processor
 	streamingWorker  *StreamingWorker
 	fallbackLogger   *logging.AsyncLogger
 	eventsCache      *caching.EventsCache
@@ -87,7 +87,7 @@ func NewSnowflake(config *Config) (events.Storage, error) {
 		stageAdapter:     stageAdapter,
 		snowflakeAdapter: snowflakeAdapter,
 		tableHelper:      tableHelper,
-		schemaProcessor:  config.processor,
+		processor:        config.processor,
 		fallbackLogger:   config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:      config.eventsCache,
 	}
@@ -166,7 +166,7 @@ func (s *Snowflake) Store(fileName string, payload []byte, alreadyUploadedTables
 //return result per table, failed events count and err if occurred
 func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
 	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
-	flatData, failedEvents, err := s.schemaProcessor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+	flatData, failedEvents, err := s.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
 	}
