@@ -59,6 +59,7 @@ Batch and Stream pipelines are different, however they have same logical steps. 
       * Get Table structure from the destination
       * Acquire destination lock (using distributed lock service)
       * Compare two Table structures (from the destination and from data)
+      * Maintain primary key (if configured)
       * If column is missing run ALTER TABLE
       * If column is present in the table, but missing in BatchHeader - ignore
       * Release destination lock
