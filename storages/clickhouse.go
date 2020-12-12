@@ -19,7 +19,7 @@ type ClickHouse struct {
 	name            string
 	adapters        []*adapters.ClickHouse
 	tableHelpers    []*TableHelper
-	schemaProcessor *schema.MappingStep
+	processor       *schema.Processor
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
@@ -63,12 +63,12 @@ func NewClickHouse(config *Config) (events.Storage, error) {
 	}
 
 	ch := &ClickHouse{
-		name:            config.name,
-		adapters:        chAdapters,
-		tableHelpers:    tableHelpers,
-		schemaProcessor: config.processor,
-		eventsCache:     config.eventsCache,
-		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
+		name:           config.name,
+		adapters:       chAdapters,
+		tableHelpers:   tableHelpers,
+		processor:      config.processor,
+		eventsCache:    config.eventsCache,
+		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
 	}
 
 	adapter, _ := ch.getAdapters()
@@ -131,7 +131,7 @@ func (ch *ClickHouse) Store(fileName string, payload []byte, alreadyUploadedTabl
 //return result per table, failed events count and err if occurred
 func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
 	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
-	flatData, failedEvents, err := ch.schemaProcessor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+	flatData, failedEvents, err := ch.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
 	}
@@ -189,7 +189,7 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 //return rows count and err if can't store
 //or rows count and nil if stored
 func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (rowsCount int, err error) {
-	flatData, err := ch.schemaProcessor.ProcessObjects(objects)
+	flatData, err := ch.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
 	}

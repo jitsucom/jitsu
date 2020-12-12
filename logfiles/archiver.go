@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"compress/gzip"
 	"fmt"
+	"github.com/jitsucom/eventnative/logging"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 )
+
+var dateExtractor = regexp.MustCompile(".*-(\\d\\d\\d\\d-\\d\\d-\\d\\d)T")
 
 type Archiver struct {
 	sourceDir  string
@@ -45,7 +49,16 @@ func (a *Archiver) ArchiveByPath(sourceFilePath string) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(path.Join(a.archiveDir, filepath.Base(sourceFilePath)+".gz"), output.Bytes(), 0644)
+	outputDir := a.archiveDir
+	regexResult := dateExtractor.FindStringSubmatch(sourceFilePath)
+	if len(regexResult) != 2 {
+		logging.Warnf("Archiver: can't get date from file name: %s", sourceFilePath)
+	} else {
+		outputDir = path.Join(a.archiveDir, regexResult[1])
+		_ = os.Mkdir(outputDir, 0744)
+	}
+
+	err = ioutil.WriteFile(path.Join(outputDir, filepath.Base(sourceFilePath)+".gz"), output.Bytes(), 0644)
 	if err != nil {
 		return err
 	}

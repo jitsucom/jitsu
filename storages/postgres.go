@@ -18,7 +18,7 @@ type Postgres struct {
 	name            string
 	adapter         *adapters.Postgres
 	tableHelper     *TableHelper
-	schemaProcessor *schema.MappingStep
+	processor       *schema.Processor
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
@@ -59,12 +59,12 @@ func NewPostgres(config *Config) (events.Storage, error) {
 	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres)
 
 	p := &Postgres{
-		name:            config.name,
-		adapter:         adapter,
-		tableHelper:     tableHelper,
-		schemaProcessor: config.processor,
-		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
-		eventsCache:     config.eventsCache,
+		name:           config.name,
+		adapter:        adapter,
+		tableHelper:    tableHelper,
+		processor:      config.processor,
+		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:    config.eventsCache,
 	}
 
 	if config.streamMode {
@@ -84,7 +84,7 @@ func (p *Postgres) Store(fileName string, payload []byte, alreadyUploadedTables 
 //return result per table, failed events count and err if occurred
 func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
 	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
-	flatData, failedEvents, err := p.schemaProcessor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+	flatData, failedEvents, err := p.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
 	}
@@ -148,7 +148,7 @@ func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
 //return rows count and err if can't store
 //or rows count and nil if stored
 func (p *Postgres) SyncStore(objects []map[string]interface{}) (rowsCount int, err error) {
-	flatData, err := p.schemaProcessor.ProcessObjects(objects)
+	flatData, err := p.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
 	}
