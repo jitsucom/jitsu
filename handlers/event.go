@@ -135,6 +135,7 @@ func (eh *EventHandler) OldGetHandler(c *gin.Context) {
 }
 
 func (eh *EventHandler) GetHandler(c *gin.Context) {
+	var err error
 	destinationIds := c.Query("destination_ids")
 	if destinationIds == "" {
 		logging.Errorf("Empty destination ids in events cache handler")
@@ -142,20 +143,26 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		return
 	}
 
+	start := time.Time{}
 	startStr := c.Query("start")
-	start, err := time.Parse(timestamp.Layout, startStr)
-	if err != nil {
-		logging.Errorf("Error parsing start query param [%s] in events cache handler: %v", startStr, err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing start query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
-		return
+	if startStr != "" {
+		start, err = time.Parse(timestamp.Layout, startStr)
+		if err != nil {
+			logging.Errorf("Error parsing start query param [%s] in events cache handler: %v", startStr, err)
+			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing start query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
+			return
+		}
 	}
 
+	end := time.Now().UTC()
 	endStr := c.Query("end")
-	end, err := time.Parse(timestamp.Layout, endStr)
-	if err != nil {
-		logging.Errorf("Error parsing end query param [%s] in events cache handler: %v", endStr, err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing end query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
-		return
+	if endStr != "" {
+		end, err = time.Parse(timestamp.Layout, endStr)
+		if err != nil {
+			logging.Errorf("Error parsing end query param [%s] in events cache handler: %v", endStr, err)
+			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing end query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
+			return
+		}
 	}
 
 	limitStr := c.Query("limit")

@@ -3,6 +3,7 @@ package logging
 import (
 	"io"
 	"path"
+	"time"
 )
 
 type Factory struct {
@@ -49,7 +50,7 @@ func (f *Factory) CreateSQLQueryLogger(destinationName string) *QueryLogger {
 func (f *Factory) CreateStreamingArchiveLogger(destinationName string) *AsyncLogger {
 	return NewAsyncLogger(NewRollingWriter(Config{
 		FileName:      "streaming-archive.dst=" + destinationName,
-		FileDir:       path.Join(f.logEventPath, "archive"),
+		FileDir:       path.Join(f.logEventPath, "archive", time.Now().UTC().Format("2006-01-02")),
 		RotationMin:   f.logRotationMin,
 		RotateOnClose: true,
 		Compress:      true,
