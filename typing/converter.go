@@ -9,38 +9,48 @@ import (
 )
 
 // Typecast tree
-//      STRING(3)
+//      STRING(4)
 //     /      \
-//FLOAT64(2)  TIMESTAMP(4)
+//FLOAT64(3)  TIMESTAMP(5)
 //    |
-//  INT64(1)
+//  INT64(2)
+//    |
+//  BOOL(1)
 //
 var (
 	typecastTree = &typeNode{
 		t: STRING,
 		left: &typeNode{
-			t:    FLOAT64,
-			left: &typeNode{t: INT64},
+			t: FLOAT64,
+			left: &typeNode{
+				t:    INT64,
+				left: &typeNode{t: BOOL},
+			},
 		},
 		right: &typeNode{t: TIMESTAMP},
 	}
+
 	DefaultTypes = map[string]DataType{
 		timestamp.Key:         TIMESTAMP,
 		"eventn_ctx_utc_time": TIMESTAMP,
 	}
 	convertRules = map[rule]ConvertFunc{
+		rule{from: BOOL, to: STRING}:      boolToString,
 		rule{from: INT64, to: STRING}:     numberToString,
 		rule{from: FLOAT64, to: STRING}:   numberToString,
 		rule{from: TIMESTAMP, to: STRING}: timestampToString,
 
+		rule{from: BOOL, to: INT64}: boolToNumber,
+
+		rule{from: BOOL, to: FLOAT64}:  boolToFloat,
 		rule{from: INT64, to: FLOAT64}: numberToFloat,
 
 		rule{from: STRING, to: TIMESTAMP}: stringToTimestamp,
 
 		// Future
-		/*rule{from: STRING, to: FLOAT64}:   stringToFloat,
-		rule{from: STRING, to: INT64}:     stringToInt,
-		rule{from: FLOAT64, to: INT64}: floatToInt,*/
+		/*rule{from: STRING, to: INT64}:     stringToInt,
+		  rule{from: STRING, to: FLOAT64}:   stringToFloat,
+		  rule{from: FLOAT64, to: INT64}: floatToInt,*/
 	}
 
 	charsInNumberStringReplacer = strings.NewReplacer(",", "", " ", "")
@@ -181,6 +191,44 @@ func numberToFloat(v interface{}) (interface{}, error) {
 	}
 }
 
+func boolToString(v interface{}) (interface{}, error) {
+	switch v.(type) {
+	case bool:
+		boolValue, _ := v.(bool)
+		return strconv.FormatBool(boolValue), nil
+	default:
+		return nil, fmt.Errorf("Error boolToString(): Unknown value type: %t", v)
+	}
+}
+
+func boolToNumber(v interface{}) (interface{}, error) {
+	switch v.(type) {
+	case bool:
+		boolValue, _ := v.(bool)
+		if boolValue {
+			return int64(1), nil
+		} else {
+			return int64(0), nil
+		}
+	default:
+		return nil, fmt.Errorf("Error boolToNumber(): Unknown value type: %t", v)
+	}
+}
+
+func boolToFloat(v interface{}) (interface{}, error) {
+	switch v.(type) {
+	case bool:
+		boolValue, _ := v.(bool)
+		if boolValue {
+			return float64(1), nil
+		} else {
+			return float64(0), nil
+		}
+	default:
+		return nil, fmt.Errorf("Error boolToFloat(): Unknown value type: %t", v)
+	}
+}
+
 func StringToInt(v interface{}) (interface{}, error) {
 	intValue, err := strconv.Atoi(v.(string))
 	if err != nil {
@@ -198,10 +246,6 @@ func StringToFloat(v interface{}) (interface{}, error) {
 	}
 
 	return floatValue, nil
-}
-
-func stringToInt(v interface{}) (interface{}, error) {
-	return strconv.Atoi(fmt.Sprint(v))
 }
 
 func stringToTimestamp(v interface{}) (interface{}, error) {

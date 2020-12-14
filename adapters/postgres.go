@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/typing"
 	_ "github.com/lib/pq"
 	"sort"
@@ -50,19 +49,12 @@ const (
 
 var (
 	SchemaToPostgres = map[typing.DataType]string{
-		typing.STRING:    "character varying(8192)",
+		typing.STRING:    "text",
 		typing.INT64:     "bigint",
 		typing.FLOAT64:   "numeric(38,18)",
 		typing.TIMESTAMP: "timestamp",
-	}
-
-	PostgresToSchema = map[string]typing.DataType{
-		"character varying(512)":      typing.STRING,
-		"character varying(8192)":     typing.STRING,
-		"bigint":                      typing.INT64,
-		"numeric(40,20)":              typing.FLOAT64,
-		"numeric(38,18)":              typing.FLOAT64,
-		"timestamp without time zone": typing.TIMESTAMP,
+		typing.BOOL:      "boolean",
+		typing.UNKNOWN:   "text",
 	}
 )
 
@@ -104,10 +96,12 @@ type Postgres struct {
 	config      *DataSourceConfig
 	dataSource  *sql.DB
 	queryLogger *logging.QueryLogger
+
+	mappingTypeCasts map[string]string
 }
 
-//NewPostgres return configured Postgres adapter instance
-func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger) (*Postgres, error) {
+//NewPostgresUnderRedshift return configured Postgres adapter instance without mapping old types
+func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*Postgres, error) {
 	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
 		config.Host, config.Port, config.Db, config.Username, config.Password)
 	//concat provided connection parameters
@@ -123,7 +117,27 @@ func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *log
 		return nil, err
 	}
 
-	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger}, nil
+	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, mappingTypeCasts: mappingTypeCasts}, nil
+}
+
+//NewPostgres return configured Postgres adapter instance
+func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*Postgres, error) {
+	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
+		config.Host, config.Port, config.Db, config.Username, config.Password)
+	//concat provided connection parameters
+	for k, v := range config.Parameters {
+		connectionString += k + "=" + v + " "
+	}
+	dataSource, err := sql.Open("postgres", connectionString)
+
+	if err != nil {
+		return nil, err
+	}
+	if err := dataSource.Ping(); err != nil {
+		return nil, err
+	}
+
+	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, mappingTypeCasts: reformatMappings(mappingTypeCasts, SchemaToPostgres)}, nil
 }
 
 func (Postgres) Name() string {
@@ -150,29 +164,64 @@ func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 	return createDbSchemaInTransaction(p.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName, p.queryLogger)
 }
 
-//CreateTable create database table with name,columns provided in schema.Table representation
-func (p *Postgres) CreateTable(tableSchema *schema.Table) error {
+//CreateTable create database table with name,columns provided in Table representation
+func (p *Postgres) CreateTable(table *Table) error {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	return p.createTableInTransaction(wrappedTx, tableSchema)
+	return p.createTableInTransaction(wrappedTx, table)
 }
 
-//PatchTableSchema add new columns(from provided schema.Table) to existing table
-func (p *Postgres) PatchTableSchema(patchSchema *schema.Table) error {
+//PatchTableSchema add new columns(from provided Table) to existing table
+func (p *Postgres) PatchTableSchema(patchTable *Table) error {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	return p.patchTableSchemaInTransaction(wrappedTx, patchSchema)
+	return p.patchTableSchemaInTransaction(wrappedTx, patchTable)
 }
 
-//GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
-func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
-	table := &schema.Table{Name: tableName, Columns: schema.Columns{}, PKFields: map[string]bool{}}
+//GetTableSchema return table (name,columns with name and types) representation wrapped in Table struct
+func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
+	table, err := p.getTable(tableName)
+	if err != nil {
+		return nil, err
+	}
+
+	//don't select primary keys of non-existent table
+	if len(table.Columns) == 0 {
+		return table, nil
+	}
+
+	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema+"."+tableName, p.config.Schema)
+	if err != nil {
+		return nil, fmt.Errorf("error querying primary keys for [%s.%s] schema: %v", p.config.Schema, tableName, err)
+	}
+
+	defer pkFieldsRows.Close()
+	var pkFields []string
+	for pkFieldsRows.Next() {
+		var fieldName string
+		if err := pkFieldsRows.Scan(&fieldName); err != nil {
+			return nil, fmt.Errorf("error scanning primary key result: %v", err)
+		}
+		pkFields = append(pkFields, fieldName)
+	}
+	if err := pkFieldsRows.Err(); err != nil {
+		return nil, fmt.Errorf("pk last rows.Err: %v", err)
+	}
+	for _, field := range pkFields {
+		table.PKFields[field] = true
+	}
+
+	return table, nil
+}
+
+func (p *Postgres) getTable(tableName string) (*Table, error) {
+	table := &Table{Name: tableName, Columns: map[string]Column{}, PKFields: map[string]bool{}}
 	rows, err := p.dataSource.QueryContext(p.ctx, tableSchemaQuery, p.config.Schema, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
@@ -184,187 +233,239 @@ func (p *Postgres) GetTableSchema(tableName string) (*schema.Table, error) {
 		if err := rows.Scan(&columnName, &columnPostgresType); err != nil {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
-		mappedType, ok := PostgresToSchema[strings.ToLower(columnPostgresType)]
-		if !ok {
-			if columnPostgresType == "-" {
-				//skip dropped postgres field
-				continue
-			}
-			logging.Errorf("Unknown postgres [%s] column type: %s in schema: [%s] table: [%s]", columnName, columnPostgresType, p.config.Schema, tableName)
-
-			mappedType = typing.STRING
+		if columnPostgresType == "-" {
+			//skip dropped postgres field
+			continue
 		}
-		table.Columns[columnName] = schema.NewColumn(mappedType)
+
+		table.Columns[columnName] = Column{SqlType: columnPostgresType}
 	}
+
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)
-	}
-	if !table.Exists() {
-		return table, nil
-	}
-
-	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema+"."+tableName, p.config.Schema)
-	if err != nil {
-		return nil, fmt.Errorf("error querying primary keys for [%s.%s] schema: %v", p.config.Schema, tableName, err)
-	}
-	defer pkFieldsRows.Close()
-	var pkFields []string
-	for pkFieldsRows.Next() {
-		var fieldName string
-		if err := pkFieldsRows.Scan(&fieldName); err != nil {
-			return nil, fmt.Errorf("error scanning primary key result: %v", err)
-		}
-		pkFields = append(pkFields, fieldName)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("pk last rows.Err: %v", err)
-	}
-	for _, field := range pkFields {
-		table.PKFields[field] = true
 	}
 
 	return table, nil
 }
 
-func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, tableSchema *schema.Table) error {
+//create table columns and pk key
+//override input table sql type with configured cast type
+func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string
-	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := SchemaToPostgres[column.GetType()]
-		if !ok {
-			logging.Error("Unknown postgres schema type:", column.GetType())
-			mappedType = SchemaToPostgres[typing.STRING]
+	for columnName, column := range table.Columns {
+		sqlType := column.SqlType
+		castedSqlType, ok := p.mappingTypeCasts[columnName]
+		if ok {
+			sqlType = castedSqlType
 		}
-		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, columnName, mappedType))
+		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, columnName, sqlType))
 	}
 
 	//sorting columns asc
 	sort.Strings(columnsDDL)
-	query := fmt.Sprintf(createTableTemplate, p.config.Schema, tableSchema.Name, strings.Join(columnsDDL, ","))
+	query := fmt.Sprintf(createTableTemplate, p.config.Schema, table.Name, strings.Join(columnsDDL, ","))
 	p.queryLogger.Log(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing create table %s statement: %v", tableSchema.Name, err)
+		return fmt.Errorf("Error preparing create table %s statement: %v", table.Name, err)
 	}
 
 	_, err = createStmt.ExecContext(p.ctx)
 
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] table: %v", tableSchema.Name, err)
+		return fmt.Errorf("Error creating [%s] table: %v", table.Name, err)
 	}
+
+	err = p.createPrimaryKeyInTransaction(wrappedTx, table)
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
 	return wrappedTx.tx.Commit()
 }
 
-func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchSchema *schema.Table) error {
-	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := SchemaToPostgres[column.GetType()]
-		if !ok {
-			logging.Error("Unknown postgres schema type:", column.GetType().String())
-			mappedColumnType = SchemaToPostgres[typing.STRING]
+//alter table with columns (if not empty)
+//recreate primary key (if not empty) or delete primary key if Table.DeletePkFields is true
+func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable *Table) error {
+	//patch columns
+	for columnName, column := range patchTable.Columns {
+		sqlType := column.SqlType
+		castedSqlType, ok := p.mappingTypeCasts[columnName]
+		if ok {
+			sqlType = castedSqlType
 		}
-		query := fmt.Sprintf(addColumnTemplate, p.config.Schema, patchSchema.Name, columnName, mappedColumnType)
+		query := fmt.Sprintf(addColumnTemplate, p.config.Schema, patchTable.Name, columnName, sqlType)
 		p.queryLogger.Log(query)
+
 		alterStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("Error preparing patching table %s schema statement: %v", patchSchema.Name, err)
+			return fmt.Errorf("Error preparing patching table %s schema statement: %v", patchTable.Name, err)
 		}
 
 		_, err = alterStmt.ExecContext(p.ctx)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, mappedColumnType, err)
+			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchTable.Name, columnName, column.SqlType, err)
 		}
 	}
-	return wrappedTx.tx.Commit()
-}
 
-func (p *Postgres) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
-	wrappedTx, err := p.OpenTx()
-	if err != nil {
-		wrappedTx.Rollback()
-		return err
-	}
-	constraint := buildConstraintName(p.config.Schema, patchTableSchema.Name)
-
-	if len(patchConstraint.PKFields) > 0 || patchConstraint.Remove {
-		query := fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, patchTableSchema.Name, constraint)
-		p.queryLogger.Log(query)
-		dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
-		if err != nil {
-			wrappedTx.tx.Rollback()
-			return fmt.Errorf("failed to prepare statement to drop primary key for table %s: %v", patchTableSchema.Name, err)
-		}
-		_, err = dropPKStmt.ExecContext(p.ctx)
+	//patch primary keys - delete old
+	if len(patchTable.PKFields) > 0 || patchTable.DeletePkFields {
+		err := p.deletePrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("failed to drop primary key constraint for table %s: %v", patchTableSchema.Name, err)
+			return err
 		}
 	}
 
-	if len(patchConstraint.PKFields) > 0 {
-		query := fmt.Sprintf(alterPrimaryKeyTemplate,
-			p.config.Schema, patchTableSchema.Name, constraint, strings.Join(schema.PkToFieldsArray(patchConstraint.PKFields), ","))
-		p.queryLogger.Log(query)
-		alterConstraintStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
+	//patch primary keys - create new
+	if len(patchTable.PKFields) > 0 {
+		err := p.createPrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("error preparing primary key setting to table %s: %v", patchTableSchema.Name, err)
+			return err
 		}
-		_, err = alterConstraintStmt.ExecContext(p.ctx)
-		if err != nil {
-			wrappedTx.Rollback()
-			return fmt.Errorf("error setting primary key %s table: %v", patchTableSchema.Name, err)
-		}
-	}
-	return wrappedTx.tx.Commit()
-}
-
-//Insert provided object in postgres
-func (p *Postgres) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
-	wrappedTx, err := p.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if err := p.InsertInTransaction(wrappedTx, schema, valuesMap); err != nil {
-		wrappedTx.Rollback()
-		return err
 	}
 
 	return wrappedTx.DirectCommit()
 }
 
-func (p *Postgres) InsertInTransaction(wrappedTx *Transaction, table *schema.Table, valuesMap map[string]interface{}) error {
+//create primary key
+func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
+	if len(table.PKFields) == 0 {
+		return nil
+	}
+
+	query := fmt.Sprintf(alterPrimaryKeyTemplate,
+		p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name), strings.Join(table.GetPKFields(), ","))
+	p.queryLogger.Log(query)
+	alterConstraintStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
+	if err != nil {
+		return fmt.Errorf("Error preparing primary key setting to table %s: %v", table.Name, err)
+	}
+	_, err = alterConstraintStmt.ExecContext(p.ctx)
+	if err != nil {
+		return fmt.Errorf("Error setting primary key %s table: %v", table.Name, err)
+	}
+
+	return nil
+}
+
+//delete primary key
+func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
+	query := fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name))
+	p.queryLogger.Log(query)
+	dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement to drop primary key for table %s: %v", table.Name, err)
+	}
+	_, err = dropPKStmt.ExecContext(p.ctx)
+	if err != nil {
+		return fmt.Errorf("failed to drop primary key constraint for table %s: %v", table.Name, err)
+	}
+
+	return nil
+}
+
+//Insert provided object in postgres with typecasts
+func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error {
 	var header, placeholders string
 	var values []interface{}
 	i := 1
 	for name, value := range valuesMap {
 		header += name + ","
-		//$1, $2, $3, etc
-		placeholders += "$" + strconv.Itoa(i) + ","
+		//$1::type, $2::type, $3, etc
+		castClause := ""
+		castType, ok := p.mappingTypeCasts[name]
+		if ok {
+			castClause = "::" + castType
+		}
+		placeholders += "$" + strconv.Itoa(i) + castClause + ","
 		values = append(values, value)
 		i++
 	}
 
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
-	query := p.insertQuery(schema.PkToFieldsArray(table.PKFields), table.Name, header, placeholders)
+	query := p.insertQuery(table.GetPKFields(), table.Name, header, placeholders)
 	p.queryLogger.LogWithValues(query, values)
+
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+
 	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
+		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)
 	}
 
 	_, err = insertStmt.ExecContext(p.ctx, values...)
 	if err != nil {
+		wrappedTx.Rollback()
 		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", table.Name, header, values, err)
 	}
 
-	return nil
+	return wrappedTx.DirectCommit()
 }
 
+//BulkInsert insert objects into table in one prepared statement
+func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	var placeholders string
+	var header []string
+	i := 1
+	for name := range table.Columns {
+		header = append(header, name)
+
+		//$1::type, $2::type, $3, etc
+		castClause := ""
+		castType, ok := p.mappingTypeCasts[name]
+		if ok {
+			castClause = "::" + castType
+		}
+		placeholders += "$" + strconv.Itoa(i) + castClause + ","
+
+		i++
+	}
+
+	query := p.insertQuery(table.GetPKFields(), table.Name, strings.Join(header, ","), removeLastComma(placeholders))
+
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error preparing bulk insert statement [%s] table %s statement: %v", query, table.Name, err)
+	}
+
+	for _, row := range objects {
+		var values []interface{}
+		for _, column := range header {
+			value, _ := row[column]
+			values = append(values, value)
+		}
+
+		p.queryLogger.LogWithValues(query, values)
+
+		_, err = insertStmt.ExecContext(p.ctx, values...)
+		if err != nil {
+			wrappedTx.Rollback()
+			return fmt.Errorf("Error bulk inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
+		}
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+//get insert statement or merge on conflict statement
 func (p *Postgres) insertQuery(pkFields []string, tableName string, header string, placeholders string) string {
 	if len(pkFields) == 0 {
 		return fmt.Sprintf(insertTemplate, p.config.Schema, tableName, header, placeholders)
@@ -414,34 +515,7 @@ func (p *Postgres) Close() error {
 	return p.dataSource.Close()
 }
 
-//Transaction is sql transaction wrapper. Used for handling and log errors with db type (postgres, redshift, clickhouse or snowflake)
-//on Commit() and Rollback() calls
-//Use DirectCommit() if you need not to swallow an error on commit
-type Transaction struct {
-	dbType string
-	tx     *sql.Tx
-}
-
-func (t *Transaction) Commit() {
-	if err := t.tx.Commit(); err != nil {
-		logging.SystemErrorf("Unable to commit %s transaction: %v", t.dbType, err)
-	}
-}
-
-func (t *Transaction) DirectCommit() error {
-	if err := t.tx.Commit(); err != nil {
-		return fmt.Errorf("Unable to commit %s transaction: %v", t.dbType, err)
-	}
-
-	return nil
-}
-
-func (t *Transaction) Rollback() {
-	if err := t.tx.Rollback(); err != nil {
-		logging.SystemErrorf("Unable to rollback %s transaction: %v", t.dbType, err)
-	}
-}
-
+//create database and commit transaction
 func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, statementTemplate,
 	dbSchemaName string, queryLogger *logging.QueryLogger) error {
 	query := fmt.Sprintf(statementTemplate, dbSchemaName)
@@ -460,6 +534,25 @@ func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, st
 	}
 
 	return wrappedTx.tx.Commit()
+}
+
+//handle old (deprecated) mapping types //TODO remove someday
+//put sql types as is
+//if mapping type is inner => map with sql type
+func reformatMappings(mappingTypeCasts map[string]string, dbTypes map[typing.DataType]string) map[string]string {
+	formattedMappingTypeCasts := map[string]string{}
+	for column, sqlType := range mappingTypeCasts {
+		innerType, err := typing.TypeFromString(sqlType)
+		if err != nil {
+			formattedMappingTypeCasts[column] = sqlType
+			continue
+		}
+
+		dbSqlType, _ := dbTypes[innerType]
+		formattedMappingTypeCasts[column] = dbSqlType
+	}
+
+	return formattedMappingTypeCasts
 }
 
 func removeLastComma(str string) string {

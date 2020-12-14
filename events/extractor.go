@@ -1,33 +1,45 @@
 package events
 
-func ExtractEventId(fact Fact) string {
-	if fact == nil {
+import "fmt"
+
+func ExtractEventId(event Event) string {
+	if event == nil {
 		return ""
 	}
 
 	//lookup eventn_ctx_event_id string
-	eventId, ok := fact[eventnKey+"_"+eventIdKey]
+	eventId, ok := event[eventnKey+"_"+eventIdKey]
 	if ok {
-		eventIdStr, ok := eventId.(string)
-		if ok {
-			return eventIdStr
-		}
+		return fmt.Sprintf("%v", eventId)
 	}
 
 	//lookup eventn_ctx.event_id
-	eventnRaw, ok := fact[eventnKey]
+	eventnRaw, ok := event[eventnKey]
 	if ok {
 		eventnObject, ok := eventnRaw.(map[string]interface{})
 		if ok {
 			eventId, ok := eventnObject[eventIdKey]
 			if ok {
-				eventIdStr, ok := eventId.(string)
-				if ok {
-					return eventIdStr
-				}
+				return fmt.Sprintf("%v", eventId)
 			}
 		}
 
+	}
+
+	return ""
+}
+
+func ExtractSrc(event Event) string {
+	if event == nil {
+		return ""
+	}
+
+	src, ok := event["src"]
+	if ok {
+		srcStr, ok := src.(string)
+		if ok {
+			return srcStr
+		}
 	}
 
 	return ""

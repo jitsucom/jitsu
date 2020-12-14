@@ -9,7 +9,7 @@ import (
 
 type Rule interface {
 	Name() string
-	Execute(fact map[string]interface{}) error
+	Execute(event map[string]interface{})
 }
 
 func NewRule(ruleConfig *RuleConfig) (Rule, error) {
@@ -29,24 +29,19 @@ func NewRule(ruleConfig *RuleConfig) (Rule, error) {
 
 	switch ruleConfig.Name {
 	case IpLookup:
-		return NewIpLookupRule(source, destination, !ruleConfig.Raw)
+		return NewIpLookupRule(source, destination)
 	case UserAgentParse:
-		return NewUserAgentParseRule(source, destination, !ruleConfig.Raw)
+		return NewUserAgentParseRule(source, destination)
 	default:
 		return nil, fmt.Errorf("Unsupported enrichment rule type: %s", ruleConfig.Name)
 	}
 }
 
 //RuleConfig configuration for rules
-//Raw = false by default. (true only in js,api preprocessors)
-//if Raw = false - rule result will be marshalled/unmarshalled for correct type casting
-//in preprocessors rule result might be an any object because it is marshalled/unmarshalled in logger/file uploader/queue
 type RuleConfig struct {
 	Name string `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 	From string `mapstructure:"from" json:"from,omitempty" yaml:"from,omitempty"`
 	To   string `mapstructure:"to" json:"to,omitempty" yaml:"to,omitempty"`
-	//System field
-	Raw bool
 }
 
 func (r *RuleConfig) Validate() error {

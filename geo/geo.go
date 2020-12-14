@@ -12,8 +12,6 @@ import (
 	"strings"
 )
 
-const GeoDataKey = "location"
-
 var (
 	EmptyIp    = errors.New("IP is empty")
 	mmdbSuffix = ".mmdb"
