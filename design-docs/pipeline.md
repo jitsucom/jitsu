@@ -144,12 +144,17 @@ After all mappings are applied, JSON is flattened, all special characters and sp
 
 #### Implicit type cast
 
-If some fields has not been casted explicitly, casting is done based on JSON node type:
- * **string** is casted to TEXT
- * **double** is casted to DOUBLE PRECISION
- * **integer** is casted to BIGINT
- * **boolean** is casted to BOOLEAN
- * **array** is casted to JSON
+If some fields has not been casted explicitly, casting is done based on JSON node type depend on DWH:
+
+|      DWH      | **string** |   **double**   | **integer** | **boolean** | **array** |
+| ------------- | ---------- | -------------- | ----------- | ----------- | --------- |
+|   Postgres    |    text    | numeric(38,18) |    bigint   |   boolean   |    text   |
+|   Redshift    | character varying(65535) | numeric(38,18) |    bigint   |   boolean   |    character varying(65535)   |
+|   BigQuery    |    string    | float |    integer   |   boolean   |    string   |
+|   ClickHouse    |    String    | Float64 |    Int64   |   UInt8   |    String   |
+|   Snowflake    |    text    | numeric(38,18) |    bigint   |   boolean   |    text   |
+
+NOTE: Arrays are serialized in JSON string.
  
 #### Type Promotion
 
