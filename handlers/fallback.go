@@ -51,7 +51,7 @@ func (fh *FallbackHandler) ReplayHandler(c *gin.Context) {
 		return
 	}
 
-	err := fh.fallbackService.Replay(req.FileName, req.DestinationId, req.FileName == rawJsonFormat)
+	err := fh.fallbackService.Replay(req.FileName, req.DestinationId, req.FileFormat == rawJsonFormat)
 	if err != nil {
 		logging.Errorf("Error replaying file: [%s] from fallback: %v", req.FileName, err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to replay file: " + req.FileName, Error: err.Error()})
