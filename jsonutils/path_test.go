@@ -189,7 +189,7 @@ func TestSet(t *testing.T) {
 		inputObject    map[string]interface{}
 		inputValue     interface{}
 		expectedObject map[string]interface{}
-		expectedResult bool
+		expectedErr    string
 	}{
 		{
 			"nil",
@@ -197,7 +197,7 @@ func TestSet(t *testing.T) {
 			nil,
 			nil,
 			nil,
-			false,
+			"",
 		},
 		{
 			"Empty",
@@ -205,7 +205,7 @@ func TestSet(t *testing.T) {
 			map[string]interface{}{},
 			1,
 			map[string]interface{}{},
-			false,
+			"",
 		},
 		{
 			"set object",
@@ -230,7 +230,7 @@ func TestSet(t *testing.T) {
 					},
 				},
 			},
-			true,
+			"",
 		},
 		{
 			"set overwrites value",
@@ -249,10 +249,10 @@ func TestSet(t *testing.T) {
 					"subkey1": 124,
 				},
 			},
-			true,
+			"",
 		},
 		{
-			"set wasn't ok - revert changes",
+			"set wasn't ok",
 			"/key1/subkey1",
 			map[string]interface{}{
 				"key1": "value",
@@ -261,16 +261,21 @@ func TestSet(t *testing.T) {
 			map[string]interface{}{
 				"key1": "value",
 			},
-			false,
+			"Value 124 wasn't set into /key1/subkey1: key1 node isn't an object",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			jp := NewJsonPath(tt.path)
 
-			ok := jp.Set(tt.inputObject, tt.inputValue)
-			require.Equal(t, tt.expectedResult, ok)
-			test.ObjectsEqual(t, tt.expectedObject, tt.inputObject, "Values aren't equal")
+			err := jp.Set(tt.inputObject, tt.inputValue)
+			if tt.expectedErr != "" {
+				require.Error(t, err)
+				require.Equal(t, tt.expectedErr, err.Error())
+			} else {
+				require.NoError(t, err)
+				test.ObjectsEqual(t, tt.expectedObject, tt.inputObject, "Values aren't equal")
+			}
 		})
 	}
 }

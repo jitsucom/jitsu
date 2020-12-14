@@ -18,25 +18,29 @@ import (
 //Pass them to storages according to tokens
 //Keep uploading log file with result statuses
 type PeriodicUploader struct {
-	logEventPath string
-	fileMask     string
-	uploadEvery  time.Duration
+	logIncomingEventPath string
+	fileMask             string
+	uploadEvery          time.Duration
 
+	archiver           *Archiver
 	statusManager      *StatusManager
 	destinationService *destinations.Service
 }
 
 func NewUploader(logEventPath, fileMask string, uploadEveryS int, destinationService *destinations.Service) (*PeriodicUploader, error) {
-	statusManager, err := NewStatusManager(logEventPath)
+	logIncomingEventPath := path.Join(logEventPath, "incoming")
+	logArchiveEventPath := path.Join(logEventPath, "archive")
+	statusManager, err := NewStatusManager(logIncomingEventPath)
 	if err != nil {
 		return nil, err
 	}
 	return &PeriodicUploader{
-		logEventPath:       logEventPath,
-		fileMask:           path.Join(logEventPath, fileMask),
-		uploadEvery:        time.Duration(uploadEveryS) * time.Second,
-		statusManager:      statusManager,
-		destinationService: destinationService,
+		logIncomingEventPath: logIncomingEventPath,
+		fileMask:             path.Join(logIncomingEventPath, fileMask),
+		uploadEvery:          time.Duration(uploadEveryS) * time.Second,
+		archiver:             NewArchiver(logIncomingEventPath, logArchiveEventPath),
+		statusManager:        statusManager,
+		destinationService:   destinationService,
 	}, nil
 }
 
@@ -57,7 +61,7 @@ func (u *PeriodicUploader) Start() {
 
 			files, err := filepath.Glob(u.fileMask)
 			if err != nil {
-				logging.Error("Error finding files by mask", u.fileMask, err)
+				logging.SystemErrorf("Error finding files by %s mask: %v", u.fileMask, err)
 				return
 			}
 
@@ -66,7 +70,7 @@ func (u *PeriodicUploader) Start() {
 
 				b, err := ioutil.ReadFile(filePath)
 				if err != nil {
-					logging.Error("Error reading file", filePath, err)
+					logging.SystemErrorf("Error reading file [%s] with events: %v", filePath, err)
 					continue
 				}
 				if len(b) == 0 {
@@ -76,7 +80,7 @@ func (u *PeriodicUploader) Start() {
 				//get token from filename
 				regexResult := logging.TokenIdExtractRegexp.FindStringSubmatch(fileName)
 				if len(regexResult) != 2 {
-					logging.Errorf("Error processing file %s. Malformed name", filePath)
+					logging.SystemErrorf("Error processing file %s. Malformed name", filePath)
 					continue
 				}
 
@@ -87,33 +91,54 @@ func (u *PeriodicUploader) Start() {
 					continue
 				}
 
-				//flag for deleting file if all storages don't have errors while storing this file
-				deleteFile := true
+				//flag for archiving file if all storages don't have errors while storing this file
+				archiveFile := true
 				for _, storageProxy := range storageProxies {
 					storage, ok := storageProxy.Get()
 					if !ok {
-						deleteFile = false
+						archiveFile = false
 						continue
 					}
-					if !u.statusManager.IsUploaded(fileName, storage.Name()) {
-						rowsCount, err := storage.Store(fileName, b)
-						if err != nil {
-							deleteFile = false
-							logging.Errorf("[%s] Error storing file %s in destination: %v", storage.Name(), filePath, err)
-							metrics.ErrorTokenEvents(tokenId, storage.Name(), rowsCount)
-							counters.ErrorEvents(storage.Name(), rowsCount)
-						} else {
-							metrics.SuccessTokenEvents(tokenId, storage.Name(), rowsCount)
-							counters.SuccessEvents(storage.Name(), rowsCount)
+
+					alreadyUploadedTables := map[string]bool{}
+					tableStatuses := u.statusManager.GetTablesStatuses(fileName, storage.Name())
+					for tableName, status := range tableStatuses {
+						if status.Uploaded {
+							alreadyUploadedTables[tableName] = true
 						}
-						u.statusManager.UpdateStatus(fileName, storage.Name(), err)
+					}
+
+					resultPerTable, errRowsCount, err := storage.Store(fileName, b, alreadyUploadedTables)
+					if errRowsCount > 0 {
+						metrics.ErrorTokenEvents(tokenId, storage.Name(), errRowsCount)
+						counters.ErrorEvents(storage.Name(), errRowsCount)
+					}
+
+					if err != nil {
+						archiveFile = false
+						logging.Errorf("[%s] Error storing file %s in destination: %v", storage.Name(), filePath, err)
+						continue
+					}
+
+					for tableName, result := range resultPerTable {
+						if result.Err != nil {
+							archiveFile = false
+							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.Name(), tableName, filePath, result.Err)
+							metrics.ErrorTokenEvents(tokenId, storage.Name(), result.RowsCount)
+							counters.ErrorEvents(storage.Name(), result.RowsCount)
+						} else {
+							metrics.SuccessTokenEvents(tokenId, storage.Name(), result.RowsCount)
+							counters.SuccessEvents(storage.Name(), result.RowsCount)
+						}
+
+						u.statusManager.UpdateStatus(fileName, storage.Name(), tableName, result.Err)
 					}
 				}
 
-				if deleteFile {
-					err := os.Remove(filePath)
+				if archiveFile {
+					err := u.archiver.Archive(fileName)
 					if err != nil {
-						logging.Error("Error deleting file", filePath, err)
+						logging.SystemErrorf("Error archiving [%s] file: %v", filePath, err)
 					} else {
 						u.statusManager.CleanUp(fileName)
 					}

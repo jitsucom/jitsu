@@ -6,24 +6,27 @@ import (
 	"testing"
 )
 
-func TestMap(t *testing.T) {
+func TestOldStyleMap(t *testing.T) {
 	tests := []struct {
 		name           string
 		mappings       []string
 		inputObject    map[string]interface{}
 		expectedObject map[string]interface{}
+		expectedErr    string
 	}{
 		{
 			"nil input object",
 			nil,
 			nil,
 			nil,
+			"",
 		},
 		{
 			"Empty mappings and input object",
 			nil,
 			map[string]interface{}{},
 			map[string]interface{}{},
+			"",
 		},
 		{
 			"Dummy mapper doesn't change input json",
@@ -40,9 +43,10 @@ func TestMap(t *testing.T) {
 				},
 				"key2": "value",
 			},
+			"",
 		},
 		{
-			"Map unflatten object",
+			"Map unflatten object error",
 			[]string{
 				"/key1 -> /key10",
 				"/key2/subkey2-> /key11",
@@ -87,20 +91,74 @@ func TestMap(t *testing.T) {
 					"subkey1": 888,
 				},
 			},
+			"Value 999 wasn't set into /key2/subkey1: key2 node isn't an object",
+		},
+		{
+			"Map unflatten object ok",
+			[]string{
+				"/key1 -> /key10",
+				"/key2/subkey2-> /key11",
+				"/key4/subkey1 ->",
+				"/key4/subkey3 ->",
+				"/key4/subkey4 -> /key4",
+				"/key5 -> /key6/subkey1",
+				"/key3/subkey1 -> /key7",
+			},
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+				"key2": "value",
+				"key3": 999,
+				"key4": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+					"subkey2": 123,
+				},
+				"key5": 888,
+			},
+			map[string]interface{}{
+				"key10": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+				"key2": "value",
+				"key3": 999,
+				"key4": map[string]interface{}{
+					"subkey2": 123,
+				},
+				"key6": map[string]interface{}{
+					"subkey1": 888,
+				},
+			},
+			"",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mapper, _, err := NewFieldMapper(Default, tt.mappings)
+			mapper, _, err := NewFieldMapper(Default, tt.mappings, nil)
 			require.NoError(t, err)
 
-			actualObject, _ := mapper.Map(tt.inputObject)
-			test.ObjectsEqual(t, tt.expectedObject, actualObject, "Mapped objects aren't equal")
+			actualObject, err := mapper.Map(tt.inputObject)
+			if tt.expectedErr != "" {
+				require.Error(t, err)
+				require.Equal(t, tt.expectedErr, err.Error())
+			} else {
+				require.NoError(t, err)
+				test.ObjectsEqual(t, tt.expectedObject, actualObject, "Mapped objects aren't equal")
+			}
 		})
 	}
 }
 
-func TestStrictMap(t *testing.T) {
+func TestOldStyleStrictMap(t *testing.T) {
 	tests := []struct {
 		name           string
 		mappings       []string
@@ -209,10 +267,11 @@ func TestStrictMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mapper, _, err := NewFieldMapper(Strict, tt.mappings)
+			mapper, _, err := NewFieldMapper(Strict, tt.mappings, nil)
 			require.NoError(t, err)
 
 			actualObject, _ := mapper.Map(tt.inputObject)
+			require.NoError(t, err)
 			test.ObjectsEqual(t, tt.expectedObject, actualObject, "Mapped objects aren't equal")
 		})
 	}

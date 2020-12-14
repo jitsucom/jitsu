@@ -4,11 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strconv"
 	"strings"
 )
-
-const maxStringLength = 8192
 
 type Flattener struct {
 	omitNilValues   bool
@@ -40,8 +37,18 @@ func NewFlattener() *Flattener {
 			":", "_",
 			"^", "_",
 			"-", "_",
+			" ", "_",
 		),
 	}
+}
+
+//makes all keys to lower case
+//remove $, (, ) from all keys
+func (f *Flattener) Reformat(key string) string {
+	if f.toLowerCaseKeys {
+		key = strings.ToLower(key)
+	}
+	return f.specialCharsReplacer.Replace(key)
 }
 
 //FlattenObject flatten object e.g. from {"key1":{"key2":123}} to {"key1_key2":123}
@@ -60,15 +67,9 @@ func (f *Flattener) FlattenObject(json map[string]interface{}) (map[string]inter
 }
 
 //recursive function for flatten key (if value is inner object -> recursion call)
-//makes all keys to lower case
-//remove $, (, ) from all keys
-//cut strings to maxStringLength size
+//Reformat key
 func (f *Flattener) flatten(key string, value interface{}, destination map[string]interface{}) error {
-	if f.toLowerCaseKeys {
-		key = strings.ToLower(key)
-	}
-	key = f.specialCharsReplacer.Replace(key)
-
+	key = f.Reformat(key)
 	t := reflect.ValueOf(value)
 	switch t.Kind() {
 	case reflect.Slice:
@@ -76,7 +77,7 @@ func (f *Flattener) flatten(key string, value interface{}, destination map[strin
 		if err != nil {
 			return fmt.Errorf("Error marshaling array with key %s: %v", key, err)
 		}
-		destination[key] = limitLength(string(b))
+		destination[key] = string(b)
 	case reflect.Map:
 		unboxed := value.(map[string]interface{})
 		for k, v := range unboxed {
@@ -85,18 +86,19 @@ func (f *Flattener) flatten(key string, value interface{}, destination map[strin
 				newKey = key + "_" + newKey
 			}
 			if err := f.flatten(newKey, v, destination); err != nil {
-				return fmt.Errorf("Error flatten object with key %s_%s: %v", key, k, err)
+				return err
 			}
 		}
 	case reflect.Bool:
-		destination[key] = strconv.FormatBool(value.(bool))
+		boolValue, _ := value.(bool)
+		destination[key] = boolValue
 	default:
 		if !f.omitNilValues || value != nil {
 			switch value.(type) {
 			case string:
 				strValue, _ := value.(string)
 
-				destination[key] = limitLength(strValue)
+				destination[key] = strValue
 			default:
 				destination[key] = value
 			}
@@ -104,12 +106,4 @@ func (f *Flattener) flatten(key string, value interface{}, destination map[strin
 	}
 
 	return nil
-}
-
-func limitLength(value string) string {
-	if len(value) > maxStringLength {
-		return value[:maxStringLength]
-	}
-
-	return value
 }

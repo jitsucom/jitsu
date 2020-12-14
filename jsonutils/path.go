@@ -1,6 +1,7 @@
 package jsonutils
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -68,9 +69,9 @@ func (jp *JsonPath) getAndRemove(obj map[string]interface{}, remove bool) (inter
 //Set put value to json path
 //assume that obj can't be nil
 //return true if value was set
-func (jp *JsonPath) Set(obj map[string]interface{}, value interface{}) bool {
+func (jp *JsonPath) Set(obj map[string]interface{}, value interface{}) error {
 	if obj == nil {
-		return false
+		return nil
 	}
 
 	//dive into obj and put value to the last key
@@ -78,7 +79,7 @@ func (jp *JsonPath) Set(obj map[string]interface{}, value interface{}) bool {
 		key := jp.parts[i]
 		if i == len(jp.parts)-1 {
 			obj[key] = value
-			return true
+			return nil
 		}
 
 		//dive or create
@@ -87,7 +88,7 @@ func (jp *JsonPath) Set(obj map[string]interface{}, value interface{}) bool {
 				obj = subMap
 			} else {
 				//node isn't object node
-				break
+				return fmt.Errorf("Value %d wasn't set into %s: %s node isn't an object", value, jp.String(), key)
 			}
 		} else {
 			subMap := map[string]interface{}{}
@@ -96,11 +97,15 @@ func (jp *JsonPath) Set(obj map[string]interface{}, value interface{}) bool {
 		}
 	}
 
-	return false
+	return nil
 }
 
 func (jp *JsonPath) String() string {
 	return "/" + strings.Join(jp.parts, "/")
+}
+
+func (jp *JsonPath) FieldName() string {
+	return strings.Join(jp.parts, "_")
 }
 
 func FormatPrefixSuffix(key string) string {

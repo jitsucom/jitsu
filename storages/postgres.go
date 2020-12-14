@@ -1,63 +1,74 @@
 package storages
 
 import (
-	"context"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
-	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
-	"github.com/jitsucom/eventnative/typing"
 )
 
 //Store files to Postgres in two modes:
-//batch: (1 file = 1 transaction)
-//stream: (1 object = 1 transaction)
+//batch: (1 file = 1 statement)
+//stream: (1 object = 1 statement)
 type Postgres struct {
 	name            string
 	adapter         *adapters.Postgres
 	tableHelper     *TableHelper
-	schemaProcessor *schema.Processor
+	processor       *schema.Processor
 	streamingWorker *StreamingWorker
-	fallbackLogger  *events.AsyncLogger
+	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
-	breakOnError    bool
 }
 
-func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, processor *schema.Processor, eventQueue *events.PersistentQueue,
-	storageName string, breakOnError, streamMode bool, monitorKeeper MonitorKeeper, fallbackLoggerFactoryMethod func() *events.AsyncLogger,
-	queryLogger *logging.QueryLogger, eventsCache *caching.EventsCache) (*Postgres, error) {
+func NewPostgres(config *Config) (events.Storage, error) {
+	pgConfig := config.destination.DataSource
+	if err := pgConfig.Validate(); err != nil {
+		return nil, err
+	}
+	//enrich with default parameters
+	if pgConfig.Port <= 0 {
+		pgConfig.Port = 5432
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.name, pgConfig.Port)
+	}
+	if pgConfig.Schema == "" {
+		pgConfig.Schema = "public"
+		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.name, pgConfig.Schema)
+	}
+	//default connect timeout seconds
+	if _, ok := pgConfig.Parameters["connect_timeout"]; !ok {
+		pgConfig.Parameters["connect_timeout"] = "600"
+	}
 
-	adapter, err := adapters.NewPostgres(ctx, config, queryLogger)
+	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
+	adapter, err := adapters.NewPostgres(config.ctx, pgConfig, queryLogger, config.sqlTypeCasts)
 	if err != nil {
 		return nil, err
 	}
 
 	//create db schema if doesn't exist
-	err = adapter.CreateDbSchema(config.Schema)
+	err = adapter.CreateDbSchema(pgConfig.Schema)
 	if err != nil {
 		adapter.Close()
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(adapter, monitorKeeper, PostgresType)
+	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres)
 
 	p := &Postgres{
-		name:            storageName,
-		adapter:         adapter,
-		tableHelper:     tableHelper,
-		schemaProcessor: processor,
-		fallbackLogger:  fallbackLoggerFactoryMethod(),
-		eventsCache:     eventsCache,
-		breakOnError:    breakOnError,
+		name:           config.name,
+		adapter:        adapter,
+		tableHelper:    tableHelper,
+		processor:      config.processor,
+		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:    config.eventsCache,
 	}
 
-	if streamMode {
-		p.streamingWorker = newStreamingWorker(eventQueue, processor, p, eventsCache)
+	if config.streamMode {
+		p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
 		p.streamingWorker.start()
 	}
 
@@ -65,116 +76,118 @@ func NewPostgres(ctx context.Context, config *adapters.DataSourceConfig, process
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (p *Postgres) Store(fileName string, payload []byte) (int, error) {
-	return p.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+func (p *Postgres) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+	return p.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //StoreWithParseFunc file payload to Postgres with processing
-//return rows count and err if can't store
-//or rows count and nil if stored
-func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
-	flatData, failedEvents, err := p.schemaProcessor.ProcessFilePayload(fileName, payload, p.breakOnError, parseFunc)
+//return result per table, failed events count and err if occurred
+func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	flatData, failedEvents, err := p.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
-		return linesCount(payload), err
+		return nil, linesCount(payload), err
 	}
 
-	rowsCount, err := p.store(flatData)
+	//update cache with failed events
+	for _, failedEvent := range failedEvents {
+		p.eventsCache.Error(p.Name(), failedEvent.EventId, failedEvent.Error)
+	}
 
-	//send failed events to fallback only if other events have been inserted ok
-	if err == nil {
-		p.Fallback(failedEvents...)
-		counters.ErrorEvents(p.Name(), len(failedEvents))
-		for _, failedFact := range failedEvents {
-			p.eventsCache.Error(p.Name(), failedFact.EventId, failedFact.Error)
+	storeFailedEvents := true
+	tableResults := map[string]*events.StoreResult{}
+	for _, fdata := range flatData {
+		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
+		err := p.storeTable(fdata, table)
+		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		if err != nil {
+			storeFailedEvents = false
+		}
+
+		//events cache
+		for _, object := range fdata.GetPayload() {
+			if err != nil {
+				p.eventsCache.Error(p.Name(), events.ExtractEventId(object), err.Error())
+			} else {
+				p.eventsCache.Succeed(p.Name(), events.ExtractEventId(object), object, table)
+			}
 		}
 	}
 
-	return rowsCount, err
+	//store failed events to fallback only if other events have been inserted ok
+	if storeFailedEvents {
+		p.Fallback(failedEvents...)
+	}
+
+	return tableResults, len(failedEvents), nil
+}
+
+//check table schema
+//and store data into one table
+func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
+	dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
+	if err != nil {
+		return err
+	}
+
+	if err := p.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //Fallback log event with error to fallback logger
-func (p *Postgres) Fallback(failedFacts ...*events.FailedFact) {
-	for _, failedFact := range failedFacts {
-		p.fallbackLogger.ConsumeAny(failedFact)
+func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
+	for _, failedEvent := range failedEvents {
+		p.fallbackLogger.ConsumeAny(failedEvent)
 	}
 }
 
 //SyncStore store chunk payload to Postgres with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (p *Postgres) SyncStore(objects []map[string]interface{}) (int, error) {
-	flatData, err := p.schemaProcessor.ProcessObjects(objects)
+func (p *Postgres) SyncStore(objects []map[string]interface{}) (rowsCount int, err error) {
+	flatData, err := p.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
 	}
 
-	return p.store(flatData)
-}
-
-//Insert fact in Postgres
-func (p *Postgres) Insert(dataSchema *schema.Table, fact events.Fact) (err error) {
-	dbSchema, err := p.tableHelper.EnsureTable(p.Name(), dataSchema)
-	if err != nil {
-		return err
-	}
-
-	if err := p.schemaProcessor.ApplyDBTypingToObject(dbSchema, fact); err != nil {
-		return err
-	}
-
-	return p.adapter.Insert(dataSchema, fact)
-}
-
-func (p *Postgres) ColumnTypesMapping() map[typing.DataType]string {
-	return adapters.SchemaToPostgres
-}
-
-func (p *Postgres) store(flatData map[string]*schema.ProcessedFile) (rowsCount int, err error) {
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
 
-	//events cache
-	defer func() {
-		for _, fdata := range flatData {
-			for _, object := range fdata.GetPayload() {
-				if err != nil {
-					p.eventsCache.Error(p.Name(), events.ExtractEventId(object), err.Error())
-				} else {
-					p.eventsCache.Succeed(p.Name(), events.ExtractEventId(object), object, fdata.DataSchema, p.ColumnTypesMapping())
-				}
-			}
-		}
-	}()
-
-	//process db tables & schema
 	for _, fdata := range flatData {
-		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), fdata.DataSchema)
+		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
+		err := p.storeTable(fdata, table)
 		if err != nil {
 			return rowsCount, err
 		}
-
-		if err := p.schemaProcessor.ApplyDBTyping(dbSchema, fdata); err != nil {
-			return rowsCount, err
-		}
 	}
 
-	//insert all data in one transaction
-	tx, err := p.adapter.OpenTx()
+	return rowsCount, nil
+}
+
+//Insert event in Postgres (1 retry if error)
+func (p *Postgres) Insert(table *adapters.Table, event events.Event) (err error) {
+	dbTable, err := p.tableHelper.EnsureTable(p.Name(), table)
 	if err != nil {
-		return rowsCount, fmt.Errorf("Error opening postgres transaction: %v", err)
+		return err
 	}
 
-	for _, fdata := range flatData {
-		for _, object := range fdata.GetPayload() {
-			if err := p.adapter.InsertInTransaction(tx, fdata.DataSchema, object); err != nil {
-				tx.Rollback()
-				return rowsCount, err
-			}
+	err = p.adapter.Insert(dbTable, event)
+
+	//renew current db schema and retry
+	if err != nil {
+		dbTable, err := p.tableHelper.RefreshTableSchema(p.Name(), table)
+		if err != nil {
+			return err
 		}
+
+		return p.adapter.Insert(dbTable, event)
 	}
 
-	return rowsCount, tx.DirectCommit()
+	return nil
 }
 
 //Close adapters.Postgres
@@ -184,7 +197,9 @@ func (p *Postgres) Close() (multiErr error) {
 	}
 
 	if p.streamingWorker != nil {
-		p.streamingWorker.Close()
+		if err := p.streamingWorker.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", p.Name(), err))
+		}
 	}
 
 	if err := p.fallbackLogger.Close(); err != nil {

@@ -9,10 +9,11 @@ import (
 
 func TestDataTypeValues(t *testing.T) {
 	require.Equal(t, DataType(0), UNKNOWN)
-	require.Equal(t, DataType(1), INT64)
-	require.Equal(t, DataType(2), FLOAT64)
-	require.Equal(t, DataType(3), STRING)
-	require.Equal(t, DataType(4), TIMESTAMP)
+	require.Equal(t, DataType(1), BOOL)
+	require.Equal(t, DataType(2), INT64)
+	require.Equal(t, DataType(3), FLOAT64)
+	require.Equal(t, DataType(4), STRING)
+	require.Equal(t, DataType(5), TIMESTAMP)
 }
 
 func TestTypeFromString(t *testing.T) {
@@ -108,6 +109,12 @@ func TestStringFromType(t *testing.T) {
 			"timestamp",
 			"",
 		},
+		{
+			"Boolean ok",
+			BOOL,
+			"boolean",
+			"",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -133,12 +140,6 @@ func TestTypeFromValue(t *testing.T) {
 			nil,
 			UNKNOWN,
 			"Unknown DataType for value: <nil> type: %!t(<nil>)",
-		},
-		{
-			"Unknown boolean",
-			true,
-			UNKNOWN,
-			"Unknown DataType for value: true type: true",
 		},
 		{
 			"String ok",
@@ -198,6 +199,18 @@ func TestTypeFromValue(t *testing.T) {
 			"Int64 ok",
 			int64(123),
 			INT64,
+			"",
+		},
+		{
+			"bool true ok",
+			true,
+			BOOL,
+			"",
+		},
+		{
+			"bool false ok",
+			false,
+			BOOL,
 			"",
 		},
 	}

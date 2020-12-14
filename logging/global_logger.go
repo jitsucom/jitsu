@@ -17,21 +17,25 @@ const (
 	debugPrefix = "[DEBUG]:"
 )
 
+var GlobalLogsWriter io.Writer
+var ConfigWarn string
+
 type Config struct {
-	LoggerName    string
-	ServerName    string
-	FileDir       string
-	RotationMin   int64
-	MaxBackups    int
+	FileName    string
+	FileDir     string
+	RotationMin int64
+	MaxBackups  int
+	Compress    bool
+
 	RotateOnClose bool
 }
 
 func (c Config) Validate() error {
-	if c.LoggerName == "" {
-		return errors.New("Logger name can't be empty")
+	if c.FileName == "" {
+		return errors.New("Logger file name can't be empty")
 	}
-	if c.ServerName == "" {
-		return errors.New("Server name can't be empty")
+	if c.FileDir == "" {
+		return errors.New("Logger file dir can't be empty")
 	}
 
 	return nil
@@ -45,6 +49,9 @@ func InitGlobalLogger(writer io.Writer) error {
 	log.SetOutput(dateTimeWriter)
 	log.SetFlags(0)
 
+	if ConfigWarn != "" {
+		Warn(ConfigWarn)
+	}
 	return nil
 }
 

@@ -1,37 +1,35 @@
 package caching
 
 import (
+	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/events"
-	"github.com/jitsucom/eventnative/schema"
-	"github.com/jitsucom/eventnative/typing"
 )
 
 //entity
-type SucceedFact struct {
-	DestinationId string          `json:"destination_id,omitempty"`
-	Table         string          `json:"table,omitempty"`
-	Record        []*schema.Field `json:"record,omitempty"`
+type SucceedEvent struct {
+	DestinationId string                 `json:"destination_id,omitempty"`
+	Table         string                 `json:"table,omitempty"`
+	Record        []*adapters.TableField `json:"record,omitempty"`
 }
 
 //channel dto
-type originalFact struct {
+type originalEvent struct {
 	destinationId string
 	eventId       string
-	eventFact     events.Fact
+	event         events.Event
 }
 
 //channel dto
-type succeedFact struct {
+type succeedEvent struct {
 	destinationId string
 	eventId       string
 
-	table     *schema.Table
-	processed events.Fact
-	types     map[typing.DataType]string
+	table     *adapters.Table
+	processed events.Event
 }
 
 //channel dto
-type failedFact struct {
+type failedEvent struct {
 	destinationId string
 	eventId       string
 

@@ -5,18 +5,18 @@ import (
 	"sync"
 )
 
-//CachedFact is channel holder for key and value
-type CachedFact struct {
-	key  string
-	fact Fact
+//CachedEvent is channel holder for key and value
+type CachedEvent struct {
+	key   string
+	event Event
 }
 
-//CachedBucket is slice of events(facts) under the hood
+//CachedBucket is slice of events(events) under the hood
 //swapPointer is used for overwrite values without copying underlying slice
 type CachedBucket struct {
 	sync.RWMutex
 
-	facts       []Fact
+	events      []Event
 	swapPointer int
 	capacity    int
 }
@@ -26,35 +26,35 @@ type CachedBucket struct {
 // swapPointer = 0, [1, 2, 3] + 4 = [3, 2, 4]
 // swapPointer = 1, [3, 2, 4] + 5 = [3, 4, 5]
 // swapPointer = 0, [3, 4, 5] + 6 = [5, 4, 6]
-func (ce *CachedBucket) Put(value Fact) {
+func (ce *CachedBucket) Put(value Event) {
 	ce.Lock()
 
-	if len(ce.facts) == ce.capacity {
-		lastIndex := len(ce.facts) - 1
-		last := ce.facts[lastIndex]
-		ce.facts[ce.swapPointer] = last
-		ce.facts[lastIndex] = value
+	if len(ce.events) == ce.capacity {
+		lastIndex := len(ce.events) - 1
+		last := ce.events[lastIndex]
+		ce.events[ce.swapPointer] = last
+		ce.events[lastIndex] = value
 		ce.swapPointer += 1
 		if ce.swapPointer == ce.capacity-1 {
 			ce.swapPointer = 0
 		}
 	} else {
-		ce.facts = append(ce.facts, value)
+		ce.events = append(ce.events, value)
 	}
 
 	ce.Unlock()
 }
 
 //Get return <= n elements from bucket with read lock
-func (ce *CachedBucket) GetN(n int) []Fact {
+func (ce *CachedBucket) GetN(n int) []Event {
 	ce.RLock()
 	defer ce.RUnlock()
 
-	if len(ce.facts) <= n {
-		return ce.facts
+	if len(ce.events) <= n {
+		return ce.events
 	}
 
-	return ce.facts[:n]
+	return ce.events[:n]
 }
 
 //Cache keep capacityPerKey last elements
@@ -63,7 +63,7 @@ func (ce *CachedBucket) GetN(n int) []Fact {
 type Cache struct {
 	sync.RWMutex
 
-	putCh chan *CachedFact
+	putCh chan *CachedEvent
 
 	perApiKey map[string]*CachedBucket
 	all       *CachedBucket
@@ -75,11 +75,11 @@ type Cache struct {
 //return Cache and start goroutine for async puts
 func NewCache(capacityPerKey int) *Cache {
 	c := &Cache{
-		putCh:          make(chan *CachedFact, 1000000),
+		putCh:          make(chan *CachedEvent, 1000000),
 		perApiKey:      map[string]*CachedBucket{},
 		capacityPerKey: capacityPerKey,
 		all: &CachedBucket{
-			facts:       make([]Fact, 0, capacityPerKey),
+			events:      make([]Event, 0, capacityPerKey),
 			swapPointer: 0,
 			capacity:    capacityPerKey,
 		},
@@ -98,23 +98,23 @@ func (c *Cache) start() {
 
 			cf := <-c.putCh
 			if cf != nil {
-				c.Put(cf.key, cf.fact)
+				c.Put(cf.key, cf.event)
 			}
 		}
 	})
 }
 
 //PutAsync put value into channel
-func (c *Cache) PutAsync(key string, value Fact) {
+func (c *Cache) PutAsync(key string, value Event) {
 	select {
-	case c.putCh <- &CachedFact{key: key, fact: value}:
+	case c.putCh <- &CachedEvent{key: key, event: value}:
 	default:
 	}
 
 }
 
-//Put fact to map per key and to all with lock
-func (c *Cache) Put(key string, value Fact) {
+//Put event to map per key and to all with lock
+func (c *Cache) Put(key string, value Event) {
 	//all
 	c.all.Put(value)
 
@@ -128,7 +128,7 @@ func (c *Cache) Put(key string, value Fact) {
 		element, ok = c.perApiKey[key]
 		if !ok {
 			element = &CachedBucket{
-				facts:       make([]Fact, 0, c.capacityPerKey),
+				events:      make([]Event, 0, c.capacityPerKey),
 				swapPointer: 0,
 				capacity:    c.capacityPerKey,
 			}
@@ -140,8 +140,8 @@ func (c *Cache) Put(key string, value Fact) {
 	element.Put(value)
 }
 
-//GetN return at most n facts by key
-func (c *Cache) GetN(key string, n int) []Fact {
+//GetN return at most n events by key
+func (c *Cache) GetN(key string, n int) []Event {
 	c.RLock()
 	element, ok := c.perApiKey[key]
 	c.RUnlock()
@@ -149,11 +149,11 @@ func (c *Cache) GetN(key string, n int) []Fact {
 		return element.GetN(n)
 	}
 
-	return []Fact{}
+	return []Event{}
 }
 
-//GetAll return at most n facts
-func (c *Cache) GetAll(n int) []Fact {
+//GetAll return at most n events
+func (c *Cache) GetAll(n int) []Event {
 	return c.all.GetN(n)
 }
 
