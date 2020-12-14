@@ -123,7 +123,7 @@ During this step BatchHeader is generated based on JSON object.
 Mapping can configured with YML descriptor (see meaning of config parameters as comments)
 
 ```yaml
-mapping:
+mappings:
   keep_unmapped: true # if fields that are not explicitly mapped should be kept or removed
   fields:
     - src: /src/field/path # JSON path
