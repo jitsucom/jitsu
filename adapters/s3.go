@@ -82,6 +82,7 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 }
 
 //Return s3 bucket file keys filtered by file name prefix
+//Deprecated
 func (a *S3) ListBucket(fileNamePrefix string) ([]string, error) {
 	prefix := fileNamePrefix
 	if a.config.Folder != "" {
@@ -108,7 +109,11 @@ func (a *S3) ListBucket(fileNamePrefix string) ([]string, error) {
 }
 
 //Return s3 file by key
+//Deprecated
 func (a *S3) GetObject(key string) ([]byte, error) {
+	if a.config.Folder != "" {
+		key = a.config.Folder + "/" + key
+	}
 	input := &s3.GetObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	result, err := a.client.GetObject(input)
 	if err != nil {
@@ -126,6 +131,9 @@ func (a *S3) GetObject(key string) ([]byte, error) {
 
 //Delete object from s3 bucket by key
 func (a *S3) DeleteObject(key string) error {
+	if a.config.Folder != "" {
+		key = a.config.Folder + "/" + key
+	}
 	input := &s3.DeleteObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	output, err := a.client.DeleteObject(input)
 	if err != nil {

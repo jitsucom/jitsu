@@ -4,8 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/notifications"
 	"github.com/jitsucom/eventnative/schema"
+	"github.com/jitsucom/eventnative/typing"
+	"sync"
 )
 
 const unlockRetryCount = 5
@@ -13,124 +16,158 @@ const unlockRetryCount = 5
 //Keeping tables schema state inmemory and update it according to incoming new data
 //note: Assume that after any outer changes in db we need to increment table version in MonitorKeeper
 type TableHelper struct {
+	sync.RWMutex
+
 	manager       adapters.TableManager
 	monitorKeeper MonitorKeeper
-	tables        map[string]*schema.Table
-	storageType   string
+	tables        map[string]*adapters.Table
+
+	pkFields           map[string]bool
+	columnTypesMapping map[typing.DataType]string
 }
 
-func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, storageType string) *TableHelper {
+func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, pkFields map[string]bool,
+	columnTypesMapping map[typing.DataType]string) *TableHelper {
 	return &TableHelper{
 		manager:       manager,
 		monitorKeeper: monitorKeeper,
-		tables:        map[string]*schema.Table{},
-		storageType:   storageType,
+		tables:        map[string]*adapters.Table{},
+
+		pkFields:           pkFields,
+		columnTypesMapping: columnTypesMapping,
 	}
+}
+
+func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters.Table {
+	table := &adapters.Table{
+		Name:     batchHeader.TableName,
+		Columns:  adapters.Columns{},
+		PKFields: th.pkFields,
+		Version:  0,
+	}
+
+	for fieldName, field := range batchHeader.Fields {
+		//map storage type
+		sqlType, ok := th.columnTypesMapping[field.GetType()]
+		if ok {
+			table.Columns[fieldName] = adapters.Column{SqlType: sqlType}
+		} else {
+			logging.SystemErrorf("Unknown column type mapping for %s mapping: %v", field.GetType(), th.columnTypesMapping)
+		}
+	}
+
+	return table
 }
 
 //EnsureTable return DB table schema and err if occurred
 //if table doesn't exist - create a new one and increment version
 //if exists - calculate diff, patch existing one with diff and increment version
 //return actual db table schema (with actual db types)
-func (th *TableHelper) EnsureTable(destinationName string, dataSchema *schema.Table) (*schema.Table, error) {
+func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
 	var err error
-	dbTableSchema, ok := th.tables[dataSchema.Name]
+	th.RLock()
+	dbSchema, ok := th.tables[dataSchema.Name]
+	th.RUnlock()
 
 	//get or create
 	if !ok {
-		dbTableSchema, err = th.getOrCreate(destinationName, dataSchema)
+		dbSchema, err = th.getOrCreate(destinationName, dataSchema)
 		if err != nil {
 			return nil, err
 		}
 
 		//save
-		th.tables[dbTableSchema.Name] = dbTableSchema
+		th.Lock()
+		th.tables[dbSchema.Name] = dbSchema
+		th.Unlock()
 	}
 
-	schemaDiff, err := dbTableSchema.Diff(dataSchema)
-	if err != nil {
-		return nil, err
-	}
-	pkPatch := schema.NewPkFieldsPatch(dbTableSchema, dataSchema)
+	diff := dbSchema.Diff(dataSchema)
 
 	//if diff doesn't exist - do nothing
-	if !schemaDiff.Exists() && !pkPatch.Exists() {
-		return dbTableSchema, nil
+	if !diff.Exists() {
+		return dbSchema, nil
 	}
 
 	//patch schema
-	lock, err := th.monitorKeeper.Lock(destinationName, dbTableSchema.Name)
+	lock, err := th.monitorKeeper.Lock(destinationName, dbSchema.Name)
 	if err != nil {
-		msg := fmt.Sprintf("System error: Unable to lock table %s in %s: %v", dataSchema.Name, th.storageType, err)
+		msg := fmt.Sprintf("System error: Unable to lock table %s: %v", dbSchema.Name, err)
 		notifications.SystemError(msg)
 		return nil, errors.New(msg)
 	}
 	defer th.monitorKeeper.Unlock(lock)
 
-	ver, err := th.monitorKeeper.GetVersion(destinationName, dbTableSchema.Name)
+	ver, err := th.monitorKeeper.GetVersion(destinationName, dbSchema.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Error getting version of table %s in %s: %v", dataSchema.Name, th.storageType, err)
+		return nil, fmt.Errorf("Error getting table %s version: %v", dataSchema.Name, err)
 	}
 
 	//get schema and calculate diff one more time if version was changed (this statement handles optimistic locking)
-	if ver != dbTableSchema.Version {
-		dbTableSchema, err = th.manager.GetTableSchema(dataSchema.Name)
+	if ver != dbSchema.Version {
+		dbSchema, err = th.manager.GetTableSchema(dbSchema.Name)
 		if err != nil {
-			return nil, fmt.Errorf("Error getting table %s schema from %s: %v", dataSchema.Name, th.storageType, err)
+			return nil, fmt.Errorf("Error getting table %s schema: %v", dataSchema.Name, err)
 		}
 
-		dbTableSchema.Version = ver
+		dbSchema.Version = ver
 
-		schemaDiff, err = dbTableSchema.Diff(dataSchema)
-		if err != nil {
-			return nil, err
-		}
-		pkPatch = schema.NewPkFieldsPatch(dbTableSchema, dataSchema)
+		diff = dbSchema.Diff(dataSchema)
 	}
 
 	//check if newSchemaDiff doesn't exist - do nothing
-	if !schemaDiff.Exists() && !pkPatch.Exists() {
-		return dbTableSchema, nil
+	if !diff.Exists() {
+		return dbSchema, nil
 	}
 
-	//patch and increment table version
-	if schemaDiff.Exists() {
-		if err := th.manager.PatchTableSchema(schemaDiff); err != nil {
-			return nil, err
-		}
-
-		newVersion, err := th.monitorKeeper.IncrementVersion(destinationName, dbTableSchema.Name)
-		if err != nil {
-			return nil, fmt.Errorf("Error incrementing version in storage [%s]: %v", th.storageType, err)
-		}
-
-		//Save
-		for k, v := range schemaDiff.Columns {
-			dbTableSchema.Columns[k] = v
-		}
-		dbTableSchema.Version = newVersion
+	if err := th.manager.PatchTableSchema(diff); err != nil {
+		return nil, err
 	}
 
-	if pkPatch.Exists() {
-		if err := th.manager.UpdatePrimaryKey(dbTableSchema, pkPatch); err != nil {
-			return nil, fmt.Errorf("Failed to update primary key for [%s]: %v", th.storageType, err)
-		}
-		newVersion, err := th.monitorKeeper.IncrementVersion(destinationName, dbTableSchema.Name)
-		if err != nil {
-			return nil, fmt.Errorf("Error incrementing version in storage [%s]: %v", th.storageType, err)
-		}
-		dbTableSchema.PKFields = pkPatch.PKFields
-		dbTableSchema.Version = newVersion
+	newVersion, err := th.monitorKeeper.IncrementVersion(destinationName, diff.Name)
+	if err != nil {
+		return nil, fmt.Errorf("Error incrementing table %s version: %v", diff.Name, err)
 	}
+
+	//** Save **
+	//columns
+	for k, v := range diff.Columns {
+		dbSchema.Columns[k] = v
+	}
+	//pk fields
+	if len(diff.PKFields) > 0 {
+		dbSchema.PKFields = diff.PKFields
+	}
+	//remove pk fields if a deletion was
+	if diff.DeletePkFields {
+		dbSchema.PKFields = map[string]bool{}
+	}
+	//version
+	dbSchema.Version = newVersion
+
+	return dbSchema, nil
+}
+
+//RefreshTableSchema force get (or create) db table schema and update it in-memory
+func (th *TableHelper) RefreshTableSchema(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
+	dbTableSchema, err := th.getOrCreate(destinationName, dataSchema)
+	if err != nil {
+		return nil, err
+	}
+
+	//save
+	th.Lock()
+	th.tables[dbTableSchema.Name] = dbTableSchema
+	th.Unlock()
 
 	return dbTableSchema, nil
 }
 
 //lock table -> get existing schema -> create a new one if doesn't exist -> return schema with version
-func (th *TableHelper) getOrCreate(destinationName string, dataSchema *schema.Table) (*schema.Table, error) {
+func (th *TableHelper) getOrCreate(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
 	lock, err := th.monitorKeeper.Lock(destinationName, dataSchema.Name)
 	if err != nil {
-		msg := fmt.Sprintf("System error: Unable to lock table %s in %s: %v", dataSchema.Name, th.storageType, err)
+		msg := fmt.Sprintf("System error: Unable to lock table %s: %v", dataSchema.Name, err)
 		notifications.SystemError(msg)
 		return nil, errors.New(msg)
 	}
@@ -139,29 +176,28 @@ func (th *TableHelper) getOrCreate(destinationName string, dataSchema *schema.Ta
 	//Get schema
 	dbTableSchema, err := th.manager.GetTableSchema(dataSchema.Name)
 	if err != nil {
-		return nil, fmt.Errorf("Error getting table %s schema from %s: %v", dataSchema.Name, th.storageType, err)
+		return nil, fmt.Errorf("Error getting table %s schema: %v", dataSchema.Name, err)
 	}
 
 	//create new or get version
 	if !dbTableSchema.Exists() {
 		if err := th.manager.CreateTable(dataSchema); err != nil {
-			return nil, fmt.Errorf("Error creating table %s in %s: %v", dataSchema.Name, th.storageType, err)
+			return nil, fmt.Errorf("Error creating table %s: %v", dataSchema.Name, err)
 		}
 
 		ver, err := th.monitorKeeper.IncrementVersion(destinationName, dataSchema.Name)
 		if err != nil {
-			return nil, fmt.Errorf("Error incrementing version of table %s in %s: %v", dataSchema.Name, th.storageType, err)
+			return nil, fmt.Errorf("Error incrementing table %s version: %v", dataSchema.Name, err)
 		}
 
 		dbTableSchema.Name = dataSchema.Name
 		dbTableSchema.Columns = dataSchema.Columns
 		dbTableSchema.Version = ver
-		// Setting primary key fields as empty to initialize at EnsureTable() later
-		dbTableSchema.PKFields = map[string]bool{}
+		dbTableSchema.PKFields = dataSchema.PKFields
 	} else {
 		ver, err := th.monitorKeeper.GetVersion(destinationName, dbTableSchema.Name)
 		if err != nil {
-			return nil, fmt.Errorf("Error getting version of table %s in %s: %v", dataSchema.Name, th.storageType, err)
+			return nil, fmt.Errorf("Error getting table %s version: %v", dataSchema.Name, err)
 		}
 
 		dbTableSchema.Version = ver

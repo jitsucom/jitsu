@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/eventnative/cluster"
 	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/destinations"
+	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/fallback"
 	"github.com/jitsucom/eventnative/handlers"
@@ -41,8 +42,8 @@ import (
 
 //some inner parameters
 const (
-	//$serverName-event-$token-$timestamp.log
-	uploaderFileMask   = "-event-*-20*.log"
+	//incoming.tok=$token-$timestamp.log
+	uploaderFileMask   = "incoming.tok=*-20*.log"
 	uploaderLoadEveryS = 60
 
 	destinationsKey = "destinations"
@@ -71,7 +72,12 @@ func readInViperConfig() error {
 		if viper.ConfigFileUsed() != "" && !*containerizedRun {
 			return err
 		} else {
-			logging.Warn("Custom eventnative.yaml wasn't provided")
+			logging.ConfigWarn = "! Custom eventnative.yaml wasn't provided\n                            " +
+				"! EventNative will start, however it will be mostly useless\n                            " +
+				"! Please make a custom config file, you can generated a config with https://app.jitsu.com.\n                            " +
+				"! Configuration documentation: https://docs.eventnative.org/configuration-1/configuration\n                            " +
+				"! Add config with `-cfg eventnative.yaml` parameter or put eventnative.yaml to <config_dir> and add mapping\n                            " +
+				"! -v <config_dir>/:/home/eventnative/app/res/ if you're using official Docker image"
 		}
 	}
 	return nil
@@ -92,9 +98,13 @@ func main() {
 		logging.Fatal("Error while reading application config: ", err)
 	}
 
+	appconfig.Version = strings.Split(tag, "-")[0]
+
 	if err := appconfig.Init(); err != nil {
 		logging.Fatal(err)
 	}
+
+	enrichment.InitDefault()
 
 	safego.GlobalRecoverHandler = func(value interface{}) {
 		logging.Error("panic")
@@ -129,6 +139,16 @@ func main() {
 		os.Exit(0)
 	}()
 
+	//Get logger configuration
+	logEventPath := viper.GetString("log.path")
+	//check if log.path is writable
+	if !logging.IsDirWritable(logEventPath) {
+		logging.Fatal("log.path:", logEventPath, "must be writable! Since EventNative docker user and owner of mounted dir are different: Please use 'chmod 777 your_mount_dir'")
+	}
+	logRotationMin := viper.GetInt64("log.rotation_min")
+
+	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"), appconfig.Instance.QueryLogsWriter)
+
 	//synchronization service
 	syncService, err := synchronization.NewService(
 		ctx,
@@ -158,11 +178,6 @@ func main() {
 			destinationsStr = envJsonViper.GetString(destinationsKey)
 		}
 	}
-
-	//Get logger configuration
-	logEventPath := viper.GetString("log.path")
-	logFallbackPath := viper.GetString("log.fallback")
-	logRotationMin := viper.GetInt64("log.rotation_min")
 
 	//meta storage config
 	metaStorageViper := viper.Sub("meta.storage")
@@ -200,7 +215,7 @@ func main() {
 	appconfig.Instance.ScheduleClosing(inMemoryEventsCache)
 
 	//Create event destinations
-	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, logFallbackPath, logRotationMin, syncService, appconfig.Instance.QueryLogsWriter, eventsCache, storages.Create)
+	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, syncService, eventsCache, loggerFactory, storages.Create)
 	if err != nil {
 		logging.Fatal(err)
 	}
@@ -234,7 +249,7 @@ func main() {
 	appconfig.Instance.ScheduleClosing(sourceService)
 
 	//Uploader must read event logger directory
-	uploader, err := logfiles.NewUploader(logEventPath, appconfig.Instance.ServerName+uploaderFileMask, uploaderLoadEveryS, destinationsService)
+	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderLoadEveryS, destinationsService)
 	if err != nil {
 		logging.Fatal("Error while creating file uploader", err)
 	}
@@ -242,14 +257,14 @@ func main() {
 
 	adminToken := viper.GetString("server.admin_token")
 
-	fallbackService, err := fallback.NewService(logFallbackPath, destinationsService)
+	fallbackService, err := fallback.NewService(logEventPath, destinationsService)
 	if err != nil {
 		logging.Fatal("Error creating fallback service:", err)
 	}
 
 	//version reminder banner in logs
 	if tag != "" && !viper.GetBool("server.disable_version_reminder") {
-		vn := appconfig.NewVersionReminder(ctx, tag)
+		vn := appconfig.NewVersionReminder(ctx)
 		vn.Start()
 		appconfig.Instance.ScheduleClosing(vn)
 	}
@@ -290,16 +305,8 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	jsEventsPreprocessor, err := events.NewJsPreprocessor()
-	if err != nil {
-		logging.Fatal(err)
-	}
-	apiEventsPreprocessor, err := events.NewApiPreprocessor()
-	if err != nil {
-		logging.Fatal(err)
-	}
-	jsEventHandler := handlers.NewEventHandler(destinations, jsEventsPreprocessor, eventsCache, inMemoryEventsCache)
-	apiEventHandler := handlers.NewEventHandler(destinations, apiEventsPreprocessor, eventsCache, inMemoryEventsCache)
+	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor(), eventsCache, inMemoryEventsCache)
+	apiEventHandler := handlers.NewEventHandler(destinations, events.NewApiPreprocessor(), eventsCache, inMemoryEventsCache)
 
 	sourcesHandler := handlers.NewSourcesHandler(sources)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
@@ -308,7 +315,7 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	apiV1 := router.Group("/api/v1")
 	{
 		apiV1.POST("/event", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
-		apiV1.POST("/s2s/event", middleware.TokenFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, "The token isn't a server token. Please use s2s integration token"))
+		apiV1.POST("/s2s/event", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server token. Please use s2s integration token"))
 
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler, middleware.AdminTokenErr))
 		apiV1.POST("/sources/:id/sync", adminTokenMiddleware.AdminAuth(sourcesHandler.SyncHandler, middleware.AdminTokenErr))

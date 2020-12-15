@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/destinations"
+	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/fallback"
 	"github.com/jitsucom/eventnative/logging"
@@ -173,7 +174,7 @@ func TestCors(t *testing.T) {
 			defer appconfig.Instance.Close()
 
 			inmemWriter := logging.InitInMemoryWriter()
-			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)}},
+			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
 				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
 			router := SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
 				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
@@ -231,11 +232,11 @@ func TestApiEvent(t *testing.T) {
 			"",
 			"",
 			http.StatusUnauthorized,
-			`{"message":"Wrong token","error":""}`,
+			`{"message":"The token is not found","error":""}`,
 		},
 		{
 			"Unauthorized s2s endpoint",
-			"/api/v1/s2s/event?token=wrongtoken",
+			"/api/v1/s2s/event?token=c2stoken",
 			"test_data/api_event_input.json",
 			"",
 			"",
@@ -249,10 +250,10 @@ func TestApiEvent(t *testing.T) {
 			"",
 			"",
 			http.StatusUnauthorized,
-			`{"message":"Wrong token","error":""}`,
+			`{"message":"The token is not found","error":""}`,
 		},
 		{
-			"C2S Api event consuming test",
+			"C2S event consuming test",
 			"/api/v1/event?token=c2stoken",
 			"test_data/event_input.json",
 			"test_data/fact_output.json",
@@ -298,7 +299,7 @@ func TestApiEvent(t *testing.T) {
 			defer appconfig.Instance.Close()
 
 			inmemWriter := logging.InitInMemoryWriter()
-			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": events.NewAsyncLogger(inmemWriter, false)}},
+			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
 				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
 			router := SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
 				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
@@ -423,19 +424,22 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 		t.Fatalf("failed to initialize container: %v", err)
 	}
 	defer container.Close()
+
 	telemetry.Init("test", "test", "test", true)
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
 
 	destinationConfig := fmt.Sprintf(pgDestinationConfigTemplate, container.Host, container.Port, container.Database, container.Schema, container.Username, container.Password)
-	viper.Set("dest", destinationConfig)
+
 	httpAuthority, _ := test.GetLocalAuthority()
 	err = appconfig.Init()
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
+
+	enrichment.InitDefault()
 	monitor := synchronization.NewInMemoryService([]string{})
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
-	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5, monitor, nil, eventsCache, storages.Create)
+	dest, err := destinations.NewService(ctx, nil, destinationConfig, "/tmp", monitor, eventsCache, logging.NewFactory("/tmp", 5, false, nil), storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
 
@@ -526,14 +530,15 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 		dsns[i] = "\"" + dsn + "\""
 	}
 	destinationConfig := fmt.Sprintf(configTemplate, strings.Join(dsns, ","), container.Database)
-	viper.Set("dest", destinationConfig)
+
 	httpAuthority, _ := test.GetLocalAuthority()
 	err = appconfig.Init()
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
+
+	monitor := synchronization.NewInMemoryService([]string{})
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
-	dest, err := destinations.NewService(ctx, viper.Sub("dest"), destinationConfig, "/tmp", "/tmp/fallback", 5,
-		synchronization.NewInMemoryService([]string{}), nil, eventsCache, storages.Create)
+	dest, err := destinations.NewService(ctx, nil, destinationConfig, "/tmp", monitor, eventsCache, logging.NewFactory("/tmp", 5, false, nil), storages.Create)
 	require.NoError(t, err)
 	defer dest.Close()
 	router := SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5), sources.NewTestService(), fallback.NewTestService())

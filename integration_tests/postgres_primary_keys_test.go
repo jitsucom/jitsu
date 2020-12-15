@@ -3,9 +3,8 @@ package integration_tests
 import (
 	"context"
 	"github.com/jitsucom/eventnative/adapters"
-	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/events"
-	"github.com/jitsucom/eventnative/meta"
+	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/storages"
@@ -16,6 +15,7 @@ import (
 	"testing"
 )
 
+//Test postgres adapter with primary keys and without (make sure primary keys are deleted)
 func TestPrimaryKeyRemoval(t *testing.T) {
 	ctx := context.Background()
 	container, err := test.NewPostgresContainer(ctx)
@@ -23,48 +23,51 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 		t.Fatalf("failed to initialize container: %v", err)
 	}
 	defer container.Close()
-	pgParams := make(map[string]string)
-	pgParams["sslmode"] = "disable"
 
-	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: container.Port, Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: pgParams}
-	processor, err := schema.NewProcessor("users", []string{}, "", map[string]bool{}, nil)
-	require.NoError(t, err)
-	monitor, err := synchronization.NewService(ctx, "test", "", "", 0)
+	err = appconfig.Init()
 	require.NoError(t, err)
 
-	fallBackLoggerFactoryMethod := func() *events.AsyncLogger {
-		return nil
-	}
-
-	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
-	pg, err := storages.NewPostgres(ctx, dsConfig, processor, nil, "test", true, false, monitor, fallBackLoggerFactoryMethod, &logging.QueryLogger{}, eventsCache)
-	if err != nil {
-		require.Fail(t, "failed to initialize", err)
-	}
+	enrichment.InitDefault()
+	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: container.Port, Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: map[string]string{"sslmode": "disable"}}
+	pg, err := adapters.NewPostgres(ctx, dsConfig, logging.NewQueryLogger("test", nil), map[string]string{})
+	require.NoError(t, err)
 	require.NotNil(t, pg)
-	data := make(map[string]interface{})
-	data["email"] = "test@domain.com"
-	data["name"] = "AnyName"
-	columns := make(map[string]schema.Column)
-	columns["email"] = schema.NewColumn(typing.STRING)
-	columns["name"] = schema.NewColumn(typing.STRING)
+
+	tableHelperWithPk := storages.NewTableHelper(pg, synchronization.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToPostgres)
 
 	// all events should be merged as have the same PK value
-	tableWithMerge := &schema.Table{Name: "users", Version: 1, Columns: columns, PKFields: map[string]bool{"email": true}}
+	tableWithMerge := tableHelperWithPk.MapTableSchema(&schema.BatchHeader{
+		TableName: "users",
+		Fields:    schema.Fields{"email": schema.NewField(typing.STRING), "name": schema.NewField(typing.STRING)},
+	})
+	data := map[string]interface{}{"email": "test@domain.com", "name": "AnyName"}
+
+	ensuredWithMerge, err := tableHelperWithPk.EnsureTable("test", tableWithMerge)
+	require.NoError(t, err)
+
 	for i := 0; i < 5; i++ {
-		err = pg.Insert(tableWithMerge, data)
+		err = pg.Insert(ensuredWithMerge, data)
 		if err != nil {
 			t.Fatal("failed to insert", err)
 		}
 	}
+
 	rowsUnique, err := container.CountRows("users")
 	require.NoError(t, err)
 	require.Equal(t, 1, rowsUnique)
 
-	// Update schema removing primary keys. Now each event should be stored
-	table := &schema.Table{Name: "users", Version: 1, Columns: columns, PKFields: map[string]bool{}}
+	tableHelperWithoutPk := storages.NewTableHelper(pg, synchronization.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToPostgres)
+	// all events should be merged as have the same PK value
+	table := tableHelperWithoutPk.MapTableSchema(&schema.BatchHeader{
+		TableName: "users",
+		Fields:    schema.Fields{"email": schema.NewField(typing.STRING), "name": schema.NewField(typing.STRING)},
+	})
+
+	ensuredWithoutMerge, err := tableHelperWithoutPk.EnsureTable("test", table)
+	require.NoError(t, err)
+
 	for i := 0; i < 5; i++ {
-		err = pg.Insert(table, data)
+		err = pg.Insert(ensuredWithoutMerge, data)
 		if err != nil {
 			t.Fatal("failed to insert", err)
 		}

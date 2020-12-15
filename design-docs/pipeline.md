@@ -45,27 +45,27 @@ Batch and Stream pipelines are different, however they have same logical steps. 
  * First, event is being written in `events/incoming` directory to current log file.
  * Log files are being rotated once in N (=5 by default) minutes and processed in a separate thread
  * Log files processing. Get all unprocessed logs (all files in `events/incoming` that not in process)
-   * For every record: apply LookupEnrichment step
    * Multiplex records to destinations
    * For each destination: evaluate `table_name_template` expression to get a destination table name. If result 
    is empty string, skip this destination. If evaluation failed, event is written to `events/failed`
    * For each destination/table pair:
-      * Check status in status file of log (see DestinationStatus). If pair has been processed, ignore it
+      * Check status in status file of log (see DestinationStatus in pipeline.proto). If pair has been processed, ignore it
       * Apply LookupEnrichment step  
-      * Apply MappingStep (get TypedRecord)
-      * Maintain up-to date BatchHeader in memory. If new field appears in TypedRecord, add it to BatchHeader
-      * On type conflict: apply type promotion. If conflict types have common ancestor, change the type in BatchHeader to it. Otherwise, skip record
-      and write it to `events/failed`
-      * Write TypedRecord to corresponding batch file (on local disk or cloud storage - depending on a destination)
-   * Once batch file is prepared, proceed to **table patching**. For each destination/table pair:
-      * Get table structure
+      * Apply MappingStep (get BatchHeader)
+      * Maintain up-to date BatchHeader in memory. If new field appears add it with type to BatchHeader
+      * On type conflict: apply [Type Promotion](#type-promotion)
+   * Once batch objects and BatchHeader are prepared, proceed to **table patching**. For each destination/table pair:
+      * Map BatchHeader into Table structure with SQL column types depend on the destination type and primary keys (if configured).
+      * Get Table structure from the destination
       * Acquire destination lock (using distributed lock service)
-      * Compare table structure with batch header
-      * If column is missing, run ALTER TABLE
-      * If column is present, but type is not the same (_ignore_ so far, run type promotion in next version)
+      * Compare two Table structures (from the destination and from data)
+      * Maintain primary key (if configured)
+      * If column is missing run ALTER TABLE
       * If column is present in the table, but missing in BatchHeader - ignore
       * Release destination lock
-  * For each batch file: bulk insert it to destination. On success update log status file see (DestinationStatus) and mark destination/table pair as OK (mark is as FAILED) otherwise. If all pairs are marked as OK, rotate log file
+      
+  * Depend on a destination bulk insert objects to destination with explicit typecast (if it is configured in mapping section) or write them with json/csv serialization to cloud storage and execute destination load command.
+  * On success update log status file see (DestinationStatus) and mark destination/table pair as OK (mark is as FAILED) otherwise. If all pairs are marked as OK, rotate log file
   to `events/archive`
       
 ## Stream processing
@@ -73,15 +73,15 @@ Batch and Stream pipelines are different, however they have same logical steps. 
 * Apply mutliplexing, put each multiplexed event to destination queue. Queue items are persisted in
 `events/queue.dst=${destination_id}` dir.
 * Separate thread processes each queue. For each event:
-  * Run `table_name_template expression`. If result is empty skip this event otherwise construct BatchHeader. If evaluation failed, event is written to `events/failed`
+  * Run `table_name_template expression`. If result is empty skip. If evaluation failed, event is written to `events/failed`
   * Apply LookupEnrichment step to event  
-  * Apply MappingStep (get TypedRecord)
-  * Merge TypedRecord into BatchHeader (add field types)
-  * Get table schema from memory (if memory cache is missing, get schema from DWH)
+  * Apply MappingStep (get BatchHeader)
+  * Get Table structure from memory (if memory cache is missing, get schema from DWH)
   * Do **table patching** (see above in batch step)
-  * Insert TypedRecord using INSERT statement.
-  * If INSERT failed, refresh schema from DB and repeat the step
+  * Insert object with explicit typecast (if it is configured in mapping section) using INSERT statement.
+  * If INSERT failed, refresh schema from DWH and repeat the step
   * If failed, write the record to `events/failed`
+  * If success, write the event to `events/archive`
     
 
 
@@ -93,7 +93,7 @@ Batch and Stream pipelines are different, however they have same logical steps. 
  * Add UTC timestamp (/_timestamp field)
  * Add API secret token (/api_key field)
  * If request is processed by JavaScript endpoint - read and add user-agent header (/eventn_ctx/user_agent field)
- * If request is processed by Server API - add 'api' value (/src field)
+ * If request is processed by Server API - add 'api' value (/src field) and generated UUID (/eventn_ctx/event_id field) 
 
 
 ### LookupEnrichment step
@@ -118,36 +118,58 @@ Two implicit Enrichment rules applied to all JavaScript events as well:
 
 ### Mapping step
 
-During this step JSON object is transformed into a TypedRecord. 
+During this step BatchHeader is generated based on JSON object. 
 
 Mapping can configured with YML descriptor (see meaning of config parameters as comments)
 
 ```yaml
-mapping:
+mappings:
   keep_unmapped: true # if fields that are not explicitly mapped should be kept or removed
   fields:
     - src: /src/field/path # JSON path
       dst: /dst/field/path # could be just_field_name, without leading. Before inserting all / (except
       # first one) will be replaced wth '_'
-      action: move | remove | cast #  
+      action: move | remove | cast | constant
       type: Lowcardinality(String) # for 'move' (optional) and 'cast' (required) actions - SQL type (depend on destination)
+      value: # Value for setting as constant to 'dst'. Required only for 'constant' action. Other actions will ignore this field.
 ```
 Following field actions are supported:
 
 * **move** — move JSON subtree to another node. 
 * **remove** - remove JSON subtree (dst param is not needed)
 * **cast** – assign an explicit type to a node (dst param is not needed)
+* **constant** – assign an explicit type to a node (src param is not needed)
 
-After all mappings are applied, JSON is flattened
+After all mappings are applied, JSON is flattened, all special characters and spaces are replaced with underscore
 
 #### Implicit type cast
 
-If some fields has not been casted explicitly, casting is done based on JSON node type:
- * **string** is casted to TEXT
- * **double** is casted to DOUBLE PRECISION
- * **integer** is casted to BIGINT
- * **boolean** is casted to BOOLEAN
- * **array** is casted to JSON
+If some fields has not been casted explicitly, casting is done based on JSON node type depend on DWH:
+
+|      DWH      | **string** |   **double**   | **integer** | **boolean** | **array** |
+| ------------- | ---------- | -------------- | ----------- | ----------- | --------- |
+|   Postgres    |    text    | numeric(38,18) |    bigint   |   boolean   |    text   |
+|   Redshift    | character varying(65535) | numeric(38,18) |    bigint   |   boolean   |    character varying(65535)   |
+|   BigQuery    |    string    | float |    integer   |   boolean   |    string   |
+|   ClickHouse    |    String    | Float64 |    Int64   |   UInt8   |    String   |
+|   Snowflake    |    text    | numeric(38,18) |    bigint   |   boolean   |    text   |
+
+NOTE: Arrays are serialized in JSON string.
+ 
+#### Type Promotion
+
+Field can have several JSON node types in two objects in one batch. In this case Type promotion will be applied by finding the lowest common ancestor in the following typecast tree.
+For example FLOAT64 and TIMESTAMP in the result will be STRING.
+```
+     Typecast tree
+         STRING
+         /    \          
+    FLOAT64  TIMESTAMP
+       |
+     INT64
+       |
+      BOOL
+``` 
  
 Also, if event has come from JavaScript API, following mapping is merged into configured one (configured mapping has priority)
  
@@ -177,19 +199,18 @@ is very similar to URL query string, but instead of `?` parameters are delimited
 
 | Sub-dir              | Purpose                            | Data format                                | Filename pattern |
 | -------------        | -------------                      |-------------                               | ---------------- |
-| `events/incoming`    | Incoming events (batch mode only)  | Original JSON after ContextEnrichment step | `incoming.tok=${tok}\|id=${uid}.log` where {tok} is used API token id |
-| `events/incoming`<br>(status files)    |Status of each batch: to which destinations and tables data has been sent succesfully  | DestinationStatus JSON | `incoming.tok=${tok}\|id=${uid}.log.status` |
-| `events/archive`     | Events that has been already processed  | Original JSON after ContextEnrichment step | `yyyy-mm-dd/tok=${tok}\|${uid}.log` where {tok} is used API token id |
-| `events/batches`    | Batches files: collection of TypedRecord after multiplexing and before sending to destination. Only for some destinations which do batch load from local disk (for others same files will be kept on cloud storage). Each file is a function of (BatchHeader, TypedRecord[])  |Specific to destination, usually CSV or JSON| `batch.dst={destination_id}.table={table}.log` where {tok} is used API token id |
-| `events/failed`    | Events that haven't been saved to destination due to error   | Collection of EventError (see .proto file): original JSON (after ContextEnrichment step) wrapped with EventError structure | `batch.dst=${destination_id}.log`  |
+| `events/incoming`    | Incoming events (batch mode only)  | Original JSON after ContextEnrichment step | `incoming.tok=${tok}.log` where {tok} is used API token id |
+| `events/incoming`<br>(status files)    |Status of each batch: to which destinations and tables data has been sent succesfully  | DestinationStatus JSON | `incoming.tok=${tok}.log.status` |
+| `events/archive`     | Events that has been already processed  | Original JSON after ContextEnrichment step | `yyyy-mm-dd/incoming.tok=${tok}-yyyy-mm-ddTHH-mm-ss.SSS.log.gz` or `yyyy-mm-dd/streaming-archive.dst=${destination_id}-yyyy-mm-ddTHH-mm-ss.SSS.log.gz` or `yyyy-mm-dd/failed.dst=${destination_id}-yyyy-mm-ddTHH-mm-ss.SSS.log.gz` depend on events from batch destination or stream destination or replaying failed events. Where {tok} is used API token id |
+| `events/failed`    | Events that haven't been saved to destination due to error   | Collection of EventError (see .proto file): original JSON (after ContextEnrichment step) wrapped with EventError structure | `failed.dst=${destination_id}.log`  |
 | `events/queue.dst=${destination_id}`    | Streaming mode only: persistence for event queue   | Binary  | `${partition_number}.dque` and `lock.lock`  |
 
 ## Internal data structures
 
 Internal data structures referenced here and above are described in `proto/pipeline.proto` as protobuf3 spec. The spec
-and the code acts as  documentation. See the list of all data strucutures:
- * **TypedRecord** - Represents a record which has been already mapped and ready to be insert to SQL. Usually paired with **BatchHeader**
- * **BatchHeader** - describes a structure of batch: fields and types along with destination id and table
- * **EventError** - event that failed to be sent to destination: original JSON (after ContextEnrichment step) with error descriptiom
+and the code acts as  documentation. See the list of all data structures:
+ * **BatchHeader** - describes a structure of batch: fields and types along with table name
+ * **Table** - describes a structure of DWH table: columns, sql types and primary keys along with table name
+ * **EventError** - event that failed to be sent to destination: original JSON (after ContextEnrichment step) with error description
 
 

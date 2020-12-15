@@ -22,20 +22,21 @@ type Status struct {
 type StatusManager struct {
 	sync.RWMutex
 
-	filesPath string
-	fileMask  string
-	//fileLogName: {"storage1": Status, "storage2": Status}
-	fileStatuses map[string]map[string]*Status
+	filesDir        string
+	statusFilesMask string
+	//map[fileLogName]map[storageName]map[tableName]Status
+	//incoming.tok=123 {"storage1":{tableName1": Status, "tableName2": Status}, "storage2":{tableName3": Status}}
+	fileStorageTableStatuses map[string]map[string]map[string]*Status
 }
 
-func NewStatusManager(logEventPath string) (*StatusManager, error) {
-	fileMask := path.Join(logEventPath, statusFileMask)
-	files, err := filepath.Glob(fileMask)
+func NewStatusManager(logFilesDir string) (*StatusManager, error) {
+	statusFilesMask := path.Join(logFilesDir, statusFileMask)
+	files, err := filepath.Glob(statusFilesMask)
 	if err != nil {
 		return nil, err
 	}
 
-	fileStatuses := map[string]map[string]*Status{}
+	fileStorageTableStatuses := map[string]map[string]map[string]*Status{}
 	for _, filePath := range files {
 		fileStatusName := filepath.Base(filePath)
 		fileLogName := strings.Split(fileStatusName, statusFileExtension)[0]
@@ -45,104 +46,87 @@ func NewStatusManager(logEventPath string) (*StatusManager, error) {
 			logging.Error("Error reading log status file", filePath, err)
 			continue
 		}
+
 		if len(b) == 0 {
-			fileStatuses[fileLogName] = map[string]*Status{}
+			fileStorageTableStatuses[fileLogName] = map[string]map[string]*Status{}
 			continue
 		}
-		statuses := map[string]*Status{}
-		if err := json.Unmarshal(b, &statuses); err != nil {
-			logging.Error("Error unmarshalling log status file", filePath, err)
-			fileStatuses[fileLogName] = map[string]*Status{}
+
+		storageTableStatuses := map[string]map[string]*Status{}
+		if err := json.Unmarshal(b, &storageTableStatuses); err != nil {
+			logging.SystemError("Error unmarshalling log status file", filePath, err)
+			fileStorageTableStatuses[fileLogName] = map[string]map[string]*Status{}
 			continue
 		}
-		fileStatuses[fileLogName] = statuses
+		fileStorageTableStatuses[fileLogName] = storageTableStatuses
 	}
 
 	return &StatusManager{
-		filesPath:    logEventPath,
-		fileMask:     fileMask,
-		fileStatuses: fileStatuses,
+		filesDir:                 logFilesDir,
+		statusFilesMask:          statusFilesMask,
+		fileStorageTableStatuses: fileStorageTableStatuses,
 	}, nil
 }
 
-func (sm *StatusManager) IsUploaded(fileName, storage string) bool {
+func (sm *StatusManager) GetTablesStatuses(fileName, storageName string) map[string]*Status {
 	sm.RLock()
 	defer sm.RUnlock()
 
-	statuses, ok := sm.fileStatuses[fileName]
+	statuses, ok := sm.fileStorageTableStatuses[fileName][storageName]
 	if !ok {
-		return false
+		return map[string]*Status{}
 	}
 
-	status, ok := statuses[storage]
-	if !ok {
-		return false
-	}
-
-	return status.Uploaded
+	return statuses
 }
 
-func (sm *StatusManager) Get(fileName, storage string) (*Status, bool) {
-	sm.RLock()
-	defer sm.RUnlock()
-
-	statuses, ok := sm.fileStatuses[fileName]
-	if !ok {
-		return nil, false
-	}
-
-	status, ok := statuses[storage]
-	if !ok {
-		return nil, false
-	}
-
-	return status, true
-}
-
-func (sm *StatusManager) UpdateStatus(fileName, storage string, storageErr error) {
+func (sm *StatusManager) UpdateStatus(fileName, storage, table string, err error) {
 	sm.Lock()
 	defer sm.Unlock()
 
-	statusesPerStorage, ok := sm.fileStatuses[fileName]
+	statusesPerStorage, ok := sm.fileStorageTableStatuses[fileName]
 	if !ok {
-		statusesPerStorage = map[string]*Status{}
-		sm.fileStatuses[fileName] = statusesPerStorage
+		statusesPerStorage = map[string]map[string]*Status{}
+		sm.fileStorageTableStatuses[fileName] = statusesPerStorage
 	}
 
-	status, ok := statusesPerStorage[storage]
+	statusPerTable, ok := statusesPerStorage[storage]
 	if !ok {
-		status = &Status{}
-		statusesPerStorage[storage] = status
+		statusPerTable = map[string]*Status{}
+		sm.fileStorageTableStatuses[fileName][storage] = statusPerTable
 	}
 
-	if storageErr == nil {
-		status.Uploaded = true
-		status.Err = ""
-	} else {
-		status.Uploaded = false
-		status.Err = storageErr.Error()
+	var errMsg string
+	if err != nil {
+		errMsg = err.Error()
+	}
+
+	statusPerTable[table] = &Status{
+		Uploaded: err == nil,
+		Err:      errMsg,
 	}
 
 	sm.persist(fileName, statusesPerStorage)
-}
-
-func (sm *StatusManager) persist(fileName string, statusesPerStorage map[string]*Status) {
-	b, err := json.Marshal(statusesPerStorage)
-	if err != nil {
-		logging.Error("Error marshaling event log file statuses for file", fileName, err)
-		return
-	}
-	filePath := path.Join(sm.filesPath, fileName+statusFileExtension)
-	if err := ioutil.WriteFile(filePath, b, 0644); err != nil {
-		logging.Error("Error writing event log status file", filePath, err)
-	}
 }
 
 func (sm *StatusManager) CleanUp(fileName string) {
 	sm.Lock()
 	defer sm.Unlock()
 
-	delete(sm.fileStatuses, fileName)
+	delete(sm.fileStorageTableStatuses, fileName)
 
-	os.Remove(path.Join(sm.filesPath, fileName+statusFileExtension))
+	os.Remove(path.Join(sm.filesDir, fileName+statusFileExtension))
+}
+
+func (sm *StatusManager) persist(fileName string, statuses map[string]map[string]*Status) {
+	b, err := json.Marshal(statuses)
+	if err != nil {
+		logging.SystemErrorf("Error marshaling event log file statuses for [%s] file: %v", fileName, err)
+		return
+	}
+
+	filePath := path.Join(sm.filesDir, fileName+statusFileExtension)
+	if err := ioutil.WriteFile(filePath, b, 0644); err != nil {
+		logging.SystemErrorf("Error writing event log status file [%s]: %v", filePath, err)
+	}
 }

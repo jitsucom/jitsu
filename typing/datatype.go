@@ -13,6 +13,7 @@ type DataType int
 const (
 	//IMPORTANT: order of iota values. Int values according to Typecast tree (see typing.typecastTree)
 	UNKNOWN DataType = iota
+	BOOL
 	INT64
 	FLOAT64
 	STRING
@@ -25,12 +26,14 @@ var (
 		"integer":   INT64,
 		"double":    FLOAT64,
 		"timestamp": TIMESTAMP,
+		"boolean":   BOOL,
 	}
 	typeToInputString = map[DataType]string{
 		STRING:    "string",
 		INT64:     "integer",
 		FLOAT64:   "double",
 		TIMESTAMP: "timestamp",
+		BOOL:      "boolean",
 	}
 )
 
@@ -46,6 +49,8 @@ func (dt DataType) String() string {
 		return "FLOAT64"
 	case TIMESTAMP:
 		return "TIMESTAMP"
+	case BOOL:
+		return "BOOL"
 	case UNKNOWN:
 		return "UNKNOWN"
 	}
@@ -107,6 +112,8 @@ func TypeFromValue(v interface{}) (DataType, error) {
 		return INT64, nil
 	case time.Time:
 		return TIMESTAMP, nil
+	case bool:
+		return BOOL, nil
 	default:
 		return UNKNOWN, fmt.Errorf("Unknown DataType for value: %v type: %t", v, v)
 	}

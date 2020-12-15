@@ -1,39 +1,22 @@
 package schema
 
 import (
+	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/jsonutils"
-	"github.com/jitsucom/eventnative/typing"
+	"github.com/jitsucom/eventnative/logging"
 	"strings"
 )
+
+var systemFields = []string{"_timestamp", "eventn_ctx_event_id", "src"}
 
 type Mapper interface {
 	Map(object map[string]interface{}) (map[string]interface{}, error)
 }
 
-type FieldMappingType string
-
-const (
-	Default FieldMappingType = ""
-	Strict  FieldMappingType = "strict"
-)
-
-var systemFields = []string{"_timestamp", "eventn_ctx_event_id", "src"}
-
-func (f FieldMappingType) String() string {
-	if f == Strict {
-		return "Strict"
-	} else {
-		return "Default"
-	}
-}
-
 type FieldMapper struct {
-	rules []*MappingRule
-}
-
-type StrictFieldMapper struct {
-	rules []*MappingRule
+	rules              []*MappingRule
+	keepUnmappedFields bool
 }
 
 type DummyMapper struct{}
@@ -41,17 +24,51 @@ type DummyMapper struct{}
 type MappingRule struct {
 	source      *jsonutils.JsonPath
 	destination *jsonutils.JsonPath
+	action      string
+	value       interface{}
 }
 
-//NewFieldMapper return FieldMapper, fields to typecast and err
-func NewFieldMapper(mappingType FieldMappingType, mappings []string) (Mapper, map[string]typing.DataType, error) {
-	if len(mappings) == 0 {
-		return &DummyMapper{}, nil, nil
+//NewFieldMapper return FieldMapper, sql typecast and err
+func NewFieldMapper(oldStyleMappingType FieldMappingType, oldStyleMappings []string, newStyleMappings *Mapping) (Mapper, map[string]string, error) {
+	if len(oldStyleMappings) == 0 && (newStyleMappings == nil || len(newStyleMappings.Fields) == 0) {
+		return &DummyMapper{}, map[string]string{}, nil
 	}
 
 	var rules []*MappingRule
-	fieldsToCast := map[string]typing.DataType{}
-	for _, mapping := range mappings {
+	sqlTypeCasts := map[string]string{}
+
+	//** new style **
+	if newStyleMappings != nil && len(newStyleMappings.Fields) > 0 {
+		keepUnmappedFields := true
+		if newStyleMappings.KeepUnmapped != nil {
+			keepUnmappedFields = *newStyleMappings.KeepUnmapped
+		}
+
+		for _, mapping := range newStyleMappings.Fields {
+			err := mapping.Validate()
+			if err != nil {
+				return nil, nil, fmt.Errorf("Mapping rule validation error: %v", err)
+			}
+
+			rule := &MappingRule{
+				source:      jsonutils.NewJsonPath(mapping.Src),
+				destination: jsonutils.NewJsonPath(mapping.Dst),
+				action:      mapping.Action,
+				value:       mapping.Value,
+			}
+			rules = append(rules, rule)
+
+			//collect sql typecasts
+			if mapping.Type != "" {
+				sqlTypeCasts[rule.destination.FieldName()] = mapping.Type
+			}
+		}
+
+		return &FieldMapper{rules: rules, keepUnmappedFields: keepUnmappedFields}, sqlTypeCasts, nil
+	}
+
+	//** old style **
+	for _, mapping := range oldStyleMappings {
 		mappingWithoutSpaces := strings.ReplaceAll(mapping, " ", "")
 		parts := strings.Split(mappingWithoutSpaces, "->")
 
@@ -68,10 +85,17 @@ func NewFieldMapper(mappingType FieldMappingType, mappings []string) (Mapper, ma
 
 		//without type casting
 		if !strings.Contains(destination, ")") {
-			rules = append(rules, &MappingRule{
+			rule := &MappingRule{
 				source:      jsonutils.NewJsonPath(source),
 				destination: jsonutils.NewJsonPath(destination),
-			})
+			}
+			if rule.destination.IsEmpty() {
+				rule.action = REMOVE
+			} else {
+				rule.action = MOVE
+			}
+
+			rules = append(rules, rule)
 			continue
 		}
 
@@ -85,38 +109,36 @@ func NewFieldMapper(mappingType FieldMappingType, mappings []string) (Mapper, ma
 		formattedDestination := strings.ReplaceAll(jsonutils.FormatPrefixSuffix(destParts[1]), "/", "_")
 
 		castType := strings.ReplaceAll(destParts[0], "(", "")
-		dataType, err := typing.TypeFromString(castType)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Malformed cast type in data mapping [%s]: %v. Available types: integer, double, string, timestamp", mapping, err)
-		}
 
-		fieldsToCast[formattedDestination] = dataType
+		//old type: integer, double
+		sqlTypeCasts[formattedDestination] = castType
 		rules = append(rules, &MappingRule{
 			source:      jsonutils.NewJsonPath(source),
 			destination: jsonutils.NewJsonPath(destParts[1]),
+			action:      MOVE,
 		})
 	}
-	if mappingType == Strict {
-		return &StrictFieldMapper{rules: rules}, fieldsToCast, nil
-	}
-	return &FieldMapper{rules: rules}, fieldsToCast, nil
+
+	return &FieldMapper{rules: rules, keepUnmappedFields: oldStyleMappingType == Default}, sqlTypeCasts, nil
 }
 
 //Map changes input object and applies deletes and mappings
-func (fm FieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
-	applyMapping(object, object, fm.rules)
+func (fm *FieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
+	mappedObject := object
+	if !fm.keepUnmappedFields {
+		mappedObject = make(map[string]interface{})
+	}
 
-	return object, nil
-}
+	err := applyMapping(object, mappedObject, fm.rules)
+	if err != nil {
+		return nil, err
+	}
 
-func (fm StrictFieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
-	mappedObject := make(map[string]interface{})
-
-	applyMapping(object, mappedObject, fm.rules)
-
-	for _, field := range systemFields {
-		if val, ok := object[field]; ok {
-			mappedObject[field] = val
+	if !fm.keepUnmappedFields {
+		for _, field := range systemFields {
+			if val, ok := object[field]; ok {
+				mappedObject[field] = val
+			}
 		}
 	}
 	return mappedObject, nil
@@ -127,21 +149,32 @@ func (DummyMapper) Map(object map[string]interface{}) (map[string]interface{}, e
 	return object, nil
 }
 
-func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*MappingRule) {
+func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*MappingRule) error {
 	for _, rule := range rules {
-		value, ok := rule.source.GetAndRemove(sourceObj)
-		if ok {
-			//handle delete rules
-			if rule.destination.IsEmpty() {
-				continue
+		switch rule.action {
+		case REMOVE:
+			rule.source.GetAndRemove(sourceObj)
+		case MOVE:
+			value, ok := rule.source.GetAndRemove(sourceObj)
+			if ok {
+				err := rule.destination.Set(destinationObj, value)
+				if err != nil {
+					return err
+				}
 			}
-
-			ok := rule.destination.Set(destinationObj, value)
-			if !ok {
-				//key wasn't set into destination object
-				//set as is
-				rule.source.Set(destinationObj, value)
+		case CAST:
+			//will be handled in adapters
+		case CONSTANT:
+			err := rule.destination.Set(destinationObj, rule.value)
+			if err != nil {
+				return err
 			}
+		default:
+			msg := fmt.Sprintf("Unknown mapping type action: [%s]", rule.action)
+			logging.SystemError(msg)
+			return errors.New(msg)
 		}
 	}
+
+	return nil
 }
