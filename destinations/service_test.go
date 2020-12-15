@@ -5,14 +5,13 @@ import (
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 )
@@ -114,7 +113,7 @@ func TestServiceInit(t *testing.T) {
 
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	service, err := NewService(context.Background(), nil, mockDestinationsServer.URL, "/tmp",
-		"/tmp/fallback", 5, nil, os.Stdout, eventsCache, createTestStorage)
+		nil, eventsCache, logging.NewFactory("/tmp", 5, false, nil), createTestStorage)
 	require.NoError(t, err)
 	require.NotNil(t, service)
 
@@ -299,7 +298,8 @@ func startTestServer(ph *payloadHolder) *httptest.Server {
 		}))
 }
 
-func createTestStorage(ctx context.Context, name, logEventPath, logFallbackPath string, logRotationMin int64, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper, queryWriter io.Writer, eventsCache *caching.EventsCache) (events.StorageProxy, *events.PersistentQueue, error) {
+func createTestStorage(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper,
+	eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (events.StorageProxy, *events.PersistentQueue, error) {
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == storages.StreamMode {
 		eventQueue, _ = events.NewPersistentQueue(name, "/tmp")

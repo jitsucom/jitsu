@@ -5,110 +5,109 @@ import (
 	"fmt"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
-	"github.com/jitsucom/eventnative/typing"
 )
 
 //Store files to aws s3 in batch mode
 type S3 struct {
-	name            string
-	s3Adapter       *adapters.S3
-	schemaProcessor *schema.Processor
-	fallbackLogger  *events.AsyncLogger
-	eventsCache     *caching.EventsCache
-	breakOnError    bool
+	name           string
+	s3Adapter      *adapters.S3
+	processor      *schema.Processor
+	fallbackLogger *logging.AsyncLogger
+	eventsCache    *caching.EventsCache
 }
 
-func NewS3(name string, s3Config *adapters.S3Config, processor *schema.Processor, breakOnError bool, fallbackLoggerFactoryMethod func() *events.AsyncLogger,
-	eventsCache *caching.EventsCache) (*S3, error) {
+func NewS3(config *Config) (events.Storage, error) {
+	if config.streamMode {
+		if config.eventQueue != nil {
+			config.eventQueue.Close()
+		}
+		return nil, fmt.Errorf("S3 destination doesn't support %s mode", StreamMode)
+	}
+	s3Config := config.destination.S3
+	if err := s3Config.Validate(); err != nil {
+		return nil, err
+	}
+
 	s3Adapter, err := adapters.NewS3(s3Config)
 	if err != nil {
 		return nil, err
 	}
 
 	s3 := &S3{
-		name:            name,
-		s3Adapter:       s3Adapter,
-		schemaProcessor: processor,
-		fallbackLogger:  fallbackLoggerFactoryMethod(),
-		eventsCache:     eventsCache,
-		breakOnError:    breakOnError,
+		name:           config.name,
+		s3Adapter:      s3Adapter,
+		processor:      config.processor,
+		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:    config.eventsCache,
 	}
 
 	return s3, nil
 }
 
-func (s3 *S3) Consume(fact events.Fact, tokenId string) {
+func (s3 *S3) Consume(event events.Event, tokenId string) {
 	logging.Errorf("[%s] S3 storage doesn't support streaming mode", s3.Name())
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (s3 *S3) Store(fileName string, payload []byte) (int, error) {
-	return s3.StoreWithParseFunc(fileName, payload, parsers.ParseJson)
+func (s3 *S3) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+	return s3.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //Store file from byte payload to s3 with processing
-//return rows count and err if can't store
-//or rows count and nil if stored
-func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, parseFunc func([]byte) (map[string]interface{}, error)) (int, error) {
-	flatData, failedEvents, err := s3.schemaProcessor.ProcessFilePayload(fileName, payload, s3.breakOnError, parseFunc)
+//return result per table, failed events count and err if occurred
+func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	flatData, failedEvents, err := s3.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
-		return linesCount(payload), err
+		return nil, linesCount(payload), err
 	}
 
-	var rowsCount int
+	//update cache with failed events
+	for _, failedEvent := range failedEvents {
+		s3.eventsCache.Error(s3.Name(), failedEvent.EventId, failedEvent.Error)
+	}
+
+	storeFailedEvents := true
+	tableResults := map[string]*events.StoreResult{}
 	for _, fdata := range flatData {
-		rowsCount += fdata.GetPayloadLen()
-	}
+		b := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+		err := s3.s3Adapter.UploadBytes(fileName, b)
 
-	//events cache
-	defer func() {
-		for _, fdata := range flatData {
-			for _, object := range fdata.GetPayload() {
-				if err != nil {
-					s3.eventsCache.Error(s3.Name(), events.ExtractEventId(object), err.Error())
-				} else {
-					s3.eventsCache.Succeed(s3.Name(), events.ExtractEventId(object), object, fdata.DataSchema, s3.ColumnTypesMapping())
-				}
+		tableResults[fdata.BatchHeader.TableName] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		if err != nil {
+			logging.Errorf("[%s] Error storing file %s: %v", s3.Name(), fileName, err)
+			storeFailedEvents = false
+		}
+
+		//events cache
+		for _, object := range fdata.GetPayload() {
+			if err != nil {
+				s3.eventsCache.Error(s3.Name(), events.ExtractEventId(object), err.Error())
 			}
 		}
-	}()
-
-	for _, fdata := range flatData {
-		b, rows := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
-		err := s3.s3Adapter.UploadBytes(buildDataIntoFileName(fdata, rows), b)
-		if err != nil {
-			return rowsCount, err
-		}
 	}
 
-	//send failed events to fallback only if other events have been inserted ok
-	s3.Fallback(failedEvents...)
-	counters.ErrorEvents(s3.Name(), len(failedEvents))
-	for _, failedFact := range failedEvents {
-		s3.eventsCache.Error(s3.Name(), failedFact.EventId, failedFact.Error)
+	//store failed events to fallback only if other events have been inserted ok
+	if storeFailedEvents {
+		s3.Fallback(failedEvents...)
 	}
 
-	return rowsCount, nil
+	return tableResults, len(failedEvents), nil
 }
 
 //Fallback log event with error to fallback logger
-func (s3 *S3) Fallback(failedFacts ...*events.FailedFact) {
-	for _, failedFact := range failedFacts {
-		s3.fallbackLogger.ConsumeAny(failedFact)
+func (s3 *S3) Fallback(failedEvents ...*events.FailedEvent) {
+	for _, failedEvent := range failedEvents {
+		s3.fallbackLogger.ConsumeAny(failedEvent)
 	}
 }
 
 func (s3 *S3) SyncStore(objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("S3 doesn't support sync store")
-}
-
-func (s3 *S3) ColumnTypesMapping() map[typing.DataType]string {
-	return map[typing.DataType]string{}
 }
 
 func (s3 *S3) Name() string {

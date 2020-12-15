@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/typing"
 	sf "github.com/snowflakedb/gosnowflake"
 	"sort"
@@ -31,17 +30,12 @@ const (
 
 var (
 	SchemaToSnowflake = map[typing.DataType]string{
-		typing.STRING:    "character varying(8192)",
+		typing.STRING:    "text",
 		typing.INT64:     "bigint",
 		typing.FLOAT64:   "numeric(38,18)",
 		typing.TIMESTAMP: "timestamp(6)",
-	}
-
-	SnowflakeToSchema = map[string]typing.DataType{
-		"text":          typing.STRING,
-		"number0":       typing.INT64,
-		"number18":      typing.FLOAT64,
-		"timestamp_ntz": typing.TIMESTAMP,
+		typing.BOOL:      "boolean",
+		typing.UNKNOWN:   "text",
 	}
 )
 
@@ -86,16 +80,17 @@ func (sc *SnowflakeConfig) Validate() error {
 
 //Snowflake is adapter for creating,patching (schema or table), inserting data to snowflake
 type Snowflake struct {
-	ctx         context.Context
-	config      *SnowflakeConfig
-	s3Config    *S3Config
-	dataSource  *sql.DB
-	queryLogger *logging.QueryLogger
+	ctx              context.Context
+	config           *SnowflakeConfig
+	s3Config         *S3Config
+	dataSource       *sql.DB
+	queryLogger      *logging.QueryLogger
+	mappingTypeCasts map[string]string
 }
 
 //NewSnowflake return configured Snowflake adapter instance
 func NewSnowflake(ctx context.Context, config *SnowflakeConfig, s3Config *S3Config,
-	queryLogger *logging.QueryLogger) (*Snowflake, error) {
+	queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*Snowflake, error) {
 	cfg := &sf.Config{
 		Account:   config.Account,
 		User:      config.Username,
@@ -120,7 +115,7 @@ func NewSnowflake(ctx context.Context, config *SnowflakeConfig, s3Config *S3Conf
 		return nil, err
 	}
 
-	return &Snowflake{ctx: ctx, config: config, s3Config: s3Config, dataSource: dataSource, queryLogger: queryLogger}, nil
+	return &Snowflake{ctx: ctx, config: config, s3Config: s3Config, dataSource: dataSource, queryLogger: queryLogger, mappingTypeCasts: reformatMappings(mappingTypeCasts, SchemaToSnowflake)}, nil
 }
 
 func (Snowflake) Name() string {
@@ -148,8 +143,8 @@ func (s *Snowflake) CreateDbSchema(dbSchemaName string) error {
 		dbSchemaName, s.queryLogger)
 }
 
-//CreateTable create database table with name,columns provided in schema.Table representation
-func (s *Snowflake) CreateTable(tableSchema *schema.Table) error {
+//CreateTable create database table with name,columns provided in Table representation
+func (s *Snowflake) CreateTable(tableSchema *Table) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
@@ -157,12 +152,12 @@ func (s *Snowflake) CreateTable(tableSchema *schema.Table) error {
 
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := SchemaToSnowflake[column.GetType()]
-		if !ok {
-			logging.Error("Unknown snowflake schema type:", column.GetType())
-			mappedType = SchemaToSnowflake[typing.STRING]
+		sqlType := column.SqlType
+		castedSqlType, ok := s.mappingTypeCasts[columnName]
+		if ok {
+			sqlType = castedSqlType
 		}
-		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, reformatValue(columnName), mappedType))
+		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, reformatValue(columnName), sqlType))
 	}
 
 	//sorting columns asc
@@ -184,21 +179,21 @@ func (s *Snowflake) CreateTable(tableSchema *schema.Table) error {
 	return wrappedTx.tx.Commit()
 }
 
-//PatchTableSchema add new columns(from provided schema.Table) to existing table
-func (s *Snowflake) PatchTableSchema(patchSchema *schema.Table) error {
+//PatchTableSchema add new columns(from provided Table) to existing table
+func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := SchemaToPostgres[column.GetType()]
-		if !ok {
-			logging.Error("Unknown snowflake schema type:", column.GetType().String())
-			mappedColumnType = SchemaToSnowflake[typing.STRING]
+		sqlType := column.SqlType
+		castedSqlType, ok := s.mappingTypeCasts[columnName]
+		if ok {
+			sqlType = castedSqlType
 		}
 		query := fmt.Sprintf(addSFColumnTemplate, s.config.Schema,
-			reformatValue(patchSchema.Name), reformatValue(columnName), mappedColumnType)
+			reformatValue(patchSchema.Name), reformatValue(columnName), sqlType)
 		s.queryLogger.Log(query)
 		alterStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 		if err != nil {
@@ -209,16 +204,16 @@ func (s *Snowflake) PatchTableSchema(patchSchema *schema.Table) error {
 		_, err = alterStmt.ExecContext(s.ctx)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, mappedColumnType, err)
+			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, column.SqlType, err)
 		}
 	}
 
 	return wrappedTx.tx.Commit()
 }
 
-//GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
-func (s *Snowflake) GetTableSchema(tableName string) (*schema.Table, error) {
-	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
+//GetTableSchema return table (name,columns with name and types) representation wrapped in Table struct
+func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
+	table := &Table{Name: tableName, Columns: Columns{}}
 
 	rows, err := s.dataSource.QueryContext(s.ctx, tableSchemaSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
 	if err != nil {
@@ -231,12 +226,8 @@ func (s *Snowflake) GetTableSchema(tableName string) (*schema.Table, error) {
 		if err := rows.Scan(&columnName, &columnSnowflakeType); err != nil {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
-		mappedType, ok := SnowflakeToSchema[strings.ToLower(columnSnowflakeType)]
-		if !ok {
-			logging.Error("Unknown snowflake column type:", columnSnowflakeType)
-			mappedType = typing.STRING
-		}
-		table.Columns[strings.ToLower(columnName)] = schema.NewColumn(mappedType)
+
+		table.Columns[strings.ToLower(columnName)] = Column{SqlType: columnSnowflakeType}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)
@@ -245,35 +236,32 @@ func (s *Snowflake) GetTableSchema(tableName string) (*schema.Table, error) {
 	return table, nil
 }
 
-//Copy transfer data from s3 to Snowflake by passing COPY request to Snowflake in provided wrapped transaction
-func (s *Snowflake) Copy(wrappedTx *Transaction, fileKey, header, tableName string) error {
-	var headerParts []string
-	for _, v := range strings.Split(header, "||") {
-		headerParts = append(headerParts, reformatValue(v))
+//Copy transfer data from s3 to Snowflake by passing COPY request to Snowflake
+func (s *Snowflake) Copy(fileName, tableName string, header []string) error {
+	var reformattedHeader []string
+	for _, v := range header {
+		reformattedHeader = append(reformattedHeader, reformatValue(v))
 	}
 
-	statement := fmt.Sprintf(`COPY INTO %s.%s (%s) `, s.config.Schema, reformatValue(tableName), strings.Join(headerParts, ","))
-	if s.s3Config != nil {
-		//s3 integration stage
-		statement += fmt.Sprintf(awsS3From, s.s3Config.Bucket, fileKey, s.s3Config.AccessKeyID, s.s3Config.SecretKey, copyStatementFileFormat)
-	} else {
-		//gcp integration stage
-		statement += fmt.Sprintf(gcpFrom, s.config.Stage, copyStatementFileFormat, fileKey)
-	}
-
-	_, err := wrappedTx.tx.ExecContext(s.ctx, statement)
-
-	return err
-}
-
-//Insert provided object in snowflake
-func (s *Snowflake) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	if err := s.InsertInTransaction(wrappedTx, schema, valuesMap); err != nil {
+	statement := fmt.Sprintf(`COPY INTO %s.%s (%s) `, s.config.Schema, reformatValue(tableName), strings.Join(reformattedHeader, ","))
+	if s.s3Config != nil {
+		//s3 integration stage
+		if s.s3Config.Folder != "" {
+			fileName = s.s3Config.Folder + "/" + fileName
+		}
+		statement += fmt.Sprintf(awsS3From, s.s3Config.Bucket, fileName, s.s3Config.AccessKeyID, s.s3Config.SecretKey, copyStatementFileFormat)
+	} else {
+		//gcp integration stage
+		statement += fmt.Sprintf(gcpFrom, s.config.Stage, copyStatementFileFormat, fileName)
+	}
+
+	_, err = wrappedTx.tx.ExecContext(s.ctx, statement)
+	if err != nil {
 		wrappedTx.Rollback()
 		return err
 	}
@@ -281,36 +269,46 @@ func (s *Snowflake) Insert(schema *schema.Table, valuesMap map[string]interface{
 	return wrappedTx.DirectCommit()
 }
 
-func (s *Snowflake) InsertInTransaction(wrappedTx *Transaction, schema *schema.Table, valuesMap map[string]interface{}) error {
+//Insert provided object in snowflake
+func (s *Snowflake) Insert(table *Table, valuesMap map[string]interface{}) error {
 	var header, placeholders string
 	var values []interface{}
 	for name, value := range valuesMap {
 		header += reformatValue(name) + ","
-		placeholders += "?,"
+
+		castClause := ""
+		castType, ok := s.mappingTypeCasts[name]
+		if ok {
+			castClause = "::" + castType
+		}
+		placeholders += "?" + castClause + ","
 		values = append(values, value)
 	}
 
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
 
-	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(schema.Name), header, placeholders)
+	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(table.Name), header, placeholders)
 	s.queryLogger.LogWithValues(query, values)
+
+	wrappedTx, err := s.OpenTx()
+	if err != nil {
+		return err
+	}
+
 	insertStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 	if err != nil {
-		return fmt.Errorf("Error preparing insert table %s statement: %v", schema.Name, err)
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)
 	}
 
 	_, err = insertStmt.ExecContext(s.ctx, values...)
 	if err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", schema.Name, header, values, err)
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", table.Name, header, values, err)
 	}
 
-	return nil
-}
-
-func (s *Snowflake) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
-	logging.Warn("Constraints update is not supported for Snowflake yet")
-	return nil
+	return wrappedTx.DirectCommit()
 }
 
 //Close underlying sql.DB

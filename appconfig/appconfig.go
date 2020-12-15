@@ -1,7 +1,6 @@
 package appconfig
 
 import (
-	"fmt"
 	"github.com/jitsucom/eventnative/authorization"
 	"github.com/jitsucom/eventnative/geo"
 	"github.com/jitsucom/eventnative/logging"
@@ -15,9 +14,8 @@ type AppConfig struct {
 	ServerName string
 	Authority  string
 
-	GeoResolver geo.Resolver
-	UaResolver  useragent.Resolver
-
+	GeoResolver          geo.Resolver
+	UaResolver           useragent.Resolver
 	AuthorizationService *authorization.Service
 	QueryLogsWriter      io.Writer
 
@@ -25,6 +23,7 @@ type AppConfig struct {
 }
 
 var Instance *AppConfig
+var Version string
 
 func setDefaultParams() {
 	viper.SetDefault("server.name", "unnamed-server")
@@ -37,7 +36,6 @@ func setDefaultParams() {
 	viper.SetDefault("server.cache.events.size", 100)
 	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
-	viper.SetDefault("log.fallback", "/home/eventnative/logs/fallback")
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
@@ -49,34 +47,31 @@ func Init() error {
 
 	serverName := viper.GetString("server.name")
 	globalLoggerConfig := logging.Config{
-		LoggerName:  "main",
-		ServerName:  serverName,
+		FileName:    serverName + "-main",
 		FileDir:     viper.GetString("server.log.path"),
 		RotationMin: viper.GetInt64("server.log.rotation_min"),
 		MaxBackups:  viper.GetInt("server.log.max_backups")}
-	if err := globalLoggerConfig.Validate(); err != nil {
-		return fmt.Errorf("Error while creating global logger: %v", err)
-	}
 
 	//Global logger writes logs and sends system error notifications
 	//
 	//   configured file logger            no file logger configured
 	//     /             \                            |
 	// os.Stdout      FileWriter                  os.Stdout
-	var globalLogsWriter io.Writer
 	if globalLoggerConfig.FileDir != "" {
 		fileWriter := logging.NewRollingWriter(globalLoggerConfig)
-		globalLogsWriter = logging.Dual{
+		logging.GlobalLogsWriter = logging.Dual{
 			FileWriter: fileWriter,
 			Stdout:     os.Stdout,
 		}
 	} else {
-		globalLogsWriter = os.Stdout
+		logging.GlobalLogsWriter = os.Stdout
 	}
-	err := logging.InitGlobalLogger(globalLogsWriter)
+	err := logging.InitGlobalLogger(logging.GlobalLogsWriter)
 	if err != nil {
 		return err
 	}
+
+	logWelcomeBanner(Version)
 
 	logging.Info("*** Creating new AppConfig ***")
 	logging.Info("Server Name:", serverName)
@@ -90,11 +85,18 @@ func Init() error {
 	var appConfig AppConfig
 	appConfig.ServerName = serverName
 
-	queryLogsWriter, err := NewQueryWriter(globalLogsWriter)
-	if err != nil {
-		return err
+	//sql debug log writer
+	if viper.IsSet("sql_debug_log.path") {
+		if viper.GetString("sql_debug_log.path") != "global" {
+			appConfig.QueryLogsWriter = logging.NewRollingWriter(logging.Config{
+				FileName:    serverName + "-sql-debug",
+				FileDir:     viper.GetString("sql_debug_log.path"),
+				RotationMin: viper.GetInt64("sql_debug_log.rotation_min"),
+				MaxBackups:  viper.GetInt("sql_debug_log.max_backups")})
+		} else {
+			appConfig.QueryLogsWriter = logging.GlobalLogsWriter
+		}
 	}
-	appConfig.QueryLogsWriter = queryLogsWriter
 
 	port := viper.GetString("port")
 	if port == "" {
@@ -118,26 +120,6 @@ func Init() error {
 
 	Instance = &appConfig
 	return nil
-}
-
-func NewQueryWriter(globalLogsWriter io.Writer) (io.Writer, error) {
-	var queryLogsWriter io.Writer
-	if viper.IsSet("sql_debug_log.path") {
-		if viper.GetString("sql_debug_log.path") != "global" {
-			queryLoggerConfig := logging.Config{
-				LoggerName:  "sql-debug",
-				ServerName:  viper.GetString("server.name"),
-				FileDir:     viper.GetString("sql_debug_log.path"),
-				RotationMin: viper.GetInt64("sql_debug_log.rotation_min"),
-				MaxBackups:  viper.GetInt("sql_debug_log.max_backups")}
-
-			writer := logging.NewRollingWriter(queryLoggerConfig)
-			queryLogsWriter = writer
-		} else {
-			queryLogsWriter = globalLogsWriter
-		}
-	}
-	return queryLogsWriter, nil
 }
 
 func (a *AppConfig) ScheduleClosing(c io.Closer) {

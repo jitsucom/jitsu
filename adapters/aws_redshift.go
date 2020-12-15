@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/typing"
 	_ "github.com/lib/pq"
-	"strings"
 )
 
 const (
@@ -21,7 +19,18 @@ const (
                     timeformat 'auto'`
 )
 
-//AwsRedshift adapter for creating,patching (schema or table), copying data from s3 to redshift
+var (
+	SchemaToRedshift = map[typing.DataType]string{
+		typing.STRING:    "character varying(65535)",
+		typing.INT64:     "bigint",
+		typing.FLOAT64:   "numeric(38,18)",
+		typing.TIMESTAMP: "timestamp",
+		typing.BOOL:      "boolean",
+		typing.UNKNOWN:   "character varying(65535)",
+	}
+)
+
+//AwsRedshift adapter for creating,patching (schema or table), inserting and copying data from s3 to redshift
 type AwsRedshift struct {
 	//Aws Redshift uses Postgres fork under the hood
 	dataSourceProxy *Postgres
@@ -30,8 +39,9 @@ type AwsRedshift struct {
 
 //NewAwsRedshift return configured AwsRedshift adapter instance
 func NewAwsRedshift(ctx context.Context, dsConfig *DataSourceConfig, s3Config *S3Config,
-	queryLogger *logging.QueryLogger) (*AwsRedshift, error) {
-	postgres, err := NewPostgres(ctx, dsConfig, queryLogger)
+	queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*AwsRedshift, error) {
+
+	postgres, err := NewPostgresUnderRedshift(ctx, dsConfig, queryLogger, reformatMappings(mappingTypeCasts, SchemaToRedshift))
 	if err != nil {
 		return nil, err
 	}
@@ -53,12 +63,26 @@ func (ar *AwsRedshift) OpenTx() (*Transaction, error) {
 	return &Transaction{tx: tx, dbType: ar.Name()}, nil
 }
 
-//Copy transfer data from s3 to redshift by passing COPY request to redshift in provided wrapped transaction
-func (ar *AwsRedshift) Copy(wrappedTx *Transaction, fileKey, tableName string) error {
-	statement := fmt.Sprintf(copyTemplate, ar.dataSourceProxy.config.Schema, tableName, ar.s3Config.Bucket, fileKey, ar.s3Config.AccessKeyID, ar.s3Config.SecretKey, ar.s3Config.Region)
-	_, err := wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, statement)
+//Copy transfer data from s3 to redshift by passing COPY request to redshift
+func (ar *AwsRedshift) Copy(fileKey, tableName string) error {
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
 
-	return err
+	//add folder prefix if configured
+	if ar.s3Config.Folder != "" {
+		fileKey = ar.s3Config.Folder + "/" + fileKey
+	}
+
+	statement := fmt.Sprintf(copyTemplate, ar.dataSourceProxy.config.Schema, tableName, ar.s3Config.Bucket, fileKey, ar.s3Config.AccessKeyID, ar.s3Config.SecretKey, ar.s3Config.Region)
+	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, statement)
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
 }
 
 //CreateDbSchema create database schema instance if doesn't exist
@@ -72,23 +96,13 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 		ar.dataSourceProxy.queryLogger)
 }
 
-//Insert provided object in AwsRedshift in stream mode
-func (ar *AwsRedshift) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
-	wrappedTx, err := ar.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if err := ar.dataSourceProxy.InsertInTransaction(wrappedTx, schema, valuesMap); err != nil {
-		wrappedTx.Rollback()
-		return err
-	}
-
-	return wrappedTx.DirectCommit()
+//Insert provided object in AwsRedshift
+func (ar *AwsRedshift) Insert(schema *Table, valuesMap map[string]interface{}) error {
+	return ar.dataSourceProxy.Insert(schema, valuesMap)
 }
 
-//PatchTableSchema add new columns(from provided schema.Table) to existing table
-func (ar *AwsRedshift) PatchTableSchema(patchSchema *schema.Table) error {
+//PatchTableSchema add new columns/primary keys or delete primary key to existing table
+func (ar *AwsRedshift) PatchTableSchema(patchSchema *Table) error {
 	wrappedTx, err := ar.OpenTx()
 	if err != nil {
 		return err
@@ -97,52 +111,19 @@ func (ar *AwsRedshift) PatchTableSchema(patchSchema *schema.Table) error {
 	return ar.dataSourceProxy.patchTableSchemaInTransaction(wrappedTx, patchSchema)
 }
 
-//GetTableSchema return table (name,columns with name and types) representation wrapped in schema.Table struct
-func (ar *AwsRedshift) GetTableSchema(tableName string) (*schema.Table, error) {
-	p := ar.dataSourceProxy
-	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
-	rows, err := p.dataSource.QueryContext(p.ctx, tableSchemaQuery, p.config.Schema, tableName)
-	if err != nil {
-		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
-	}
-
-	defer rows.Close()
-	for rows.Next() {
-		var columnName, columnPostgresType string
-		if err := rows.Scan(&columnName, &columnPostgresType); err != nil {
-			return nil, fmt.Errorf("Error scanning result: %v", err)
-		}
-		mappedType, ok := PostgresToSchema[strings.ToLower(columnPostgresType)]
-		if !ok {
-			if columnPostgresType == "-" {
-				//skip dropped postgres field
-				continue
-			}
-			logging.Errorf("Unknown postgres [%s] column type: %s in schema: [%s] table: [%s]", columnName, columnPostgresType, p.config.Schema, tableName)
-
-			mappedType = typing.STRING
-		}
-		table.Columns[columnName] = schema.NewColumn(mappedType)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("Last rows.Err: %v", err)
-	}
-	return table, nil
+//GetTableSchema return table (name,columns, primary key) representation wrapped in Table struct
+func (ar *AwsRedshift) GetTableSchema(tableName string) (*Table, error) {
+	return ar.dataSourceProxy.getTable(tableName)
 }
 
-//CreateTable create database table with name,columns provided in schema.Table representation
-func (ar *AwsRedshift) CreateTable(tableSchema *schema.Table) error {
+//CreateTable create database table with name,columns provided in Table representation
+func (ar *AwsRedshift) CreateTable(tableSchema *Table) error {
 	wrappedTx, err := ar.OpenTx()
 	if err != nil {
 		return err
 	}
 
 	return ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
-}
-
-func (ar *AwsRedshift) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
-	logging.Warn("Constraints update is not supported for Redshift yet")
-	return nil
 }
 
 //Close underlying sql.DB

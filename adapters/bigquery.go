@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/typing"
 	"google.golang.org/api/googleapi"
 	"net/http"
@@ -19,37 +18,28 @@ var (
 		typing.INT64:     string(bigquery.IntegerFieldType),
 		typing.FLOAT64:   string(bigquery.FloatFieldType),
 		typing.TIMESTAMP: string(bigquery.TimestampFieldType),
-	}
-
-	SchemaToBigQuery = map[typing.DataType]bigquery.FieldType{
-		typing.STRING:    bigquery.StringFieldType,
-		typing.INT64:     bigquery.IntegerFieldType,
-		typing.FLOAT64:   bigquery.FloatFieldType,
-		typing.TIMESTAMP: bigquery.TimestampFieldType,
-	}
-
-	BigQueryToSchema = map[bigquery.FieldType]typing.DataType{
-		bigquery.StringFieldType:    typing.STRING,
-		bigquery.IntegerFieldType:   typing.INT64,
-		bigquery.FloatFieldType:     typing.FLOAT64,
-		bigquery.TimestampFieldType: typing.TIMESTAMP,
+		typing.BOOL:      string(bigquery.BooleanFieldType),
+		typing.UNKNOWN:   string(bigquery.StringFieldType),
 	}
 )
 
+//BigQuery adapter for creating,patching (schema or table), inserting and copying data from gcs to BigQuery
 type BigQuery struct {
-	ctx         context.Context
-	client      *bigquery.Client
-	config      *GoogleConfig
-	queryLogger *logging.QueryLogger
+	ctx              context.Context
+	client           *bigquery.Client
+	config           *GoogleConfig
+	queryLogger      *logging.QueryLogger
+	mappingTypeCasts map[string]string
 }
 
-func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging.QueryLogger) (*BigQuery, error) {
+//NewBigQuery return configured BigQuery adapter instance
+func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*BigQuery, error) {
 	client, err := bigquery.NewClient(ctx, config.Project, config.credentials)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating BigQuery client: %v", err)
 	}
 
-	return &BigQuery{ctx: ctx, client: client, config: config, queryLogger: queryLogger}, nil
+	return &BigQuery{ctx: ctx, client: client, config: config, queryLogger: queryLogger, mappingTypeCasts: reformatMappings(mappingTypeCasts, SchemaToBigQueryString)}, nil
 }
 
 //Transfer data from google cloud storage file to google BigQuery table as one batch
@@ -83,15 +73,15 @@ func (bq *BigQuery) Test() error {
 }
 
 //Insert provided object in BigQuery in stream mode
-func (bq *BigQuery) Insert(schema *schema.Table, valuesMap map[string]interface{}) error {
+func (bq *BigQuery) Insert(schema *Table, valuesMap map[string]interface{}) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(schema.Name).Inserter()
 	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", schema.Name), valuesMap)
 	return inserter.Put(bq.ctx, BQItem{values: valuesMap})
 }
 
-//Return google BigQuery table representation(name, columns with types) as schema.Table
-func (bq *BigQuery) GetTableSchema(tableName string) (*schema.Table, error) {
-	table := &schema.Table{Name: tableName, Columns: schema.Columns{}}
+//GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
+func (bq *BigQuery) GetTableSchema(tableName string) (*Table, error) {
+	table := &Table{Name: tableName, Columns: Columns{}}
 
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(tableName)
 
@@ -105,43 +95,38 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*schema.Table, error) {
 	}
 
 	for _, field := range meta.Schema {
-		mappedType, ok := BigQueryToSchema[field.Type]
-		if !ok {
-			logging.Error("Unknown BigQuery column type:", field.Type)
-			mappedType = typing.STRING
-		}
-		table.Columns[field.Name] = schema.NewColumn(mappedType)
+		table.Columns[field.Name] = Column{SqlType: string(field.Type)}
 	}
 
 	return table, nil
 }
 
-//Create google BigQuery table from schema.Table
-func (bq *BigQuery) CreateTable(tableSchema *schema.Table) error {
-	bqTable := bq.client.Dataset(bq.config.Dataset).Table(tableSchema.Name)
+//Create google BigQuery table from Table
+func (bq *BigQuery) CreateTable(table *Table) error {
+	bqTable := bq.client.Dataset(bq.config.Dataset).Table(table.Name)
 
 	_, err := bqTable.Metadata(bq.ctx)
 	if err == nil {
-		logging.Info("BigQuery table", tableSchema.Name, "already exists")
+		logging.Info("BigQuery table", table.Name, "already exists")
 		return nil
 	}
 
 	if !isNotFoundErr(err) {
-		return fmt.Errorf("Error getting new table %s metadata: %v", tableSchema.Name, err)
+		return fmt.Errorf("Error getting new table %s metadata: %v", table.Name, err)
 	}
 
 	bqSchema := bigquery.Schema{}
-	for columnName, column := range tableSchema.Columns {
-		mappedType, ok := SchemaToBigQuery[column.GetType()]
-		if !ok {
-			logging.Error("Unknown BigQuery schema type:", column.GetType())
-			mappedType = SchemaToBigQuery[typing.STRING]
+	for columnName, column := range table.Columns {
+		bigQueryType := bigquery.FieldType(strings.ToUpper(column.SqlType))
+		castedType, ok := bq.mappingTypeCasts[columnName]
+		if ok {
+			bigQueryType = bigquery.FieldType(strings.ToUpper(castedType))
 		}
-		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: mappedType})
+		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: bigQueryType})
 	}
 	bq.logQuery("Creating table for schema: ", bqSchema)
-	if err := bqTable.Create(bq.ctx, &bigquery.TableMetadata{Name: tableSchema.Name, Schema: bqSchema}); err != nil {
-		return fmt.Errorf("Error creating [%s] BigQuery table %v", tableSchema.Name, err)
+	if err := bqTable.Create(bq.ctx, &bigquery.TableMetadata{Name: table.Name, Schema: bqSchema}); err != nil {
+		return fmt.Errorf("Error creating [%s] BigQuery table %v", table.Name, err)
 	}
 
 	return nil
@@ -165,8 +150,8 @@ func (bq *BigQuery) CreateDataset(dataset string) error {
 	return nil
 }
 
-//Add schema.Table columns to google BigQuery table
-func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
+//Add Table columns to google BigQuery table
+func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(patchSchema.Name)
 	metadata, err := bqTable.Metadata(bq.ctx)
 	if err != nil {
@@ -174,12 +159,12 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *schema.Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		mappedColumnType, ok := SchemaToBigQuery[column.GetType()]
-		if !ok {
-			logging.Error("Unknown BigQuery schema type:", column.GetType().String())
-			mappedColumnType = SchemaToBigQuery[typing.STRING]
+		bigQueryType := bigquery.FieldType(strings.ToUpper(column.SqlType))
+		castedType, ok := bq.mappingTypeCasts[columnName]
+		if ok {
+			bigQueryType = bigquery.FieldType(strings.ToUpper(castedType))
 		}
-		metadata.Schema = append(metadata.Schema, &bigquery.FieldSchema{Name: columnName, Type: mappedColumnType})
+		metadata.Schema = append(metadata.Schema, &bigquery.FieldSchema{Name: columnName, Type: bigQueryType})
 	}
 
 	updateReq := bigquery.TableMetadataToUpdate{Schema: metadata.Schema}
@@ -201,11 +186,6 @@ func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}) {
 	} else {
 		bq.queryLogger.Log(messageTemplate + string(entityJson))
 	}
-}
-
-func (bq *BigQuery) UpdatePrimaryKey(patchTableSchema *schema.Table, patchConstraint *schema.PKFieldsPatch) error {
-	logging.Warn("Constraints update is not supported for BigQuery yet")
-	return nil
 }
 
 func (bq *BigQuery) Close() error {

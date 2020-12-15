@@ -2,20 +2,19 @@ package caching
 
 import (
 	"encoding/json"
+	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/safego"
-	"github.com/jitsucom/eventnative/schema"
-	"github.com/jitsucom/eventnative/typing"
 	"time"
 )
 
 type EventsCache struct {
 	storage                meta.Storage
-	originalCh             chan *originalFact
-	succeedCh              chan *succeedFact
-	failedCh               chan *failedFact
+	originalCh             chan *originalEvent
+	succeedCh              chan *succeedEvent
+	failedCh               chan *failedEvent
 	capacityPerDestination int
 
 	closed bool
@@ -25,9 +24,9 @@ type EventsCache struct {
 func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCache {
 	c := &EventsCache{
 		storage:                storage,
-		originalCh:             make(chan *originalFact, 1000000),
-		succeedCh:              make(chan *succeedFact, 1000000),
-		failedCh:               make(chan *failedFact, 1000000),
+		originalCh:             make(chan *originalEvent, 1000000),
+		succeedCh:              make(chan *succeedEvent, 1000000),
+		failedCh:               make(chan *failedEvent, 1000000),
 		capacityPerDestination: capacityPerDestination,
 	}
 	c.start()
@@ -43,7 +42,7 @@ func (ec *EventsCache) start() {
 			}
 
 			cf := <-ec.originalCh
-			ec.put(cf.destinationId, cf.eventId, cf.eventFact)
+			ec.put(cf.destinationId, cf.eventId, cf.event)
 		}
 	})
 
@@ -54,7 +53,7 @@ func (ec *EventsCache) start() {
 			}
 
 			cf := <-ec.succeedCh
-			ec.succeed(cf.destinationId, cf.eventId, cf.processed, cf.table, cf.types)
+			ec.succeed(cf.destinationId, cf.eventId, cf.processed, cf.table)
 		}
 	})
 
@@ -71,17 +70,17 @@ func (ec *EventsCache) start() {
 }
 
 //Put put value into channel which will be read and written to storage
-func (ec *EventsCache) Put(destinationId, eventId string, value events.Fact) {
+func (ec *EventsCache) Put(destinationId, eventId string, value events.Event) {
 	select {
-	case ec.originalCh <- &originalFact{destinationId: destinationId, eventId: eventId, eventFact: value}:
+	case ec.originalCh <- &originalEvent{destinationId: destinationId, eventId: eventId, event: value}:
 	default:
 	}
 }
 
 //Succeed put value into channel which will be read and updated in storage
-func (ec *EventsCache) Succeed(destinationId, eventId string, processed events.Fact, table *schema.Table, types map[typing.DataType]string) {
+func (ec *EventsCache) Succeed(destinationId, eventId string, processed events.Event, table *adapters.Table) {
 	select {
-	case ec.succeedCh <- &succeedFact{destinationId: destinationId, eventId: eventId, processed: processed, table: table, types: types}:
+	case ec.succeedCh <- &succeedEvent{destinationId: destinationId, eventId: eventId, processed: processed, table: table}:
 	default:
 	}
 }
@@ -89,13 +88,13 @@ func (ec *EventsCache) Succeed(destinationId, eventId string, processed events.F
 //Error put value into channel which will be read and updated in storage
 func (ec *EventsCache) Error(destinationId, eventId string, errMsg string) {
 	select {
-	case ec.failedCh <- &failedFact{destinationId: destinationId, eventId: eventId, error: errMsg}:
+	case ec.failedCh <- &failedEvent{destinationId: destinationId, eventId: eventId, error: errMsg}:
 	default:
 	}
 }
 
-//put create new fact in storage
-func (ec *EventsCache) put(destinationId, eventId string, value events.Fact) {
+//put create new event in storage
+func (ec *EventsCache) put(destinationId, eventId string, value events.Event) {
 	if eventId == "" {
 		logging.SystemErrorf("[EventsCache] Put(): Event id can't be empty. Destination [%s] Event: %s", destinationId, value.Serialize())
 		return
@@ -129,14 +128,14 @@ func (ec *EventsCache) put(destinationId, eventId string, value events.Fact) {
 	}
 }
 
-//succeed serialize and update processed fact in storage
-func (ec *EventsCache) succeed(destinationId, eventId string, processed events.Fact, table *schema.Table, types map[typing.DataType]string) {
+//succeed serialize and update processed event in storage
+func (ec *EventsCache) succeed(destinationId, eventId string, processed events.Event, table *adapters.Table) {
 	if eventId == "" {
 		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %s", destinationId, processed.Serialize())
 		return
 	}
 
-	fields := []*schema.Field{}
+	fields := []*adapters.TableField{}
 
 	for name, value := range processed {
 		column, ok := table.Columns[name]
@@ -145,19 +144,14 @@ func (ec *EventsCache) succeed(destinationId, eventId string, processed events.F
 			return
 		}
 
-		dbFieldType, ok := types[column.GetType()]
-		if !ok {
-			logging.Warnf("[%s] Error getting column type [%s] mapping from %v", destinationId, column.GetType(), types)
-			dbFieldType = "UNKNOWN"
-		}
-		fields = append(fields, &schema.Field{
+		fields = append(fields, &adapters.TableField{
 			Field: name,
-			Type:  dbFieldType,
+			Type:  column.SqlType,
 			Value: value,
 		})
 	}
 
-	sf := SucceedFact{
+	sf := SucceedEvent{
 		DestinationId: destinationId,
 		Table:         table.Name,
 		Record:        fields,
@@ -176,7 +170,7 @@ func (ec *EventsCache) succeed(destinationId, eventId string, processed events.F
 	}
 }
 
-//error write error into fact field in storage
+//error write error into event field in storage
 func (ec *EventsCache) error(destinationId, eventId string, errMsg string) {
 	if eventId == "" {
 		logging.SystemErrorf("[EventsCache] Error(): Event id can't be empty. Destination [%s]", destinationId)

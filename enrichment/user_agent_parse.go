@@ -11,48 +11,52 @@ import (
 const UserAgentParse = "user_agent_parse"
 
 type UserAgentParseRule struct {
-	source        *jsonutils.JsonPath
-	destination   *jsonutils.JsonPath
-	convertResult bool
-	uaResolver    useragent.Resolver
+	source                  *jsonutils.JsonPath
+	destination             *jsonutils.JsonPath
+	uaResolver              useragent.Resolver
+	enrichmentConditionFunc func(map[string]interface{}) bool
 }
 
-func NewUserAgentParseRule(source, destination *jsonutils.JsonPath, convertResult bool) (*UserAgentParseRule, error) {
-	return &UserAgentParseRule{source: source, destination: destination, convertResult: convertResult, uaResolver: appconfig.Instance.UaResolver}, nil
+func NewUserAgentParseRule(source, destination *jsonutils.JsonPath) (*UserAgentParseRule, error) {
+	return &UserAgentParseRule{
+		source:      source,
+		destination: destination,
+		uaResolver:  appconfig.Instance.UaResolver,
+		//always do enrichment
+		enrichmentConditionFunc: func(m map[string]interface{}) bool {
+			return true
+		},
+	}, nil
 }
 
-func (uap *UserAgentParseRule) Execute(fact map[string]interface{}) error {
-	uaIface, ok := uap.source.Get(fact)
+func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
+	if !uap.enrichmentConditionFunc(event) {
+		return
+	}
+
+	uaIface, ok := uap.source.Get(event)
 	if !ok {
-		return nil
+		return
 	}
 
 	ua, ok := uaIface.(string)
 	if !ok {
-		return nil
+		return
 	}
 
 	parsedUa := uap.uaResolver.Resolve(ua)
 
-	var result interface{}
-	result = parsedUa
-	if uap.convertResult {
-		//convert all structs to map[string]interface{} for inner typecasting
-		rawObject, err := parsers.ParseInterface(parsedUa)
-		if err != nil {
-			logging.SystemErrorf("Error converting ua parse node: %v", err)
-			return nil
-		}
-
-		result = rawObject
+	//convert all structs to map[string]interface{} for inner typecasting
+	result, err := parsers.ParseInterface(parsedUa)
+	if err != nil {
+		logging.SystemErrorf("Error converting ua parse node: %v", err)
+		return
 	}
 
-	ok = uap.destination.Set(fact, result)
-	if !ok {
-		logging.SystemErrorf("Resolved useragent data wasn't set in path: %s", uap.destination.String())
+	err = uap.destination.Set(event, result)
+	if err != nil {
+		logging.SystemErrorf("Resolved useragent data wasn't set: %v", err)
 	}
-
-	return nil
 }
 
 func (uap *UserAgentParseRule) Name() string {
