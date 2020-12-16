@@ -1,6 +1,9 @@
 package drivers
 
-import "io"
+import (
+	"github.com/jitsucom/eventnative/adapters"
+	"io"
+)
 
 //Driver interface must be implemented by every source type
 type Driver interface {
@@ -13,4 +16,6 @@ type Driver interface {
 	GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error)
 	//Type returns string type of driver. Should be unique among drivers
 	Type() string
+	//GetCollectionTable returns table name and primary keys per collection
+	GetCollectionTable() *adapters.CollectionTable
 }

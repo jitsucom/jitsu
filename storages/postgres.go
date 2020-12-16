@@ -147,7 +147,7 @@ func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
 //SyncStore store chunk payload to Postgres with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (p *Postgres) SyncStore(objects []map[string]interface{}) (rowsCount int, err error) {
+func (p *Postgres) SyncStore(collectionTable *adapters.CollectionTable, objects []map[string]interface{}) (rowsCount int, err error) {
 	flatData, err := p.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -159,6 +159,8 @@ func (p *Postgres) SyncStore(objects []map[string]interface{}) (rowsCount int, e
 
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
+		table.Name = collectionTable.Name
+		table.PKFields = collectionTable.PKFields
 		err := p.storeTable(fdata, table)
 		if err != nil {
 			return rowsCount, err

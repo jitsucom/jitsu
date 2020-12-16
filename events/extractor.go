@@ -8,7 +8,7 @@ func ExtractEventId(event Event) string {
 	}
 
 	//lookup eventn_ctx_event_id string
-	eventId, ok := event[eventnKey+"_"+eventIdKey]
+	eventId, ok := event[eventnKey+"_"+EventIdKey]
 	if ok {
 		return fmt.Sprintf("%v", eventId)
 	}
@@ -18,7 +18,7 @@ func ExtractEventId(event Event) string {
 	if ok {
 		eventnObject, ok := eventnRaw.(map[string]interface{})
 		if ok {
-			eventId, ok := eventnObject[eventIdKey]
+			eventId, ok := eventnObject[EventIdKey]
 			if ok {
 				return fmt.Sprintf("%v", eventId)
 			}

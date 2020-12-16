@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/typing"
@@ -94,6 +95,10 @@ func NewGooglePlay(ctx context.Context, sourceConfig *SourceConfig, collection *
 	}
 
 	return &GooglePlay{client: client, config: config, ctx: ctx, collection: collection}, nil
+}
+
+func (gp *GooglePlay) GetCollectionTable() *adapters.CollectionTable {
+	return &adapters.CollectionTable{Name: gp.collection.GetTableName(), PKFields: map[string]bool{}}
 }
 
 func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {

@@ -188,7 +188,7 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 //SyncStore store chunk payload to ClickHouse with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (rowsCount int, err error) {
+func (ch *ClickHouse) SyncStore(collectionTable *adapters.CollectionTable, objects []map[string]interface{}) (rowsCount int, err error) {
 	flatData, err := ch.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err

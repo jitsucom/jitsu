@@ -22,6 +22,11 @@ type Table struct {
 	Version        int64
 }
 
+type CollectionTable struct {
+	Name     string
+	PKFields map[string]bool
+}
+
 //Return true if there is at least one column
 func (t *Table) Exists() bool {
 	if t == nil {
