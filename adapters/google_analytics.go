@@ -67,8 +67,8 @@ func NewGoogleAnalytics(config *GoogleAnalyticsConfig) *GoogleAnalytics {
 	}
 }
 
-//Send extract user-agent from object and set it to user-agent HTTP header
-//use HTTP GET
+//Send HTTP GET request to GoogleAnalytics with query parameters
+//remove system fields and map event type
 func (ga GoogleAnalytics) Send(object map[string]interface{}) error {
 	uv := make(url.Values)
 	uv.Add("tid", ga.config.TrackingId)
