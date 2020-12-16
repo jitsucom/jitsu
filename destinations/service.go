@@ -110,6 +110,8 @@ func NewService(ctx context.Context, destinations *viper.Viper, destinationsSour
 		} else {
 			return nil, errors.New("Unknown destination source: " + destinationsSource)
 		}
+	} else {
+		logging.Errorf("Destinations aren't configured")
 	}
 
 	return service, nil
