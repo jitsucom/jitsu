@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-var systemFields = []string{"_timestamp", "eventn_ctx_event_id", "src"}
+var SystemFields = []string{"_timestamp", "eventn_ctx_event_id", "src"}
 
 type Mapper interface {
 	Map(object map[string]interface{}) (map[string]interface{}, error)
@@ -135,7 +135,7 @@ func (fm *FieldMapper) Map(object map[string]interface{}) (map[string]interface{
 	}
 
 	if !fm.keepUnmappedFields {
-		for _, field := range systemFields {
+		for _, field := range SystemFields {
 			if val, ok := object[field]; ok {
 				mappedObject[field] = val
 			}
