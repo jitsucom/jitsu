@@ -1,12 +1,17 @@
 # NOTE: this not an actual config used by the application. This is
 # a template to show all configuration parameters.
 
+### Server section. https://docs.eventnative.org/configuration-1/configuration#server
 server:
-  port: 8001
-  name: event-us-01.domain.com #Optional. This parameter is required in cluster deployments. If not set - will be default (unnamed-server)
-  #might be http url of file source
+  #name: event-us-01.domain.com #Optional. This parameter is required in cluster deployments. If not set - will be default (unnamed-server)
+  #port: 8001 #Optional
+
+  ### Authorization configuration. https://docs.eventnative.org/configuration-1/configuration/authorization
+  ### If not configured - UUID will be generated and will be written in logs
+  ### It might be http url of file source
   #auth: https://source_of_tokens
-  #or might be full configured token object
+
+  ###or might be full configured token object
   #auth:
   #  -
   #    id: unique_tokenId
@@ -21,136 +26,320 @@ server:
   #  -
   #    id: unique_tokenId3
   #    server_secret: 231dasds-3211kb3rdf-412dkjnabf
-  auth: #plain strings - client_secrets
-      - bd33c5fa-d69f-11ea-87d0-0242ac130003
-      - c20765a0-d69f-15ea-82d0-0242ac130003
-  auth_reload_sec: 60 #default value is 30.  If 'auth' is http or file:/// source than it will be reloaded every auth_reload_sec
-  public_url: https://yourhost
-  log:
-    path: /home/eventnative/logs/ #omit this key to write log to stdout
-    rotation_min: 60 #1440 (24 hours) default value
-  destinations_reload_sec: 60 #default value is 40.  If 'destinations' is http or file:/// source than it will be reloaded every destinations_reload_sec
-  metrics:
-    prometheus:
-      enabled: true #Optional. Enable metrics collecting and /prometheus endpoint
-  admin_token: an_admin_token #Optional. Token for testing destination or cluster information endpoints
 
-geo.maxmind_path: https://statichost/GeoIP2-City.mmdb
+  ### or plain strings - client_secrets
+  auth:
+      - client_secret1
+      - client_secret2
+  ### Authorization reloading. If 'auth' key is http or file:/// source than it will be reloaded every auth_reload_sec
+  #auth_reload_sec: 30 #Optional. Default value is 30.
 
-log:
-  path: /home/eventnative/logs/events
-  rotation_min: 5
+  ### Admin endpoint authorization
+  admin_token: admin_token #Optional. Token for using Admin endpoints https://docs.eventnative.org/other-features/admin-endpoints
 
-#might be http url or file source
+  ### Public URL. It is used in welcome.html if not configured it will be taken from 'Host' http header on welcome.html requests
+  #public_url: https://yourhost #Optional.
+
+  ### Application logs. If not configured - application logs will be written in std out. If configured in file and std out.
+#  log:
+#    path: /home/eventnative/logs/ #Optional.
+#    rotation_min: 1440 #Optional. Default value is 1440 (24 hours)
+
+  ### Destinations reloading. If 'destinations' key is http or file:/// source than it will be reloaded every destinations_reload_sec
+  #destinations_reload_sec: 40 #Optional. Default value is 40.
+
+  ### Application metrics
+  ### At present only Prometheus is supported. Read more about application metrics https://docs.eventnative.org/other-features/application-metrics
+#  metrics:
+#    prometheus:
+#      enabled: true #Optional. Enable metrics collecting and /prometheus endpoint
+
+
+### GEO resolution https://docs.eventnative.org/other-features/geo-data-resolution
+#geo.maxmind_path: https://statichost/GeoIP2-City.mmdb Optional. EventNative resolves geo data only if maxmind is configured.
+
+### Events logs https://docs.eventnative.org/configuration-1/configuration#log
+#log:
+#  path: /home/eventnative/logs/events #Optional. Default value is /home/eventnative/logs/events
+#  rotation_min: 5 #Optional. Default value is 5 minutes
+
+### Destinations configuration https://docs.eventnative.org/configuration-1/destination-configuration
+### It might be http url of file source
 #destinations: https://source_of_destinations
+
+### or yaml config
 destinations:
-  redshift_one:
-    type: redshift
-    only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003']
-    mode: batch #Optional. Available mode: [batch, stream], default value: batch
-    datasource:
-      host: redshift.amazonaws.com
-      db: my-db
-      schema: myschema
-      username: user
-      password: pass
-    s3:
-      access_key_id: abc123
-      secret_access_key: secretabc123
-      bucket: my-bucket
-      region: us-west-1
-      folder: redshift_one #optional. Specify this parameter if several destinations use one s3 bucket
-    data_layout:
-      mapping_type: strict #optional. It is out of mapping behavior. When 'strict' - only fields from mapping rules will be in the result object.
-      mapping:
-        - "/key1/key2 -> /key3"
-        - "/key1/key3 -> (integer) /key4"
-      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #template
-  redshift_two:
-    type: redshift
-    only_tokens: ['c20765a0-d69f-15ea-82d0-0242ac130003']
-    mode: stream
-    datasource:
-      host: redshift.amazonaws.com
-      db: my-db-2
-      username: user
-      password: pass
-    s3:
-      access_key_id: abc456
-      secret_access_key: secretabc456
-      bucket: my-bucket-2
-      region: us-west-1
-    data_layout:
-      table_name_template: 'views' #constant
-  bigquery:
-    only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003', 'c20765a0-d69f-15ea-82d0-0242ac130003']
-    google:
-      gcs_bucket: google_cloud_storage_bucket
-      bq_project: big_query_project
-      bq_dataset: big_query_dataset # 'default' will be created if omitted
-      key_file: /home/eventnative/app/res/bqkey.json # or json string of key e.g. "{"service_account":...}"
-    data_layout:
-      table_name_template: 'events' #constant
-  postgres_ksense:
-    type: postgres
-    only_tokens: ['c20765a0-d69f-15ea-82d0-0242ac130003']
-    mode: stream
-    datasource:
-      schema: ksense #'public' is default value
-      host: your_host.com
-      db: your_db
-      username: your_username
-      password: your_password
-      parameters: #optional postgres connect db parameters (see https://www.postgresql.org/docs/9.1/libpq-connect.html)
-        sslmode: disable
-        connect_timeout: 300
-    data_layout:
-      table_name_template: 'events' #constant
-  clickhouse_ksense:
-    type: clickhouse
-    only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003', 'c20765a0-d69f-15ea-82d0-0242ac130003']
-    clickhouse:
-      dsns:
-        - "https://username:password@host1:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
-        - "https://username:password@host2:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
-      db: mydb
-      cluster: clustername #required. If dsns count > 1 or if Replicated* engines are used in raw_statement
-      engine: #optional. If not provided - 'ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id) PARTITION BY toYYYYMM(_timestamp)' will be created or Replicated* one if cluster is provided
-        raw_statement: 'ENGINE = ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id)' #optional. String will be used in 'CREATE TABLE ... $RAW_ENGINE' statement
-        nullable_fields: #optional. Fields will have Nullable(DataType) column data type.
-          - middle_name
-          - salary
-        #if raw_statement is provided - below parameters from 'engine' section will be skipped
-        partition_fields:  #optional. If provided - it overrides PARTITION BY in CREATE TABLE statement
-          - function: toYYYYMMDD #optional. It is used in 'PARTITION BY (toYYYYMMDD(_timestamp), event_type)'
-            field: _timestamp
-          - field: event_type
-        order_fields: #optional. If provided - it overrides ORDER BY in CREATE TABLE statement with provided fields
-          - function: intHash32 #optional. It is used in 'ORDER BY intHash32(id)'
-            field: id
-        primary_keys: #optional. If provided - it overrides PRIMARY KEY in CREATE TABLE statement with provided fields
-          - eventn_ctx_event_id
-      tls: #optional
-        maincert: /home/eventnative/app/res/rootCa.crt
-  s3_destination:
-    type: s3
-    only_tokens: ['bd33c5fa-d69f-11ea-87d0-0242ac130003']
-    s3:
-      access_key_id: abcd1234
-      secret_access_key: secretabcd1234
-      bucket: my-file-bucket
-      region: us-east-1
-      endpoint: #default: aws s3 endpoint. If you use DigitalOcean spaces or others - specify your endpoint
-    data_layout:
-      mapping:
-        - "/key1/key2 -> /key3"
-      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #template will be used for file naming
 
-synchronization_service: #Optional. This parameter is required in cluster deployments.
-  type: etcd #Now EventNative supports only etcd
-  endpoint: http://your_etcd_host
-  connection_timeout_seconds: 60 #optional.
+   ### Redshift https://docs.eventnative.org/configuration-1/destination-configuration/redshift
+#  redshift_example: #Destination Unique name (id)
+#    type: redshift #Optional. Default value is destination name (id)
+#    only_tokens: ['client_secret1'] #Optional. Default all authorization tokens will be stored into destination
+#    mode: batch #Optional. Available mode: [batch, stream], default value: batch
+#    datasource:
+#      host: redshift.amazonaws.com
+#      db: my-db
+#      schema: myschema
+#      username: user
+#      password: pass
+#    s3:
+#      access_key_id: abc123
+#      secret_access_key: secretabc123
+#      bucket: my-bucket
+#      region: us-west-1
+#      folder: redshift_one #optional. Specify this parameter if several destinations use one s3 bucket
+#    data_layout:
+#      ## Mappings https://docs.eventnative.org/configuration-1/configuration/schema-and-mappings
+#      keep_unmapped: true #Optional. Default value is true. It is out of mapping behavior. When 'false' - only fields from mapping rules will be in the result object.
+#      mappings: #Optional
+#        - #src: /key1/key2
+#          dst: /key3
+#          action: move
+#        - src: /key1/key3
+#          dst: /key4
+#          type: bigint #SQL type
+#      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #Optional. Default value constant is 'events'. Template for extracting table name
+#
+   ### BigQuery https://docs.eventnative.org/configuration-1/destination-configuration/bigquery
+#  bigquery:
+#    only_tokens: ['client_secret2'] #Optional. Default all authorization tokens will be stored into destination
+#    google:
+#      gcs_bucket: google_cloud_storage_bucket
+#      bq_project: big_query_project
+#      bq_dataset: big_query_dataset # Optional. Default value is 'default'
+#      key_file: /home/eventnative/app/res/bqkey.json # or json string of key e.g. "{"service_account":...}"
+#    data_layout:
+#      table_name_template: 'my_events' #Optional. Default value constant is 'events'. Template for extracting table name
 
-notifications: #optional. If configured - server starts, all system errors and panics info will be sent to notifier
-  slack:
-    url: https://webhook_url
+  ### Postgres https://docs.eventnative.org/configuration-1/destination-configuration/postgres
+#  postgres_jitsu:
+#    type: postgres
+#    only_tokens: ['client_secret1', 'client_secret2']
+#    mode: stream
+#    datasource:
+#      schema: eventnative # Optional. Default value is 'public'
+#      host: your_host.com
+#      db: your_db
+#      username: your_username
+#      password: your_password
+#      parameters: #Optional postgres connect db parameters (see https://www.postgresql.org/docs/9.1/libpq-connect.html)
+#        sslmode: disable
+#        connect_timeout: 300
+#    data_layout:
+#      table_name_template: 'my_events' #Optional. Default value constant is 'events'. Template for extracting table name
+
+  ### ClickHouse https://docs.eventnative.org/configuration-1/destination-configuration/clickhouse-destination
+#  clickhouse_jitsu:
+#    type: clickhouse
+#    only_tokens: ['client_secret1', 'client_secret2']
+#    clickhouse:
+#      dsns:
+#        - "https://username:password@host1:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
+#        - "https://username:password@host2:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
+#      db: mydb
+#      cluster: clustername #Required if dsns count > 1 or if Replicated* engines are used in raw_statement
+#      engine: #Optional. Default value is 'ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id) PARTITION BY toYYYYMM(_timestamp)' or Replicated* one if cluster is provided
+#        raw_statement: 'ENGINE = ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id)' #optional. String will be used in 'CREATE TABLE ... $RAW_ENGINE' statement
+#        nullable_fields: #Optional. Fields will have Nullable(DataType) column data type.
+#          - middle_name
+#          - salary
+#        ## if raw_statement is provided - below parameters from 'engine' section will be skipped
+#        partition_fields:  #Optional. If provided - it overrides PARTITION BY in CREATE TABLE statement
+#          - function: toYYYYMMDD #Optional. It is used in 'PARTITION BY (toYYYYMMDD(_timestamp), event_type)'
+#            field: _timestamp
+#          - field: event_type
+#        order_fields: #Optional. If provided - it overrides ORDER BY in CREATE TABLE statement with provided fields
+#          - function: intHash32 #optional. It is used in 'ORDER BY intHash32(id)'
+#            field: id
+#        primary_keys: #Optional. If provided - it overrides PRIMARY KEY in CREATE TABLE statement with provided fields
+#          - eventn_ctx_event_id
+#      tls: #Optional
+#        maincert: /home/eventnative/app/res/rootCa.crt
+
+  ### S3 https://docs.eventnative.org/configuration-1/destination-configuration/s3
+#  s3_destination:
+#    type: s3
+#    only_tokens: ['client_secret1']
+#    s3:
+#      access_key_id: abcd1234
+#      secret_access_key: secretabcd1234
+#      bucket: my-file-bucket
+#      region: us-east-1
+#      endpoint: #Optional. Default value is AWS s3 endpoint. If you use DigitalOcean spaces or others - specify your endpoint
+#    data_layout:
+#      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #Template will be used for file naming
+
+  ### Snowflake https://docs.eventnative.org/configuration-1/destination-configuration/snowflake
+#  snowflake:
+#    type: snowflake
+#    mode: stream
+#    snowflake:
+#      account: ina15845
+#      db: demo_db
+#      schema: eventnative #Optional. Default value is PUBLIC
+#      username: username
+#      password: password
+#      warehouse: compute_wh
+#      stage: test_snowflake_stage
+#    ## Snowflake with S3
+#    s3:
+#      access_key_id: access_key
+#      secret_access_key: secret_key
+#      bucket: s3_bucket_name
+#      region: us-west-1
+#      folder: test_snowflake #Optional. By default files will be stored in the bucket root
+#    ## Snowflake with Google Cloud Storage
+#    google:
+#       gcs_bucket: my_google_bucket
+#       key_file: "{KEY_JSON}" #or path to json key file
+
+  ### Google Analytics https://docseventnativeorg/configuration-1/destination-configuration/google-analytics
+#  google_analytics:
+#    type: google_analytics
+#    mode: stream
+#    google_analytics:
+#      tracking_id: UA-121905385-1
+#    data_layout:
+#      mappings: #Actual working mappings list
+#        keep_unmapped: false
+#        fields:
+#          - src: /event_type
+#            dst: /t
+#            action: move
+#          - dst: /aip
+#            action: constant
+#            value: false
+#          - dst: /ds
+#            action: constant
+#            value: false
+#          - src: /eventn_ctx/user/anonymous_id
+#            dst: /cid
+#            action: move
+#          - src: /eventn_ctx/user/anonymous_id
+#            dst: /uid
+#            action: move
+#          - src: /eventn_ctx/user/id
+#            dst: /ip
+#            action: move
+#          - src: /eventn_ctx/user_agent
+#            dst: /ua
+#            action: move
+#          - src: /source_ip
+#            dst: /uip
+#            action: move
+#          - src: /eventn_ctx/referer
+#            dst: /dr
+#            action: move
+#          - src: /eventn_ctx/utm/campaign
+#            dst: /cn
+#            action: move
+#          - src: /eventn_ctx/utm/source
+#            dst: /cs
+#            action: move
+#          - src: /eventn_ctx/utm/medium
+#            dst: /cm
+#            action: move
+#          - src: /eventn_ctx/utm/term
+#            dst: /ck
+#            action: move
+#          - src: /eventn_ctx/utm/content
+#            dst: /cc
+#            action: move
+#          - src: /eventn_ctx/click_id/gclid
+#            dst: /gclid
+#            action: move
+#          - src: /eventn_ctx/click_id/dclid
+#            dst: /dclid
+#            action: move
+#          - src: /eventn_ctx/screen_resolution
+#            dst: /sr
+#            action: move
+#          - src: /eventn_ctx/vp_size
+#            dst: /vp
+#            action: move
+#          - src: /eventn_ctx/doc_encoding
+#            dst: /de
+#            action: move
+#          - src: /eventn_ctx/url
+#            dst: /dl
+#            action: move
+#          - src: /eventn_ctx/doc_host
+#            dst: /dh
+#            action: move
+#          - src: /eventn_ctx/doc_path
+#            dst: /dp
+#            action: move
+#          - src: /eventn_ctx/page_title
+#            dst: /dt
+#            action: move
+#          - src: /eventn_ctx/user_language
+#            dst: /ul
+#            action: move
+#          - src: /conversion/transaction_id
+#            dst: /ti
+#            action: move
+#          - src: /conversion/affiliation
+#            dst: /ta
+#            action: move
+#          - src: /conversion/revenue
+#            dst: /tr
+#            action: move
+#          - src: /conversion/shipping
+#            dst: /ts
+#            action: move
+#          - src: /conversion/tt
+#            dst: /tt
+#            action: move
+
+
+### Coordination in EventNative cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
+#synchronization_service: #Optional. This section is required in cluster deployments.
+#  type: etcd #Now EventNative supports only etcd
+#  endpoint: http://your_etcd_host
+#  connection_timeout_seconds: 60 #Optional. Default value is 60
+
+### Sources https://docs.eventnative.org/configuration-1/sources-configuration
+#sources:
+#  ### Firebase https://docs.eventnative.org/configuration-1/sources-configuration/firebase
+#  my_firebase:
+#    type: firebase
+#    destinations: [ "destination_id1" ]
+#    collections: [ "firestore_collection_id" ]
+#    config:
+#      project_id: "firebase_project_id"
+#      key: 'service_account_key_json'
+
+  ### Google Analytics https://docs.eventnative.org/configuration-1/sources-configuration/google-analytics
+#  my_ga:
+#    type: google_analytics
+#    destinations: [ "destination_id2" ]
+#    collections:
+#      - name: "report_test"
+#        type: "report"
+#        parameters:
+#          dimensions: [ "ga:country", "ga:yearMonth" ]
+#          metrics: [ "ga:sessions" ]
+#    config:
+#      view_id: "VIEW_ID_VALUE"
+#      auth:
+#        service_account_key: "{SERVICE_ACCOUNT_KEY_JSON}"
+#
+#  ### Google Play https://docs.eventnative.org/configuration-1/sources-configuration/google-play
+#  google_play_test:
+#    type: google_play
+#    account_id: account_id
+#    auth:
+#      service_account_key: "{SERVICE_ACCOUNT_KEY_JSON}"
+
+### Meta storage. It is required for using sources (see below).
+### It is required for using events caching and counting https://docs.eventnative.org/other-features/events-cache
+#meta:
+#  storage:
+#    redis: #Currently EventNative supports only Redis
+#      host: redis_host
+#      port: 6379
+#      password: secret_password
+
+### Notifications
+#notifications: #Optional. If configured - server starts, all system errors and panics info will be sent to notifier
+#  slack: #Currently EventNative supports only Slack
+#    url: https://webhook_url
