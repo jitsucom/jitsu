@@ -140,7 +140,7 @@ Following field actions are supported:
 * **cast** – assign an explicit type to a node (dst param is not needed)
 * **constant** – assign an explicit type to a node (src param is not needed)
 
-After all mappings are applied, JSON is flattened, all special characters and spaces are replaced with underscore
+After all mappings are applied, JSON is flattened, all special characters and spaces in field names are replaced with underscore
 
 #### Implicit type cast
 

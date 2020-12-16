@@ -29,11 +29,12 @@ type DestinationConfig struct {
 	Enrichment   []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
 	BreakOnError bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
 
-	DataSource *adapters.DataSourceConfig `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
-	S3         *adapters.S3Config         `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
-	Google     *adapters.GoogleConfig     `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
-	ClickHouse *adapters.ClickHouseConfig `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
-	Snowflake  *adapters.SnowflakeConfig  `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
+	DataSource      *adapters.DataSourceConfig      `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
+	S3              *adapters.S3Config              `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
+	Google          *adapters.GoogleConfig          `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
+	GoogleAnalytics *adapters.GoogleAnalyticsConfig `mapstructure:"google_analytics" json:"google_analytics,omitempty" yaml:"google_analytics,omitempty"`
+	ClickHouse      *adapters.ClickHouseConfig      `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
+	Snowflake       *adapters.SnowflakeConfig       `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
 }
 
 type DataLayout struct {
@@ -188,6 +189,8 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		storageProxy = newProxy(NewS3, storageConfig)
 	case SnowflakeType:
 		storageProxy = newProxy(NewSnowflake, storageConfig)
+	case GoogleAnalyticsType:
+		storageProxy = newProxy(NewGoogleAnalytics, storageConfig)
 	default:
 		if eventQueue != nil {
 			eventQueue.Close()
