@@ -110,7 +110,7 @@ func testConnection(config *storages.DestinationConfig) error {
 		}
 		defer snowflake.Close()
 		if config.Mode == storages.BatchMode {
-			if config.S3.Bucket != "" {
+			if config.S3 != nil && config.S3.Bucket != "" {
 				if err := config.S3.Validate(); err != nil {
 					return err
 				}
@@ -119,7 +119,7 @@ func testConnection(config *storages.DestinationConfig) error {
 					return err
 				}
 				defer s3.Close()
-			} else if config.Google.Bucket != "" {
+			} else if config.Google != nil && config.Google.Bucket != "" {
 				if err := config.Google.Validate(false); err != nil {
 					return err
 				}
