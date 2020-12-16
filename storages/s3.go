@@ -106,7 +106,7 @@ func (s3 *S3) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (s3 *S3) SyncStore(objects []map[string]interface{}) (int, error) {
+func (s3 *S3) SyncStore(collectionTable *adapters.CollectionTable, objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("S3 doesn't support sync store")
 }
 

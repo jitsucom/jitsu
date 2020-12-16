@@ -4,23 +4,24 @@ import "github.com/jitsucom/eventnative/drivers"
 
 const (
 	eventnKey       = "eventn_ctx"
-	eventIdKey      = "event_id"
 	collectionIdKey = "collection_id"
 	timeChunkKey    = "time_interval"
+
+	EventIdKey = "event_id"
 )
 
 func EnrichWithEventId(object map[string]interface{}, eventId string) {
 	eventnObject, ok := object[eventnKey]
 	if !ok {
-		eventnObject = map[string]interface{}{eventIdKey: eventId}
+		eventnObject = map[string]interface{}{EventIdKey: eventId}
 		object[eventnKey] = eventnObject
 	} else {
 		if eventn, ok := eventnObject.(map[string]interface{}); ok {
-			if _, ok := eventn[eventIdKey]; !ok {
-				eventn[eventIdKey] = eventId
+			if _, ok := eventn[EventIdKey]; !ok {
+				eventn[EventIdKey] = eventId
 			}
 		} else {
-			object[eventnKey+"_"+eventIdKey] = eventId
+			object[eventnKey+"_"+EventIdKey] = eventId
 		}
 	}
 }

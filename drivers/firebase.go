@@ -7,6 +7,7 @@ import (
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"fmt"
+	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/timestamp"
 	"google.golang.org/api/iterator"
@@ -18,6 +19,9 @@ import (
 const (
 	firebaseType             = "firebase"
 	firebaseCollectionPrefix = "firestore_"
+	usersCollection          = "users"
+	userIdField              = "uid"
+	firestoreDocumentIdField = "_firestore_document_id"
 )
 
 type FirebaseConfig struct {
@@ -45,6 +49,7 @@ type Firebase struct {
 	firestoreClient *firestore.Client
 	authClient      *auth.Client
 	collection      *Collection
+	pkField         string
 }
 
 func init() {
@@ -76,7 +81,19 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 	if err != nil {
 		return nil, err
 	}
-	return &Firebase{config: config, ctx: ctx, firestoreClient: firestoreClient, authClient: authClient, collection: collection}, nil
+	var pkField string
+	if strings.HasPrefix(collection.Type, firebaseCollectionPrefix) {
+		pkField = firestoreDocumentIdField
+	} else if collection.Type == usersCollection {
+		pkField = userIdField
+	} else {
+		return nil, fmt.Errorf("unsupported collection type %s: only users and collections with 'firestore_' prefix are allowed", collection.Type)
+	}
+	return &Firebase{config: config, ctx: ctx, firestoreClient: firestoreClient, authClient: authClient, collection: collection, pkField: pkField}, nil
+}
+
+func (f *Firebase) GetCollectionTable() *adapters.CollectionTable {
+	return &adapters.CollectionTable{Name: f.collection.GetTableName(), PKFields: map[string]bool{f.pkField: true}}
 }
 
 func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
@@ -87,7 +104,7 @@ func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface
 	if strings.HasPrefix(f.collection.Type, firebaseCollectionPrefix) {
 		firebaseCollectionName := strings.TrimPrefix(f.collection.Type, firebaseCollectionPrefix)
 		return f.loadCollection(firebaseCollectionName)
-	} else if f.collection.Type == "users" {
+	} else if f.collection.Type == usersCollection {
 		return f.loadUsers()
 	}
 	return nil, fmt.Errorf("unknown collection: %s", f.collection)
@@ -105,7 +122,7 @@ func (f *Firebase) loadCollection(firestoreCollectionName string) ([]map[string]
 			return nil, fmt.Errorf("failed to get API keys from firestore: %v", err)
 		}
 		data := doc.Data()
-		data["_firestore_document_id"] = doc.Ref.ID
+		data[firestoreDocumentIdField] = doc.Ref.ID
 		documentJsons = append(documentJsons, data)
 	}
 	return documentJsons, nil
@@ -132,7 +149,7 @@ func (f *Firebase) loadUsers() ([]map[string]interface{}, error) {
 		}
 		user := make(map[string]interface{})
 		user["email"] = authUser.Email
-		user["uid"] = authUser.UID
+		user[userIdField] = authUser.UID
 		user["phone"] = authUser.PhoneNumber
 		var signInMethods []string
 		for _, info := range authUser.ProviderUserInfo {
