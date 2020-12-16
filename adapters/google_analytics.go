@@ -49,8 +49,9 @@ func (gac GoogleAnalyticsConfig) Validate() error {
 }
 
 type GoogleAnalytics struct {
-	config *GoogleAnalyticsConfig
-	client *http.Client
+	config      *GoogleAnalyticsConfig
+	client      *http.Client
+	debugLogger *logging.QueryLogger
 }
 
 func NewGoogleAnalytics(config *GoogleAnalyticsConfig) *GoogleAnalytics {
@@ -69,7 +70,6 @@ func NewGoogleAnalytics(config *GoogleAnalyticsConfig) *GoogleAnalytics {
 //Send extract user-agent from object and set it to user-agent HTTP header
 //use HTTP GET
 func (ga GoogleAnalytics) Send(object map[string]interface{}) error {
-	userAgent := "EventNative client"
 	uv := make(url.Values)
 	uv.Add("tid", ga.config.TrackingId)
 	uv.Add("v", "1")
@@ -99,11 +99,9 @@ func (ga GoogleAnalytics) Send(object map[string]interface{}) error {
 	}
 
 	reqUrl := "https://www.google-analytics.com/collect?" + uv.Encode()
-	logging.Info(reqUrl)
+	ga.debugLogger.Log(reqUrl)
 
-	req, _ := http.NewRequest(http.MethodGet, reqUrl, nil)
-	req.Header.Add("user-agent", userAgent)
-	r, err := ga.client.Do(req)
+	r, err := ga.client.Get(reqUrl)
 	if r != nil && r.Body != nil {
 		r.Body.Close()
 	}
