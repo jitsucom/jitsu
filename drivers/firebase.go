@@ -7,7 +7,6 @@ import (
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"fmt"
-	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/timestamp"
 	"google.golang.org/api/iterator"
@@ -92,8 +91,8 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 	return &Firebase{config: config, ctx: ctx, firestoreClient: firestoreClient, authClient: authClient, collection: collection, pkField: pkField}, nil
 }
 
-func (f *Firebase) GetCollectionTable() *adapters.CollectionTable {
-	return &adapters.CollectionTable{Name: f.collection.GetTableName(), PKFields: map[string]bool{f.pkField: true}}
+func (f *Firebase) GetCollectionTable() *CollectionTable {
+	return &CollectionTable{Name: f.collection.GetTableName(), PKFields: map[string]bool{f.pkField: true}}
 }
 
 func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {

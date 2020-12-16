@@ -1,7 +1,6 @@
 package drivers
 
 import (
-	"github.com/jitsucom/eventnative/adapters"
 	"io"
 )
 
@@ -17,5 +16,5 @@ type Driver interface {
 	//Type returns string type of driver. Should be unique among drivers
 	Type() string
 	//GetCollectionTable returns table name and primary keys per collection
-	GetCollectionTable() *adapters.CollectionTable
+	GetCollectionTable() *CollectionTable
 }

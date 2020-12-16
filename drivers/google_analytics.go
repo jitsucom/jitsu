@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/typing"
 	"github.com/jitsucom/eventnative/uuid"
@@ -137,8 +136,8 @@ func (g *GoogleAnalytics) Close() error {
 	return nil
 }
 
-func (g *GoogleAnalytics) GetCollectionTable() *adapters.CollectionTable {
-	return &adapters.CollectionTable{Name: g.collection.GetTableName(), PKFields: map[string]bool{eventCtx + "_" + eventId: true}}
+func (g *GoogleAnalytics) GetCollectionTable() *CollectionTable {
+	return &CollectionTable{Name: g.collection.GetTableName(), PKFields: map[string]bool{eventCtx + "_" + eventId: true}}
 }
 
 func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, dimensions []string, metrics []string) ([]map[string]interface{}, error) {

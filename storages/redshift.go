@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/drivers"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
@@ -191,7 +192,7 @@ func (ar *AwsRedshift) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (ar *AwsRedshift) SyncStore(collectionTable *adapters.CollectionTable, objects []map[string]interface{}) (int, error) {
+func (ar *AwsRedshift) SyncStore(collectionTable *drivers.CollectionTable, objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("RedShift doesn't support sync store")
 }
 

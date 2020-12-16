@@ -6,6 +6,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/drivers"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
@@ -180,7 +181,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 	return nil
 }
 
-func (bq *BigQuery) SyncStore(collectionTable *adapters.CollectionTable, objects []map[string]interface{}) (int, error) {
+func (bq *BigQuery) SyncStore(collectionTable *drivers.CollectionTable, objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("BigQuery doesn't support sync store")
 }
 

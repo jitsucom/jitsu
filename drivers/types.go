@@ -66,3 +66,8 @@ func (gac *GoogleAuthConfig) ToGoogleAuthJSON() GoogleAuthorizedUserJSON {
 	return GoogleAuthorizedUserJSON{ClientId: gac.ClientId, ClientSecret: gac.ClientSecret,
 		RefreshToken: gac.RefreshToken, AuthType: "authorized_user"}
 }
+
+type CollectionTable struct {
+	Name     string
+	PKFields map[string]bool
+}
