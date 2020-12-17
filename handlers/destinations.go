@@ -131,6 +131,12 @@ func testConnection(config *storages.DestinationConfig) error {
 			}
 		}
 		return nil
+	case storages.GoogleAnalyticsType:
+		if err := config.GoogleAnalytics.Validate(); err != nil {
+			return err
+		}
+
+		return nil
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}
