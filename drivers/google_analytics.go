@@ -136,8 +136,8 @@ func (g *GoogleAnalytics) Close() error {
 	return nil
 }
 
-func (g *GoogleAnalytics) GetCollectionTable() *CollectionTable {
-	return &CollectionTable{Name: g.collection.GetTableName(), PKFields: map[string]bool{eventCtx + "_" + eventId: true}}
+func (g *GoogleAnalytics) GetCollectionTable() string {
+	return g.collection.GetTableName()
 }
 
 func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, dimensions []string, metrics []string) ([]map[string]interface{}, error) {

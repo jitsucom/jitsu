@@ -91,8 +91,8 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 	return &Firebase{config: config, ctx: ctx, firestoreClient: firestoreClient, authClient: authClient, collection: collection, pkField: pkField}, nil
 }
 
-func (f *Firebase) GetCollectionTable() *CollectionTable {
-	return &CollectionTable{Name: f.collection.GetTableName(), PKFields: map[string]bool{f.pkField: true}}
+func (f *Firebase) GetCollectionTable() string {
+	return f.collection.GetTableName()
 }
 
 func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
