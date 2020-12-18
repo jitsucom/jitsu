@@ -162,11 +162,11 @@ func (p *Postgres) SyncStore(collectionTable string, objects []map[string]interf
 	}
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
+		table.Name = collectionTable
 		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
 		if err != nil {
 			return 0, err
 		}
-		dbSchema.Name = collectionTable
 		if err = p.adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions); err != nil {
 			return rowsCount, err
 		}
