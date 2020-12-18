@@ -96,9 +96,9 @@ func (st *SyncTask) Sync() {
 			events.EnrichWithCollection(object, st.collection)
 			events.EnrichWithTimeInterval(object, intervalToSync)
 		}
-
 		for _, storage := range st.destinations {
-			rowsCount, err := storage.SyncStore(collectionTable, objects)
+			rowsCount, err := storage.SyncStore(collectionTable, objects, intervalToSync.String())
+			//rowsCount, err := storage.SyncStore(collectionTable, objects, штеук)
 			if err != nil {
 				strLogger.Errorf("[%s] Error storing %d source objects in [%s] destination: %v", st.identifier, rowsCount, storage.Name(), err)
 				logging.Errorf("[%s] Error storing %d source objects in [%s] destination: %v", st.identifier, rowsCount, storage.Name(), err)
@@ -125,7 +125,7 @@ func (st *SyncTask) Sync() {
 }
 
 func (st *SyncTask) getCollectionMetaKey() string {
-	return st.collection + "_" + st.driver.GetCollectionTable().Name
+	return st.collection + "_" + st.driver.GetCollectionTable()
 }
 
 func (st *SyncTask) updateCollectionStatus(status, logs string) {

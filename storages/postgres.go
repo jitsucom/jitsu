@@ -5,7 +5,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/drivers"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
@@ -148,7 +147,7 @@ func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
 //SyncStore store chunk payload to Postgres with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (p *Postgres) SyncStore(collectionTable *drivers.CollectionTable, objects []map[string]interface{}) (rowsCount int, err error) {
+func (p *Postgres) SyncStore(collectionTable string, objects []map[string]interface{}, timeChunk string) (rowsCount int, err error) {
 	flatData, err := p.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -157,13 +156,18 @@ func (p *Postgres) SyncStore(collectionTable *drivers.CollectionTable, objects [
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
-
+	deleteConditions := &adapters.DeleteConditions{
+		JoinCondition: "AND",
+		Conditions:    []adapters.DeleteCondition{{Field: "eventn_ctx_time_interval", Clause: "=", Value: timeChunk}},
+	}
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
-		table.Name = collectionTable.Name
-		table.PKFields = collectionTable.PKFields
-		err := p.storeTable(fdata, table)
+		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
 		if err != nil {
+			return 0, err
+		}
+		dbSchema.Name = collectionTable
+		if err = p.adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions); err != nil {
 			return rowsCount, err
 		}
 	}

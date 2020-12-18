@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/drivers"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
@@ -107,7 +106,7 @@ func (s3 *S3) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (s3 *S3) SyncStore(collectionTable *drivers.CollectionTable, objects []map[string]interface{}) (int, error) {
+func (s3 *S3) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("S3 doesn't support sync store")
 }
 

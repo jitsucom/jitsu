@@ -7,7 +7,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/drivers"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
@@ -236,7 +235,7 @@ func (s *Snowflake) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (s *Snowflake) SyncStore(collectionTable *drivers.CollectionTable, objects []map[string]interface{}) (int, error) {
+func (s *Snowflake) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("Snowflake doesn't support sync store")
 }
 
