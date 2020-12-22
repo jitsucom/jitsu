@@ -48,7 +48,6 @@ type Firebase struct {
 	firestoreClient *firestore.Client
 	authClient      *auth.Client
 	collection      *Collection
-	pkField         string
 }
 
 func init() {
@@ -80,15 +79,10 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 	if err != nil {
 		return nil, err
 	}
-	var pkField string
-	if strings.HasPrefix(collection.Type, firebaseCollectionPrefix) {
-		pkField = firestoreDocumentIdField
-	} else if collection.Type == usersCollection {
-		pkField = userIdField
-	} else {
+	if !strings.HasPrefix(collection.Type, firebaseCollectionPrefix) && collection.Type != usersCollection {
 		return nil, fmt.Errorf("unsupported collection type %s: only users and collections with 'firestore_' prefix are allowed", collection.Type)
 	}
-	return &Firebase{config: config, ctx: ctx, firestoreClient: firestoreClient, authClient: authClient, collection: collection, pkField: pkField}, nil
+	return &Firebase{config: config, ctx: ctx, firestoreClient: firestoreClient, authClient: authClient, collection: collection}, nil
 }
 
 func (f *Firebase) GetCollectionTable() string {
