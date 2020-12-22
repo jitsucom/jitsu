@@ -179,7 +179,6 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 				gaEvent[strings.TrimPrefix(dimHeaders[i], gaFieldsPrefix)] = dims[i]
 			}
 			gaEvent[eventCtx] = map[string]interface{}{eventId: uuid.GetHash(gaEvent)}
-			//gaEvent[eventId] = uuid.GetHash(gaEvent)
 
 			metrics := row.Metrics
 			for _, metric := range metrics {
