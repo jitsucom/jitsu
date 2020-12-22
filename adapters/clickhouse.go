@@ -21,6 +21,7 @@ const (
 	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS "%s" %s`
 	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s %s`
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
+	deleteQueryChTemplate     = `ALTER TABLE %s.%s DELETE WHERE %s`
 	onClusterCHClauseTemplate = ` ON CLUSTER "%s" `
 	columnCHNullableTemplate  = ` Nullable(%s) `
 
@@ -430,8 +431,49 @@ func (ch *ClickHouse) Insert(table *Table, valuesMap map[string]interface{}) err
 	return wrappedTx.DirectCommit()
 }
 
+func (ch *ClickHouse) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	wrappedTx, err := ch.OpenTx()
+	if err != nil {
+		return err
+	}
+	if err := ch.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	if err := ch.insertInTransaction(wrappedTx, table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	return wrappedTx.DirectCommit()
+}
+
+func (ch *ClickHouse) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+	deleteQuery := fmt.Sprintf(deleteQueryChTemplate, ch.database, table.Name, deleteConditions.ToQueryString())
+	deleteStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, deleteQuery)
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error preparing delete statement [%s]: %v", deleteQuery, err)
+	}
+	ch.queryLogger.Log(deleteQuery)
+	_, err = deleteStmt.ExecContext(ch.ctx)
+	if err != nil {
+		return fmt.Errorf("Error deleting using query: %s, error: %v", deleteQuery, err)
+	}
+	return nil
+}
+
 //BulkInsert insert objects into table in one prepared statement
 func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	wrappedTx, err := ch.OpenTx()
+	err = ch.insertInTransaction(wrappedTx, table, objects)
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	return wrappedTx.DirectCommit()
+}
+
+func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var header, placeholders []string
 	for name := range table.Columns {
 		header = append(header, name)
@@ -439,15 +481,8 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 	}
 
 	query := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(header, ", "), strings.Join(placeholders, ", "))
-
-	wrappedTx, err := ch.OpenTx()
-	if err != nil {
-		return err
-	}
-
 	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing bulk insert statement [%s] table %s statement: %v", query, table.Name, err)
 	}
 
@@ -473,12 +508,10 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 
 		_, err = insertStmt.ExecContext(ch.ctx, values...)
 		if err != nil {
-			wrappedTx.Rollback()
 			return fmt.Errorf("Error bulk inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
 		}
 	}
-
-	return wrappedTx.DirectCommit()
+	return nil
 }
 
 //Close underlying sql.DB
