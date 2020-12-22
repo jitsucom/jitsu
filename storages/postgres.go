@@ -147,7 +147,7 @@ func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
 //SyncStore store chunk payload to Postgres with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (p *Postgres) SyncStore(collectionTable string, objects []map[string]interface{}, timeChunk string) (rowsCount int, err error) {
+func (p *Postgres) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
 	flatData, err := p.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -156,10 +156,7 @@ func (p *Postgres) SyncStore(collectionTable string, objects []map[string]interf
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
-	deleteConditions := &adapters.DeleteConditions{
-		JoinCondition: "AND",
-		Conditions:    []adapters.DeleteCondition{{Field: "eventn_ctx_time_interval", Clause: "=", Value: timeChunk}},
-	}
+	deleteConditions := deleteByTimeChunkCondition(timeIntervalValue)
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
 		table.Name = collectionTable

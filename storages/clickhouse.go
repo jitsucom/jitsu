@@ -197,11 +197,7 @@ func (ch *ClickHouse) SyncStore(collectionTable string, objects []map[string]int
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
-
-	deleteConditions := &adapters.DeleteConditions{
-		JoinCondition: "AND",
-		Conditions:    []adapters.DeleteCondition{{Field: "eventn_ctx_time_interval", Clause: "=", Value: timeIntervalValue}},
-	}
+	deleteConditions := deleteByTimeChunkCondition(timeIntervalValue)
 	for _, fdata := range flatData {
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)

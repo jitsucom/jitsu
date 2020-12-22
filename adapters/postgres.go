@@ -414,29 +414,6 @@ func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error 
 	return wrappedTx.DirectCommit()
 }
 
-type DeleteCondition struct {
-	Field  string
-	Value  interface{}
-	Clause string
-}
-
-func (dc *DeleteCondition) ToQueryString() string {
-	return dc.Field + " " + dc.Clause + " '" + fmt.Sprint(dc.Value) + "'"
-}
-
-type DeleteConditions struct {
-	Conditions    []DeleteCondition
-	JoinCondition string
-}
-
-func (dcs *DeleteConditions) ToQueryString() string {
-	var queryConditions []string
-	for _, condition := range dcs.Conditions {
-		queryConditions = append(queryConditions, condition.ToQueryString())
-	}
-	return strings.Join(queryConditions, " "+dcs.JoinCondition+" ")
-}
-
 func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
