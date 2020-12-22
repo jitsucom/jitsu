@@ -3,6 +3,7 @@ package storages
 import (
 	"bytes"
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/events"
 )
 
 //return rows count from byte array
@@ -19,6 +20,6 @@ func linesCount(s []byte) int {
 func deleteByTimeChunkCondition(timeIntervalValue string) *adapters.DeleteConditions {
 	return &adapters.DeleteConditions{
 		JoinCondition: "AND",
-		Conditions:    []adapters.DeleteCondition{{Field: "eventn_ctx_time_interval", Clause: "=", Value: timeIntervalValue}},
+		Conditions:    []adapters.DeleteCondition{{Field: events.EventnKey + "_" + events.TimeChunkKey, Clause: "=", Value: timeIntervalValue}},
 	}
 }

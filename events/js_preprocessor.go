@@ -15,7 +15,7 @@ type JsPreprocessor struct {
 }
 
 func NewJsPreprocessor() Preprocessor {
-	return &JsPreprocessor{userAgentJsonPath: jsonutils.NewJsonPath(eventnKey + "/user_agent")}
+	return &JsPreprocessor{userAgentJsonPath: jsonutils.NewJsonPath(EventnKey + "/user_agent")}
 }
 
 //Preprocess set user-agent from request header

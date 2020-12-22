@@ -3,45 +3,45 @@ package events
 import "github.com/jitsucom/eventnative/drivers"
 
 const (
-	eventnKey       = "eventn_ctx"
+	EventnKey       = "eventn_ctx"
 	collectionIdKey = "collection_id"
-	timeChunkKey    = "time_interval"
+	TimeChunkKey    = "time_interval"
 
 	EventIdKey = "event_id"
 )
 
 func EnrichWithEventId(object map[string]interface{}, eventId string) {
-	eventnObject, ok := object[eventnKey]
+	eventnObject, ok := object[EventnKey]
 	if !ok {
 		eventnObject = map[string]interface{}{EventIdKey: eventId}
-		object[eventnKey] = eventnObject
+		object[EventnKey] = eventnObject
 	} else {
 		if eventn, ok := eventnObject.(map[string]interface{}); ok {
 			if _, ok := eventn[EventIdKey]; !ok {
 				eventn[EventIdKey] = eventId
 			}
 		} else {
-			object[eventnKey+"_"+EventIdKey] = eventId
+			object[EventnKey+"_"+EventIdKey] = eventId
 		}
 	}
 }
 
 func EnrichWithCollection(object map[string]interface{}, collection string) {
-	eventnObject, ok := object[eventnKey]
+	eventnObject, ok := object[EventnKey]
 	if !ok {
 		eventnObject = map[string]interface{}{collectionIdKey: collection}
-		object[eventnKey] = eventnObject
+		object[EventnKey] = eventnObject
 	} else {
 		if eventn, ok := eventnObject.(map[string]interface{}); ok {
 			if _, ok := eventn[collectionIdKey]; !ok {
 				eventn[collectionIdKey] = collection
 			}
 		} else {
-			object[eventnKey+"_"+collectionIdKey] = collection
+			object[EventnKey+"_"+collectionIdKey] = collection
 		}
 	}
 }
 
 func EnrichWithTimeInterval(object map[string]interface{}, interval *drivers.TimeInterval) {
-	object[eventnKey+"_"+timeChunkKey] = interval.String()
+	object[EventnKey+"_"+TimeChunkKey] = interval.String()
 }
