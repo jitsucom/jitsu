@@ -54,7 +54,7 @@ type GoogleAnalytics struct {
 	debugLogger *logging.QueryLogger
 }
 
-func NewGoogleAnalytics(config *GoogleAnalyticsConfig) *GoogleAnalytics {
+func NewGoogleAnalytics(config *GoogleAnalyticsConfig, requestDebugLogger *logging.QueryLogger) *GoogleAnalytics {
 	return &GoogleAnalytics{
 		config: config,
 		client: &http.Client{
@@ -64,6 +64,7 @@ func NewGoogleAnalytics(config *GoogleAnalyticsConfig) *GoogleAnalytics {
 				MaxIdleConnsPerHost: 1000,
 			},
 		},
+		debugLogger: requestDebugLogger,
 	}
 }
 
