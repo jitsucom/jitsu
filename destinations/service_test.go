@@ -113,7 +113,7 @@ func TestServiceInit(t *testing.T) {
 
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	service, err := NewService(context.Background(), nil, mockDestinationsServer.URL, "/tmp",
-		nil, eventsCache, logging.NewFactory("/tmp", 5, false, nil), createTestStorage)
+		nil, eventsCache, logging.NewFactory("/tmp", 5, false, nil, nil), createTestStorage)
 	require.NoError(t, err)
 	require.NotNil(t, service)
 

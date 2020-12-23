@@ -100,7 +100,7 @@ func (ga GoogleAnalytics) Send(object map[string]interface{}) error {
 	}
 
 	reqUrl := "https://www.google-analytics.com/collect?" + uv.Encode()
-	ga.debugLogger.Log(reqUrl)
+	ga.debugLogger.LogQuery(reqUrl)
 
 	r, err := ga.client.Get(reqUrl)
 	if r != nil && r.Body != nil {

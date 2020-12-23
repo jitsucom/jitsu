@@ -184,7 +184,7 @@ func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}) {
 	if err != nil {
 		logging.Warnf("Failed to serialize entity for logging: %s", fmt.Sprint(entity))
 	} else {
-		bq.queryLogger.Log(messageTemplate + string(entityJson))
+		bq.queryLogger.LogQuery(messageTemplate + string(entityJson))
 	}
 }
 
