@@ -87,30 +87,13 @@ func Init() error {
 	var appConfig AppConfig
 	appConfig.ServerName = serverName
 
-	//sql debug log writer
-	if viper.IsSet("sql_debug_log.queries.path") {
-		if viper.GetString("sql_debug_log.queries.path") != "global" {
-			appConfig.QueryLogsWriter = logging.NewRollingWriter(logging.Config{
-				FileName:    serverName + "-sql-debug",
-				FileDir:     viper.GetString("sql_debug_log.queries.path"),
-				RotationMin: viper.GetInt64("sql_debug_log.queries.rotation_min"),
-				MaxBackups:  viper.GetInt("sql_debug_log.queries.max_backups")})
-		} else {
-			appConfig.QueryLogsWriter = logging.GlobalLogsWriter
-		}
-	}
-
-	// sql ddl debug
+	// SQL DDL debug writer
 	if viper.IsSet("sql_debug_log.ddl.path") {
-		if viper.GetString("sql_debug_log.ddl.path") != "global" {
-			appConfig.DDLLogsWriter = logging.NewRollingWriter(logging.Config{
-				FileName:    serverName + "-sql-debug",
-				FileDir:     viper.GetString("sql_debug_log.ddl.path"),
-				RotationMin: viper.GetInt64("sql_debug_log.ddl.rotation_min"),
-				MaxBackups:  viper.GetInt("sql_debug_log.ddl.max_backups")})
-		} else {
-			appConfig.DDLLogsWriter = logging.GlobalLogsWriter
-		}
+		appConfig.DDLLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.ddl"), serverName)
+	}
+	// SQL queries debug writer
+	if viper.IsSet("sql_debug_log.queries.path") {
+		appConfig.QueryLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.queries"), serverName)
 	}
 
 	port := viper.GetString("port")
@@ -135,6 +118,18 @@ func Init() error {
 
 	Instance = &appConfig
 	return nil
+}
+
+func (a *AppConfig) getSqlWriter(sqlLoggerViper *viper.Viper, serverName string) io.Writer {
+	if sqlLoggerViper.GetString("path") != "global" {
+		return logging.NewRollingWriter(logging.Config{
+			FileName:    serverName + "-sql-debug",
+			FileDir:     sqlLoggerViper.GetString("path"),
+			RotationMin: sqlLoggerViper.GetInt64("rotation_min"),
+			MaxBackups:  sqlLoggerViper.GetInt("max_backups")})
+	} else {
+		return logging.GlobalLogsWriter
+	}
 }
 
 func (a *AppConfig) ScheduleClosing(c io.Closer) {
