@@ -98,7 +98,6 @@ func (st *SyncTask) Sync() {
 		}
 		for _, storage := range st.destinations {
 			rowsCount, err := storage.SyncStore(collectionTable, objects, intervalToSync.String())
-			//rowsCount, err := storage.SyncStore(collectionTable, objects, штеук)
 			if err != nil {
 				strLogger.Errorf("[%s] Error storing %d source objects in [%s] destination: %v", st.identifier, rowsCount, storage.Name(), err)
 				logging.Errorf("[%s] Error storing %d source objects in [%s] destination: %v", st.identifier, rowsCount, storage.Name(), err)

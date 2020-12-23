@@ -45,6 +45,7 @@ const (
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
 	mergeTemplate                     = `INSERT INTO %s.%s(%s) VALUES(%s) ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
+	deleteQueryTemplate               = "DELETE FROM %s.%s WHERE %s"
 )
 
 var (
@@ -431,7 +432,6 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 }
 
 func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
-	deleteQueryTemplate := "DELETE FROM %s.%s WHERE %s"
 	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteConditions.ToQueryString())
 	deleteStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
