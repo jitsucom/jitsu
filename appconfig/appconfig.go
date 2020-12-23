@@ -17,6 +17,7 @@ type AppConfig struct {
 	GeoResolver          geo.Resolver
 	UaResolver           useragent.Resolver
 	AuthorizationService *authorization.Service
+	DDLLogsWriter        io.Writer
 	QueryLogsWriter      io.Writer
 
 	closeMe []io.Closer
@@ -39,7 +40,8 @@ func setDefaultParams() {
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
-	viper.SetDefault("sql_debug_log.rotation_min", "5")
+	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
+	viper.SetDefault("sql_debug_log.ddl.rotation_min", "1440")
 }
 
 func Init() error {
@@ -86,15 +88,28 @@ func Init() error {
 	appConfig.ServerName = serverName
 
 	//sql debug log writer
-	if viper.IsSet("sql_debug_log.path") {
-		if viper.GetString("sql_debug_log.path") != "global" {
+	if viper.IsSet("sql_debug_log.queries.path") {
+		if viper.GetString("sql_debug_log.queries.path") != "global" {
 			appConfig.QueryLogsWriter = logging.NewRollingWriter(logging.Config{
 				FileName:    serverName + "-sql-debug",
-				FileDir:     viper.GetString("sql_debug_log.path"),
-				RotationMin: viper.GetInt64("sql_debug_log.rotation_min"),
-				MaxBackups:  viper.GetInt("sql_debug_log.max_backups")})
+				FileDir:     viper.GetString("sql_debug_log.queries.path"),
+				RotationMin: viper.GetInt64("sql_debug_log.queries.rotation_min"),
+				MaxBackups:  viper.GetInt("sql_debug_log.queries.max_backups")})
 		} else {
 			appConfig.QueryLogsWriter = logging.GlobalLogsWriter
+		}
+	}
+
+	// sql ddl debug
+	if viper.IsSet("sql_debug_log.ddl.path") {
+		if viper.GetString("sql_debug_log.ddl.path") != "global" {
+			appConfig.DDLLogsWriter = logging.NewRollingWriter(logging.Config{
+				FileName:    serverName + "-sql-debug",
+				FileDir:     viper.GetString("sql_debug_log.ddl.path"),
+				RotationMin: viper.GetInt64("sql_debug_log.ddl.rotation_min"),
+				MaxBackups:  viper.GetInt("sql_debug_log.ddl.max_backups")})
+		} else {
+			appConfig.DDLLogsWriter = logging.GlobalLogsWriter
 		}
 	}
 

@@ -264,7 +264,7 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	query := fmt.Sprintf(createTableTemplate, p.config.Schema, table.Name, strings.Join(columnsDDL, ","))
-	p.queryLogger.Log(query)
+	p.queryLogger.LogDDL(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
@@ -298,7 +298,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 			sqlType = castedSqlType
 		}
 		query := fmt.Sprintf(addColumnTemplate, p.config.Schema, patchTable.Name, columnName, sqlType)
-		p.queryLogger.Log(query)
+		p.queryLogger.LogDDL(query)
 
 		alterStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 		if err != nil {
@@ -342,7 +342,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 
 	query := fmt.Sprintf(alterPrimaryKeyTemplate,
 		p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name), strings.Join(table.GetPKFields(), ","))
-	p.queryLogger.Log(query)
+	p.queryLogger.LogDDL(query)
 	alterConstraintStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing primary key setting to table %s: %v", table.Name, err)
@@ -358,7 +358,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 //delete primary key
 func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
 	query := fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name))
-	p.queryLogger.Log(query)
+	p.queryLogger.LogDDL(query)
 	dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement to drop primary key for table %s: %v", table.Name, err)
@@ -392,7 +392,7 @@ func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error 
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
 	query := p.insertQuery(table.GetPKFields(), table.Name, header, placeholders)
-	p.queryLogger.LogWithValues(query, values)
+	p.queryLogger.LogQueryWithValues(query, values)
 
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
@@ -453,7 +453,7 @@ func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) er
 			values = append(values, value)
 		}
 
-		p.queryLogger.LogWithValues(query, values)
+		p.queryLogger.LogQueryWithValues(query, values)
 
 		_, err = insertStmt.ExecContext(p.ctx, values...)
 		if err != nil {
@@ -519,7 +519,7 @@ func (p *Postgres) Close() error {
 func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, statementTemplate,
 	dbSchemaName string, queryLogger *logging.QueryLogger) error {
 	query := fmt.Sprintf(statementTemplate, dbSchemaName)
-	queryLogger.Log(query)
+	queryLogger.LogDDL(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
