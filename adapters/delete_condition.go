@@ -1,8 +1,7 @@
 package adapters
 
 import (
-	"fmt"
-	"strings"
+	"github.com/jitsucom/eventnative/events"
 )
 
 type DeleteCondition struct {
@@ -11,26 +10,15 @@ type DeleteCondition struct {
 	Clause string
 }
 
-func (dc *DeleteCondition) ToQueryString() string {
-	var value string
-	switch dc.Value.(type) {
-	case string:
-		value = fmt.Sprintf("'%s'", dc.Value)
-	default:
-		value = fmt.Sprint(dc.Value)
-	}
-	return dc.Field + " " + dc.Clause + value
-}
-
 type DeleteConditions struct {
 	Conditions    []DeleteCondition
 	JoinCondition string
 }
 
-func (dcs *DeleteConditions) ToQueryString() string {
-	var queryConditions []string
-	for _, condition := range dcs.Conditions {
-		queryConditions = append(queryConditions, condition.ToQueryString())
+// Returns delete condition that removes objects based on eventn_ctx_time_interval value
+func DeleteByTimeChunkCondition(timeIntervalValue string) *DeleteConditions {
+	return &DeleteConditions{
+		JoinCondition: "AND",
+		Conditions:    []DeleteCondition{{Field: events.EventnKey + "_" + events.TimeChunkKey, Clause: "=", Value: timeIntervalValue}},
 	}
-	return strings.Join(queryConditions, " "+dcs.JoinCondition+" ")
 }

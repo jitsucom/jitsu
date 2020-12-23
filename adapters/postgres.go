@@ -380,12 +380,7 @@ func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error 
 	for name, value := range valuesMap {
 		header += name + ","
 		//$1::type, $2::type, $3, etc
-		castClause := ""
-		castType, ok := p.mappingTypeCasts[name]
-		if ok {
-			castClause = "::" + castType
-		}
-		placeholders += "$" + strconv.Itoa(i) + castClause + ","
+		placeholders += "$" + strconv.Itoa(i) + p.castClause(name) + ","
 		values = append(values, value)
 		i++
 	}
@@ -393,13 +388,12 @@ func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error 
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
 	query := p.insertQuery(table.GetPKFields(), table.Name, header, placeholders)
-	p.queryLogger.LogWithValues(query, values)
 
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
 		return err
 	}
-
+	p.queryLogger.LogWithValues(query, values)
 	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
@@ -432,17 +426,37 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 }
 
 func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
-	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteConditions.ToQueryString())
+	deleteCondition, values := p.toDeleteQuery(deleteConditions)
+	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteCondition)
+	p.queryLogger.LogWithValues(query, values)
 	deleteStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing delete table %s statement: %v", table.Name, err)
 	}
-	p.queryLogger.Log(query)
-	_, err = deleteStmt.ExecContext(p.ctx)
+	_, err = deleteStmt.ExecContext(p.ctx, values...)
 	if err != nil {
 		return fmt.Errorf("Error deleting using query: %s:, error: %v", query, err)
 	}
 	return nil
+}
+
+func (p *Postgres) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+	var queryConditions []string
+	var values []interface{}
+	for i, condition := range conditions.Conditions {
+		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" $"+strconv.Itoa(i+1)+p.castClause(condition.Field))
+		values = append(values, condition.Value)
+	}
+	return strings.Join(queryConditions, conditions.JoinCondition), values
+}
+
+func (p *Postgres) castClause(field string) string {
+	castClause := ""
+	castType, ok := p.mappingTypeCasts[field]
+	if ok {
+		castClause = "::" + castType
+	}
+	return castClause
 }
 
 //BulkInsert insert objects into table in one prepared statement

@@ -448,14 +448,15 @@ func (ch *ClickHouse) BulkUpdate(table *Table, objects []map[string]interface{},
 }
 
 func (ch *ClickHouse) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
-	deleteQuery := fmt.Sprintf(deleteQueryChTemplate, ch.database, table.Name, deleteConditions.ToQueryString())
+	deleteCondition, values := ch.toDeleteQuery(deleteConditions)
+	deleteQuery := fmt.Sprintf(deleteQueryChTemplate, ch.database, table.Name, deleteCondition)
 	deleteStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, deleteQuery)
 	if err != nil {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing delete statement [%s]: %v", deleteQuery, err)
 	}
-	ch.queryLogger.Log(deleteQuery)
-	_, err = deleteStmt.ExecContext(ch.ctx)
+	ch.queryLogger.LogWithValues(deleteQuery, values)
+	_, err = deleteStmt.ExecContext(ch.ctx, values...)
 	if err != nil {
 		return fmt.Errorf("Error deleting using query: %s, error: %v", deleteQuery, err)
 	}
@@ -471,6 +472,16 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 		return err
 	}
 	return wrappedTx.DirectCommit()
+}
+
+func (ch *ClickHouse) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+	var queryConditions []string
+	var values []interface{}
+	for _, condition := range conditions.Conditions {
+		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" "+ch.getPlaceholder(condition.Field))
+		values = append(values, condition.Value)
+	}
+	return strings.Join(queryConditions, conditions.JoinCondition), values
 }
 
 func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {

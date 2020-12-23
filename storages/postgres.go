@@ -156,7 +156,7 @@ func (p *Postgres) SyncStore(collectionTable string, objects []map[string]interf
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
-	deleteConditions := deleteByTimeChunkCondition(timeIntervalValue)
+	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
 		table.Name = collectionTable
