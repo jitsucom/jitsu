@@ -35,6 +35,13 @@ type Collection struct {
 	Parameters map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
 }
 
+func (c Collection) GetTableName() string {
+	if c.TableName != "" {
+		return c.TableName
+	}
+	return c.Name
+}
+
 //RegisterDriverConstructor registers function to create new driver instance per driver type
 func RegisterDriverConstructor(driverType string,
 	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) error {

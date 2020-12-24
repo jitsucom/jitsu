@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/typing"
+	"github.com/jitsucom/eventnative/uuid"
 	ga "google.golang.org/api/analyticsreporting/v4"
 	"google.golang.org/api/option"
 	"strings"
@@ -17,6 +18,8 @@ const (
 	reportsCollection   = "report"
 	gaFieldsPrefix      = "ga:"
 	googleAnalyticsType = "google_analytics"
+	eventCtx            = "eventn_ctx"
+	eventId             = "event_id"
 )
 
 var (
@@ -133,6 +136,10 @@ func (g *GoogleAnalytics) Close() error {
 	return nil
 }
 
+func (g *GoogleAnalytics) GetCollectionTable() string {
+	return g.collection.GetTableName()
+}
+
 func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, dimensions []string, metrics []string) ([]map[string]interface{}, error) {
 	var gaDimensions []*ga.Dimension
 	for _, dimension := range dimensions {
@@ -168,11 +175,12 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 		for _, row := range rows {
 			gaEvent := make(map[string]interface{})
 			dims := row.Dimensions
-			metrics := row.Metrics
-
 			for i := 0; i < len(dimHeaders) && i < len(dims); i++ {
 				gaEvent[strings.TrimPrefix(dimHeaders[i], gaFieldsPrefix)] = dims[i]
 			}
+			gaEvent[eventCtx] = map[string]interface{}{eventId: uuid.GetHash(gaEvent)}
+
+			metrics := row.Metrics
 			for _, metric := range metrics {
 				for j := 0; j < len(metricHeaders) && j < len(metric.Values); j++ {
 					fieldName := strings.TrimPrefix(metricHeaders[j].Name, gaFieldsPrefix)
