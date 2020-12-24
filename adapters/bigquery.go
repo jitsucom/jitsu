@@ -75,7 +75,7 @@ func (bq *BigQuery) Test() error {
 //Insert provided object in BigQuery in stream mode
 func (bq *BigQuery) Insert(schema *Table, valuesMap map[string]interface{}) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(schema.Name).Inserter()
-	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", schema.Name), valuesMap)
+	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", schema.Name), valuesMap, false)
 	return inserter.Put(bq.ctx, BQItem{values: valuesMap})
 }
 
@@ -124,7 +124,7 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 		}
 		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: bigQueryType})
 	}
-	bq.logQuery("Creating table for schema: ", bqSchema)
+	bq.logQuery("Creating table for schema: ", bqSchema, true)
 	if err := bqTable.Create(bq.ctx, &bigquery.TableMetadata{Name: table.Name, Schema: bqSchema}); err != nil {
 		return fmt.Errorf("Error creating [%s] BigQuery table %v", table.Name, err)
 	}
@@ -138,7 +138,7 @@ func (bq *BigQuery) CreateDataset(dataset string) error {
 	if _, err := bqDataset.Metadata(bq.ctx); err != nil {
 		if isNotFoundErr(err) {
 			datasetMetadata := &bigquery.DatasetMetadata{Name: dataset}
-			bq.logQuery("Creating dataset: ", datasetMetadata)
+			bq.logQuery("Creating dataset: ", datasetMetadata, true)
 			if err := bqDataset.Create(bq.ctx, datasetMetadata); err != nil {
 				return fmt.Errorf("Error creating dataset %s in BigQuery: %v", dataset, err)
 			}
@@ -179,12 +179,16 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	return nil
 }
 
-func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}) {
+func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl bool) {
 	entityJson, err := json.Marshal(entity)
 	if err != nil {
 		logging.Warnf("Failed to serialize entity for logging: %s", fmt.Sprint(entity))
 	} else {
-		bq.queryLogger.LogQuery(messageTemplate + string(entityJson))
+		if ddl {
+			bq.queryLogger.LogDDL(messageTemplate + string(entityJson))
+		} else {
+			bq.queryLogger.LogQuery(messageTemplate + string(entityJson))
+		}
 	}
 }
 
