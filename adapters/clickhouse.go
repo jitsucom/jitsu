@@ -452,7 +452,6 @@ func (ch *ClickHouse) deleteInTransaction(wrappedTx *Transaction, table *Table, 
 	deleteQuery := fmt.Sprintf(deleteQueryChTemplate, ch.database, table.Name, deleteCondition)
 	deleteStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, deleteQuery)
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing delete statement [%s]: %v", deleteQuery, err)
 	}
 	ch.queryLogger.LogWithValues(deleteQuery, values)
