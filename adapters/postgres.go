@@ -513,7 +513,7 @@ func (p *Postgres) insertInTransaction(wrappedTx *Transaction, table *Table, obj
 		}
 	}
 
-	return wrappedTx.DirectCommit()
+	return nil
 }
 
 //get insert statement or merge on conflict statement
