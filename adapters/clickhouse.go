@@ -454,7 +454,7 @@ func (ch *ClickHouse) deleteInTransaction(wrappedTx *Transaction, table *Table, 
 	if err != nil {
 		return fmt.Errorf("Error preparing delete statement [%s]: %v", deleteQuery, err)
 	}
-	ch.queryLogger.LogWithValues(deleteQuery, values)
+	ch.queryLogger.LogQueryWithValues(deleteQuery, values)
 	_, err = deleteStmt.ExecContext(ch.ctx, values...)
 	if err != nil {
 		return fmt.Errorf("Error deleting using query: %s, error: %v", deleteQuery, err)
