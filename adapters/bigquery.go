@@ -166,8 +166,8 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 		}
 		metadata.Schema = append(metadata.Schema, &bigquery.FieldSchema{Name: columnName, Type: bigQueryType})
 	}
-
 	updateReq := bigquery.TableMetadataToUpdate{Schema: metadata.Schema}
+	bq.logQuery("Patch update request: ", updateReq, true)
 	if _, err := bqTable.Update(bq.ctx, updateReq, metadata.ETag); err != nil {
 		var columns []string
 		for _, column := range metadata.Schema {
