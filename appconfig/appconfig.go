@@ -89,11 +89,11 @@ func Init() error {
 
 	// SQL DDL debug writer
 	if viper.IsSet("sql_debug_log.ddl.path") {
-		appConfig.DDLLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.ddl"), serverName)
+		appConfig.DDLLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.ddl"), serverName, "ddl-debug")
 	}
 	// SQL queries debug writer
 	if viper.IsSet("sql_debug_log.queries.path") {
-		appConfig.QueryLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.queries"), serverName)
+		appConfig.QueryLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.queries"), serverName, "sql-debug")
 	}
 
 	port := viper.GetString("port")
@@ -120,10 +120,10 @@ func Init() error {
 	return nil
 }
 
-func (a *AppConfig) getSqlWriter(sqlLoggerViper *viper.Viper, serverName string) io.Writer {
+func (a *AppConfig) getSqlWriter(sqlLoggerViper *viper.Viper, serverName string, logType string) io.Writer {
 	if sqlLoggerViper.GetString("path") != "global" {
 		return logging.NewRollingWriter(logging.Config{
-			FileName:    serverName + "-sql-debug",
+			FileName:    serverName + "-" + logType,
 			FileDir:     sqlLoggerViper.GetString("path"),
 			RotationMin: sqlLoggerViper.GetInt64("rotation_min"),
 			MaxBackups:  sqlLoggerViper.GetInt("max_backups")})
