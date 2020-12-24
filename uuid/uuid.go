@@ -1,6 +1,11 @@
 package uuid
 
-import googleuuid "github.com/google/uuid"
+import (
+	"crypto/md5"
+	"fmt"
+	googleuuid "github.com/google/uuid"
+	"sort"
+)
 
 var mock bool
 
@@ -14,4 +19,19 @@ func New() string {
 	}
 
 	return googleuuid.New().String()
+}
+
+func GetHash(m map[string]interface{}) string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var str string
+	for _, k := range keys {
+		str += fmt.Sprint(m[k]) + "|"
+	}
+
+	return fmt.Sprintf("%x", md5.Sum([]byte(str)))
 }

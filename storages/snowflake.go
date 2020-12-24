@@ -235,7 +235,7 @@ func (s *Snowflake) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (s *Snowflake) SyncStore(objects []map[string]interface{}) (int, error) {
+func (s *Snowflake) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("Snowflake doesn't support sync store")
 }
 
