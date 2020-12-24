@@ -18,6 +18,9 @@ import (
 const (
 	firebaseType             = "firebase"
 	firebaseCollectionPrefix = "firestore_"
+	usersCollection          = "users"
+	userIdField              = "uid"
+	firestoreDocumentIdField = "_firestore_document_id"
 )
 
 type FirebaseConfig struct {
@@ -76,7 +79,14 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 	if err != nil {
 		return nil, err
 	}
+	if !strings.HasPrefix(collection.Type, firebaseCollectionPrefix) && collection.Type != usersCollection {
+		return nil, fmt.Errorf("unsupported collection type %s: only users and collections with 'firestore_' prefix are allowed", collection.Type)
+	}
 	return &Firebase{config: config, ctx: ctx, firestoreClient: firestoreClient, authClient: authClient, collection: collection}, nil
+}
+
+func (f *Firebase) GetCollectionTable() string {
+	return f.collection.GetTableName()
 }
 
 func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
@@ -87,7 +97,7 @@ func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface
 	if strings.HasPrefix(f.collection.Type, firebaseCollectionPrefix) {
 		firebaseCollectionName := strings.TrimPrefix(f.collection.Type, firebaseCollectionPrefix)
 		return f.loadCollection(firebaseCollectionName)
-	} else if f.collection.Type == "users" {
+	} else if f.collection.Type == usersCollection {
 		return f.loadUsers()
 	}
 	return nil, fmt.Errorf("unknown collection: %s", f.collection)
@@ -105,7 +115,7 @@ func (f *Firebase) loadCollection(firestoreCollectionName string) ([]map[string]
 			return nil, fmt.Errorf("failed to get API keys from firestore: %v", err)
 		}
 		data := doc.Data()
-		data["_firestore_document_id"] = doc.Ref.ID
+		data[firestoreDocumentIdField] = doc.Ref.ID
 		documentJsons = append(documentJsons, data)
 	}
 	return documentJsons, nil
@@ -132,7 +142,7 @@ func (f *Firebase) loadUsers() ([]map[string]interface{}, error) {
 		}
 		user := make(map[string]interface{})
 		user["email"] = authUser.Email
-		user["uid"] = authUser.UID
+		user[userIdField] = authUser.UID
 		user["phone"] = authUser.PhoneNumber
 		var signInMethods []string
 		for _, info := range authUser.ProviderUserInfo {
