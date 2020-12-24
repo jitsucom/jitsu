@@ -428,7 +428,7 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	deleteCondition, values := p.toDeleteQuery(deleteConditions)
 	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteCondition)
-	p.queryLogger.LogWithValues(query, values)
+	p.queryLogger.LogQueryWithValues(query, values)
 	deleteStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing delete table %s statement: %v", table.Name, err)
