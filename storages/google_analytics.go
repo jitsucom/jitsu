@@ -67,6 +67,10 @@ func (ga *GoogleAnalytics) SyncStore([]map[string]interface{}) (int, error) {
 	return 0, errors.New("GoogleAnalytics doesn't support SyncStore() func")
 }
 
+func (ga *GoogleAnalytics) GetUsersRecognition() *events.UserRecognitionConfiguration {
+	return disabledRecognitionConfiguration
+}
+
 //Fallback log event with error to fallback logger
 func (ga *GoogleAnalytics) Fallback(failedEvents ...*events.FailedEvent) {
 	for _, failedEvent := range failedEvents {

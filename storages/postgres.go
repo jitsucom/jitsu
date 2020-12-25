@@ -15,13 +15,14 @@ import (
 //batch: (1 file = 1 statement)
 //stream: (1 object = 1 statement)
 type Postgres struct {
-	name            string
-	adapter         *adapters.Postgres
-	tableHelper     *TableHelper
-	processor       *schema.Processor
-	streamingWorker *StreamingWorker
-	fallbackLogger  *logging.AsyncLogger
-	eventsCache     *caching.EventsCache
+	name                          string
+	adapter                       *adapters.Postgres
+	tableHelper                   *TableHelper
+	processor                     *schema.Processor
+	streamingWorker               *StreamingWorker
+	fallbackLogger                *logging.AsyncLogger
+	eventsCache                   *caching.EventsCache
+	usersRecognitionConfiguration *events.UserRecognitionConfiguration
 }
 
 func NewPostgres(config *Config) (events.Storage, error) {
@@ -59,12 +60,13 @@ func NewPostgres(config *Config) (events.Storage, error) {
 	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres)
 
 	p := &Postgres{
-		name:           config.name,
-		adapter:        adapter,
-		tableHelper:    tableHelper,
-		processor:      config.processor,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
-		eventsCache:    config.eventsCache,
+		name:                          config.name,
+		adapter:                       adapter,
+		tableHelper:                   tableHelper,
+		processor:                     config.processor,
+		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:                   config.eventsCache,
+		usersRecognitionConfiguration: config.usersRecognition,
 	}
 
 	if config.streamMode {
@@ -188,6 +190,10 @@ func (p *Postgres) Insert(table *adapters.Table, event events.Event) (err error)
 	}
 
 	return nil
+}
+
+func (p *Postgres) GetUsersRecognition() *events.UserRecognitionConfiguration {
+	return p.usersRecognitionConfiguration
 }
 
 //Close adapters.Postgres

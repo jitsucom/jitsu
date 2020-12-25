@@ -16,13 +16,14 @@ import (
 //batch: (1 file = 1 statement)
 //stream: (1 object = 1 statement)
 type ClickHouse struct {
-	name            string
-	adapters        []*adapters.ClickHouse
-	tableHelpers    []*TableHelper
-	processor       *schema.Processor
-	streamingWorker *StreamingWorker
-	fallbackLogger  *logging.AsyncLogger
-	eventsCache     *caching.EventsCache
+	name                          string
+	adapters                      []*adapters.ClickHouse
+	tableHelpers                  []*TableHelper
+	processor                     *schema.Processor
+	streamingWorker               *StreamingWorker
+	fallbackLogger                *logging.AsyncLogger
+	eventsCache                   *caching.EventsCache
+	usersRecognitionConfiguration *events.UserRecognitionConfiguration
 }
 
 func NewClickHouse(config *Config) (events.Storage, error) {
@@ -63,12 +64,13 @@ func NewClickHouse(config *Config) (events.Storage, error) {
 	}
 
 	ch := &ClickHouse{
-		name:           config.name,
-		adapters:       chAdapters,
-		tableHelpers:   tableHelpers,
-		processor:      config.processor,
-		eventsCache:    config.eventsCache,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		name:                          config.name,
+		adapters:                      chAdapters,
+		tableHelpers:                  tableHelpers,
+		processor:                     config.processor,
+		eventsCache:                   config.eventsCache,
+		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
+		usersRecognitionConfiguration: config.usersRecognition,
 	}
 
 	adapter, _ := ch.getAdapters()
@@ -208,6 +210,10 @@ func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (rowsCount int
 	}
 
 	return rowsCount, nil
+}
+
+func (ch *ClickHouse) GetUsersRecognition() *events.UserRecognitionConfiguration {
+	return ch.usersRecognitionConfiguration
 }
 
 //Fallback log event with error to fallback logger

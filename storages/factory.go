@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
 )
@@ -22,12 +23,13 @@ const (
 var unknownDestination = errors.New("Unknown destination type")
 
 type DestinationConfig struct {
-	OnlyTokens   []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
-	Type         string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	Mode         string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
-	DataLayout   *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
-	Enrichment   []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
-	BreakOnError bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
+	OnlyTokens       []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
+	Type             string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	Mode             string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
+	DataLayout       *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
+	UsersRecognition *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
+	Enrichment       []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
+	BreakOnError     bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
 
 	DataSource      *adapters.DataSourceConfig      `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	S3              *adapters.S3Config              `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
@@ -45,18 +47,25 @@ type DataLayout struct {
 	PrimaryKeyFields  []string                `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
 }
 
+type UsersRecognition struct {
+	Enabled         bool   `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	AnonymousIdNode string `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
+	UserIdNode      string `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
+}
+
 type Config struct {
-	ctx           context.Context
-	name          string
-	destination   *DestinationConfig
-	processor     *schema.Processor
-	streamMode    bool
-	monitorKeeper MonitorKeeper
-	eventQueue    *events.PersistentQueue
-	eventsCache   *caching.EventsCache
-	loggerFactory *logging.Factory
-	pkFields      map[string]bool
-	sqlTypeCasts  map[string]string
+	ctx              context.Context
+	name             string
+	destination      *DestinationConfig
+	usersRecognition *events.UserRecognitionConfiguration
+	processor        *schema.Processor
+	streamMode       bool
+	monitorKeeper    MonitorKeeper
+	eventQueue       *events.PersistentQueue
+	eventsCache      *caching.EventsCache
+	loggerFactory    *logging.Factory
+	pkFields         map[string]bool
+	sqlTypeCasts     map[string]string
 }
 
 //Create event storage proxy and event consumer (logger or event-queue)
@@ -148,6 +157,25 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		logging.Warnf("[%s] doesn't have mapping rules", name)
 	}
 
+	//retrospective users recognition
+	var usersRecognition *events.UserRecognitionConfiguration
+	if destination.UsersRecognition != nil {
+		usersRecognition = &events.UserRecognitionConfiguration{
+			Enabled:             destination.UsersRecognition.Enabled,
+			AnonymousIdJsonPath: jsonutils.NewJsonPath(destination.UsersRecognition.AnonymousIdNode),
+			UserIdJsonPath:      jsonutils.NewJsonPath(destination.UsersRecognition.UserIdNode),
+		}
+	} else {
+		logging.Infof("[%s] users recognition isn't configured", name)
+	}
+
+	//duplication data error warning
+	//don't process user recognition in this case
+	if destination.Type == PostgresType && len(pkFields) == 0 {
+		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", name)
+		usersRecognition = &events.UserRecognitionConfiguration{Enabled: false}
+	}
+
 	processor, err := schema.NewProcessor(name, tableName, fieldMapper, enrichmentRules, destination.BreakOnError)
 	if err != nil {
 		return nil, nil, err
@@ -162,17 +190,18 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	}
 
 	storageConfig := &Config{
-		ctx:           ctx,
-		name:          name,
-		destination:   &destination,
-		processor:     processor,
-		streamMode:    destination.Mode == StreamMode,
-		monitorKeeper: monitorKeeper,
-		eventQueue:    eventQueue,
-		eventsCache:   eventsCache,
-		loggerFactory: loggerFactory,
-		pkFields:      pkFields,
-		sqlTypeCasts:  sqlTypeCasts,
+		ctx:              ctx,
+		name:             name,
+		destination:      &destination,
+		usersRecognition: usersRecognition,
+		processor:        processor,
+		streamMode:       destination.Mode == StreamMode,
+		monitorKeeper:    monitorKeeper,
+		eventQueue:       eventQueue,
+		eventsCache:      eventsCache,
+		loggerFactory:    loggerFactory,
+		pkFields:         pkFields,
+		sqlTypeCasts:     sqlTypeCasts,
 	}
 
 	var storageProxy events.StorageProxy

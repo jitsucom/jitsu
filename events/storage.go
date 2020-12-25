@@ -1,6 +1,7 @@
 package events
 
 import (
+	"github.com/jitsucom/eventnative/jsonutils"
 	"io"
 )
 
@@ -10,6 +11,7 @@ type Storage interface {
 	StoreWithParseFunc(fileName string, payload []byte, skipTables map[string]bool, parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error)
 	SyncStore([]map[string]interface{}) (int, error)
 	Fallback(events ...*FailedEvent)
+	GetUsersRecognition() *UserRecognitionConfiguration
 	Name() string
 	Type() string
 }
@@ -22,4 +24,10 @@ type StorageProxy interface {
 type StoreResult struct {
 	Err       error
 	RowsCount int
+}
+
+type UserRecognitionConfiguration struct {
+	Enabled             bool
+	AnonymousIdJsonPath *jsonutils.JsonPath
+	UserIdJsonPath      *jsonutils.JsonPath
 }

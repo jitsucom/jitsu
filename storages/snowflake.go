@@ -228,6 +228,10 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 	return nil
 }
 
+func (s *Snowflake) GetUsersRecognition() *events.UserRecognitionConfiguration {
+	return disabledRecognitionConfiguration
+}
+
 //Fallback log event with error to fallback logger
 func (s *Snowflake) Fallback(failedEvents ...*events.FailedEvent) {
 	for _, failedEvent := range failedEvents {

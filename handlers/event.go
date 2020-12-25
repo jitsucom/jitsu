@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/eventnative/middleware"
 	"github.com/jitsucom/eventnative/telemetry"
 	"github.com/jitsucom/eventnative/timestamp"
+	"github.com/jitsucom/eventnative/users"
 	"net/http"
 	"strconv"
 	"strings"
@@ -40,20 +41,22 @@ type CachedEventsResponse struct {
 
 //Accept all events
 type EventHandler struct {
-	destinationService  *destinations.Service
-	preprocessor        events.Preprocessor
-	eventsCache         *caching.EventsCache
-	inMemoryEventsCache *events.Cache
+	destinationService     *destinations.Service
+	preprocessor           events.Preprocessor
+	eventsCache            *caching.EventsCache
+	inMemoryEventsCache    *events.Cache
+	userRecognitionService *users.RecognitionService
 }
 
 //Accept all events according to token
 func NewEventHandler(destinationService *destinations.Service, preprocessor events.Preprocessor, eventsCache *caching.EventsCache,
-	inMemoryEventsCache *events.Cache) (eventHandler *EventHandler) {
+	inMemoryEventsCache *events.Cache, userRecognitionService *users.RecognitionService) (eventHandler *EventHandler) {
 	return &EventHandler{
-		destinationService:  destinationService,
-		preprocessor:        preprocessor,
-		eventsCache:         eventsCache,
-		inMemoryEventsCache: inMemoryEventsCache,
+		destinationService:     destinationService,
+		preprocessor:           preprocessor,
+		eventsCache:            eventsCache,
+		inMemoryEventsCache:    inMemoryEventsCache,
+		userRecognitionService: userRecognitionService,
 	}
 }
 
@@ -88,7 +91,9 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		logging.SystemErrorf("Empty extracted eventn_ctx_event_id in: %s", payload.Serialize())
 	}
 	tokenId := appconfig.Instance.AuthorizationService.GetTokenId(token)
+	var destinationIds []string
 	for destinationId := range eh.destinationService.GetDestinationIds(tokenId) {
+		destinationIds = append(destinationIds, destinationId)
 		eh.eventsCache.Put(destinationId, eventId, cachingEvent)
 	}
 
@@ -102,6 +107,9 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		for _, consumer := range consumers {
 			consumer.Consume(payload, tokenId)
 		}
+
+		//Retrospective users recognition
+		eh.userRecognitionService.Event(payload, destinationIds)
 	}
 
 	c.JSON(http.StatusOK, middleware.OkResponse())

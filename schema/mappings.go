@@ -41,8 +41,8 @@ func (mf *MappingField) Validate() error {
 		return fmt.Errorf("Unknown mapping action: %s. Available actions: [%s, %s, %s, %s]", mf.Action, MOVE, REMOVE, CAST, CONSTANT)
 	}
 
-	//src required only if not CONSTANT
-	if mf.Src == "" && mf.Action != CONSTANT {
+	//src required if not CONSTANT and not CAST
+	if mf.Src == "" && mf.Action != CONSTANT && mf.Action != CAST {
 		return fmt.Errorf("src is required field in mappings with action: [%s, %s, %s]", MOVE, REMOVE, CAST)
 	}
 
@@ -52,7 +52,7 @@ func (mf *MappingField) Validate() error {
 	}
 
 	//dst required only if not REMOVE and not CAST
-	if mf.Dst == "" && mf.Action != REMOVE && mf.Action != CAST {
+	if mf.Dst == "" && mf.Action != REMOVE {
 		return fmt.Errorf("dst is required field")
 	}
 
