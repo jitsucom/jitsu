@@ -51,6 +51,21 @@ jobs:
             docker build -t $IMAGE_NAME:latest .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME
+  build-beta-docker:
+    working_directory: /go/src/github.com/jitsucom/eventnative/
+    environment:
+      IMAGE_NAME: ksense/eventnative
+    docker:
+      - image: circleci/golang:1.14-buster-node
+    steps:
+      - checkout
+      - setup_remote_docker
+      - run:
+          name: Build and Push Docker image
+          command: |
+            docker build -t $IMAGE_NAME:beta .
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $IMAGE_NAME
   build-tagged-docker:
     working_directory: /go/src/github.com/jitsucom/eventnative/
     environment:
@@ -84,12 +99,19 @@ workflows:
           filters:
             branches:
               only: master
+      - build-beta-docker:
+          context: eventnative
+          requires:
+            - backend-test
+          filters:
+            branches:
+              only: beta
       - build-tagged-docker:
           context: eventnative
           requires:
             - backend-test
           filters:
             tags:
-              only: /^v\d+\.\d+\.\d+$/
+              only: /^v.*/
             branches:
               ignore: /.*/
