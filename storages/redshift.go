@@ -188,7 +188,7 @@ func (ar *AwsRedshift) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (ar *AwsRedshift) SyncStore(objects []map[string]interface{}) (int, error) {
+func (ar *AwsRedshift) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("RedShift doesn't support sync store")
 }
 

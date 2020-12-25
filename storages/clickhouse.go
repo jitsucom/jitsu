@@ -190,7 +190,7 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 //SyncStore store chunk payload to ClickHouse with processing
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (rowsCount int, err error) {
+func (ch *ClickHouse) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
 	flatData, err := ch.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -199,11 +199,16 @@ func (ch *ClickHouse) SyncStore(objects []map[string]interface{}) (rowsCount int
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
-
+	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
 	for _, fdata := range flatData {
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-		err := ch.storeTable(adapter, tableHelper, fdata, table)
+		table.Name = collectionTable
+		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
+		if err != nil {
+			return rowsCount, err
+		}
+		err = adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions)
 		if err != nil {
 			return rowsCount, err
 		}

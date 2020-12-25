@@ -21,6 +21,7 @@ const (
 	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS "%s" %s`
 	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s %s`
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
+	deleteQueryChTemplate     = `ALTER TABLE %s.%s DELETE WHERE %s`
 	onClusterCHClauseTemplate = ` ON CLUSTER "%s" `
 	columnCHNullableTemplate  = ` Nullable(%s) `
 
@@ -273,7 +274,7 @@ func (ch *ClickHouse) CreateDB(dbName string) error {
 	}
 
 	query := fmt.Sprintf(createCHDBTemplate, dbName, ch.getOnClusterClause())
-	ch.queryLogger.Log(query)
+	ch.queryLogger.LogDDL(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing create db %s statement: %v", dbName, err)
@@ -312,7 +313,7 @@ func (ch *ClickHouse) CreateTable(tableSchema *Table) error {
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	statementStr := ch.tableStatementFactory.CreateTableStatement(tableSchema.Name, strings.Join(columnsDDL, ","))
-	ch.queryLogger.Log(statementStr)
+	ch.queryLogger.LogDDL(statementStr)
 
 	_, err := ch.dataSource.ExecContext(ch.ctx, statementStr)
 	if err != nil {
@@ -375,7 +376,7 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 			columnTypeDDL = sqlType
 		}
 		query := fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, columnTypeDDL)
-		ch.queryLogger.Log(query)
+		ch.queryLogger.LogDDL(query)
 		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
@@ -414,7 +415,7 @@ func (ch *ClickHouse) Insert(table *Table, valuesMap map[string]interface{}) err
 	}
 
 	query := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(header, ", "), strings.Join(placeholders, ", "))
-	ch.queryLogger.LogWithValues(query, values)
+	ch.queryLogger.LogQueryWithValues(query, values)
 	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
@@ -430,8 +431,59 @@ func (ch *ClickHouse) Insert(table *Table, valuesMap map[string]interface{}) err
 	return wrappedTx.DirectCommit()
 }
 
+func (ch *ClickHouse) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	wrappedTx, err := ch.OpenTx()
+	if err != nil {
+		return err
+	}
+	if err := ch.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	if err := ch.insertInTransaction(wrappedTx, table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	return wrappedTx.DirectCommit()
+}
+
+func (ch *ClickHouse) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+	deleteCondition, values := ch.toDeleteQuery(deleteConditions)
+	deleteQuery := fmt.Sprintf(deleteQueryChTemplate, ch.database, table.Name, deleteCondition)
+	deleteStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, deleteQuery)
+	if err != nil {
+		return fmt.Errorf("Error preparing delete statement [%s]: %v", deleteQuery, err)
+	}
+	ch.queryLogger.LogQueryWithValues(deleteQuery, values)
+	_, err = deleteStmt.ExecContext(ch.ctx, values...)
+	if err != nil {
+		return fmt.Errorf("Error deleting using query: %s, error: %v", deleteQuery, err)
+	}
+	return nil
+}
+
 //BulkInsert insert objects into table in one prepared statement
 func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	wrappedTx, err := ch.OpenTx()
+	err = ch.insertInTransaction(wrappedTx, table, objects)
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	return wrappedTx.DirectCommit()
+}
+
+func (ch *ClickHouse) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+	var queryConditions []string
+	var values []interface{}
+	for _, condition := range conditions.Conditions {
+		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" "+ch.getPlaceholder(condition.Field))
+		values = append(values, condition.Value)
+	}
+	return strings.Join(queryConditions, conditions.JoinCondition), values
+}
+
+func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var header, placeholders []string
 	for name := range table.Columns {
 		header = append(header, name)
@@ -439,15 +491,8 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 	}
 
 	query := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(header, ", "), strings.Join(placeholders, ", "))
-
-	wrappedTx, err := ch.OpenTx()
-	if err != nil {
-		return err
-	}
-
 	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing bulk insert statement [%s] table %s statement: %v", query, table.Name, err)
 	}
 
@@ -469,16 +514,14 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 			}
 		}
 
-		ch.queryLogger.LogWithValues(query, values)
+		ch.queryLogger.LogQueryWithValues(query, values)
 
 		_, err = insertStmt.ExecContext(ch.ctx, values...)
 		if err != nil {
-			wrappedTx.Rollback()
 			return fmt.Errorf("Error bulk inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
 		}
 	}
-
-	return wrappedTx.DirectCommit()
+	return nil
 }
 
 //Close underlying sql.DB
@@ -503,7 +546,7 @@ func (ch *ClickHouse) getOnClusterClause() string {
 func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string) {
 	statement := fmt.Sprintf(createDistributedTableCHTemplate,
 		ch.database, originTableName, ch.getOnClusterClause(), ch.database, originTableName, ch.cluster, ch.database, originTableName)
-	ch.queryLogger.Log(statement)
+	ch.queryLogger.LogDDL(statement)
 
 	_, err := ch.dataSource.ExecContext(ch.ctx, statement)
 	if err != nil {
@@ -515,7 +558,7 @@ func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string
 //drop distributed table, ignore errors
 func (ch *ClickHouse) dropDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
 	query := fmt.Sprintf(dropDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
-	ch.queryLogger.Log(query)
+	ch.queryLogger.LogDDL(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
 		logging.Errorf("Error preparing drop distributed table statement for [%s] : %v", originTableName, err)

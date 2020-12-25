@@ -1,8 +1,6 @@
 package sources
 
 import (
-	"crypto/md5"
-	"fmt"
 	"github.com/jitsucom/eventnative/drivers"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
@@ -10,7 +8,7 @@ import (
 	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/jitsucom/eventnative/timestamp"
-	"sort"
+	"github.com/jitsucom/eventnative/uuid"
 	"time"
 )
 
@@ -52,7 +50,7 @@ func (st *SyncTask) Sync() {
 
 	var intervalsToSync []*drivers.TimeInterval
 	for _, interval := range intervals {
-		storedSignature, err := st.metaStorage.GetSignature(st.sourceId, st.collection, interval.String())
+		storedSignature, err := st.metaStorage.GetSignature(st.sourceId, st.getCollectionMetaKey(), interval.String())
 		if err != nil {
 			strLogger.Errorf("[%s] Error getting interval [%s] signature: %v", st.identifier, interval.String(), err)
 			logging.Errorf("[%s] Error getting interval [%s] signature: %v", st.identifier, interval.String(), err)
@@ -79,6 +77,7 @@ func (st *SyncTask) Sync() {
 	logging.Infof("[%s] Intervals to sync: [%d]", st.identifier, len(intervalsToSync))
 	strLogger.Infof("[%s] Intervals to sync: [%d]", st.identifier, len(intervalsToSync))
 
+	collectionTable := st.driver.GetCollectionTable()
 	for _, intervalToSync := range intervalsToSync {
 		strLogger.Infof("[%s] Running [%s] synchronization", st.identifier, intervalToSync.String())
 
@@ -93,13 +92,12 @@ func (st *SyncTask) Sync() {
 			//enrich with values
 			object["src"] = "source"
 			object[timestamp.Key] = timestamp.NowUTC()
-			events.EnrichWithEventId(object, getHash(object))
+			events.EnrichWithEventId(object, uuid.GetHash(object))
 			events.EnrichWithCollection(object, st.collection)
 			events.EnrichWithTimeInterval(object, intervalToSync)
 		}
-
 		for _, storage := range st.destinations {
-			rowsCount, err := storage.SyncStore(objects)
+			rowsCount, err := storage.SyncStore(collectionTable, objects, intervalToSync.String())
 			if err != nil {
 				strLogger.Errorf("[%s] Error storing %d source objects in [%s] destination: %v", st.identifier, rowsCount, storage.Name(), err)
 				logging.Errorf("[%s] Error storing %d source objects in [%s] destination: %v", st.identifier, rowsCount, storage.Name(), err)
@@ -112,7 +110,7 @@ func (st *SyncTask) Sync() {
 			metrics.SuccessObjects(st.sourceId, rowsCount)
 		}
 
-		if err := st.metaStorage.SaveSignature(st.sourceId, st.collection, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
+		if err := st.metaStorage.SaveSignature(st.sourceId, st.getCollectionMetaKey(), intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
 			logging.SystemErrorf("Unable to save source [%s] collection [%s] signature: %v", st.sourceId, st.collection, err)
 		}
 
@@ -125,6 +123,10 @@ func (st *SyncTask) Sync() {
 	status = meta.StatusOk
 }
 
+func (st *SyncTask) getCollectionMetaKey() string {
+	return st.collection + "_" + st.driver.GetCollectionTable()
+}
+
 func (st *SyncTask) updateCollectionStatus(status, logs string) {
 	if err := st.metaStorage.SaveCollectionStatus(st.sourceId, st.collection, status); err != nil {
 		logging.SystemErrorf("Unable to update source [%s] collection [%s] status in storage: %v", st.sourceId, st.collection, err)
@@ -132,19 +134,4 @@ func (st *SyncTask) updateCollectionStatus(status, logs string) {
 	if err := st.metaStorage.SaveCollectionLog(st.sourceId, st.collection, logs); err != nil {
 		logging.SystemErrorf("Unable to update source [%s] collection [%s] log in storage: %v", st.sourceId, st.collection, err)
 	}
-}
-
-func getHash(m map[string]interface{}) string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var str string
-	for _, k := range keys {
-		str += fmt.Sprint(m[k])
-	}
-
-	return fmt.Sprintf("%x", md5.Sum([]byte(str)))
 }
