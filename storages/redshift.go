@@ -12,9 +12,6 @@ import (
 	"github.com/jitsucom/eventnative/schema"
 )
 
-const tableFileKeyDelimiter = "-table-"
-const rowsFileKeyDelimiter = "-rows-"
-
 //Store files to aws RedShift in two modes:
 //batch: via aws s3 in batch mode (1 file = 1 statement)
 //stream: via events queue in stream mode (1 object = 1 statement)
@@ -193,6 +190,10 @@ func (ar *AwsRedshift) Fallback(failedEvents ...*events.FailedEvent) {
 
 func (ar *AwsRedshift) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("RedShift doesn't support sync store")
+}
+
+func (ar *AwsRedshift) GetUsersRecognition() *events.UserRecognitionConfiguration {
+	return disabledRecognitionConfiguration
 }
 
 func (ar *AwsRedshift) Name() string {

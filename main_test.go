@@ -13,11 +13,13 @@ import (
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/middleware"
+	"github.com/jitsucom/eventnative/routers"
 	"github.com/jitsucom/eventnative/sources"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/jitsucom/eventnative/synchronization"
 	"github.com/jitsucom/eventnative/telemetry"
 	"github.com/jitsucom/eventnative/test"
+	"github.com/jitsucom/eventnative/users"
 	"github.com/jitsucom/eventnative/uuid"
 	"strings"
 	"time"
@@ -176,8 +178,12 @@ func TestCors(t *testing.T) {
 			inmemWriter := logging.InitInMemoryWriter()
 			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
 				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
-			router := SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
-				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
+			appconfig.Instance.ScheduleClosing(destinationService)
+
+			dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
+			router := routers.SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
+				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(),
+				fallback.NewTestService(), dummyRecognitionService)
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -301,8 +307,12 @@ func TestApiEvent(t *testing.T) {
 			inmemWriter := logging.InitInMemoryWriter()
 			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
 				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
-			router := SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
-				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
+			appconfig.Instance.ScheduleClosing(destinationService)
+
+			dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
+			router := routers.SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
+				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(),
+				fallback.NewTestService(), dummyRecognitionService)
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -443,7 +453,9 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	require.NoError(t, err)
 	defer dest.Close()
 
-	router := SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
+	dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
+	router := routers.SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5),
+		sources.NewTestService(), fallback.NewTestService(), dummyRecognitionService)
 
 	server := &http.Server{
 		Addr:              httpAuthority,
@@ -540,8 +552,11 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	dest, err := destinations.NewService(ctx, nil, destinationConfig, "/tmp", monitor, eventsCache, logging.NewFactory("/tmp", 5, false, nil, nil), storages.Create)
 	require.NoError(t, err)
-	defer dest.Close()
-	router := SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5), sources.NewTestService(), fallback.NewTestService())
+	appconfig.Instance.ScheduleClosing(dest)
+
+	dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
+	router := routers.SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5),
+		sources.NewTestService(), fallback.NewTestService(), dummyRecognitionService)
 
 	server := &http.Server{
 		Addr:              httpAuthority,

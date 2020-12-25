@@ -436,10 +436,15 @@ func (ch *ClickHouse) BulkUpdate(table *Table, objects []map[string]interface{},
 	if err != nil {
 		return err
 	}
-	if err := ch.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
-		wrappedTx.Rollback()
-		return err
+
+	if !deleteConditions.IsEmpty() {
+		err := ch.deleteInTransaction(wrappedTx, table, deleteConditions)
+		if err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
 	}
+
 	if err := ch.insertInTransaction(wrappedTx, table, objects); err != nil {
 		wrappedTx.Rollback()
 		return err

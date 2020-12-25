@@ -33,7 +33,7 @@ type PersistentQueue struct {
 func NewPersistentQueue(queueName, fallbackDir string) (*PersistentQueue, error) {
 	queue, err := dque.NewOrOpen(queueName, fallbackDir, eventsPerPersistedFile, QueuedFactBuilder)
 	if err != nil {
-		return nil, fmt.Errorf("Error opening/creating event queue [%s]: %v", queueName, err)
+		return nil, fmt.Errorf("Error opening/creating event queue [%s] in dir [%s]: %v", queueName, fallbackDir, err)
 	}
 
 	return &PersistentQueue{queue: queue}, nil

@@ -16,13 +16,14 @@ import (
 //batch: (1 file = 1 statement)
 //stream: (1 object = 1 statement)
 type ClickHouse struct {
-	name            string
-	adapters        []*adapters.ClickHouse
-	tableHelpers    []*TableHelper
-	processor       *schema.Processor
-	streamingWorker *StreamingWorker
-	fallbackLogger  *logging.AsyncLogger
-	eventsCache     *caching.EventsCache
+	name                          string
+	adapters                      []*adapters.ClickHouse
+	tableHelpers                  []*TableHelper
+	processor                     *schema.Processor
+	streamingWorker               *StreamingWorker
+	fallbackLogger                *logging.AsyncLogger
+	eventsCache                   *caching.EventsCache
+	usersRecognitionConfiguration *events.UserRecognitionConfiguration
 }
 
 func NewClickHouse(config *Config) (events.Storage, error) {
@@ -63,12 +64,13 @@ func NewClickHouse(config *Config) (events.Storage, error) {
 	}
 
 	ch := &ClickHouse{
-		name:           config.name,
-		adapters:       chAdapters,
-		tableHelpers:   tableHelpers,
-		processor:      config.processor,
-		eventsCache:    config.eventsCache,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		name:                          config.name,
+		adapters:                      chAdapters,
+		tableHelpers:                  tableHelpers,
+		processor:                     config.processor,
+		eventsCache:                   config.eventsCache,
+		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
+		usersRecognitionConfiguration: config.usersRecognition,
 	}
 
 	adapter, _ := ch.getAdapters()
@@ -185,10 +187,12 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 	return nil
 }
 
-//SyncStore store chunk payload to ClickHouse with processing
+//SyncStore is used in two cases:
+//1. store chunk payload to ClickHouse with processing
+//2. store recognized users events
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (ch *ClickHouse) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
+func (ch *ClickHouse) SyncStore(overriddenCollectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
 	flatData, err := ch.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -201,7 +205,12 @@ func (ch *ClickHouse) SyncStore(collectionTable string, objects []map[string]int
 	for _, fdata := range flatData {
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-		table.Name = collectionTable
+
+		//override table name
+		if overriddenCollectionTable != "" {
+			table.Name = overriddenCollectionTable
+		}
+
 		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
 		if err != nil {
 			return rowsCount, err
@@ -213,6 +222,10 @@ func (ch *ClickHouse) SyncStore(collectionTable string, objects []map[string]int
 	}
 
 	return rowsCount, nil
+}
+
+func (ch *ClickHouse) GetUsersRecognition() *events.UserRecognitionConfiguration {
+	return ch.usersRecognitionConfiguration
 }
 
 //Fallback log event with error to fallback logger
