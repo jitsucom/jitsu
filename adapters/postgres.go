@@ -45,6 +45,7 @@ const (
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
 	mergeTemplate                     = `INSERT INTO %s.%s(%s) VALUES(%s) ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
+	deleteQueryTemplate               = "DELETE FROM %s.%s WHERE %s"
 )
 
 var (
@@ -264,7 +265,7 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	query := fmt.Sprintf(createTableTemplate, p.config.Schema, table.Name, strings.Join(columnsDDL, ","))
-	p.queryLogger.Log(query)
+	p.queryLogger.LogDDL(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
@@ -298,7 +299,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 			sqlType = castedSqlType
 		}
 		query := fmt.Sprintf(addColumnTemplate, p.config.Schema, patchTable.Name, columnName, sqlType)
-		p.queryLogger.Log(query)
+		p.queryLogger.LogDDL(query)
 
 		alterStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 		if err != nil {
@@ -342,7 +343,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 
 	query := fmt.Sprintf(alterPrimaryKeyTemplate,
 		p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name), strings.Join(table.GetPKFields(), ","))
-	p.queryLogger.Log(query)
+	p.queryLogger.LogDDL(query)
 	alterConstraintStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing primary key setting to table %s: %v", table.Name, err)
@@ -358,7 +359,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 //delete primary key
 func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
 	query := fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name))
-	p.queryLogger.Log(query)
+	p.queryLogger.LogDDL(query)
 	dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		return fmt.Errorf("failed to prepare statement to drop primary key for table %s: %v", table.Name, err)
@@ -379,12 +380,7 @@ func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error 
 	for name, value := range valuesMap {
 		header += name + ","
 		//$1::type, $2::type, $3, etc
-		castClause := ""
-		castType, ok := p.mappingTypeCasts[name]
-		if ok {
-			castClause = "::" + castType
-		}
-		placeholders += "$" + strconv.Itoa(i) + castClause + ","
+		placeholders += "$" + strconv.Itoa(i) + p.castClause(name) + ","
 		values = append(values, value)
 		i++
 	}
@@ -392,13 +388,12 @@ func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error 
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
 	query := p.insertQuery(table.GetPKFields(), table.Name, header, placeholders)
-	p.queryLogger.LogWithValues(query, values)
+	p.queryLogger.LogQueryWithValues(query, values)
 
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
 		return err
 	}
-
 	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
@@ -414,8 +409,71 @@ func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error 
 	return wrappedTx.DirectCommit()
 }
 
+func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+	if err := p.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	if err := p.insertInTransaction(wrappedTx, table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	return wrappedTx.DirectCommit()
+}
+
+func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+	deleteCondition, values := p.toDeleteQuery(deleteConditions)
+	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteCondition)
+	p.queryLogger.LogQueryWithValues(query, values)
+	deleteStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
+	if err != nil {
+		return fmt.Errorf("Error preparing delete table %s statement: %v", table.Name, err)
+	}
+	_, err = deleteStmt.ExecContext(p.ctx, values...)
+	if err != nil {
+		return fmt.Errorf("Error deleting using query: %s:, error: %v", query, err)
+	}
+	return nil
+}
+
+func (p *Postgres) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+	var queryConditions []string
+	var values []interface{}
+	for i, condition := range conditions.Conditions {
+		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" $"+strconv.Itoa(i+1)+p.castClause(condition.Field))
+		values = append(values, condition.Value)
+	}
+	return strings.Join(queryConditions, conditions.JoinCondition), values
+}
+
+func (p *Postgres) castClause(field string) string {
+	castClause := ""
+	castType, ok := p.mappingTypeCasts[field]
+	if ok {
+		castClause = "::" + castType
+	}
+	return castClause
+}
+
 //BulkInsert insert objects into table in one prepared statement
 func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+	if err = p.insertInTransaction(wrappedTx, table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+func (p *Postgres) insertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var placeholders string
 	var header []string
 	i := 1
@@ -435,14 +493,8 @@ func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) er
 
 	query := p.insertQuery(table.GetPKFields(), table.Name, strings.Join(header, ","), removeLastComma(placeholders))
 
-	wrappedTx, err := p.OpenTx()
-	if err != nil {
-		return err
-	}
-
 	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing bulk insert statement [%s] table %s statement: %v", query, table.Name, err)
 	}
 
@@ -453,16 +505,15 @@ func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) er
 			values = append(values, value)
 		}
 
-		p.queryLogger.LogWithValues(query, values)
+		p.queryLogger.LogQueryWithValues(query, values)
 
 		_, err = insertStmt.ExecContext(p.ctx, values...)
 		if err != nil {
-			wrappedTx.Rollback()
 			return fmt.Errorf("Error bulk inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
 		}
 	}
 
-	return wrappedTx.DirectCommit()
+	return nil
 }
 
 //get insert statement or merge on conflict statement
@@ -519,7 +570,7 @@ func (p *Postgres) Close() error {
 func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, statementTemplate,
 	dbSchemaName string, queryLogger *logging.QueryLogger) error {
 	query := fmt.Sprintf(statementTemplate, dbSchemaName)
-	queryLogger.Log(query)
+	queryLogger.LogDDL(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()

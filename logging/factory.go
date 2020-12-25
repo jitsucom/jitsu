@@ -11,14 +11,16 @@ type Factory struct {
 	logRotationMin int64
 	showInServer   bool
 
+	ddlLogsWriter   io.Writer
 	queryLogsWriter io.Writer
 }
 
-func NewFactory(logEventPath string, logRotationMin int64, showInServer bool, queryLogsWriter io.Writer) *Factory {
+func NewFactory(logEventPath string, logRotationMin int64, showInServer bool, ddlLogsWriter io.Writer, queryLogsWriter io.Writer) *Factory {
 	return &Factory{
 		logEventPath:    logEventPath,
 		logRotationMin:  logRotationMin,
 		showInServer:    showInServer,
+		ddlLogsWriter:   ddlLogsWriter,
 		queryLogsWriter: queryLogsWriter,
 	}
 }
@@ -44,7 +46,7 @@ func (f *Factory) CreateFailedLogger(destinationName string) *AsyncLogger {
 }
 
 func (f *Factory) CreateSQLQueryLogger(destinationName string) *QueryLogger {
-	return NewQueryLogger(destinationName, f.queryLogsWriter)
+	return NewQueryLogger(destinationName, f.ddlLogsWriter, f.queryLogsWriter)
 }
 
 func (f *Factory) CreateStreamingArchiveLogger(destinationName string) *AsyncLogger {

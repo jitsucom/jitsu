@@ -17,6 +17,7 @@ type AppConfig struct {
 	GeoResolver          geo.Resolver
 	UaResolver           useragent.Resolver
 	AuthorizationService *authorization.Service
+	DDLLogsWriter        io.Writer
 	QueryLogsWriter      io.Writer
 
 	closeMe []io.Closer
@@ -39,7 +40,8 @@ func setDefaultParams() {
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
-	viper.SetDefault("sql_debug_log.rotation_min", "5")
+	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
+	viper.SetDefault("sql_debug_log.ddl.rotation_min", "1440")
 	viper.SetDefault("users_recognition.enabled", false)
 	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id")
 	viper.SetDefault("users_recognition.user_id_node", "/eventn_ctx/user/internal_id")
@@ -88,17 +90,13 @@ func Init() error {
 	var appConfig AppConfig
 	appConfig.ServerName = serverName
 
-	//sql debug log writer
-	if viper.IsSet("sql_debug_log.path") {
-		if viper.GetString("sql_debug_log.path") != "global" {
-			appConfig.QueryLogsWriter = logging.NewRollingWriter(logging.Config{
-				FileName:    serverName + "-sql-debug",
-				FileDir:     viper.GetString("sql_debug_log.path"),
-				RotationMin: viper.GetInt64("sql_debug_log.rotation_min"),
-				MaxBackups:  viper.GetInt("sql_debug_log.max_backups")})
-		} else {
-			appConfig.QueryLogsWriter = logging.GlobalLogsWriter
-		}
+	// SQL DDL debug writer
+	if viper.IsSet("sql_debug_log.ddl.path") {
+		appConfig.DDLLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.ddl"), serverName, "ddl-debug")
+	}
+	// SQL queries debug writer
+	if viper.IsSet("sql_debug_log.queries.path") {
+		appConfig.QueryLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.queries"), serverName, "sql-debug")
 	}
 
 	port := viper.GetString("port")
@@ -123,6 +121,18 @@ func Init() error {
 
 	Instance = &appConfig
 	return nil
+}
+
+func (a *AppConfig) getSqlWriter(sqlLoggerViper *viper.Viper, serverName string, logType string) io.Writer {
+	if sqlLoggerViper.GetString("path") != "global" {
+		return logging.NewRollingWriter(logging.Config{
+			FileName:    serverName + "-" + logType,
+			FileDir:     sqlLoggerViper.GetString("path"),
+			RotationMin: sqlLoggerViper.GetInt64("rotation_min"),
+			MaxBackups:  sqlLoggerViper.GetInt("max_backups")})
+	} else {
+		return logging.GlobalLogsWriter
+	}
 }
 
 func (a *AppConfig) ScheduleClosing(c io.Closer) {

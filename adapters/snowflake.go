@@ -163,7 +163,7 @@ func (s *Snowflake) CreateTable(tableSchema *Table) error {
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	query := fmt.Sprintf(createSFTableTemplate, s.config.Schema, reformatValue(tableSchema.Name), strings.Join(columnsDDL, ","))
-	s.queryLogger.Log(query)
+	s.queryLogger.LogDDL(query)
 	createStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
@@ -194,7 +194,7 @@ func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
 		}
 		query := fmt.Sprintf(addSFColumnTemplate, s.config.Schema,
 			reformatValue(patchSchema.Name), reformatValue(columnName), sqlType)
-		s.queryLogger.Log(query)
+		s.queryLogger.LogDDL(query)
 		alterStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
@@ -289,7 +289,7 @@ func (s *Snowflake) Insert(table *Table, valuesMap map[string]interface{}) error
 	placeholders = removeLastComma(placeholders)
 
 	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(table.Name), header, placeholders)
-	s.queryLogger.LogWithValues(query, values)
+	s.queryLogger.LogQueryWithValues(query, values)
 
 	wrappedTx, err := s.OpenTx()
 	if err != nil {

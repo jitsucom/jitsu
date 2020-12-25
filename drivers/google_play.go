@@ -96,6 +96,10 @@ func NewGooglePlay(ctx context.Context, sourceConfig *SourceConfig, collection *
 	return &GooglePlay{client: client, config: config, ctx: ctx, collection: collection}, nil
 }
 
+func (gp *GooglePlay) GetCollectionTable() string {
+	return gp.collection.GetTableName()
+}
+
 func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	bucketName := bucketPrefix + gp.config.AccountId
 	bucket := gp.client.Bucket(bucketName)

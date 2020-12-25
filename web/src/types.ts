@@ -126,8 +126,9 @@ export type Logger = {
  * User properties (ids)
  */
 export interface UserProps {
-  anonymous_id: string             //anonymous is (cookie based),
-  id: string                       //user id (non anonymous). If not set, first known id (from propName below) will be used
+  anonymous_id?: string             //anonymous is (cookie based),
+  id?: string                       //user id (non anonymous). If not set, first known id (from propName below) will be used
+  email?: string                    //user id (non anonymous). If not set, first known id (from propName below) will be used
   [propName: string]: any          //any other forms of ids
 }
 
@@ -193,6 +194,8 @@ export type EventPayload = {
  * Event object. A final object which is send to server
  */
 export type Event = {
+  source_ip?: string               //IP address. Do not set this field on a client side, it will be rewritten on the server
+  anon_ip?: string                 //First 3 octets of an IP address. Same as IP - will be set on a server
   api_key: string                  //JS api key
   src: string                      //src
   event_type: string               //event type, either
