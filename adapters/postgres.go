@@ -414,10 +414,15 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 	if err != nil {
 		return err
 	}
-	if err := p.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
-		wrappedTx.Rollback()
-		return err
+
+	if !deleteConditions.IsEmpty() {
+		err := p.deleteInTransaction(wrappedTx, table, deleteConditions)
+		if err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
 	}
+
 	if err := p.insertInTransaction(wrappedTx, table, objects); err != nil {
 		wrappedTx.Rollback()
 		return err

@@ -146,10 +146,12 @@ func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-//SyncStore store chunk payload to Postgres with processing
+//SyncStore is used in two cases:
+//1. store chunk payload to Postgres with processing
+//2. store recognized users events
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (p *Postgres) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
+func (p *Postgres) SyncStore(overriddenCollectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
 	flatData, err := p.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -161,7 +163,12 @@ func (p *Postgres) SyncStore(collectionTable string, objects []map[string]interf
 	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
-		table.Name = collectionTable
+
+		//override table name
+		if overriddenCollectionTable != "" {
+			table.Name = overriddenCollectionTable
+		}
+
 		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
 		if err != nil {
 			return 0, err

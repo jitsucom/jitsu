@@ -53,7 +53,7 @@ type RecognitionService struct {
 //NewRecognitionService create a new RecognitionService if not disabled and if metaStorage configuration exists
 func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service, configuration *storages.UsersRecognition, logEventPath string) (*RecognitionService, error) {
 	if configuration == nil || !configuration.Enabled || metaStorage.Type() == meta.DummyType {
-		if metaStorage.Type() == meta.DummyType {
+		if metaStorage != nil && metaStorage.Type() == meta.DummyType {
 			logging.Warnf("Users recognition required meta storage configuration")
 		}
 
@@ -233,7 +233,7 @@ func (rs *RecognitionService) runPipeline(destinationId string, identifiers Even
 			continue
 		}
 
-		_, err = storage.SyncStore([]map[string]interface{}{event})
+		_, err = storage.SyncStore("", []map[string]interface{}{event}, "")
 		if err != nil {
 			logging.SystemErrorf("[%s] Error storing recognized user event: %v", destinationId, err)
 			continue
