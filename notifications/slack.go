@@ -13,17 +13,11 @@ import (
 const (
 	ServiceName         = "EventNative"
 	serverStartTemplate = `{
+    "text": "*%s* [%s]: Start",
 	"attachments": [
 		{
 			"color": "#5cb85c",
 			"blocks": [
-				{
-					"type": "section",
-					"text": {
-						"type": "mrkdwn",
-						"text": "*%s* [%s]:"
-					}
-				},
 				{
 					"type": "divider"
 				},
@@ -39,17 +33,11 @@ const (
 	]
 }`
 	systemErrorTemplate = `{
+    "text": "*%s* [%s]: System error",
 	"attachments": [
 		{
 			"color": "#d9534f",
 			"blocks": [
-				{
-					"type": "section",
-					"text": {
-						"type": "mrkdwn",
-						"text": "*%s* [%s]:"
-					}
-				},
 				{
 					"type": "divider"
 				},

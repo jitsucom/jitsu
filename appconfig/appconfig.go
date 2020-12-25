@@ -40,6 +40,9 @@ func setDefaultParams() {
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
 	viper.SetDefault("sql_debug_log.rotation_min", "5")
+	viper.SetDefault("users_recognition.enabled", false)
+	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id")
+	viper.SetDefault("users_recognition.user_id_node", "/eventn_ctx/user/internal_id")
 }
 
 func Init() error {

@@ -12,6 +12,8 @@ import (
 	"github.com/jitsucom/eventnative/schema"
 )
 
+var disabledRecognitionConfiguration = &events.UserRecognitionConfiguration{Enabled: false}
+
 //Store files to google BigQuery in two modes:
 //batch: via google cloud storage in batch mode (1 file = 1 operation)
 //stream: via events queue in stream mode (1 object = 1 operation)
@@ -182,6 +184,10 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 
 func (bq *BigQuery) SyncStore(objects []map[string]interface{}) (int, error) {
 	return 0, errors.New("BigQuery doesn't support sync store")
+}
+
+func (bq *BigQuery) GetUsersRecognition() *events.UserRecognitionConfiguration {
+	return disabledRecognitionConfiguration
 }
 
 //Fallback log event with error to fallback logger

@@ -32,6 +32,9 @@ type Redis struct {
 //
 //last_events:destination#destinationId:id#eventn_ctx_event_id [original, success, error] - hashtable with original event json, processed with schema json, error json
 //last_events_index:destination#destinationId [timestamp_long eventn_ctx_event_id] - sorted set of eventIds and timestamps
+//
+//retrospective user recognition
+//anonymous_events:destination_id#${destination_id}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
 func NewRedis(host string, port int, password string) (*Redis, error) {
 	logging.Infof("Initializing redis [%s:%d]...", host, port)
 	r := &Redis{pool: &redis.Pool{
@@ -308,6 +311,50 @@ func (r *Redis) GetTotalEvents(destinationId string) (int, error) {
 	}
 
 	return count, nil
+}
+
+func (r *Redis) SaveAnonymousEvent(destinationId, anonymousId, eventId, payload string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+	//add event
+	anonymousEventKey := "anonymous_events:destination_id#" + destinationId + ":anonymous_id#" + anonymousId
+	_, err := conn.Do("HSET", anonymousEventKey, eventId, payload)
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+func (r *Redis) GetAnonymousEvents(destinationId, anonymousId string) (map[string]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+	//get events
+	anonymousEventKey := "anonymous_events:destination_id#" + destinationId + ":anonymous_id#" + anonymousId
+
+	eventsMap, err := redis.StringMap(conn.Do("HGETALL", anonymousEventKey))
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return nil, err
+	}
+
+	return eventsMap, nil
+}
+
+func (r *Redis) DeleteAnonymousEvent(destinationId, anonymousId, eventId string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	//remove event
+	anonymousEventKey := "anonymous_events:destination_id#" + destinationId + ":anonymous_id#" + anonymousId
+	_, err := conn.Do("HDEL", anonymousEventKey, eventId)
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
 }
 
 func (r *Redis) Type() string {
