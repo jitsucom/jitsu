@@ -59,6 +59,18 @@ func (d *Dummy) GetEvents(destinationId string, start, end time.Time, n int) ([]
 	return []Event{}, nil
 }
 
+func (d *Dummy) SaveAnonymousEvent(destinationId, anonymousId, eventId, payload string) error {
+	return nil
+}
+
+func (d *Dummy) GetAnonymousEvents(destinationId, anonymousId string) (map[string]string, error) {
+	return map[string]string{}, nil
+}
+
+func (d *Dummy) DeleteAnonymousEvent(destinationId, anonymousId, eventId string) error {
+	return nil
+}
+
 func (d *Dummy) Type() string {
 	return DummyType
 }

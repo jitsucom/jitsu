@@ -69,7 +69,7 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.
 	dbSchema, ok := th.tables[dataSchema.Name]
 	th.RUnlock()
 
-	//get or create
+	//get from DWH or create
 	if !ok {
 		dbSchema, err = th.getOrCreate(destinationName, dataSchema)
 		if err != nil {
@@ -82,13 +82,13 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.
 		th.Unlock()
 	}
 
-	diff := dbSchema.Diff(dataSchema)
-
 	//if diff doesn't exist - do nothing
+	diff := dbSchema.Diff(dataSchema)
 	if !diff.Exists() {
 		return dbSchema, nil
 	}
 
+	//** Diff exists **
 	//patch schema
 	lock, err := th.monitorKeeper.Lock(destinationName, dbSchema.Name)
 	if err != nil {
@@ -98,6 +98,13 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.
 	}
 	defer th.monitorKeeper.Unlock(lock)
 
+	//handle schema local changes (patching was in another goroutine)
+	diff = dbSchema.Diff(dataSchema)
+	if !diff.Exists() {
+		return dbSchema, nil
+	}
+
+	//handle schema remote changes (in multi-cluster setup)
 	ver, err := th.monitorKeeper.GetVersion(destinationName, dbSchema.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting table %s version: %v", dataSchema.Name, err)
