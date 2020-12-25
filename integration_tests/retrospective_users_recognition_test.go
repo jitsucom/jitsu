@@ -93,7 +93,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 
 	eventsCache := caching.NewEventsCache(metaStorage, 100)
-	destinationService, err := destinations.NewService(ctx, nil, destinationConfig, "/tmp", monitor, eventsCache, logging.NewFactory("/tmp", 5, false, nil), storages.Create)
+	destinationService, err := destinations.NewService(ctx, nil, destinationConfig, "/tmp", monitor, eventsCache, logging.NewFactory("/tmp", 5, false, nil, nil), storages.Create)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
 
