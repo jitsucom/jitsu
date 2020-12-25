@@ -50,7 +50,7 @@ type RecognitionService struct {
 	closed bool
 }
 
-//NewRecognitionService create a new RecognitionService if not disabled and if metaStorage configuration exists
+//NewRecognitionService create a new RecognitionService if enabled and if metaStorage configuration exists
 func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service, configuration *storages.UsersRecognition, logEventPath string) (*RecognitionService, error) {
 	if configuration == nil || !configuration.Enabled || metaStorage.Type() == meta.DummyType {
 		if metaStorage != nil && metaStorage.Type() == meta.DummyType {
@@ -60,9 +60,14 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		return &RecognitionService{closed: true}, nil
 	}
 
+	err := configuration.Validate()
+	if err != nil {
+		return nil, fmt.Errorf("Invalid users recognition configuration: %v", err)
+	}
+
 	queue, err := dque.NewOrOpen(queueName, logEventPath, recognitionPayloadPerFile, RecognitionPayloadBuilder)
 	if err != nil {
-		return nil, fmt.Errorf("Error opening/creating event queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
+		return nil, fmt.Errorf("Error opening/creating recognized events queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
 	}
 
 	rs := &RecognitionService{
@@ -229,7 +234,7 @@ func (rs *RecognitionService) runPipeline(destinationId string, identifiers Even
 
 		err = configuration.UserIdJsonPath.Set(event, identifiers.UserId)
 		if err != nil {
-			logging.SystemErrorf("[%s] Error setting recognized user id into event: %s with json path rule [%s]: %v", destinationId, storedSerializedEvent, configuration.UserIdJsonPath.String(), err)
+			logging.Errorf("[%s] Error setting recognized user id into event: %s with json path rule [%s]: %v", destinationId, storedSerializedEvent, configuration.UserIdJsonPath.String(), err)
 			continue
 		}
 

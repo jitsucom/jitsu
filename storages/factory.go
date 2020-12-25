@@ -53,6 +53,20 @@ type UsersRecognition struct {
 	UserIdNode      string `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
 }
 
+func (ur *UsersRecognition) Validate() error {
+	if ur != nil && ur.Enabled {
+		if ur.AnonymousIdNode == "" {
+			return errors.New("anonymous_id_node is required")
+		}
+
+		if ur.UserIdNode == "" {
+			return errors.New("user_id_node is required")
+		}
+	}
+
+	return nil
+}
+
 type Config struct {
 	ctx              context.Context
 	name             string
@@ -160,10 +174,15 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	//retrospective users recognition
 	var usersRecognition *events.UserRecognitionConfiguration
 	if destination.UsersRecognition != nil {
-		usersRecognition = &events.UserRecognitionConfiguration{
-			Enabled:             destination.UsersRecognition.Enabled,
-			AnonymousIdJsonPath: jsonutils.NewJsonPath(destination.UsersRecognition.AnonymousIdNode),
-			UserIdJsonPath:      jsonutils.NewJsonPath(destination.UsersRecognition.UserIdNode),
+		err := destination.UsersRecognition.Validate()
+		if err != nil {
+			logging.Infof("[%s] invalid users recognition configuration: %v", name, err)
+		} else {
+			usersRecognition = &events.UserRecognitionConfiguration{
+				Enabled:             destination.UsersRecognition.Enabled,
+				AnonymousIdJsonPath: jsonutils.NewJsonPath(destination.UsersRecognition.AnonymousIdNode),
+				UserIdJsonPath:      jsonutils.NewJsonPath(destination.UsersRecognition.UserIdNode),
+			}
 		}
 	} else {
 		logging.Infof("[%s] users recognition isn't configured", name)
