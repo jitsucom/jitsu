@@ -62,7 +62,7 @@ func (vn *VersionReminder) Start() {
 					}
 
 					if parsedNewTag[1] > MajorVersion || parsedNewTag[3] > MinorVersion {
-						//banner format expects version 12 letters for correct formatting (e.g. v1.XX-betaYY)
+						//banner format expects version 13 letters for correct formatting (e.g. v1.XX-betaYY)
 						newTagName := parsedNewTag[0]
 						for i := len(newTagName); i < 13; i++ {
 							newTagName += " "
