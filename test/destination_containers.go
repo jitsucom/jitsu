@@ -99,14 +99,14 @@ func (pgc *PostgresContainer) CountRows(table string) (int, error) {
 	return count, err
 }
 
-func (pgc *PostgresContainer) GetAllRows(table string) ([]map[string]interface{}, error) {
+func (pgc *PostgresContainer) GetAllSortedRows(table, orderClause string) ([]map[string]interface{}, error) {
 	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
 		pgc.Host, pgc.Port, pgc.Database, pgc.Username, pgc.Password)
 	dataSource, err := sql.Open("postgres", connectionString)
 	if err != nil {
 		return nil, err
 	}
-	rows, err := dataSource.Query(fmt.Sprintf("SELECT * from %s", table))
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT * from %s %s", table, orderClause))
 	if err != nil {
 		return nil, err
 	}
