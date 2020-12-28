@@ -51,7 +51,8 @@ func (vn *VersionReminder) Start() {
 			for _, rl := range releasesList {
 				if rl != nil && rl.TagName != nil {
 					//compare beta and stable releases separately
-					if Beta && !strings.Contains(*rl.TagName, "beta") {
+					if (Beta && !strings.Contains(*rl.TagName, "beta")) ||
+						(!Beta && strings.Contains(*rl.TagName, "beta")) {
 						continue
 					}
 
@@ -61,7 +62,7 @@ func (vn *VersionReminder) Start() {
 						break
 					}
 
-					if parsedNewTag[1] > MajorVersion || parsedNewTag[3] > MinorVersion {
+					if parsedNewTag[1] > MajorVersion || (parsedNewTag[1] > MajorVersion && parsedNewTag[3] > MinorVersion) {
 						//banner format expects version 13 letters for correct formatting (e.g. v1.XX-betaYY)
 						newTagName := parsedNewTag[0]
 						for i := len(newTagName); i < 13; i++ {
