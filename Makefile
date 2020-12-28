@@ -4,7 +4,7 @@ export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
 commit=`git rev-parse --short HEAD`
 built_at=`date -u +%FT%T.000000Z`
-tag=`git describe --tags`
+tag=v1.25.20
 
 all: clean assemble
 
