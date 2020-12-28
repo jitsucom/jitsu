@@ -96,7 +96,14 @@ func main() {
 		logging.Fatal("Error while reading application config: ", err)
 	}
 
-	appconfig.Version = strings.Split(tag, "-")[0]
+	//parse EN version
+	parsed := appconfig.VersionRegex.FindStringSubmatch(tag)
+	if len(parsed) == 4 {
+		appconfig.RawVersion = parsed[0]
+		appconfig.MajorVersion = parsed[1]
+		appconfig.MinorVersion = parsed[3]
+		appconfig.Beta = parsed[2] == "beta"
+	}
 
 	if err := appconfig.Init(); err != nil {
 		logging.Fatal(err)

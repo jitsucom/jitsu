@@ -62,7 +62,7 @@ func (mf *MappingField) Validate() error {
 // /src/ --move--> /dst
 // /src/ --move--> (Lowcardinality(String)) /dst
 // /src/ --remove-->
-// /src/ --cast--> (Lowcardinality(String)) /dst
+// --cast--> (Lowcardinality(String)) /dst
 // value --constant--> (Lowcardinality(String)) /dst
 func (mf *MappingField) String() string {
 	typeCast := ""
@@ -72,6 +72,8 @@ func (mf *MappingField) String() string {
 	src := mf.Src
 	if mf.Action == CONSTANT {
 		src = fmt.Sprintf("%v", mf.Value)
+	} else if mf.Action == CAST {
+		src = ""
 	}
 	return fmt.Sprintf("%s --[%s]--> %s %s", src, mf.Action, typeCast, mf.Dst)
 }

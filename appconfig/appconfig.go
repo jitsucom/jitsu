@@ -23,8 +23,13 @@ type AppConfig struct {
 	closeMe []io.Closer
 }
 
-var Instance *AppConfig
-var Version string
+var (
+	Instance     *AppConfig
+	RawVersion   string
+	MajorVersion string
+	MinorVersion string
+	Beta         bool
+)
 
 func setDefaultParams() {
 	viper.SetDefault("server.name", "unnamed-server")
@@ -76,7 +81,7 @@ func Init() error {
 		return err
 	}
 
-	logWelcomeBanner(Version)
+	logWelcomeBanner(RawVersion)
 
 	logging.Info("*** Creating new AppConfig ***")
 	logging.Info("Server Name:", serverName)
