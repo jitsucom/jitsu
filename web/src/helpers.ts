@@ -1,3 +1,5 @@
+import uuid from "./uuid";
+
 export const getCookieDomain = () => {
     return location.hostname.replace('www.', '');
 };
@@ -34,8 +36,9 @@ export const setCookie = (name: string, value: string, expire: number, domain: s
     const expireString = expire === Infinity ? "; expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + expire;
     document.cookie = encodeURIComponent(name) + "=" + value + expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : "");
 };
-
+//deprecated
 export const generateId = () => Math.random().toString(36).substring(2, 12);
+export const generateUuidV4 = () => uuid();
 export const generateRandom = () => Math.random().toString(36).substring(2, 7);
 
 export const parseQuery = (qs?: string) => {

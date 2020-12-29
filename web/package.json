@@ -36,5 +36,8 @@
   },
   "files": [
     "dist/npm/*"
-  ]
+  ],
+  "dependencies": {
+    "uuid": "^8.3.2"
+  }
 }
