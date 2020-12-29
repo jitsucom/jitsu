@@ -1,4 +1,5 @@
-import uuid from "./uuid";
+// @ts-ignore
+import { v4 as uuid } from 'uuid';
 
 export const getCookieDomain = () => {
     return location.hostname.replace('www.', '');
@@ -38,6 +39,7 @@ export const setCookie = (name: string, value: string, expire: number, domain: s
 };
 //deprecated
 export const generateId = () => Math.random().toString(36).substring(2, 12);
+
 export const generateUuidV4 = () => uuid();
 export const generateRandom = () => Math.random().toString(36).substring(2, 7);
 
