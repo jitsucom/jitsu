@@ -5,6 +5,7 @@ import strip from '@rollup/plugin-strip';
 import babel from '@rollup/plugin-babel';
 import path from 'path';
 import copy from 'rollup-plugin-copy'
+import resolve from 'rollup-plugin-node-resolve';
 
 /**
  * Generates JS module to re-export tracker plugins
@@ -49,6 +50,7 @@ export default [
     {
         input: './src/browser.ts',
         plugins: [
+            resolve({browser: true}),
             pluginsGeneratorPlugin(['ga', 'segment']),
             typescriptPlugin,
             [],
@@ -76,6 +78,7 @@ export default [
         input: `src/main.ts`,
         plugins: [
             typescriptPlugin,
+            resolve({browser: true}),
             terser({
                 mangle: false,
                 module: true,
