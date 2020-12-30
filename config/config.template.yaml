@@ -89,8 +89,9 @@ destinations:
 #      folder: redshift_one #optional. Specify this parameter if several destinations use one s3 bucket
 #    data_layout:
 #      ## Mappings https://docs.eventnative.org/configuration-1/configuration/schema-and-mappings
-#      keep_unmapped: true #Optional. Default value is true. It is out of mapping behavior. When 'false' - only fields from mapping rules will be in the result object.
 #      mappings: #Optional
+#        keep_unmapped: true #Optional. Default value is true. It is out of mapping behavior. When 'false' - only fields from mapping rules will be in the result object.
+#        fields:
 #        - #src: /key1/key2
 #          dst: /key3
 #          action: move
