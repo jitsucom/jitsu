@@ -44,12 +44,14 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 
 	sourcesHandler := handlers.NewSourcesHandler(sources)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
+	dryRunHandler := handlers.NewDryRunHandler(destinations, events.NewJsPreprocessor())
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
 		apiV1.POST("/event", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 		apiV1.POST("/s2s/event", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server token. Please use s2s integration token"))
+		apiV1.POST("/event/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler, middleware.AdminTokenErr))
 		apiV1.POST("/sources/:id/sync", adminTokenMiddleware.AdminAuth(sourcesHandler.SyncHandler, middleware.AdminTokenErr))

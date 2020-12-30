@@ -71,7 +71,7 @@ type Config struct {
 	ctx              context.Context
 	name             string
 	destination      *DestinationConfig
-	usersRecognition *events.UserRecognitionConfiguration
+	usersRecognition *UserRecognitionConfiguration
 	processor        *schema.Processor
 	streamMode       bool
 	monitorKeeper    MonitorKeeper
@@ -85,7 +85,7 @@ type Config struct {
 //Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
 func Create(ctx context.Context, name, logEventPath string, destination DestinationConfig, monitorKeeper MonitorKeeper,
-	eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (events.StorageProxy, *events.PersistentQueue, error) {
+	eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = name
 	}
@@ -172,13 +172,13 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	}
 
 	//retrospective users recognition
-	var usersRecognition *events.UserRecognitionConfiguration
+	var usersRecognition *UserRecognitionConfiguration
 	if destination.UsersRecognition != nil {
 		err := destination.UsersRecognition.Validate()
 		if err != nil {
 			logging.Infof("[%s] invalid users recognition configuration: %v", name, err)
 		} else {
-			usersRecognition = &events.UserRecognitionConfiguration{
+			usersRecognition = &UserRecognitionConfiguration{
 				Enabled:             destination.UsersRecognition.Enabled,
 				AnonymousIdJsonPath: jsonutils.NewJsonPath(destination.UsersRecognition.AnonymousIdNode),
 				UserIdJsonPath:      jsonutils.NewJsonPath(destination.UsersRecognition.UserIdNode),
@@ -192,7 +192,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	//don't process user recognition in this case
 	if destination.Type == PostgresType && len(pkFields) == 0 {
 		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", name)
-		usersRecognition = &events.UserRecognitionConfiguration{Enabled: false}
+		usersRecognition = &UserRecognitionConfiguration{Enabled: false}
 	}
 
 	processor, err := schema.NewProcessor(name, tableName, fieldMapper, enrichmentRules, destination.BreakOnError)
@@ -223,7 +223,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		sqlTypeCasts:     sqlTypeCasts,
 	}
 
-	var storageProxy events.StorageProxy
+	var storageProxy StorageProxy
 	switch destination.Type {
 	case RedshiftType:
 		storageProxy = newProxy(NewAwsRedshift, storageConfig)

@@ -12,7 +12,7 @@ import (
 	"github.com/jitsucom/eventnative/schema"
 )
 
-var disabledRecognitionConfiguration = &events.UserRecognitionConfiguration{Enabled: false}
+var disabledRecognitionConfiguration = &UserRecognitionConfiguration{Enabled: false}
 
 //Store files to google BigQuery in two modes:
 //batch: via google cloud storage in batch mode (1 file = 1 operation)
@@ -28,7 +28,7 @@ type BigQuery struct {
 	eventsCache     *caching.EventsCache
 }
 
-func NewBigQuery(config *Config) (events.Storage, error) {
+func NewBigQuery(config *Config) (Storage, error) {
 	gConfig := config.destination.Google
 	if err := gConfig.Validate(config.streamMode); err != nil {
 		return nil, err
@@ -89,6 +89,10 @@ func NewBigQuery(config *Config) (events.Storage, error) {
 	return bq, nil
 }
 
+func (bq *BigQuery) DryRun(payload events.Event) ([]DryRunResponse, error) {
+	panic("implement me")
+}
+
 //Insert event in BigQuery
 func (bq *BigQuery) Insert(dataSchema *adapters.Table, event events.Event) (err error) {
 	dbTable, err := bq.tableHelper.EnsureTable(bq.Name(), dataSchema)
@@ -112,14 +116,14 @@ func (bq *BigQuery) Insert(dataSchema *adapters.Table, event events.Event) (err 
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (bq *BigQuery) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+func (bq *BigQuery) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
 	return bq.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //StoreWithParseFunc store file from byte payload to BigQuery with processing
 //return result per table, failed events count and err if occurred
 func (bq *BigQuery) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
 	flatData, failedEvents, err := bq.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
@@ -131,11 +135,11 @@ func (bq *BigQuery) StoreWithParseFunc(fileName string, payload []byte, alreadyU
 	}
 
 	storeFailedEvents := true
-	tableResults := map[string]*events.StoreResult{}
+	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
 		table := bq.tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := bq.storeTable(fdata, table)
-		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
 		if err != nil {
 			storeFailedEvents = false
 		}
@@ -186,7 +190,7 @@ func (bq *BigQuery) SyncStore(collectionTable string, objects []map[string]inter
 	return 0, errors.New("BigQuery doesn't support sync store")
 }
 
-func (bq *BigQuery) GetUsersRecognition() *events.UserRecognitionConfiguration {
+func (bq *BigQuery) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
 

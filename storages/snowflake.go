@@ -29,7 +29,7 @@ type Snowflake struct {
 }
 
 //NewSnowflake return Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
-func NewSnowflake(config *Config) (events.Storage, error) {
+func NewSnowflake(config *Config) (Storage, error) {
 	snowflakeConfig := config.destination.Snowflake
 	if err := snowflakeConfig.Validate(); err != nil {
 		return nil, err
@@ -135,6 +135,10 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 	return snowflakeAdapter, nil
 }
 
+func (s *Snowflake) DryRun(payload events.Event) ([]DryRunResponse, error) {
+	panic("implement me")
+}
+
 //Insert event in Snowflake (1 retry if err)
 func (s *Snowflake) Insert(table *adapters.Table, event events.Event) (err error) {
 	dbTable, err := s.tableHelper.EnsureTable(s.Name(), table)
@@ -158,14 +162,14 @@ func (s *Snowflake) Insert(table *adapters.Table, event events.Event) (err error
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (s *Snowflake) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+func (s *Snowflake) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
 	return s.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //Store file from byte payload to stage with processing
 //return result per table, failed events count and err if occurred
 func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
 	flatData, failedEvents, err := s.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
@@ -177,11 +181,11 @@ func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, alreadyU
 	}
 
 	storeFailedEvents := true
-	tableResults := map[string]*events.StoreResult{}
+	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
 		table := s.tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := s.storeTable(fdata, table)
-		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
 		if err != nil {
 			storeFailedEvents = false
 		}
@@ -228,7 +232,7 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 	return nil
 }
 
-func (s *Snowflake) GetUsersRecognition() *events.UserRecognitionConfiguration {
+func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
 

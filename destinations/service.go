@@ -34,7 +34,7 @@ type LoggerUsage struct {
 //Service is reloadable service of events destinations per token
 type Service struct {
 	storageFactoryMethod func(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig,
-		monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (events.StorageProxy, *events.PersistentQueue, error)
+		monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (storages.StorageProxy, *events.PersistentQueue, error)
 	ctx           context.Context
 	logEventPath  string
 	monitorKeeper storages.MonitorKeeper
@@ -65,7 +65,7 @@ func NewTestService(consumersByTokenId TokenizedConsumers, storagesByTokenId Tok
 func NewService(ctx context.Context, destinations *viper.Viper, destinationsSource, logEventPath string, monitorKeeper storages.MonitorKeeper,
 	eventsCache *caching.EventsCache, loggerFactory *logging.Factory,
 	storageFactoryMethod func(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig,
-		monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (events.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
+		monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (storages.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
 	service := &Service{
 		storageFactoryMethod: storageFactoryMethod,
 		ctx:                  ctx,
@@ -78,7 +78,7 @@ func NewService(ctx context.Context, destinations *viper.Viper, destinationsSour
 		loggersUsageByTokenId: map[string]*LoggerUsage{},
 
 		consumersByTokenId:      map[string]map[string]events.Consumer{},
-		storagesByTokenId:       map[string]map[string]events.StorageProxy{},
+		storagesByTokenId:       map[string]map[string]storages.StorageProxy{},
 		destinationsIdByTokenId: map[string]map[string]bool{},
 	}
 
@@ -126,7 +126,7 @@ func (ds *Service) GetConsumers(tokenId string) (consumers []events.Consumer) {
 	return
 }
 
-func (ds *Service) GetStorageById(id string) (events.StorageProxy, bool) {
+func (ds *Service) GetStorageById(id string) (storages.StorageProxy, bool) {
 	ds.RLock()
 	defer ds.RUnlock()
 
@@ -138,7 +138,7 @@ func (ds *Service) GetStorageById(id string) (events.StorageProxy, bool) {
 	return unit.storage, true
 }
 
-func (ds *Service) GetStorages(tokenId string) (storages []events.StorageProxy) {
+func (ds *Service) GetStorages(tokenId string) (storages []storages.StorageProxy) {
 	ds.RLock()
 	defer ds.RUnlock()
 	for _, s := range ds.storagesByTokenId[tokenId] {

@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/storages"
 )
 
 //Unit holds storage bundle for closing at once
 type Unit struct {
 	eventQueue *events.PersistentQueue
-	storage    events.StorageProxy
+	storage    storages.StorageProxy
 
 	tokenIds []string
 	hash     string

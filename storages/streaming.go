@@ -15,7 +15,7 @@ import (
 )
 
 type StreamingStorage interface {
-	events.Storage
+	Storage
 	Insert(dataSchema *adapters.Table, event events.Event) (err error)
 }
 
