@@ -32,6 +32,7 @@ type Storage interface {
 	GetUsersRecognition() *UserRecognitionConfiguration
 	Name() string
 	Type() string
+	IsStaging() bool
 }
 
 type StorageProxy interface {

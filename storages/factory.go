@@ -30,6 +30,7 @@ type DestinationConfig struct {
 	UsersRecognition *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
 	Enrichment       []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
 	BreakOnError     bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
+	Staged           bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
 
 	DataSource      *adapters.DataSourceConfig      `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	S3              *adapters.S3Config              `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`

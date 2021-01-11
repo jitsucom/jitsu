@@ -19,6 +19,7 @@ type GoogleAnalytics struct {
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
+	stage           bool
 }
 
 func NewGoogleAnalytics(config *Config) (Storage, error) {
@@ -43,6 +44,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 		processor:      config.processor,
 		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:    config.eventsCache,
+		stage:          config.destination.Staged,
 	}
 
 	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
@@ -88,6 +90,10 @@ func (ga *GoogleAnalytics) Name() string {
 
 func (ga *GoogleAnalytics) Type() string {
 	return GoogleAnalyticsType
+}
+
+func (ga *GoogleAnalytics) IsStaging() bool {
+	return ga.stage
 }
 
 func (ga *GoogleAnalytics) Close() (multiErr error) {

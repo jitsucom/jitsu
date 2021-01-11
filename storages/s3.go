@@ -18,6 +18,7 @@ type S3 struct {
 	processor      *schema.Processor
 	fallbackLogger *logging.AsyncLogger
 	eventsCache    *caching.EventsCache
+	stage          bool
 }
 
 func NewS3(config *Config) (Storage, error) {
@@ -43,6 +44,7 @@ func NewS3(config *Config) (Storage, error) {
 		processor:      config.processor,
 		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:    config.eventsCache,
+		stage:          config.destination.Staged,
 	}
 
 	return s3, nil
@@ -124,6 +126,10 @@ func (s3 *S3) Name() string {
 
 func (s3 *S3) Type() string {
 	return S3Type
+}
+
+func (s3 *S3) IsStaging() bool {
+	return s3.stage
 }
 
 func (s3 *S3) Close() error {

@@ -198,21 +198,21 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	newIds := TokenizedIds{}
 	for name, d := range dc {
 		//common case
-		destination := d
+		destinationConfig := d
 
 		//map token -> id
-		if len(destination.OnlyTokens) > 0 {
-			destination.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIdsByToken(destination.OnlyTokens)
+		if len(destinationConfig.OnlyTokens) > 0 {
+			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIdsByToken(destinationConfig.OnlyTokens)
 		} else {
 			logging.Warnf("[%s] only_tokens aren't provided. All tokens will be stored.", name)
-			destination.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIds()
+			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIds()
 		}
 
-		hash := getHash(name, destination)
+		hash := getHash(name, destinationConfig)
 		unit, ok := s.unitsByName[name]
 		if ok {
 			if unit.hash == hash {
-				//destination wasn't changed
+				//destinationConfig wasn't changed
 				continue
 			}
 			//remove old (for recreation)
@@ -221,36 +221,42 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 			s.Unlock()
 		}
 
-		if len(destination.OnlyTokens) == 0 {
-			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", name)
-			//authorization tokens weren't loaded => create this destination when authorization service will be reloaded
+		if len(destinationConfig.OnlyTokens) == 0 {
+			logging.Warnf("[%s] destinationConfig's authorization isn't ready. Will be created in next reloading cycle.", name)
+			//authorization tokens weren't loaded => create this destinationConfig when authorization service will be reloaded
 			//and call force reload on this service
 			continue
 		}
 
 		//create new
-		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, destination, s.monitorKeeper, s.eventsCache, s.loggerFactory)
+		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, destinationConfig, s.monitorKeeper, s.eventsCache, s.loggerFactory)
 		if err != nil {
-			logging.Errorf("[%s] Error initializing destination of type %s: %v", name, destination.Type, err)
+			logging.Errorf("[%s] Error initializing destinationConfig of type %s: %v", name, destinationConfig.Type, err)
 			continue
 		}
 
 		s.unitsByName[name] = &Unit{
 			eventQueue: eventQueue,
 			storage:    newStorageProxy,
-			tokenIds:   destination.OnlyTokens,
+			tokenIds:   destinationConfig.OnlyTokens,
 			hash:       hash,
 		}
 
 		//create:
 		//  1 logger per token id
-		//  1 queue per destination id
+		//  1 queue per destinationConfig id
 		//append:
 		//  storage per token id
 		//  consumers per client_secret and server_secret
-		for _, tokenId := range destination.OnlyTokens {
+		// If destinationConfig is staged, consumer must not be added as staged
+		// destinations may be used only by dry-run functionality
+		for _, tokenId := range destinationConfig.OnlyTokens {
+			if destinationConfig.Staged {
+				logging.Warnf("Skipping consumer creation for staged destinationConfig")
+				continue
+			}
 			newIds.Add(tokenId, name)
-			if destination.Mode == storages.StreamMode {
+			if destinationConfig.Mode == storages.StreamMode {
 				newConsumers.Add(tokenId, name, eventQueue)
 			} else {
 				//get or create new logger

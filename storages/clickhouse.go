@@ -24,6 +24,7 @@ type ClickHouse struct {
 	fallbackLogger                *logging.AsyncLogger
 	eventsCache                   *caching.EventsCache
 	usersRecognitionConfiguration *UserRecognitionConfiguration
+	staged                        bool
 }
 
 func NewClickHouse(config *Config) (Storage, error) {
@@ -71,6 +72,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 		eventsCache:                   config.eventsCache,
 		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
 		usersRecognitionConfiguration: config.usersRecognition,
+		staged:                        config.destination.Staged,
 	}
 
 	adapter, _ := ch.getAdapters()
@@ -238,6 +240,10 @@ func (ch *ClickHouse) Fallback(failedEvents ...*events.FailedEvent) {
 	for _, failedEvent := range failedEvents {
 		ch.fallbackLogger.ConsumeAny(failedEvent)
 	}
+}
+
+func (ch *ClickHouse) IsStaging() bool {
+	return ch.staged
 }
 
 //Close adapters.ClickHouse

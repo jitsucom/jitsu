@@ -22,6 +22,7 @@ type Postgres struct {
 	streamingWorker               *StreamingWorker
 	fallbackLogger                *logging.AsyncLogger
 	eventsCache                   *caching.EventsCache
+	staged                        bool
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 }
 
@@ -67,6 +68,7 @@ func NewPostgres(config *Config) (Storage, error) {
 		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:                   config.eventsCache,
 		usersRecognitionConfiguration: config.usersRecognition,
+		staged:                        config.destination.Staged,
 	}
 
 	if config.streamMode {
@@ -236,4 +238,8 @@ func (p *Postgres) Name() string {
 
 func (p *Postgres) Type() string {
 	return PostgresType
+}
+
+func (p *Postgres) IsStaging() bool {
+	return p.staged
 }

@@ -26,6 +26,7 @@ type Snowflake struct {
 	streamingWorker  *StreamingWorker
 	fallbackLogger   *logging.AsyncLogger
 	eventsCache      *caching.EventsCache
+	staged           bool
 }
 
 //NewSnowflake return Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
@@ -90,6 +91,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 		processor:        config.processor,
 		fallbackLogger:   config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:      config.eventsCache,
+		staged:           config.destination.Staged,
 	}
 
 	if config.streamMode {
@@ -253,6 +255,10 @@ func (s *Snowflake) Name() string {
 
 func (s *Snowflake) Type() string {
 	return SnowflakeType
+}
+
+func (s *Snowflake) IsStaging() bool {
+	return s.staged
 }
 
 func (s *Snowflake) Close() (multiErr error) {

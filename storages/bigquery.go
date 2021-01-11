@@ -26,6 +26,7 @@ type BigQuery struct {
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
+	staged          bool
 }
 
 func NewBigQuery(config *Config) (Storage, error) {
@@ -79,6 +80,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 		processor:      config.processor,
 		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:    config.eventsCache,
+		staged:         config.destination.Staged,
 	}
 
 	if config.streamMode {
@@ -207,6 +209,10 @@ func (bq *BigQuery) Name() string {
 
 func (bq *BigQuery) Type() string {
 	return BigQueryType
+}
+
+func (bq *BigQuery) IsStaging() bool {
+	return bq.staged
 }
 
 func (bq *BigQuery) Close() (multiErr error) {

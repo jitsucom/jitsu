@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
@@ -100,7 +101,10 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	//** Multiplexing **
 	consumers := eh.destinationService.GetConsumers(tokenId)
 	if len(consumers) == 0 {
-		logging.Warnf("Unknown token[%s] request was received. Event: %s", token, payload.Serialize())
+		noConsumerMessage := fmt.Sprintf("No destination is configured for token [%s] (or only staged ones)", token)
+		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: noConsumerMessage})
+		return
 	} else {
 		telemetry.Event()
 
