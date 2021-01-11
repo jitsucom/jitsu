@@ -52,7 +52,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 }
 
 func (ga *GoogleAnalytics) DryRun(payload events.Event) ([]DryRunResponse, error) {
-	panic("implement me")
+	return dryRun(payload, ga.processor, ga.tableHelper)
 }
 
 func (ga *GoogleAnalytics) Insert(table *adapters.Table, event events.Event) (err error) {

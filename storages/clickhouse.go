@@ -101,7 +101,8 @@ func (ch *ClickHouse) Type() string {
 }
 
 func (ch *ClickHouse) DryRun(payload events.Event) ([]DryRunResponse, error) {
-	panic("implement me")
+	_, tableHelper := ch.getAdapters()
+	return dryRun(payload, ch.processor, tableHelper)
 }
 
 //Insert event in ClickHouse (1 retry if err)

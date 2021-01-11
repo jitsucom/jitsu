@@ -53,7 +53,7 @@ func (s3 *S3) Consume(event events.Event, tokenId string) {
 }
 
 func (s3 *S3) DryRun(payload events.Event) ([]DryRunResponse, error) {
-	panic("implement me")
+	return nil, errors.New("s3 does not support dry run functionality")
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func

@@ -78,16 +78,7 @@ func NewPostgres(config *Config) (Storage, error) {
 }
 
 func (p *Postgres) DryRun(payload events.Event) ([]DryRunResponse, error) {
-	batchHeader, event, err := p.processor.ProcessEvent(payload)
-	if err != nil {
-		return nil, err
-	}
-	tableSchema := p.tableHelper.MapTableSchema(batchHeader)
-	var dryRunResponses []DryRunResponse
-	for name, column := range tableSchema.Columns {
-		dryRunResponses = append(dryRunResponses, DryRunResponse{Name: name, Type: column.SqlType, Value: event[name]})
-	}
-	return dryRunResponses, nil
+	return dryRun(payload, p.processor, p.tableHelper)
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func

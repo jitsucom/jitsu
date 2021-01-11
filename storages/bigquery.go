@@ -90,7 +90,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 }
 
 func (bq *BigQuery) DryRun(payload events.Event) ([]DryRunResponse, error) {
-	panic("implement me")
+	return dryRun(payload, bq.processor, bq.tableHelper)
 }
 
 //Insert event in BigQuery

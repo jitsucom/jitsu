@@ -136,7 +136,7 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 }
 
 func (s *Snowflake) DryRun(payload events.Event) ([]DryRunResponse, error) {
-	panic("implement me")
+	return dryRun(payload, s.processor, s.tableHelper)
 }
 
 //Insert event in Snowflake (1 retry if err)

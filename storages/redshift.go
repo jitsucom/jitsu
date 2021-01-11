@@ -89,7 +89,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 }
 
 func (ar *AwsRedshift) DryRun(payload events.Event) ([]DryRunResponse, error) {
-	panic("implement me")
+	return dryRun(payload, ar.processor, ar.tableHelper)
 }
 
 //Insert event in Redshift
