@@ -553,10 +553,10 @@ func TestClickhouseStreamInsertWithMerge(t *testing.T) {
        		}
      		}
    	}}`
-	testClickhouseStoreEvents(t, configTemplate, 1, "events_with_pk")
+	testClickhouseStoreEvents(t, configTemplate, 5, "events_with_pk", 1)
 }
 
-func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEventsCount int, tableName string) {
+func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCount int, tableName string, expectedEventsCount int) {
 	ctx := context.Background()
 	container, err := test.NewClickhouseContainer(ctx)
 	if err != nil {
@@ -604,7 +604,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
 	requestValue := []byte(`{"email": "test@domain.com", "key": 1}`)
-	for i := 0; i < 5; i++ {
+	for i := 0; i < sendEventsCount; i++ {
 		apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(apiReq)
