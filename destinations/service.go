@@ -212,7 +212,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		unit, ok := s.unitsByName[name]
 		if ok {
 			if unit.hash == hash {
-				//destinationConfig wasn't changed
+				//destination wasn't changed
 				continue
 			}
 			//remove old (for recreation)
@@ -222,8 +222,8 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		}
 
 		if len(destinationConfig.OnlyTokens) == 0 {
-			logging.Warnf("[%s] destinationConfig's authorization isn't ready. Will be created in next reloading cycle.", name)
-			//authorization tokens weren't loaded => create this destinationConfig when authorization service will be reloaded
+			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", name)
+			//authorization tokens weren't loaded => create this destination when authorization service will be reloaded
 			//and call force reload on this service
 			continue
 		}
@@ -231,7 +231,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		//create new
 		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, destinationConfig, s.monitorKeeper, s.eventsCache, s.loggerFactory)
 		if err != nil {
-			logging.Errorf("[%s] Error initializing destinationConfig of type %s: %v", name, destinationConfig.Type, err)
+			logging.Errorf("[%s] Error initializing destination of type %s: %v", name, destinationConfig.Type, err)
 			continue
 		}
 
@@ -244,15 +244,15 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 
 		//create:
 		//  1 logger per token id
-		//  1 queue per destinationConfig id
+		//  1 queue per destination id
 		//append:
 		//  storage per token id
 		//  consumers per client_secret and server_secret
-		// If destinationConfig is staged, consumer must not be added as staged
+		// If destination is staged, consumer must not be added as staged
 		// destinations may be used only by dry-run functionality
 		for _, tokenId := range destinationConfig.OnlyTokens {
 			if destinationConfig.Staged {
-				logging.Warnf("Skipping consumer creation for staged destinationConfig")
+				logging.Warnf("Skipping consumer creation for staged destination")
 				continue
 			}
 			newIds.Add(tokenId, name)

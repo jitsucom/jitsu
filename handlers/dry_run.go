@@ -53,13 +53,13 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 	}
 	storage, ok := storageProxy.Get()
 	if !ok {
-		logging.Error("Failed to get storage from proxy for id=%s", destinationId)
+		logging.Errorf("Failed to get storage from proxy for id=%s", destinationId)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: fmt.Sprintf("Failed to get storage from proxy for id=%s", destinationId)})
 		return
 	}
 	dataSchema, err := storage.DryRun(payload)
 	if err != nil {
-		logging.Error("Failed to log dry-run result for destination id=[%s]", destinationId)
+		logging.Errorf("Failed to log dry-run result for destination id=[%s]", destinationId)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: fmt.Sprintf("Failed log dry run response for id=%s", destinationId)})
 		return
 	}

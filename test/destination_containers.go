@@ -10,6 +10,7 @@ import (
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -90,7 +91,12 @@ func (pgc *PostgresContainer) CountRows(table string) (int, error) {
 	}
 	rows, err := dataSource.Query(fmt.Sprintf("SELECT count(*) from %s", table))
 	if err != nil {
-		return -1, err
+		errMessage := err.Error()
+		if strings.HasPrefix(errMessage, "pq: relation") && strings.HasSuffix(errMessage, "does not exist") {
+			return 0, err
+		} else {
+			return -1, err
+		}
 	}
 	defer rows.Close()
 	rows.Next()

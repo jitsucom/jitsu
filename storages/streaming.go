@@ -49,6 +49,9 @@ func newStreamingWorker(eventQueue *events.PersistentQueue, processor *schema.Pr
 func (sw *StreamingWorker) start() {
 	safego.RunWithRestart(func() {
 		for {
+			if sw.streamingStorage.IsStaging() {
+				break
+			}
 			if sw.closed {
 				break
 			}
