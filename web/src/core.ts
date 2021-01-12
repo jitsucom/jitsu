@@ -1,5 +1,5 @@
 import {
-    generateId, generateRandom, generateUuidV4,
+    generateId, generateRandom,
     getCookie,
     getCookieDomain, getCookies,
     getDataFromParams,
@@ -71,7 +71,7 @@ class TrackerImpl implements Tracker {
             this.logger.debug('Existing user id', idCookie);
             return idCookie;
         }
-        let newId = generateUuidV4();
+        let newId = generateId();
         this.logger.debug('New user id', newId);
         setCookie(this.idCookieName, newId, Infinity, this.cookieDomain, document.location.protocol !== "http:");
         return newId;
@@ -124,7 +124,7 @@ class TrackerImpl implements Tracker {
     getCtx(): EventCtx {
         let now = new Date();
         return {
-            event_id: generateUuidV4(),
+            event_id: "", //generate id on the backend side
             user: putId({
                 anonymous_id: this.anonymousId,
                 ...this.userProperties

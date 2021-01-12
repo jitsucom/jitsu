@@ -157,7 +157,7 @@ export type Conversion = {
  * Event context. Data that is present in any event type. Is assembled automatically
  */
 export type EventCtx = {
-  event_id: string                 //unique event id
+  event_id: string                 //unique event id or empty string for generating id on the backend side
   user: UserProps                  //user properties
   ids?: ThirdpartyIds              //user ids from external systems
   user_agent: string               //user
