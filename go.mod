@@ -9,11 +9,10 @@ require (
 	cloud.google.com/go/storage v1.5.0
 	firebase.google.com/go/v4 v4.1.0
 	github.com/aws/aws-sdk-go v1.34.0
-	github.com/containerd/containerd v1.4.1
-	github.com/containerd/typeurl v1.0.1 // indirect
 	github.com/coreos/etcd v3.3.13+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/gin-gonic/gin v1.6.3
+	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/gomodule/redigo v1.8.2
 	github.com/google/go-cmp v0.5.1 // indirect
