@@ -28,7 +28,8 @@ func NewDryRunHandler(destinationService *destinations.Service, preprocessor eve
 func (drh *DryRunHandler) Handle(c *gin.Context) {
 	iface, ok := c.Get(middleware.TokenName)
 	if !ok {
-		logging.SystemError("Token wasn't found in context")
+		logging.Error("Token wasn't found in context")
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "[token] parameter is not set"})
 		return
 	}
 	token := iface.(string)
@@ -59,8 +60,9 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 	}
 	dataSchema, err := storage.DryRun(payload)
 	if err != nil {
-		logging.Errorf("Failed to log dry-run result for destination id=[%s]", destinationId)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: fmt.Sprintf("Failed log dry run response for id=%s", destinationId)})
+		dryRunError := fmt.Sprintf("Failed to get dry run response for destination id=[%s]", destinationId)
+		logging.Errorf("%s: %v", dryRunError, err)
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: dryRunError, Error: err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, dataSchema)
