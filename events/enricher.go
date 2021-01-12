@@ -10,6 +10,7 @@ const (
 	EventIdKey = "event_id"
 )
 
+//EnrichWithEventId put eventId to EventnKey_EventIdKey key if it doesn't exist there or if there is an empty string
 func EnrichWithEventId(object map[string]interface{}, eventId string) {
 	eventnObject, ok := object[EventnKey]
 	if !ok {
@@ -17,7 +18,8 @@ func EnrichWithEventId(object map[string]interface{}, eventId string) {
 		object[EventnKey] = eventnObject
 	} else {
 		if eventn, ok := eventnObject.(map[string]interface{}); ok {
-			if _, ok := eventn[EventIdKey]; !ok {
+			val, ok := eventn[EventIdKey]
+			if !ok || val == "" {
 				eventn[EventIdKey] = eventId
 			}
 		} else {
