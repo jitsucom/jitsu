@@ -45,7 +45,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          version: 19.03.12
+          version: 19.03.13
       - run:
           name: Build and Push Docker image
           command: |
@@ -61,7 +61,7 @@ jobs:
     steps:
       - checkout
       - setup_remote_docker:
-          version: 19.03.12
+          version: 19.03.13
       - run:
           name: Build and Push Docker image
           command: |
