@@ -450,7 +450,7 @@ func TestPostgresDryRun(t *testing.T) {
         		}
       		}
     	}}`
-	testPostgresStoreEvents(t, configTemplate, "/api/v1/event/dry-run?token=s2stoken&destination_id=test", 1, "dry_run", 0, true)
+	testPostgresStoreEvents(t, configTemplate, "/api/v1/events/dry-run?token=s2stoken&destination_id=test", 1, "dry_run", 0, true)
 }
 
 func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, endpoint string, sendEventsCount int,

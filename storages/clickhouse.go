@@ -102,7 +102,7 @@ func (ch *ClickHouse) Type() string {
 	return ClickHouseType
 }
 
-func (ch *ClickHouse) DryRun(payload events.Event) ([]DryRunResponse, error) {
+func (ch *ClickHouse) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	_, tableHelper := ch.getAdapters()
 	return dryRun(payload, ch.processor, tableHelper)
 }

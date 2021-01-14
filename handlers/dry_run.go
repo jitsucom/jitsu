@@ -39,7 +39,7 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
 		return
 	}
-	destinationId := c.Request.URL.Query().Get("destination_id")
+	destinationId := c.Query("destination_id")
 	if destinationId == "" {
 		logging.Errorf(emptyDestinationIdMessage)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: emptyDestinationIdMessage})

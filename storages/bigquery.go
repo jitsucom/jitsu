@@ -91,7 +91,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 	return bq, nil
 }
 
-func (bq *BigQuery) DryRun(payload events.Event) ([]DryRunResponse, error) {
+func (bq *BigQuery) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return dryRun(payload, bq.processor, bq.tableHelper)
 }
 

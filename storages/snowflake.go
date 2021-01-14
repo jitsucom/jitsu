@@ -137,7 +137,7 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 	return snowflakeAdapter, nil
 }
 
-func (s *Snowflake) DryRun(payload events.Event) ([]DryRunResponse, error) {
+func (s *Snowflake) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return dryRun(payload, s.processor, s.tableHelper)
 }
 

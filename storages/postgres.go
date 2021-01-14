@@ -79,7 +79,7 @@ func NewPostgres(config *Config) (Storage, error) {
 	return p, nil
 }
 
-func (p *Postgres) DryRun(payload events.Event) ([]DryRunResponse, error) {
+func (p *Postgres) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return dryRun(payload, p.processor, p.tableHelper)
 }
 

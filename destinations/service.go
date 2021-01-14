@@ -252,7 +252,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		// destinations may be used only by dry-run functionality
 		for _, tokenId := range destinationConfig.OnlyTokens {
 			if destinationConfig.Staged {
-				logging.Warnf("Skipping consumer creation for staged destination")
+				logging.Warnf("[%s] Skipping consumer creation for staged destination", name)
 				continue
 			}
 			newIds.Add(tokenId, name)

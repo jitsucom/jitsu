@@ -24,7 +24,7 @@ type AwsRedshift struct {
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
-	stage           bool
+	staged          bool
 }
 
 //NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
@@ -79,7 +79,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		processor:       config.processor,
 		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:     config.eventsCache,
-		stage:           config.destination.Staged,
+		staged:          config.destination.Staged,
 	}
 
 	if config.streamMode {
@@ -90,7 +90,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	return ar, nil
 }
 
-func (ar *AwsRedshift) DryRun(payload events.Event) ([]DryRunResponse, error) {
+func (ar *AwsRedshift) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return dryRun(payload, ar.processor, ar.tableHelper)
 }
 
@@ -211,7 +211,7 @@ func (ar *AwsRedshift) Type() string {
 }
 
 func (ar *AwsRedshift) IsStaging() bool {
-	return ar.stage
+	return ar.staged
 }
 
 func (ar *AwsRedshift) Close() (multiErr error) {

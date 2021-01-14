@@ -18,7 +18,7 @@ type S3 struct {
 	processor      *schema.Processor
 	fallbackLogger *logging.AsyncLogger
 	eventsCache    *caching.EventsCache
-	stage          bool
+	staged         bool
 }
 
 func NewS3(config *Config) (Storage, error) {
@@ -44,7 +44,7 @@ func NewS3(config *Config) (Storage, error) {
 		processor:      config.processor,
 		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:    config.eventsCache,
-		stage:          config.destination.Staged,
+		staged:         config.destination.Staged,
 	}
 
 	return s3, nil
@@ -54,7 +54,7 @@ func (s3 *S3) Consume(event events.Event, tokenId string) {
 	logging.Errorf("[%s] S3 storage doesn't support streaming mode", s3.Name())
 }
 
-func (s3 *S3) DryRun(payload events.Event) ([]DryRunResponse, error) {
+func (s3 *S3) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return nil, errors.New("s3 does not support dry run functionality")
 }
 
@@ -129,7 +129,7 @@ func (s3 *S3) Type() string {
 }
 
 func (s3 *S3) IsStaging() bool {
-	return s3.stage
+	return s3.staged
 }
 
 func (s3 *S3) Close() error {

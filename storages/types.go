@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/jsonutils"
 	"io"
@@ -16,15 +17,9 @@ const (
 	GoogleAnalyticsType = "google_analytics"
 )
 
-type DryRunResponse struct {
-	Name  string      `json:"name"`
-	Type  string      `json:"type"`
-	Value interface{} `json:"value"`
-}
-
 type Storage interface {
 	io.Closer
-	DryRun(payload events.Event) ([]DryRunResponse, error)
+	DryRun(payload events.Event) ([]adapters.TableField, error)
 	Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error)
 	StoreWithParseFunc(fileName string, payload []byte, skipTables map[string]bool, parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error)
 	SyncStore(tableName string, objects []map[string]interface{}, timeIntervalValue string) (int, error)
