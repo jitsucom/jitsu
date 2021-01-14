@@ -110,6 +110,10 @@ func (s3 *S3) SyncStore(collectionTable string, objects []map[string]interface{}
 	return 0, errors.New("S3 doesn't support sync store")
 }
 
+func (s3 *S3) GetUsersRecognition() *events.UserRecognitionConfiguration {
+	return disabledRecognitionConfiguration
+}
+
 func (s3 *S3) Name() string {
 	return s3.name
 }

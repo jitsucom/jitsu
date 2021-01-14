@@ -99,6 +99,48 @@ func (pgc *PostgresContainer) CountRows(table string) (int, error) {
 	return count, err
 }
 
+func (pgc *PostgresContainer) GetAllSortedRows(table, orderClause string) ([]map[string]interface{}, error) {
+	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
+		pgc.Host, pgc.Port, pgc.Database, pgc.Username, pgc.Password)
+	dataSource, err := sql.Open("postgres", connectionString)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT * from %s %s", table, orderClause))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cols, _ := rows.Columns()
+
+	objects := []map[string]interface{}{}
+	for rows.Next() {
+		columns := make([]interface{}, len(cols))
+		columnPointers := make([]interface{}, len(cols))
+		for i := range columns {
+			columnPointers[i] = &columns[i]
+		}
+
+		// Scan the result into the column pointers...
+		if err := rows.Scan(columnPointers...); err != nil {
+			return nil, err
+		}
+
+		// Create our map, and retrieve the value for each column from the pointers slice,
+		// storing it in the map with the name of the column as the key.
+		object := make(map[string]interface{})
+		for i, colName := range cols {
+			val := columnPointers[i].(*interface{})
+			object[colName] = *val
+		}
+
+		objects = append(objects, object)
+	}
+
+	return objects, nil
+}
+
 func (pgc *PostgresContainer) Close() {
 	if pgc.Container != nil {
 		err := pgc.Container.Terminate(pgc.Context)
