@@ -11,9 +11,11 @@ jobs:
           POSTGRES_USER: test
           POSTGRES_PASSWORD: test
           POSTGRES_DB: test
+      - image: circleci/redis
     environment:
       PG_TEST_PORT: 5432
       CH_TEST_PORT: 8123
+      REDIS_TEST_PORT: 6379
       TEST_RESULTS: /tmp/test-results
       GO111MODULE: "on"
     steps:
@@ -24,6 +26,16 @@ jobs:
             - go-mod-v1-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run: go get github.com/jstemmer/go-junit-report
+      - run:
+          name: Waiting for Redis to be ready
+          command: |
+            for i in `seq 1 10`;
+            do
+              nc -z localhost 6379 && echo Success && exit 0
+              echo -n .
+              sleep 1
+            done
+            echo Failed waiting for Redis && exit 1
       - run:
           name: Run unit tests
           command: |

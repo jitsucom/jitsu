@@ -15,8 +15,17 @@ type DeleteConditions struct {
 	JoinCondition string
 }
 
-// Returns delete condition that removes objects based on eventn_ctx_time_interval value
+func (dc *DeleteConditions) IsEmpty() bool {
+	return len(dc.Conditions) == 0
+}
+
+//DeleteByTimeChunkCondition return delete condition that removes objects based on eventn_ctx_time_interval value
+//or empty condition if timeIntervalValue is empty
 func DeleteByTimeChunkCondition(timeIntervalValue string) *DeleteConditions {
+	if timeIntervalValue == "" {
+		return &DeleteConditions{}
+	}
+
 	return &DeleteConditions{
 		JoinCondition: "AND",
 		Conditions:    []DeleteCondition{{Field: events.EventnKey + "_" + events.TimeChunkKey, Clause: "=", Value: timeIntervalValue}},

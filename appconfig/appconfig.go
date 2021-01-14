@@ -23,8 +23,13 @@ type AppConfig struct {
 	closeMe []io.Closer
 }
 
-var Instance *AppConfig
-var Version string
+var (
+	Instance     *AppConfig
+	RawVersion   string
+	MajorVersion string
+	MinorVersion string
+	Beta         bool
+)
 
 func setDefaultParams() {
 	viper.SetDefault("server.name", "unnamed-server")
@@ -42,6 +47,9 @@ func setDefaultParams() {
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
 	viper.SetDefault("sql_debug_log.ddl.rotation_min", "1440")
+	viper.SetDefault("users_recognition.enabled", false)
+	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id")
+	viper.SetDefault("users_recognition.user_id_node", "/eventn_ctx/user/internal_id")
 }
 
 func Init() error {
@@ -73,7 +81,7 @@ func Init() error {
 		return err
 	}
 
-	logWelcomeBanner(Version)
+	logWelcomeBanner(RawVersion)
 
 	logging.Info("*** Creating new AppConfig ***")
 	logging.Info("Server Name:", serverName)

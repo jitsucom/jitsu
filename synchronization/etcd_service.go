@@ -64,15 +64,19 @@ func NewService(ctx context.Context, serverName, syncServiceType, syncServiceEnd
 	}
 }
 
+//Lock try to get Etcd monitor with timeout (30 seconds)
 func (es *EtcdService) Lock(system string, collection string) (storages.Lock, error) {
-	session, sessionError := concurrency.NewSession(es.client)
+	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
+	defer cancel()
+
+	session, sessionError := concurrency.NewSession(es.client, concurrency.WithContext(ctx))
 	if sessionError != nil {
 		return nil, sessionError
 	}
 	identifier := system + "_" + collection
 	l := concurrency.NewMutex(session, identifier)
 
-	if err := l.Lock(es.ctx); err != nil {
+	if err := l.Lock(ctx); err != nil {
 		return nil, err
 	}
 

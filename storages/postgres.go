@@ -15,13 +15,14 @@ import (
 //batch: (1 file = 1 statement)
 //stream: (1 object = 1 statement)
 type Postgres struct {
-	name            string
-	adapter         *adapters.Postgres
-	tableHelper     *TableHelper
-	processor       *schema.Processor
-	streamingWorker *StreamingWorker
-	fallbackLogger  *logging.AsyncLogger
-	eventsCache     *caching.EventsCache
+	name                          string
+	adapter                       *adapters.Postgres
+	tableHelper                   *TableHelper
+	processor                     *schema.Processor
+	streamingWorker               *StreamingWorker
+	fallbackLogger                *logging.AsyncLogger
+	eventsCache                   *caching.EventsCache
+	usersRecognitionConfiguration *events.UserRecognitionConfiguration
 }
 
 func NewPostgres(config *Config) (events.Storage, error) {
@@ -59,12 +60,13 @@ func NewPostgres(config *Config) (events.Storage, error) {
 	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres)
 
 	p := &Postgres{
-		name:           config.name,
-		adapter:        adapter,
-		tableHelper:    tableHelper,
-		processor:      config.processor,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
-		eventsCache:    config.eventsCache,
+		name:                          config.name,
+		adapter:                       adapter,
+		tableHelper:                   tableHelper,
+		processor:                     config.processor,
+		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:                   config.eventsCache,
+		usersRecognitionConfiguration: config.usersRecognition,
 	}
 
 	if config.streamMode {
@@ -144,10 +146,12 @@ func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-//SyncStore store chunk payload to Postgres with processing
+//SyncStore is used in two cases:
+//1. store chunk payload to Postgres with processing
+//2. store recognized users events
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (p *Postgres) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
+func (p *Postgres) SyncStore(overriddenCollectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
 	flatData, err := p.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -159,7 +163,12 @@ func (p *Postgres) SyncStore(collectionTable string, objects []map[string]interf
 	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
-		table.Name = collectionTable
+
+		//override table name
+		if overriddenCollectionTable != "" {
+			table.Name = overriddenCollectionTable
+		}
+
 		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
 		if err != nil {
 			return 0, err
@@ -192,6 +201,10 @@ func (p *Postgres) Insert(table *adapters.Table, event events.Event) (err error)
 	}
 
 	return nil
+}
+
+func (p *Postgres) GetUsersRecognition() *events.UserRecognitionConfiguration {
+	return p.usersRecognitionConfiguration
 }
 
 //Close adapters.Postgres

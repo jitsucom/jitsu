@@ -40,6 +40,11 @@ type Storage interface {
 	GetEvents(destinationId string, start, end time.Time, n int) ([]Event, error)
 	GetTotalEvents(destinationId string) (int, error)
 
+	//user recognition
+	SaveAnonymousEvent(destinationId, anonymousId, eventId, payload string) error
+	GetAnonymousEvents(destinationId, anonymousId string) (map[string]string, error)
+	DeleteAnonymousEvent(destinationId, anonymousId, eventId string) error
+
 	Type() string
 }
 
