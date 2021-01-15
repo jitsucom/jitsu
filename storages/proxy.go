@@ -1,7 +1,6 @@
 package storages
 
 import (
-	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/safego"
 	"sync"
@@ -10,15 +9,15 @@ import (
 
 type RetryableProxy struct {
 	sync.RWMutex
-	factoryMethod func(*Config) (events.Storage, error)
+	factoryMethod func(*Config) (Storage, error)
 
 	config  *Config
-	storage events.Storage
+	storage Storage
 	ready   bool
 	closed  bool
 }
 
-func newProxy(factoryMethod func(*Config) (events.Storage, error), config *Config) events.StorageProxy {
+func newProxy(factoryMethod func(*Config) (Storage, error), config *Config) StorageProxy {
 	rsp := &RetryableProxy{factoryMethod: factoryMethod, config: config}
 	rsp.start()
 	return rsp
@@ -50,7 +49,7 @@ func (rsp *RetryableProxy) start() {
 	}).WithRestartTimeout(1 * time.Minute)
 }
 
-func (rsp *RetryableProxy) Get() (events.Storage, bool) {
+func (rsp *RetryableProxy) Get() (Storage, bool) {
 	rsp.RLock()
 	defer rsp.RUnlock()
 	return rsp.storage, rsp.ready

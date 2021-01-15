@@ -44,7 +44,7 @@ func RecognitionPayloadBuilder() interface{} {
 type RecognitionService struct {
 	metaStorage              meta.Storage
 	destinationService       *destinations.Service
-	recognitionConfiguration *events.UserRecognitionConfiguration
+	recognitionConfiguration *storages.UserRecognitionConfiguration
 
 	queue  *dque.DQue
 	closed bool
@@ -73,7 +73,7 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 	rs := &RecognitionService{
 		destinationService: destinationService,
 		metaStorage:        metaStorage,
-		recognitionConfiguration: &events.UserRecognitionConfiguration{
+		recognitionConfiguration: &storages.UserRecognitionConfiguration{
 			Enabled:             configuration.Enabled,
 			AnonymousIdJsonPath: jsonutils.NewJsonPath(configuration.AnonymousIdNode),
 			UserIdJsonPath:      jsonutils.NewJsonPath(configuration.UserIdNode),
@@ -155,6 +155,11 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 		storage, ok := storageProxy.Get()
 		if !ok {
 			logging.Errorf("Error recognizing user: Destination [%s] hasn't been initialized yet", destinationId)
+			continue
+		}
+
+		if storage.IsStaging() {
+			logging.Errorf("Error recognizing user: Destination [%s] is staged, user recognition is not allowed", destinationId)
 			continue
 		}
 

@@ -24,10 +24,11 @@ type AwsRedshift struct {
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
+	staged          bool
 }
 
 //NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
-func NewAwsRedshift(config *Config) (events.Storage, error) {
+func NewAwsRedshift(config *Config) (Storage, error) {
 	redshiftConfig := config.destination.DataSource
 	if err := redshiftConfig.Validate(); err != nil {
 		return nil, err
@@ -78,6 +79,7 @@ func NewAwsRedshift(config *Config) (events.Storage, error) {
 		processor:       config.processor,
 		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:     config.eventsCache,
+		staged:          config.destination.Staged,
 	}
 
 	if config.streamMode {
@@ -86,6 +88,10 @@ func NewAwsRedshift(config *Config) (events.Storage, error) {
 	}
 
 	return ar, nil
+}
+
+func (ar *AwsRedshift) DryRun(payload events.Event) ([]adapters.TableField, error) {
+	return dryRun(payload, ar.processor, ar.tableHelper)
 }
 
 //Insert event in Redshift
@@ -111,14 +117,14 @@ func (ar *AwsRedshift) Insert(table *adapters.Table, event events.Event) (err er
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (ar *AwsRedshift) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+func (ar *AwsRedshift) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
 	return ar.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //StoreWithParseFunc file payload to AwsRedshift with processing
 //return result per table, failed events count and err if occurred
 func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
 	flatData, failedEvents, err := ar.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
@@ -130,11 +136,11 @@ func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, alrea
 	}
 
 	storeFailedEvents := true
-	tableResults := map[string]*events.StoreResult{}
+	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
 		table := ar.tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := ar.storeTable(fdata, table)
-		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
 		if err != nil {
 			storeFailedEvents = false
 		}
@@ -192,7 +198,7 @@ func (ar *AwsRedshift) SyncStore(collectionTable string, objects []map[string]in
 	return 0, errors.New("RedShift doesn't support sync store")
 }
 
-func (ar *AwsRedshift) GetUsersRecognition() *events.UserRecognitionConfiguration {
+func (ar *AwsRedshift) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
 
@@ -202,6 +208,10 @@ func (ar *AwsRedshift) Name() string {
 
 func (ar *AwsRedshift) Type() string {
 	return RedshiftType
+}
+
+func (ar *AwsRedshift) IsStaging() bool {
+	return ar.staged
 }
 
 func (ar *AwsRedshift) Close() (multiErr error) {

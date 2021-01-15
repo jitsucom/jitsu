@@ -19,9 +19,10 @@ type GoogleAnalytics struct {
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
+	staged          bool
 }
 
-func NewGoogleAnalytics(config *Config) (events.Storage, error) {
+func NewGoogleAnalytics(config *Config) (Storage, error) {
 	if !config.streamMode {
 		return nil, fmt.Errorf("Google Analytics destination doesn't support %s mode", BatchMode)
 	}
@@ -43,6 +44,7 @@ func NewGoogleAnalytics(config *Config) (events.Storage, error) {
 		processor:      config.processor,
 		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:    config.eventsCache,
+		staged:         config.destination.Staged,
 	}
 
 	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
@@ -51,15 +53,19 @@ func NewGoogleAnalytics(config *Config) (events.Storage, error) {
 	return ga, nil
 }
 
+func (ga *GoogleAnalytics) DryRun(payload events.Event) ([]adapters.TableField, error) {
+	return dryRun(payload, ga.processor, ga.tableHelper)
+}
+
 func (ga *GoogleAnalytics) Insert(table *adapters.Table, event events.Event) (err error) {
 	return ga.gaAdapter.Send(event)
 }
 
-func (ga *GoogleAnalytics) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+func (ga *GoogleAnalytics) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
 	return nil, 0, errors.New("GoogleAnalytics doesn't support Store() func")
 }
 
-func (ga *GoogleAnalytics) StoreWithParseFunc(fileName string, payload []byte, skipTables map[string]bool, parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+func (ga *GoogleAnalytics) StoreWithParseFunc(fileName string, payload []byte, skipTables map[string]bool, parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
 	return nil, 0, errors.New("GoogleAnalytics doesn't support StoreWithParseFunc() func")
 }
 
@@ -67,7 +73,7 @@ func (ga *GoogleAnalytics) SyncStore(collectionTable string, objects []map[strin
 	return 0, errors.New("GoogleAnalytics doesn't support SyncStore() func")
 }
 
-func (ga *GoogleAnalytics) GetUsersRecognition() *events.UserRecognitionConfiguration {
+func (ga *GoogleAnalytics) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
 
@@ -84,6 +90,10 @@ func (ga *GoogleAnalytics) Name() string {
 
 func (ga *GoogleAnalytics) Type() string {
 	return GoogleAnalyticsType
+}
+
+func (ga *GoogleAnalytics) IsStaging() bool {
+	return ga.staged
 }
 
 func (ga *GoogleAnalytics) Close() (multiErr error) {

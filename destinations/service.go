@@ -34,7 +34,7 @@ type LoggerUsage struct {
 //Service is reloadable service of events destinations per token
 type Service struct {
 	storageFactoryMethod func(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig,
-		monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (events.StorageProxy, *events.PersistentQueue, error)
+		monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (storages.StorageProxy, *events.PersistentQueue, error)
 	ctx           context.Context
 	logEventPath  string
 	monitorKeeper storages.MonitorKeeper
@@ -65,7 +65,7 @@ func NewTestService(consumersByTokenId TokenizedConsumers, storagesByTokenId Tok
 func NewService(ctx context.Context, destinations *viper.Viper, destinationsSource, logEventPath string, monitorKeeper storages.MonitorKeeper,
 	eventsCache *caching.EventsCache, loggerFactory *logging.Factory,
 	storageFactoryMethod func(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig,
-		monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (events.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
+		monitorKeeper storages.MonitorKeeper, eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (storages.StorageProxy, *events.PersistentQueue, error)) (*Service, error) {
 	service := &Service{
 		storageFactoryMethod: storageFactoryMethod,
 		ctx:                  ctx,
@@ -78,7 +78,7 @@ func NewService(ctx context.Context, destinations *viper.Viper, destinationsSour
 		loggersUsageByTokenId: map[string]*LoggerUsage{},
 
 		consumersByTokenId:      map[string]map[string]events.Consumer{},
-		storagesByTokenId:       map[string]map[string]events.StorageProxy{},
+		storagesByTokenId:       map[string]map[string]storages.StorageProxy{},
 		destinationsIdByTokenId: map[string]map[string]bool{},
 	}
 
@@ -126,7 +126,7 @@ func (ds *Service) GetConsumers(tokenId string) (consumers []events.Consumer) {
 	return
 }
 
-func (ds *Service) GetStorageById(id string) (events.StorageProxy, bool) {
+func (ds *Service) GetStorageById(id string) (storages.StorageProxy, bool) {
 	ds.RLock()
 	defer ds.RUnlock()
 
@@ -138,7 +138,7 @@ func (ds *Service) GetStorageById(id string) (events.StorageProxy, bool) {
 	return unit.storage, true
 }
 
-func (ds *Service) GetStorages(tokenId string) (storages []events.StorageProxy) {
+func (ds *Service) GetStorages(tokenId string) (storages []storages.StorageProxy) {
 	ds.RLock()
 	defer ds.RUnlock()
 	for _, s := range ds.storagesByTokenId[tokenId] {
@@ -198,17 +198,17 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	newIds := TokenizedIds{}
 	for name, d := range dc {
 		//common case
-		destination := d
+		destinationConfig := d
 
 		//map token -> id
-		if len(destination.OnlyTokens) > 0 {
-			destination.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIdsByToken(destination.OnlyTokens)
+		if len(destinationConfig.OnlyTokens) > 0 {
+			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIdsByToken(destinationConfig.OnlyTokens)
 		} else {
 			logging.Warnf("[%s] only_tokens aren't provided. All tokens will be stored.", name)
-			destination.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIds()
+			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIds()
 		}
 
-		hash := getHash(name, destination)
+		hash := getHash(name, destinationConfig)
 		unit, ok := s.unitsByName[name]
 		if ok {
 			if unit.hash == hash {
@@ -221,7 +221,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 			s.Unlock()
 		}
 
-		if len(destination.OnlyTokens) == 0 {
+		if len(destinationConfig.OnlyTokens) == 0 {
 			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", name)
 			//authorization tokens weren't loaded => create this destination when authorization service will be reloaded
 			//and call force reload on this service
@@ -229,16 +229,16 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		}
 
 		//create new
-		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, destination, s.monitorKeeper, s.eventsCache, s.loggerFactory)
+		newStorageProxy, eventQueue, err := s.storageFactoryMethod(s.ctx, name, s.logEventPath, destinationConfig, s.monitorKeeper, s.eventsCache, s.loggerFactory)
 		if err != nil {
-			logging.Errorf("[%s] Error initializing destination of type %s: %v", name, destination.Type, err)
+			logging.Errorf("[%s] Error initializing destination of type %s: %v", name, destinationConfig.Type, err)
 			continue
 		}
 
 		s.unitsByName[name] = &Unit{
 			eventQueue: eventQueue,
 			storage:    newStorageProxy,
-			tokenIds:   destination.OnlyTokens,
+			tokenIds:   destinationConfig.OnlyTokens,
 			hash:       hash,
 		}
 
@@ -248,9 +248,15 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		//append:
 		//  storage per token id
 		//  consumers per client_secret and server_secret
-		for _, tokenId := range destination.OnlyTokens {
+		// If destination is staged, consumer must not be added as staged
+		// destinations may be used only by dry-run functionality
+		for _, tokenId := range destinationConfig.OnlyTokens {
+			if destinationConfig.Staged {
+				logging.Warnf("[%s] Skipping consumer creation for staged destination", name)
+				continue
+			}
 			newIds.Add(tokenId, name)
-			if destination.Mode == storages.StreamMode {
+			if destinationConfig.Mode == storages.StreamMode {
 				newConsumers.Add(tokenId, name, eventQueue)
 			} else {
 				//get or create new logger
