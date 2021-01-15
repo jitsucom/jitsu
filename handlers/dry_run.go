@@ -11,11 +11,6 @@ import (
 	"net/http"
 )
 
-const (
-	emptyDestinationIdMessage   = "destination_id must not be empty"
-	unknownDestinationIdMessage = "Destination with id=[%s] does not exist"
-)
-
 type DryRunHandler struct {
 	destinationService *destinations.Service
 	preprocessor       events.Preprocessor
@@ -26,13 +21,6 @@ func NewDryRunHandler(destinationService *destinations.Service, preprocessor eve
 }
 
 func (drh *DryRunHandler) Handle(c *gin.Context) {
-	iface, ok := c.Get(middleware.TokenName)
-	if !ok {
-		logging.Error("Token wasn't found in context")
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "[token] parameter is not set"})
-		return
-	}
-	token := iface.(string)
 	payload := events.Event{}
 	if err := c.BindJSON(&payload); err != nil {
 		logging.Errorf("Error parsing event body: %v", err)
@@ -41,26 +29,28 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 	}
 	destinationId := c.Query("destination_id")
 	if destinationId == "" {
+		emptyDestinationIdMessage := "Error getting [destination_id] parameter - it must not be empty"
 		logging.Errorf(emptyDestinationIdMessage)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: emptyDestinationIdMessage})
 		return
 	}
-	enrichment.ContextEnrichmentStep(payload, token, c.Request, drh.preprocessor)
+	enrichment.ContextEnrichmentStep(payload, c.GetString(middleware.TokenName), c.Request, drh.preprocessor)
 	storageProxy, ok := drh.destinationService.GetStorageById(destinationId)
 	if !ok {
-		logging.Errorf(unknownDestinationIdMessage, destinationId)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: fmt.Sprintf(unknownDestinationIdMessage, destinationId)})
+		destinationNotFoundErrorMessage := fmt.Sprintf("Error: destination with id=[%s] does not exist", destinationId)
+		logging.Error(destinationNotFoundErrorMessage)
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: destinationNotFoundErrorMessage})
 		return
 	}
 	storage, ok := storageProxy.Get()
 	if !ok {
-		logging.Errorf("Failed to get storage from proxy for id=%s", destinationId)
+		logging.Errorf("Error getting storage from proxy for id=[%s]", destinationId)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: fmt.Sprintf("Failed to get storage from proxy for id=%s", destinationId)})
 		return
 	}
 	dataSchema, err := storage.DryRun(payload)
 	if err != nil {
-		dryRunError := fmt.Sprintf("Failed to get dry run response for destination id=[%s]", destinationId)
+		dryRunError := fmt.Sprintf("Error getting dry run response for destination with id=[%s], %v", destinationId, err)
 		logging.Errorf("%s: %v", dryRunError, err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: dryRunError, Error: err.Error()})
 		return
