@@ -158,6 +158,11 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 			continue
 		}
 
+		if storage.IsStaging() {
+			logging.Errorf("Error recognizing user: Destination [%s] is staged, user recognition is not allowed", destinationId)
+			continue
+		}
+
 		configuration := storage.GetUsersRecognition()
 
 		//override destination recognition configuration with global one

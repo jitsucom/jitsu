@@ -101,7 +101,8 @@ func (s *Service) Replay(fileName, destinationId string, rawFile bool) error {
 		return fmt.Errorf("Destination [%s] hasn't been initialized yet", destinationId)
 	}
 	if storage.IsStaging() {
-		return fmt.Errorf("Destinations [%s] is in staged mode, cannot be used to store data (only available for dry-run)", destinationId)
+		return fmt.Errorf("Error running fallback for destination [%s] in staged mode, "+
+			"cannot be used to store data (only available for dry-run)", destinationId)
 	}
 
 	alreadyUploadedTables := map[string]bool{}
