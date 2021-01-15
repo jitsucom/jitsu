@@ -23,10 +23,11 @@ type ClickHouse struct {
 	streamingWorker               *StreamingWorker
 	fallbackLogger                *logging.AsyncLogger
 	eventsCache                   *caching.EventsCache
-	usersRecognitionConfiguration *events.UserRecognitionConfiguration
+	usersRecognitionConfiguration *UserRecognitionConfiguration
+	staged                        bool
 }
 
-func NewClickHouse(config *Config) (events.Storage, error) {
+func NewClickHouse(config *Config) (Storage, error) {
 	chConfig := config.destination.ClickHouse
 	if err := chConfig.Validate(); err != nil {
 		return nil, err
@@ -71,6 +72,7 @@ func NewClickHouse(config *Config) (events.Storage, error) {
 		eventsCache:                   config.eventsCache,
 		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
 		usersRecognitionConfiguration: config.usersRecognition,
+		staged:                        config.destination.Staged,
 	}
 
 	adapter, _ := ch.getAdapters()
@@ -100,6 +102,11 @@ func (ch *ClickHouse) Type() string {
 	return ClickHouseType
 }
 
+func (ch *ClickHouse) DryRun(payload events.Event) ([]adapters.TableField, error) {
+	_, tableHelper := ch.getAdapters()
+	return dryRun(payload, ch.processor, tableHelper)
+}
+
 //Insert event in ClickHouse (1 retry if err)
 func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (err error) {
 	adapter, tableHelper := ch.getAdapters()
@@ -125,14 +132,14 @@ func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (er
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (ch *ClickHouse) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+func (ch *ClickHouse) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
 	return ch.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //StoreWithParseFunc store file payload to ClickHouse with processing
 //return result per table, failed events count and err if occurred
 func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
 	flatData, failedEvents, err := ch.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
@@ -144,12 +151,12 @@ func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alread
 	}
 
 	storeFailedEvents := true
-	tableResults := map[string]*events.StoreResult{}
+	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := ch.storeTable(adapter, tableHelper, fdata, table)
-		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
 		if err != nil {
 			storeFailedEvents = false
 		}
@@ -224,7 +231,7 @@ func (ch *ClickHouse) SyncStore(overriddenCollectionTable string, objects []map[
 	return rowsCount, nil
 }
 
-func (ch *ClickHouse) GetUsersRecognition() *events.UserRecognitionConfiguration {
+func (ch *ClickHouse) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ch.usersRecognitionConfiguration
 }
 
@@ -233,6 +240,10 @@ func (ch *ClickHouse) Fallback(failedEvents ...*events.FailedEvent) {
 	for _, failedEvent := range failedEvents {
 		ch.fallbackLogger.ConsumeAny(failedEvent)
 	}
+}
+
+func (ch *ClickHouse) IsStaging() bool {
+	return ch.staged
 }
 
 //Close adapters.ClickHouse

@@ -21,7 +21,7 @@ type SyncTask struct {
 	driver      drivers.Driver
 	metaStorage meta.Storage
 
-	destinations []events.Storage
+	destinations []storages.Storage
 
 	lock storages.Lock
 }

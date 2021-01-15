@@ -7,7 +7,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/drivers"
-	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/metrics"
@@ -136,7 +135,7 @@ func (s *Service) Sync(sourceId string) (multiErr error) {
 		return errors.New("Source doesn't exist")
 	}
 
-	var destinationStorages []events.Storage
+	var destinationStorages []storages.Storage
 	for _, destinationId := range sourceUnit.DestinationIds {
 		storageProxy, ok := s.destinationsService.GetStorageById(destinationId)
 		if ok {
