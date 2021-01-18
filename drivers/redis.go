@@ -55,7 +55,7 @@ func NewRedis(ctx context.Context, sourceConfig *SourceConfig, collection *Colle
 		connectionPool: meta.NewRedisPool(config.Host, config.Port, config.Password)}, nil
 }
 
-func (Redis) GetAllAvailableIntervals() ([]*TimeInterval, error) {
+func (r *Redis) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	return []*TimeInterval{NewTimeInterval(ALL, time.Time{})}, nil
 }
 
@@ -81,7 +81,7 @@ func (r *Redis) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{},
 	return configs, nil
 }
 
-func (Redis) Type() string {
+func (r *Redis) Type() string {
 	return redisType
 }
 
