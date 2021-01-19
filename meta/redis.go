@@ -37,7 +37,21 @@ type Redis struct {
 //anonymous_events:destination_id#${destination_id}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
 func NewRedis(host string, port int, password string) (*Redis, error) {
 	logging.Infof("Initializing redis [%s:%d]...", host, port)
-	r := &Redis{pool: &redis.Pool{
+	r := &Redis{pool: NewRedisPool(host, port, password)}
+
+	//test connection
+	connection := r.pool.Get()
+	defer connection.Close()
+	_, err := redis.String(connection.Do("PING"))
+	if err != nil {
+		return nil, fmt.Errorf("Error testing connection to Redis: %v", err)
+	}
+
+	return r, nil
+}
+
+func NewRedisPool(host string, port int, password string) *redis.Pool {
+	return &redis.Pool{
 		MaxIdle:     100,
 		MaxActive:   600,
 		IdleTimeout: 240 * time.Second,
@@ -60,17 +74,7 @@ func NewRedis(host string, port int, password string) (*Redis, error) {
 			_, err := c.Do("PING")
 			return err
 		},
-	}}
-
-	//test connection
-	connection := r.pool.Get()
-	defer connection.Close()
-	_, err := redis.String(connection.Do("PING"))
-	if err != nil {
-		return nil, fmt.Errorf("Error testing connection to Redis: %v", err)
 	}
-
-	return r, nil
 }
 
 func (r *Redis) GetSignature(sourceId, collection, interval string) (string, error) {
