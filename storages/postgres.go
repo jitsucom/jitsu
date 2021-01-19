@@ -203,6 +203,11 @@ func (p *Postgres) Insert(table *adapters.Table, event events.Event) (err error)
 			return err
 		}
 
+		dbTable, err = p.tableHelper.EnsureTable(p.Name(), table)
+		if err != nil {
+			return err
+		}
+
 		return p.adapter.Insert(dbTable, event)
 	}
 

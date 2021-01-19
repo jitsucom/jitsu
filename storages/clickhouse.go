@@ -125,6 +125,11 @@ func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (er
 			return err
 		}
 
+		dbSchema, err = tableHelper.EnsureTable(ch.Name(), dataSchema)
+		if err != nil {
+			return err
+		}
+
 		return adapter.Insert(dbSchema, event)
 	}
 
