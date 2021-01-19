@@ -110,6 +110,11 @@ func (ar *AwsRedshift) Insert(table *adapters.Table, event events.Event) (err er
 			return err
 		}
 
+		dbTable, err = ar.tableHelper.EnsureTable(ar.Name(), table)
+		if err != nil {
+			return err
+		}
+
 		return ar.redshiftAdapter.Insert(dbTable, event)
 	}
 
