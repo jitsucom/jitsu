@@ -32,15 +32,17 @@ type RetryableLock struct {
 	identifier     string
 	resourceLock   ResourceLock
 	resourceCloser io.Closer
+	cancelFunc     context.CancelFunc
 	retryCount     int
 }
 
 //NewRetryableLock return RetryableLock
-func NewRetryableLock(identifier string, resourceLock ResourceLock, resourceCloser io.Closer, retryCount int) *RetryableLock {
+func NewRetryableLock(identifier string, resourceLock ResourceLock, resourceCloser io.Closer, cancelFunc context.CancelFunc, retryCount int) *RetryableLock {
 	return &RetryableLock{
 		identifier:     identifier,
 		resourceLock:   resourceLock,
 		resourceCloser: resourceCloser,
+		cancelFunc:     cancelFunc,
 		retryCount:     retryCount,
 	}
 }
@@ -72,6 +74,10 @@ func (rl *RetryableLock) unlock() error {
 		if closeError := rl.resourceCloser.Close(); closeError != nil {
 			logging.Errorf("%s unlocked successfully but failed to close resource: %v", rl.identifier, closeError)
 		}
+	}
+
+	if rl.cancelFunc != nil {
+		rl.cancelFunc()
 	}
 
 	return nil

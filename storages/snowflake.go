@@ -157,6 +157,11 @@ func (s *Snowflake) Insert(table *adapters.Table, event events.Event) (err error
 			return err
 		}
 
+		dbTable, err = s.tableHelper.EnsureTable(s.Name(), table)
+		if err != nil {
+			return err
+		}
+
 		return s.snowflakeAdapter.Insert(dbTable, event)
 	}
 

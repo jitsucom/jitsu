@@ -111,6 +111,11 @@ func (bq *BigQuery) Insert(dataSchema *adapters.Table, event events.Event) (err 
 			return err
 		}
 
+		dbTable, err = bq.tableHelper.EnsureTable(bq.Name(), dataSchema)
+		if err != nil {
+			return err
+		}
+
 		return bq.bqAdapter.Insert(dbTable, event)
 	}
 
