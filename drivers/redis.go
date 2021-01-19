@@ -51,6 +51,9 @@ func NewRedis(ctx context.Context, sourceConfig *SourceConfig, collection *Colle
 	if err != nil {
 		return nil, err
 	}
+	if collection.Type != "hash" {
+		return nil, errors.New("Only [hash] collection type is supported now")
+	}
 	return &Redis{collection: collection,
 		connectionPool: meta.NewRedisPool(config.Host, config.Port, config.Password)}, nil
 }
