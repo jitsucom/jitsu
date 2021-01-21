@@ -161,6 +161,7 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 					Metrics:    gaMetrics,
 					Dimensions: gaDimensions,
 					PageToken:  nextPageToken,
+					PageSize:   100000, // maximum size of page allowed
 				},
 			},
 		}
