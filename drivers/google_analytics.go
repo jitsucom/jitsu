@@ -150,28 +150,29 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 		gaMetrics = append(gaMetrics, &ga.Metric{Expression: metric})
 	}
 
-	req := &ga.GetReportsRequest{
-		ReportRequests: []*ga.ReportRequest{
-			{
-				ViewId:     viewId,
-				DateRanges: dateRanges,
-				Metrics:    gaMetrics,
-				Dimensions: gaDimensions,
-			},
-		},
-	}
-	response, err := g.service.Reports.BatchGet(req).Do()
-	if err != nil {
-		return nil, err
-	}
+	nextPageToken := ""
 	var result []map[string]interface{}
-	for _, report := range response.Reports {
+	for {
+		req := &ga.GetReportsRequest{
+			ReportRequests: []*ga.ReportRequest{
+				{
+					ViewId:     viewId,
+					DateRanges: dateRanges,
+					Metrics:    gaMetrics,
+					Dimensions: gaDimensions,
+					PageToken:  nextPageToken,
+				},
+			},
+		}
+		response, err := g.service.Reports.BatchGet(req).Do()
+		if err != nil {
+			return nil, err
+		}
+		report := response.Reports[0]
 		header := report.ColumnHeader
 		dimHeaders := header.Dimensions
 		metricHeaders := header.MetricHeader.MetricHeaderEntries
 		rows := report.Data.Rows
-
-		logging.Debug("Rows to sync:", len(rows))
 		for _, row := range rows {
 			gaEvent := make(map[string]interface{})
 			dims := row.Dimensions
@@ -199,6 +200,12 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 			}
 			result = append(result, gaEvent)
 		}
+		nextPageToken = report.NextPageToken
+		logging.Debug("Next page token: " + nextPageToken)
+		if nextPageToken == "" {
+			break
+		}
 	}
+	logging.Debug("Rows to sync:", len(result))
 	return result, nil
 }
