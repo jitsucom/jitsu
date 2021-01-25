@@ -45,10 +45,10 @@ const (
 	alterPrimaryKeyTemplate           = `ALTER TABLE "%s"."%s" ADD CONSTRAINT %s PRIMARY KEY (%s)`
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
-	mergeTemplate                     = `INSERT INTO %s.%s(%s) VALUES(%s) ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
-	deleteQueryTemplate               = "DELETE FROM %s.%s WHERE %s"
+	mergeTemplate                     = `INSERT INTO %s.%s(%s) VALUES %s ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
+	deleteQueryTemplate               = `DELETE FROM %s.%s WHERE %s`
 
-	placeholdersStringBuildErrTemplate = "Error building placeholders string: %v"
+	placeholdersStringBuildErrTemplate = `Error building placeholders string: %v`
 	postgresValuesLimit                = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
@@ -378,7 +378,8 @@ func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *
 
 //Insert provided object in postgres with typecasts
 func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error {
-	var header, placeholders string
+	var header string
+	placeholders := "("
 	var values []interface{}
 	i := 1
 	for name, value := range valuesMap {
@@ -391,6 +392,7 @@ func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error 
 
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
+	placeholders += ")"
 	query := p.insertQuery(table.GetPKFields(), table.Name, header, placeholders)
 	p.queryLogger.LogQueryWithValues(query, values)
 
