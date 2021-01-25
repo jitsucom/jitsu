@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -43,9 +44,12 @@ const (
 	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT IF EXISTS %s"
 	alterPrimaryKeyTemplate           = `ALTER TABLE "%s"."%s" ADD CONSTRAINT %s PRIMARY KEY (%s)`
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
-	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
+	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
 	mergeTemplate                     = `INSERT INTO %s.%s(%s) VALUES(%s) ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
 	deleteQueryTemplate               = "DELETE FROM %s.%s WHERE %s"
+
+	placeholdersStringBuildErrTemplate = "Error building placeholders string: %v"
+	postgresValuesLimit                = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
@@ -479,46 +483,75 @@ func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) er
 }
 
 func (p *Postgres) insertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	var placeholders string
+	start := time.Now()
+	var placeholdersBuilder strings.Builder
 	var header []string
-	i := 1
 	for name := range table.Columns {
 		header = append(header, name)
-
-		//$1::type, $2::type, $3, etc
-		castClause := ""
-		castType, ok := p.mappingTypeCasts[name]
-		if ok {
-			castClause = "::" + castType
-		}
-		placeholders += "$" + strconv.Itoa(i) + castClause + ","
-
-		i++
 	}
-
-	query := p.insertQuery(table.GetPKFields(), table.Name, strings.Join(header, ","), removeLastComma(placeholders))
-
-	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
-	if err != nil {
-		return fmt.Errorf("Error preparing bulk insert statement [%s] table %s statement: %v", query, table.Name, err)
+	maxValues := len(objects) * len(table.Columns)
+	if maxValues > postgresValuesLimit {
+		maxValues = postgresValuesLimit
 	}
-
+	valueArgs := make([]interface{}, 0, maxValues)
+	placeholdersCounter := 1
 	for _, row := range objects {
-		var values []interface{}
-		for _, column := range header {
-			value, _ := row[column]
-			values = append(values, value)
+		// if number of values exceeds limit, we have to execute insert query on processed rows
+		if len(valueArgs)+len(header) > postgresValuesLimit {
+			err := p.executeInsert(wrappedTx, table, header, placeholdersBuilder, valueArgs)
+			if err != nil {
+				return err
+			}
+			logging.Infof("Inserted %d rows", len(valueArgs)/len(table.Columns))
+			placeholdersBuilder.Reset()
+			placeholdersCounter = 1
+			valueArgs = make([]interface{}, 0, maxValues)
 		}
-
-		p.queryLogger.LogQueryWithValues(query, values)
-
-		_, err = insertStmt.ExecContext(p.ctx, values...)
+		_, err := placeholdersBuilder.WriteString("(")
 		if err != nil {
-			return fmt.Errorf("Error bulk inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
+			return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
+		}
+		for i, column := range header {
+			value, _ := row[column]
+			valueArgs = append(valueArgs, value)
+			castClause := ""
+			castType, ok := p.mappingTypeCasts[column]
+			if ok {
+				castClause = "::" + castType
+			}
+			_, err = placeholdersBuilder.WriteString("$" + strconv.Itoa(placeholdersCounter) + castClause)
+			if err != nil {
+				return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
+			}
+
+			if i < len(header)-1 {
+				_, err = placeholdersBuilder.WriteString(",")
+				if err != nil {
+					return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
+				}
+			}
+			placeholdersCounter++
+		}
+		_, err = placeholdersBuilder.WriteString("),")
+		if err != nil {
+			return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
 		}
 	}
-
+	if len(valueArgs) > 0 {
+		err := p.executeInsert(wrappedTx, table, header, placeholdersBuilder, valueArgs)
+		if err != nil {
+			return err
+		}
+	}
+	logging.Infof("Inserted [%d] rows in [%.2f] seconds", len(objects), time.Now().Sub(start).Seconds())
 	return nil
+}
+
+func (p *Postgres) executeInsert(wrappedTx *Transaction, table *Table, header []string, placeholdersBuilder strings.Builder, valueArgs []interface{}) error {
+	query := p.insertQuery(table.GetPKFields(), table.Name, strings.Join(header, ","), removeLastComma(placeholdersBuilder.String()))
+	p.queryLogger.LogQuery(query)
+	_, err := wrappedTx.tx.Exec(query, valueArgs...)
+	return err
 }
 
 //get insert statement or merge on conflict statement
