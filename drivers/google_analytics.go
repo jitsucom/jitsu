@@ -26,6 +26,7 @@ var (
 	metricsCast = map[string]func(interface{}) (interface{}, error){
 		"ga:sessions":         typing.StringToInt,
 		"ga:users":            typing.StringToInt,
+		"ga:hits":             typing.StringToInt,
 		"ga:visitors":         typing.StringToInt,
 		"ga:bounces":          typing.StringToInt,
 		"ga:goal1Completions": typing.StringToInt,
@@ -36,11 +37,13 @@ var (
 		"ga:newUsers":         typing.StringToInt,
 		"ga:pageviews":        typing.StringToInt,
 		"ga:uniquePageviews":  typing.StringToInt,
+		"ga:transactions":     typing.StringToInt,
 
 		"ga:adCost":             typing.StringToFloat,
 		"ga:avgSessionDuration": typing.StringToFloat,
 		"ga:timeOnPage":         typing.StringToFloat,
 		"ga:avgTimeOnPage":      typing.StringToFloat,
+		"ga:transactionRevenue": typing.StringToFloat,
 	}
 )
 
@@ -107,9 +110,9 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collect
 func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	var intervals []*TimeInterval
 	now := time.Now().UTC()
-	for i := 0; i < 12; i++ {
-		date := now.AddDate(0, -i, 0)
-		intervals = append(intervals, NewTimeInterval(MONTH, date))
+	for i := 0; i < 365; i++ {
+		date := now.AddDate(0, 0, -i)
+		intervals = append(intervals, NewTimeInterval(DAY, date))
 	}
 	return intervals, nil
 }
@@ -161,7 +164,7 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 					Metrics:    gaMetrics,
 					Dimensions: gaDimensions,
 					PageToken:  nextPageToken,
-					PageSize:   100000, // maximum size of page allowed
+					PageSize:   40000,
 				},
 			},
 		}
@@ -202,7 +205,6 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 			result = append(result, gaEvent)
 		}
 		nextPageToken = report.NextPageToken
-		logging.Debug("Next page token: " + nextPageToken)
 		if nextPageToken == "" {
 			break
 		}
