@@ -1,4 +1,5 @@
 import {
+    awaitGlobalProp,
     generateId, generateRandom,
     getCookie,
     getCookieDomain, getCookies,
@@ -9,6 +10,7 @@ import {
     setCookie,
 } from './helpers'
 import {Event, Logger, EventCtx, Tracker, TrackerOptions, TrackerPlugin, EventPayload, UserProps} from './types'
+import {interceptGoogleAnalytics} from "./ga-interceptor";
 
 
 const VERSION_INFO = {
@@ -56,6 +58,7 @@ class TrackerImpl implements Tracker {
     private apiKey: string = "";
     private initialized: boolean = false;
     private _3pCookies: Record<string, boolean> = {};
+    private initialOptions?: TrackerOptions;
 
     id(props: Record<string, any>, doNotSendEvent?: boolean): void {
         this.userProperties = {...this.userProperties, ...props}
@@ -164,8 +167,9 @@ class TrackerImpl implements Tracker {
         this.sendJson(e);
     }
 
-    init(options: TrackerOptions, plugins: TrackerPlugin[] = []) {
-        this.logger.debug('Initializing', options, plugins, EVENTN_VERSION)
+    init(options: TrackerOptions) {
+        this.initialOptions = options;
+        this.logger.debug('Initializing', options, EVENTN_VERSION)
         this.cookieDomain = options['cookie_domain'] || getCookieDomain();
         this.trackingHost = getHostWithProtocol(options['tracking_host'] || 't.jitsu.com');
         this.randomizeUrl = options['randomize_url'] || false;
@@ -178,10 +182,14 @@ class TrackerImpl implements Tracker {
             (options.capture_3rd_party_cookies || ['_ga', '_fbp', '_ym_uid', 'ajs_user_id', 'ajs_anonymous_id'])
                 .forEach(name => this._3pCookies[name] = true)
         }
-        this.anonymousId = this.getAnonymousId();
-        for (let i = 0; i < plugins.length; i += 1) {
-            plugins[i](this);
+
+        if (options.ga_hook) {
+            interceptGoogleAnalytics(this);
         }
+        if (options.segment_hook) {
+            interceptSegmentCalls(this);
+        }
+        this.anonymousId = this.getAnonymousId();
         this.initialized = true;
     }
 
@@ -218,10 +226,22 @@ class TrackerImpl implements Tracker {
         analytics.addSourceMiddleware(interceptor);
         analytics['__en_intercepted'] = true
     }
-
 }
 
-export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []): Tracker => {
+function interceptSegmentCalls(t: Tracker, globalPropName: string = 'analytics') {
+    awaitGlobalProp(globalPropName).then(
+        (analytics: any) => {
+            if (!analytics['__en_intercepted']) {
+                t.interceptAnalytics(analytics)
+            }
+        }
+    ).catch(e => {
+        t.logger.error("Can't get segment object", e);
+    })
+}
+
+
+export const initTracker = (opts?: TrackerOptions): Tracker => {
     if (window) {
         (window as any)["__eventNDebug"] = {
             clientVersion: EVENTN_VERSION
@@ -234,9 +254,6 @@ export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []
     }
     if (opts) {
         eventN.init(opts)
-    }
-    for (let i = 0; i < plugins.length; i += 1) {
-        plugins[i](eventN);
     }
     return eventN;
 }
