@@ -20,6 +20,8 @@ const (
 	googleAnalyticsType = "google_analytics"
 	eventCtx            = "eventn_ctx"
 	eventId             = "event_id"
+
+	maxAttempts = 3 // sometimes Google API returns errors for unknown reasons, this is a number of retries we make before fail to get a report
 )
 
 var (
@@ -168,7 +170,7 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 				},
 			},
 		}
-		response, err := g.service.Reports.BatchGet(req).Do()
+		response, err := g.executeWithRetry(g.service.Reports.BatchGet(req))
 		if err != nil {
 			return nil, err
 		}
@@ -211,4 +213,19 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 	}
 	logging.Debug("Rows to sync:", len(result))
 	return result, nil
+}
+
+func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall) (*ga.GetReportsResponse, error) {
+	attempt := 0
+	var response *ga.GetReportsResponse
+	var err error
+	for attempt < maxAttempts {
+		response, err = reportCall.Do()
+		if err == nil {
+			return response, nil
+		}
+		time.Sleep(time.Duration(attempt+1) * time.Second)
+		attempt++
+	}
+	return nil, err
 }
