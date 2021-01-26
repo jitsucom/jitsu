@@ -19,6 +19,7 @@ type AppConfig struct {
 	AuthorizationService *authorization.Service
 	DDLLogsWriter        io.Writer
 	QueryLogsWriter      io.Writer
+	SingerLogsWriter     io.Writer
 
 	closeMe []io.Closer
 }
@@ -50,6 +51,9 @@ func setDefaultParams() {
 	viper.SetDefault("users_recognition.enabled", false)
 	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id")
 	viper.SetDefault("users_recognition.user_id_node", "/eventn_ctx/user/internal_id")
+	viper.SetDefault("singer-bridge.python", "python3")
+	viper.SetDefault("singer-bridge.venv_dir", "./venv")
+	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 }
 
 func Init() error {
@@ -97,11 +101,16 @@ func Init() error {
 
 	// SQL DDL debug writer
 	if viper.IsSet("sql_debug_log.ddl.path") {
-		appConfig.DDLLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.ddl"), serverName, "ddl-debug")
+		appConfig.DDLLogsWriter = appConfig.getLogWriter(viper.Sub("sql_debug_log.ddl"), serverName, "ddl-debug")
 	}
 	// SQL queries debug writer
 	if viper.IsSet("sql_debug_log.queries.path") {
-		appConfig.QueryLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.queries"), serverName, "sql-debug")
+		appConfig.QueryLogsWriter = appConfig.getLogWriter(viper.Sub("sql_debug_log.queries"), serverName, "sql-debug")
+	}
+
+	// Singer logger
+	if viper.IsSet("singer-bridge.log.path") {
+		appConfig.SingerLogsWriter = appConfig.getLogWriter(viper.Sub("singer-bridge.log"), serverName, "singer")
 	}
 
 	port := viper.GetString("port")
@@ -128,13 +137,13 @@ func Init() error {
 	return nil
 }
 
-func (a *AppConfig) getSqlWriter(sqlLoggerViper *viper.Viper, serverName string, logType string) io.Writer {
-	if sqlLoggerViper.GetString("path") != "global" {
+func (a *AppConfig) getLogWriter(loggerViper *viper.Viper, serverName string, logType string) io.Writer {
+	if loggerViper.GetString("path") != "global" {
 		return logging.NewRollingWriter(logging.Config{
 			FileName:    serverName + "-" + logType,
-			FileDir:     sqlLoggerViper.GetString("path"),
-			RotationMin: sqlLoggerViper.GetInt64("rotation_min"),
-			MaxBackups:  sqlLoggerViper.GetInt("max_backups")})
+			FileDir:     loggerViper.GetString("path"),
+			RotationMin: loggerViper.GetInt64("rotation_min"),
+			MaxBackups:  loggerViper.GetInt("max_backups")})
 	} else {
 		return logging.GlobalLogsWriter
 	}

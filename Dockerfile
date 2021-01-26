@@ -33,6 +33,11 @@ RUN cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
 # FINAL STAGE
 FROM main as final
 
+ENV TZ=UTC
+
+RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata
+RUN pip install --upgrade pip
+
 USER $EVENTNATIVE_USER
 WORKDIR /home/$EVENTNATIVE_USER/app
 

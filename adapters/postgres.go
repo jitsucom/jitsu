@@ -350,7 +350,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 	}
 	_, err = alterConstraintStmt.ExecContext(p.ctx)
 	if err != nil {
-		return fmt.Errorf("Error setting primary key %s table: %v", table.Name, err)
+		return fmt.Errorf("Error setting primary key [%s] %s table: %v", strings.Join(table.GetPKFields(), ","), table.Name, err)
 	}
 
 	return nil

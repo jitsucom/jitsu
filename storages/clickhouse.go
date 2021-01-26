@@ -204,12 +204,13 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 //2. store recognized users events
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (ch *ClickHouse) SyncStore(overriddenCollectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
+func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
 	flatData, err := ch.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
 	}
 
+	//TODO
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
@@ -218,9 +219,9 @@ func (ch *ClickHouse) SyncStore(overriddenCollectionTable string, objects []map[
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 
-		//override table name
-		if overriddenCollectionTable != "" {
-			table.Name = overriddenCollectionTable
+		//overridden table name
+		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
+			table.Name = overriddenDataSchema.TableName
 		}
 
 		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)

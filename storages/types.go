@@ -4,6 +4,7 @@ import (
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/jsonutils"
+	"github.com/jitsucom/eventnative/schema"
 	"io"
 )
 
@@ -22,7 +23,7 @@ type Storage interface {
 	DryRun(payload events.Event) ([]adapters.TableField, error)
 	Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error)
 	StoreWithParseFunc(fileName string, payload []byte, skipTables map[string]bool, parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error)
-	SyncStore(tableName string, objects []map[string]interface{}, timeIntervalValue string) (int, error)
+	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error)
 	Fallback(events ...*events.FailedEvent)
 	GetUsersRecognition() *UserRecognitionConfiguration
 	Name() string
