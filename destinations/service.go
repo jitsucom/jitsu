@@ -196,9 +196,10 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	newConsumers := TokenizedConsumers{}
 	newStorages := TokenizedStorages{}
 	newIds := TokenizedIds{}
-	for name, d := range dc {
+	for destinationName, d := range dc {
 		//common case
 		destinationConfig := d
+		name := destinationName
 
 		//map token -> id
 		if len(destinationConfig.OnlyTokens) > 0 {

@@ -23,7 +23,8 @@ type Schema struct {
 }
 
 type Property struct {
-	Type       []string             `json:"type,omitempty"`
+	//might be string or []string
+	Type       interface{}          `json:"type,omitempty"`
 	Format     string               `json:"format,omitempty"`
 	Properties map[string]*Property `json:"properties,omitempty"`
 }
@@ -120,7 +121,7 @@ func parseSchema(schemaBytes []byte) (*StreamRepresentation, error) {
 	sr := &SchemaRecord{}
 	err := json.Unmarshal(schemaBytes, sr)
 	if err != nil {
-		return nil, fmt.Errorf("Error unmarshalling schema record %s: %v", string(schemaBytes), err)
+		return nil, fmt.Errorf("Error unmarshalling schema object: %v", err)
 	}
 
 	fields := schema.Fields{}
@@ -134,7 +135,17 @@ func parseSchema(schemaBytes []byte) (*StreamRepresentation, error) {
 
 func parseProperties(prefix string, properties map[string]*Property, resultFields schema.Fields) {
 	for name, property := range properties {
-		for _, t := range property.Type {
+		var types []string
+		switch property.Type.(type) {
+		case string:
+			types = append(types, property.Type.(string))
+		case []string:
+			types = property.Type.([]string)
+		default:
+			logging.Errorf("Unknown singer property type: %T", property.Type)
+		}
+
+		for _, t := range types {
 			var fieldType typing.DataType
 			switch t {
 			case "null":

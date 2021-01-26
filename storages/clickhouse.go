@@ -210,11 +210,38 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 		return len(objects), err
 	}
 
-	//TODO
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
+
 	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
+
+	//table schema overridden
+	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
+		var data []map[string]interface{}
+		//ignore table multiplexing from mapping step
+		for _, fdata := range flatData {
+			data = append(data, fdata.GetPayload()...)
+			//enrich overridden schema with new fields (some system fields or e.g. after lookup step)
+			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
+		}
+
+		adapter, tableHelper := ch.getAdapters()
+
+		table := tableHelper.MapTableSchema(overriddenDataSchema)
+
+		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
+		if err != nil {
+			return rowsCount, err
+		}
+		if err = adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
+			return rowsCount, err
+		}
+
+		return rowsCount, nil
+	}
+
+	//plain flow
 	for _, fdata := range flatData {
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
