@@ -90,7 +90,10 @@ func NewService(ctx context.Context, sources *viper.Viper, destinationsService *
 }
 
 func (s *Service) init(sc map[string]drivers.SourceConfig) {
-	for name, sourceConfig := range sc {
+	for sourceName, config := range sc {
+		//common case
+		sourceConfig := config
+		name := sourceName
 
 		driverPerCollection, err := drivers.Create(s.ctx, name, &sourceConfig)
 		if err != nil {
@@ -203,7 +206,7 @@ func (s *Service) GetStatus(sourceId string) (map[string]string, error) {
 	s.RUnlock()
 
 	if !ok {
-		return nil, errors.New("Source doesn't exist")
+		return nil, fmt.Errorf("Source [%s] doesn't exist", sourceId)
 	}
 
 	statuses := map[string]string{}
@@ -226,7 +229,7 @@ func (s *Service) GetLogs(sourceId string) (map[string]string, error) {
 	s.RUnlock()
 
 	if !ok {
-		return nil, errors.New("Source doesn't exist")
+		return nil, fmt.Errorf("Source [%s] doesn't exist", sourceId)
 	}
 
 	logsMap := map[string]string{}

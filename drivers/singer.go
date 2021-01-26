@@ -255,6 +255,16 @@ func (s *Singer) Load(state string, strLogger *logging.SyncLogger) (*singer.Outp
 	safego.Run(func() {
 		defer wg.Done()
 		dataRepresentation, parsingErr = singer.ParseOutput(stdout)
+		if parsingErr != nil {
+			strLogger.Errorf("[%s_%s] parse output error: %v. Process will be killed", s.sourceName, s.tap, parsingErr)
+			logging.Errorf("[%s_%s] parse output error: %v. Process will be killed", s.sourceName, s.tap, parsingErr)
+
+			killErr := syncCmd.Process.Kill()
+			if killErr != nil {
+				strLogger.Errorf("[%s_%s] error killing process: %v", s.sourceName, s.tap, killErr)
+				logging.Errorf("[%s_%s] error killing process: %v", s.sourceName, s.tap, killErr)
+			}
+		}
 	})
 
 	//writing process logs (singer writes process logs to stderr)
@@ -269,10 +279,6 @@ func (s *Singer) Load(state string, strLogger *logging.SyncLogger) (*singer.Outp
 	err = syncCmd.Wait()
 	if err != nil {
 		return nil, err
-	}
-
-	if parsingErr != nil {
-		return nil, parsingErr
 	}
 
 	return dataRepresentation, nil
