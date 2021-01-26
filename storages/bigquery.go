@@ -193,7 +193,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 	return nil
 }
 
-func (bq *BigQuery) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
+func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("BigQuery doesn't support sync store")
 }
 

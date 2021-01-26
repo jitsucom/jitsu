@@ -112,7 +112,7 @@ func (s3 *S3) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (s3 *S3) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
+func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("S3 doesn't support sync store")
 }
 

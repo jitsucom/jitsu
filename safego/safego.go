@@ -16,6 +16,16 @@ type Execution struct {
 	restartTimeout time.Duration
 }
 
+//Run run a new goroutine and add panic handler (without restart)
+func Run(f func()) *Execution {
+	exec := Execution{
+		f:              f,
+		recoverHandler: GlobalRecoverHandler,
+		restartTimeout: 0,
+	}
+	return exec.run()
+}
+
 //RunWithRestart run a new goroutine and add panic handler:
 //write logs, wait 2 seconds and restart the goroutine
 func RunWithRestart(f func()) *Execution {
@@ -33,8 +43,10 @@ func (exec *Execution) run() *Execution {
 			if r := recover(); r != nil {
 				exec.recoverHandler(r)
 
-				time.Sleep(exec.restartTimeout)
-				exec.run()
+				if exec.restartTimeout > 0 {
+					time.Sleep(exec.restartTimeout)
+					exec.run()
+				}
 			}
 		}()
 		exec.f()

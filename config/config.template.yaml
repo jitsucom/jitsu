@@ -63,6 +63,19 @@ server:
 #  path: /home/eventnative/logs/events #Optional. Default value is /home/eventnative/logs/events
 #  rotation_min: 5 #Optional. Default value is 5 minutes
 
+### SQL debug logs https://docs.eventnative.org/configuration-1/configuration/sql-query-logs
+### DDL and queries logs are supported
+### Logs can be written to main logger as well as to separate files
+#sql_debug_log:
+#  queries:
+#    path: global #'/tmp/logs' or 'global' constant to write logs to a file or to main logger
+#    rotation_min: 10 #Optional. Applied to log files. Default  value is 5 minutes. If set 0, 24 hours would be kept
+#    max_backups: 20  #Optional. Applied to log files. Log files won't be deleted if not set
+#  ddl:
+#    path: global #'/tmp/logs' or 'global' constant to write logs to a file or to main logger
+#    rotation_min: 10 #Optional. Default  value is 5 minutes. If set 0, 24 hours would be kept
+#    max_backups: 20  #Optional. Log files won't be deleted if not set
+
 ### Destinations configuration https://docs.eventnative.org/configuration-1/destination-configuration
 ### It might be http url of file source
 #destinations: https://source_of_destinations
@@ -127,6 +140,14 @@ destinations:
 #        connect_timeout: 300
 #    data_layout:
 #      table_name_template: 'my_events' #Optional. Default value constant is 'events'. Template for extracting table name
+#      #Required for Postgres users recognition feature.
+#      primary_key_fields:
+#        - eventn_ctx_event_id
+#    users_recognition: #Optional
+#      enabled: true #set false for disabling
+#      anonymous_id_node: /user/anonymous_id #Required if enabled
+#      user_id_node: /user/id #Required if enabled
+
 
   ### ClickHouse https://docs.eventnative.org/configuration-1/destination-configuration/clickhouse-destination
 #  clickhouse_jitsu:
@@ -331,6 +352,16 @@ destinations:
 #    auth:
 #      service_account_key: "{SERVICE_ACCOUNT_KEY_JSON}"
 
+
+### Retrospective users recognition global configuration https://docs.eventnative.org/other-features/retrospective-user-recognition
+### It is applied to all destinations, but you could override this configuration on the destination level
+### Note: only Postgres and Clickhouse support this feature
+#users_recognition:
+#  enabled: true
+#  anonymous_id_node: /eventn_ctx/user/anonymous_id #Optional. Json path to user anonymous id. Default value is  /eventn_ctx/user/anonymous_id
+#  user_id_node: /eventn_ctx/user/email #Optional. Json path to identified user id. Default value is  /eventn_ctx/user/internal_id
+
+
 ### Meta storage. It is required for using sources (see below).
 ### It is required for using events caching and counting https://docs.eventnative.org/other-features/events-cache
 #meta:
@@ -344,3 +375,13 @@ destinations:
 #notifications: #Optional. If configured - server starts, all system errors and panics info will be sent to notifier
 #  slack: #Currently EventNative supports only Slack
 #    url: https://webhook_url
+
+### Global config of singer(https://www.singer.io/) bridge
+### Singer taps are used as sources
+#singer-bridge:
+#  python: '/path/to/python' #Optional. Default value is 'python3'
+#  venv_dir: #Optional. Dir for python's venv. Default value is './venv' (relative to binary)
+#  log:
+#    path: global #'/tmp/logs' or 'global' constant to write logs to a file or to main logger
+#    rotation_min: 10 #Optional. Applied to log files. Default value is 5 minutes. If set 0, 24 hours would be kept
+#    max_backups: 20  #Optional. Applied to log files. Log files won't be deleted if not set

@@ -18,9 +18,12 @@ const (
 	collectionNameField       = "name"
 	collectionTableNameField  = "table_name"
 	collectionParametersField = "parameters"
+
+	defaultSingerCollection = "all"
 )
 
 type SourceConfig struct {
+	Name         string        //without serialization
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
 	Collections  []interface{} `mapstructure:"collections" json:"collections,omitempty" yaml:"collections,omitempty"`
@@ -56,6 +59,44 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 		sourceConfig.Type = name
 	}
 
+	sourceConfig.Name = name
+
+	collections, err := parseCollections(sourceConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	logging.Infof("[%s] Initializing source of type: %s", name, sourceConfig.Type)
+	if len(collections) == 0 {
+		return nil, errors.New("collections are empty. Please specify at least one collection")
+	}
+	if len(sourceConfig.Destinations) == 0 {
+		return nil, errors.New("destinations are empty. Please specify at least one destination")
+	}
+
+	driverPerCollection := map[string]Driver{}
+
+	createDriverFunc, ok := driverConstructors[sourceConfig.Type]
+	if !ok {
+		return nil, unknownSource
+	}
+	for _, collection := range collections {
+		driver, err := createDriverFunc(ctx, sourceConfig, collection)
+		if err != nil {
+			return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection.Name, err)
+		}
+		driverPerCollection[collection.Name] = driver
+	}
+	return driverPerCollection, nil
+}
+
+//return serialized Collection objects slice
+//or return one default collection if singer type
+func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
+	if sourceConfig.Type == SingerType {
+		return []*Collection{{Name: defaultSingerCollection}}, nil
+	}
+
 	var collections []*Collection
 	for _, collection := range sourceConfig.Collections {
 		switch collection.(type) {
@@ -80,29 +121,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 		}
 	}
 
-	logging.Infof("[%s] Initializing source of type: %s", name, sourceConfig.Type)
-	if len(collections) == 0 {
-		return nil, errors.New("collections are empty. Please specify at least one collection")
-	}
-	if len(sourceConfig.Destinations) == 0 {
-		return nil, errors.New("destinations are empty. Please specify at least one destination")
-	}
-
-	driverPerCollection := map[string]Driver{}
-
-	createDriverFunc, ok := driverConstructors[sourceConfig.Type]
-	if !ok {
-		return nil, unknownSource
-	}
-	for _, collection := range collections {
-		driver, err := createDriverFunc(ctx, sourceConfig, collection)
-		if err != nil {
-			logging.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
-			continue
-		}
-		driverPerCollection[collection.Name] = driver
-	}
-	return driverPerCollection, nil
+	return collections, nil
 }
 
 func getStringParameter(dict map[string]interface{}, parameterName string) string {

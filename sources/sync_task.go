@@ -6,11 +6,17 @@ import (
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/metrics"
+	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/jitsucom/eventnative/timestamp"
 	"github.com/jitsucom/eventnative/uuid"
 	"time"
 )
+
+type Task interface {
+	Sync()
+	GetLock() storages.Lock
+}
 
 type SyncTask struct {
 	sourceId   string
@@ -26,6 +32,19 @@ type SyncTask struct {
 	lock storages.Lock
 }
 
+func NewSyncTask(sourceId, collection, identifier string, driver drivers.Driver, metaStorage meta.Storage,
+	destinations []storages.Storage, lock storages.Lock) Task {
+	return &SyncTask{
+		sourceId:     sourceId,
+		collection:   collection,
+		identifier:   identifier,
+		driver:       driver,
+		metaStorage:  metaStorage,
+		destinations: destinations,
+		lock:         lock,
+	}
+}
+
 func (st *SyncTask) Sync() {
 	start := time.Now()
 	strWriter := logging.NewStringWriter()
@@ -35,7 +54,9 @@ func (st *SyncTask) Sync() {
 	st.updateCollectionStatus(meta.StatusLoading, "Still Running..")
 
 	status := meta.StatusFailed
-	defer st.updateCollectionStatus(status, strWriter.String())
+	defer func() {
+		st.updateCollectionStatus(status, strWriter.String())
+	}()
 
 	logging.Infof("[%s] Running sync task type: [%s]", st.identifier, st.driver.Type())
 	strLogger.Infof("[%s] Running sync task type: [%s]", st.identifier, st.driver.Type())
@@ -94,10 +115,10 @@ func (st *SyncTask) Sync() {
 			object[timestamp.Key] = timestamp.NowUTC()
 			events.EnrichWithEventId(object, uuid.GetHash(object))
 			events.EnrichWithCollection(object, st.collection)
-			events.EnrichWithTimeInterval(object, intervalToSync)
+			events.EnrichWithTimeInterval(object, intervalToSync.String())
 		}
 		for _, storage := range st.destinations {
-			rowsCount, err := storage.SyncStore(collectionTable, objects, intervalToSync.String())
+			rowsCount, err := storage.SyncStore(&schema.BatchHeader{TableName: collectionTable}, objects, intervalToSync.String())
 			if err != nil {
 				strLogger.Errorf("[%s] Error storing %d source objects in [%s] destination: %v", st.identifier, rowsCount, storage.Name(), err)
 				logging.Errorf("[%s] Error storing %d source objects in [%s] destination: %v", st.identifier, rowsCount, storage.Name(), err)
@@ -121,6 +142,10 @@ func (st *SyncTask) Sync() {
 	strLogger.Infof("[%s] FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", st.identifier, end.Seconds(), end.Minutes())
 	logging.Infof("[%s] type: [%s] intervals: [%d] FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", st.identifier, st.driver.Type(), len(intervalsToSync), end.Seconds(), end.Minutes())
 	status = meta.StatusOk
+}
+
+func (st *SyncTask) GetLock() storages.Lock {
+	return st.lock
 }
 
 func (st *SyncTask) getCollectionMetaKey() string {
