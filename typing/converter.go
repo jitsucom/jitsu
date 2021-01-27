@@ -31,8 +31,10 @@ var (
 	}
 
 	DefaultTypes = map[string]DataType{
-		timestamp.Key:         TIMESTAMP,
-		"eventn_ctx_utc_time": TIMESTAMP,
+		timestamp.Key:               TIMESTAMP,
+		"eventn_ctx_utc_time":       TIMESTAMP,
+		"eventn_ctx_interval_start": TIMESTAMP,
+		"eventn_ctx_interval_end":   TIMESTAMP,
 	}
 	convertRules = map[rule]ConvertFunc{
 		rule{from: BOOL, to: STRING}:      boolToString,
