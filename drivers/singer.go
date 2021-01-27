@@ -91,34 +91,36 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 		return nil, errors.New("singer-bridge must be configured")
 	}
 
+	pathToVenv := path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap)
+
+	//create virtual env with source ID
+	err = execCmd(singer.Instance.PythonExecPath, "-m", "venv", pathToVenv)
+	if err != nil {
+		return nil, fmt.Errorf("Error creating singer python venv: %v", err)
+	}
+
 	//parse singer config as file path
-	configPath, err := parseJsonAsFile(path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap), config.Config)
+	configPath, err := parseJsonAsFile(pathToVenv, config.Config)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
 	}
 
 	//parse singer catalog as file path
-	catalogPath, err := parseJsonAsFile(path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap), config.Catalog)
+	catalogPath, err := parseJsonAsFile(pathToVenv, config.Catalog)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer catalog [%v]: %v", config.Catalog, err)
 	}
 
 	//parse singer properties as file path
-	propertiesPath, err := parseJsonAsFile(path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap), config.Properties)
+	propertiesPath, err := parseJsonAsFile(pathToVenv, config.Properties)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer properties [%v]: %v", config.Properties, err)
 	}
 
 	//parse singer state as file path
-	statePath, err := parseJsonAsFile(path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap), config.InitialState)
+	statePath, err := parseJsonAsFile(pathToVenv, config.InitialState)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer initial state [%v]: %v", config.InitialState, err)
-	}
-
-	//create virtual env with source ID
-	err = execCmd(singer.Instance.PythonExecPath, "-m", "venv", path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap))
-	if err != nil {
-		return nil, fmt.Errorf("Error creating singer python venv: %v", err)
 	}
 
 	s := &Singer{
@@ -136,14 +138,14 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 	safego.Run(func() {
 
 		//update pip
-		err = execCmd(path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap, "/bin/python3"), "-m", "pip", "install", "--upgrade", "pip")
+		err = execCmd(path.Join(pathToVenv, "/bin/python3"), "-m", "pip", "install", "--upgrade", "pip")
 		if err != nil {
 			logging.Errorf("Error updating pip for [%s] env: %v", sourceConfig.Name, err)
 			return
 		}
 
 		//install tap
-		err = execCmd(path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap, "/bin/pip"), "install", config.Tap)
+		err = execCmd(path.Join(pathToVenv, "/bin/pip"), "install", config.Tap)
 		if err != nil {
 			logging.Errorf("Error installing singer tap [%s]: %v", config.Tap, err)
 			return
