@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/typing"
-	"github.com/jitsucom/eventnative/uuid"
 	ga "google.golang.org/api/analyticsreporting/v4"
 	"google.golang.org/api/option"
 	"strings"
@@ -18,7 +17,6 @@ const (
 	reportsCollection   = "report"
 	gaFieldsPrefix      = "ga:"
 	googleAnalyticsType = "google_analytics"
-	eventCtx            = "eventn_ctx"
 	eventId             = "event_id"
 
 	maxAttempts = 3 // sometimes Google API returns errors for unknown reasons, this is a number of retries we make before fail to get a report
@@ -185,7 +183,6 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 			for i := 0; i < len(dimHeaders) && i < len(dims); i++ {
 				gaEvent[strings.TrimPrefix(dimHeaders[i], gaFieldsPrefix)] = dims[i]
 			}
-			gaEvent[eventCtx] = map[string]interface{}{eventId: uuid.GetHash(gaEvent)}
 
 			metrics := row.Metrics
 			for _, metric := range metrics {
