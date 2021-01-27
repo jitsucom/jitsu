@@ -11,7 +11,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 const (
@@ -429,7 +428,7 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 		}
 	}
 
-	if err := p.insertInTransaction(wrappedTx, table, objects); err != nil {
+	if err := p.bulkInsertInTransaction(wrappedTx, table, objects); err != nil {
 		wrappedTx.Rollback()
 		return err
 	}
@@ -476,7 +475,7 @@ func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) er
 	if err != nil {
 		return err
 	}
-	if err = p.insertInTransaction(wrappedTx, table, objects); err != nil {
+	if err = p.bulkInsertInTransaction(wrappedTx, table, objects); err != nil {
 		wrappedTx.Rollback()
 		return err
 	}
@@ -484,8 +483,7 @@ func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) er
 	return wrappedTx.DirectCommit()
 }
 
-func (p *Postgres) insertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	start := time.Now()
+func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var header []string
 	for name := range table.Columns {
@@ -504,7 +502,6 @@ func (p *Postgres) insertInTransaction(wrappedTx *Transaction, table *Table, obj
 			if err != nil {
 				return err
 			}
-			logging.Infof("Inserted %d rows", len(valueArgs)/len(table.Columns))
 			placeholdersBuilder.Reset()
 			placeholdersCounter = 1
 			valueArgs = make([]interface{}, 0, maxValues)
@@ -545,13 +542,11 @@ func (p *Postgres) insertInTransaction(wrappedTx *Transaction, table *Table, obj
 			return err
 		}
 	}
-	logging.Infof("Inserted [%d] rows in [%.2f] seconds", len(objects), time.Now().Sub(start).Seconds())
 	return nil
 }
 
 func (p *Postgres) executeInsert(wrappedTx *Transaction, table *Table, header []string, placeholdersBuilder strings.Builder, valueArgs []interface{}) error {
 	query := p.insertQuery(table.GetPKFields(), table.Name, strings.Join(header, ","), removeLastComma(placeholdersBuilder.String()))
-	p.queryLogger.LogQuery(query)
 	_, err := wrappedTx.tx.Exec(query, valueArgs...)
 	return err
 }
