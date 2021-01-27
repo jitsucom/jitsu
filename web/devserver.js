@@ -9,7 +9,7 @@ const { choosePort } = require('react-dev-utils/WebpackDevServerUtils');
 
 
 const DEFAULT_PORT 				= 4000;
-const PORT 						= process.env.TRACK_DEMO_PORT ? process.env.TRACK_DEMO_PORT : DEFAULT_PORT;
+const PORT 						= process.env.TRACK_DEMO_PORT || DEFAULT_PORT;
 const HOST 						= 'localhost';
 const DEFAULT_USE_PROD_FILES 	= true;
 
@@ -30,12 +30,15 @@ function prepareJsFile(file) {
 }
 
 function getTrackingHost(req) {
-    let host = req.protocol + "://" + req.hostname;
-    if (globalPort !== 80 && req.protocol === "http") {
-        host += ":" + globalPort
+    let protocol = req.headers['x-forwarded-proto'] || req.protocol;
+    let hostname = req.headers['host'] || req.hostname;
+    let port = req.headers['x-forwarded-port'] || (globalPort + "");
+    let host = protocol + "://" + hostname;
+    if (port !== "80" && protocol === "http") {
+        host += ":" + port
     }
-    if (globalPort !== 443 && req.protocol === "https") {
-        host += ":" + globalPort
+    if (port !== "443" && protocol === "https") {
+        host += ":" + port
     }
     return host;
 }
@@ -69,11 +72,13 @@ devserver.use(function(req, res, next) {
     }
 });
 
-devserver.post('/api/v1/event', (req, res) => {
+let apiHandler = (req, res) => {
     console.log('Event', JSON.stringify(req.body, null, 2));
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.send({status: 'ok'});
-})
+};
+devserver.post('/api/v1/event', apiHandler)
+devserver.post('/api.*', apiHandler)
 
 devserver.get("/s/track.js", (req, res) => {
     addJsHeaders(res);
@@ -85,7 +90,7 @@ devserver.get('/t/inline.js', (req, res) => {
     const asIs = str => str;
     const accepted_params = {'key': asIs, 'segment_hook': toBool, 'tracking_host': asIs , 'cookie_domain': asIs, 'ga_hook': toBool, 'debug': toBool()};
     if (!req.query['key']) {
-        throw new Error("Mandatory key paramter is missing");
+        throw new Error("Mandatory key parameter is missing");
     }
     let config = {}
     for (const [property, transform] of Object.entries(accepted_params)) {
@@ -101,20 +106,14 @@ devserver.get('/t/inline.js', (req, res) => {
         src = "//" + src
     }
     src += "/s/track"
-    if (config['ga_hook'] === false && config['segment_hook'] === false) {
-        src += ".direct"
-    } else if (config['ga_hook'] === false && config['segment_hook'] === false) {
-        src += ".ga"
-    } else if (config['segment_hook'] === true && config['ga_hook'] === false) {
-        src += ".segment"
-    }
-    if (config['debug']) {
-        src += ".debug"
-    }
     src += ".js"
     config['script_src'] = src
     addJsHeaders(res);
-    res.send(inlineJs().replace(eventNConfigPlaceholder, JSON.stringify(config, null, 2)));
+    let js = inlineJs().replace(eventNConfigPlaceholder, JSON.stringify(config, null, 2));
+    if (req.query.event) {
+        js += `\neventN.track('${req.query.event}');\n`
+    }
+    res.send(js);
 });
 
 choosePort(HOST, PORT).then(selectedPort => {
