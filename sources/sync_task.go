@@ -115,7 +115,7 @@ func (st *SyncTask) Sync() {
 			object[timestamp.Key] = timestamp.NowUTC()
 			events.EnrichWithEventId(object, uuid.GetHash(object))
 			events.EnrichWithCollection(object, st.collection)
-			events.EnrichWithTimeInterval(object, intervalToSync.String())
+			events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
 		}
 		for _, storage := range st.destinations {
 			rowsCount, err := storage.SyncStore(&schema.BatchHeader{TableName: collectionTable}, objects, intervalToSync.String())
