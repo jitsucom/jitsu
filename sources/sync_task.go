@@ -92,9 +92,9 @@ func (st *SyncTask) Sync() {
 			//enrich with values
 			object["src"] = "source"
 			object[timestamp.Key] = timestamp.NowUTC()
+			events.EnrichWithTimeInterval(object, intervalToSync)
 			events.EnrichWithEventId(object, uuid.GetHash(object))
 			events.EnrichWithCollection(object, st.collection)
-			events.EnrichWithTimeInterval(object, intervalToSync)
 		}
 		for _, storage := range st.destinations {
 			rowsCount, err := storage.SyncStore(collectionTable, objects, intervalToSync.String())
