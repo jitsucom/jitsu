@@ -49,7 +49,7 @@ func (g Granularity) Upper(t time.Time) time.Time {
 func (g Granularity) Format(t time.Time) string {
 	switch g {
 	case DAY:
-		return t.Format("2006-01-01")
+		return t.Format("2006-01-02")
 	case MONTH:
 		return t.Format("2006-01")
 	case YEAR:
