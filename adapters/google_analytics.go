@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-const defaultEventType = "pageview"
+const defaultEventType = "event"
 
 var (
 	//GA doesn't use types
@@ -28,7 +28,8 @@ var (
 		"pageview":    "pageview",
 		"screenview":  "screenview",
 		"event":       "event",
-		"transaction": "conversion",
+		"conversion":  "transaction",
+		"transaction": "transaction",
 		"item":        "item",
 		"social":      "social",
 		"exception":   "exception",

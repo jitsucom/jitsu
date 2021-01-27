@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
+	"time"
 )
 
 //Store files to Postgres in two modes:
@@ -138,9 +139,11 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 		return err
 	}
 
+	start := time.Now()
 	if err := p.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
 		return err
 	}
+	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.Name(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
 
 	return nil
 }
@@ -205,9 +208,11 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 		if err != nil {
 			return rowsCount, err
 		}
+		start := time.Now()
 		if err = p.adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions); err != nil {
 			return rowsCount, err
 		}
+		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.Name(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
 	}
 
 	return rowsCount, nil
