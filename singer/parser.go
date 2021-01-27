@@ -136,13 +136,17 @@ func parseSchema(schemaBytes []byte) (*StreamRepresentation, error) {
 func parseProperties(prefix string, properties map[string]*Property, resultFields schema.Fields) {
 	for name, property := range properties {
 		var types []string
+
 		switch property.Type.(type) {
 		case string:
 			types = append(types, property.Type.(string))
-		case []string:
-			types = property.Type.([]string)
+		case []interface{}:
+			propertyTypesAr := property.Type.([]interface{})
+			for _, typeValue := range propertyTypesAr {
+				types = append(types, fmt.Sprint(typeValue))
+			}
 		default:
-			logging.Errorf("Unknown singer property type: %T", property.Type)
+			logging.Errorf("Unknown singer property [%s] type: %T", name, property.Type)
 		}
 
 		for _, t := range types {
