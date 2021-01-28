@@ -24,12 +24,13 @@ type FacebookMarketingConfig struct {
 type FacebookMarketing struct {
 	collection *Collection
 	config     *FacebookMarketingConfig
-	fields     *FacebookReportFieldsConfig
+	fields     *FacebookReportConfig
 }
 
-type FacebookReportFieldsConfig struct {
+type FacebookReportConfig struct {
 	Keys    []string `mapstructure:"keys" json:"keys,omitempty" yaml:"keys,omitempty"`
 	Metrics []string `mapstructure:"metrics" json:"metrics,omitempty" yaml:"metrics,omitempty"`
+	Level   string   `mapstructure:"level" json:"level,omitempty" yaml:"level,omitempty"`
 }
 
 type FacebookInsightsResponse struct {
@@ -54,9 +55,12 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, colle
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	var fields FacebookReportFieldsConfig
+	var fields FacebookReportConfig
 	if err := unmarshalConfig(collection.Parameters, &fields); err != nil {
 		return nil, err
+	}
+	if fields.Level == "" {
+		fields.Level = "ad"
 	}
 	return &FacebookMarketing{collection: collection, config: config, fields: &fields}, nil
 }
@@ -90,7 +94,7 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[s
 	fields = append(fields, fm.fields.Keys...)
 	fields = append(fields, fm.fields.Metrics...)
 	requestParameters := fb.Params{
-		"level":        "ad",
+		"level":        fm.fields.Level,
 		"fields":       strings.Join(fields, ","),
 		"access_token": fm.config.Token,
 		"time_range":   fm.buildTimeInterval(interval),
