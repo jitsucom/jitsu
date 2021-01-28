@@ -38,7 +38,7 @@ type FacebookInsightsResponse struct {
 
 func (fmc *FacebookMarketingConfig) Validate() error {
 	if fmc.AccountId == "" {
-		return errors.New("[ad_account_id] is not configured")
+		return errors.New("[account_id] is not configured")
 	}
 	if fmc.Token == "" {
 		return errors.New("[token] is not configured")
@@ -48,15 +48,14 @@ func (fmc *FacebookMarketingConfig) Validate() error {
 
 func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
 	config := &FacebookMarketingConfig{}
-	err := unmarshalConfig(sourceConfig.Config, config)
-	if err != nil {
+	if err := unmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	var fields FacebookReportFieldsConfig
-	if err = unmarshalConfig(collection.Parameters, &fields); err != nil {
+	if err := unmarshalConfig(collection.Parameters, &fields); err != nil {
 		return nil, err
 	}
 	return &FacebookMarketing{collection: collection, config: config, fields: &fields}, nil
