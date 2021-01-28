@@ -97,7 +97,8 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 	for _, collection := range collections {
 		driver, err := createDriverFunc(ctx, sourceConfig, collection)
 		if err != nil {
-			return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
+			logging.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection, err)
+			continue
 		}
 		driverPerCollection[collection.Name] = driver
 	}
