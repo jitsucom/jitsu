@@ -11,15 +11,9 @@ import (
 )
 
 const (
-	fbMarketingType = "facebook_marketing"
+	fbMarketingType    = "facebook_marketing"
+	insightsCollection = "insights"
 )
-
-var keyFields = []string{"account_currency", "account_id", "account_name", "ad_id", "ad_name",
-	"adset_id", "adset_name", "campaign_id", "campaign_name", "objective", "buying_type",
-}
-
-var metrics = []string{"cpc", "cpm", "cpp", "ctr", "estimated_ad_recall_rate", "estimated_ad_recallers", "reach",
-	"unique_clicks", "unique_ctr", "frequency", "actions", "conversions"}
 
 type FacebookMarketingConfig struct {
 	AccountId string `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
@@ -29,6 +23,12 @@ type FacebookMarketingConfig struct {
 type FacebookMarketing struct {
 	collection *Collection
 	config     *FacebookMarketingConfig
+	fields     *FacebookReportFieldsConfig
+}
+
+type FacebookReportFieldsConfig struct {
+	Keys    []string `mapstructure:"keys" json:"keys,omitempty" yaml:"keys,omitempty"`
+	Metrics []string `mapstructure:"metrics" json:"metrics,omitempty" yaml:"metrics,omitempty"`
 }
 
 func (fmc *FacebookMarketingConfig) Validate() error {
@@ -50,7 +50,11 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, colle
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	return &FacebookMarketing{collection: collection, config: config}, nil
+	var fields FacebookReportFieldsConfig
+	if err = unmarshalConfig(collection.Parameters, &fields); err != nil {
+		return nil, err
+	}
+	return &FacebookMarketing{collection: collection, config: config, fields: &fields}, nil
 }
 
 func init() {
@@ -74,9 +78,17 @@ type FacebookInsightsResponse struct {
 }
 
 func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
+	if fm.collection.Type == insightsCollection {
+		return fm.syncInsightsReport(interval)
+	} else {
+		return nil, fmt.Errorf("Error syncing collection type [%s]. Only %s is supported now", fm.collection.Type, insightsCollection)
+	}
+}
+
+func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
 	var fields []string
-	fields = append(fields, keyFields...)
-	fields = append(fields, metrics...)
+	fields = append(fields, fm.fields.Keys...)
+	fields = append(fields, fm.fields.Metrics...)
 	res, err := fb.Get("/v9.0/act_"+fm.config.AccountId+"/insights", fb.Params{
 		"level":        "ad",
 		"fields":       strings.Join(fields, ","),
@@ -110,5 +122,5 @@ func (fm *FacebookMarketing) GetCollectionTable() string {
 }
 
 func (fm *FacebookMarketing) Close() error {
-	panic("implement me")
+	return nil
 }
