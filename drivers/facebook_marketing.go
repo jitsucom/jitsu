@@ -6,8 +6,32 @@ import (
 	"fmt"
 	fb "github.com/huandu/facebook/v2"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/typing"
 	"strings"
 	"time"
+)
+
+var (
+	castMapping = map[string]func(interface{}) (interface{}, error){
+		"clicks":                    typing.StringToInt,
+		"impressions":               typing.StringToInt,
+		"reach":                     typing.StringToInt,
+		"full_view_reach":           typing.StringToInt,
+		"full_view_impressions":     typing.StringToInt,
+		"unique_clicks":             typing.StringToInt,
+		"unique_inline_link_clicks": typing.StringToInt,
+
+		"cpc":                          typing.StringToFloat,
+		"cpm":                          typing.StringToFloat,
+		"cpp":                          typing.StringToFloat,
+		"ctr":                          typing.StringToFloat,
+		"frequency":                    typing.StringToFloat,
+		"unique_ctr":                   typing.StringToFloat,
+		"spend":                        typing.StringToFloat,
+		"social_spend":                 typing.StringToFloat,
+		"unique_inline_link_click_ctr": typing.StringToFloat,
+		"unique_link_clicks_ctr":       typing.StringToFloat,
+	}
 )
 
 const (
@@ -106,6 +130,18 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[s
 	var result FacebookInsightsResponse
 	if err := response.Decode(&result); err != nil {
 		return nil, err
+	}
+	for _, row := range result.Data {
+		for fieldName, stringValue := range row {
+			convertFunc, ok := castMapping[fieldName]
+			if ok {
+				convertedValue, err := convertFunc(stringValue)
+				if err != nil {
+					return nil, err
+				}
+				row[fieldName] = convertedValue
+			}
+		}
 	}
 	logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(result.Data))
 	return result.Data, nil
