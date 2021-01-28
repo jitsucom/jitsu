@@ -13,6 +13,7 @@ import (
 const (
 	fbMarketingType    = "facebook_marketing"
 	insightsCollection = "insights"
+	fbMaxAttempts      = 3
 )
 
 type FacebookMarketingConfig struct {
@@ -29,6 +30,10 @@ type FacebookMarketing struct {
 type FacebookReportFieldsConfig struct {
 	Keys    []string `mapstructure:"keys" json:"keys,omitempty" yaml:"keys,omitempty"`
 	Metrics []string `mapstructure:"metrics" json:"metrics,omitempty" yaml:"metrics,omitempty"`
+}
+
+type FacebookInsightsResponse struct {
+	Data []map[string]interface{} `facebook:"data"`
 }
 
 func (fmc *FacebookMarketingConfig) Validate() error {
@@ -73,10 +78,6 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error)
 	return intervals, nil
 }
 
-type FacebookInsightsResponse struct {
-	Data []map[string]interface{} `facebook:"data"`
-}
-
 func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
 	if fm.collection.Type == insightsCollection {
 		return fm.syncInsightsReport(interval)
@@ -89,21 +90,22 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[s
 	var fields []string
 	fields = append(fields, fm.fields.Keys...)
 	fields = append(fields, fm.fields.Metrics...)
-	res, err := fb.Get("/v9.0/act_"+fm.config.AccountId+"/insights", fb.Params{
+	requestParameters := fb.Params{
 		"level":        "ad",
 		"fields":       strings.Join(fields, ","),
 		"access_token": fm.config.Token,
 		"time_range":   fm.buildTimeInterval(interval),
-	})
+	}
+	response, err := fm.requestReportWithRetry("/v9.0/act_"+fm.config.AccountId+"/insights", requestParameters, fields, interval)
 	if err != nil {
 		return nil, err
 	}
-	var response FacebookInsightsResponse
-	if err = res.Decode(&response); err != nil {
+	var result FacebookInsightsResponse
+	if err := response.Decode(&result); err != nil {
 		return nil, err
 	}
-	logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(response.Data))
-	return response.Data, nil
+	logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(result.Data))
+	return result.Data, nil
 }
 
 func (fm *FacebookMarketing) buildTimeInterval(interval *TimeInterval) string {
@@ -111,6 +113,21 @@ func (fm *FacebookMarketing) buildTimeInterval(interval *TimeInterval) string {
 	since := DAY.Format(dayStart)
 	until := DAY.Format(dayStart.AddDate(0, 0, 1))
 	return fmt.Sprintf("{'since': '%s', 'until': '%s'}", since, until)
+}
+
+func (fm *FacebookMarketing) requestReportWithRetry(url string, requestParameters fb.Params, fields []string, interval *TimeInterval) (fb.Result, error) {
+	attempt := 0
+	var response fb.Result
+	var err error
+	for attempt < fbMaxAttempts {
+		response, err = fb.Get(url, requestParameters)
+		if err == nil {
+			return response, nil
+		}
+		time.Sleep(time.Duration(attempt+1) * time.Second)
+		attempt++
+	}
+	return nil, err
 }
 
 func (fm *FacebookMarketing) Type() string {

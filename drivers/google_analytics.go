@@ -19,7 +19,7 @@ const (
 	googleAnalyticsType = "google_analytics"
 	eventId             = "event_id"
 
-	maxAttempts = 3 // sometimes Google API returns errors for unknown reasons, this is a number of retries we make before fail to get a report
+	gaMaxAttempts = 3 // sometimes Google API returns errors for unknown reasons, this is a number of retries we make before fail to get a report
 )
 
 var (
@@ -216,7 +216,7 @@ func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall) (
 	attempt := 0
 	var response *ga.GetReportsResponse
 	var err error
-	for attempt < maxAttempts {
+	for attempt < gaMaxAttempts {
 		response, err = reportCall.Do()
 		if err == nil {
 			return response, nil
