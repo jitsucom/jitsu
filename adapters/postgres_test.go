@@ -13,7 +13,7 @@ import (
 
 func TestBulkInsert(t *testing.T) {
 	table := &Table{
-		Name:    "test",
+		Name:    "test_insert",
 		Columns: Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}},
 	}
 	container, pg := setupDatabase(t, table)
@@ -27,7 +27,7 @@ func TestBulkInsert(t *testing.T) {
 
 func TestBulkMerge(t *testing.T) {
 	table := &Table{
-		Name:     "test",
+		Name:     "test_merge",
 		Columns:  Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}},
 		PKFields: map[string]bool{"field1": true},
 	}
