@@ -33,8 +33,13 @@ func TestBulkMerge(t *testing.T) {
 	}
 	container, pg := setupDatabase(t, table)
 	defer container.Close()
-	err := pg.BulkInsert(table, createObjects(5))
-	require.NoError(t, err, "Failed to bulk insert 5 objects")
+	// store 8 objects with 3 id duplications, the result must be 5 objects
+	objects := createObjects(5)
+	objects = append(objects, objects[0])
+	objects = append(objects, objects[2])
+	objects = append(objects, objects[3])
+	err := pg.BulkInsert(table, objects)
+	require.NoError(t, err, "Failed to bulk merge objects")
 	rows, err := container.CountRows("test")
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
 	assert.Equal(t, rows, 5)
