@@ -19,7 +19,7 @@ const (
 	googleAnalyticsType = "google_analytics"
 	eventId             = "event_id"
 
-	maxAttempts = 3 // sometimes Google API returns errors for unknown reasons, this is a number of retries we make before fail to get a report
+	gaMaxAttempts = 3 // sometimes Google API returns errors for unknown reasons, this is a number of retries we make before fail to get a report
 )
 
 var (
@@ -52,7 +52,7 @@ type GoogleAnalyticsConfig struct {
 	ViewId     string            `mapstructure:"view_id" json:"view_id,omitempty" yaml:"view_id,omitempty"`
 }
 
-type ReportFieldsConfig struct {
+type GAReportFieldsConfig struct {
 	Dimensions []string `mapstructure:"dimensions" json:"dimensions,omitempty" yaml:"dimensions,omitempty"`
 	Metrics    []string `mapstructure:"metrics" json:"metrics,omitempty" yaml:"metrics,omitempty"`
 }
@@ -69,7 +69,7 @@ type GoogleAnalytics struct {
 	config             *GoogleAnalyticsConfig
 	service            *ga.Service
 	collection         *Collection
-	reportFieldsConfig *ReportFieldsConfig
+	reportFieldsConfig *GAReportFieldsConfig
 }
 
 func init() {
@@ -87,7 +87,7 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collect
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	var reportFieldsConfig ReportFieldsConfig
+	var reportFieldsConfig GAReportFieldsConfig
 	err = unmarshalConfig(collection.Parameters, &reportFieldsConfig)
 	if err != nil {
 		return nil, err
@@ -216,7 +216,7 @@ func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall) (
 	attempt := 0
 	var response *ga.GetReportsResponse
 	var err error
-	for attempt < maxAttempts {
+	for attempt < gaMaxAttempts {
 		response, err = reportCall.Do()
 		if err == nil {
 			return response, nil
