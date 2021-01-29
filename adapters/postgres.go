@@ -428,7 +428,7 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 		}
 	}
 
-	if err := p.bulkInsertInTransaction(wrappedTx, table, objects); err != nil {
+	if err := p.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
 		wrappedTx.Rollback()
 		return err
 	}
@@ -469,13 +469,13 @@ func (p *Postgres) castClause(field string) string {
 	return castClause
 }
 
-//BulkInsert insert objects into table in one prepared statement
+//BulkInsert insert objects into table in one transaction
 func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) error {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
 		return err
 	}
-	if err = p.bulkInsertInTransaction(wrappedTx, table, objects); err != nil {
+	if err = p.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
 		wrappedTx.Rollback()
 		return err
 	}
@@ -483,6 +483,16 @@ func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) er
 	return wrappedTx.DirectCommit()
 }
 
+func (p *Postgres) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+	if len(table.PKFields) == 0 {
+		return p.bulkInsertInTransaction(wrappedTx, table, objects)
+	} else {
+		return p.bulkMergeInTransaction(wrappedTx, table, objects)
+	}
+}
+
+//Must be used when table has no primary keys. Inserts data in batches to improve performance.
+//Prefer to use bulkStoreInTransaction instead of calling this method directly
 func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var header []string
@@ -542,6 +552,50 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 			return err
 		}
 	}
+	return nil
+}
+
+//Must be used only if table has primary key fields. Slower than bulkInsert as each query executed separately.
+//Prefer to use bulkStoreInTransaction instead of calling this method directly
+func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+	var placeholders string
+	var header []string
+	i := 1
+	for name := range table.Columns {
+		header = append(header, name)
+
+		//$1::type, $2::type, $3, etc
+		castClause := ""
+		castType, ok := p.mappingTypeCasts[name]
+		if ok {
+			castClause = "::" + castType
+		}
+		placeholders += "$" + strconv.Itoa(i) + castClause + ","
+
+		i++
+	}
+	placeholders = "(" + removeLastComma(placeholders) + ")"
+
+	headerClause := strings.Join(header, ",")
+	query := fmt.Sprintf(mergeTemplate, p.config.Schema, table.Name, headerClause, placeholders, buildConstraintName(p.config.Schema, table.Name), updateSection(headerClause))
+	mergeStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
+	if err != nil {
+		return fmt.Errorf("Error preparing bulk insert statement [%s] table %s statement: %v", query, table.Name, err)
+	}
+
+	for _, row := range objects {
+		var values []interface{}
+		for _, column := range header {
+			value, _ := row[column]
+			values = append(values, value)
+		}
+		p.queryLogger.LogQueryWithValues(query, values)
+		_, err = mergeStmt.ExecContext(p.ctx, values...)
+		if err != nil {
+			return fmt.Errorf("Error bulk inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
+		}
+	}
+
 	return nil
 }
 
