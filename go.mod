@@ -21,6 +21,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/gookit/color v1.3.1
 	github.com/hashicorp/go-multierror v1.1.0
+	github.com/huandu/facebook/v2 v2.5.3
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.8.0
 	github.com/mailru/easyjson v0.7.6
