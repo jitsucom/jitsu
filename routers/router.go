@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 	"net/http"
+	"net/http/pprof"
 )
 
 func SetupRouter(destinations *destinations.Service, adminToken string, clusterManager cluster.Manager, eventsCache *caching.EventsCache,
@@ -69,6 +70,17 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 
 	if metrics.Enabled {
 		router.GET("/prometheus", middleware.TokenAuth(gin.WrapH(promhttp.Handler()), adminToken))
+	}
+
+	//Setup profiler
+	statsPprof := router.Group("/stats/pprof")
+	{
+		statsPprof.GET("/allocs", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("allocs").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/block", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("block").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/goroutine", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("goroutine").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/heap", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("heap").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/mutex", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("mutex").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/threadcreate", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("threadcreate").ServeHTTP), middleware.AdminTokenErr))
 	}
 
 	return router
