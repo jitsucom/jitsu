@@ -20,7 +20,7 @@ func TestBulkInsert(t *testing.T) {
 	defer container.Close()
 	err := pg.BulkInsert(table, createObjects(5))
 	require.NoError(t, err, "Failed to bulk insert 5 objects")
-	rows, err := container.CountRows("test")
+	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
 	assert.Equal(t, rows, 5)
 }
@@ -40,7 +40,7 @@ func TestBulkMerge(t *testing.T) {
 	objects = append(objects, objects[3])
 	err := pg.BulkInsert(table, objects)
 	require.NoError(t, err, "Failed to bulk merge objects")
-	rows, err := container.CountRows("test")
+	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
 	assert.Equal(t, rows, 5)
 }
