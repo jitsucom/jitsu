@@ -21,6 +21,8 @@ var GlobalLogsWriter io.Writer
 var ConfigErr string
 var ConfigWarn string
 
+var LogLevel = UNKNOWN
+
 type Config struct {
 	FileName    string
 	FileDir     string
@@ -43,12 +45,14 @@ func (c Config) Validate() error {
 }
 
 //Initialize main logger
-func InitGlobalLogger(writer io.Writer) error {
+func InitGlobalLogger(writer io.Writer, levelStr string) error {
 	dateTimeWriter := DateTimeWriterProxy{
 		writer: writer,
 	}
 	log.SetOutput(dateTimeWriter)
 	log.SetFlags(0)
+
+	LogLevel = ToLevel(levelStr)
 
 	if ConfigErr != "" {
 		Error(ConfigErr)
@@ -76,7 +80,9 @@ func Errorf(format string, v ...interface{}) {
 }
 
 func Error(v ...interface{}) {
-	log.Println(errMsg(v...))
+	if LogLevel <= ERROR {
+		log.Println(errMsg(v...))
+	}
 }
 
 func Infof(format string, v ...interface{}) {
@@ -84,7 +90,9 @@ func Infof(format string, v ...interface{}) {
 }
 
 func Info(v ...interface{}) {
-	log.Println(append([]interface{}{infoPrefix}, v...)...)
+	if LogLevel <= INFO {
+		log.Println(append([]interface{}{infoPrefix}, v...)...)
+	}
 }
 
 func Debugf(format string, v ...interface{}) {
@@ -92,7 +100,9 @@ func Debugf(format string, v ...interface{}) {
 }
 
 func Debug(v ...interface{}) {
-	log.Println(append([]interface{}{debugPrefix}, v...)...)
+	if LogLevel <= DEBUG {
+		log.Println(append([]interface{}{debugPrefix}, v...)...)
+	}
 }
 
 func Warnf(format string, v ...interface{}) {
@@ -100,15 +110,21 @@ func Warnf(format string, v ...interface{}) {
 }
 
 func Warn(v ...interface{}) {
-	log.Println(append([]interface{}{warnPrefix}, v...)...)
+	if LogLevel <= WARN {
+		log.Println(append([]interface{}{warnPrefix}, v...)...)
+	}
 }
 
 func Fatal(v ...interface{}) {
-	log.Fatal(errMsg(v...))
+	if LogLevel <= FATAL {
+		log.Fatal(errMsg(v...))
+	}
 }
 
 func Fatalf(format string, v ...interface{}) {
-	log.Fatalf(format, errMsg(v...))
+	if LogLevel <= FATAL {
+		log.Fatalf(format, errMsg(v...))
+	}
 }
 
 func errMsg(values ...interface{}) string {
