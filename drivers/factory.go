@@ -48,6 +48,7 @@ func (c Collection) GetTableName() string {
 //RegisterDriverConstructor registers function to create new driver instance per driver type
 func RegisterDriverConstructor(driverType string,
 	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) error {
+	logging.Infof("Registering %s driver", driverType)
 	driverConstructors[driverType] = createDriverFunc
 	return nil
 }
