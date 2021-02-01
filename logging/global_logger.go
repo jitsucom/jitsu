@@ -18,6 +18,7 @@ const (
 )
 
 var GlobalLogsWriter io.Writer
+var ConfigErr string
 var ConfigWarn string
 
 type Config struct {
@@ -48,6 +49,10 @@ func InitGlobalLogger(writer io.Writer) error {
 	}
 	log.SetOutput(dateTimeWriter)
 	log.SetFlags(0)
+
+	if ConfigErr != "" {
+		Error(ConfigErr)
+	}
 
 	if ConfigWarn != "" {
 		Warn(ConfigWarn)

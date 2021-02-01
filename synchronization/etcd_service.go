@@ -76,7 +76,6 @@ func (es *EtcdService) Lock(system string, collection string) (storages.Lock, er
 	}
 	identifier := system + "_" + collection
 	l := concurrency.NewMutex(session, identifier)
-
 	if err := l.Lock(ctx); err != nil {
 		cancel()
 		return nil, err

@@ -69,7 +69,7 @@ func (ga *GoogleAnalytics) StoreWithParseFunc(fileName string, payload []byte, s
 	return nil, 0, errors.New("GoogleAnalytics doesn't support StoreWithParseFunc() func")
 }
 
-func (ga *GoogleAnalytics) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
+func (ga *GoogleAnalytics) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("GoogleAnalytics doesn't support SyncStore() func")
 }
 

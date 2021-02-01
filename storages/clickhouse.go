@@ -204,7 +204,7 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 //2. store recognized users events
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (ch *ClickHouse) SyncStore(overriddenCollectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
+func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
 	flatData, err := ch.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -213,14 +213,42 @@ func (ch *ClickHouse) SyncStore(overriddenCollectionTable string, objects []map[
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
+
 	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
+
+	//table schema overridden
+	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
+		var data []map[string]interface{}
+		//ignore table multiplexing from mapping step
+		for _, fdata := range flatData {
+			data = append(data, fdata.GetPayload()...)
+			//enrich overridden schema with new fields (some system fields or e.g. after lookup step)
+			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
+		}
+
+		adapter, tableHelper := ch.getAdapters()
+
+		table := tableHelper.MapTableSchema(overriddenDataSchema)
+
+		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
+		if err != nil {
+			return rowsCount, err
+		}
+		if err = adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
+			return rowsCount, err
+		}
+
+		return rowsCount, nil
+	}
+
+	//plain flow
 	for _, fdata := range flatData {
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 
-		//override table name
-		if overriddenCollectionTable != "" {
-			table.Name = overriddenCollectionTable
+		//overridden table name
+		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
+			table.Name = overriddenDataSchema.TableName
 		}
 
 		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)

@@ -90,7 +90,10 @@ func NewService(ctx context.Context, sources *viper.Viper, destinationsService *
 }
 
 func (s *Service) init(sc map[string]drivers.SourceConfig) {
-	for name, sourceConfig := range sc {
+	for sourceName, config := range sc {
+		//common case
+		sourceConfig := config
+		name := sourceName
 
 		driverPerCollection, err := drivers.Create(s.ctx, name, &sourceConfig)
 		if err != nil {
@@ -132,7 +135,7 @@ func (s *Service) Sync(sourceId string) (multiErr error) {
 	s.RUnlock()
 
 	if !ok {
-		return errors.New("Source doesn't exist")
+		return fmt.Errorf("Source [%s] doesn't exist", sourceId)
 	}
 
 	var destinationStorages []storages.Storage
@@ -164,16 +167,30 @@ func (s *Service) Sync(sourceId string) (multiErr error) {
 			continue
 		}
 
-		err = s.pool.Invoke(SyncTask{
-			sourceId:     sourceId,
-			collection:   collection,
-			identifier:   identifier,
-			driver:       driver,
-			metaStorage:  s.metaStorage,
-			destinations: destinationStorages,
-			lock:         collectionLock,
-		})
+		if driver.Type() == drivers.SingerType {
+			singerDriver, ok := driver.(*drivers.Singer)
+			if !ok {
+				s.monitorKeeper.Unlock(collectionLock)
+				multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Driver in a singer task doesn't implement drivers.Driver", sourceId))
+				continue
+			}
+
+			ready, notReadyError := singerDriver.Ready()
+			if !ready {
+				s.monitorKeeper.Unlock(collectionLock)
+				multiErr = multierror.Append(multiErr, notReadyError)
+				continue
+			}
+
+			identifier = sourceId + "_" + singerDriver.GetTap()
+
+			err = s.pool.Invoke(NewSingerTask(sourceId, collection, identifier, singerDriver, s.metaStorage, destinationStorages, collectionLock))
+		} else {
+			err = s.pool.Invoke(NewSyncTask(sourceId, collection, identifier, driver, s.metaStorage, destinationStorages, collectionLock))
+		}
+
 		if err != nil {
+			s.monitorKeeper.Unlock(collectionLock)
 			multiErr = multierror.Append(multiErr, fmt.Errorf("Error running sync task goroutine [%s] source [%s] collection: %v", sourceId, collection, err))
 			continue
 		}
@@ -189,7 +206,7 @@ func (s *Service) GetStatus(sourceId string) (map[string]string, error) {
 	s.RUnlock()
 
 	if !ok {
-		return nil, errors.New("Source doesn't exist")
+		return nil, fmt.Errorf("Source [%s] doesn't exist", sourceId)
 	}
 
 	statuses := map[string]string{}
@@ -212,7 +229,7 @@ func (s *Service) GetLogs(sourceId string) (map[string]string, error) {
 	s.RUnlock()
 
 	if !ok {
-		return nil, errors.New("Source doesn't exist")
+		return nil, fmt.Errorf("Source [%s] doesn't exist", sourceId)
 	}
 
 	logsMap := map[string]string{}
@@ -229,22 +246,33 @@ func (s *Service) GetLogs(sourceId string) (map[string]string, error) {
 }
 
 func (s *Service) syncCollection(i interface{}) {
-	synctTask, ok := i.(SyncTask)
+	synctTask, ok := i.(Task)
 	if !ok {
 		logging.SystemErrorf("Sync task has unknown type: %T", i)
 		return
 	}
 
-	defer s.monitorKeeper.Unlock(synctTask.lock)
+	defer s.monitorKeeper.Unlock(synctTask.GetLock())
 	synctTask.Sync()
 }
 
-func (s *Service) Close() error {
+func (s *Service) Close() (multiErr error) {
 	s.closed = true
 
 	if s.pool != nil {
 		s.pool.Release()
 	}
 
-	return nil
+	s.RLock()
+	for _, unit := range s.sources {
+		for _, driver := range unit.DriverPerCollection {
+			err := driver.Close()
+			if err != nil {
+				multiErr = multierror.Append(multiErr, err)
+			}
+		}
+	}
+	s.RUnlock()
+
+	return
 }
