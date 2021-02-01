@@ -160,7 +160,7 @@ func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
 //2. store recognized users events
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (p *Postgres) SyncStore(overriddenCollectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
+func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
 	flatData, err := p.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -169,18 +169,44 @@ func (p *Postgres) SyncStore(overriddenCollectionTable string, objects []map[str
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
+
 	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
+
+	//table schema overridden
+	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
+		var data []map[string]interface{}
+		//ignore table multiplexing from mapping step
+		for _, fdata := range flatData {
+			data = append(data, fdata.GetPayload()...)
+			//enrich overridden schema with new fields (some system fields or e.g. after lookup step)
+			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
+		}
+
+		table := p.tableHelper.MapTableSchema(overriddenDataSchema)
+
+		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
+		if err != nil {
+			return rowsCount, err
+		}
+		if err = p.adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
+			return rowsCount, err
+		}
+
+		return rowsCount, nil
+	}
+
+	//plain flow
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
 
-		//override table name
-		if overriddenCollectionTable != "" {
-			table.Name = overriddenCollectionTable
+		//overridden table name
+		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
+			table.Name = overriddenDataSchema.TableName
 		}
 
 		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
 		if err != nil {
-			return 0, err
+			return rowsCount, err
 		}
 		start := time.Now()
 		if err = p.adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions); err != nil {

@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
+	"strings"
 )
 
 const (
@@ -118,6 +119,12 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	if tableName == "" {
 		tableName = defaultTableName
 		logging.Infof("[%s] uses default table name: %s", name, tableName)
+	}
+
+	if len(pkFields) > 0 {
+		logging.Infof("[%s] has primary key fields: [%s]", name, strings.Join(destination.DataLayout.PrimaryKeyFields, ", "))
+	} else {
+		logging.Infof("[%s] doesn't have primary key fields", name)
 	}
 
 	if destination.Mode != BatchMode && destination.Mode != StreamMode {

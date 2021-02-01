@@ -1,8 +1,8 @@
 package events
 
 import (
-	"github.com/jitsucom/eventnative/drivers"
 	"github.com/jitsucom/eventnative/timestamp"
+	"time"
 )
 
 const (
@@ -11,6 +11,8 @@ const (
 	TimeChunkKey    = "time_interval"
 
 	EventIdKey = "event_id"
+
+	EventnCtxEventId = "eventn_ctx_event_id"
 )
 
 //EnrichWithEventId put eventId to EventnKey_EventIdKey key if it doesn't exist there or if there is an empty string
@@ -26,7 +28,7 @@ func EnrichWithEventId(object map[string]interface{}, eventId string) {
 				eventn[EventIdKey] = eventId
 			}
 		} else {
-			object[EventnKey+"_"+EventIdKey] = eventId
+			object[EventnCtxEventId] = eventId
 		}
 	}
 }
@@ -47,8 +49,8 @@ func EnrichWithCollection(object map[string]interface{}, collection string) {
 	}
 }
 
-func EnrichWithTimeInterval(object map[string]interface{}, interval *drivers.TimeInterval) {
-	object[EventnKey+"_"+TimeChunkKey] = interval.String()
-	object[EventnKey+"_interval_start"] = timestamp.ToISOFormat(interval.LowerEndpoint())
-	object[EventnKey+"_interval_end"] = timestamp.ToISOFormat(interval.UpperEndpoint())
+func EnrichWithTimeInterval(object map[string]interface{}, interval string, lower, upper time.Time) {
+	object[EventnKey+"_"+TimeChunkKey] = interval
+	object[EventnKey+"_interval_start"] = timestamp.ToISOFormat(lower)
+	object[EventnKey+"_interval_end"] = timestamp.ToISOFormat(upper)
 }

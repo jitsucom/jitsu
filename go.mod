@@ -36,6 +36,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.9.0
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	go.opencensus.io v0.22.4 // indirect
+	go.uber.org/atomic v1.4.0
 	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381 // indirect
