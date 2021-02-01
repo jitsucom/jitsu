@@ -95,10 +95,11 @@ func init() {
 	}
 }
 
+//GetAllAvailableIntervals return half a year by default
 func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	var intervals []*TimeInterval
 	now := time.Now().UTC()
-	for i := 0; i < 365; i++ {
+	for i := 0; i < 183; i++ {
 		date := now.AddDate(0, 0, -i)
 		intervals = append(intervals, NewTimeInterval(DAY, date))
 	}
@@ -163,7 +164,7 @@ func (fm *FacebookMarketing) requestReportWithRetry(url string, requestParameter
 		if err == nil {
 			return response, nil
 		}
-		time.Sleep(time.Duration(attempt+1) * time.Second)
+		time.Sleep(time.Duration(attempt+1) * time.Minute)
 		attempt++
 	}
 	return nil, err
