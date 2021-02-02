@@ -11,6 +11,8 @@ import (
 	"io"
 )
 
+const batchSize = 500
+
 type SchemaRecord struct {
 	Type          string   `json:"type,omitempty"`
 	Stream        string   `json:"stream,omitempty"`
@@ -39,6 +41,88 @@ type StreamRepresentation struct {
 	BatchHeader *schema.BatchHeader
 	KeyFields   []string
 	Objects     []map[string]interface{}
+}
+
+func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer) error {
+	outputPortion := &OutputRepresentation{
+		Streams: map[string]*StreamRepresentation{},
+	}
+
+	scanner := bufio.NewScanner(stdout)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+
+	records := 0
+	for scanner.Scan() {
+		lineBytes := scanner.Bytes()
+
+		lineObject := map[string]interface{}{}
+		err := json.Unmarshal(lineBytes, &lineObject)
+		if err != nil {
+			return fmt.Errorf("Error unmarshalling singer output line %s into json: %v", string(lineBytes), err)
+		}
+
+		objectType, ok := lineObject["type"]
+		if !ok || objectType == "" {
+			return fmt.Errorf("Error getting singer object 'type' field from: %s", string(lineBytes))
+		}
+
+		switch objectType {
+		case "SCHEMA":
+			streamRepresentation, err := parseSchema(lineBytes)
+			if err != nil {
+				return fmt.Errorf("Error parsing singer schema %s: %v", string(lineBytes), err)
+			}
+
+			outputPortion.Streams[streamRepresentation.BatchHeader.TableName] = streamRepresentation
+		case "STATE":
+			state, ok := lineObject["value"]
+			if !ok {
+				return fmt.Errorf("Error parsing singer state line %s: malformed state line 'value' doesn't exist", string(lineBytes))
+			}
+
+			outputPortion.State = state
+
+			//persist batch and recreate variables
+			if records >= batchSize {
+				err := consumer.Consume(outputPortion)
+				if err != nil {
+					return err
+				}
+
+				//remove already persisted objects
+				for _, stream := range outputPortion.Streams {
+					stream.Objects = []map[string]interface{}{}
+				}
+				records = 0
+			}
+		case "RECORD":
+			records++
+			tableName, object, err := parseRecord(lineObject)
+			if err != nil {
+				return fmt.Errorf("Error parsing singer record line %s: %v", string(lineBytes), err)
+			}
+
+			outputPortion.Streams[tableName].Objects = append(outputPortion.Streams[tableName].Objects, object)
+		default:
+			return fmt.Errorf("Unknown output line type: %s", objectType)
+		}
+	}
+
+	//persist last batch
+	if records > 0 {
+		err := consumer.Consume(outputPortion)
+		if err != nil {
+			return err
+		}
+	}
+
+	err := scanner.Err()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func ParseOutput(stdout io.ReadCloser) (*OutputRepresentation, error) {
@@ -134,7 +218,9 @@ func parseSchema(schemaBytes []byte) (*StreamRepresentation, error) {
 }
 
 func parseProperties(prefix string, properties map[string]*Property, resultFields schema.Fields) {
-	for name, property := range properties {
+	flattener := schema.NewFlattener()
+	for originName, property := range properties {
+		name := flattener.Reformat(originName)
 		var types []string
 
 		switch property.Type.(type) {
@@ -146,7 +232,7 @@ func parseProperties(prefix string, properties map[string]*Property, resultField
 				types = append(types, fmt.Sprint(typeValue))
 			}
 		default:
-			logging.Errorf("Unknown singer property [%s] type: %T", name, property.Type)
+			logging.Errorf("Unknown singer property [%s] type: %T", originName, property.Type)
 		}
 
 		for _, t := range types {
