@@ -184,13 +184,13 @@ func (s *Singer) GetTap() string {
 	return s.tap
 }
 
-func (s *Singer) Load(state string, strLogger *logging.SyncLogger) (*singer.OutputRepresentation, error) {
+func (s *Singer) Load(state string, strLogger *logging.SyncLogger, portionConsumer singer.PortionConsumer) error {
 	if s.closed {
-		return nil, errors.New("Singer has already been closed")
+		return errors.New("Singer has already been closed")
 	}
 
 	if !s.ready.Load() {
-		return nil, notReady
+		return notReady
 	}
 
 	//override initial state with existing one and put it to a file
@@ -199,7 +199,7 @@ func (s *Singer) Load(state string, strLogger *logging.SyncLogger) (*singer.Outp
 	if state != "" {
 		statePath, err = parseJsonAsFile(path.Join(singer.Instance.VenvDir, s.sourceName, s.tap, stateFileName), state)
 		if err != nil {
-			return nil, fmt.Errorf("Error parsing singer state %s: %v", state, err)
+			return fmt.Errorf("Error parsing singer state %s: %v", state, err)
 		}
 	} else {
 		//put initial state
@@ -245,18 +245,17 @@ func (s *Singer) Load(state string, strLogger *logging.SyncLogger) (*singer.Outp
 
 	err = syncCmd.Start()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	var wg sync.WaitGroup
-	var dataRepresentation *singer.OutputRepresentation
 	var parsingErr error
 
 	//writing result (singer writes result to stdout)
 	wg.Add(1)
 	safego.Run(func() {
 		defer wg.Done()
-		dataRepresentation, parsingErr = singer.ParseOutput(stdout)
+		parsingErr = singer.StreamParseOutput(stdout, portionConsumer)
 		if parsingErr != nil {
 			strLogger.Errorf("[%s_%s] parse output error: %v. Process will be killed", s.sourceName, s.tap, parsingErr)
 			logging.Errorf("[%s_%s] parse output error: %v. Process will be killed", s.sourceName, s.tap, parsingErr)
@@ -280,10 +279,10 @@ func (s *Singer) Load(state string, strLogger *logging.SyncLogger) (*singer.Outp
 
 	err = syncCmd.Wait()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return dataRepresentation, nil
+	return nil
 }
 
 func (s *Singer) Type() string {
