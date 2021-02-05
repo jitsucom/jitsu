@@ -7,54 +7,50 @@ import (
 	"strings"
 )
 
-type Flattener struct {
-	omitNilValues   bool
-	toLowerCaseKeys bool
+var (
+	specialCharsReplacer = strings.NewReplacer(
+		"(", "_",
+		")", "_",
+		"$", "_",
+		"[", "_",
+		"]", "_",
+		"{", "_",
+		"}", "_",
+		"@", "_",
+		"!", "_",
+		"#", "_",
+		"%", "_",
+		"&", "_",
+		",", "_",
+		".", "_",
+		";", "_",
+		":", "_",
+		"^", "_",
+		"-", "_",
+		" ", "_",
+	)
+)
+
+type Flattener interface {
+	FlattenObject(map[string]interface{}) (map[string]interface{}, error)
+}
+
+type FlattenerImpl struct {
+	omitNilValues bool
 
 	specialCharsReplacer *strings.Replacer
 }
 
-func NewFlattener() *Flattener {
-	return &Flattener{
-		omitNilValues:   true,
-		toLowerCaseKeys: true,
-		specialCharsReplacer: strings.NewReplacer(
-			"(", "_",
-			")", "_",
-			"$", "_",
-			"[", "_",
-			"]", "_",
-			"{", "_",
-			"}", "_",
-			"@", "_",
-			"!", "_",
-			"#", "_",
-			"%", "_",
-			"&", "_",
-			",", "_",
-			".", "_",
-			";", "_",
-			":", "_",
-			"^", "_",
-			"-", "_",
-			" ", "_",
-		),
+func NewFlattener() Flattener {
+	return &FlattenerImpl{
+		omitNilValues: true,
 	}
-}
-
-//makes all keys to lower case
-//remove $, (, ) from all keys
-func (f *Flattener) Reformat(key string) string {
-	if f.toLowerCaseKeys {
-		key = strings.ToLower(key)
-	}
-	return f.specialCharsReplacer.Replace(key)
 }
 
 //FlattenObject flatten object e.g. from {"key1":{"key2":123}} to {"key1_key2":123}
 //from {"$key1":1} to {"_key1":1}
 //from {"(key1)":1} to {"_key1_":1}
-func (f *Flattener) FlattenObject(json map[string]interface{}) (map[string]interface{}, error) {
+func (f *FlattenerImpl) FlattenObject(json map[string]interface{}) (map[string]interface{}, error) {
 	flattenMap := make(map[string]interface{})
 
 	err := f.flatten("", json, flattenMap)
@@ -63,13 +59,12 @@ func (f *Flattener) FlattenObject(json map[string]interface{}) (map[string]inter
 	}
 
 	return flattenMap, nil
-
 }
 
 //recursive function for flatten key (if value is inner object -> recursion call)
 //Reformat key
-func (f *Flattener) flatten(key string, value interface{}, destination map[string]interface{}) error {
-	key = f.Reformat(key)
+func (f *FlattenerImpl) flatten(key string, value interface{}, destination map[string]interface{}) error {
+	key = Reformat(key)
 	t := reflect.ValueOf(value)
 	switch t.Kind() {
 	case reflect.Slice:
@@ -106,4 +101,10 @@ func (f *Flattener) flatten(key string, value interface{}, destination map[strin
 	}
 
 	return nil
+}
+
+//makes all keys to lower case
+//remove $, (, ) from all keys
+func Reformat(key string) string {
+	return specialCharsReplacer.Replace(strings.ToLower(key))
 }

@@ -7,6 +7,22 @@ import (
 	"strings"
 )
 
+const (
+	DDLLogerType      = "ddl-debug"
+	QueriesLoggerType = "sql-debug"
+)
+
+type SQLDebugConfig struct {
+	DDL     *LoggerConfig `mapstructure:"ddl" json:"ddl,omitempty" yaml:"ddl,omitempty"`
+	Queries *LoggerConfig `mapstructure:"queries" json:"queries,omitempty" yaml:"queries,omitempty"`
+}
+
+type LoggerConfig struct {
+	Path        string `mapstructure:"path" json:"path,omitempty" yaml:"path,omitempty"`
+	RotationMin int64  `mapstructure:"rotation_min" json:"rotation_min,omitempty" yaml:"rotation_min,omitempty"`
+	MaxBackups  int    `mapstructure:"max_backups" json:"max_backups,omitempty" yaml:"max_backups,omitempty"`
+}
+
 type QueryLogger struct {
 	queryLogger *log.Logger
 	ddlLogger   *log.Logger

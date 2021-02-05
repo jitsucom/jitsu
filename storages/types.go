@@ -16,6 +16,7 @@ const (
 	S3Type              = "s3"
 	SnowflakeType       = "snowflake"
 	GoogleAnalyticsType = "google_analytics"
+	FacebookType        = "facebook"
 )
 
 type Storage interface {

@@ -14,11 +14,9 @@ import (
 type TableNameExtractor struct {
 	tableNameExtractExpression string
 	tmpl                       *template.Template
-
-	flattener *Flattener
 }
 
-func NewTableNameExtractor(tableNameExtractExpression string, flattener *Flattener) (*TableNameExtractor, error) {
+func NewTableNameExtractor(tableNameExtractExpression string) (*TableNameExtractor, error) {
 	//Table naming
 	tmpl, err := template.New("table name extract").
 		Parse(tableNameExtractExpression)
@@ -29,7 +27,6 @@ func NewTableNameExtractor(tableNameExtractExpression string, flattener *Flatten
 	return &TableNameExtractor{
 		tableNameExtractExpression: tableNameExtractExpression,
 		tmpl:                       tmpl,
-		flattener:                  flattener,
 	}, nil
 }
 
@@ -65,5 +62,5 @@ func (tne *TableNameExtractor) Extract(object map[string]interface{}) (result st
 	// format "<no value>" -> null
 	formatted := strings.ReplaceAll(buf.String(), "<no value>", "null")
 	// format "Abc dse" -> "abc_dse"
-	return tne.flattener.Reformat(formatted), nil
+	return Reformat(formatted), nil
 }
