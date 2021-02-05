@@ -130,7 +130,7 @@ func TestProcessFilePayload(t *testing.T) {
 			[]events.FailedEvent{},
 		},
 	}
-	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, false)
+	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false)
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -258,7 +258,7 @@ func TestProcessFact(t *testing.T) {
 	fieldMapper, _, err := NewFieldMapper(Default, []string{"/field1->/field2"}, nil)
 	require.NoError(t, err)
 
-	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, false)
+	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false)
 
 	require.NoError(t, err)
 	for _, tt := range tests {

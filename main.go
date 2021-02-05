@@ -159,7 +159,7 @@ func main() {
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
 	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
-		appconfig.Instance.DDLLogsWriter, appconfig.Instance.QueryLogsWriter)
+		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
 
 	//synchronization service
 	syncService, err := synchronization.NewService(

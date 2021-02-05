@@ -24,7 +24,7 @@ var (
 		typing.UNKNOWN:   "string",
 	}
 
-	eventTypeMapping = map[string]string{
+	gaEventTypeMapping = map[string]string{
 		"pageview":    "pageview",
 		"screenview":  "screenview",
 		"event":       "event",
@@ -41,7 +41,10 @@ type GoogleAnalyticsConfig struct {
 	TrackingId string `mapstructure:"tracking_id" json:"tracking_id,omitempty" yaml:"tracking_id,omitempty"`
 }
 
-func (gac GoogleAnalyticsConfig) Validate() error {
+func (gac *GoogleAnalyticsConfig) Validate() error {
+	if gac == nil {
+		return errors.New("google_analytics config is required")
+	}
 	if gac.TrackingId == "" {
 		return errors.New("tracking_id is required parameter")
 	}
@@ -71,7 +74,7 @@ func NewGoogleAnalytics(config *GoogleAnalyticsConfig, requestDebugLogger *loggi
 
 //Send HTTP GET request to GoogleAnalytics with query parameters
 //remove system fields and map event type
-func (ga GoogleAnalytics) Send(object map[string]interface{}) error {
+func (ga *GoogleAnalytics) Send(object map[string]interface{}) error {
 	uv := make(url.Values)
 	uv.Add("tid", ga.config.TrackingId)
 	uv.Add("v", "1")
@@ -89,7 +92,7 @@ func (ga GoogleAnalytics) Send(object map[string]interface{}) error {
 
 		//override event type
 		if k == "t" {
-			mapped, ok := eventTypeMapping[strValue]
+			mapped, ok := gaEventTypeMapping[strValue]
 			if !ok {
 				mapped = defaultEventType
 			}
@@ -120,7 +123,7 @@ func (ga GoogleAnalytics) Send(object map[string]interface{}) error {
 }
 
 //GetTableSchema always return empty schema
-func (ga GoogleAnalytics) GetTableSchema(tableName string) (*Table, error) {
+func (ga *GoogleAnalytics) GetTableSchema(tableName string) (*Table, error) {
 	return &Table{
 		Name:           tableName,
 		Columns:        Columns{},
@@ -131,16 +134,16 @@ func (ga GoogleAnalytics) GetTableSchema(tableName string) (*Table, error) {
 }
 
 //CreateTable GA doesn't use tables
-func (ga GoogleAnalytics) CreateTable(schemaToCreate *Table) error {
+func (ga *GoogleAnalytics) CreateTable(schemaToCreate *Table) error {
 	return nil
 }
 
 //PatchTableSchema GA doesn't use tables
-func (ga GoogleAnalytics) PatchTableSchema(schemaToAdd *Table) error {
+func (ga *GoogleAnalytics) PatchTableSchema(schemaToAdd *Table) error {
 	return nil
 }
 
-func (ga GoogleAnalytics) Close() error {
+func (ga *GoogleAnalytics) Close() error {
 	ga.client.CloseIdleConnections()
 
 	return nil
