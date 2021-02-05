@@ -16,6 +16,7 @@ func NewDummyTypeResolver() *DummyTypeResolver {
 	return &DummyTypeResolver{}
 }
 
+//Resolve return one dummy field and Fields becomes not empty. (it is used in Facebook destination)
 func (dtr *DummyTypeResolver) Resolve(object map[string]interface{}) (Fields, error) {
 	return Fields{"dummy": NewField(typing.UNKNOWN)}, nil
 }

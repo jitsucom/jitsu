@@ -38,11 +38,13 @@ var (
 	fieldsToHash = []string{"ph", "ge", "db", "ln", "fn", "ct", "st", "zp", "country"}
 )
 
+//FacebookConversionAPIConfig dto for deserialized datasource config (e.g. in Facebook destination)
 type FacebookConversionAPIConfig struct {
 	PixelId     string `mapstructure:"pixel_id" json:"pixel_id,omitempty" yaml:"pixel_id,omitempty"`
 	AccessToken string `mapstructure:"access_token" json:"access_token,omitempty" yaml:"access_token,omitempty"`
 }
 
+//Validate required fields in FacebookConversionAPIConfig
 func (fmc FacebookConversionAPIConfig) Validate() error {
 	if fmc.PixelId == "" {
 		return errors.New("pixel_id is required parameter")
@@ -55,17 +57,21 @@ func (fmc FacebookConversionAPIConfig) Validate() error {
 	return nil
 }
 
+//FacebookConversionEventsReq is sent to Facebook Conversion API
+//https://developers.facebook.com/docs/marketing-api/conversions-api/using-the-api#
 type FacebookConversionEventsReq struct {
 	Data          []map[string]interface{} `json:"data,omitempty"`
 	TestEventCode string                   `json:"test_event_code,omitempty"`
 }
 
+//FacebookConversionAPI adapter for Facebook Conversion API
 type FacebookConversionAPI struct {
 	config      *FacebookConversionAPIConfig
 	client      *http.Client
 	debugLogger *logging.QueryLogger
 }
 
+//NewFacebookConversion return new instance of adapter
 func NewFacebookConversion(config *FacebookConversionAPIConfig, requestDebugLogger *logging.QueryLogger) *FacebookConversionAPI {
 	return &FacebookConversionAPI{
 		config: config,
@@ -81,17 +87,19 @@ func NewFacebookConversion(config *FacebookConversionAPIConfig, requestDebugLogg
 }
 
 //Send HTTP POST request to Facebook Conversion API
+//transform parameters
+//map event_name
 func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	// ** Parameters transformation **
 	// * event_time
 	t, ok := object[timestamp.Key]
 	if !ok {
-		return fmt.Errorf("Object %v doesn't have %s system field", object, timestamp.Key)
+		return fmt.Errorf("Object doesn't have %s system field", object, timestamp.Key)
 	}
 
 	eventTime, ok := t.(time.Time)
 	if !ok {
-		return fmt.Errorf("_timestamp must be time.Time struct. Object: %v", object)
+		return fmt.Errorf("_timestamp must be time.Time struct: %T", t)
 	}
 
 	object["event_time"] = eventTime.Unix()
@@ -104,12 +112,12 @@ func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	// * event_name
 	eventName, ok := object["event_name"]
 	if !ok {
-		return fmt.Errorf("Object %v doesn't have event_name", object)
+		return fmt.Errorf("Object doesn't have event_name", object)
 	}
 
 	eventNameStr, ok := eventName.(string)
 	if !ok {
-		return fmt.Errorf("event_name must be string. Object: %v", object)
+		return fmt.Errorf("event_name must be string: %T", eventName)
 	}
 
 	mappedEventName, ok := fbEventTypeMapping[eventNameStr]
