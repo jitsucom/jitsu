@@ -94,7 +94,7 @@ func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	// * event_time
 	t, ok := object[timestamp.Key]
 	if !ok {
-		return fmt.Errorf("Object doesn't have %s system field", object, timestamp.Key)
+		return fmt.Errorf("Object doesn't have %s system field", timestamp.Key)
 	}
 
 	eventTime, ok := t.(time.Time)
@@ -112,7 +112,7 @@ func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	// * event_name
 	eventName, ok := object["event_name"]
 	if !ok {
-		return fmt.Errorf("Object doesn't have event_name", object)
+		return fmt.Errorf("Object doesn't have event_name")
 	}
 
 	eventNameStr, ok := eventName.(string)
