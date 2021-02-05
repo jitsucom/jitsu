@@ -35,6 +35,7 @@ var (
 		"conversion": "Purchase",
 	}
 
+	//email (em) has custom handling below
 	fieldsToHash = []string{"ph", "ge", "db", "ln", "fn", "ct", "st", "zp", "country"}
 )
 
@@ -106,8 +107,11 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 
 	bodyPayload, _ := json.Marshal(reqBody)
 
+	//send empty request and expect error
 	r, err := fc.client.Post(reqUrl, "application/json", bytes.NewBuffer(bodyPayload))
 	if r != nil && r.Body != nil {
+		defer r.Body.Close()
+
 		responseBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return fmt.Errorf("Error reading facebook conversion API response body: %v", err)
@@ -123,10 +127,11 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 			return fmt.Errorf("Access token is invalid: %s", response.Error.Message)
 		}
 
-		if response.Error.Code == 203 || (response.Error.Code == 100 && response.Error.Type == "GraphMethodException") {
+		if response.Error.Code == 803 || (response.Error.Code == 100 && response.Error.Type == "GraphMethodException") {
 			return fmt.Errorf("Pixel ID is invalid: %s", response.Error.Message)
 		}
 
+		//assume other errors - it's ok
 		return nil
 	}
 
@@ -134,12 +139,13 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 		return err
 	}
 
-	return errors.New("Empty response body")
+	return errors.New("Empty Facebook response body")
 }
 
 //Send HTTP POST request to Facebook Conversion API
-//transform parameters
-//map event_name
+//transform parameters (event_time -> unix timestamp)
+//map input event_type(event_name) with standard
+//hash fields according to documentation
 func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	// ** Parameters transformation **
 	// * event_time
@@ -197,6 +203,8 @@ func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 
 	r, err := fc.client.Post(reqUrl, "application/json", bytes.NewBuffer(bodyPayload))
 	if r != nil && r.Body != nil {
+		defer r.Body.Close()
+
 		responseBody, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return fmt.Errorf("Error reading facebook conversion API response body: %v", err)
