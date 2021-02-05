@@ -32,6 +32,7 @@ var (
 	fbEventTypeMapping = map[string]string{
 		"page":       "PageView",
 		"pageview":   "PageView",
+		"app_page":   "PageView",
 		"conversion": "Purchase",
 	}
 
