@@ -137,6 +137,19 @@ func testConnection(config *storages.DestinationConfig) error {
 		}
 
 		return nil
+	case storages.FacebookType:
+		if err := config.Facebook.Validate(); err != nil {
+			return err
+		}
+
+		adapter := adapters.NewFacebookConversion(config.Facebook, nil)
+		defer adapter.Close()
+
+		if err := adapter.TestAccess(); err != nil {
+			return err
+		}
+
+		return nil
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}

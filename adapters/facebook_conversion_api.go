@@ -45,7 +45,10 @@ type FacebookConversionAPIConfig struct {
 }
 
 //Validate required fields in FacebookConversionAPIConfig
-func (fmc FacebookConversionAPIConfig) Validate() error {
+func (fmc *FacebookConversionAPIConfig) Validate() error {
+	if fmc == nil {
+		return errors.New("facebook config is required")
+	}
 	if fmc.PixelId == "" {
 		return errors.New("pixel_id is required parameter")
 	}
@@ -55,6 +58,16 @@ func (fmc FacebookConversionAPIConfig) Validate() error {
 	}
 
 	return nil
+}
+
+type FacebookResponse struct {
+	Error FacebookResponseErr `json:"error,omitempty"`
+}
+
+type FacebookResponseErr struct {
+	Message string `json:"message,omitempty"`
+	Type    string `json:"type,omitempty"`
+	Code    int    `json:"code,omitempty"`
 }
 
 //FacebookConversionEventsReq is sent to Facebook Conversion API
@@ -84,6 +97,44 @@ func NewFacebookConversion(config *FacebookConversionAPIConfig, requestDebugLogg
 		},
 		debugLogger: requestDebugLogger,
 	}
+}
+
+//TestAccess send test request (empty POST) to Facebook and check if pixel id or access token are invalid
+func (fc *FacebookConversionAPI) TestAccess() error {
+	reqUrl := fmt.Sprintf(eventsUrlTemplate, fc.config.PixelId, fc.config.AccessToken)
+	reqBody := &FacebookConversionEventsReq{}
+
+	bodyPayload, _ := json.Marshal(reqBody)
+
+	r, err := fc.client.Post(reqUrl, "application/json", bytes.NewBuffer(bodyPayload))
+	if r != nil && r.Body != nil {
+		responseBody, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			return fmt.Errorf("Error reading facebook conversion API response body: %v", err)
+		}
+
+		response := &FacebookResponse{}
+		err = json.Unmarshal(responseBody, response)
+		if err != nil {
+			return fmt.Errorf("Error unmarhalling facebook conversion API response body: %v", err)
+		}
+
+		if response.Error.Code == 190 {
+			return fmt.Errorf("Access token is invalid: %s", response.Error.Message)
+		}
+
+		if response.Error.Code == 203 || (response.Error.Code == 100 && response.Error.Type == "GraphMethodException") {
+			return fmt.Errorf("Pixel ID is invalid: %s", response.Error.Message)
+		}
+
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	return errors.New("Empty response body")
 }
 
 //Send HTTP POST request to Facebook Conversion API
