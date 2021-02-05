@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
@@ -30,15 +31,17 @@ type DestinationConfig struct {
 	DataLayout       *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
 	UsersRecognition *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
 	Enrichment       []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
+	Log              *logging.SQLDebugConfig  `mapstructure:"log" json:"log,omitempty" yaml:"log,omitempty"`
 	BreakOnError     bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
 	Staged           bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
 
-	DataSource      *adapters.DataSourceConfig      `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
-	S3              *adapters.S3Config              `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
-	Google          *adapters.GoogleConfig          `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
-	GoogleAnalytics *adapters.GoogleAnalyticsConfig `mapstructure:"google_analytics" json:"google_analytics,omitempty" yaml:"google_analytics,omitempty"`
-	ClickHouse      *adapters.ClickHouseConfig      `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
-	Snowflake       *adapters.SnowflakeConfig       `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
+	DataSource      *adapters.DataSourceConfig            `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
+	S3              *adapters.S3Config                    `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
+	Google          *adapters.GoogleConfig                `mapstructure:"google" json:"google,omitempty" yaml:"google,omitempty"`
+	GoogleAnalytics *adapters.GoogleAnalyticsConfig       `mapstructure:"google_analytics" json:"google_analytics,omitempty" yaml:"google_analytics,omitempty"`
+	ClickHouse      *adapters.ClickHouseConfig            `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
+	Snowflake       *adapters.SnowflakeConfig             `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
+	Facebook        *adapters.FacebookConversionAPIConfig `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
 }
 
 type DataLayout struct {
@@ -87,7 +90,7 @@ type Config struct {
 //Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
 func Create(ctx context.Context, name, logEventPath string, destination DestinationConfig, monitorKeeper MonitorKeeper,
-	eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (StorageProxy, *events.PersistentQueue, error) {
+	eventsCache *caching.EventsCache, globalLoggerFactory *logging.Factory) (StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = name
 	}
@@ -203,7 +206,18 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		usersRecognition = &UserRecognitionConfiguration{Enabled: false}
 	}
 
-	processor, err := schema.NewProcessor(name, tableName, fieldMapper, enrichmentRules, destination.BreakOnError)
+	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
+	var flattener schema.Flattener
+	var typeResolver schema.TypeResolver
+	if destination.Type == FacebookType {
+		flattener = schema.NewDummyFlattener()
+		typeResolver = schema.NewDummyTypeResolver()
+	} else {
+		flattener = schema.NewFlattener()
+		typeResolver = schema.NewTypeResolver()
+	}
+
+	processor, err := schema.NewProcessor(name, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, destination.BreakOnError)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -213,6 +227,26 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		eventQueue, err = events.NewPersistentQueue("queue.dst="+name, logEventPath)
 		if err != nil {
 			return nil, nil, err
+		}
+	}
+
+	//override debug sql (ddl, queries) loggers from the destination config
+	destinationLoggerFactory := globalLoggerFactory
+	if destination.Log != nil {
+		if destination.Log.DDL != nil {
+			destinationLoggerFactory.NewFactoryWithDDLLogsWriter(logging.CreateLogWriter(&logging.Config{
+				FileName:    appconfig.Instance.ServerName + "-" + logging.DDLLogerType,
+				FileDir:     destination.Log.DDL.Path,
+				RotationMin: destination.Log.DDL.RotationMin,
+				MaxBackups:  destination.Log.DDL.MaxBackups}))
+		}
+
+		if destination.Log.Queries != nil {
+			destinationLoggerFactory.NewFactoryWithQueryLogsWriter(logging.CreateLogWriter(&logging.Config{
+				FileName:    appconfig.Instance.ServerName + "-" + logging.QueriesLoggerType,
+				FileDir:     destination.Log.Queries.Path,
+				RotationMin: destination.Log.Queries.RotationMin,
+				MaxBackups:  destination.Log.Queries.MaxBackups}))
 		}
 	}
 
@@ -226,7 +260,7 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		monitorKeeper:    monitorKeeper,
 		eventQueue:       eventQueue,
 		eventsCache:      eventsCache,
-		loggerFactory:    loggerFactory,
+		loggerFactory:    destinationLoggerFactory,
 		pkFields:         pkFields,
 		sqlTypeCasts:     sqlTypeCasts,
 	}
@@ -247,6 +281,8 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 		storageProxy = newProxy(NewSnowflake, storageConfig)
 	case GoogleAnalyticsType:
 		storageProxy = newProxy(NewGoogleAnalytics, storageConfig)
+	case FacebookType:
+		storageProxy = newProxy(NewFacebook, storageConfig)
 	default:
 		if eventQueue != nil {
 			eventQueue.Close()
