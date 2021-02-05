@@ -22,10 +22,13 @@ func dryRun(payload events.Event, processor *schema.Processor, tableHelper *Tabl
 	if err != nil {
 		return nil, err
 	}
+
 	tableSchema := tableHelper.MapTableSchema(batchHeader)
 	var dryRunResponses []adapters.TableField
+
 	for name, column := range tableSchema.Columns {
 		dryRunResponses = append(dryRunResponses, adapters.TableField{Field: name, Type: column.SqlType, Value: event[name]})
 	}
+
 	return dryRunResponses, nil
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/eventnative/schema"
 )
 
+//Store events to Facebook Conversion API in stream mode
 type Facebook struct {
 	name            string
 	fbAdapter       *adapters.FacebookConversionAPI
@@ -22,6 +23,8 @@ type Facebook struct {
 	staged          bool
 }
 
+//NewFacebook return Facebook instance
+//start streaming worker goroutine
 func NewFacebook(config *Config) (Storage, error) {
 	if !config.streamMode {
 		return nil, fmt.Errorf("Facebook destination doesn't support %s mode", BatchMode)

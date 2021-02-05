@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/eventnative/schema"
 )
 
+//Store events to Google Analytics in stream mode
 type GoogleAnalytics struct {
 	name            string
 	gaAdapter       *adapters.GoogleAnalytics
@@ -22,6 +23,8 @@ type GoogleAnalytics struct {
 	staged          bool
 }
 
+//NewGoogleAnalytics return GoogleAnalytics instance
+//start streaming worker goroutine
 func NewGoogleAnalytics(config *Config) (Storage, error) {
 	if !config.streamMode {
 		return nil, fmt.Errorf("Google Analytics destination doesn't support %s mode", BatchMode)
