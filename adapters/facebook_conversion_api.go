@@ -187,16 +187,18 @@ func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	fc.hashFields(object)
 
 	//* test_event_code
+	var testEventCodeStr string
 	testEventCode, testEventCodeExists := object["test_event_code"]
 	if testEventCodeExists {
 		delete(object, "test_event_code")
+		testEventCodeStr = fmt.Sprint(testEventCode)
 	}
 
 	//sending
 	var responsePayload string
 
 	reqUrl := fmt.Sprintf(eventsUrlTemplate, fc.config.PixelId, fc.config.AccessToken)
-	reqBody := &FacebookConversionEventsReq{Data: []map[string]interface{}{object}, TestEventCode: fmt.Sprint(testEventCode)}
+	reqBody := &FacebookConversionEventsReq{Data: []map[string]interface{}{object}, TestEventCode: testEventCodeStr}
 
 	bodyPayload, _ := json.Marshal(reqBody)
 
