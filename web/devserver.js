@@ -4,8 +4,12 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const express = require('express');
 const path = require('path');
+const bodyParser = require("body-parser");
+
 const openBrowser = require('react-dev-utils/openBrowser');
 const { choosePort } = require('react-dev-utils/WebpackDevServerUtils');
+
+
 
 
 const DEFAULT_PORT 				= 4000;
@@ -53,13 +57,16 @@ const inlineJs = prepareJsFile('inline.js')
 const eventNConfigPlaceholder = 'eventnConfig'
 
 const devserver = express();
+devserver.use(bodyParser.text())
+devserver.use(bodyParser.json())
 
 devserver.get('/', (req, res) => {
 	res.sendFile(testHtmlPath);
 });
 
 devserver.use(express.static('demo'))
-devserver.use(express.json());
+//devserver.use(express.json());
+
 devserver.use(function(req, res, next) {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET,POST');
@@ -73,7 +80,8 @@ devserver.use(function(req, res, next) {
 });
 
 let apiHandler = (req, res) => {
-    console.log('Event', JSON.stringify(req.body, null, 2));
+    let bodyJson = typeof req.body === 'object' ? req.body : JSON.parse(req.body);
+    console.log('Event' + req.method + ' ' + JSON.stringify(bodyJson, null, 2) + "\n\nHeaders: " + JSON.stringify(req.headers, null, 2));
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.send({status: 'ok'});
 };

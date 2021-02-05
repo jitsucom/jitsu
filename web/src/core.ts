@@ -1,16 +1,7 @@
-import {
-    awaitGlobalProp,
-    generateId, generateRandom,
-    getCookie,
-    getCookieDomain, getCookies,
-    getDataFromParams,
-    getHostWithProtocol,
-    parseQuery,
-    reformatDate,
-    setCookie,
-} from './helpers'
-import {Event, Logger, EventCtx, Tracker, TrackerOptions, TrackerPlugin, EventPayload, UserProps} from './types'
+import {awaitGlobalProp, generateId, generateRandom, getCookie, getCookieDomain, getCookies, getDataFromParams, getHostWithProtocol, parseQuery, reformatDate, setCookie,} from './helpers'
+import {Event, EventCtx, EventPayload, Tracker, TrackerOptions, UserProps} from './types'
 import {interceptGoogleAnalytics} from "./ga-interceptor";
+import {getLogger, LogLevel, LogLevels, Logger} from "./logger";
 
 
 const VERSION_INFO = {
@@ -21,15 +12,6 @@ const VERSION_INFO = {
 
 const EVENTN_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
 
-
-function initLogger(): Logger {
-    const loggerKeys = ['debug', 'info', 'warn', 'error'];
-    let logger: Logger = loggerKeys.reduce((res, k) => ({
-        ...res, [k]: () => {
-        }
-    }), {}) as Logger;
-    return logger;
-}
 
 function putId(props: UserProps): UserProps {
     if (props.id) {
@@ -46,7 +28,7 @@ function putId(props: UserProps): UserProps {
 
 
 class TrackerImpl implements Tracker {
-    logger: Logger = initLogger();
+    logger: Logger = getLogger();
 
     private anonymousId: string = "";
     private userProperties: any = {}
@@ -60,11 +42,13 @@ class TrackerImpl implements Tracker {
     private _3pCookies: Record<string, boolean> = {};
     private initialOptions?: TrackerOptions;
 
-    id(props: Record<string, any>, doNotSendEvent?: boolean): void {
+    id(props: Record<string, any>, doNotSendEvent?: boolean): Promise<void> {
         this.userProperties = {...this.userProperties, ...props}
         this.logger.debug('user identified:', props)
         if (!doNotSendEvent) {
-            this.track('user_identify', {});
+            return this.track('user_identify', {});
+        } else {
+            return Promise.resolve();
         }
     }
 
@@ -90,7 +74,7 @@ class TrackerImpl implements Tracker {
         };
     }
 
-    _send3p(sourceType: string, object: any, type?: string) {
+    _send3p(sourceType: string, object: any, type?: string): Promise<any> {
         let eventType = '3rdparty'
         if (type && type !== '') {
             eventType = type
@@ -99,29 +83,41 @@ class TrackerImpl implements Tracker {
         const e = this.makeEvent(eventType, sourceType, {
             src_payload: object
         });
-        this.sendJson(e);
+        return this.sendJson(e);
     }
 
-    sendJson(json: Event) {
-        let req = new XMLHttpRequest();
-        logger: {
-            req.onerror = (e) => {
-                this.logger.error('Failed to send', json, e);
-            };
-            req.onload = () => {
-                if (req.status !== 200) {
-                    this.logger.error('Failed to send data:', json, req.statusText, req.responseText)
-                }
-            }
-        }
+    sendJson(json: Event): Promise<void> {
         let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}`;
         if (this.randomizeUrl) {
             url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}`;
         }
-        req.open('POST', url);
-        req.setRequestHeader("Content-Type", "application/json");
-        req.send(JSON.stringify(json))
-        this.logger.debug('sending json', json);
+
+        let jsonString = JSON.stringify(json);
+        if (this.initialOptions?.use_beacon_api && navigator.sendBeacon) {
+            this.logger.debug("Sending beacon", json);
+            const blob = new Blob([jsonString], { type: 'text/plain' });
+            navigator.sendBeacon(url, blob);
+            return Promise.resolve();
+        } else {
+            let req = new XMLHttpRequest();
+            return new Promise((resolve, reject) => {
+                req.onerror = (e) => {
+                    this.logger.error('Failed to send', json, e);
+                    reject(new Error(`Failed to send JSON. See console logs`))
+                };
+                req.onload = () => {
+                    if (req.status !== 200) {
+                        this.logger.error('Failed to send data:', json, req.statusText, req.responseText)
+                        reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
+                    }
+                    resolve();
+                }
+                req.open('POST', url);
+                req.setRequestHeader("Content-Type", "application/json");
+                req.send(jsonString)
+                this.logger.debug('sending json', json);
+            });
+        }
     }
 
     getCtx(): EventCtx {
@@ -160,25 +156,25 @@ class TrackerImpl implements Tracker {
         return res;
     }
 
-    track(type: string, payload?: EventPayload) {
+    track(type: string, payload?: EventPayload): Promise<void> {
         let data = payload || {};
         this.logger.debug('track event of type', type, data)
         const e = this.makeEvent(type, 'eventn', payload || {});
-        this.sendJson(e);
+        return this.sendJson(e);
     }
 
     init(options: TrackerOptions) {
         this.initialOptions = options;
-        this.logger.debug('Initializing', options, EVENTN_VERSION)
+        this.logger = getLogger(options.log_level ? LogLevels[options.log_level] : undefined)
+        this.logger.debug('Initializing eventN tracker', options, EVENTN_VERSION)
         this.cookieDomain = options['cookie_domain'] || getCookieDomain();
         this.trackingHost = getHostWithProtocol(options['tracking_host'] || 't.jitsu.com');
         this.randomizeUrl = options['randomize_url'] || false;
         this.idCookieName = options['cookie_name'] || '__eventn_id';
         this.apiKey = options['key'] || 'NONE';
-        this.logger = initLogger();
         if (options.capture_3rd_party_cookies === false) {
             this._3pCookies = {}
-        } else  {
+        } else {
             (options.capture_3rd_party_cookies || ['_ga', '_fbp', '_ym_uid', 'ajs_user_id', 'ajs_anonymous_id'])
                 .forEach(name => this._3pCookies[name] = true)
         }
