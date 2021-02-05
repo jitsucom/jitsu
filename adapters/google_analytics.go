@@ -42,6 +42,9 @@ type GoogleAnalyticsConfig struct {
 }
 
 func (gac *GoogleAnalyticsConfig) Validate() error {
+	if gac == nil {
+		return errors.New("google_analytics config is required")
+	}
 	if gac.TrackingId == "" {
 		return errors.New("tracking_id is required parameter")
 	}
