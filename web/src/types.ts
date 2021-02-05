@@ -2,6 +2,8 @@
  * Main EventNative tracker interface. Exposed via eventN constant
  * (e.g. import eventN from '@ksense/eventnative'
  */
+import {Logger} from "./logger";
+
 export type Tracker = {
   logger: Logger
   /**
@@ -10,14 +12,17 @@ export type Tracker = {
    * @param typeName event name of event
    * @param _3pData third-party payload. The structure depend on
    * @param type event-type
+   * @return promise that is resolved after executed.
+   *         However, if beacon API is used (see TrackerOption.use_beacon) promise will be resolved immediately
    */
-  _send3p: (typeName: string, _3pPayload: any, type?: string) => void
+  _send3p: (typeName: string, _3pPayload: any, type?: string) => Promise<void>
   /**
    * Sends a track event to server
    * @param name event name
    * @param payload event payload
+   * @return Promise, see _send3p documentation
    */
-  track: (typeName: string, payload?: EventPayload) => void
+  track: (typeName: string, payload?: EventPayload) => Promise<void>
 
   // /**
   //  * Similar to track(), but send unstructured payload to EventNative processing pipeline. No
@@ -30,8 +35,9 @@ export type Tracker = {
    * Sets a user data
    * @param userData user data (as map id_type --> value, such as "email": "a@bcd.com"
    * @param doNotSendEvent if true (false by default), separate "id" event won't be sent to server
+   * @return Promise, see _send3p documentation
    */
-  id: (userData: Record<string, any>, doNotSendEvent?: boolean) => void
+  id: (userData: Record<string, any>, doNotSendEvent?: boolean) => Promise<void>
   /**
    * Initializes tracker. Must be called
    * @param initialization options
@@ -52,6 +58,15 @@ export default eventN;
  * Configuration options of EventNative
  */
 export type TrackerOptions = {
+  /**
+   * If beacon API (https://developer.mozilla.org/en-US/docs/Web/API/Beacon_API) should be used instead of
+   * XMLHttpRequest.
+   *
+   * Warning: beacon API might be unstable (https://volument.com/blog/sendbeacon-is-broken). Please,
+   * do not use it unless absolutely necessary
+   */
+  use_beacon_api?: boolean
+
   /**
    * Cookie domain that will be used to identify
    * users. If not set, location.hostname will be used
@@ -103,6 +118,10 @@ export type TrackerOptions = {
    */
   capture_3rd_party_cookies?: string[] | false;
 
+  /**
+   * Log level. 'WARN' if not set
+   */
+  log_level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
 };
 
 /* ==========================================================
@@ -111,16 +130,6 @@ export type TrackerOptions = {
  * ========================================================== */
 
 
-/**
- * Interface for logging. Plugins might use it
- * internally
- */
-export type Logger = {
-  debug: (...args: any) => void
-  info: (...args: any) => void
-  warn: (...args: any) => void
-  error: (...args: any) => void
-}
 
 /**
  * User properties (ids)
