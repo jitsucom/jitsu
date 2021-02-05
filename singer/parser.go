@@ -218,9 +218,8 @@ func parseSchema(schemaBytes []byte) (*StreamRepresentation, error) {
 }
 
 func parseProperties(prefix string, properties map[string]*Property, resultFields schema.Fields) {
-	flattener := schema.NewFlattener()
 	for originName, property := range properties {
-		name := flattener.Reformat(originName)
+		name := schema.Reformat(originName)
 		var types []string
 
 		switch property.Type.(type) {

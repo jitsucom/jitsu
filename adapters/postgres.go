@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 const (
@@ -113,13 +114,17 @@ func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, que
 		connectionString += k + "=" + v + " "
 	}
 	dataSource, err := sql.Open("postgres", connectionString)
-
 	if err != nil {
 		return nil, err
 	}
+
 	if err := dataSource.Ping(); err != nil {
+		dataSource.Close()
 		return nil, err
 	}
+
+	//set default value
+	dataSource.SetConnMaxLifetime(10 * time.Minute)
 
 	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, mappingTypeCasts: mappingTypeCasts}, nil
 }
@@ -133,13 +138,17 @@ func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *log
 		connectionString += k + "=" + v + " "
 	}
 	dataSource, err := sql.Open("postgres", connectionString)
-
 	if err != nil {
 		return nil, err
 	}
+
 	if err := dataSource.Ping(); err != nil {
+		dataSource.Close()
 		return nil, err
 	}
+
+	//set default value
+	dataSource.SetConnMaxLifetime(10 * time.Minute)
 
 	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, mappingTypeCasts: reformatMappings(mappingTypeCasts, SchemaToPostgres)}, nil
 }

@@ -25,8 +25,30 @@ func NewFactory(logEventPath string, logRotationMin int64, showInServer bool, dd
 	}
 }
 
+//NewFactory return a new factory instance with overridden DDL debug logs writer
+func (f *Factory) NewFactoryWithDDLLogsWriter(overriddenDDLLogsWriter io.Writer) *Factory {
+	return &Factory{
+		logEventPath:    f.logEventPath,
+		logRotationMin:  f.logRotationMin,
+		showInServer:    f.showInServer,
+		ddlLogsWriter:   overriddenDDLLogsWriter,
+		queryLogsWriter: f.queryLogsWriter,
+	}
+}
+
+//NewFactory return a new factory instance with overridden sql query debug logs writer
+func (f *Factory) NewFactoryWithQueryLogsWriter(overriddenQueryLogsWriter io.Writer) *Factory {
+	return &Factory{
+		logEventPath:    f.logEventPath,
+		logRotationMin:  f.logRotationMin,
+		showInServer:    f.showInServer,
+		ddlLogsWriter:   f.ddlLogsWriter,
+		queryLogsWriter: overriddenQueryLogsWriter,
+	}
+}
+
 func (f *Factory) CreateIncomingLogger(tokenId string) *AsyncLogger {
-	eventLogWriter := NewRollingWriter(Config{
+	eventLogWriter := NewRollingWriter(&Config{
 		FileName:      "incoming.tok=" + tokenId,
 		FileDir:       path.Join(f.logEventPath, "incoming"),
 		RotationMin:   f.logRotationMin,
@@ -37,7 +59,7 @@ func (f *Factory) CreateIncomingLogger(tokenId string) *AsyncLogger {
 }
 
 func (f *Factory) CreateFailedLogger(destinationName string) *AsyncLogger {
-	return NewAsyncLogger(NewRollingWriter(Config{
+	return NewAsyncLogger(NewRollingWriter(&Config{
 		FileName:      "failed.dst=" + destinationName,
 		FileDir:       path.Join(f.logEventPath, "failed"),
 		RotationMin:   f.logRotationMin,
@@ -50,7 +72,7 @@ func (f *Factory) CreateSQLQueryLogger(destinationName string) *QueryLogger {
 }
 
 func (f *Factory) CreateStreamingArchiveLogger(destinationName string) *AsyncLogger {
-	return NewAsyncLogger(NewRollingWriter(Config{
+	return NewAsyncLogger(NewRollingWriter(&Config{
 		FileName:      "streaming-archive.dst=" + destinationName,
 		FileDir:       path.Join(f.logEventPath, "archive", time.Now().UTC().Format("2006-01-02")),
 		RotationMin:   f.logRotationMin,
