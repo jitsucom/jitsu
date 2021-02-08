@@ -149,6 +149,11 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 //hash fields according to documentation
 func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	// ** Parameters transformation **
+	// * action_source
+	_, ok := object["action_source"]
+	if !ok {
+		object["action_source"] = "website"
+	}
 	// * event_time
 	t, ok := object[timestamp.Key]
 	if !ok {
