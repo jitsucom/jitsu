@@ -137,6 +137,7 @@ class TrackerImpl implements Tracker {
             page_title: document.title,
             doc_path: document.location.pathname,
             doc_host: document.location.hostname,
+            doc_search: window.location.search,
             screen_resolution: screen.width + "x" + screen.height,
             vp_size: Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0) + "x" + Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0),
             user_language: navigator.language,

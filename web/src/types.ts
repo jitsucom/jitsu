@@ -178,6 +178,7 @@ export type EventCtx = {
                                    //see UTM_TYPES for all supported utm tags
   doc_path: string                 //document path
   doc_host: string                 //document host
+  doc_search: string               //document search string
   screen_resolution: string        //screen resolution
   vp_size: string                  //viewport size
   user_language: string            //user language
