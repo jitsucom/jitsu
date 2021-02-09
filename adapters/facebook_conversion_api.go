@@ -185,10 +185,9 @@ func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	}
 
 	mappedEventName, ok := fbEventTypeMapping[eventNameStr]
-	if !ok {
-		return fmt.Errorf("event_name mapping not found for event name: %s. Mappings: %v", eventNameStr, fbEventTypeMapping)
+	if ok {
+		object["event_name"] = mappedEventName
 	}
-	object["event_name"] = mappedEventName
 
 	fc.hashFields(object)
 
