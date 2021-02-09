@@ -34,6 +34,7 @@ var (
 		"pageview":   "PageView",
 		"app_page":   "PageView",
 		"conversion": "Purchase",
+		"signup":     "CompleteRegistration",
 	}
 
 	//email (em) has custom handling below
