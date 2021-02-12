@@ -16,7 +16,7 @@
     "express": "^4.17.1",
     "merge": "^1.2.1",
     "react-dev-utils": "^10.2.1",
-    "rollup": "^1.0.0",
+    "rollup": "^2.39.0",
     "rollup-plugin-commonjs": "^9.2.0",
     "rollup-plugin-copy": "^3.3.0",
     "rollup-plugin-node-resolve": "^4.0.0",

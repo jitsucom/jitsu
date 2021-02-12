@@ -13,25 +13,43 @@ const VERSION_INFO = {
 const EVENTN_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
 
 
-function putId(props: UserProps): UserProps {
-    if (props.id) {
-        return props;
+
+
+class UserIdPersistance {
+    private cookieDomain: string;
+    private cookieName: string;
+
+
+    constructor(cookieDomain: string, cookieName: string) {
+        this.cookieDomain = cookieDomain;
+        this.cookieName = cookieName;
     }
-    for (let [key, value] of Object.entries(props)) {
-        if (key !== "id" && key !== "anonymous_id") {
-            props.id = value;
-            return props;
+
+    public save(props: Record<string, any>) {
+        setCookie(this.cookieName, encodeURIComponent(JSON.stringify(props)), Infinity, this.cookieDomain, document.location.protocol !== "http:");
+    }
+
+    restore(): Record<string, any> | undefined {
+        let str = getCookie(this.cookieName);
+        if (str) {
+            try {
+                return JSON.parse(decodeURIComponent(str));
+            } catch (e) {
+                console.error("Failed to decode JSON from " + str, e);
+                return undefined;
+            }
         }
+        return undefined;
     }
-    return props;
 }
 
 
 class TrackerImpl implements Tracker {
     logger: Logger = getLogger();
+    private userIdPersistance?: UserIdPersistance;
 
     private anonymousId: string = "";
-    private userProperties: any = {}
+    private userProperties: UserProps = {}
     private cookieDomain: string = "";
     private trackingHost: string = "";
     private idCookieName: string = "";
@@ -42,9 +60,14 @@ class TrackerImpl implements Tracker {
     private _3pCookies: Record<string, boolean> = {};
     private initialOptions?: TrackerOptions;
 
-    id(props: Record<string, any>, doNotSendEvent?: boolean): Promise<void> {
+    id(props: UserProps, doNotSendEvent?: boolean): Promise<void> {
         this.userProperties = {...this.userProperties, ...props}
         this.logger.debug('user identified:', props)
+        if (this.userIdPersistance) {
+            this.userIdPersistance.save(props);
+        } else {
+            this.logger.warn("Id() is called before initialization")
+        }
         if (!doNotSendEvent) {
             return this.track('user_identify', {});
         } else {
@@ -65,6 +88,7 @@ class TrackerImpl implements Tracker {
     }
 
     makeEvent(event_type: string, src: string, payload: EventPayload): Event {
+        this.restoreId();
         return {
             api_key: this.apiKey,
             src,
@@ -95,7 +119,7 @@ class TrackerImpl implements Tracker {
         let jsonString = JSON.stringify(json);
         if (this.initialOptions?.use_beacon_api && navigator.sendBeacon) {
             this.logger.debug("Sending beacon", json);
-            const blob = new Blob([jsonString], { type: 'text/plain' });
+            const blob = new Blob([jsonString], {type: 'text/plain'});
             navigator.sendBeacon(url, blob);
             return Promise.resolve();
         } else {
@@ -124,10 +148,10 @@ class TrackerImpl implements Tracker {
         let now = new Date();
         return {
             event_id: "", //generate id on the backend side
-            user: putId({
+            user: {
                 anonymous_id: this.anonymousId,
                 ...this.userProperties
-            }),
+            },
             ids: this._getIds(),
             user_agent: navigator.userAgent,
             utc_time: reformatDate(now.toISOString()),
@@ -164,7 +188,10 @@ class TrackerImpl implements Tracker {
         return this.sendJson(e);
     }
 
-    init(options: TrackerOptions) {
+    init(options?: TrackerOptions) {
+        if (!options) {
+            options = {}
+        }
         this.initialOptions = options;
         this.logger = getLogger(options.log_level ? LogLevels[options.log_level] : undefined)
         this.logger.debug('Initializing eventN tracker', options, EVENTN_VERSION)
@@ -173,6 +200,7 @@ class TrackerImpl implements Tracker {
         this.randomizeUrl = options['randomize_url'] || false;
         this.idCookieName = options['cookie_name'] || '__eventn_id';
         this.apiKey = options['key'] || 'NONE';
+        this.userIdPersistance = new UserIdPersistance(this.cookieDomain, this.idCookieName + "_usr");
         if (options.capture_3rd_party_cookies === false) {
             this._3pCookies = {}
         } else {
@@ -222,6 +250,15 @@ class TrackerImpl implements Tracker {
         };
         analytics.addSourceMiddleware(interceptor);
         analytics['__en_intercepted'] = true
+    }
+
+    private restoreId() {
+        if (this.userIdPersistance) {
+            let props = this.userIdPersistance.restore();
+            if (props) {
+                this.userProperties = {...props, ...this.userProperties};
+            }
+        }
     }
 }
 

@@ -37,7 +37,7 @@ export type Tracker = {
    * @param doNotSendEvent if true (false by default), separate "id" event won't be sent to server
    * @return Promise, see _send3p documentation
    */
-  id: (userData: Record<string, any>, doNotSendEvent?: boolean) => Promise<void>
+  id: (userData: UserProps, doNotSendEvent?: boolean) => Promise<void>
   /**
    * Initializes tracker. Must be called
    * @param initialization options
