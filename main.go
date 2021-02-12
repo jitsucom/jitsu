@@ -124,7 +124,7 @@ func main() {
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
 	}
 
-	telemetry.Init(commit, tag, builtAt, viper.GetBool("server.telemetry.disabled.usage"))
+	telemetry.InitFromViper(notifications.ServiceName, commit, tag, builtAt)
 	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")

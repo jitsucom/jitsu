@@ -2,10 +2,18 @@ package telemetry
 
 import (
 	"bytes"
+	"encoding/json"
+	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/safego"
+	"github.com/spf13/viper"
+	"io/ioutil"
 	"net/http"
 	"time"
 )
+
+type Configuration struct {
+	Disabled map[string]bool `json:"disabled,omitempty"`
+}
 
 var instance Service
 
@@ -23,9 +31,21 @@ type Service struct {
 	closed  bool
 }
 
-func Init(commit, tag, builtAt string, usageOptOut bool) {
+func InitFromViper(serviceName, commit, tag, builtAt string) {
+	var usageOptOut bool
+	telemetrySourceUrl := viper.GetString("server.telemetry")
+	if telemetrySourceUrl != "" {
+		usageOptOut = extractUsageOptOut(telemetrySourceUrl)
+	} else {
+		usageOptOut = viper.GetBool("server.telemetry.disabled.usage")
+	}
+
+	Init(serviceName, commit, tag, builtAt, usageOptOut)
+}
+
+func Init(serviceName, commit, tag, builtAt string, usageOptOut bool) {
 	instance = Service{
-		reqFactory: newRequestFactory(commit, tag, builtAt),
+		reqFactory: newRequestFactory(serviceName, commit, tag, builtAt),
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -60,6 +80,10 @@ func Event() {
 	if !instance.usageOptOut {
 		instance.collector.Event()
 	}
+}
+
+func User(user *UserData) {
+	instance.usageCh <- instance.reqFactory.fromUser(user)
 }
 
 func (s *Service) usage(usage *Usage) {
@@ -115,4 +139,39 @@ func Flush() {
 
 func Close() {
 	instance.closed = true
+}
+
+//from http
+func extractUsageOptOut(url string) bool {
+	r, err := http.Get(url)
+	if r != nil && r.Body != nil {
+		defer r.Body.Close()
+	}
+
+	if err != nil {
+		logging.Debugf("Error getting usage opt out settings: %v", err)
+		return false
+	}
+
+	content, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		logging.Debugf("Error reading usage opt out settings: %v", err)
+		return false
+	}
+
+	c := &Configuration{}
+	err = json.Unmarshal(content, c)
+	if err != nil {
+		logging.Debugf("Error parsing usage opt out settings: %v", err)
+		return false
+	}
+
+	if c.Disabled != nil {
+		optOut, ok := c.Disabled["usage"]
+		if ok {
+			return optOut
+		}
+	}
+
+	return false
 }
