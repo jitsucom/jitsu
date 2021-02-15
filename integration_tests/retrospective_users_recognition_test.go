@@ -72,7 +72,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
       		}
     	}}`
 
-	telemetry.Init("test", "test", "test", true)
+	telemetry.Init("test", "test", "test", "test", true)
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken"}]}`)
 	viper.Set("meta.storage.redis.host", redisContainer.Host)

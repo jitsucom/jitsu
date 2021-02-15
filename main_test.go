@@ -168,7 +168,7 @@ func TestCors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
-			telemetry.Init("test", "test", "test", true)
+			telemetry.Init("test", "test", "test", "test", true)
 			httpAuthority, _ := test.GetLocalAuthority()
 
 			err := appconfig.Init()
@@ -297,7 +297,7 @@ func TestApiEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
-			telemetry.Init("test", "test", "test", true)
+			telemetry.Init("test", "test", "test", "test", true)
 			httpAuthority, _ := test.GetLocalAuthority()
 
 			err := appconfig.Init()
@@ -462,7 +462,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	}
 	defer container.Close()
 
-	telemetry.Init("test", "test", "test", true)
+	telemetry.Init("test", "test", "test", "test", true)
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
 
@@ -563,7 +563,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 		t.Fatalf("failed to initialize container: %v", err)
 	}
 	defer container.Close()
-	telemetry.Init("test", "test", "test", true)
+	telemetry.Init("test", "test", "test", "test", true)
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
 
