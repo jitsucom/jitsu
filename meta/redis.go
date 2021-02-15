@@ -15,7 +15,8 @@ var updateOneFieldCachedEvent = redis.NewScript(3, `if redis.call('exists',KEYS[
 var updateTwoFieldsCachedEvent = redis.NewScript(5, `if redis.call('exists',KEYS[1]) == 1 then redis.call('hmset', KEYS[1], KEYS[2], KEYS[3], KEYS[4], KEYS[5]) end`)
 
 type Redis struct {
-	pool *redis.Pool
+	pool               *redis.Pool
+	anonymousEventsTtl string
 }
 
 //redis key [variables] - description
@@ -35,9 +36,9 @@ type Redis struct {
 //
 //retrospective user recognition
 //anonymous_events:destination_id#${destination_id}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
-func NewRedis(host string, port int, password string) (*Redis, error) {
+func NewRedis(host string, port int, password, anonymousEventsTtl string) (*Redis, error) {
 	logging.Infof("Initializing redis [%s:%d]...", host, port)
-	r := &Redis{pool: NewRedisPool(host, port, password)}
+	r := &Redis{pool: NewRedisPool(host, port, password), anonymousEventsTtl: anonymousEventsTtl}
 
 	//test connection
 	connection := r.pool.Get()
@@ -326,6 +327,14 @@ func (r *Redis) SaveAnonymousEvent(destinationId, anonymousId, eventId, payload 
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
+	}
+
+	if r.anonymousEventsTtl != "" {
+		_, err := conn.Do("EXPIRE", anonymousEventKey, r.anonymousEventsTtl)
+		noticeError(err)
+		if err != nil && err != redis.ErrNil {
+			logging.SystemErrorf("Error EXPIRE anonymous event %s %s: %v", anonymousEventKey, eventId, err)
+		}
 	}
 
 	return nil
