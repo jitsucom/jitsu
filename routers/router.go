@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 	"net/http"
+	"net/http/pprof"
 )
 
 func SetupRouter(destinations *destinations.Service, adminToken string, clusterManager cluster.Manager, eventsCache *caching.EventsCache,
@@ -44,12 +45,14 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 
 	sourcesHandler := handlers.NewSourcesHandler(sources)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
+	dryRunHandler := handlers.NewDryRunHandler(destinations, events.NewJsPreprocessor())
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
 		apiV1.POST("/event", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 		apiV1.POST("/s2s/event", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server token. Please use s2s integration token"))
+		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler, middleware.AdminTokenErr))
 		apiV1.POST("/sources/:id/sync", adminTokenMiddleware.AdminAuth(sourcesHandler.SyncHandler, middleware.AdminTokenErr))
@@ -67,6 +70,17 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 
 	if metrics.Enabled {
 		router.GET("/prometheus", middleware.TokenAuth(gin.WrapH(promhttp.Handler()), adminToken))
+	}
+
+	//Setup profiler
+	statsPprof := router.Group("/stats/pprof")
+	{
+		statsPprof.GET("/allocs", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("allocs").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/block", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("block").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/goroutine", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("goroutine").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/heap", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("heap").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/mutex", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("mutex").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/threadcreate", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("threadcreate").ServeHTTP), middleware.AdminTokenErr))
 	}
 
 	return router

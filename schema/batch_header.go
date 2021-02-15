@@ -37,6 +37,16 @@ func (f Fields) Merge(other Fields) {
 	}
 }
 
+//Add all new fields from other to current instance
+//if field exists - skip it
+func (f Fields) Add(other Fields) {
+	for otherName, otherField := range other {
+		if _, ok := f[otherName]; !ok {
+			f[otherName] = otherField
+		}
+	}
+}
+
 //Header return fields names as a string slice
 func (f Fields) Header() (header []string) {
 	for fieldName := range f {

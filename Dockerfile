@@ -1,6 +1,9 @@
 # BASE STAGE
 FROM golang:1.14.6-alpine3.12 as main
 
+RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata
+RUN pip install --upgrade pip
+
 ENV EVENTNATIVE_USER=eventnative
 
 RUN addgroup -S $EVENTNATIVE_USER \
@@ -32,6 +35,8 @@ RUN cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
 #######################################
 # FINAL STAGE
 FROM main as final
+
+ENV TZ=UTC
 
 USER $EVENTNATIVE_USER
 WORKDIR /home/$EVENTNATIVE_USER/app

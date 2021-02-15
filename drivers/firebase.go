@@ -38,7 +38,6 @@ func (fc *FirebaseConfig) Validate() error {
 	if fc.Credentials == "" || !strings.HasPrefix(fc.Credentials, "{") || !strings.HasSuffix(fc.Credentials, "}") {
 		return errors.New("credentials must be a valid JSON")
 	}
-
 	return nil
 }
 

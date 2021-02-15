@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
+	"time"
 )
 
 //Store files to Postgres in two modes:
@@ -22,10 +23,11 @@ type Postgres struct {
 	streamingWorker               *StreamingWorker
 	fallbackLogger                *logging.AsyncLogger
 	eventsCache                   *caching.EventsCache
-	usersRecognitionConfiguration *events.UserRecognitionConfiguration
+	staged                        bool
+	usersRecognitionConfiguration *UserRecognitionConfiguration
 }
 
-func NewPostgres(config *Config) (events.Storage, error) {
+func NewPostgres(config *Config) (Storage, error) {
 	pgConfig := config.destination.DataSource
 	if err := pgConfig.Validate(); err != nil {
 		return nil, err
@@ -67,6 +69,7 @@ func NewPostgres(config *Config) (events.Storage, error) {
 		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:                   config.eventsCache,
 		usersRecognitionConfiguration: config.usersRecognition,
+		staged:                        config.destination.Staged,
 	}
 
 	if config.streamMode {
@@ -77,15 +80,19 @@ func NewPostgres(config *Config) (events.Storage, error) {
 	return p, nil
 }
 
+func (p *Postgres) DryRun(payload events.Event) ([]adapters.TableField, error) {
+	return dryRun(payload, p.processor, p.tableHelper)
+}
+
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (p *Postgres) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+func (p *Postgres) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
 	return p.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //StoreWithParseFunc file payload to Postgres with processing
 //return result per table, failed events count and err if occurred
 func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
 	flatData, failedEvents, err := p.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
@@ -97,11 +104,11 @@ func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, alreadyUp
 	}
 
 	storeFailedEvents := true
-	tableResults := map[string]*events.StoreResult{}
+	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := p.storeTable(fdata, table)
-		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
 		if err != nil {
 			storeFailedEvents = false
 		}
@@ -132,9 +139,11 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 		return err
 	}
 
+	start := time.Now()
 	if err := p.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
 		return err
 	}
+	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.Name(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
 
 	return nil
 }
@@ -151,7 +160,7 @@ func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
 //2. store recognized users events
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (p *Postgres) SyncStore(overriddenCollectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
+func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
 	flatData, err := p.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -160,22 +169,50 @@ func (p *Postgres) SyncStore(overriddenCollectionTable string, objects []map[str
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
+
 	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
+
+	//table schema overridden
+	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
+		var data []map[string]interface{}
+		//ignore table multiplexing from mapping step
+		for _, fdata := range flatData {
+			data = append(data, fdata.GetPayload()...)
+			//enrich overridden schema with new fields (some system fields or e.g. after lookup step)
+			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
+		}
+
+		table := p.tableHelper.MapTableSchema(overriddenDataSchema)
+
+		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
+		if err != nil {
+			return rowsCount, err
+		}
+		if err = p.adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
+			return rowsCount, err
+		}
+
+		return rowsCount, nil
+	}
+
+	//plain flow
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
 
-		//override table name
-		if overriddenCollectionTable != "" {
-			table.Name = overriddenCollectionTable
+		//overridden table name
+		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
+			table.Name = overriddenDataSchema.TableName
 		}
 
 		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
 		if err != nil {
-			return 0, err
+			return rowsCount, err
 		}
+		start := time.Now()
 		if err = p.adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions); err != nil {
 			return rowsCount, err
 		}
+		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.Name(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
 	}
 
 	return rowsCount, nil
@@ -197,13 +234,18 @@ func (p *Postgres) Insert(table *adapters.Table, event events.Event) (err error)
 			return err
 		}
 
+		dbTable, err = p.tableHelper.EnsureTable(p.Name(), table)
+		if err != nil {
+			return err
+		}
+
 		return p.adapter.Insert(dbTable, event)
 	}
 
 	return nil
 }
 
-func (p *Postgres) GetUsersRecognition() *events.UserRecognitionConfiguration {
+func (p *Postgres) GetUsersRecognition() *UserRecognitionConfiguration {
 	return p.usersRecognitionConfiguration
 }
 
@@ -232,4 +274,8 @@ func (p *Postgres) Name() string {
 
 func (p *Postgres) Type() string {
 	return PostgresType
+}
+
+func (p *Postgres) IsStaging() bool {
+	return p.staged
 }

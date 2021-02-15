@@ -237,6 +237,7 @@ func NewClickHouse(ctx context.Context, connectionString, database, cluster stri
 		return nil, err
 	}
 	if err := dataSource.Ping(); err != nil {
+		dataSource.Close()
 		return nil, err
 	}
 

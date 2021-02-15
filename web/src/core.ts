@@ -1,14 +1,7 @@
-import {
-    generateId, generateRandom,
-    getCookie,
-    getCookieDomain, getCookies,
-    getDataFromParams,
-    getHostWithProtocol,
-    parseQuery,
-    reformatDate,
-    setCookie,
-} from './helpers'
-import {Event, Logger, EventCtx, Tracker, TrackerOptions, TrackerPlugin, EventPayload, UserProps} from './types'
+import {awaitGlobalProp, generateId, generateRandom, getCookie, getCookieDomain, getCookies, getDataFromParams, getHostWithProtocol, parseQuery, reformatDate, setCookie,} from './helpers'
+import {Event, EventCtx, EventPayload, Tracker, TrackerOptions, UserProps} from './types'
+import {interceptGoogleAnalytics} from "./ga-interceptor";
+import {getLogger, LogLevel, LogLevels, Logger} from "./logger";
 
 
 const VERSION_INFO = {
@@ -20,34 +13,43 @@ const VERSION_INFO = {
 const EVENTN_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
 
 
-function initLogger(): Logger {
-    const loggerKeys = ['debug', 'info', 'warn', 'error'];
-    let logger: Logger = loggerKeys.reduce((res, k) => ({
-        ...res, [k]: () => {
-        }
-    }), {}) as Logger;
-    return logger;
-}
 
-function putId(props: UserProps): UserProps {
-    if (props.id) {
-        return props;
+
+class UserIdPersistance {
+    private cookieDomain: string;
+    private cookieName: string;
+
+
+    constructor(cookieDomain: string, cookieName: string) {
+        this.cookieDomain = cookieDomain;
+        this.cookieName = cookieName;
     }
-    for (let [key, value] of Object.entries(props)) {
-        if (key !== "id" && key !== "anonymous_id") {
-            props.id = value;
-            return props;
+
+    public save(props: Record<string, any>) {
+        setCookie(this.cookieName, encodeURIComponent(JSON.stringify(props)), Infinity, this.cookieDomain, document.location.protocol !== "http:");
+    }
+
+    restore(): Record<string, any> | undefined {
+        let str = getCookie(this.cookieName);
+        if (str) {
+            try {
+                return JSON.parse(decodeURIComponent(str));
+            } catch (e) {
+                console.error("Failed to decode JSON from " + str, e);
+                return undefined;
+            }
         }
+        return undefined;
     }
-    return props;
 }
 
 
 class TrackerImpl implements Tracker {
-    logger: Logger = initLogger();
+    logger: Logger = getLogger();
+    private userIdPersistance?: UserIdPersistance;
 
     private anonymousId: string = "";
-    private userProperties: any = {}
+    private userProperties: UserProps = {}
     private cookieDomain: string = "";
     private trackingHost: string = "";
     private idCookieName: string = "";
@@ -56,12 +58,20 @@ class TrackerImpl implements Tracker {
     private apiKey: string = "";
     private initialized: boolean = false;
     private _3pCookies: Record<string, boolean> = {};
+    private initialOptions?: TrackerOptions;
 
-    id(props: Record<string, any>, doNotSendEvent?: boolean): void {
+    id(props: UserProps, doNotSendEvent?: boolean): Promise<void> {
         this.userProperties = {...this.userProperties, ...props}
         this.logger.debug('user identified:', props)
+        if (this.userIdPersistance) {
+            this.userIdPersistance.save(props);
+        } else {
+            this.logger.warn("Id() is called before initialization")
+        }
         if (!doNotSendEvent) {
-            this.track('user_identify', {});
+            return this.track('user_identify', {});
+        } else {
+            return Promise.resolve();
         }
     }
 
@@ -78,6 +88,7 @@ class TrackerImpl implements Tracker {
     }
 
     makeEvent(event_type: string, src: string, payload: EventPayload): Event {
+        this.restoreId();
         return {
             api_key: this.apiKey,
             src,
@@ -87,7 +98,7 @@ class TrackerImpl implements Tracker {
         };
     }
 
-    _send3p(sourceType: string, object: any, type?: string) {
+    _send3p(sourceType: string, object: any, type?: string): Promise<any> {
         let eventType = '3rdparty'
         if (type && type !== '') {
             eventType = type
@@ -96,39 +107,51 @@ class TrackerImpl implements Tracker {
         const e = this.makeEvent(eventType, sourceType, {
             src_payload: object
         });
-        this.sendJson(e);
+        return this.sendJson(e);
     }
 
-    sendJson(json: Event) {
-        let req = new XMLHttpRequest();
-        logger: {
-            req.onerror = (e) => {
-                this.logger.error('Failed to send', json, e);
-            };
-            req.onload = () => {
-                if (req.status !== 200) {
-                    this.logger.error('Failed to send data:', json, req.statusText, req.responseText)
-                }
-            }
-        }
+    sendJson(json: Event): Promise<void> {
         let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}`;
         if (this.randomizeUrl) {
             url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}`;
         }
-        req.open('POST', url);
-        req.setRequestHeader("Content-Type", "application/json");
-        req.send(JSON.stringify(json))
-        this.logger.debug('sending json', json);
+
+        let jsonString = JSON.stringify(json);
+        if (this.initialOptions?.use_beacon_api && navigator.sendBeacon) {
+            this.logger.debug("Sending beacon", json);
+            const blob = new Blob([jsonString], {type: 'text/plain'});
+            navigator.sendBeacon(url, blob);
+            return Promise.resolve();
+        } else {
+            let req = new XMLHttpRequest();
+            return new Promise((resolve, reject) => {
+                req.onerror = (e) => {
+                    this.logger.error('Failed to send', json, e);
+                    reject(new Error(`Failed to send JSON. See console logs`))
+                };
+                req.onload = () => {
+                    if (req.status !== 200) {
+                        this.logger.error('Failed to send data:', json, req.statusText, req.responseText)
+                        reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
+                    }
+                    resolve();
+                }
+                req.open('POST', url);
+                req.setRequestHeader("Content-Type", "application/json");
+                req.send(jsonString)
+                this.logger.debug('sending json', json);
+            });
+        }
     }
 
     getCtx(): EventCtx {
         let now = new Date();
         return {
             event_id: "", //generate id on the backend side
-            user: putId({
+            user: {
                 anonymous_id: this.anonymousId,
                 ...this.userProperties
-            }),
+            },
             ids: this._getIds(),
             user_agent: navigator.userAgent,
             utc_time: reformatDate(now.toISOString()),
@@ -138,6 +161,7 @@ class TrackerImpl implements Tracker {
             page_title: document.title,
             doc_path: document.location.pathname,
             doc_host: document.location.hostname,
+            doc_search: window.location.search,
             screen_resolution: screen.width + "x" + screen.height,
             vp_size: Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0) + "x" + Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0),
             user_language: navigator.language,
@@ -157,31 +181,40 @@ class TrackerImpl implements Tracker {
         return res;
     }
 
-    track(type: string, payload?: EventPayload) {
+    track(type: string, payload?: EventPayload): Promise<void> {
         let data = payload || {};
         this.logger.debug('track event of type', type, data)
         const e = this.makeEvent(type, 'eventn', payload || {});
-        this.sendJson(e);
+        return this.sendJson(e);
     }
 
-    init(options: TrackerOptions, plugins: TrackerPlugin[] = []) {
-        this.logger.debug('Initializing', options, plugins, EVENTN_VERSION)
+    init(options?: TrackerOptions) {
+        if (!options) {
+            options = {}
+        }
+        this.initialOptions = options;
+        this.logger = getLogger(options.log_level ? LogLevels[options.log_level] : undefined)
+        this.logger.debug('Initializing eventN tracker', options, EVENTN_VERSION)
         this.cookieDomain = options['cookie_domain'] || getCookieDomain();
         this.trackingHost = getHostWithProtocol(options['tracking_host'] || 't.jitsu.com');
         this.randomizeUrl = options['randomize_url'] || false;
         this.idCookieName = options['cookie_name'] || '__eventn_id';
         this.apiKey = options['key'] || 'NONE';
-        this.logger = initLogger();
+        this.userIdPersistance = new UserIdPersistance(this.cookieDomain, this.idCookieName + "_usr");
         if (options.capture_3rd_party_cookies === false) {
             this._3pCookies = {}
-        } else  {
+        } else {
             (options.capture_3rd_party_cookies || ['_ga', '_fbp', '_ym_uid', 'ajs_user_id', 'ajs_anonymous_id'])
                 .forEach(name => this._3pCookies[name] = true)
         }
-        this.anonymousId = this.getAnonymousId();
-        for (let i = 0; i < plugins.length; i += 1) {
-            plugins[i](this);
+
+        if (options.ga_hook) {
+            interceptGoogleAnalytics(this);
         }
+        if (options.segment_hook) {
+            interceptSegmentCalls(this);
+        }
+        this.anonymousId = this.getAnonymousId();
         this.initialized = true;
     }
 
@@ -219,9 +252,30 @@ class TrackerImpl implements Tracker {
         analytics['__en_intercepted'] = true
     }
 
+    private restoreId() {
+        if (this.userIdPersistance) {
+            let props = this.userIdPersistance.restore();
+            if (props) {
+                this.userProperties = {...props, ...this.userProperties};
+            }
+        }
+    }
 }
 
-export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []): Tracker => {
+function interceptSegmentCalls(t: Tracker, globalPropName: string = 'analytics') {
+    awaitGlobalProp(globalPropName).then(
+        (analytics: any) => {
+            if (!analytics['__en_intercepted']) {
+                t.interceptAnalytics(analytics)
+            }
+        }
+    ).catch(e => {
+        t.logger.error("Can't get segment object", e);
+    })
+}
+
+
+export const initTracker = (opts?: TrackerOptions): Tracker => {
     if (window) {
         (window as any)["__eventNDebug"] = {
             clientVersion: EVENTN_VERSION
@@ -234,9 +288,6 @@ export const initTracker = (opts?: TrackerOptions, plugins: TrackerPlugin[] = []
     }
     if (opts) {
         eventN.init(opts)
-    }
-    for (let i = 0; i < plugins.length; i += 1) {
-        plugins[i](eventN);
     }
     return eventN;
 }

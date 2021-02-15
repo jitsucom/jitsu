@@ -23,10 +23,11 @@ type ClickHouse struct {
 	streamingWorker               *StreamingWorker
 	fallbackLogger                *logging.AsyncLogger
 	eventsCache                   *caching.EventsCache
-	usersRecognitionConfiguration *events.UserRecognitionConfiguration
+	usersRecognitionConfiguration *UserRecognitionConfiguration
+	staged                        bool
 }
 
-func NewClickHouse(config *Config) (events.Storage, error) {
+func NewClickHouse(config *Config) (Storage, error) {
 	chConfig := config.destination.ClickHouse
 	if err := chConfig.Validate(); err != nil {
 		return nil, err
@@ -71,6 +72,7 @@ func NewClickHouse(config *Config) (events.Storage, error) {
 		eventsCache:                   config.eventsCache,
 		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
 		usersRecognitionConfiguration: config.usersRecognition,
+		staged:                        config.destination.Staged,
 	}
 
 	adapter, _ := ch.getAdapters()
@@ -100,6 +102,11 @@ func (ch *ClickHouse) Type() string {
 	return ClickHouseType
 }
 
+func (ch *ClickHouse) DryRun(payload events.Event) ([]adapters.TableField, error) {
+	_, tableHelper := ch.getAdapters()
+	return dryRun(payload, ch.processor, tableHelper)
+}
+
 //Insert event in ClickHouse (1 retry if err)
 func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (err error) {
 	adapter, tableHelper := ch.getAdapters()
@@ -118,6 +125,11 @@ func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (er
 			return err
 		}
 
+		dbSchema, err = tableHelper.EnsureTable(ch.Name(), dataSchema)
+		if err != nil {
+			return err
+		}
+
 		return adapter.Insert(dbSchema, event)
 	}
 
@@ -125,14 +137,14 @@ func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (er
 }
 
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (ch *ClickHouse) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+func (ch *ClickHouse) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
 	return ch.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //StoreWithParseFunc store file payload to ClickHouse with processing
 //return result per table, failed events count and err if occurred
 func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
 	flatData, failedEvents, err := ch.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
@@ -144,12 +156,12 @@ func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alread
 	}
 
 	storeFailedEvents := true
-	tableResults := map[string]*events.StoreResult{}
+	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := ch.storeTable(adapter, tableHelper, fdata, table)
-		tableResults[table.Name] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
 		if err != nil {
 			storeFailedEvents = false
 		}
@@ -192,7 +204,7 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 //2. store recognized users events
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (ch *ClickHouse) SyncStore(overriddenCollectionTable string, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
+func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
 	flatData, err := ch.processor.ProcessObjects(objects)
 	if err != nil {
 		return len(objects), err
@@ -201,14 +213,42 @@ func (ch *ClickHouse) SyncStore(overriddenCollectionTable string, objects []map[
 	for _, fdata := range flatData {
 		rowsCount += fdata.GetPayloadLen()
 	}
+
 	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
+
+	//table schema overridden
+	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
+		var data []map[string]interface{}
+		//ignore table multiplexing from mapping step
+		for _, fdata := range flatData {
+			data = append(data, fdata.GetPayload()...)
+			//enrich overridden schema with new fields (some system fields or e.g. after lookup step)
+			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
+		}
+
+		adapter, tableHelper := ch.getAdapters()
+
+		table := tableHelper.MapTableSchema(overriddenDataSchema)
+
+		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
+		if err != nil {
+			return rowsCount, err
+		}
+		if err = adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
+			return rowsCount, err
+		}
+
+		return rowsCount, nil
+	}
+
+	//plain flow
 	for _, fdata := range flatData {
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 
-		//override table name
-		if overriddenCollectionTable != "" {
-			table.Name = overriddenCollectionTable
+		//overridden table name
+		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
+			table.Name = overriddenDataSchema.TableName
 		}
 
 		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
@@ -224,7 +264,7 @@ func (ch *ClickHouse) SyncStore(overriddenCollectionTable string, objects []map[
 	return rowsCount, nil
 }
 
-func (ch *ClickHouse) GetUsersRecognition() *events.UserRecognitionConfiguration {
+func (ch *ClickHouse) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ch.usersRecognitionConfiguration
 }
 
@@ -233,6 +273,10 @@ func (ch *ClickHouse) Fallback(failedEvents ...*events.FailedEvent) {
 	for _, failedEvent := range failedEvents {
 		ch.fallbackLogger.ConsumeAny(failedEvent)
 	}
+}
+
+func (ch *ClickHouse) IsStaging() bool {
+	return ch.staged
 }
 
 //Close adapters.ClickHouse

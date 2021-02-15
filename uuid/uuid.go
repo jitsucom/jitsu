@@ -26,6 +26,11 @@ func GetHash(m map[string]interface{}) string {
 	for k := range m {
 		keys = append(keys, k)
 	}
+
+	return GetKeysHash(m, keys)
+}
+
+func GetKeysHash(m map[string]interface{}, keys []string) string {
 	sort.Strings(keys)
 
 	var str string

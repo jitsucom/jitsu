@@ -398,7 +398,7 @@ func TestPostgresStreamInsert(t *testing.T) {
         		}
       		}
     	}}`
-	testPostgresStoreEvents(t, configTemplate, 5, "events_without_pk")
+	testPostgresStoreEvents(t, configTemplate, "/api/v1/s2s/event?token=s2stoken", 5, "events_without_pk", 5, false)
 }
 
 func TestPostgresStreamInsertWithPK(t *testing.T) {
@@ -424,10 +424,37 @@ func TestPostgresStreamInsertWithPK(t *testing.T) {
         		}
       		}
     	}}`
-	testPostgresStoreEvents(t, configTemplate, 1, "events_with_pk")
+	testPostgresStoreEvents(t, configTemplate, "/api/v1/s2s/event?token=s2stoken", 5, "events_with_pk", 1, false)
 }
 
-func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, expectedEventsCount int, tableName string) {
+func TestPostgresDryRun(t *testing.T) {
+	configTemplate := `{"destinations": {
+  			"test": {
+        		"type": "postgres",
+				"staged": true,
+        		"mode": "stream",
+				"only_tokens": ["s2stoken"],
+				"data_layout": {
+					"table_name_template": "dry_run"
+				},
+        		"datasource": {
+          			"host": "%s",
+					"port": %d,
+          			"db": "%s",
+          			"schema": "%s",
+					"username": "%s",
+          			"password": "%s",
+					"parameters": {
+						"sslmode": "disable"
+					}
+        		}
+      		}
+    	}}`
+	testPostgresStoreEvents(t, configTemplate, "/api/v1/events/dry-run?token=s2stoken&destination_id=test", 1, "dry_run", 0, true)
+}
+
+func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, endpoint string, sendEventsCount int,
+	tableName string, expectedEventsCount int, dryRun bool) {
 	ctx := context.Background()
 	container, err := test.NewPostgresContainer(ctx)
 	if err != nil {
@@ -469,12 +496,13 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	}()
 
 	logging.Info("Started listen and serve " + httpAuthority)
+	time.Sleep(200 * time.Millisecond)
 
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
 	requestValue := []byte(`{"email": "test@domain.com"}`)
-	for i := 0; i < 5; i++ {
-		apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
+	for i := 0; i < sendEventsCount; i++ {
+		apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+endpoint, bytes.NewBuffer(requestValue))
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(apiReq)
 		require.NoError(t, err)
@@ -483,7 +511,9 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 		time.Sleep(200 * time.Millisecond)
 	}
 	rows, err := container.CountRows(tableName)
-	require.NoError(t, err)
+	if !dryRun {
+		require.NoError(t, err)
+	}
 	require.Equal(t, expectedEventsCount, rows)
 }
 
@@ -523,10 +553,10 @@ func TestClickhouseStreamInsertWithMerge(t *testing.T) {
        		}
      		}
    	}}`
-	testClickhouseStoreEvents(t, configTemplate, 1, "events_with_pk")
+	testClickhouseStoreEvents(t, configTemplate, 5, "events_with_pk", 1)
 }
 
-func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEventsCount int, tableName string) {
+func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCount int, tableName string, expectedEventsCount int) {
 	ctx := context.Background()
 	container, err := test.NewClickhouseContainer(ctx)
 	if err != nil {
@@ -574,7 +604,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, expectedEven
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
 	requestValue := []byte(`{"email": "test@domain.com", "key": 1}`)
-	for i := 0; i < 5; i++ {
+	for i := 0; i < sendEventsCount; i++ {
 		apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(apiReq)

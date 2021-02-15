@@ -14,11 +14,12 @@ type AppConfig struct {
 	ServerName string
 	Authority  string
 
-	GeoResolver          geo.Resolver
-	UaResolver           useragent.Resolver
-	AuthorizationService *authorization.Service
-	DDLLogsWriter        io.Writer
-	QueryLogsWriter      io.Writer
+	GeoResolver           geo.Resolver
+	UaResolver            useragent.Resolver
+	AuthorizationService  *authorization.Service
+	GlobalDDLLogsWriter   io.Writer
+	GlobalQueryLogsWriter io.Writer
+	SingerLogsWriter      io.Writer
 
 	closeMe []io.Closer
 }
@@ -43,6 +44,7 @@ func setDefaultParams() {
 	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
 	viper.SetDefault("log.show_in_server", false)
+	viper.SetDefault("log.level", "info")
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
@@ -50,6 +52,9 @@ func setDefaultParams() {
 	viper.SetDefault("users_recognition.enabled", false)
 	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id")
 	viper.SetDefault("users_recognition.user_id_node", "/eventn_ctx/user/internal_id")
+	viper.SetDefault("singer-bridge.python", "python3")
+	viper.SetDefault("singer-bridge.venv_dir", "./venv")
+	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 }
 
 func Init() error {
@@ -68,7 +73,7 @@ func Init() error {
 	//     /             \                            |
 	// os.Stdout      FileWriter                  os.Stdout
 	if globalLoggerConfig.FileDir != "" {
-		fileWriter := logging.NewRollingWriter(globalLoggerConfig)
+		fileWriter := logging.NewRollingWriter(&globalLoggerConfig)
 		logging.GlobalLogsWriter = logging.Dual{
 			FileWriter: fileWriter,
 			Stdout:     os.Stdout,
@@ -76,7 +81,7 @@ func Init() error {
 	} else {
 		logging.GlobalLogsWriter = os.Stdout
 	}
-	err := logging.InitGlobalLogger(logging.GlobalLogsWriter)
+	err := logging.InitGlobalLogger(logging.GlobalLogsWriter, viper.GetString("server.log.level"))
 	if err != nil {
 		return err
 	}
@@ -97,11 +102,32 @@ func Init() error {
 
 	// SQL DDL debug writer
 	if viper.IsSet("sql_debug_log.ddl.path") {
-		appConfig.DDLLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.ddl"), serverName, "ddl-debug")
+		ddlLoggerViper := viper.Sub("sql_debug_log.ddl")
+		appConfig.GlobalDDLLogsWriter = logging.CreateLogWriter(&logging.Config{
+			FileName:    serverName + "-" + logging.DDLLogerType,
+			FileDir:     ddlLoggerViper.GetString("path"),
+			RotationMin: ddlLoggerViper.GetInt64("rotation_min"),
+			MaxBackups:  ddlLoggerViper.GetInt("max_backups")})
 	}
+
 	// SQL queries debug writer
 	if viper.IsSet("sql_debug_log.queries.path") {
-		appConfig.QueryLogsWriter = appConfig.getSqlWriter(viper.Sub("sql_debug_log.queries"), serverName, "sql-debug")
+		queriesLoggerViper := viper.Sub("sql_debug_log.queries")
+		appConfig.GlobalQueryLogsWriter = logging.CreateLogWriter(&logging.Config{
+			FileName:    serverName + "-" + logging.QueriesLoggerType,
+			FileDir:     queriesLoggerViper.GetString("path"),
+			RotationMin: queriesLoggerViper.GetInt64("rotation_min"),
+			MaxBackups:  queriesLoggerViper.GetInt("max_backups")})
+	}
+
+	// Singer logger
+	if viper.IsSet("singer-bridge.log.path") {
+		singerLoggerViper := viper.Sub("singer-bridge.log")
+		appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{
+			FileName:    serverName + "-" + "singer",
+			FileDir:     singerLoggerViper.GetString("path"),
+			RotationMin: singerLoggerViper.GetInt64("rotation_min"),
+			MaxBackups:  singerLoggerViper.GetInt("max_backups")})
 	}
 
 	port := viper.GetString("port")
@@ -126,18 +152,6 @@ func Init() error {
 
 	Instance = &appConfig
 	return nil
-}
-
-func (a *AppConfig) getSqlWriter(sqlLoggerViper *viper.Viper, serverName string, logType string) io.Writer {
-	if sqlLoggerViper.GetString("path") != "global" {
-		return logging.NewRollingWriter(logging.Config{
-			FileName:    serverName + "-" + logType,
-			FileDir:     sqlLoggerViper.GetString("path"),
-			RotationMin: sqlLoggerViper.GetInt64("rotation_min"),
-			MaxBackups:  sqlLoggerViper.GetInt("max_backups")})
-	} else {
-		return logging.GlobalLogsWriter
-	}
 }
 
 func (a *AppConfig) ScheduleClosing(c io.Closer) {
