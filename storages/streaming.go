@@ -104,7 +104,8 @@ func (sw *StreamingWorker) start() {
 				logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.Name(), flattenObject.Serialize(), table.Name, err)
 				if strings.Contains(err.Error(), "connection refused") ||
 					strings.Contains(err.Error(), "EOF") ||
-					strings.Contains(err.Error(), "write: broken pipe") {
+					strings.Contains(err.Error(), "write: broken pipe") ||
+					strings.Contains(err.Error(), "context deadline exceeded") {
 					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenId)
 				} else {
 					sw.streamingStorage.Fallback(&events.FailedEvent{
