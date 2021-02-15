@@ -31,8 +31,8 @@ export const getCookie = (name: string) => {
 };
 
 export const setCookie = (name: string, value: string, expire: number, domain: string, secure: boolean) => {
-    const expireString = expire === Infinity ? "; expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + expire;
-    document.cookie = encodeURIComponent(name) + "=" + value + expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : "");
+    const expireString = expire === Infinity ? " expires=Fri, 31 Dec 9999 23:59:59 GMT" : "; max-age=" + expire;
+    document.cookie = encodeURIComponent(name) + "=" + value + "; path=/;" +  expireString + (domain ? "; domain=" + domain : "") + (secure ? "; secure" : "");
 };
 
 export const generateId = () => Math.random().toString(36).substring(2, 12);
