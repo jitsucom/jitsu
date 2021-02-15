@@ -364,12 +364,16 @@ destinations:
 
 ### Meta storage. It is required for using sources (see below).
 ### It is required for using events caching and counting https://docs.eventnative.org/other-features/events-cache
+### Also it is required if sources are used https://docs.eventnative.org/configuration-1/sources-configuration or
+### or Retrospective users recognition https://docs.eventnative.org/other-features/retrospective-user-recognition
 #meta:
 #  storage:
 #    redis: #Currently EventNative supports only Redis
-#      host: redis_host
+#      host: <redis_host>
 #      port: 6379
-#      password: secret_password
+#      password: <secret_password>
+#      ttl_minutes: #Optional
+#        anonymous_events: 1440 #Optional. Default value is 0 (without ttl). TTL for Redis record (all events by anonymous id)
 
 ### Notifications
 #notifications: #Optional. If configured - server starts, all system errors and panics info will be sent to notifier
