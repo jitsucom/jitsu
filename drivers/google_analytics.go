@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/typing"
-	"github.com/jitsucom/eventnative/uuid"
 	ga "google.golang.org/api/analyticsreporting/v4"
 	"google.golang.org/api/option"
 	"strings"
@@ -18,14 +17,16 @@ const (
 	reportsCollection   = "report"
 	gaFieldsPrefix      = "ga:"
 	googleAnalyticsType = "google_analytics"
-	eventCtx            = "eventn_ctx"
 	eventId             = "event_id"
+
+	gaMaxAttempts = 3 // sometimes Google API returns errors for unknown reasons, this is a number of retries we make before fail to get a report
 )
 
 var (
 	metricsCast = map[string]func(interface{}) (interface{}, error){
 		"ga:sessions":         typing.StringToInt,
 		"ga:users":            typing.StringToInt,
+		"ga:hits":             typing.StringToInt,
 		"ga:visitors":         typing.StringToInt,
 		"ga:bounces":          typing.StringToInt,
 		"ga:goal1Completions": typing.StringToInt,
@@ -36,11 +37,13 @@ var (
 		"ga:newUsers":         typing.StringToInt,
 		"ga:pageviews":        typing.StringToInt,
 		"ga:uniquePageviews":  typing.StringToInt,
+		"ga:transactions":     typing.StringToInt,
 
 		"ga:adCost":             typing.StringToFloat,
 		"ga:avgSessionDuration": typing.StringToFloat,
 		"ga:timeOnPage":         typing.StringToFloat,
 		"ga:avgTimeOnPage":      typing.StringToFloat,
+		"ga:transactionRevenue": typing.StringToFloat,
 	}
 )
 
@@ -49,7 +52,7 @@ type GoogleAnalyticsConfig struct {
 	ViewId     string            `mapstructure:"view_id" json:"view_id,omitempty" yaml:"view_id,omitempty"`
 }
 
-type ReportFieldsConfig struct {
+type GAReportFieldsConfig struct {
 	Dimensions []string `mapstructure:"dimensions" json:"dimensions,omitempty" yaml:"dimensions,omitempty"`
 	Metrics    []string `mapstructure:"metrics" json:"metrics,omitempty" yaml:"metrics,omitempty"`
 }
@@ -66,7 +69,7 @@ type GoogleAnalytics struct {
 	config             *GoogleAnalyticsConfig
 	service            *ga.Service
 	collection         *Collection
-	reportFieldsConfig *ReportFieldsConfig
+	reportFieldsConfig *GAReportFieldsConfig
 }
 
 func init() {
@@ -84,7 +87,7 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collect
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	var reportFieldsConfig ReportFieldsConfig
+	var reportFieldsConfig GAReportFieldsConfig
 	err = unmarshalConfig(collection.Parameters, &reportFieldsConfig)
 	if err != nil {
 		return nil, err
@@ -107,9 +110,9 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collect
 func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	var intervals []*TimeInterval
 	now := time.Now().UTC()
-	for i := 0; i < 12; i++ {
-		date := now.AddDate(0, -i, 0)
-		intervals = append(intervals, NewTimeInterval(MONTH, date))
+	for i := 0; i < 365; i++ {
+		date := now.AddDate(0, 0, -i)
+		intervals = append(intervals, NewTimeInterval(DAY, date))
 	}
 	return intervals, nil
 }
@@ -150,35 +153,36 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 		gaMetrics = append(gaMetrics, &ga.Metric{Expression: metric})
 	}
 
-	req := &ga.GetReportsRequest{
-		ReportRequests: []*ga.ReportRequest{
-			{
-				ViewId:     viewId,
-				DateRanges: dateRanges,
-				Metrics:    gaMetrics,
-				Dimensions: gaDimensions,
-			},
-		},
-	}
-	response, err := g.service.Reports.BatchGet(req).Do()
-	if err != nil {
-		return nil, err
-	}
+	nextPageToken := ""
 	var result []map[string]interface{}
-	for _, report := range response.Reports {
+	for {
+		req := &ga.GetReportsRequest{
+			ReportRequests: []*ga.ReportRequest{
+				{
+					ViewId:     viewId,
+					DateRanges: dateRanges,
+					Metrics:    gaMetrics,
+					Dimensions: gaDimensions,
+					PageToken:  nextPageToken,
+					PageSize:   40000,
+				},
+			},
+		}
+		response, err := g.executeWithRetry(g.service.Reports.BatchGet(req))
+		if err != nil {
+			return nil, err
+		}
+		report := response.Reports[0]
 		header := report.ColumnHeader
 		dimHeaders := header.Dimensions
 		metricHeaders := header.MetricHeader.MetricHeaderEntries
 		rows := report.Data.Rows
-
-		logging.Debug("Rows to sync:", len(rows))
 		for _, row := range rows {
 			gaEvent := make(map[string]interface{})
 			dims := row.Dimensions
 			for i := 0; i < len(dimHeaders) && i < len(dims); i++ {
 				gaEvent[strings.TrimPrefix(dimHeaders[i], gaFieldsPrefix)] = dims[i]
 			}
-			gaEvent[eventCtx] = map[string]interface{}{eventId: uuid.GetHash(gaEvent)}
 
 			metrics := row.Metrics
 			for _, metric := range metrics {
@@ -199,6 +203,26 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 			}
 			result = append(result, gaEvent)
 		}
+		nextPageToken = report.NextPageToken
+		if nextPageToken == "" {
+			break
+		}
 	}
+	logging.Debug("Rows to sync:", len(result))
 	return result, nil
+}
+
+func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall) (*ga.GetReportsResponse, error) {
+	attempt := 0
+	var response *ga.GetReportsResponse
+	var err error
+	for attempt < gaMaxAttempts {
+		response, err = reportCall.Do()
+		if err == nil {
+			return response, nil
+		}
+		time.Sleep(time.Duration(attempt+1) * time.Second)
+		attempt++
+	}
+	return nil, err
 }

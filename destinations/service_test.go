@@ -23,7 +23,7 @@ type payloadHolder struct {
 type testProxyMock struct {
 }
 
-func (tpm *testProxyMock) Get() (events.Storage, bool) {
+func (tpm *testProxyMock) Get() (storages.Storage, bool) {
 	return nil, false
 }
 
@@ -299,7 +299,7 @@ func startTestServer(ph *payloadHolder) *httptest.Server {
 }
 
 func createTestStorage(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper,
-	eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (events.StorageProxy, *events.PersistentQueue, error) {
+	eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (storages.StorageProxy, *events.PersistentQueue, error) {
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == storages.StreamMode {
 		eventQueue, _ = events.NewPersistentQueue(name, "/tmp")

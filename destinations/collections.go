@@ -1,22 +1,25 @@
 package destinations
 
-import "github.com/jitsucom/eventnative/events"
+import (
+	"github.com/jitsucom/eventnative/events"
+	"github.com/jitsucom/eventnative/storages"
+)
 
 //map["tokenId"]map["destination_name"]true
 type TokenizedIds map[string]map[string]bool
 
 //map["tokenId"]map["destination_name"]interface
 //because 1 token id = ∞ storages
-type TokenizedStorages map[string]map[string]events.StorageProxy
+type TokenizedStorages map[string]map[string]storages.StorageProxy
 
 //map["tokenId"]map["tokenId | destination_name"]interface
 //because 1 token id = 1logger but ∞ event.queue
 type TokenizedConsumers map[string]map[string]events.Consumer
 
-func (ts TokenizedStorages) Add(tokenId, name string, proxy events.StorageProxy) {
+func (ts TokenizedStorages) Add(tokenId, name string, proxy storages.StorageProxy) {
 	storageProxies, ok := ts[tokenId]
 	if !ok {
-		storageProxies = map[string]events.StorageProxy{}
+		storageProxies = map[string]storages.StorageProxy{}
 		ts[tokenId] = storageProxies
 	}
 	storageProxies[name] = proxy

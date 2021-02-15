@@ -22,10 +22,10 @@ type Processor struct {
 	breakOnError         bool
 }
 
-func NewProcessor(identifier, tableNameFuncExpression string, fieldMapper Mapper, enrichmentRules []enrichment.Rule, breakOnError bool) (*Processor, error) {
-	flattener := NewFlattener()
-	mappingStep := NewMappingStep(fieldMapper, flattener)
-	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression, flattener)
+func NewProcessor(identifier, tableNameFuncExpression string, fieldMapper Mapper, enrichmentRules []enrichment.Rule,
+	flattener Flattener, typeResolver TypeResolver, breakOnError bool) (*Processor, error) {
+	mappingStep := NewMappingStep(fieldMapper, flattener, typeResolver)
+	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression)
 	if err != nil {
 		return nil, err
 	}

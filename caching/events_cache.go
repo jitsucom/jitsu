@@ -138,15 +138,17 @@ func (ec *EventsCache) succeed(destinationId, eventId string, processed events.E
 	fields := []*adapters.TableField{}
 
 	for name, value := range processed {
+		var sqlType string
 		column, ok := table.Columns[name]
 		if !ok {
-			logging.SystemErrorf("[%s] Error serializing table [%s] schema: %v object: %s field: %s", destinationId, table.Name, table.Columns, processed.Serialize(), name)
-			return
+			sqlType = "unknown"
+		} else {
+			sqlType = column.SqlType
 		}
 
 		fields = append(fields, &adapters.TableField{
 			Field: name,
-			Type:  column.SqlType,
+			Type:  sqlType,
 			Value: value,
 		})
 	}

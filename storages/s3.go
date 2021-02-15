@@ -18,9 +18,10 @@ type S3 struct {
 	processor      *schema.Processor
 	fallbackLogger *logging.AsyncLogger
 	eventsCache    *caching.EventsCache
+	staged         bool
 }
 
-func NewS3(config *Config) (events.Storage, error) {
+func NewS3(config *Config) (Storage, error) {
 	if config.streamMode {
 		if config.eventQueue != nil {
 			config.eventQueue.Close()
@@ -43,6 +44,7 @@ func NewS3(config *Config) (events.Storage, error) {
 		processor:      config.processor,
 		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:    config.eventsCache,
+		staged:         config.destination.Staged,
 	}
 
 	return s3, nil
@@ -52,15 +54,19 @@ func (s3 *S3) Consume(event events.Event, tokenId string) {
 	logging.Errorf("[%s] S3 storage doesn't support streaming mode", s3.Name())
 }
 
+func (s3 *S3) DryRun(payload events.Event) ([]adapters.TableField, error) {
+	return nil, errors.New("s3 does not support dry run functionality")
+}
+
 //Store call StoreWithParseFunc with parsers.ParseJson func
-func (s3 *S3) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*events.StoreResult, int, error) {
+func (s3 *S3) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
 	return s3.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
 }
 
 //Store file from byte payload to s3 with processing
 //return result per table, failed events count and err if occurred
 func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*events.StoreResult, int, error) {
+	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
 	flatData, failedEvents, err := s3.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
 	if err != nil {
 		return nil, linesCount(payload), err
@@ -72,12 +78,12 @@ func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, alreadyUploade
 	}
 
 	storeFailedEvents := true
-	tableResults := map[string]*events.StoreResult{}
+	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
 		b := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
 		err := s3.s3Adapter.UploadBytes(fileName, b)
 
-		tableResults[fdata.BatchHeader.TableName] = &events.StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[fdata.BatchHeader.TableName] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
 		if err != nil {
 			logging.Errorf("[%s] Error storing file %s: %v", s3.Name(), fileName, err)
 			storeFailedEvents = false
@@ -106,11 +112,11 @@ func (s3 *S3) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (s3 *S3) SyncStore(collectionTable string, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
+func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("S3 doesn't support sync store")
 }
 
-func (s3 *S3) GetUsersRecognition() *events.UserRecognitionConfiguration {
+func (s3 *S3) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
 
@@ -120,6 +126,10 @@ func (s3 *S3) Name() string {
 
 func (s3 *S3) Type() string {
 	return S3Type
+}
+
+func (s3 *S3) IsStaging() bool {
+	return s3.staged
 }
 
 func (s3 *S3) Close() error {

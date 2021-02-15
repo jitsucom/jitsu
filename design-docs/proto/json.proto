@@ -1,0 +1,31 @@
+//JSON object. Similar from proto google/protobuf/struct.proto, but supports integer and timestamp
+import "google/protobuf/timestamp.proto";
+
+message JsonObject {
+  // Unordered map of dynamically typed values.
+  map<string, JsonValue> fields = 1;
+}
+
+message JsonValue {
+  oneof kind {
+    NullValue null_value = 1;
+    double number_value = 2;
+    sint64 integer_value = 3;
+    string string_value = 4;
+    bool bool_value = 5;
+    JsonObject object_value = 6;
+    ArrayValue array_value = 7;
+    google.protobuf.Timestamp timestamp = 8;
+  }
+}
+
+
+
+enum NullValue {
+  NULL_VALUE = 0;
+}
+
+message ArrayValue {
+  repeated JsonValue values = 1;
+}
+

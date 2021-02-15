@@ -21,6 +21,7 @@ import (
 	"github.com/jitsucom/eventnative/notifications"
 	"github.com/jitsucom/eventnative/routers"
 	"github.com/jitsucom/eventnative/safego"
+	"github.com/jitsucom/eventnative/singer"
 	"github.com/jitsucom/eventnative/sources"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/jitsucom/eventnative/synchronization"
@@ -70,6 +71,7 @@ func readInViperConfig() error {
 		if viper.ConfigFileUsed() != "" && !*containerizedRun {
 			return err
 		} else {
+			logging.ConfigErr = err.Error()
 			logging.ConfigWarn = "! Custom eventnative.yaml wasn't provided\n                            " +
 				"! EventNative will start, however it will be mostly useless\n                            " +
 				"! Please make a custom config file, you can generated a config with https://app.jitsu.com.\n                            " +
@@ -106,6 +108,10 @@ func main() {
 	}
 
 	if err := appconfig.Init(); err != nil {
+		logging.Fatal(err)
+	}
+
+	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
 
@@ -153,7 +159,7 @@ func main() {
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
 	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
-		appconfig.Instance.DDLLogsWriter, appconfig.Instance.QueryLogsWriter)
+		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
 
 	//synchronization service
 	syncService, err := synchronization.NewService(

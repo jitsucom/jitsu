@@ -28,7 +28,15 @@ type RollingWriterProxy struct {
 	records uint64
 }
 
-func NewRollingWriter(config Config) io.WriteCloser {
+func CreateLogWriter(config *Config) io.Writer {
+	if config.FileDir != "global" {
+		return NewRollingWriter(config)
+	} else {
+		return GlobalLogsWriter
+	}
+}
+
+func NewRollingWriter(config *Config) io.WriteCloser {
 	fileNamePath := filepath.Join(config.FileDir, config.FileName+".log")
 	lWriter := &lumberjack.Logger{
 		Filename: fileNamePath,

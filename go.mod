@@ -12,6 +12,7 @@ require (
 	github.com/coreos/etcd v3.3.13+incompatible
 	github.com/docker/go-connections v0.4.0
 	github.com/gin-gonic/gin v1.6.3
+	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/gomodule/redigo v1.8.2
 	github.com/google/go-cmp v0.5.1 // indirect
@@ -20,6 +21,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/gookit/color v1.3.1
 	github.com/hashicorp/go-multierror v1.1.0
+	github.com/huandu/facebook/v2 v2.5.3
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.8.0
 	github.com/mailru/easyjson v0.7.6
@@ -34,6 +36,7 @@ require (
 	github.com/testcontainers/testcontainers-go v0.9.0
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	go.opencensus.io v0.22.4 // indirect
+	go.uber.org/atomic v1.4.0
 	golang.org/x/exp v0.0.0-20200224162631-6cc2880d07d6 // indirect
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/net v0.0.0-20200707034311-ab3426394381 // indirect
@@ -45,5 +48,6 @@ require (
 	google.golang.org/api v0.17.0
 	google.golang.org/appengine v1.6.6 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
+	gotest.tools v0.0.0-20181223230014-1083505acf35
 	honnef.co/go/tools v0.0.1-2020.1.4 // indirect
 )

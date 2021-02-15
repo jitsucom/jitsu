@@ -112,6 +112,7 @@ func NewSnowflake(ctx context.Context, config *SnowflakeConfig, s3Config *S3Conf
 	}
 
 	if err := dataSource.Ping(); err != nil {
+		dataSource.Close()
 		return nil, err
 	}
 
