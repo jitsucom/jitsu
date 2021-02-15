@@ -36,16 +36,9 @@ type Redis struct {
 //
 //retrospective user recognition
 //anonymous_events:destination_id#${destination_id}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
-func NewRedis(host string, port int, password, anonymousEventsTtl string) (*Redis, error) {
-	var anonymousEventsMinutesTtl int
-	if anonymousEventsTtl != "" {
-		logging.Infof("Initializing redis [%s:%d] with anonymous events ttl: %s...", host, port, anonymousEventsTtl)
-		ttlMinutes, err := strconv.Atoi(anonymousEventsTtl)
-		if err != nil {
-			return nil, err
-		}
-
-		anonymousEventsMinutesTtl = ttlMinutes
+func NewRedis(host string, port int, password string, anonymousEventsMinutesTtl int) (*Redis, error) {
+	if anonymousEventsMinutesTtl > 0 {
+		logging.Infof("Initializing redis [%s:%d] with anonymous events ttl: %d...", host, port, anonymousEventsMinutesTtl)
 	} else {
 		logging.Infof("Initializing redis [%s:%d]...", host, port)
 	}
