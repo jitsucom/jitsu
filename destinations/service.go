@@ -103,7 +103,7 @@ func NewService(ctx context.Context, destinations *viper.Viper, destinationsSour
 	} else if destinationsSource != "" {
 		if strings.HasPrefix(destinationsSource, "http://") || strings.HasPrefix(destinationsSource, "https://") {
 			appconfig.Instance.AuthorizationService.DestinationsForceReload = resources.Watch(serviceName, destinationsSource, resources.LoadFromHttp, service.updateDestinations, time.Duration(reloadSec)*time.Second)
-		} else if strings.Contains(destinationsSource, "file://") {
+		} else if strings.Contains(destinationsSource, "file://") || strings.HasPrefix(destinationsSource, "/") {
 			appconfig.Instance.AuthorizationService.DestinationsForceReload = resources.Watch(serviceName, strings.Replace(destinationsSource, "file://", "", 1), resources.LoadFromFile, service.updateDestinations, time.Duration(reloadSec)*time.Second)
 		} else if strings.HasPrefix(destinationsSource, "{") && strings.HasSuffix(destinationsSource, "}") {
 			service.updateDestinations([]byte(destinationsSource))

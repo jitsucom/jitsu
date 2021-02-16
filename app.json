@@ -7,29 +7,10 @@
   "keywords": ["event", "native", "pixel", "golang", "tracking"],
   "stack": "container",
   "env": {
-    "SERVER_AUTH": {
-      "description": "API secret token. Use any random string without whitespaces and save it. Later on you'll need it for JavaScript snippet",
-      "value": "57ac6e96-172a-4929-9fcf-6e6b1f16afdc",
+    "CONFIG_LOCATION": {
+      "description": "EventNative JSON config. Please, read documentation first! https://docs.eventnative.org/deployment/deploy-on-heroku",
+      "value": "{\n  \"server\": {\n    \"public_url\": \"<APP NAME>.herokuapp.com\",\n    \"auth\": \"57ac6e96-172a-4929-9fcf-6e6b1f16afdc\"\n  },\n  \"destinations\": {\n    \"postgres\": {\n      \"mode\": \"stream\",\n      \"type\": \"postgres\",\n      \"datasource\": {\n        \"host\": \"<your_host>\",\n        \"db\": \"<your_db>\",\n        \"username\": \"<your_username>\",\n        \"password\": \"<your_password>\"\n      },\n      \"data_layout\": {\n        \"table_name_template\": \"events\"\n      }\n    }\n  }\n}",
       "required": true
-    },
-    "SERVER_PUBLIC_URL": {
-      "description": "Your heroku application URL. Please use the same name you choose above",
-      "value": "<APP NAME>.herokuapp.com",
-      "required": true
-    },
-    "GEO_MAXMIND_PATH": {
-      "description": "Http url to hosted MaxMind db file if you want to enable geo resolution (leave empty otherwise). Read more about geo: https://dev.eventnative.org/geo-data-resolution",
-      "required": false
-    },
-    "DESTINATIONS_JSON": {
-      "description": "JSON config for destination (example value is given for RedShift). Please, read documentation first! https://dev.eventnative.org/deployment/deploy-on-heroku",
-      "value": "{\n  \"destinations\": {\n    \"redshift\": {\n      \"datasource\": {\n        \"host\": \"<your_host>\",\n        \"db\": \"<your_db>\",\n        \"username\": \"<your_username>\",\n        \"password\": \"<your_password>\"\n      },\n      \"s3\": {\n        \"access_key_id\": \"<your_access_key>\",\n        \"secret_access_key\": \"<your_secret_access_key>\",\n        \"bucket\": \"<your_bucket>\",\n        \"region\": \"<your_region>\"\n      },\n      \"data_layout\": {\n        \"table_name_template\": \"events\"\n      }\n    }\n  }\n}",
-      "required": false
-    },
-    "LOG_SHOW_IN_SERVER": {
-      "description": "Turn this on if you want to see all JSON events in console log. Attention! It may significantly degrade performance, use for debugging purposes only",
-      "value": "false",
-      "required": false
     }
   }
 }
