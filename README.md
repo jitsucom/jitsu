@@ -7,7 +7,7 @@
 ## Quick Start
 The fastest way to get started is one click [deploy on Heroku](https://docs.eventnative.org/deployment/deploy-on-heroku) with:
 
-<a href="https://heroku.com/deploy?template=https://github.com/jitsucom/eventnative"><img src="https://raw.githubusercontent.com/jitsucom/eventnative/7eb28378b252ac7c3209457ca3766be806085e41/artwork/heroku.svg" width="200px" /></a>
+<a href="https://heroku.com/deploy?template=https://github.com/jitsucom/eventnative/tree/hotfix/166-externilize-en-config"><img src="https://raw.githubusercontent.com/jitsucom/eventnative/7eb28378b252ac7c3209457ca3766be806085e41/artwork/heroku.svg" width="200px" /></a>
 
 For production deployment we suggest Docker:
  * [Official ksense/eventnative](https://hub.docker.com/r/ksense/eventnative) image
