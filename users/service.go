@@ -262,8 +262,10 @@ func (rs *RecognitionService) runPipeline(destinationId string, identifiers Even
 func (rs *RecognitionService) Close() error {
 	rs.closed = true
 
-	if err := rs.queue.Close(); err != nil {
-		return fmt.Errorf("Error closing users recognition queue: %v", err)
+	if rs.queue != nil {
+		if err := rs.queue.Close(); err != nil {
+			return fmt.Errorf("Error closing users recognition queue: %v", err)
+		}
 	}
 
 	return nil
