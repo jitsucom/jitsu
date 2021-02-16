@@ -114,7 +114,6 @@ func (dr *DummyResolver) Resolve(ip string) (*Data, error) {
 func findMmdbFile(dir string) string {
 	files, err := ioutil.ReadDir(dir)
 	if err != nil {
-		logging.Error(err)
 		return ""
 	}
 

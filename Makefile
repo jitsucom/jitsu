@@ -16,9 +16,7 @@ assemble: backend js
 
 backend:
 	echo "Using path $(PATH)"
-	go get -u github.com/mailru/easyjson/...
 	go mod tidy
-	go generate
 	go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o eventnative
 
 js:
