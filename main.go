@@ -244,26 +244,34 @@ func main() {
 	inMemoryEventsCache := events.NewCache(eventsCacheSize)
 	appconfig.Instance.ScheduleClosing(inMemoryEventsCache)
 
+	// ** Retrospective users recognition
+	var globalRecognitionConfiguration *storages.UsersRecognition
+	if viper.IsSet("users_recognition") {
+		globalRecognitionConfiguration = &storages.UsersRecognition{
+			Enabled:         viper.GetBool("users_recognition.enabled"),
+			AnonymousIdNode: viper.GetString("users_recognition.anonymous_id_node"),
+			UserIdNode:      viper.GetString("users_recognition.user_id_node"),
+		}
+
+		err := globalRecognitionConfiguration.Validate()
+		if err != nil {
+			logging.Fatalf("Invalid global users recognition configuration: %v", err)
+		}
+
+	} else {
+		logging.Warnf("Global users recognition isn't configured")
+	}
+
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, syncService, eventsCache, loggerFactory, globalRecognitionConfiguration)
+
 	//Create event destinations
-	destinationsService, err := destinations.NewService(ctx, viper.Sub(destinationsKey), viper.GetString(destinationsKey), logEventPath, syncService, eventsCache, loggerFactory, storages.Create)
+	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory)
 	if err != nil {
 		logging.Fatal(err)
 	}
 	appconfig.Instance.ScheduleClosing(destinationsService)
 
-	// ** Retrospective users recognition
-	var recognitionConfiguration *storages.UsersRecognition
-	if viper.IsSet("users_recognition") {
-		recognitionConfiguration = &storages.UsersRecognition{
-			Enabled:         viper.GetBool("users_recognition.enabled"),
-			AnonymousIdNode: viper.GetString("users_recognition.anonymous_id_node"),
-			UserIdNode:      viper.GetString("users_recognition.user_id_node"),
-		}
-	} else {
-		logging.Warnf("Global users recognition isn't configured")
-	}
-
-	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationsService, recognitionConfiguration, logEventPath)
+	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationsService, globalRecognitionConfiguration, logEventPath)
 	if err != nil {
 		logging.Fatal(err)
 	}

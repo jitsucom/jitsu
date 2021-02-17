@@ -93,9 +93,6 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 
 	eventsCache := caching.NewEventsCache(metaStorage, 100)
-	destinationService, err := destinations.NewService(ctx, nil, destinationConfig, "/tmp", monitor, eventsCache, logging.NewFactory("/tmp", 5, false, nil, nil), storages.Create)
-	require.NoError(t, err)
-	appconfig.Instance.ScheduleClosing(destinationService)
 
 	// ** Retrospective users recognition
 	var recognitionConfiguration *storages.UsersRecognition
@@ -106,6 +103,12 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 			UserIdNode:      viper.GetString("users_recognition.user_id_node"),
 		}
 	}
+
+	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
+	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, recognitionConfiguration)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	require.NoError(t, err)
+	appconfig.Instance.ScheduleClosing(destinationService)
 
 	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationService, recognitionConfiguration, "/tmp")
 	require.NoError(t, err)
