@@ -58,8 +58,12 @@ type UsersRecognition struct {
 	UserIdNode      string `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
 }
 
+func (ur *UsersRecognition) IsEnabled() bool {
+	return ur != nil && ur.Enabled
+}
+
 func (ur *UsersRecognition) Validate() error {
-	if ur != nil && ur.Enabled {
+	if ur.IsEnabled() {
 		if ur.AnonymousIdNode == "" {
 			return errors.New("anonymous_id_node is required")
 		}
@@ -87,10 +91,34 @@ type Config struct {
 	sqlTypeCasts     map[string]string
 }
 
+type Factory interface {
+	Create(name string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error)
+}
+
+type FactoryImpl struct {
+	ctx                 context.Context
+	logEventPath        string
+	monitorKeeper       MonitorKeeper
+	eventsCache         *caching.EventsCache
+	globalLoggerFactory *logging.Factory
+	globalConfiguration *UsersRecognition
+}
+
+func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
+	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition) Factory {
+	return &FactoryImpl{
+		ctx:                 ctx,
+		logEventPath:        logEventPath,
+		monitorKeeper:       monitorKeeper,
+		eventsCache:         eventsCache,
+		globalLoggerFactory: globalLoggerFactory,
+		globalConfiguration: globalConfiguration,
+	}
+}
+
 //Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, name, logEventPath string, destination DestinationConfig, monitorKeeper MonitorKeeper,
-	eventsCache *caching.EventsCache, globalLoggerFactory *logging.Factory) (StorageProxy, *events.PersistentQueue, error) {
+func (f *FactoryImpl) Create(name string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = name
 	}
@@ -183,27 +211,33 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	}
 
 	//retrospective users recognition
-	var usersRecognition *UserRecognitionConfiguration
+	var usersRecognitionConfiguration *UserRecognitionConfiguration
+	var globalConfigurationLogMsg string
+	if f.globalConfiguration.IsEnabled() {
+		globalConfigurationLogMsg = " Global configuration will be used"
+	}
 	if destination.UsersRecognition != nil {
 		err := destination.UsersRecognition.Validate()
 		if err != nil {
-			logging.Infof("[%s] invalid users recognition configuration: %v", name, err)
+			logging.Infof("[%s] invalid users recognition configuration: %v.%s", name, err, globalConfigurationLogMsg)
 		} else {
-			usersRecognition = &UserRecognitionConfiguration{
+			usersRecognitionConfiguration = &UserRecognitionConfiguration{
 				Enabled:             destination.UsersRecognition.Enabled,
 				AnonymousIdJsonPath: jsonutils.NewJsonPath(destination.UsersRecognition.AnonymousIdNode),
 				UserIdJsonPath:      jsonutils.NewJsonPath(destination.UsersRecognition.UserIdNode),
 			}
 		}
 	} else {
-		logging.Infof("[%s] users recognition isn't configured", name)
+
+		logging.Infof("[%s] users recognition isn't configured.%s", name, globalConfigurationLogMsg)
 	}
 
 	//duplication data error warning
+	//if global enabled or overridden enabled - check primary key fields
 	//don't process user recognition in this case
-	if destination.Type == PostgresType && len(pkFields) == 0 {
+	if (f.globalConfiguration.IsEnabled() || destination.UsersRecognition.IsEnabled()) && destination.Type == PostgresType && len(pkFields) == 0 {
 		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", name)
-		usersRecognition = &UserRecognitionConfiguration{Enabled: false}
+		usersRecognitionConfiguration = &UserRecognitionConfiguration{Enabled: false}
 	}
 
 	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
@@ -224,14 +258,14 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == StreamMode {
-		eventQueue, err = events.NewPersistentQueue("queue.dst="+name, logEventPath)
+		eventQueue, err = events.NewPersistentQueue("queue.dst="+name, f.logEventPath)
 		if err != nil {
 			return nil, nil, err
 		}
 	}
 
 	//override debug sql (ddl, queries) loggers from the destination config
-	destinationLoggerFactory := globalLoggerFactory
+	destinationLoggerFactory := f.globalLoggerFactory
 	if destination.Log != nil {
 		if destination.Log.DDL != nil {
 			destinationLoggerFactory.NewFactoryWithDDLLogsWriter(logging.CreateLogWriter(&logging.Config{
@@ -251,15 +285,15 @@ func Create(ctx context.Context, name, logEventPath string, destination Destinat
 	}
 
 	storageConfig := &Config{
-		ctx:              ctx,
+		ctx:              f.ctx,
 		name:             name,
 		destination:      &destination,
-		usersRecognition: usersRecognition,
+		usersRecognition: usersRecognitionConfiguration,
 		processor:        processor,
 		streamMode:       destination.Mode == StreamMode,
-		monitorKeeper:    monitorKeeper,
+		monitorKeeper:    f.monitorKeeper,
 		eventQueue:       eventQueue,
-		eventsCache:      eventsCache,
+		eventsCache:      f.eventsCache,
 		loggerFactory:    destinationLoggerFactory,
 		pkFields:         pkFields,
 		sqlTypeCasts:     sqlTypeCasts,

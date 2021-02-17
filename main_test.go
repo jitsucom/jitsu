@@ -476,7 +476,9 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	enrichment.InitDefault()
 	monitor := synchronization.NewInMemoryService([]string{})
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
-	dest, err := destinations.NewService(ctx, nil, destinationConfig, "/tmp", monitor, eventsCache, logging.NewFactory("/tmp", 5, false, nil, nil), storages.Create)
+	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
+	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil)
+	dest, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
 	require.NoError(t, err)
 	defer dest.Close()
 
@@ -580,7 +582,9 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 
 	monitor := synchronization.NewInMemoryService([]string{})
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
-	dest, err := destinations.NewService(ctx, nil, destinationConfig, "/tmp", monitor, eventsCache, logging.NewFactory("/tmp", 5, false, nil, nil), storages.Create)
+	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
+	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil)
+	dest, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(dest)
 

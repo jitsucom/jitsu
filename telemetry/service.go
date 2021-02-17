@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"bytes"
+	"encoding/json"
 	"github.com/jitsucom/eventnative/safego"
 	"net/http"
 	"time"
@@ -102,7 +103,7 @@ func (s *Service) startUsage() {
 			}
 
 			req := <-s.usageCh
-			if b, err := req.MarshalJSON(); err == nil {
+			if b, err := json.Marshal(req); err == nil {
 				s.client.Post(s.url, "application/json", bytes.NewBuffer(b))
 			}
 		}

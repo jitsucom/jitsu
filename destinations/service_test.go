@@ -1,12 +1,8 @@
 package destinations
 
 import (
-	"context"
 	"github.com/jitsucom/eventnative/appconfig"
-	"github.com/jitsucom/eventnative/caching"
-	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/meta"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -18,17 +14,6 @@ import (
 
 type payloadHolder struct {
 	payload []byte
-}
-
-type testProxyMock struct {
-}
-
-func (tpm *testProxyMock) Get() (storages.Storage, bool) {
-	return nil, false
-}
-
-func (tpm *testProxyMock) Close() error {
-	return nil
 }
 
 // 1. create initial tokens(not all) & destinations
@@ -111,9 +96,9 @@ func TestServiceInit(t *testing.T) {
 	payload := &payloadHolder{payload: []byte(initialDestinations)}
 	mockDestinationsServer := startTestServer(payload)
 
-	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
-	service, err := NewService(context.Background(), nil, mockDestinationsServer.URL, "/tmp",
-		nil, eventsCache, logging.NewFactory("/tmp", 5, false, nil, nil), createTestStorage)
+	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
+	destinationsMockFactory := storages.NewMockFactory()
+	service, err := NewService(nil, mockDestinationsServer.URL, destinationsMockFactory, loggerFactory)
 	require.NoError(t, err)
 	require.NotNil(t, service)
 
@@ -294,15 +279,7 @@ func emptyConfigAsserts(t *testing.T, service *Service) {
 func startTestServer(ph *payloadHolder) *httptest.Server {
 	return httptest.NewServer(
 		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add("Content-type", "application/json")
 			w.Write(ph.payload)
 		}))
-}
-
-func createTestStorage(ctx context.Context, name, logEventPath string, destination storages.DestinationConfig, monitorKeeper storages.MonitorKeeper,
-	eventsCache *caching.EventsCache, loggerFactory *logging.Factory) (storages.StorageProxy, *events.PersistentQueue, error) {
-	var eventQueue *events.PersistentQueue
-	if destination.Mode == storages.StreamMode {
-		eventQueue, _ = events.NewPersistentQueue(name, "/tmp")
-	}
-	return &testProxyMock{}, eventQueue, nil
 }
