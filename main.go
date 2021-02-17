@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/appstatus"
@@ -19,6 +21,7 @@ import (
 	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/middleware"
 	"github.com/jitsucom/eventnative/notifications"
+	"github.com/jitsucom/eventnative/resources"
 	"github.com/jitsucom/eventnative/routers"
 	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/singer"
@@ -47,10 +50,18 @@ const (
 
 	destinationsKey = "destinations"
 	sourcesKey      = "sources"
+
+	configNotFound = "! Custom eventnative.yaml wasn't provided\n                            " +
+		"! EventNative will start, however it will be mostly useless\n                            " +
+		"! Please make a custom config file, you can generated a config with https://app.jitsu.com.\n                            " +
+		"! Configuration documentation: https://docs.eventnative.org/configuration-1/configuration\n                            " +
+		"! Add config with `-cfg eventnative.yaml` parameter or put eventnative.yaml to <config_dir> and add mapping\n                            " +
+		"! -v <config_dir>/:/home/eventnative/app/res/ if you're using official Docker image"
 )
 
 var (
-	configFilePath   = flag.String("cfg", "", "config file path")
+	//configSource might be URL or file path to yaml configuration
+	configSource     = flag.String("cfg", "", "config source")
 	containerizedRun = flag.Bool("cr", false, "containerised run marker")
 
 	//ldflags
@@ -62,28 +73,67 @@ var (
 func readInViperConfig() error {
 	flag.Parse()
 	viper.AutomaticEnv()
+
 	//support OS env variables as lower case and dot divided variables e.g. SERVER_PORT as server.port
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
 	//custom config
-	viper.SetConfigFile(*configFilePath)
-	if err := viper.ReadInConfig(); err != nil {
-		//failfast for running service from source (not containerised) and with wrong config
-		if viper.ConfigFileUsed() != "" && !*containerizedRun {
-			return err
-		} else {
-			logging.ConfigErr = err.Error()
-			logging.ConfigWarn = "! Custom eventnative.yaml wasn't provided\n                            " +
-				"! EventNative will start, however it will be mostly useless\n                            " +
-				"! Please make a custom config file, you can generated a config with https://app.jitsu.com.\n                            " +
-				"! Configuration documentation: https://docs.eventnative.org/configuration-1/configuration\n                            " +
-				"! Add config with `-cfg eventnative.yaml` parameter or put eventnative.yaml to <config_dir> and add mapping\n                            " +
-				"! -v <config_dir>/:/home/eventnative/app/res/ if you're using official Docker image"
-		}
+	configSourceStr := *configSource
+
+	//overridden configuration from ENV
+	overriddenConfigLocation := viper.GetString("config_location")
+	if overriddenConfigLocation != "" {
+		configSourceStr = overriddenConfigLocation
 	}
+
+	if configSourceStr == "" {
+		return handleConfigErr(errors.New("-cfg is required parameter. Read more about EventNative configuration: https://docs.eventnative.org/configuration-1/configuration"))
+	}
+
+	var payload *resources.ResponsePayload
+	var err error
+	if strings.HasPrefix(configSourceStr, "http://") || strings.HasPrefix(configSourceStr, "https://") {
+		payload, err = resources.LoadFromHttp(configSourceStr, "")
+	} else if strings.HasPrefix(configSourceStr, "{") && strings.HasSuffix(configSourceStr, "}") {
+		jsonContentType := resources.JsonContentType
+		payload = &resources.ResponsePayload{Content: []byte(configSourceStr), ContentType: &jsonContentType}
+	} else {
+		payload, err = resources.LoadFromFile(configSourceStr, "")
+	}
+
+	if err != nil {
+		return handleConfigErr(err)
+	}
+
+	if payload.ContentType != nil {
+		viper.SetConfigType(string(*payload.ContentType))
+	} else {
+		//default content type
+		viper.SetConfigType("json")
+	}
+
+	err = viper.ReadConfig(bytes.NewBuffer(payload.Content))
+	if err != nil {
+		errWithContext := fmt.Errorf("Error reading/parsing viper config from %s: %v", configSourceStr, err)
+		return handleConfigErr(errWithContext)
+	}
+
 	return nil
 }
 
-//go:generate easyjson -all useragent/resolver.go telemetry/models.go
+//return err only if application can't start without config
+//otherwise log error and return nil
+func handleConfigErr(err error) error {
+	//failfast for running service from source (not containerised) and with wrong config
+	if !*containerizedRun {
+		return err
+	}
+
+	logging.ConfigErr = err.Error()
+	logging.ConfigWarn = configNotFound
+	return nil
+}
+
 func main() {
 	//Setup seed for globalRand
 	rand.Seed(time.Now().Unix())
@@ -95,7 +145,7 @@ func main() {
 	time.Local = time.UTC
 
 	if err := readInViperConfig(); err != nil {
-		logging.Fatal("Error while reading application config: ", err)
+		logging.Fatal("Error while reading application config:", err)
 	}
 
 	//parse EN version
@@ -174,40 +224,8 @@ func main() {
 
 	// ** Destinations **
 
-	//destinations config
-	destinationsViper := viper.Sub(destinationsKey)
-	destinationsStr := viper.GetString(destinationsKey)
-
-	//override with config from os env
-	destinationsJsonConfig := viper.GetString("destinations_json")
-	if destinationsJsonConfig != "" && destinationsJsonConfig != "{}" {
-		envJsonViper := viper.New()
-		envJsonViper.SetConfigType("json")
-		if err := envJsonViper.ReadConfig(bytes.NewBufferString(destinationsJsonConfig)); err != nil {
-			logging.Error("Error reading/parsing json config from DESTINATIONS_JSON", err)
-		} else {
-			destinationsViper = envJsonViper.Sub(destinationsKey)
-			destinationsStr = envJsonViper.GetString(destinationsKey)
-		}
-	}
-
-	//meta storage config
-	metaStorageViper := viper.Sub("meta.storage")
-
-	//override with config from os env
-	metaStorageJsonConfig := viper.GetString("meta_storage_json")
-	if metaStorageJsonConfig != "" && metaStorageJsonConfig != "{}" {
-		envJsonViper := viper.New()
-		envJsonViper.SetConfigType("json")
-		if err := envJsonViper.ReadConfig(bytes.NewBufferString(metaStorageJsonConfig)); err != nil {
-			logging.Error("Error reading/parsing json config from META_STORAGE_JSON", err)
-		} else {
-			metaStorageViper = envJsonViper.Sub("meta_storage")
-		}
-	}
-
 	//meta storage
-	metaStorage, err := meta.NewStorage(metaStorageViper)
+	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
@@ -226,26 +244,34 @@ func main() {
 	inMemoryEventsCache := events.NewCache(eventsCacheSize)
 	appconfig.Instance.ScheduleClosing(inMemoryEventsCache)
 
+	// ** Retrospective users recognition
+	var globalRecognitionConfiguration *storages.UsersRecognition
+	if viper.IsSet("users_recognition") {
+		globalRecognitionConfiguration = &storages.UsersRecognition{
+			Enabled:         viper.GetBool("users_recognition.enabled"),
+			AnonymousIdNode: viper.GetString("users_recognition.anonymous_id_node"),
+			UserIdNode:      viper.GetString("users_recognition.user_id_node"),
+		}
+
+		err := globalRecognitionConfiguration.Validate()
+		if err != nil {
+			logging.Fatalf("Invalid global users recognition configuration: %v", err)
+		}
+
+	} else {
+		logging.Warnf("Global users recognition isn't configured")
+	}
+
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, syncService, eventsCache, loggerFactory, globalRecognitionConfiguration)
+
 	//Create event destinations
-	destinationsService, err := destinations.NewService(ctx, destinationsViper, destinationsStr, logEventPath, syncService, eventsCache, loggerFactory, storages.Create)
+	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory)
 	if err != nil {
 		logging.Fatal(err)
 	}
 	appconfig.Instance.ScheduleClosing(destinationsService)
 
-	// ** Retrospective users recognition
-	var recognitionConfiguration *storages.UsersRecognition
-	if viper.IsSet("users_recognition") {
-		recognitionConfiguration = &storages.UsersRecognition{
-			Enabled:         viper.GetBool("users_recognition.enabled"),
-			AnonymousIdNode: viper.GetString("users_recognition.anonymous_id_node"),
-			UserIdNode:      viper.GetString("users_recognition.user_id_node"),
-		}
-	} else {
-		logging.Warnf("Global users recognition isn't configured")
-	}
-
-	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationsService, recognitionConfiguration, logEventPath)
+	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationsService, globalRecognitionConfiguration, logEventPath)
 	if err != nil {
 		logging.Fatal(err)
 	}
@@ -253,28 +279,13 @@ func main() {
 
 	// ** Sources **
 
-	//sources config
-	sourcesViper := viper.Sub(sourcesKey)
-
-	//override with config from os env
-	sourcesJsonConfig := viper.GetString("sources_json")
-	if sourcesJsonConfig != "" && sourcesJsonConfig != "{}" {
-		envJsonViper := viper.New()
-		envJsonViper.SetConfigType("json")
-		if err := envJsonViper.ReadConfig(bytes.NewBufferString(sourcesJsonConfig)); err != nil {
-			logging.Error("Error reading/parsing json config from SOURCES_JSON", err)
-		} else {
-			sourcesViper = envJsonViper.Sub(sourcesKey)
-		}
-	}
-
 	//sources sync tasks pool size
 	poolSize := viper.GetInt("server.sync_tasks.pool.size")
 
 	//Create sources
-	sourceService, err := sources.NewService(ctx, sourcesViper, destinationsService, metaStorage, syncService, poolSize)
+	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage, syncService, poolSize)
 	if err != nil {
-		logging.Fatal(err)
+		logging.Fatal("Error creating sources service:", err)
 	}
 	appconfig.Instance.ScheduleClosing(sourceService)
 

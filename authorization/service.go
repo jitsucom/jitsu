@@ -52,7 +52,7 @@ func NewService() (*Service, error) {
 			authSource := auth[0]
 			if strings.HasPrefix(authSource, "http://") || strings.HasPrefix(authSource, "https://") {
 				resources.Watch(serviceName, authSource, resources.LoadFromHttp, service.updateTokens, time.Duration(reloadSec)*time.Second)
-			} else if strings.HasPrefix(authSource, "file://") {
+			} else if strings.HasPrefix(authSource, "file://") || strings.HasPrefix(authSource, "/") {
 				resources.Watch(serviceName, strings.Replace(authSource, "file://", "", 1), resources.LoadFromFile, service.updateTokens, time.Duration(reloadSec)*time.Second)
 			} else if strings.HasPrefix(authSource, "{") && strings.HasSuffix(authSource, "}") {
 				tokensHolder, err := parseFromBytes([]byte(authSource))
