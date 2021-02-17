@@ -93,9 +93,6 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 
 	eventsCache := caching.NewEventsCache(metaStorage, 100)
-	destinationService, err := destinations.NewService(ctx, nil, destinationConfig, "/tmp", monitor, eventsCache, logging.NewFactory("/tmp", 5, false, nil, nil), storages.Create)
-	require.NoError(t, err)
-	appconfig.Instance.ScheduleClosing(destinationService)
 
 	// ** Retrospective users recognition
 	var recognitionConfiguration *storages.UsersRecognition
@@ -106,6 +103,12 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 			UserIdNode:      viper.GetString("users_recognition.user_id_node"),
 		}
 	}
+
+	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
+	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, recognitionConfiguration)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	require.NoError(t, err)
+	appconfig.Instance.ScheduleClosing(destinationService)
 
 	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationService, recognitionConfiguration, "/tmp")
 	require.NoError(t, err)
@@ -203,7 +206,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	objects, err := postgresContainer.GetAllSortedRows("events", "order by eventn_ctx_utc_time")
 	require.Equal(t, 2, len(objects), "Rows count must be 2")
 
-	expected := `[{"_timestamp":"2020-06-16T23:00:00Z","api_key":"c2stoken","event_type":"pageview","eventn_ctx_doc_encoding":"UTF-8","eventn_ctx_doc_host":"jitsu.com","eventn_ctx_doc_path":"/","eventn_ctx_event_id":"1","eventn_ctx_local_tz_offset":-180,"eventn_ctx_page_title":"Jitsu: Open-source data integration and event collection","eventn_ctx_parsed_ua_ua_family":"Go-http-client","eventn_ctx_parsed_ua_ua_version":"1.1.","eventn_ctx_referer":"","eventn_ctx_screen_resolution":"1680x1050","eventn_ctx_url":"https://jitsu.com/","eventn_ctx_user_agent":"Go-http-client/1.1","eventn_ctx_user_anonymous_id":"anonym1","eventn_ctx_user_internal_id":"id1kk","eventn_ctx_user_language":"ru-RU","eventn_ctx_utc_time":"2020-12-23T17:55:54.9Z","eventn_ctx_vp_size":"1680x235","source_ip":"127.0.0.1"},{"_timestamp":"2020-06-16T23:00:00Z","api_key":"c2stoken","event_type":"identify","eventn_ctx_doc_encoding":"UTF-8","eventn_ctx_doc_host":"jitsu.com","eventn_ctx_doc_path":"/","eventn_ctx_event_id":"2","eventn_ctx_local_tz_offset":-180,"eventn_ctx_page_title":"Jitsu: Open-source data integration and event collection","eventn_ctx_parsed_ua_ua_family":"Go-http-client","eventn_ctx_parsed_ua_ua_version":"1.1.","eventn_ctx_referer":"","eventn_ctx_screen_resolution":"1680x1050","eventn_ctx_url":"https://jitsu.com/","eventn_ctx_user_agent":"Go-http-client/1.1","eventn_ctx_user_anonymous_id":"anonym1","eventn_ctx_user_internal_id":"id1kk","eventn_ctx_user_language":"ru-RU","eventn_ctx_utc_time":"2020-12-24T17:55:54.9Z","eventn_ctx_vp_size":"1680x235","source_ip":"127.0.0.1"}]`
+	expected := `[{"_timestamp":"2020-06-16T23:00:00Z","api_key":"c2stoken","event_type":"pageview","eventn_ctx_doc_encoding":"UTF-8","eventn_ctx_doc_host":"jitsu.com","eventn_ctx_doc_path":"/","eventn_ctx_event_id":"1","eventn_ctx_local_tz_offset":-180,"eventn_ctx_page_title":"Jitsu: Open-source data integration and event collection","eventn_ctx_parsed_ua_ua_family":"Go-http-client","eventn_ctx_parsed_ua_ua_version":"1.1","eventn_ctx_referer":"","eventn_ctx_screen_resolution":"1680x1050","eventn_ctx_url":"https://jitsu.com/","eventn_ctx_user_agent":"Go-http-client/1.1","eventn_ctx_user_anonymous_id":"anonym1","eventn_ctx_user_internal_id":"id1kk","eventn_ctx_user_language":"ru-RU","eventn_ctx_utc_time":"2020-12-23T17:55:54.9Z","eventn_ctx_vp_size":"1680x235","source_ip":"127.0.0.1"},{"_timestamp":"2020-06-16T23:00:00Z","api_key":"c2stoken","event_type":"identify","eventn_ctx_doc_encoding":"UTF-8","eventn_ctx_doc_host":"jitsu.com","eventn_ctx_doc_path":"/","eventn_ctx_event_id":"2","eventn_ctx_local_tz_offset":-180,"eventn_ctx_page_title":"Jitsu: Open-source data integration and event collection","eventn_ctx_parsed_ua_ua_family":"Go-http-client","eventn_ctx_parsed_ua_ua_version":"1.1","eventn_ctx_referer":"","eventn_ctx_screen_resolution":"1680x1050","eventn_ctx_url":"https://jitsu.com/","eventn_ctx_user_agent":"Go-http-client/1.1","eventn_ctx_user_anonymous_id":"anonym1","eventn_ctx_user_internal_id":"id1kk","eventn_ctx_user_language":"ru-RU","eventn_ctx_utc_time":"2020-12-24T17:55:54.9Z","eventn_ctx_vp_size":"1680x235","source_ip":"127.0.0.1"}]`
 	actual, _ := json.Marshal(objects)
 
 	require.Equal(t, expected, string(actual), "Objects in DWH and expected objects aren't equal")

@@ -42,9 +42,9 @@ func RecognitionPayloadBuilder() interface{} {
 //save anonymous events in meta storage
 //rewrite recognized events
 type RecognitionService struct {
-	metaStorage              meta.Storage
-	destinationService       *destinations.Service
-	recognitionConfiguration *storages.UserRecognitionConfiguration
+	metaStorage         meta.Storage
+	destinationService  *destinations.Service
+	globalConfiguration *storages.UserRecognitionConfiguration
 
 	queue  *dque.DQue
 	closed bool
@@ -60,11 +60,6 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		return &RecognitionService{closed: true}, nil
 	}
 
-	err := configuration.Validate()
-	if err != nil {
-		return nil, fmt.Errorf("Invalid users recognition configuration: %v", err)
-	}
-
 	queue, err := dque.NewOrOpen(queueName, logEventPath, recognitionPayloadPerFile, RecognitionPayloadBuilder)
 	if err != nil {
 		return nil, fmt.Errorf("Error opening/creating recognized events queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
@@ -73,7 +68,7 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 	rs := &RecognitionService{
 		destinationService: destinationService,
 		metaStorage:        metaStorage,
-		recognitionConfiguration: &storages.UserRecognitionConfiguration{
+		globalConfiguration: &storages.UserRecognitionConfiguration{
 			Enabled:             configuration.Enabled,
 			AnonymousIdJsonPath: jsonutils.NewJsonPath(configuration.AnonymousIdNode),
 			UserIdJsonPath:      jsonutils.NewJsonPath(configuration.UserIdNode),
@@ -167,7 +162,7 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 
 		//override destination recognition configuration with global one
 		if configuration == nil {
-			configuration = rs.recognitionConfiguration
+			configuration = rs.globalConfiguration
 		}
 
 		//recognition disabled manually or wrong pk fields configuration
@@ -229,7 +224,7 @@ func (rs *RecognitionService) runPipeline(destinationId string, identifiers Even
 
 		//override destination recognition configuration with global one
 		if configuration == nil {
-			configuration = rs.recognitionConfiguration
+			configuration = rs.globalConfiguration
 		}
 
 		//recognition disabled

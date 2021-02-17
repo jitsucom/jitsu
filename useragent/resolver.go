@@ -1,9 +1,9 @@
 package useragent
 
 import (
-	"fmt"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/ua-parser/uap-go/uaparser"
+	"strings"
 )
 
 const ParsedUaKey = "parsed_ua"
@@ -30,6 +30,8 @@ type ResolvedUa struct {
 	DeviceFamily string `json:"device_family,omitempty"`
 	DeviceBrand  string `json:"device_brand,omitempty"`
 	DeviceModel  string `json:"device_model,omitempty"`
+
+	Bot bool `json:"bot,omitempty"`
 }
 
 func (rua ResolvedUa) IsEmpty() bool {
@@ -56,20 +58,15 @@ func (r *UapResolver) Resolve(ua string) *ResolvedUa {
 		if parsed.UserAgent.Family != "Other" {
 			resolved.UaFamily = parsed.UserAgent.Family
 		}
-		uaVersion := fmt.Sprintf("%s.%s.%s", parsed.UserAgent.Major, parsed.UserAgent.Minor, parsed.UserAgent.Patch)
-		if uaVersion != ".." {
-			resolved.UaVersion = uaVersion
-		}
+
+		resolved.UaVersion = parsed.UserAgent.ToVersionString()
 	}
 
 	if parsed.Os != nil {
 		if parsed.Os.Family != "Other" {
 			resolved.OsFamily = parsed.Os.Family
 		}
-		osVersion := fmt.Sprintf("%s.%s.%s", parsed.Os.Major, parsed.Os.Minor, parsed.Os.Patch)
-		if osVersion != ".." {
-			resolved.OsVersion = osVersion
-		}
+		resolved.OsVersion = parsed.Os.ToVersionString()
 	}
 
 	if parsed.Device != nil {
@@ -83,6 +80,9 @@ func (r *UapResolver) Resolve(ua string) *ResolvedUa {
 	if resolved.IsEmpty() {
 		return nil
 	}
+
+	resolved.Bot = strings.Contains(strings.ToLower(resolved.UaFamily), "bot") ||
+		strings.Contains(strings.ToLower(resolved.UaFamily), "crawler")
 
 	return resolved
 }
