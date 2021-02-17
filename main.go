@@ -277,7 +277,7 @@ func main() {
 	//Create sources
 	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage, syncService, poolSize)
 	if err != nil {
-		logging.Fatal(err)
+		logging.Fatal("Error creating sources service:", err)
 	}
 	appconfig.Instance.ScheduleClosing(sourceService)
 
