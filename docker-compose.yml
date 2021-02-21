@@ -1,0 +1,32 @@
+version: '2'
+
+networks: 
+  en:
+
+services:
+  redis:
+    container_name: eventnative_redis
+    image: redis:alpine
+    volumes:
+      - "${DATA_DIR}/redis_data/:/data"
+    expose:
+      - 6379
+    ports:
+      - 6379:6379
+    networks:
+      - en
+
+  eventnative:
+    depends_on:
+      - redis
+    container_name: eventnative
+    image: ksense/eventnative:latest
+    tty: yes
+    volumes:
+      - "${DATA_DIR}/res/:/home/eventnative/app/res/"
+      - "${DATA_DIR}/events/:/home/eventnative/logs/events/"
+      - "${DATA_DIR}/logs/:/home/eventnative/logs/"
+    ports:
+      - 8001:8001
+    networks:
+      - en
