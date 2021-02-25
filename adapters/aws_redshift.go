@@ -6,6 +6,8 @@ import (
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/typing"
 	_ "github.com/lib/pq"
+	"strconv"
+	"strings"
 )
 
 const (
@@ -17,6 +19,8 @@ const (
     				json 'auto'
                     dateformat 'auto'
                     timeformat 'auto'`
+
+	updateStatement = `UPDATE "%s"."%s" SET %s WHERE %s=%v`
 )
 
 var (
@@ -124,6 +128,27 @@ func (ar *AwsRedshift) CreateTable(tableSchema *Table) error {
 	}
 
 	return ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
+}
+
+//Update one record in Redshift
+func (ar *AwsRedshift) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
+	columns := make([]string, len(object), len(object))
+	values := make([]interface{}, len(object), len(object))
+	i := 0
+	for name, value := range object {
+		columns[i] = name + "= $" + strconv.Itoa(i+1) //$0 - wrong
+		values[i] = value
+		i++
+	}
+
+	statement := fmt.Sprintf(updateStatement, ar.dataSourceProxy.config.Schema, table.Name, strings.Join(columns, ", "), whereKey, whereValue)
+	ar.dataSourceProxy.queryLogger.LogQueryWithValues(statement, values)
+	_, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, statement, values)
+	if err != nil {
+		return fmt.Errorf("Error updating %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
+	}
+
+	return nil
 }
 
 //Close underlying sql.DB
