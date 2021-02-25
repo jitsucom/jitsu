@@ -264,6 +264,11 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 	return rowsCount, nil
 }
 
+func (ch *ClickHouse) Update(object map[string]interface{}) error {
+	_, err := ch.SyncStore(nil, []map[string]interface{}{object}, "")
+	return err
+}
+
 func (ch *ClickHouse) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ch.usersRecognitionConfiguration
 }

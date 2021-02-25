@@ -76,6 +76,10 @@ func (fb *Facebook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 	return 0, errors.New("Facebook Conversion doesn't support SyncStore() func")
 }
 
+func (fb *Facebook) Update(object map[string]interface{}) error {
+	return errors.New("Facebook doesn't support updates")
+}
+
 func (fb *Facebook) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }

@@ -238,9 +238,9 @@ func (rs *RecognitionService) runPipeline(destinationId string, identifiers Even
 			continue
 		}
 
-		_, err = storage.SyncStore(nil, []map[string]interface{}{event}, "")
+		err = storage.Update(event)
 		if err != nil {
-			logging.SystemErrorf("[%s] Error storing recognized user event: %v", destinationId, err)
+			logging.SystemErrorf("[%s] Error updating recognized user event: %v", destinationId, err)
 			continue
 		}
 
