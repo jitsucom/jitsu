@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/meta"
+	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/joncrlsn/dque"
@@ -76,6 +77,8 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		queue: queue,
 	}
 
+	metrics.InitialUsersRecognitionQueueSize(queue.Size())
+
 	rs.start()
 
 	return rs, nil
@@ -89,6 +92,7 @@ func (rs *RecognitionService) start() {
 			}
 
 			iface, err := rs.queue.DequeueBlock()
+			metrics.DequeuedRecognitionEvent()
 			if err != nil {
 				if err == dque.ErrQueueClosed && rs.closed {
 					continue
@@ -136,6 +140,8 @@ func (rs *RecognitionService) Event(event events.Event, destinationIds []string)
 		logging.SystemErrorf("Error saving recognition payload into the queue: %v", err)
 		return
 	}
+
+	metrics.EnqueuedRecognitionEvent()
 }
 
 func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, destinationIds []string) map[string]EventIdentifiers {
@@ -238,9 +244,9 @@ func (rs *RecognitionService) runPipeline(destinationId string, identifiers Even
 			continue
 		}
 
-		_, err = storage.SyncStore(nil, []map[string]interface{}{event}, "")
+		err = storage.Update(event)
 		if err != nil {
-			logging.SystemErrorf("[%s] Error storing recognized user event: %v", destinationId, err)
+			logging.SystemErrorf("[%s] Error updating recognized user event: %v", destinationId, err)
 			continue
 		}
 

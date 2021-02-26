@@ -254,6 +254,10 @@ func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 	return 0, errors.New("Snowflake doesn't support sync store")
 }
 
+func (s *Snowflake) Update(object map[string]interface{}) error {
+	return errors.New("Snowflake doesn't support updates")
+}
+
 func (s *Snowflake) Name() string {
 	return s.name
 }

@@ -116,6 +116,10 @@ func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[
 	return 0, errors.New("S3 doesn't support sync store")
 }
 
+func (s3 *S3) Update(object map[string]interface{}) error {
+	return errors.New("S3 doesn't support updates")
+}
+
 func (s3 *S3) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
