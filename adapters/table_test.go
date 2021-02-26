@@ -82,7 +82,7 @@ func TestDiff(t *testing.T) {
 			"Diff with changed primary keys",
 			&Table{Name: "some", Columns: Columns{"col1": Column{SqlType: "text"}, "col4": Column{SqlType: "text"}}, PKFields: map[string]bool{"col1": true}},
 			&Table{Name: "some", Columns: Columns{"col1": Column{SqlType: "text"}, "col4": Column{SqlType: "text"}, "col5": Column{SqlType: "text"}}, PKFields: map[string]bool{"col1": true, "col4": true}},
-			&Table{Name: "some", Columns: Columns{"col5": Column{SqlType: "text"}}, PKFields: map[string]bool{"col1": true, "col4": true}},
+			&Table{Name: "some", Columns: Columns{"col5": Column{SqlType: "text"}}, PKFields: map[string]bool{"col1": true, "col4": true}, DeletePkFields: true},
 		},
 	}
 	for _, tt := range tests {

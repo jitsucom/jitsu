@@ -68,10 +68,17 @@ func (t Table) Diff(another *Table) *Table {
 		}
 	}
 
+	//primary keys logic
 	if len(t.PKFields) > 0 && len(another.PKFields) == 0 {
+		//only delete
 		diff.DeletePkFields = true
 	} else {
-		if !reflect.DeepEqual(t.PKFields, another.PKFields) {
+		if len(t.PKFields) == 0 && len(another.PKFields) > 0 {
+			//create
+			diff.PKFields = another.PKFields
+		} else if !reflect.DeepEqual(t.PKFields, another.PKFields) {
+			//re-create
+			diff.DeletePkFields = true
 			diff.PKFields = another.PKFields
 		}
 	}

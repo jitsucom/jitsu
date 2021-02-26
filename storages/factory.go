@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/schema"
 	"strings"
 )
@@ -262,6 +263,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		if err != nil {
 			return nil, nil, err
 		}
+		metrics.InitialStreamEventsQueueSize(name, eventQueue.Size())
 	}
 
 	//override debug sql (ddl, queries) loggers from the destination config

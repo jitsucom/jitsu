@@ -41,7 +41,7 @@ const (
 					  	AND indisprimary`
 	createDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS "%s"`
 	addColumnTemplate                 = `ALTER TABLE "%s"."%s" ADD COLUMN %s`
-	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT IF EXISTS %s"
+	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT %s"
 	alterPrimaryKeyTemplate           = `ALTER TABLE "%s"."%s" ADD CONSTRAINT %s PRIMARY KEY (%s)`
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
@@ -213,27 +213,12 @@ func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
 		return table, nil
 	}
 
-	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema+"."+tableName, p.config.Schema)
+	pkFields, err := p.getPrimaryKeys(tableName)
 	if err != nil {
-		return nil, fmt.Errorf("error querying primary keys for [%s.%s] schema: %v", p.config.Schema, tableName, err)
+		return nil, err
 	}
 
-	defer pkFieldsRows.Close()
-	var pkFields []string
-	for pkFieldsRows.Next() {
-		var fieldName string
-		if err := pkFieldsRows.Scan(&fieldName); err != nil {
-			return nil, fmt.Errorf("error scanning primary key result: %v", err)
-		}
-		pkFields = append(pkFields, fieldName)
-	}
-	if err := pkFieldsRows.Err(); err != nil {
-		return nil, fmt.Errorf("pk last rows.Err: %v", err)
-	}
-	for _, field := range pkFields {
-		table.PKFields[field] = true
-	}
-
+	table.PKFields = pkFields
 	return table, nil
 }
 
@@ -314,7 +299,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 	}
 
 	//patch primary keys - delete old
-	if len(patchTable.PKFields) > 0 || patchTable.DeletePkFields {
+	if patchTable.DeletePkFields {
 		err := p.deletePrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
 			wrappedTx.Rollback()
@@ -347,71 +332,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 	if err != nil {
-		msg := err.Error()
-		if strings.Contains(strings.ToLower(msg), "can not make a nullable column a primary key") {
-			//re-create field and set it not null
-			recreationErr := p.recreateNotNullColumnInTransaction(wrappedTx, table)
-			if recreationErr != nil {
-				logging.Errorf("Error re-creating not null fields: %v", recreationErr)
-			} else {
-				_, err := wrappedTx.tx.ExecContext(p.ctx, query)
-				if err != nil {
-					return fmt.Errorf("Error setting primary key [%s] %s table after re-creation not null fields: %v", strings.Join(table.GetPKFields(), ","), table.Name, err)
-				}
-			}
-		}
-
 		return fmt.Errorf("Error setting primary key [%s] %s table: %v", strings.Join(table.GetPKFields(), ","), table.Name, err)
-	}
-
-	return nil
-}
-
-//recreateNotNullColumn create tmp column -> copy all values -> delete old column -> rename tmp column
-func (p *Postgres) recreateNotNullColumnInTransaction(wrappedTx *Transaction, table *Table) error {
-	pkFields := table.GetPKFieldsMap()
-	for _, columnName := range table.GetPKFields() {
-		column, ok := table.Columns[columnName]
-		if !ok {
-			continue
-		}
-
-		//** create tmp column **
-		tmpColumnName := columnName + "_tmp"
-		columnDDL := p.columnDDL(columnName, column, pkFields)
-		//replace original name with _tmp one
-		columnDDL = strings.ReplaceAll(columnDDL, columnName, tmpColumnName)
-
-		addColumnQuery := fmt.Sprintf(addColumnTemplate, p.config.Schema, table.Name, columnDDL)
-		p.queryLogger.LogDDL(addColumnQuery)
-		_, err := wrappedTx.tx.ExecContext(p.ctx, addColumnQuery)
-		if err != nil {
-			return fmt.Errorf("Error creating [%s] tmp column %s table with [%s] DDL: %v", tmpColumnName, table.Name, columnDDL, err)
-		}
-
-		//** copy all values **
-		copyColumnQuery := fmt.Sprintf(copyColumnTemplate, p.config.Schema, table.Name, tmpColumnName, columnName)
-		p.queryLogger.LogDDL(copyColumnQuery)
-		_, err = wrappedTx.tx.ExecContext(p.ctx, copyColumnQuery)
-		if err != nil {
-			return fmt.Errorf("Error copying column [%s] into tmp column [%s]: %v", columnName, tmpColumnName, err)
-		}
-
-		//** drop old column **
-		dropOldColumnQuery := fmt.Sprintf(dropColumnTemplate, p.config.Schema, table.Name, columnName)
-		p.queryLogger.LogDDL(dropOldColumnQuery)
-		_, err = wrappedTx.tx.ExecContext(p.ctx, dropOldColumnQuery)
-		if err != nil {
-			return fmt.Errorf("Error droping old column [%s]: %v", columnName, err)
-		}
-
-		//**rename tmp column **
-		renameTmpColumnQuery := fmt.Sprintf(renameColumnTemplate, p.config.Schema, table.Name, tmpColumnName, columnName)
-		p.queryLogger.LogDDL(renameTmpColumnQuery)
-		_, err = wrappedTx.tx.ExecContext(p.ctx, renameTmpColumnQuery)
-		if err != nil {
-			return fmt.Errorf("Error renaming tmp column [%s] to [%s]: %v", tmpColumnName, columnName, err)
-		}
 	}
 
 	return nil
@@ -421,13 +342,9 @@ func (p *Postgres) recreateNotNullColumnInTransaction(wrappedTx *Transaction, ta
 func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
 	query := fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name))
 	p.queryLogger.LogDDL(query)
-	dropPKStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
+	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 	if err != nil {
-		return fmt.Errorf("failed to prepare statement to drop primary key for table %s: %v", table.Name, err)
-	}
-	_, err = dropPKStmt.ExecContext(p.ctx)
-	if err != nil {
-		return fmt.Errorf("failed to drop primary key constraint for table %s: %v", table.Name, err)
+		return fmt.Errorf("Failed to drop primary key constraint for table %s.%s: %v", p.config.Schema, table.Name, err)
 	}
 
 	return nil
@@ -435,41 +352,16 @@ func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *
 
 //Insert provided object in postgres with typecasts
 func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error {
-	var header string
-	placeholders := "("
-	var values []interface{}
-	i := 1
-	for name, value := range valuesMap {
-		header += name + ","
-		//$1::type, $2::type, $3, etc
-		placeholders += "$" + strconv.Itoa(i) + p.castClause(name) + ","
-		values = append(values, value)
-		i++
-	}
-
-	header = removeLastComma(header)
-	placeholders = removeLastComma(placeholders)
-	placeholders += ")"
-	query := p.insertQuery(table.GetPKFields(), table.Name, header, placeholders)
+	header, placeholders, values := p.buildQueryPayload(valuesMap)
+	query := p.insertQuery(table.GetPKFields(), table.Name, header, "("+placeholders+")")
 	p.queryLogger.LogQueryWithValues(query, values)
 
-	wrappedTx, err := p.OpenTx()
+	_, err := p.dataSource.ExecContext(p.ctx, query, values...)
 	if err != nil {
-		return err
-	}
-	insertStmt, err := wrappedTx.tx.PrepareContext(p.ctx, query)
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
 	}
 
-	_, err = insertStmt.ExecContext(p.ctx, values...)
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", table.Name, header, values, err)
-	}
-
-	return wrappedTx.DirectCommit()
+	return nil
 }
 
 func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
@@ -706,10 +598,20 @@ func (p *Postgres) columnDDL(name string, column Column, pkFields map[string]boo
 
 	//not null
 	if _, ok := pkFields[name]; ok {
-		notNullClause = "not null"
+		notNullClause = "not null " + p.getDefaultValueStatement(sqlType)
 	}
 
 	return fmt.Sprintf(`%s %s %s`, name, sqlType, notNullClause)
+}
+
+//return default value statement for creating column
+func (p *Postgres) getDefaultValueStatement(sqlType string) string {
+	//get default value based on type
+	if strings.Contains(sqlType, "var") || strings.Contains(sqlType, "text") {
+		return "default ''"
+	}
+
+	return "default 0"
 }
 
 //Close underlying sql.DB
@@ -749,6 +651,48 @@ func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, st
 	}
 
 	return wrappedTx.tx.Commit()
+}
+
+func (p *Postgres) getPrimaryKeys(tableName string) (map[string]bool, error) {
+	primaryKeys := map[string]bool{}
+	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema+"."+tableName, p.config.Schema)
+	if err != nil {
+		return nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", p.config.Schema, tableName, err)
+	}
+
+	defer pkFieldsRows.Close()
+	var pkFields []string
+	for pkFieldsRows.Next() {
+		var fieldName string
+		if err := pkFieldsRows.Scan(&fieldName); err != nil {
+			return nil, fmt.Errorf("error scanning primary key result: %v", err)
+		}
+		pkFields = append(pkFields, fieldName)
+	}
+	if err := pkFieldsRows.Err(); err != nil {
+		return nil, fmt.Errorf("pk last rows.Err: %v", err)
+	}
+	for _, field := range pkFields {
+		primaryKeys[field] = true
+	}
+
+	return primaryKeys, nil
+}
+
+func (p *Postgres) buildQueryPayload(valuesMap map[string]interface{}) (string, string, []interface{}) {
+	header := make([]string, len(valuesMap), len(valuesMap))
+	placeholders := make([]string, len(valuesMap), len(valuesMap))
+	values := make([]interface{}, len(valuesMap), len(valuesMap))
+	i := 0
+	for name, value := range valuesMap {
+		header[i] = name
+		//$1::type, $2::type, $3, etc ($0 - wrong)
+		placeholders[i] = fmt.Sprintf("$%d%s", i+1, p.castClause(name))
+		values[i] = value
+		i++
+	}
+
+	return strings.Join(header, ", "), strings.Join(placeholders, ", "), values
 }
 
 //handle old (deprecated) mapping types //TODO remove someday

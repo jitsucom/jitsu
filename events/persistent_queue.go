@@ -78,6 +78,10 @@ func (pq *PersistentQueue) DequeueBlock() (Event, time.Time, string, error) {
 	return fact, wrappedFact.DequeuedTime, wrappedFact.TokenId, nil
 }
 
+func (pq *PersistentQueue) Size() int {
+	return pq.queue.Size()
+}
+
 func (pq *PersistentQueue) Close() error {
 	return pq.queue.Close()
 }
