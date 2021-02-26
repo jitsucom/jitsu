@@ -23,8 +23,8 @@ type Postgres struct {
 	streamingWorker               *StreamingWorker
 	fallbackLogger                *logging.AsyncLogger
 	eventsCache                   *caching.EventsCache
-	staged                        bool
 	usersRecognitionConfiguration *UserRecognitionConfiguration
+	staged                        bool
 }
 
 func NewPostgres(config *Config) (Storage, error) {
@@ -216,6 +216,11 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 	}
 
 	return rowsCount, nil
+}
+
+func (p *Postgres) Update(object map[string]interface{}) error {
+	_, err := p.SyncStore(nil, []map[string]interface{}{object}, "")
+	return err
 }
 
 //Insert event in Postgres (1 retry if error)

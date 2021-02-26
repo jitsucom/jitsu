@@ -76,6 +76,10 @@ func (ga *GoogleAnalytics) SyncStore(overriddenDataSchema *schema.BatchHeader, o
 	return 0, errors.New("GoogleAnalytics doesn't support SyncStore() func")
 }
 
+func (ga *GoogleAnalytics) Update(object map[string]interface{}) error {
+	return errors.New("GoogleAnalytics doesn't support updates")
+}
+
 func (ga *GoogleAnalytics) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
