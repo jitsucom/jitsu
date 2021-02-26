@@ -11,7 +11,6 @@ import (
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/schema"
 	"strings"
 )
@@ -259,11 +258,10 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == StreamMode {
-		eventQueue, err = events.NewPersistentQueue("queue.dst="+name, f.logEventPath)
+		eventQueue, err = events.NewPersistentQueue(name, "queue.dst="+name, f.logEventPath)
 		if err != nil {
 			return nil, nil, err
 		}
-		metrics.InitialStreamEventsQueueSize(name, eventQueue.Size())
 	}
 
 	//override debug sql (ddl, queries) loggers from the destination config

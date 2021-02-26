@@ -65,12 +65,9 @@ func (sw *StreamingWorker) start() {
 				continue
 			}
 
-			metrics.DequeuedEvent(sw.streamingStorage.Name())
-
 			//dequeued event was from retry call and retry timeout hasn't come
 			if time.Now().Before(dequeuedTime) {
 				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, tokenId)
-				metrics.EnqueuedEvent(sw.streamingStorage.Name())
 				continue
 			}
 
@@ -110,7 +107,6 @@ func (sw *StreamingWorker) start() {
 					strings.Contains(err.Error(), "write: broken pipe") ||
 					strings.Contains(err.Error(), "context deadline exceeded") {
 					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenId)
-					metrics.EnqueuedEvent(sw.streamingStorage.Name())
 				} else {
 					sw.streamingStorage.Fallback(&events.FailedEvent{
 						Event:   []byte(fact.Serialize()),

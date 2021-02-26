@@ -5,7 +5,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-var streamEventsQueueLabels = []string{"destination_id"}
+var streamEventsQueueLabels = []string{"project_id", "destination_id"}
 
 var (
 	streamEventsQueueSize *prometheus.GaugeVec
@@ -19,20 +19,23 @@ func initStreamEventsQueue() {
 	}, streamEventsQueueLabels)
 }
 
-func InitialStreamEventsQueueSize(destinationId string, value int) {
+func InitialStreamEventsQueueSize(destinationName string, value int) {
 	if Enabled {
-		streamEventsQueueSize.WithLabelValues(destinationId).Set(float64(value))
+		projectId, destinationId := extractLabels(destinationName)
+		streamEventsQueueSize.WithLabelValues(projectId, destinationId).Set(float64(value))
 	}
 }
 
-func DequeuedEvent(destinationId string) {
+func DequeuedEvent(destinationName string) {
 	if Enabled {
-		streamEventsQueueSize.WithLabelValues(destinationId).Sub(1)
+		projectId, destinationId := extractLabels(destinationName)
+		streamEventsQueueSize.WithLabelValues(projectId, destinationId).Sub(1)
 	}
 }
 
-func EnqueuedEvent(destinationId string) {
+func EnqueuedEvent(destinationName string) {
 	if Enabled {
-		streamEventsQueueSize.WithLabelValues(destinationId).Add(1)
+		projectId, destinationId := extractLabels(destinationName)
+		streamEventsQueueSize.WithLabelValues(projectId, destinationId).Add(1)
 	}
 }
