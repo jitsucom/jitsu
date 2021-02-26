@@ -15,6 +15,8 @@ func Init(enabled bool) {
 		initSourcesPool()
 		initSourceObjects()
 		initRedis()
+		initUsersRecognitionQueue()
+		initStreamEventsQueue()
 	} else {
 		logging.Warnf("Metrics isn't enabled")
 	}
