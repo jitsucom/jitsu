@@ -15,7 +15,7 @@ func initStreamEventsQueue() {
 	streamEventsQueueSize = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Namespace: "eventnative",
 		Subsystem: "destinations",
-		Name:      "stream_queue_size",
+		Name:      "events_queue_size",
 	}, streamEventsQueueLabels)
 }
 
