@@ -63,7 +63,7 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 		apiV1.GET("/events/cache", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler, middleware.AdminTokenErr))
 
 		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler, middleware.AdminTokenErr))
-		apiV1.POST("/fallback/replay", adminTokenMiddleware.AdminAuth(fallbackHandler.ReplayHandler, middleware.AdminTokenErr))
+		apiV1.POST("/replay", adminTokenMiddleware.AdminAuth(fallbackHandler.ReplayHandler, middleware.AdminTokenErr))
 	}
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
