@@ -1,14 +1,15 @@
 package logging
 
 import (
-	"github.com/google/martian/log"
-	"github.com/jitsucom/eventnative/safego"
-	"gopkg.in/natefinch/lumberjack.v2"
 	"io"
 	"path/filepath"
 	"regexp"
 	"sync/atomic"
 	"time"
+
+	"github.com/google/martian/log"
+	"github.com/jitsucom/eventnative/safego"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
@@ -58,15 +59,19 @@ func NewRollingWriter(config *Config) io.WriteCloser {
 	safego.RunWithRestart(func() {
 		for {
 			<-ticker.C
-			if atomic.SwapUint64(&rwp.records, 0) > 0 {
-				if err := lWriter.Rotate(); err != nil {
-					log.Errorf("Error rotating log file [%s]: %v", config.FileName, err)
-				}
-			}
+			rwp.rotate()
 		}
 	})
 
 	return rwp
+}
+
+func (rwp *RollingWriterProxy) rotate() {
+	if atomic.SwapUint64(&rwp.records, 0) > 0 {
+		if err := rwp.lWriter.Rotate(); err != nil {
+			log.Errorf("Error rotating log file [%s]: %v", rwp.lWriter.Filename, err)
+		}
+	}
 }
 
 func (rwp *RollingWriterProxy) Write(p []byte) (int, error) {
@@ -76,9 +81,7 @@ func (rwp *RollingWriterProxy) Write(p []byte) (int, error) {
 
 func (rwp *RollingWriterProxy) Close() error {
 	if rwp.rotateOnClose {
-		if err := rwp.lWriter.Rotate(); err != nil {
-			log.Errorf("Error rotating log file: %v", err)
-		}
+		rwp.rotate()
 	}
 
 	return rwp.lWriter.Close()
