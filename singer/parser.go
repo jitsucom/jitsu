@@ -45,6 +45,7 @@ type StreamRepresentation struct {
 
 func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer) error {
 	outputPortion := &OutputRepresentation{
+		State:   map[string]interface{}{},
 		Streams: map[string]*StreamRepresentation{},
 	}
 
