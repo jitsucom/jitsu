@@ -47,15 +47,20 @@ func NewSyncTask(sourceId, collection, identifier string, driver drivers.Driver,
 
 func (st *SyncTask) Sync() {
 	start := time.Now()
-	strWriter := logging.NewStringWriter()
-	strLogger := logging.NewSyncLogger(strWriter)
+	periodicWriter := logging.NewPeriodicStringWriter(time.Second, meta.NewRedisLogConsumer(st.sourceId, st.collection, st.metaStorage))
+
+	strLogger := logging.NewSyncLogger(periodicWriter)
 	now := time.Now().UTC()
 
-	st.updateCollectionStatus(meta.StatusLoading, "Still Running..")
+	st.updateCollectionStatus(meta.StatusLoading)
+	if err := st.metaStorage.SaveCollectionLog(st.sourceId, st.collection, "Loading..."); err != nil {
+		logging.SystemErrorf("Unable to update source [%s] collection [%s] log in storage: %v", st.sourceId, st.collection, err)
+	}
 
 	status := meta.StatusFailed
 	defer func() {
-		st.updateCollectionStatus(status, strWriter.String())
+		st.updateCollectionStatus(status)
+		periodicWriter.Close()
 	}()
 
 	logging.Infof("[%s] Running sync task type: [%s]", st.identifier, st.driver.Type())
@@ -152,11 +157,8 @@ func (st *SyncTask) getCollectionMetaKey() string {
 	return st.collection + "_" + st.driver.GetCollectionTable()
 }
 
-func (st *SyncTask) updateCollectionStatus(status, logs string) {
+func (st *SyncTask) updateCollectionStatus(status string) {
 	if err := st.metaStorage.SaveCollectionStatus(st.sourceId, st.collection, status); err != nil {
 		logging.SystemErrorf("Unable to update source [%s] collection [%s] status in storage: %v", st.sourceId, st.collection, err)
-	}
-	if err := st.metaStorage.SaveCollectionLog(st.sourceId, st.collection, logs); err != nil {
-		logging.SystemErrorf("Unable to update source [%s] collection [%s] log in storage: %v", st.sourceId, st.collection, err)
 	}
 }

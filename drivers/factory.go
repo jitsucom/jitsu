@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/timestamp"
 	"github.com/spf13/cast"
+	"time"
 )
 
 var (
@@ -23,10 +25,13 @@ const (
 )
 
 type SourceConfig struct {
-	Name         string        //without serialization
+	Name      string     //without serialization
+	StartDate *time.Time //without serialization
+
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
 	Collections  []interface{} `mapstructure:"collections" json:"collections,omitempty" yaml:"collections,omitempty"`
+	StartDateStr string        `mapstructure:"start_date" json:"start_date,omitempty" yaml:"start_date,omitempty"`
 
 	Config map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
 }
@@ -72,6 +77,17 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 	}
 	if len(sourceConfig.Destinations) == 0 {
 		return nil, errors.New("destinations are empty. Please specify at least one destination")
+	}
+
+	if sourceConfig.StartDateStr != "" {
+		startDate, err := time.Parse(timestamp.DashDayLayout, sourceConfig.StartDateStr)
+		if err != nil {
+			return nil, fmt.Errorf("Malformed start_date: please use YYYY-MM-DD format: %v", err)
+		}
+
+		date := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
+		sourceConfig.StartDate = &date
+		logging.Infof("[%s] Using start date: %s", name, date)
 	}
 
 	driverPerCollection := map[string]Driver{}
@@ -147,4 +163,12 @@ func unmarshalConfig(config map[string]interface{}, object interface{}) error {
 	}
 
 	return nil
+}
+
+//return difference between now and t in DAYS + 1 (current day)
+//e.g. 2021-03-01 - 2021-03-01 = 0, but we should load current date as well
+func getDaysBackToLoad(t *time.Time) int {
+	now := time.Now().UTC()
+	currentDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	return int(currentDay.Sub(*t).Hours()/24) + 1
 }

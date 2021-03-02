@@ -35,6 +35,7 @@ var (
 func setDefaultParams() {
 	viper.SetDefault("server.name", "unnamed-server")
 	viper.SetDefault("server.port", "8001")
+	viper.SetDefault("server.log.level", "info")
 	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("server.auth_reload_sec", 30)
 	viper.SetDefault("server.destinations_reload_sec", 40)
@@ -44,7 +45,6 @@ func setDefaultParams() {
 	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
 	viper.SetDefault("log.show_in_server", false)
-	viper.SetDefault("log.level", "info")
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
