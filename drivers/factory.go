@@ -80,12 +80,14 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 	}
 
 	if sourceConfig.StartDateStr != "" {
-		startDate, err := time.Parse(timestamp.DateTimeLayout, sourceConfig.StartDateStr)
+		startDate, err := time.Parse(timestamp.DashDayLayout, sourceConfig.StartDateStr)
 		if err != nil {
-			return nil, fmt.Errorf("Mailformed start_date: please use %s format: %v", timestamp.DateTimeLayout, err)
+			return nil, fmt.Errorf("Malformed start_date: please use YYYY-MM-DD format: %v", err)
 		}
 
-		sourceConfig.StartDate = &startDate
+		date := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
+		sourceConfig.StartDate = &date
+		logging.Infof("[%s] Using start date: %s", name, date)
 	}
 
 	driverPerCollection := map[string]Driver{}
@@ -163,6 +165,10 @@ func unmarshalConfig(config map[string]interface{}, object interface{}) error {
 	return nil
 }
 
+//return difference between now and t in DAYS + 1 (current day)
+//e.g. 2021-03-01 - 2021-03-01 = 0, but we should load current date as well
 func getDaysBackToLoad(t *time.Time) int {
-	return int(time.Now().UTC().Sub(*t).Hours() / 24)
+	now := time.Now().UTC()
+	currentDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	return int(currentDay.Sub(*t).Hours()/24) + 1
 }
