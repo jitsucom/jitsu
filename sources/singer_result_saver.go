@@ -72,13 +72,21 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 		rs.strLogger.Infof("[%s] Synchronized successfully Table [%s] key fields [%s] objects [%d]", rs.identifier, tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 	}
 
-	stateJson, _ := json.Marshal(representation.State)
+	//save state
+	if representation.State != nil {
+		stateJson, err := json.Marshal(representation.State)
+		if err != nil {
+			errMsg := fmt.Sprintf("Error marshalling Singer state in source [%s] tap [%s] signature [%v]: %v", rs.sourceId, rs.tap, representation.State, err)
+			logging.SystemError(errMsg)
+			return errors.New(errMsg)
+		}
 
-	err := rs.metaStorage.SaveSignature(rs.sourceId, rs.tap, drivers.ALL.String(), string(stateJson))
-	if err != nil {
-		errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.sourceId, rs.tap, string(stateJson), err)
-		logging.SystemError(errMsg)
-		return errors.New(errMsg)
+		err = rs.metaStorage.SaveSignature(rs.sourceId, rs.tap, drivers.ALL.String(), string(stateJson))
+		if err != nil {
+			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.sourceId, rs.tap, string(stateJson), err)
+			logging.SystemError(errMsg)
+			return errors.New(errMsg)
+		}
 	}
 
 	return nil
