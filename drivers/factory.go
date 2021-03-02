@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/timestamp"
 	"github.com/spf13/cast"
+	"time"
 )
 
 var (
@@ -23,10 +25,13 @@ const (
 )
 
 type SourceConfig struct {
-	Name         string        //without serialization
+	Name      string     //without serialization
+	StartDate *time.Time //without serialization
+
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
 	Collections  []interface{} `mapstructure:"collections" json:"collections,omitempty" yaml:"collections,omitempty"`
+	StartDateStr string        `mapstructure:"start_date" json:"start_date,omitempty" yaml:"start_date,omitempty"`
 
 	Config map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
 }
@@ -72,6 +77,15 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 	}
 	if len(sourceConfig.Destinations) == 0 {
 		return nil, errors.New("destinations are empty. Please specify at least one destination")
+	}
+
+	if sourceConfig.StartDateStr != "" {
+		startDate, err := time.Parse(timestamp.DateTimeLayout, sourceConfig.StartDateStr)
+		if err != nil {
+			return nil, fmt.Errorf("Mailformed start_date: please use %s format: %v", timestamp.DateTimeLayout, err)
+		}
+
+		sourceConfig.StartDate = &startDate
 	}
 
 	driverPerCollection := map[string]Driver{}
@@ -147,4 +161,8 @@ func unmarshalConfig(config map[string]interface{}, object interface{}) error {
 	}
 
 	return nil
+}
+
+func getDaysBackToLoad(t *time.Time) int {
+	return int(time.Now().UTC().Sub(*t).Hours() / 24)
 }

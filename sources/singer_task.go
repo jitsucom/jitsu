@@ -36,14 +36,19 @@ func NewSingerTask(sourceId, collection, identifier string, driver *drivers.Sing
 
 func (st *SingerTask) Sync() {
 	start := time.Now()
-	strWriter := logging.NewStringWriter()
-	strLogger := logging.NewSyncLogger(strWriter)
+	periodicWriter := logging.NewPeriodicStringWriter(time.Second, meta.NewRedisLogConsumer(st.sourceId, st.collection, st.metaStorage))
 
-	st.updateCollectionStatus(meta.StatusLoading, "Still Running..")
+	strLogger := logging.NewSyncLogger(periodicWriter)
+
+	st.updateCollectionStatus(meta.StatusLoading)
+	if err := st.metaStorage.SaveCollectionLog(st.sourceId, st.collection, "Loading..."); err != nil {
+		logging.SystemErrorf("Unable to update source [%s] collection: [%s] tap [%s] log in storage: %v", st.sourceId, st.collection, st.driver.GetTap(), err)
+	}
 
 	status := meta.StatusFailed
 	defer func() {
-		st.updateCollectionStatus(status, strWriter.String())
+		st.updateCollectionStatus(status)
+		periodicWriter.Close()
 	}()
 
 	strLogger.Infof("[%s] Running singer sync task", st.identifier)
@@ -84,11 +89,8 @@ func (st *SingerTask) GetLock() storages.Lock {
 	return st.lock
 }
 
-func (st *SingerTask) updateCollectionStatus(status, logs string) {
+func (st *SingerTask) updateCollectionStatus(status string) {
 	if err := st.metaStorage.SaveCollectionStatus(st.sourceId, st.collection, status); err != nil {
 		logging.SystemErrorf("Unable to update source [%s] collection: [%s] tap [%s] status in storage: %v", st.sourceId, st.collection, st.driver.GetTap(), err)
-	}
-	if err := st.metaStorage.SaveCollectionLog(st.sourceId, st.collection, logs); err != nil {
-		logging.SystemErrorf("Unable to update source [%s] collection: [%s] tap [%s] log in storage: %v", st.sourceId, st.collection, st.driver.GetTap(), err)
 	}
 }

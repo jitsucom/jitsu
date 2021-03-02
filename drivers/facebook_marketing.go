@@ -2,6 +2,7 @@ package drivers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	fb "github.com/huandu/facebook/v2"
@@ -37,18 +38,15 @@ var (
 const (
 	fbMarketingType    = "facebook_marketing"
 	insightsCollection = "insights"
+	adsCollection      = "ads"
 	fbMaxAttempts      = 3
 )
-
-type FacebookMarketingConfig struct {
-	AccountId string `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
-	Token     string `mapstructure:"token" json:"token,omitempty" yaml:"token,omitempty"`
-}
 
 type FacebookMarketing struct {
 	collection *Collection
 	config     *FacebookMarketingConfig
 	fields     *FacebookReportConfig
+	startDate  *time.Time
 }
 
 type FacebookReportConfig struct {
@@ -57,16 +55,17 @@ type FacebookReportConfig struct {
 	Level   string   `mapstructure:"level" json:"level,omitempty" yaml:"level,omitempty"`
 }
 
-type FacebookInsightsResponse struct {
-	Data []map[string]interface{} `facebook:"data"`
+type FacebookMarketingConfig struct {
+	AccountId string `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
+	Token     string `mapstructure:"token" json:"token,omitempty" yaml:"token,omitempty"`
 }
 
 func (fmc *FacebookMarketingConfig) Validate() error {
 	if fmc.AccountId == "" {
-		return errors.New("[account_id] is not configured")
+		return errors.New("account_id is required")
 	}
 	if fmc.Token == "" {
-		return errors.New("[token] is not configured")
+		return errors.New("token is required")
 	}
 	return nil
 }
@@ -86,7 +85,11 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, colle
 	if fields.Level == "" {
 		fields.Level = "ad"
 	}
-	return &FacebookMarketing{collection: collection, config: config, fields: &fields}, nil
+
+	if collection.Type != adsCollection && collection.Type != insightsCollection {
+		return nil, fmt.Errorf("Unknown collection [%s]: Only [%s] and [%s] are supported now", collection.Type, adsCollection, insightsCollection)
+	}
+	return &FacebookMarketing{collection: collection, config: config, fields: &fields, startDate: sourceConfig.StartDate}, nil
 }
 
 func init() {
@@ -97,9 +100,19 @@ func init() {
 
 //GetAllAvailableIntervals return half a year by default
 func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error) {
+	if fm.collection.Type == adsCollection {
+		return []*TimeInterval{NewTimeInterval(ALL, time.Time{})}, nil
+	}
+
+	//insights
 	var intervals []*TimeInterval
+	daysBackToLoad := 183
+	if fm.startDate != nil {
+		daysBackToLoad = getDaysBackToLoad(fm.startDate)
+	}
+
 	now := time.Now().UTC()
-	for i := 0; i < 183; i++ {
+	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
 		intervals = append(intervals, NewTimeInterval(DAY, date))
 	}
@@ -107,10 +120,13 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error)
 }
 
 func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
-	if fm.collection.Type == insightsCollection {
+	switch fm.collection.Type {
+	case adsCollection:
+		return fm.syncAdsReport(interval)
+	case insightsCollection:
 		return fm.syncInsightsReport(interval)
-	} else {
-		return nil, fmt.Errorf("Error syncing collection type [%s]. Only %s is supported now", fm.collection.Type, insightsCollection)
+	default:
+		return nil, fmt.Errorf("Error syncing collection type [%s]. Only [%s] and [%s] are supported now", fm.collection.Type, adsCollection, insightsCollection)
 	}
 }
 
@@ -118,34 +134,28 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[s
 	var fields []string
 	fields = append(fields, fm.fields.Keys...)
 	fields = append(fields, fm.fields.Metrics...)
-	requestParameters := fb.Params{
-		"level":        fm.fields.Level,
-		"fields":       strings.Join(fields, ","),
-		"access_token": fm.config.Token,
-		"time_range":   fm.buildTimeInterval(interval),
-	}
-	response, err := fm.requestReportWithRetry("/v9.0/act_"+fm.config.AccountId+"/insights", requestParameters, fields, interval)
+
+	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountId+"/insights", fields, interval, 0)
 	if err != nil {
 		return nil, err
 	}
-	var result FacebookInsightsResponse
-	if err := response.Decode(&result); err != nil {
+
+	logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(rows))
+	return rows, nil
+}
+
+func (fm *FacebookMarketing) syncAdsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
+	var fields []string
+	fields = append(fields, fm.fields.Keys...)
+	fields = append(fields, fm.fields.Metrics...)
+
+	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountId+"/ads", fields, nil, 200)
+	if err != nil {
 		return nil, err
 	}
-	for _, row := range result.Data {
-		for fieldName, stringValue := range row {
-			convertFunc, ok := castMapping[fieldName]
-			if ok {
-				convertedValue, err := convertFunc(stringValue)
-				if err != nil {
-					return nil, err
-				}
-				row[fieldName] = convertedValue
-			}
-		}
-	}
-	logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(result.Data))
-	return result.Data, nil
+
+	logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(rows))
+	return rows, nil
 }
 
 func (fm *FacebookMarketing) buildTimeInterval(interval *TimeInterval) string {
@@ -155,19 +165,97 @@ func (fm *FacebookMarketing) buildTimeInterval(interval *TimeInterval) string {
 	return fmt.Sprintf("{'since': '%s', 'until': '%s'}", since, until)
 }
 
-func (fm *FacebookMarketing) requestReportWithRetry(url string, requestParameters fb.Params, fields []string, interval *TimeInterval) (fb.Result, error) {
+func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, interval *TimeInterval, pageLimit int) ([]map[string]interface{}, error) {
+	requestParameters := fb.Params{
+		"level":        fm.fields.Level,
+		"fields":       strings.Join(fields, ","),
+		"access_token": fm.config.Token,
+	}
+
+	if interval != nil {
+		requestParameters["time_range"] = fm.buildTimeInterval(interval)
+	}
+
+	if pageLimit > 0 {
+		requestParameters["limit"] = pageLimit
+	}
+
 	attempt := 0
 	var response fb.Result
 	var err error
 	for attempt < fbMaxAttempts {
 		response, err = fb.Get(url, requestParameters)
 		if err == nil {
-			return response, nil
+			fm.logUsage(response.UsageInfo())
+
+			data, err := fm.parseData(response)
+			if err != nil {
+				return nil, err
+			}
+
+			//typecasts
+			for _, row := range data {
+				for fieldName, stringValue := range row {
+					convertFunc, ok := castMapping[fieldName]
+					if ok {
+						convertedValue, err := convertFunc(stringValue)
+						if err != nil {
+							return nil, err
+						}
+						row[fieldName] = convertedValue
+					}
+				}
+			}
+
+			return data, nil
 		}
+
 		time.Sleep(time.Duration(attempt+1) * time.Minute)
 		attempt++
 	}
+
 	return nil, err
+}
+
+//parseData read all data (if paging) and return result
+func (fm *FacebookMarketing) parseData(response fb.Result) ([]map[string]interface{}, error) {
+	session := &fb.Session{
+		Version: "v9.0",
+	}
+	paging, err := response.Paging(session)
+	if err != nil {
+		return nil, fmt.Errorf("Error getting Facebook page: %v", err)
+	}
+
+	var allResults []map[string]interface{}
+	// append first page of results to slice of Result
+	for _, row := range paging.Data() {
+		allResults = append(allResults, row)
+	}
+
+	for paging.HasNext() {
+		// get next page.
+		_, err := paging.Next()
+		if err != nil {
+			return nil, fmt.Errorf("Error reading Facebook page: %v", err)
+		}
+
+		fm.logUsage(paging.UsageInfo())
+
+		// append current page of results to slice of Result
+		for _, row := range paging.Data() {
+			allResults = append(allResults, row)
+		}
+	}
+
+	return allResults, nil
+}
+
+func (fm *FacebookMarketing) logUsage(usage *fb.UsageInfo) {
+	if usage != nil {
+		b, _ := json.Marshal(usage)
+		logging.Debugf("Facebook account %s usage: %s", fm.config.AccountId, string(b))
+	}
 }
 
 func (fm *FacebookMarketing) Type() string {

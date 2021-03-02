@@ -70,6 +70,7 @@ type GoogleAnalytics struct {
 	service            *ga.Service
 	collection         *Collection
 	reportFieldsConfig *GAReportFieldsConfig
+	startDate          *time.Time
 }
 
 func init() {
@@ -104,13 +105,18 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collect
 		return nil, fmt.Errorf("failed to create GA service: %v", err)
 	}
 	return &GoogleAnalytics{ctx: ctx, config: config, collection: collection, service: service,
-		reportFieldsConfig: &reportFieldsConfig}, nil
+		reportFieldsConfig: &reportFieldsConfig, startDate: sourceConfig.StartDate}, nil
 }
 
 func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	var intervals []*TimeInterval
+	daysBackToLoad := 365
+	if g.startDate != nil {
+		daysBackToLoad = getDaysBackToLoad(g.startDate)
+	}
+
 	now := time.Now().UTC()
-	for i := 0; i < 365; i++ {
+	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
 		intervals = append(intervals, NewTimeInterval(DAY, date))
 	}
