@@ -39,7 +39,7 @@ const (
 	fbMarketingType    = "facebook_marketing"
 	insightsCollection = "insights"
 	adsCollection      = "ads"
-	fbMaxAttempts      = 3
+	fbMaxAttempts      = 1
 )
 
 type FacebookMarketing struct {
@@ -203,7 +203,7 @@ func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, in
 			return data, nil
 		}
 
-		time.Sleep(time.Duration(attempt+1) * time.Minute)
+		time.Sleep(time.Duration(attempt+1) * time.Second)
 		attempt++
 	}
 
