@@ -43,16 +43,15 @@ const (
 )
 
 type FacebookMarketing struct {
-	collection *Collection
-	config     *FacebookMarketingConfig
-	fields     *FacebookReportConfig
-	startDate  *time.Time
+	collection   *Collection
+	config       *FacebookMarketingConfig
+	reportConfig *FacebookReportConfig
+	startDate    *time.Time
 }
 
 type FacebookReportConfig struct {
-	Keys    []string `mapstructure:"keys" json:"keys,omitempty" yaml:"keys,omitempty"`
-	Metrics []string `mapstructure:"metrics" json:"metrics,omitempty" yaml:"metrics,omitempty"`
-	Level   string   `mapstructure:"level" json:"level,omitempty" yaml:"level,omitempty"`
+	Fields []string `mapstructure:"fields" json:"fields,omitempty" yaml:"fields,omitempty"`
+	Level  string   `mapstructure:"level" json:"level,omitempty" yaml:"level,omitempty"`
 }
 
 type FacebookMarketingConfig struct {
@@ -78,18 +77,20 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, colle
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	var fields FacebookReportConfig
-	if err := unmarshalConfig(collection.Parameters, &fields); err != nil {
+	reportConfig := &FacebookReportConfig{}
+	if err := unmarshalConfig(collection.Parameters, reportConfig); err != nil {
 		return nil, err
 	}
-	if fields.Level == "" {
-		fields.Level = "ad"
+	if reportConfig.Level == "" {
+		reportConfig.Level = "ad"
+
+		logging.Warnf("[%s_%s] parameters.level wasn't provided. Will be used default one: %s", sourceConfig.Name, collection.Name, reportConfig.Level)
 	}
 
 	if collection.Type != adsCollection && collection.Type != insightsCollection {
 		return nil, fmt.Errorf("Unknown collection [%s]: Only [%s] and [%s] are supported now", collection.Type, adsCollection, insightsCollection)
 	}
-	return &FacebookMarketing{collection: collection, config: config, fields: &fields, startDate: sourceConfig.StartDate}, nil
+	return &FacebookMarketing{collection: collection, config: config, reportConfig: reportConfig, startDate: sourceConfig.StartDate}, nil
 }
 
 func init() {
@@ -131,11 +132,7 @@ func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string
 }
 
 func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
-	var fields []string
-	fields = append(fields, fm.fields.Keys...)
-	fields = append(fields, fm.fields.Metrics...)
-
-	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountId+"/insights", fields, interval, 0)
+	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountId+"/insights", fm.reportConfig.Fields, interval, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -145,11 +142,7 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[s
 }
 
 func (fm *FacebookMarketing) syncAdsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
-	var fields []string
-	fields = append(fields, fm.fields.Keys...)
-	fields = append(fields, fm.fields.Metrics...)
-
-	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountId+"/ads", fields, nil, 200)
+	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountId+"/ads", fm.reportConfig.Fields, nil, 200)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +160,7 @@ func (fm *FacebookMarketing) buildTimeInterval(interval *TimeInterval) string {
 
 func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, interval *TimeInterval, pageLimit int) ([]map[string]interface{}, error) {
 	requestParameters := fb.Params{
-		"level":        fm.fields.Level,
+		"level":        fm.reportConfig.Level,
 		"fields":       strings.Join(fields, ","),
 		"access_token": fm.config.Token,
 	}
