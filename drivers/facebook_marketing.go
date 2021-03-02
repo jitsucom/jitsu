@@ -39,7 +39,7 @@ const (
 	fbMarketingType    = "facebook_marketing"
 	insightsCollection = "insights"
 	adsCollection      = "ads"
-	fbMaxAttempts      = 1
+	fbMaxAttempts      = 2
 )
 
 type FacebookMarketing struct {
@@ -55,16 +55,16 @@ type FacebookReportConfig struct {
 }
 
 type FacebookMarketingConfig struct {
-	AccountId string `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
-	Token     string `mapstructure:"token" json:"token,omitempty" yaml:"token,omitempty"`
+	AccountId   string `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
+	AccessToken string `mapstructure:"access_token" json:"access_token,omitempty" yaml:"access_token,omitempty"`
 }
 
 func (fmc *FacebookMarketingConfig) Validate() error {
 	if fmc.AccountId == "" {
 		return errors.New("account_id is required")
 	}
-	if fmc.Token == "" {
-		return errors.New("token is required")
+	if fmc.AccessToken == "" {
+		return errors.New("access_token is required")
 	}
 	return nil
 }
@@ -162,7 +162,7 @@ func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, in
 	requestParameters := fb.Params{
 		"level":        fm.reportConfig.Level,
 		"fields":       strings.Join(fields, ","),
-		"access_token": fm.config.Token,
+		"access_token": fm.config.AccessToken,
 	}
 
 	if interval != nil {
@@ -203,6 +203,18 @@ func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, in
 			return data, nil
 		}
 
+		if fbErr, ok := err.(*fb.Error); ok {
+			if fbErr.Code == 80000 {
+				logging.Debugf("Facebook account: [%s] rate-limiting error: %v. Will be retry after 1 minute", fm.config.AccountId, err)
+
+				//rate limiting
+				time.Sleep(time.Duration(1) * time.Minute)
+				attempt++
+				continue
+			}
+		}
+
+		logging.Debugf("Facebook account: [%s] error: %v. Will be retry after 1 second", fm.config.AccountId, err)
 		time.Sleep(time.Duration(attempt+1) * time.Second)
 		attempt++
 	}
