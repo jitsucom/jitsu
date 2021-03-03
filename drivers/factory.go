@@ -90,7 +90,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 
 			date := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
 			collection.DaysBackToLoad = getDaysBackToLoad(&date)
-			logging.Infof("[%s] Using start date: %s", name, date)
+			logging.Infof("[%s_%s] Using start date: %s", name, collection.Name, date)
 		}
 	}
 
