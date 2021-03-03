@@ -23,7 +23,7 @@ const (
 
 	defaultSingerCollection = "all"
 
-	defaultDaysBackToLoad = 183
+	defaultDaysBackToLoad = 365
 )
 
 type SourceConfig struct {
