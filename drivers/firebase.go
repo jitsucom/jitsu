@@ -99,7 +99,7 @@ func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface
 	} else if f.collection.Type == usersCollection {
 		return f.loadUsers()
 	}
-	return nil, fmt.Errorf("unknown collection: %s", f.collection)
+	return nil, fmt.Errorf("Unknown collection: %s", f.collection.Type)
 }
 
 func (f *Firebase) loadCollection(firestoreCollectionName string) ([]map[string]interface{}, error) {

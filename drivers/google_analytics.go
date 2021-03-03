@@ -70,7 +70,6 @@ type GoogleAnalytics struct {
 	service            *ga.Service
 	collection         *Collection
 	reportFieldsConfig *GAReportFieldsConfig
-	startDate          *time.Time
 }
 
 func init() {
@@ -105,14 +104,14 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collect
 		return nil, fmt.Errorf("failed to create GA service: %v", err)
 	}
 	return &GoogleAnalytics{ctx: ctx, config: config, collection: collection, service: service,
-		reportFieldsConfig: &reportFieldsConfig, startDate: sourceConfig.StartDate}, nil
+		reportFieldsConfig: &reportFieldsConfig}, nil
 }
 
 func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	var intervals []*TimeInterval
-	daysBackToLoad := 365
-	if g.startDate != nil {
-		daysBackToLoad = getDaysBackToLoad(g.startDate)
+	daysBackToLoad := defaultDaysBackToLoad
+	if g.collection.DaysBackToLoad > 0 {
+		daysBackToLoad = g.collection.DaysBackToLoad
 	}
 
 	now := time.Now().UTC()
@@ -133,7 +132,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 	if g.collection.Type == reportsCollection {
 		return g.loadReport(g.config.ViewId, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
 	} else {
-		return nil, fmt.Errorf("Unknown collection %s: only 'report' is supported", g.collection)
+		return nil, fmt.Errorf("Unknown collection %s: only 'report' is supported", g.collection.Type)
 	}
 }
 
