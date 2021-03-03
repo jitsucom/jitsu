@@ -129,7 +129,7 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 			}
 			intervalStr = nameParts[1]
 		} else {
-			return nil, fmt.Errorf("GooglePlay unknown collection: %s", gp.collection)
+			return nil, fmt.Errorf("GooglePlay unknown collection: %s", gp.collection.Type)
 		}
 
 		t, err := time.Parse(intervalLayout, intervalStr)
@@ -156,7 +156,7 @@ func (gp *GooglePlay) GetObjectsFor(interval *TimeInterval) ([]map[string]interf
 		prefix := "earnings/earnings_" + interval.LowerEndpoint().Format(intervalLayout)
 		objects, err = gp.getFilesObjects(bucket, prefix)
 	} else {
-		return nil, fmt.Errorf("GooglePlay unknown collection: %s", gp.collection)
+		return nil, fmt.Errorf("GooglePlay unknown collection: %s", gp.collection.Type)
 	}
 
 	if err != nil {

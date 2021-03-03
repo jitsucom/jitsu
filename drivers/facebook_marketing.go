@@ -46,7 +46,6 @@ type FacebookMarketing struct {
 	collection   *Collection
 	config       *FacebookMarketingConfig
 	reportConfig *FacebookReportConfig
-	startDate    *time.Time
 }
 
 type FacebookReportConfig struct {
@@ -90,7 +89,7 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, colle
 	if collection.Type != adsCollection && collection.Type != insightsCollection {
 		return nil, fmt.Errorf("Unknown collection [%s]: Only [%s] and [%s] are supported now", collection.Type, adsCollection, insightsCollection)
 	}
-	return &FacebookMarketing{collection: collection, config: config, reportConfig: reportConfig, startDate: sourceConfig.StartDate}, nil
+	return &FacebookMarketing{collection: collection, config: config, reportConfig: reportConfig}, nil
 }
 
 func init() {
@@ -107,9 +106,9 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error)
 
 	//insights
 	var intervals []*TimeInterval
-	daysBackToLoad := 183
-	if fm.startDate != nil {
-		daysBackToLoad = getDaysBackToLoad(fm.startDate)
+	daysBackToLoad := defaultDaysBackToLoad
+	if fm.collection.DaysBackToLoad > 0 {
+		daysBackToLoad = fm.collection.DaysBackToLoad
 	}
 
 	now := time.Now().UTC()
