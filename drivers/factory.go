@@ -22,25 +22,27 @@ const (
 	collectionParametersField = "parameters"
 
 	defaultSingerCollection = "all"
+
+	defaultDaysBackToLoad = 365
 )
 
 type SourceConfig struct {
-	Name      string     //without serialization
-	StartDate *time.Time //without serialization
+	Name string //without serialization
 
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
 	Collections  []interface{} `mapstructure:"collections" json:"collections,omitempty" yaml:"collections,omitempty"`
-	StartDateStr string        `mapstructure:"start_date" json:"start_date,omitempty" yaml:"start_date,omitempty"`
 
 	Config map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
 }
 
 type Collection struct {
-	Name       string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
-	Type       string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	TableName  string                 `mapstructure:"table_name" json:"table_name,omitempty" yaml:"table_name,omitempty"`
-	Parameters map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	DaysBackToLoad int                    //without serialization
+	Name           string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
+	Type           string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	TableName      string                 `mapstructure:"table_name" json:"table_name,omitempty" yaml:"table_name,omitempty"`
+	StartDateStr   string                 `mapstructure:"start_date" json:"start_date,omitempty" yaml:"start_date,omitempty"`
+	Parameters     map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
 }
 
 func (c Collection) GetTableName() string {
@@ -79,15 +81,17 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 		return nil, errors.New("destinations are empty. Please specify at least one destination")
 	}
 
-	if sourceConfig.StartDateStr != "" {
-		startDate, err := time.Parse(timestamp.DashDayLayout, sourceConfig.StartDateStr)
-		if err != nil {
-			return nil, fmt.Errorf("Malformed start_date: please use YYYY-MM-DD format: %v", err)
-		}
+	for _, collection := range collections {
+		if collection.StartDateStr != "" {
+			startDate, err := time.Parse(timestamp.DashDayLayout, collection.StartDateStr)
+			if err != nil {
+				return nil, fmt.Errorf("Malformed start_date in %s collection: please use YYYY-MM-DD format: %v", collection.Name, err)
+			}
 
-		date := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
-		sourceConfig.StartDate = &date
-		logging.Infof("[%s] Using start date: %s", name, date)
+			date := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
+			collection.DaysBackToLoad = getDaysBackToLoad(&date)
+			logging.Infof("[%s] Using start date: %s", name, date)
+		}
 	}
 
 	driverPerCollection := map[string]Driver{}
