@@ -58,5 +58,9 @@ func NewStorage(meta *viper.Viper) (Storage, error) {
 	password := meta.GetString("redis.password")
 	anonymousEventsTtl := meta.GetInt("redis.ttl_minutes.anonymous_events")
 
+	if port == 0 {
+		port = 6379
+	}
+
 	return NewRedis(host, port, password, anonymousEventsTtl)
 }
