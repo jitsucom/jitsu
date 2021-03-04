@@ -2,9 +2,11 @@ package typing
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDataTypeValues(t *testing.T) {
@@ -277,6 +279,43 @@ func TestReformat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actual := ReformatValue(tt.input)
+			if tt.expectedType != "" {
+				require.Equal(t, tt.expectedType, reflect.TypeOf(actual).String(), "types aren't equal")
+			}
+		})
+	}
+}
+
+func TestReformatTimeValue(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        interface{}
+		expectedType string
+	}{
+		{
+			"Unknown nil",
+			nil,
+			"",
+		},
+		{
+			"Current time",
+			time.Now(),
+			"time.Time",
+		},
+		{
+			"any string",
+			"some string",
+			"string",
+		},
+		{
+			"ISO time",
+			"2021-03-05T20:21:03.456789Z",
+			"time.Time",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := ReformatTimeValue(tt.input)
 			if tt.expectedType != "" {
 				require.Equal(t, tt.expectedType, reflect.TypeOf(actual).String(), "types aren't equal")
 			}
