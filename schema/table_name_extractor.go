@@ -62,5 +62,5 @@ func (tne *TableNameExtractor) Extract(object map[string]interface{}) (result st
 	// format "<no value>" -> null
 	formatted := strings.ReplaceAll(buf.String(), "<no value>", "null")
 	// format "Abc dse" -> "abc_dse"
-	return Reformat(formatted), nil
+	return Reformat(strings.TrimSpace(formatted)), nil
 }
