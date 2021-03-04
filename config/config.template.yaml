@@ -325,7 +325,11 @@ destinations:
 #  my_firebase:
 #    type: firebase
 #    destinations: [ "destination_id1" ]
-#    collections: [ "firestore_collection_id" ]
+#    collections:
+#      - name: collection_to_load
+#        type: firestore
+#      - name: known_users
+#        type: users
 #    config:
 #      project_id: "firebase_project_id"
 #      key: 'service_account_key_json'
