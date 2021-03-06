@@ -3,10 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
-	"errors"
 	"flag"
 	"fmt"
-	"github.com/jitsucom/eventnative/scheduling"
 	"math/rand"
 	"net/http"
 	"os"
@@ -37,6 +35,7 @@ import (
 	"github.com/jitsucom/eventnative/resources"
 	"github.com/jitsucom/eventnative/routers"
 	"github.com/jitsucom/eventnative/safego"
+	"github.com/jitsucom/eventnative/scheduling"
 	"github.com/jitsucom/eventnative/singer"
 	"github.com/jitsucom/eventnative/sources"
 	"github.com/jitsucom/eventnative/storages"
@@ -94,10 +93,6 @@ func readInViperConfig() error {
 		configSourceStr = overriddenConfigLocation
 	}
 
-	if configSourceStr == "" {
-		return handleConfigErr(errors.New("-cfg is required parameter. Read more about EventNative configuration: https://docs.eventnative.org/configuration-1/configuration"))
-	}
-
 	var payload *resources.ResponsePayload
 	var err error
 	if strings.HasPrefix(configSourceStr, "http://") || strings.HasPrefix(configSourceStr, "https://") {
@@ -105,7 +100,7 @@ func readInViperConfig() error {
 	} else if strings.HasPrefix(configSourceStr, "{") && strings.HasSuffix(configSourceStr, "}") {
 		jsonContentType := resources.JsonContentType
 		payload = &resources.ResponsePayload{Content: []byte(configSourceStr), ContentType: &jsonContentType}
-	} else {
+	} else if configSourceStr != "" {
 		payload, err = resources.LoadFromFile(configSourceStr, "")
 	}
 
@@ -113,17 +108,19 @@ func readInViperConfig() error {
 		return handleConfigErr(err)
 	}
 
-	if payload.ContentType != nil {
+	if payload != nil && payload.ContentType != nil {
 		viper.SetConfigType(string(*payload.ContentType))
 	} else {
 		//default content type
 		viper.SetConfigType("json")
 	}
 
-	err = viper.ReadConfig(bytes.NewBuffer(payload.Content))
-	if err != nil {
-		errWithContext := fmt.Errorf("Error reading/parsing viper config from %s: %v", configSourceStr, err)
-		return handleConfigErr(errWithContext)
+	if payload != nil {
+		err = viper.ReadConfig(bytes.NewBuffer(payload.Content))
+		if err != nil {
+			errWithContext := fmt.Errorf("Error reading/parsing viper config from %s: %v", configSourceStr, err)
+			return handleConfigErr(errWithContext)
+		}
 	}
 
 	return nil
@@ -226,6 +223,10 @@ func main() {
 
 	//Get logger configuration
 	logEventPath := viper.GetString("log.path")
+	// Create full path to logs directory if it is necessary
+	if err := os.MkdirAll(logEventPath, 0644); err != nil {
+		logging.Fatal("log.path:", logEventPath, "cannot be created!")
+	}
 	//check if log.path is writable
 	if !logging.IsDirWritable(logEventPath) {
 		logging.Fatal("log.path:", logEventPath, "must be writable! Since EventNative docker user and owner of mounted dir are different: Please use 'chmod 777 your_mount_dir'")
