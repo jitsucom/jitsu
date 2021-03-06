@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/jitsucom/eventnative/logging"
-	"github.com/jitsucom/eventnative/timestamp"
 )
 
 type DataType int
@@ -110,7 +109,7 @@ func ReformatTimeValue(value interface{}) interface{} {
 		return value
 	}
 
-	timeValue, err := time.Parse(timestamp.Layout, stringValue)
+	timeValue, err := time.Parse(time.RFC3339Nano, stringValue)
 	if err == nil {
 		return timeValue
 	}
