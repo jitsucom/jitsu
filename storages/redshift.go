@@ -3,6 +3,8 @@ package storages
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
@@ -10,7 +12,6 @@ import (
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
-	"time"
 )
 
 //Store files to aws RedShift in two modes:
@@ -71,7 +72,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift)
+	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.streamMode)
 
 	ar := &AwsRedshift{
 		name:                          config.name,

@@ -3,12 +3,13 @@ package storages
 import (
 	"errors"
 	"fmt"
+	"sync"
+
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/notifications"
 	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/typing"
-	"sync"
 )
 
 const unlockRetryCount = 5
@@ -24,10 +25,13 @@ type TableHelper struct {
 
 	pkFields           map[string]bool
 	columnTypesMapping map[typing.DataType]string
+
+	streamMode bool
 }
 
 func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, pkFields map[string]bool,
-	columnTypesMapping map[typing.DataType]string) *TableHelper {
+	columnTypesMapping map[typing.DataType]string, streamMode bool) *TableHelper {
+
 	return &TableHelper{
 		manager:       manager,
 		monitorKeeper: monitorKeeper,
@@ -35,6 +39,8 @@ func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, 
 
 		pkFields:           pkFields,
 		columnTypesMapping: columnTypesMapping,
+
+		streamMode: streamMode,
 	}
 }
 
@@ -64,22 +70,16 @@ func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters
 //if exists - calculate diff, patch existing one with diff and increment version
 //return actual db table schema (with actual db types)
 func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
+	var dbSchema *adapters.Table
 	var err error
-	th.RLock()
-	dbSchema, ok := th.tables[dataSchema.Name]
-	th.RUnlock()
 
-	//get from DWH or create
-	if !ok {
+	if th.streamMode {
+		dbSchema, err = th.getSavedTableSchema(destinationName, dataSchema)
+	} else {
 		dbSchema, err = th.getOrCreate(destinationName, dataSchema)
-		if err != nil {
-			return nil, err
-		}
-
-		//save
-		th.Lock()
-		th.tables[dbSchema.Name] = dbSchema
-		th.Unlock()
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	//if diff doesn't exist - do nothing
@@ -151,6 +151,29 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.
 	}
 	//version
 	dbSchema.Version = newVersion
+
+	return dbSchema, nil
+}
+
+func (th *TableHelper) getSavedTableSchema(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
+	th.RLock()
+	dbSchema, ok := th.tables[dataSchema.Name]
+	th.RUnlock()
+
+	if ok {
+		return dbSchema, nil
+	}
+
+	// Get data schema from DWH or create
+	dbSchema, err := th.getOrCreate(destinationName, dataSchema)
+	if err != nil {
+		return nil, err
+	}
+
+	// Save data schema to local cache
+	th.Lock()
+	th.tables[dbSchema.Name] = dbSchema
+	th.Unlock()
 
 	return dbSchema, nil
 }

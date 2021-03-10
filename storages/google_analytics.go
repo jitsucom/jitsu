@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
@@ -38,7 +39,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
 	gaAdapter := adapters.NewGoogleAnalytics(gaConfig, requestDebugLogger)
 
-	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToGoogleAnalytics)
+	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToGoogleAnalytics, config.streamMode)
 
 	ga := &GoogleAnalytics{
 		name:           config.name,
