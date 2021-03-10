@@ -17,10 +17,10 @@ import (
 )
 
 func TestProcessFilePayload(t *testing.T) {
-	testTime1, _ := time.Parse(timestamp.Layout, "2020-07-02T18:23:59.757719Z")
-	testTime2, _ := time.Parse(timestamp.Layout, "2020-08-02T18:23:56.291383Z")
-	testTime3, _ := time.Parse(timestamp.Layout, "2020-08-02T18:23:59.757719Z")
-	testTime4, _ := time.Parse(timestamp.Layout, "2020-08-02T18:23:58.057807Z")
+	testTime1, _ := time.Parse(time.RFC3339Nano, "2020-07-02T18:23:59.757719Z")
+	testTime2, _ := time.Parse(time.RFC3339Nano, "2020-08-02T18:23:56.291383Z")
+	testTime3, _ := time.Parse(time.RFC3339Nano, "2020-08-02T18:23:59.757719Z")
+	testTime4, _ := time.Parse(time.RFC3339Nano, "2020-08-02T18:23:58.057807Z")
 
 	tests := []struct {
 		name           string

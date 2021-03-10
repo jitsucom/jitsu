@@ -54,7 +54,7 @@ type RecognitionService struct {
 //NewRecognitionService create a new RecognitionService if enabled and if metaStorage configuration exists
 func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service, configuration *storages.UsersRecognition, logEventPath string) (*RecognitionService, error) {
 	if configuration == nil || !configuration.Enabled || metaStorage.Type() == meta.DummyType {
-		if metaStorage != nil && metaStorage.Type() == meta.DummyType {
+		if metaStorage.Type() == meta.DummyType {
 			logging.Warnf("Users recognition required meta storage configuration")
 		}
 

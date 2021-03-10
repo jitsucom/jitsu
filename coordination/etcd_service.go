@@ -1,14 +1,16 @@
-package synchronization
+package coordination
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/coreos/etcd/clientv3"
-	"github.com/coreos/etcd/clientv3/concurrency"
 	"github.com/jitsucom/eventnative/cluster"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/safego"
 	"github.com/jitsucom/eventnative/storages"
+	"github.com/spf13/viper"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/concurrency"
 	"io"
 	"strconv"
 	"sync"
@@ -16,6 +18,8 @@ import (
 )
 
 const instancePrefix = "en_instance_"
+
+var ErrAlreadyLocked = errors.New("Resource has been already locked")
 
 type Service interface {
 	io.Closer
@@ -35,19 +39,48 @@ type EtcdService struct {
 	closed   bool
 }
 
+//TODO remove DEPRECATED
+func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTimeoutSeconds uint) (Service, error) {
+	if endpoint == "" {
+		return nil, errors.New("'etcd.endpoint' is required parameter")
+	}
+
+	if connectTimeoutSeconds == 0 {
+		connectTimeoutSeconds = 20
+	}
+	client, err := clientv3.New(clientv3.Config{
+		DialTimeout: time.Duration(connectTimeoutSeconds) * time.Second,
+		Endpoints:   []string{endpoint},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	es := &EtcdService{ctx: ctx, serverName: serverName, client: client, unlockMe: map[string]*storages.RetryableLock{}}
+	es.startHeartBeating()
+
+	logging.Info("Using etcd synchronization service")
+	return es, nil
+}
+
 //NewService return EtcdService (etcd) if was configured or InMemoryService otherwise
 //starts EtcdService heart beat goroutine: see EtcdService.startHeartBeating()
-func NewService(ctx context.Context, serverName, syncServiceType, syncServiceEndpoint string, connectionTimeoutSeconds uint) (Service, error) {
-	if syncServiceType == "" || syncServiceEndpoint == "" {
-		logging.Warn("Using in-memory synchronization service so as no configuration is provided")
+func NewService(ctx context.Context, serverName string, viper *viper.Viper) (Service, error) {
+	if viper == nil {
+		logging.Warn("Using in-memory coordination service so as no configuration is provided")
 		return NewInMemoryService([]string{serverName}), nil
 	}
 
-	switch syncServiceType {
-	case "etcd":
+	if viper.IsSet("etcd") {
+		etcdViper := viper.Sub("etcd")
+		connectTimeoutSeconds := etcdViper.GetUint("connection_timeout_seconds")
+		if connectTimeoutSeconds == 0 {
+			connectTimeoutSeconds = 20
+		}
+
 		client, err := clientv3.New(clientv3.Config{
-			DialTimeout: time.Duration(connectionTimeoutSeconds) * time.Second,
-			Endpoints:   []string{syncServiceEndpoint},
+			DialTimeout: time.Duration(connectTimeoutSeconds) * time.Second,
+			Endpoints:   []string{etcdViper.GetString("endpoint")},
 		})
 		if err != nil {
 			return nil, err
@@ -58,13 +91,13 @@ func NewService(ctx context.Context, serverName, syncServiceType, syncServiceEnd
 
 		logging.Info("Using etcd synchronization service")
 		return es, nil
-
-	default:
-		return nil, fmt.Errorf("Unknown synchronization service type: %s", syncServiceType)
+	} else {
+		return nil, fmt.Errorf("Unknown coordination service type. Supported: etcd")
 	}
 }
 
-//Lock try to get Etcd monitor with timeout (30 seconds)
+//Lock try to get Etcd monitor with timeout (2 minutes)
+//wait if lock has been already acquired
 func (es *EtcdService) Lock(system string, collection string) (storages.Lock, error) {
 	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
 
@@ -76,8 +109,40 @@ func (es *EtcdService) Lock(system string, collection string) (storages.Lock, er
 	}
 	identifier := system + "_" + collection
 	l := concurrency.NewMutex(session, identifier)
+
 	if err := l.Lock(ctx); err != nil {
 		cancel()
+		return nil, err
+	}
+
+	lock := storages.NewRetryableLock(identifier, l, session, cancel, 5)
+
+	es.mutex.Lock()
+	es.unlockMe[identifier] = lock
+	es.mutex.Unlock()
+
+	return lock, nil
+}
+
+//TryLock try to get Etcd monitor with timeout (30 seconds)
+func (es *EtcdService) TryLock(system string, collection string) (storages.Lock, error) {
+	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
+
+	//the session depends on the context. We can't cancel() before unlock.
+	session, sessionError := concurrency.NewSession(es.client, concurrency.WithContext(ctx))
+	if sessionError != nil {
+		cancel()
+		return nil, sessionError
+	}
+	identifier := system + "_" + collection
+	l := concurrency.NewMutex(session, identifier)
+
+	if err := l.TryLock(ctx); err != nil {
+		cancel()
+		if err == concurrency.ErrLocked {
+			return nil, ErrAlreadyLocked
+		}
+
 		return nil, err
 	}
 
@@ -98,6 +163,20 @@ func (es *EtcdService) Unlock(lock storages.Lock) error {
 	es.mutex.Unlock()
 
 	return nil
+}
+
+func (es *EtcdService) IsLocked(system string, collection string) (bool, error) {
+	l, err := es.TryLock(system, collection)
+	if err != nil {
+		if err == ErrAlreadyLocked {
+			return true, nil
+		}
+
+		return false, err
+	}
+
+	defer l.Unlock()
+	return false, nil
 }
 
 func (es *EtcdService) GetVersion(system string, collection string) (int64, error) {

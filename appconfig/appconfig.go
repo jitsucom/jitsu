@@ -20,6 +20,7 @@ type AppConfig struct {
 	GlobalDDLLogsWriter   io.Writer
 	GlobalQueryLogsWriter io.Writer
 	SingerLogsWriter      io.Writer
+	DisableSkipEventsWarn bool
 
 	closeMe []io.Closer
 }
@@ -39,14 +40,14 @@ func setDefaultParams() {
 	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("server.auth_reload_sec", 30)
 	viper.SetDefault("server.destinations_reload_sec", 40)
-	viper.SetDefault("server.sync_tasks.pool.size", 500)
+	viper.SetDefault("server.sync_tasks.pool.size", 16)
 	viper.SetDefault("server.disable_version_reminder", false)
+	viper.SetDefault("server.disable_skip_events_warn", false)
 	viper.SetDefault("server.cache.events.size", 100)
 	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
 	viper.SetDefault("log.path", "/home/eventnative/logs/events")
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
-	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
 	viper.SetDefault("sql_debug_log.ddl.rotation_min", "1440")
 	viper.SetDefault("users_recognition.enabled", false)
@@ -128,6 +129,8 @@ func Init() error {
 			FileDir:     singerLoggerViper.GetString("path"),
 			RotationMin: singerLoggerViper.GetInt64("rotation_min"),
 			MaxBackups:  singerLoggerViper.GetInt("max_backups")})
+	} else {
+		appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: "global"})
 	}
 
 	port := viper.GetString("port")
@@ -149,6 +152,7 @@ func Init() error {
 	appConfig.AuthorizationService = authService
 	appConfig.GeoResolver = geoResolver
 	appConfig.UaResolver = useragent.NewResolver()
+	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 
 	Instance = &appConfig
 	return nil

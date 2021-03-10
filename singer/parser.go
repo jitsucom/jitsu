@@ -43,7 +43,9 @@ type StreamRepresentation struct {
 	Objects     []map[string]interface{}
 }
 
-func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer) error {
+func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger logging.TaskLogger) error {
+	logger.INFO("Singer sync will store data as batches >= [%d] elements size", batchSize)
+
 	outputPortion := &OutputRepresentation{
 		Streams: map[string]*StreamRepresentation{},
 	}

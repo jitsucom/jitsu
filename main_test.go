@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/coordination"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
@@ -180,10 +181,10 @@ func TestCors(t *testing.T) {
 				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
-			dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
-			router := routers.SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
-				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(),
-				fallback.NewTestService(), dummyRecognitionService)
+			dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
+			router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+				dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
+				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -309,10 +310,10 @@ func TestApiEvent(t *testing.T) {
 				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
-			dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
-			router := routers.SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
-				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(),
-				fallback.NewTestService(), dummyRecognitionService)
+			dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
+			router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+				dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
+				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -474,17 +475,18 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	defer appconfig.Instance.Close()
 
 	enrichment.InitDefault()
-	monitor := synchronization.NewInMemoryService([]string{})
+	monitor := coordination.NewInMemoryService([]string{})
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
 	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil)
-	dest, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
 	require.NoError(t, err)
-	defer dest.Close()
+	defer destinationService.Close()
 
-	dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
-	router := routers.SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5),
-		sources.NewTestService(), fallback.NewTestService(), dummyRecognitionService)
+	dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
+	router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+		dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
+		caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
 
 	server := &http.Server{
 		Addr:              httpAuthority,
@@ -580,17 +582,18 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
-	monitor := synchronization.NewInMemoryService([]string{})
+	monitor := coordination.NewInMemoryService([]string{})
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
 	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil)
-	dest, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
 	require.NoError(t, err)
-	appconfig.Instance.ScheduleClosing(dest)
+	appconfig.Instance.ScheduleClosing(destinationService)
 
-	dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
-	router := routers.SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5),
-		sources.NewTestService(), fallback.NewTestService(), dummyRecognitionService)
+	dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
+	router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+		dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
+		caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
 
 	server := &http.Server{
 		Addr:              httpAuthority,
