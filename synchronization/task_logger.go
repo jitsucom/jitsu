@@ -26,6 +26,8 @@ func (tl *TaskLogger) ERROR(format string, v ...interface{}) {
 
 func (tl *TaskLogger) log(format, level string, v ...interface{}) {
 	msg := "[" + tl.taskId + "] " + fmt.Sprintf(format, v...)
+	logging.Debug(msg)
+
 	err := tl.metaStorage.AppendTaskLog(tl.taskId, time.Now().UTC(), msg, level)
 	if err != nil {
 		logging.SystemErrorf("Error appending logs [%s] level [%s]: %v", msg, level, err)
