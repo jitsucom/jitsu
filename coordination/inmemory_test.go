@@ -1,4 +1,4 @@
-package synchronization
+package coordination
 
 import (
 	"github.com/stretchr/testify/require"

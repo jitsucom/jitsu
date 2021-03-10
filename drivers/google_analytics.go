@@ -130,7 +130,9 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 	}
 
 	if g.collection.Type == reportsCollection {
-		return g.loadReport(g.config.ViewId, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
+		result, err := g.loadReport(g.config.ViewId, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
+		logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(result))
+		return result, err
 	} else {
 		return nil, fmt.Errorf("Unknown collection %s: only 'report' is supported", g.collection.Type)
 	}
@@ -213,7 +215,7 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 			break
 		}
 	}
-	logging.Debug("Rows to sync:", len(result))
+
 	return result, nil
 }
 

@@ -1,4 +1,4 @@
-package sources
+package synchronization
 
 import (
 	"encoding/json"
@@ -17,20 +17,18 @@ import (
 )
 
 type ResultSaver struct {
-	identifier   string
-	sourceId     string
+	task         *meta.Task
 	tap          string
-	strLogger    *logging.SyncLogger
+	taskLogger   *TaskLogger
 	destinations []storages.Storage
 	metaStorage  meta.Storage
 }
 
-func NewResultSaver(identifier, sourceId, tap string, strLogger *logging.SyncLogger, destinations []storages.Storage, metaStorage meta.Storage) *ResultSaver {
+func NewResultSaver(task *meta.Task, tap string, taskLogger *TaskLogger, destinations []storages.Storage, metaStorage meta.Storage) *ResultSaver {
 	return &ResultSaver{
-		identifier:   identifier,
-		sourceId:     sourceId,
+		task:         task,
 		tap:          tap,
-		strLogger:    strLogger,
+		taskLogger:   taskLogger,
 		destinations: destinations,
 		metaStorage:  metaStorage,
 	}
@@ -38,7 +36,7 @@ func NewResultSaver(identifier, sourceId, tap string, strLogger *logging.SyncLog
 
 func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) error {
 	for tableName, stream := range representation.Streams {
-		rs.strLogger.Infof("[%s] Table [%s] key fields [%s] objects [%d]", rs.identifier, tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
+		rs.taskLogger.INFO("Table [%s] key fields [%s] objects [%d]", tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 
 		for _, object := range stream.Objects {
 			//enrich with system fields values
@@ -59,31 +57,31 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 		for _, storage := range rs.destinations {
 			rowsCount, err := storage.SyncStore(stream.BatchHeader, stream.Objects, "")
 			if err != nil {
-				errMsg := fmt.Sprintf("[%s] Error storing %d source objects in [%s] destination: %v", rs.identifier, rowsCount, storage.Name(), err)
-				metrics.ErrorSourceEvents(rs.sourceId, storage.Name(), rowsCount)
-				metrics.ErrorObjects(rs.sourceId, rowsCount)
+				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.Name(), err)
+				metrics.ErrorSourceEvents(rs.task.Source, storage.Name(), rowsCount)
+				metrics.ErrorObjects(rs.task.Source, rowsCount)
 				return errors.New(errMsg)
 			}
 
-			metrics.SuccessSourceEvents(rs.sourceId, storage.Name(), rowsCount)
-			metrics.SuccessObjects(rs.sourceId, rowsCount)
+			metrics.SuccessSourceEvents(rs.task.Source, storage.Name(), rowsCount)
+			metrics.SuccessObjects(rs.task.Source, rowsCount)
 		}
 
-		rs.strLogger.Infof("[%s] Synchronized successfully Table [%s] key fields [%s] objects [%d]", rs.identifier, tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
+		rs.taskLogger.INFO("Synchronized successfully Table [%s] key fields [%s] objects [%d]", tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 	}
 
 	//save state
 	if representation.State != nil {
 		stateJson, err := json.Marshal(representation.State)
 		if err != nil {
-			errMsg := fmt.Sprintf("Error marshalling Singer state in source [%s] tap [%s] signature [%v]: %v", rs.sourceId, rs.tap, representation.State, err)
+			errMsg := fmt.Sprintf("Error marshalling Singer state in source [%s] tap [%s] signature [%v]: %v", rs.task.Source, rs.tap, representation.State, err)
 			logging.SystemError(errMsg)
 			return errors.New(errMsg)
 		}
 
-		err = rs.metaStorage.SaveSignature(rs.sourceId, rs.tap, drivers.ALL.String(), string(stateJson))
+		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.tap, drivers.ALL.String(), string(stateJson))
 		if err != nil {
-			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.sourceId, rs.tap, string(stateJson), err)
+			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.task.Source, rs.tap, string(stateJson), err)
 			logging.SystemError(errMsg)
 			return errors.New(errMsg)
 		}

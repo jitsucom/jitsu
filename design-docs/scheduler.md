@@ -6,10 +6,10 @@ This design document describes how the EventNative should execute periodic synch
 
 * **Collection** — see EventNative [documentation](https://docs.eventnative.org/configuration-1/sources-configuration#collections) 
 * **Collection Syncronization Task (aka Task)**  — an atomic task that make sure that the collection is up-to-date. The task may call external resources (API). All tasks should be single-threaded
-* **Task Log** — log that was written during execution of the task: all stdout output that was produced by synchronization thread. Log consists from log entries: `{time: "<utc_timestamp>", message: "<message>"}`
-* **Tasks History** — a collection of tasks that has been already executed (succesfully on un-sucessfully — doesn't matter)
+* **Task Log** — log that was written during execution of the task: all stdout output that was produced by synchronization thread. Log consists from log entries: `{time: "<utc_timestamp>", message: "<message>", level: "<level>"}` (log level `info` or `error`)
+* **Task History** — a collection of tasks that has been created
 * **Task Queue** — a queue of tasks that should be executed
-* **Task Worker** — a thread that pulls tasks from queue and executes it. Each EventNative node can have several task workers
+* **Task Worker** — a thread that pulls tasks from the queue and executes it. Each EventNative node can have `16` task workers by default
 * **UTC Timestamp** — if time is referenced as utc_timestamp, the format should be ISO
 
 ## Task Execution
@@ -22,26 +22,26 @@ Each task should be serializable to JSON and added to the queue (see Task Schedu
   "source": "<source_id>",
   "collection": "<collection_id>",
   "priority": "postive number",
-  "time_added": "<utc_timestamp>",
-  "time_stated": "<utc_timestamp or null if not started yet>",
-  "time_finished": "<utc_timestamp or null if not finished yet>",
-  "status": 'SCHEDULED' | 'FAILED' | 'SUCCESS' | 'RUNNING'
+  "created_at": "<utc_timestamp>",
+  "started_at": "<utc_timestamp or null if not started yet>",
+  "finished_at": "<utc_timestamp or null if not finished yet>",
+  "status": 'SCHEDULED' | 'RUNNING' | 'FAILED' | 'SUCCESS' 
 }
 ```
 
-Tasks should be kept in redis queue with priorities. Priority is defined by uint64 `task_priority * 10^12 + time_added_unix` where `time_added_unix` is a `time_added` as unix epoch time (in seconds)
+Tasks should be kept in redis queue with priorities. Priority is defined by uint64 `task_priority * 10^12 - created_at_unix` where `created_at_unix` is a `created_at` as unix epoch time (in seconds)
 
-Each Task Worker on each EventNative node should be pulling tasks from queue. Once task is pulled:
+Each Task Worker on each EventNative node should be pulling tasks from the queue. Once task is pulled:
 
-- It should be moved to **Task History** collection and status should be set to **RUNNING**; time_started should be set to current time
+- Status should be set to **RUNNING**; `started_at` should be set to current time
 - A separate thread should start an execution. Stdout should be listened and put to **Task Logs Collection**
 
 ## Task History
 
-All information about tasks history should be kept in collections (note: task becomes "history" once the execution started)
+All information about tasks history should be kept in collections
 
-* **Task History Collection**. A sorted set where score is time_started and value us Task JSON
-* **Task Logs** a collection of logs as task_id → [{time, message}]. Key is a task and value is a sorted set of {time, message} where time is score
+* **Task History Collection**. A sorted set where score is `created_at` and value is Task ID
+* **Task Logs** a collection of logs as task_id → [{time, message, level}]. Key is a task and value is a sorted set of {time, message, level} where time is score
 
 
 
@@ -53,23 +53,25 @@ TODO
 
 All API calls should be autentificated via standard [Admin authorization mechanism](https://docs.eventnative.org/other-features/admin-endpoints)
 
-#### /tasks/task?id={id}
+#### GET /tasks/${task_id}
 
-Gets a task JSON (see above). Applies to all task statuses, so implementation should search in **Task History** and **Task Queue** collections 
+Gets a task JSON (see above) 
 
-#### /tasks/logs?id={id}&from={utc_timestamp}&to={utc_timestamp}
+#### GET /tasks/${task_id}/logs?start={utc_timestamp}&end={utc_timestamp}
 
-Retrieves task logs as set of log entries `[{time: "<utc_timestamp>", message: "<message>"}]`. Parameters:
+Retrieves task logs as set of log entries `{"logs":[{time: "<utc_timestamp>", message: "<message>", level: "<level>"}]}`. Parameters:
 
-* **id** (required) —  task id
-* **from, to** (optiona) — if set only logs entries within this period should be returned
+* **task_id** (required) —  task id
+* **start, end** (optional) — if set only logs entries within this period should be returned
 
-#### /tasks/list?from={utc_timestamp}&to={utc_timestamp}&status={status}&source={}&collection={}
+#### GET /tasks?start={utc_timestamp}&end={utc_timestamp}&status={status}&source={}&collection={}
 
-Gets a task JSON (see above). Applies to all task statuses, so implementation should search in **Task History** and **Task Queue** collections and apply filters later. 
+Retrieves tasks array `{"tasks":[{task1}, {task2}]}`. Task object structure see below. Parameters: 
 
-* **from**, **to** are required
-* **status**, **source** and **collection** are optional
+* **source**, **start**, **end** are required
+* **status** and **collection** are optional
+
+By default, all tasks from all collections are returned
 
 ## Task Scheduling
 
@@ -77,7 +79,8 @@ Task scheduling can be done both automatically and manually. In both ways schedu
 
 ### Manual Scheduling
 
-Manual scheduling is done via `/tasks/schedule?source={}&collection={}` response should return newrly created task id
+Manual scheduling is done via `POST /tasks/?source={}&collection={}` response should return newrly created task id `{"task_id": "new_task_id_1"}` and `HTTP 201 Created`
+or if requested source + collection have being already syncing return existing task id `{"task_id": "existing_task_id_1"}` and `HTTP 200 OK` 
 
 ### Automatic Scheduling
 

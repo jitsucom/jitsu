@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/appstatus"
 	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/coordination"
 	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/enrichment"
@@ -211,15 +212,20 @@ func main() {
 	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
 
-	//synchronization service
-	syncService, err := synchronization.NewService(
-		ctx,
-		appconfig.Instance.ServerName,
-		viper.GetString("synchronization_service.type"),
-		viper.GetString("synchronization_service.endpoint"),
-		viper.GetUint("synchronization_service.connection_timeout_seconds"))
+	//TODO remove deprecated someday
+	//coordination service
+	var coordinationService coordination.Service
+	var err error
+	if viper.IsSet("synchronization_service") {
+		logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
+
+		coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
+	} else {
+		coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
+	}
+
 	if err != nil {
-		logging.Fatal("Failed to initiate synchronization service", err)
+		logging.Fatal("Failed to initiate coordination service", err)
 	}
 
 	// ** Destinations **
@@ -262,7 +268,7 @@ func main() {
 		logging.Warnf("Global users recognition isn't configured")
 	}
 
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, syncService, eventsCache, loggerFactory, globalRecognitionConfiguration)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory)
@@ -279,15 +285,25 @@ func main() {
 
 	// ** Sources **
 
-	//sources sync tasks pool size
-	poolSize := viper.GetInt("server.sync_tasks.pool.size")
-
 	//Create sources
-	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage, syncService, poolSize)
+	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage)
 	if err != nil {
 		logging.Fatal("Error creating sources service:", err)
 	}
 	appconfig.Instance.ScheduleClosing(sourceService)
+
+	//Create sync task service
+	taskService := synchronization.NewTaskService(sourceService, destinationsService, metaStorage, coordinationService)
+
+	//sources sync tasks pool size
+	poolSize := viper.GetInt("server.sync_tasks.pool.size")
+
+	//Create task executor
+	taskExecutor, err := synchronization.NewTaskExecutor(poolSize, sourceService, destinationsService, metaStorage, coordinationService)
+	if err != nil {
+		logging.Fatal("Error creating sources sync task executor:", err)
+	}
+	appconfig.Instance.ScheduleClosing(taskExecutor)
 
 	//Uploader must read event logger directory
 	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderLoadEveryS, destinationsService)
@@ -310,7 +326,8 @@ func main() {
 		appconfig.Instance.ScheduleClosing(vn)
 	}
 
-	router := routers.SetupRouter(destinationsService, adminToken, syncService, eventsCache, inMemoryEventsCache, sourceService, fallbackService, usersRecognitionService)
+	router := routers.SetupRouter(adminToken, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
+		coordinationService, eventsCache, inMemoryEventsCache)
 
 	telemetry.ServerStart()
 	notifications.ServerStart()

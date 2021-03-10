@@ -11,7 +11,7 @@ type AdminToken struct {
 	Token string
 }
 
-func (a *AdminToken) AdminAuth(main gin.HandlerFunc, errMsg string) gin.HandlerFunc {
+func (a *AdminToken) AdminAuth(main gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if a.Token == "" {
 			c.JSON(http.StatusUnauthorized, ErrorResponse{Message: "admin_token must be configured"})
@@ -24,7 +24,7 @@ func (a *AdminToken) AdminAuth(main gin.HandlerFunc, errMsg string) gin.HandlerF
 		}
 
 		if token != a.Token {
-			c.JSON(http.StatusUnauthorized, ErrorResponse{Message: errMsg})
+			c.JSON(http.StatusUnauthorized, ErrorResponse{Message: AdminTokenErr})
 			return
 		}
 		main(c)
