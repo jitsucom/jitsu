@@ -2,6 +2,7 @@ package storages
 
 import (
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
@@ -74,7 +75,9 @@ func (sw *StreamingWorker) start() {
 			batchHeader, flattenObject, err := sw.processor.ProcessEvent(fact)
 			if err != nil {
 				if err == schema.ErrSkipObject {
-					logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.Name(), events.ExtractEventId(fact), err)
+					if !appconfig.Instance.DisableSkipEventsWarn {
+						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.Name(), events.ExtractEventId(fact), err)
+					}
 				} else {
 					serialized := fact.Serialize()
 					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.Name(), serialized, err)

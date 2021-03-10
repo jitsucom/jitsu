@@ -21,7 +21,7 @@ const (
 	collectionTableNameField  = "table_name"
 	collectionParametersField = "parameters"
 
-	defaultSingerCollection = "all"
+	DefaultSingerCollection = "all"
 
 	defaultDaysBackToLoad = 365
 )
@@ -114,7 +114,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 //or return one default collection if singer type
 func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 	if sourceConfig.Type == SingerType {
-		return []*Collection{{Name: defaultSingerCollection}}, nil
+		return []*Collection{{Name: DefaultSingerCollection}}, nil
 	}
 
 	var collections []*Collection

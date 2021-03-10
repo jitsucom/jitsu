@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
@@ -66,7 +67,9 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, alreadyU
 		if err != nil {
 			//handle skip object functionality
 			if err == ErrSkipObject {
-				logging.Warnf("[%s] Event [%s]: %v", p.identifier, events.ExtractEventId(object), err)
+				if !appconfig.Instance.DisableSkipEventsWarn {
+					logging.Warnf("[%s] Event [%s]: %v", p.identifier, events.ExtractEventId(object), err)
+				}
 			} else if p.breakOnError {
 				return nil, nil, err
 			} else {
@@ -81,7 +84,7 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, alreadyU
 			}
 		}
 
-		//don't process empty and skipped object
+		//don't process empty and skipped object (Exists func nil-protected)
 		if batchHeader.Exists() {
 			f, ok := filePerTable[batchHeader.TableName]
 			if !ok {

@@ -158,7 +158,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	start := time.Time{}
 	startStr := c.Query("start")
 	if startStr != "" {
-		start, err = time.Parse(timestamp.Layout, startStr)
+		start, err = time.Parse(time.RFC3339Nano, startStr)
 		if err != nil {
 			logging.Errorf("Error parsing start query param [%s] in events cache handler: %v", startStr, err)
 			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing start query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
@@ -169,7 +169,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	end := time.Now().UTC()
 	endStr := c.Query("end")
 	if endStr != "" {
-		end, err = time.Parse(timestamp.Layout, endStr)
+		end, err = time.Parse(time.RFC3339Nano, endStr)
 		if err != nil {
 			logging.Errorf("Error parsing end query param [%s] in events cache handler: %v", endStr, err)
 			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing end query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
