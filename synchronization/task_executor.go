@@ -29,6 +29,7 @@ type TaskExecutor struct {
 	closed bool
 }
 
+//NewTaskExecutor return TaskExecutor and run 2 goroutines (monitoring and queue observer)
 func NewTaskExecutor(poolSize int, sourceService *sources.Service, destinationService *destinations.Service, metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper) (*TaskExecutor, error) {
 	executor := &TaskExecutor{sourceService: sourceService, destinationService: destinationService, metaStorage: metaStorage, monitorKeeper: monitorKeeper}
 	pool, err := ants.NewPoolWithFunc(poolSize, executor.execute)
@@ -168,9 +169,9 @@ func (te *TaskExecutor) execute(i interface{}) {
 			return
 		}
 
-		taskErr = te.SyncSinger(task, taskLogger, singerDriver, destinationStorages)
+		taskErr = te.syncSinger(task, taskLogger, singerDriver, destinationStorages)
 	} else {
-		taskErr = te.Sync(task, taskLogger, driver, destinationStorages)
+		taskErr = te.sync(task, taskLogger, driver, destinationStorages)
 	}
 
 	if taskErr != nil {
@@ -192,7 +193,8 @@ func (te *TaskExecutor) execute(i interface{}) {
 	}
 }
 
-func (te *TaskExecutor) Sync(task *meta.Task, taskLogger *TaskLogger, driver drivers.Driver, destinationStorages []storages.Storage) error {
+//sync source. Return error if occurred
+func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver drivers.Driver, destinationStorages []storages.Storage) error {
 	now := time.Now().UTC()
 
 	intervals, err := driver.GetAllAvailableIntervals()
@@ -268,7 +270,8 @@ func (te *TaskExecutor) Sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 	return nil
 }
 
-func (te *TaskExecutor) SyncSinger(task *meta.Task, taskLogger *TaskLogger, singerDriver *drivers.Singer, destinationStorages []storages.Storage) error {
+//syncSinger sync singer source. Return err if occurred
+func (te *TaskExecutor) syncSinger(task *meta.Task, taskLogger *TaskLogger, singerDriver *drivers.Singer, destinationStorages []storages.Storage) error {
 	//get singer state
 	singerState, err := te.metaStorage.GetSignature(task.Source, singerDriver.GetTap(), drivers.ALL.String())
 	if err != nil {
@@ -292,6 +295,7 @@ func (te *TaskExecutor) SyncSinger(task *meta.Task, taskLogger *TaskLogger, sing
 	return nil
 }
 
+//handleError write logs, update task status and logs in Redis
 func (te *TaskExecutor) handleError(task *meta.Task, taskLogger *TaskLogger, msg string, systemErr bool) {
 	if systemErr {
 		logging.SystemErrorf("[%s] "+msg, task.ID)

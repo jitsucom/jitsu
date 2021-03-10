@@ -30,7 +30,6 @@ type Service struct {
 	destinationsService *destinations.Service
 
 	configured bool
-	closed     bool
 }
 
 //only for tests
