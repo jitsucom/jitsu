@@ -18,7 +18,7 @@ const (
 )
 
 //GetValue return Priority value based on time (created_at)
-//task_priority * 10^12 + created_at_unix
+//task_priority * 10^12 - created_at_unix
 func (p Priority) GetValue(t time.Time) int64 {
 	return int64(p)*int64(math.Pow10(12)) - t.UTC().Unix()
 }

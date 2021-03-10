@@ -42,7 +42,7 @@ type EtcdService struct {
 //TODO remove DEPRECATED
 func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTimeoutSeconds uint) (Service, error) {
 	if endpoint == "" {
-		return nil, errors.New("'etcd.endpoint' is required parameter")
+		return nil, errors.New("'synchronization_service.endpoint' is required parameter for type: etcd")
 	}
 
 	if connectTimeoutSeconds == 0 {
@@ -124,7 +124,8 @@ func (es *EtcdService) Lock(system string, collection string) (storages.Lock, er
 	return lock, nil
 }
 
-//TryLock try to get Etcd monitor with timeout (30 seconds)
+//TryLock try to get Etcd monitor with timeout (2 minutes)
+//err if locked immediately
 func (es *EtcdService) TryLock(system string, collection string) (storages.Lock, error) {
 	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
 
@@ -165,6 +166,7 @@ func (es *EtcdService) Unlock(lock storages.Lock) error {
 	return nil
 }
 
+//IsLocked return true if already locked
 func (es *EtcdService) IsLocked(system string, collection string) (bool, error) {
 	l, err := es.TryLock(system, collection)
 	if err != nil {

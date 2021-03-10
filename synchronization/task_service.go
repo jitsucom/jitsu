@@ -144,7 +144,7 @@ func (ts *TaskService) Sync(sourceId, collection string) (string, error) {
 		Source:     sourceId,
 		Collection: collection,
 		Priority:   NOW.GetValue(now),
-		CreatedAt:  timestamp.NowUTC(),
+		CreatedAt:  now.Format(timestamp.Layout),
 		StartedAt:  "",
 		FinishedAt: "",
 		Status:     SCHEDULED.String(),
@@ -171,7 +171,7 @@ func (ts *TaskService) GetTask(id string) (*TaskDto, error) {
 
 	task, err := ts.metaStorage.GetTask(id)
 	if err != nil {
-		return nil, fmt.Errorf("Error getiting task by id [%s] from storage: %v", id, err)
+		return nil, fmt.Errorf("Error getting task by id [%s] from storage: %v", id, err)
 	}
 
 	return &TaskDto{

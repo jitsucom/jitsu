@@ -5,7 +5,7 @@ This design document describes how the EventNative should execute periodic synch
 ## Definitions
 
 * **Collection** — see EventNative [documentation](https://docs.eventnative.org/configuration-1/sources-configuration#collections) 
-* **Collection Syncronization Task (aka Task)**  — an atomic task that make sure that the collection is up-to-date. The task may call external resources (API). All tasks should be single-threaded
+* **Collection Synchronization Task (aka Task)**  — an atomic task that make sure that the collection is up-to-date. The task may call external resources (API). All tasks should be single-threaded
 * **Task Log** — log that was written during execution of the task: all stdout output that was produced by synchronization thread. Log consists from log entries: `{time: "<utc_timestamp>", message: "<message>", level: "<level>"}` (log level `info` or `error`)
 * **Task History** — a collection of tasks that has been created
 * **Task Queue** — a queue of tasks that should be executed
@@ -18,18 +18,18 @@ Each task should be serializable to JSON and added to the queue (see Task Schedu
 
 ```json
 {
-  "id": "<unique_id>",
+  "id": "<$sourceId_$collectionId_$UUID>",
   "source": "<source_id>",
   "collection": "<collection_id>",
-  "priority": "postive number",
+  "priority": "positive number",
   "created_at": "<utc_timestamp>",
-  "started_at": "<utc_timestamp or null if not started yet>",
-  "finished_at": "<utc_timestamp or null if not finished yet>",
+  "started_at": "<utc_timestamp or empty string if not started yet>",
+  "finished_at": "<utc_timestamp or empty string if not finished yet>",
   "status": 'SCHEDULED' | 'RUNNING' | 'FAILED' | 'SUCCESS' 
 }
 ```
 
-Tasks should be kept in redis queue with priorities. Priority is defined by uint64 `task_priority * 10^12 - created_at_unix` where `created_at_unix` is a `created_at` as unix epoch time (in seconds)
+Tasks should be kept in redis queue (redis type: `sorted set`, redis key: `sync_tasks_priority_queue`, redis score: `priority`, redis value: `task id`) with priorities. Priority is defined by uint64 `task_priority * 10^12 - created_at_unix` where `created_at_unix` is a `created_at` as unix epoch time (in seconds)
 
 Each Task Worker on each EventNative node should be pulling tasks from the queue. Once task is pulled:
 
@@ -38,16 +38,16 @@ Each Task Worker on each EventNative node should be pulling tasks from the queue
 
 ## Task History
 
-All information about tasks history should be kept in collections
+All information about tasks history should be kept in redis
 
-* **Task History Collection**. A sorted set where score is `created_at` and value is Task ID
-* **Task Logs** a collection of logs as task_id → [{time, message, level}]. Key is a task and value is a sorted set of {time, message, level} where time is score
-
-
+* **Task History Collection**
+  - Redis type: `sorted set`, redis key: `sync_tasks_index:source#$sourceId:collection#$collectionId`, redis score: `created_at_unix`, redis value: `task id`
+  - Redis type: `hash table`, redis key: `sync_tasks#$taskId`, redis hash field: `task field name`, redis value: `task field value`
 
 ### Task Logs Collection
 
-TODO
+* **Task Logs** a collection of logs as task_id → [{time, message, level}]. Key is a task and value is a sorted set of {time, message, level} where time is score
+    - Redis type: `sorted set`, redis key: `sync_tasks#$taskId:logs`, redis score: `time unix`, redis value: `{time, message, level}` json
 
 ## API calls
 
