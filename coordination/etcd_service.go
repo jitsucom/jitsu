@@ -59,7 +59,7 @@ func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTim
 	es := &EtcdService{ctx: ctx, serverName: serverName, client: client, unlockMe: map[string]*storages.RetryableLock{}}
 	es.startHeartBeating()
 
-	logging.Info("Using etcd synchronization service")
+	logging.Info("Using etcd as coordination service")
 	return es, nil
 }
 
@@ -89,7 +89,7 @@ func NewService(ctx context.Context, serverName string, viper *viper.Viper) (Ser
 		es := &EtcdService{ctx: ctx, serverName: serverName, client: client, unlockMe: map[string]*storages.RetryableLock{}}
 		es.startHeartBeating()
 
-		logging.Info("Using etcd synchronization service")
+		logging.Info("Using etcd as coordination service")
 		return es, nil
 	} else {
 		return nil, fmt.Errorf("Unknown coordination service type. Supported: etcd")
