@@ -150,17 +150,20 @@ func (DummyMapper) Map(object map[string]interface{}) (map[string]interface{}, e
 }
 
 func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*MappingRule) error {
+	var fieldsToRemove []*jsonutils.JsonPath
 	for _, rule := range rules {
 		switch rule.action {
 		case REMOVE:
-			rule.source.GetAndRemove(sourceObj)
+			fieldsToRemove = append(fieldsToRemove, rule.source)
 		case MOVE:
-			value, ok := rule.source.GetAndRemove(sourceObj)
+			value, ok := rule.source.Get(sourceObj)
 			if ok {
 				err := rule.destination.Set(destinationObj, value)
 				if err != nil {
 					return err
 				}
+
+				fieldsToRemove = append(fieldsToRemove, rule.source)
 			}
 		case CAST:
 			//will be handled in adapters
@@ -174,6 +177,10 @@ func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*Map
 			logging.SystemError(msg)
 			return errors.New(msg)
 		}
+	}
+
+	for _, fieldToRemove := range fieldsToRemove {
+		fieldToRemove.GetAndRemove(sourceObj)
 	}
 
 	return nil

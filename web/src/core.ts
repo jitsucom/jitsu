@@ -239,6 +239,10 @@ class TrackerImpl implements Tracker {
                 let type = chain.payload.type();
                 if (type === 'track') {
                     type = chain.payload.event()
+                }else if (type === 'identify'){
+                    type = 'identifies'
+                }else if (type === 'page'){
+                    type = 'pages'
                 }
 
                 this._send3p('ajs', payload, type);

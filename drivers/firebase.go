@@ -17,7 +17,7 @@ import (
 
 const (
 	firebaseType             = "firebase"
-	firebaseCollectionPrefix = "firestore_"
+	firestoreCollection      = "firestore"
 	usersCollection          = "users"
 	userIdField              = "uid"
 	firestoreDocumentIdField = "_firestore_document_id"
@@ -42,8 +42,8 @@ func (fc *FirebaseConfig) Validate() error {
 }
 
 type Firebase struct {
-	config          *FirebaseConfig
 	ctx             context.Context
+	config          *FirebaseConfig
 	firestoreClient *firestore.Client
 	authClient      *auth.Client
 	collection      *Collection
@@ -57,30 +57,35 @@ func init() {
 
 func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
 	config := &FirebaseConfig{}
-	err := unmarshalConfig(sourceConfig.Config, config)
-	if err != nil {
+	if err := unmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
+
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+
 	app, err := firebase.NewApp(context.Background(),
 		&firebase.Config{ProjectID: config.ProjectId},
 		option.WithCredentialsJSON([]byte(config.Credentials)))
 	if err != nil {
 		return nil, err
 	}
+
 	firestoreClient, err := app.Firestore(ctx)
 	if err != nil {
 		return nil, err
 	}
+
 	authClient, err := app.Auth(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if !strings.HasPrefix(collection.Type, firebaseCollectionPrefix) && collection.Type != usersCollection {
-		return nil, fmt.Errorf("unsupported collection type %s: only users and collections with 'firestore_' prefix are allowed", collection.Type)
+
+	if collection.Type != firestoreCollection && collection.Type != usersCollection {
+		return nil, fmt.Errorf("Unsupported collection type %s: only [%s] and [%s] collections are allowed", collection.Type, usersCollection, firestoreCollection)
 	}
+
 	return &Firebase{config: config, ctx: ctx, firestoreClient: firestoreClient, authClient: authClient, collection: collection}, nil
 }
 
@@ -93,18 +98,17 @@ func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 }
 
 func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
-	if strings.HasPrefix(f.collection.Type, firebaseCollectionPrefix) {
-		firebaseCollectionName := strings.TrimPrefix(f.collection.Type, firebaseCollectionPrefix)
-		return f.loadCollection(firebaseCollectionName)
+	if f.collection.Type == firestoreCollection {
+		return f.loadCollection()
 	} else if f.collection.Type == usersCollection {
 		return f.loadUsers()
 	}
 	return nil, fmt.Errorf("Unknown collection: %s", f.collection.Type)
 }
 
-func (f *Firebase) loadCollection(firestoreCollectionName string) ([]map[string]interface{}, error) {
+func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 	var documentJsons []map[string]interface{}
-	iter := f.firestoreClient.Collection(firestoreCollectionName).Documents(f.ctx)
+	iter := f.firestoreClient.Collection(f.collection.Name).Documents(f.ctx)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
