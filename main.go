@@ -6,6 +6,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math/rand"
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+	"syscall"
+	"time"
+
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/appstatus"
@@ -31,14 +41,6 @@ import (
 	"github.com/jitsucom/eventnative/synchronization"
 	"github.com/jitsucom/eventnative/telemetry"
 	"github.com/jitsucom/eventnative/users"
-	"math/rand"
-	"net/http"
-	"os"
-	"os/signal"
-	"runtime/debug"
-	"strings"
-	"syscall"
-	"time"
 
 	"github.com/spf13/viper"
 )
@@ -135,6 +137,19 @@ func handleConfigErr(err error) error {
 	return nil
 }
 
+func setAppWorkDir() {
+	application, err := os.Executable()
+	if err != nil {
+		logging.Errorf("Cannot get executable information: %v", err)
+	}
+
+	directory := filepath.Dir(application)
+
+	if err = os.Chdir(directory); err != nil {
+		logging.Errorf("Cannot setup working directory %v: %v", directory, err)
+	}
+}
+
 func main() {
 	//Setup seed for globalRand
 	rand.Seed(time.Now().Unix())
@@ -144,6 +159,9 @@ func main() {
 
 	//Setup default timezone for time.Now() calls
 	time.Local = time.UTC
+
+	// Setup application directory as working directory
+	setAppWorkDir()
 
 	if err := readInViperConfig(); err != nil {
 		logging.Fatal("Error while reading application config:", err)
