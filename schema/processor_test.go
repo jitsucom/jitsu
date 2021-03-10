@@ -17,6 +17,9 @@ import (
 )
 
 func TestProcessFilePayload(t *testing.T) {
+	err := appconfig.Init()
+	require.NoError(t, err)
+
 	testTime1, _ := time.Parse(time.RFC3339Nano, "2020-07-02T18:23:59.757719Z")
 	testTime2, _ := time.Parse(time.RFC3339Nano, "2020-08-02T18:23:56.291383Z")
 	testTime3, _ := time.Parse(time.RFC3339Nano, "2020-08-02T18:23:59.757719Z")
@@ -164,6 +167,9 @@ func TestProcessFilePayload(t *testing.T) {
 }
 
 func TestProcessFact(t *testing.T) {
+	err := appconfig.Init()
+	require.NoError(t, err)
+
 	testTime, _ := time.Parse(timestamp.Layout, "2020-08-02T18:23:58.057807Z")
 
 	geoDataMock := &geo.Data{
