@@ -58,7 +58,7 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		return &RecognitionService{closed: true}, nil
 	}
 
-	if metaStorage == nil || metaStorage.Type() == meta.DummyType {
+	if metaStorage.Type() == meta.DummyType {
 		logging.Warnf("Users recognition requires 'meta.storage' configuration")
 
 		return &RecognitionService{closed: true}, nil

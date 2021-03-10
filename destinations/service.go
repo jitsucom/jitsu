@@ -103,20 +103,20 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 	return service, nil
 }
 
-func (ds *Service) GetConsumers(tokenId string) (consumers []events.Consumer) {
-	ds.RLock()
-	defer ds.RUnlock()
-	for _, c := range ds.consumersByTokenId[tokenId] {
+func (s *Service) GetConsumers(tokenId string) (consumers []events.Consumer) {
+	s.RLock()
+	defer s.RUnlock()
+	for _, c := range s.consumersByTokenId[tokenId] {
 		consumers = append(consumers, c)
 	}
 	return
 }
 
-func (ds *Service) GetStorageById(id string) (storages.StorageProxy, bool) {
-	ds.RLock()
-	defer ds.RUnlock()
+func (s *Service) GetStorageById(id string) (storages.StorageProxy, bool) {
+	s.RLock()
+	defer s.RUnlock()
 
-	unit, ok := ds.unitsByName[id]
+	unit, ok := s.unitsByName[id]
 	if !ok {
 		return nil, false
 	}
@@ -124,20 +124,20 @@ func (ds *Service) GetStorageById(id string) (storages.StorageProxy, bool) {
 	return unit.storage, true
 }
 
-func (ds *Service) GetStorages(tokenId string) (storages []storages.StorageProxy) {
-	ds.RLock()
-	defer ds.RUnlock()
-	for _, s := range ds.storagesByTokenId[tokenId] {
+func (s *Service) GetStorages(tokenId string) (storages []storages.StorageProxy) {
+	s.RLock()
+	defer s.RUnlock()
+	for _, s := range s.storagesByTokenId[tokenId] {
 		storages = append(storages, s)
 	}
 	return
 }
 
-func (ds *Service) GetDestinationIds(tokenId string) map[string]bool {
+func (s *Service) GetDestinationIds(tokenId string) map[string]bool {
 	ids := map[string]bool{}
-	ds.RLock()
-	defer ds.RUnlock()
-	for id := range ds.destinationsIdByTokenId[tokenId] {
+	s.RLock()
+	defer s.RUnlock()
+	for id := range s.destinationsIdByTokenId[tokenId] {
 		ids[id] = true
 	}
 	return ids

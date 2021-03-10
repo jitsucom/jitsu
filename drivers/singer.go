@@ -184,7 +184,7 @@ func (s *Singer) GetTap() string {
 	return s.tap
 }
 
-func (s *Singer) Load(state string, strLogger *logging.SyncLogger, portionConsumer singer.PortionConsumer) error {
+func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsumer singer.PortionConsumer) error {
 	if s.closed {
 		return errors.New("Singer has already been closed")
 	}
@@ -222,8 +222,7 @@ func (s *Singer) Load(state string, strLogger *logging.SyncLogger, portionConsum
 
 	command := path.Join(singer.Instance.VenvDir, s.sourceName, s.tap, "bin", s.tap)
 
-	strLogger.Infof("[%s_%s] exec singer %s %s", s.sourceName, s.tap, command, strings.Join(args, " "))
-	logging.Infof("[%s_%s] exec singer %s %s", s.sourceName, s.tap, command, strings.Join(args, " "))
+	taskLogger.INFO("exec singer %s %s", command, strings.Join(args, " "))
 
 	//exec cmd and analyze response from stdout & stderr
 	syncCmd := exec.Command(command, args...)
@@ -255,14 +254,14 @@ func (s *Singer) Load(state string, strLogger *logging.SyncLogger, portionConsum
 	wg.Add(1)
 	safego.Run(func() {
 		defer wg.Done()
-		parsingErr = singer.StreamParseOutput(stdout, portionConsumer)
+		parsingErr = singer.StreamParseOutput(stdout, portionConsumer, taskLogger)
 		if parsingErr != nil {
-			strLogger.Errorf("[%s_%s] parse output error: %v. Process will be killed", s.sourceName, s.tap, parsingErr)
+			taskLogger.ERROR("Parse output error: %v. Process will be killed", parsingErr)
 			logging.Errorf("[%s_%s] parse output error: %v. Process will be killed", s.sourceName, s.tap, parsingErr)
 
 			killErr := syncCmd.Process.Kill()
 			if killErr != nil {
-				strLogger.Errorf("[%s_%s] error killing process: %v", s.sourceName, s.tap, killErr)
+				taskLogger.ERROR("Error killing process: %v", killErr)
 				logging.Errorf("[%s_%s] error killing process: %v", s.sourceName, s.tap, killErr)
 			}
 		}

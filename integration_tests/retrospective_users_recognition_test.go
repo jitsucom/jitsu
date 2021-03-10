@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/coordination"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
@@ -87,7 +88,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	defer appconfig.Instance.Close()
 
 	enrichment.InitDefault()
-	monitor := synchronization.NewInMemoryService([]string{})
+	monitor := coordination.NewInMemoryService([]string{})
 
 	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
 	require.NoError(t, err)
@@ -114,8 +115,8 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 
-	router := routers.SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5),
-		sources.NewTestService(), fallback.NewTestService(), usersRecognitionService)
+	router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+		usersRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}), eventsCache, events.NewCache(5))
 
 	server := &http.Server{
 		Addr:              httpAuthority,

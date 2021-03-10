@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/middleware"
 	"github.com/jitsucom/eventnative/sources"
+	"github.com/jitsucom/eventnative/synchronization"
 	"github.com/jitsucom/eventnative/users"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
@@ -19,8 +20,9 @@ import (
 	"net/http/pprof"
 )
 
-func SetupRouter(destinations *destinations.Service, adminToken string, clusterManager cluster.Manager, eventsCache *caching.EventsCache,
-	inMemoryEventsCache *events.Cache, sources *sources.Service, fallbackService *fallback.Service, usersRecognitionService *users.RecognitionService) *gin.Engine {
+func SetupRouter(adminToken string, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
+	usersRecognitionService *users.RecognitionService, fallbackService *fallback.Service, clusterManager cluster.Manager,
+	eventsCache *caching.EventsCache, inMemoryEventsCache *events.Cache) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -43,7 +45,7 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor(), eventsCache, inMemoryEventsCache, usersRecognitionService)
 	apiEventHandler := handlers.NewEventHandler(destinations, events.NewApiPreprocessor(), eventsCache, inMemoryEventsCache, usersRecognitionService)
 
-	sourcesHandler := handlers.NewSourcesHandler(sources)
+	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
 	dryRunHandler := handlers.NewDryRunHandler(destinations, events.NewJsPreprocessor())
 
@@ -54,16 +56,22 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 		apiV1.POST("/s2s/event", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server token. Please use s2s integration token"))
 		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
-		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler, middleware.AdminTokenErr))
-		apiV1.POST("/sources/:id/sync", adminTokenMiddleware.AdminAuth(sourcesHandler.SyncHandler, middleware.AdminTokenErr))
-		apiV1.GET("/sources/:id/status", adminTokenMiddleware.AdminAuth(sourcesHandler.StatusHandler, middleware.AdminTokenErr))
+		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
 
-		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler, middleware.AdminTokenErr))
-		apiV1.GET("/cache/events", adminTokenMiddleware.AdminAuth(jsEventHandler.OldGetHandler, middleware.AdminTokenErr))
-		apiV1.GET("/events/cache", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler, middleware.AdminTokenErr))
+		tasksRoute := apiV1.Group("/tasks")
+		{
+			tasksRoute.GET("/", adminTokenMiddleware.AdminAuth(taskHandler.GetAllHandler))
+			tasksRoute.GET("/:taskId", adminTokenMiddleware.AdminAuth(taskHandler.GetByIDHandler))
+			tasksRoute.POST("/", adminTokenMiddleware.AdminAuth(taskHandler.SyncHandler))
+			tasksRoute.GET("/:taskId/logs", adminTokenMiddleware.AdminAuth(taskHandler.TaskLogsHandler))
+		}
 
-		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler, middleware.AdminTokenErr))
-		apiV1.POST("/replay", adminTokenMiddleware.AdminAuth(fallbackHandler.ReplayHandler, middleware.AdminTokenErr))
+		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler))
+		apiV1.GET("/cache/events", adminTokenMiddleware.AdminAuth(jsEventHandler.OldGetHandler))
+		apiV1.GET("/events/cache", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler))
+
+		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler))
+		apiV1.POST("/replay", adminTokenMiddleware.AdminAuth(fallbackHandler.ReplayHandler))
 	}
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
@@ -75,12 +83,12 @@ func SetupRouter(destinations *destinations.Service, adminToken string, clusterM
 	//Setup profiler
 	statsPprof := router.Group("/stats/pprof")
 	{
-		statsPprof.GET("/allocs", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("allocs").ServeHTTP), middleware.AdminTokenErr))
-		statsPprof.GET("/block", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("block").ServeHTTP), middleware.AdminTokenErr))
-		statsPprof.GET("/goroutine", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("goroutine").ServeHTTP), middleware.AdminTokenErr))
-		statsPprof.GET("/heap", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("heap").ServeHTTP), middleware.AdminTokenErr))
-		statsPprof.GET("/mutex", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("mutex").ServeHTTP), middleware.AdminTokenErr))
-		statsPprof.GET("/threadcreate", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("threadcreate").ServeHTTP), middleware.AdminTokenErr))
+		statsPprof.GET("/allocs", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("allocs").ServeHTTP)))
+		statsPprof.GET("/block", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("block").ServeHTTP)))
+		statsPprof.GET("/goroutine", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("goroutine").ServeHTTP)))
+		statsPprof.GET("/heap", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("heap").ServeHTTP)))
+		statsPprof.GET("/mutex", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("mutex").ServeHTTP)))
+		statsPprof.GET("/threadcreate", adminTokenMiddleware.AdminAuth(gin.WrapF(pprof.Handler("threadcreate").ServeHTTP)))
 	}
 
 	return router

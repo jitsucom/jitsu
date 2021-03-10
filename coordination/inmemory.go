@@ -1,4 +1,4 @@
-package synchronization
+package coordination
 
 import (
 	"fmt"
@@ -48,9 +48,19 @@ func (ims *InMemoryService) Lock(system, collection string) (storages.Lock, erro
 	return ims.lockWithRetry(system, collection, 0)
 }
 
+func (ims *InMemoryService) TryLock(system string, collection string) (storages.Lock, error) {
+	return ims.lockWithRetry(system, collection, 3)
+}
+
 func (ims *InMemoryService) Unlock(lock storages.Lock) error {
 	ims.locks.Delete(lock.Identifier())
 	return nil
+}
+
+func (ims *InMemoryService) IsLocked(system string, collection string) (bool, error) {
+	identifier := getIdentifier(system, collection)
+	_, locked := ims.locks.Load(identifier)
+	return locked, nil
 }
 
 func (ims *InMemoryService) GetVersion(system string, collection string) (int64, error) {
