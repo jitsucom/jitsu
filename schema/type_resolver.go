@@ -2,6 +2,7 @@ package schema
 
 import (
 	"fmt"
+
 	"github.com/jitsucom/eventnative/typing"
 )
 
@@ -31,12 +32,17 @@ func NewTypeResolver() *TypeResolverImpl {
 //Resolve return Fields representation of input object
 //apply default typecast and define column types
 //reformat from json.Number into int64 or float64 and put back
+//reformat from string with timestamp into time.Time and put back
 func (tr *TypeResolverImpl) Resolve(object map[string]interface{}) (Fields, error) {
 	fields := Fields{}
 	//apply default typecast and define column types
 	for k, v := range object {
 		//reformat from json.Number into int64 or float64 and put back
 		v = typing.ReformatValue(v)
+
+		// reformat from string with timestamp into time.Time and put back
+		v = typing.ReformatTimeValue(v)
+
 		object[k] = v
 		//value type
 		resultColumnType, err := typing.TypeFromValue(v)
