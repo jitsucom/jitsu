@@ -3,9 +3,12 @@ package logging
 import (
 	"io"
 	"path"
-	"time"
+)
 
-	"github.com/jitsucom/eventnative/timestamp"
+const (
+	ArchiveDir  = "archive"
+	FailedDir   = "failed"
+	IncomingDir = "incoming"
 )
 
 type Factory struct {
@@ -52,7 +55,7 @@ func (f *Factory) NewFactoryWithQueryLogsWriter(overriddenQueryLogsWriter io.Wri
 func (f *Factory) CreateIncomingLogger(tokenId string) *AsyncLogger {
 	eventLogWriter := NewRollingWriter(&Config{
 		FileName:      "incoming.tok=" + tokenId,
-		FileDir:       path.Join(f.logEventPath, "incoming"),
+		FileDir:       path.Join(f.logEventPath, IncomingDir),
 		RotationMin:   f.logRotationMin,
 		RotateOnClose: true,
 	})
@@ -63,7 +66,7 @@ func (f *Factory) CreateIncomingLogger(tokenId string) *AsyncLogger {
 func (f *Factory) CreateFailedLogger(destinationName string) *AsyncLogger {
 	return NewAsyncLogger(NewRollingWriter(&Config{
 		FileName:      "failed.dst=" + destinationName,
-		FileDir:       path.Join(f.logEventPath, "failed"),
+		FileDir:       path.Join(f.logEventPath, FailedDir),
 		RotationMin:   f.logRotationMin,
 		RotateOnClose: true,
 	}), false)
@@ -76,9 +79,8 @@ func (f *Factory) CreateSQLQueryLogger(destinationName string) *QueryLogger {
 func (f *Factory) CreateStreamingArchiveLogger(destinationName string) *AsyncLogger {
 	return NewAsyncLogger(NewRollingWriter(&Config{
 		FileName:      "streaming-archive.dst=" + destinationName,
-		FileDir:       path.Join(f.logEventPath, "archive", time.Now().UTC().Format(timestamp.DashDayLayout)),
+		FileDir:       path.Join(f.logEventPath, ArchiveDir),
 		RotationMin:   f.logRotationMin,
 		RotateOnClose: true,
-		Compress:      true,
 	}), false)
 }

@@ -6,10 +6,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/jitsucom/eventnative/scheduling"
 	"math/rand"
 	"net/http"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"runtime/debug"
 	"strings"
@@ -50,6 +52,9 @@ const (
 	//incoming.tok=$token-$timestamp.log
 	uploaderFileMask   = "incoming.tok=*-20*.log"
 	uploaderLoadEveryS = 60
+	//streaming-archive.dst=$destinationId-$timestamp.log
+	streamArchiveFileMask = "*-20*.log"
+	streamArchiveEveryS   = 60
 
 	destinationsKey = "destinations"
 	sourcesKey      = "sources"
@@ -303,8 +308,12 @@ func main() {
 
 	// ** Sources **
 
+	//Create source&collection sync scheduler
+	cronScheduler := scheduling.NewCronScheduler()
+	appconfig.Instance.ScheduleClosing(cronScheduler)
+
 	//Create sources
-	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage)
+	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage, cronScheduler)
 	if err != nil {
 		logging.Fatal("Error creating sources service:", err)
 	}
@@ -312,6 +321,11 @@ func main() {
 
 	//Create sync task service
 	taskService := synchronization.NewTaskService(sourceService, destinationsService, metaStorage, coordinationService)
+
+	//Start cron scheduler
+	if taskService.IsConfigured() {
+		cronScheduler.Start(taskService.ScheduleSyncFunc)
+	}
 
 	//sources sync tasks pool size
 	poolSize := viper.GetInt("server.sync_tasks.pool.size")
@@ -329,6 +343,10 @@ func main() {
 		logging.Fatal("Error while creating file uploader", err)
 	}
 	uploader.Start()
+
+	//Streaming events archiver
+	periodicArchiver := logfiles.NewPeriodicArchiver(streamArchiveFileMask, path.Join(logEventPath, logging.ArchiveDir), time.Duration(streamArchiveEveryS)*time.Second)
+	appconfig.Instance.ScheduleClosing(periodicArchiver)
 
 	adminToken := viper.GetString("server.admin_token")
 

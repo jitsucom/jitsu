@@ -189,7 +189,7 @@ func (sh *TaskHandler) SyncHandler(c *gin.Context) {
 		return
 	}
 
-	taskId, err := sh.taskService.Sync(sourceId, collectionId)
+	taskId, err := sh.taskService.Sync(sourceId, collectionId, synchronization.NOW)
 	if err != nil {
 		if err == synchronization.ErrSourceCollectionIsSyncing {
 			c.JSON(http.StatusOK, TaskIdResponse{ID: taskId})
