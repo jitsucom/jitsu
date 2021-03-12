@@ -1,13 +1,14 @@
 package appconfig
 
 import (
+	"io"
+	"os"
+
 	"github.com/jitsucom/eventnative/authorization"
 	"github.com/jitsucom/eventnative/geo"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/useragent"
 	"github.com/spf13/viper"
-	"io"
-	"os"
 )
 
 type AppConfig struct {
@@ -88,6 +89,10 @@ func Init() error {
 	}
 
 	logWelcomeBanner(RawVersion)
+
+	if globalLoggerConfig.FileDir != "" {
+		logging.Infof("Using server.log.path directory: %q", globalLoggerConfig.FileDir)
+	}
 
 	logging.Info("*** Creating new AppConfig ***")
 	logging.Info("Server Name:", serverName)

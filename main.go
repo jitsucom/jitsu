@@ -118,7 +118,7 @@ func readInViperConfig() error {
 	if payload != nil {
 		err = viper.ReadConfig(bytes.NewBuffer(payload.Content))
 		if err != nil {
-			errWithContext := fmt.Errorf("Error reading/parsing viper config from %s: %v", configSourceStr, err)
+			errWithContext := fmt.Errorf("Error reading/parsing config from %s: %v", configSourceStr, err)
 			return handleConfigErr(errWithContext)
 		}
 	}
@@ -224,8 +224,9 @@ func main() {
 	//Get logger configuration
 	logEventPath := viper.GetString("log.path")
 	// Create full path to logs directory if it is necessary
+	logging.Infof("Create log.path directory: %q", logEventPath)
 	if err := os.MkdirAll(logEventPath, 0644); err != nil {
-		logging.Fatal("log.path:", logEventPath, "cannot be created!")
+		logging.Fatalf("log.path %q cannot be created!", logEventPath)
 	}
 	//check if log.path is writable
 	if !logging.IsDirWritable(logEventPath) {
