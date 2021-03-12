@@ -27,6 +27,7 @@ require (
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/panjf2000/ants/v2 v2.4.3
 	github.com/prometheus/client_golang v1.5.1
+	github.com/robfig/cron/v3 v3.0.1
 	github.com/satori/go.uuid v1.1.0
 	github.com/snowflakedb/gosnowflake v1.3.8
 	github.com/spf13/cast v1.3.0

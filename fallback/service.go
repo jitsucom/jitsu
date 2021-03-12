@@ -41,8 +41,8 @@ func NewTestService() *Service {
 }
 
 func NewService(logEventsPath string, destinationService *destinations.Service) (*Service, error) {
-	fallbackPath := path.Join(logEventsPath, "failed")
-	logArchiveEventPath := path.Join(logEventsPath, "archive")
+	fallbackPath := path.Join(logEventsPath, logging.FailedDir)
+	logArchiveEventPath := path.Join(logEventsPath, logging.ArchiveDir)
 	statusManager, err := logfiles.NewStatusManager(fallbackPath)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating fallback files status manager: %v", err)

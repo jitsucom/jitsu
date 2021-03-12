@@ -95,6 +95,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 	//create redis logger
 	taskLogger := NewTaskLogger(task.ID, te.metaStorage)
+	logging.Infof("[%s] Running task...", task.ID)
 	taskLogger.INFO("Running task...")
 
 	task.Status = RUNNING.String()
