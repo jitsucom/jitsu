@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/eventnative/drivers"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/meta"
+	"github.com/jitsucom/eventnative/scheduling"
 	"github.com/spf13/viper"
 	"sync"
 )
@@ -28,6 +29,7 @@ type Service struct {
 	sources map[string]*Unit
 
 	destinationsService *destinations.Service
+	cronScheduler       *scheduling.CronScheduler
 
 	configured bool
 }
@@ -37,12 +39,14 @@ func NewTestService() *Service {
 	return &Service{}
 }
 
-func NewService(ctx context.Context, sources *viper.Viper, destinationsService *destinations.Service, metaStorage meta.Storage) (*Service, error) {
+func NewService(ctx context.Context, sources *viper.Viper, destinationsService *destinations.Service, metaStorage meta.Storage,
+	cronScheduler *scheduling.CronScheduler) (*Service, error) {
 	service := &Service{
 		ctx:     ctx,
 		sources: map[string]*Unit{},
 
 		destinationsService: destinationsService,
+		cronScheduler:       cronScheduler,
 	}
 
 	if sources == nil {
@@ -77,7 +81,7 @@ func (s *Service) init(sc map[string]drivers.SourceConfig) {
 		sourceConfig := config
 		name := sourceName
 
-		driverPerCollection, err := drivers.Create(s.ctx, name, &sourceConfig)
+		driverPerCollection, err := drivers.Create(s.ctx, name, &sourceConfig, s.cronScheduler)
 		if err != nil {
 			logging.Errorf("[%s] Error initializing source of type %s: %v", name, sourceConfig.Type, err)
 			continue
@@ -91,8 +95,9 @@ func (s *Service) init(sc map[string]drivers.SourceConfig) {
 		}
 		s.Unlock()
 
-		logging.Infof("[%s] source has been initialized!", name)
+		//TODO before source removing - cronScheduler.Remove(source, collection)
 
+		logging.Infof("[%s] source has been initialized!", name)
 	}
 }
 

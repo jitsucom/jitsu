@@ -45,6 +45,8 @@ type TaskService struct {
 	destinationService *destinations.Service
 	metaStorage        meta.Storage
 	monitorKeeper      storages.MonitorKeeper
+
+	configured bool
 }
 
 //only for tests
@@ -58,12 +60,50 @@ func NewTaskService(sourceService *sources.Service, destinationService *destinat
 		return &TaskService{}
 	}
 
-	return &TaskService{sourceService: sourceService, destinationService: destinationService, metaStorage: metaStorage, monitorKeeper: monitorKeeper}
+	return &TaskService{sourceService: sourceService, destinationService: destinationService, metaStorage: metaStorage,
+		monitorKeeper: monitorKeeper, configured: true}
+}
+
+//ScheduleSyncFunc is used in scheduling.CronScheduler for scheduling sync of source&collection with retry
+//and for avoiding dependency cycle
+func (ts *TaskService) ScheduleSyncFunc(source, collection string, retryCount int) {
+	var retryLog string
+	if retryCount > 0 {
+		retryLog = fmt.Sprintf("(retried %d attempts)", retryCount)
+	}
+	logging.Infof("[%s_%s] Schedule sync %s..", source, collection, retryLog)
+
+	taskId, err := ts.Sync(source, collection, HIGH)
+	if err != nil {
+		if err == ErrSourceCollectionIsStartingToSync {
+			logging.Warnf("[%s_%s] Sync is being already started by another initiator", source, collection)
+			return
+		}
+
+		if err == ErrSourceCollectionIsSyncing {
+			logging.Warnf("[%s_%s] Sync is being already executed! task id: %s", source, collection, taskId)
+			return
+		}
+
+		if retryCount < 2 {
+			retryCount++
+
+			logging.Errorf("[%s_%s] Error scheduling sync, but will be retried after %d minutes: %v", source, collection, retryCount, err)
+
+			time.Sleep(time.Minute * time.Duration(retryCount))
+			ts.ScheduleSyncFunc(source, collection, retryCount)
+			return
+		}
+
+		logging.Errorf("[%s_%s] Error scheduling sync: %v", source, collection, err)
+	}
+
+	logging.Infof("[%s_%s] sync has been scheduled! task id: %s", source, collection, taskId)
 }
 
 //Sync create task and return its ID
 //return error if task has been already scheduled or has been already in progress (lock in coordination service)
-func (ts *TaskService) Sync(sourceId, collection string) (string, error) {
+func (ts *TaskService) Sync(sourceId, collection string, priority Priority) (string, error) {
 	if ts.metaStorage == nil {
 		return "", ErrMetaStorageRequired
 	}
@@ -143,7 +183,7 @@ func (ts *TaskService) Sync(sourceId, collection string) (string, error) {
 		ID:         fmt.Sprintf("%s_%s_%s", sourceId, collection, uuid.NewV4().String()),
 		Source:     sourceId,
 		Collection: collection,
-		Priority:   NOW.GetValue(now),
+		Priority:   priority.GetValue(now),
 		CreatedAt:  now.Format(timestamp.Layout),
 		StartedAt:  "",
 		FinishedAt: "",
@@ -247,4 +287,8 @@ func (ts *TaskService) GetTaskLogs(taskId string, start, end time.Time) ([]LogRe
 	}
 
 	return result, nil
+}
+
+func (ts *TaskService) IsConfigured() bool {
+	return ts.configured
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/scheduling"
 	"github.com/jitsucom/eventnative/timestamp"
 	"github.com/spf13/cast"
 	"time"
@@ -17,8 +18,7 @@ var (
 )
 
 const (
-	collectionNameField       = "name"
-	collectionTableNameField  = "table_name"
+	scheduleField             = "schedule"
 	collectionParametersField = "parameters"
 
 	DefaultSingerCollection = "all"
@@ -32,20 +32,31 @@ type SourceConfig struct {
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
 	Collections  []interface{} `mapstructure:"collections" json:"collections,omitempty" yaml:"collections,omitempty"`
+	Schedule     string        `mapstructure:"schedule" json:"schedule,omitempty" yaml:"schedule,omitempty"`
 
 	Config map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
 }
 
 type Collection struct {
-	DaysBackToLoad int                    //without serialization
-	Name           string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
-	Type           string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	TableName      string                 `mapstructure:"table_name" json:"table_name,omitempty" yaml:"table_name,omitempty"`
-	StartDateStr   string                 `mapstructure:"start_date" json:"start_date,omitempty" yaml:"start_date,omitempty"`
-	Parameters     map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	DaysBackToLoad int //without serialization
+
+	Name         string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
+	Type         string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	TableName    string                 `mapstructure:"table_name" json:"table_name,omitempty" yaml:"table_name,omitempty"`
+	StartDateStr string                 `mapstructure:"start_date" json:"start_date,omitempty" yaml:"start_date,omitempty"`
+	Schedule     string                 `mapstructure:"schedule" json:"schedule,omitempty" yaml:"schedule,omitempty"`
+	Parameters   map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
 }
 
-func (c Collection) GetTableName() string {
+func (c *Collection) Validate() error {
+	if c.Name == "" {
+		return errors.New("name is required collection field")
+	}
+
+	return nil
+}
+
+func (c *Collection) GetTableName() string {
 	if c.TableName != "" {
 		return c.TableName
 	}
@@ -61,7 +72,7 @@ func RegisterDriverConstructor(driverType string,
 
 //Create source drivers per collection
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[string]Driver, error) {
+func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronScheduler *scheduling.CronScheduler) (map[string]Driver, error) {
 	if sourceConfig.Type == "" {
 		sourceConfig.Type = name
 	}
@@ -100,42 +111,66 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig) (map[s
 	if !ok {
 		return nil, unknownSource
 	}
+
 	for _, collection := range collections {
 		driver, err := createDriverFunc(ctx, sourceConfig, collection)
 		if err != nil {
 			return nil, fmt.Errorf("error creating [%s] driver for [%s] collection: %v", sourceConfig.Type, collection.Name, err)
 		}
+
+		//schedule collection sync
+		if collection.Schedule != "" {
+			if err := cronScheduler.Schedule(name, collection.Name, collection.Schedule); err != nil {
+				//close all previous drivers
+				for _, alreadyCreatedDriver := range driverPerCollection {
+					if closingErr := alreadyCreatedDriver.Close(); closingErr != nil {
+						logging.Error(closingErr)
+					}
+				}
+
+				return nil, fmt.Errorf("error scheduling sync collection [%s]: %v", collection.Name, err)
+			}
+
+			logging.Infof("[%s_%s] Using automatic scheduling: %s", name, collection.Name, collection.Schedule)
+		} else {
+			logging.Warnf("[%s_%s] doesn't have schedule cron expression (automatic scheduling disabled)", name, collection.Name)
+		}
+
 		driverPerCollection[collection.Name] = driver
 	}
 	return driverPerCollection, nil
 }
 
-//return serialized Collection objects slice
-//or return one default collection if singer type
+//parseCollections return serialized Collection objects slice
+//or return one default collection with 'schedule' if singer type
 func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 	if sourceConfig.Type == SingerType {
-		return []*Collection{{Name: DefaultSingerCollection}}, nil
+		return []*Collection{{Name: DefaultSingerCollection, Schedule: sourceConfig.Schedule}}, nil
 	}
 
 	var collections []*Collection
-	for _, collection := range sourceConfig.Collections {
-		switch collection.(type) {
+	for _, collectionI := range sourceConfig.Collections {
+		switch collectionI.(type) {
 		case string:
-			collections = append(collections, &Collection{Name: collection.(string), Type: collection.(string)})
+			collections = append(collections, &Collection{Name: collectionI.(string), Type: collectionI.(string)})
 		case map[interface{}]interface{}:
-			collectionConfigMap := cast.ToStringMap(collection)
-			collectionName := getStringParameter(collectionConfigMap, collectionNameField)
-			if collectionName == "" {
-				return nil, errors.New("[name] field of collection is not configured")
+			collectionObjMap := cast.ToStringMap(collectionI)
+			parametersI, ok := collectionObjMap[collectionParametersField]
+			if ok {
+				parametersObjMap := cast.ToStringMap(parametersI)
+				collectionObjMap[collectionParametersField] = parametersObjMap
 			}
-			collectionType := getStringParameter(collectionConfigMap, "type")
-			if collectionType == "" {
-				collectionType = collectionName
+
+			collectionObj := &Collection{}
+			if err := unmarshalConfig(collectionObjMap, collectionObj); err != nil {
+				return nil, fmt.Errorf("error parsing collections: %v", err)
 			}
-			collection := Collection{Name: collectionName, Type: collectionType,
-				TableName:  getStringParameter(collectionConfigMap, collectionTableNameField),
-				Parameters: cast.ToStringMap(collectionConfigMap[collectionParametersField])}
-			collections = append(collections, &collection)
+
+			if err := collectionObj.Validate(); err != nil {
+				return nil, err
+			}
+
+			collections = append(collections, collectionObj)
 		default:
 			return nil, errors.New("failed to parse source collections as array of string or collections structure")
 		}
@@ -159,7 +194,7 @@ func getStringParameter(dict map[string]interface{}, parameterName string) strin
 func unmarshalConfig(config map[string]interface{}, object interface{}) error {
 	b, err := json.Marshal(config)
 	if err != nil {
-		return fmt.Errorf("Error marshalling config: %v", err)
+		return fmt.Errorf("error marshalling object: %v", err)
 	}
 	err = json.Unmarshal(b, object)
 	if err != nil {
