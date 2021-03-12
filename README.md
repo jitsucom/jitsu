@@ -17,25 +17,25 @@ For production deployment we suggest Docker:
 
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/eventnative/master/artwork/feat-n.png" width="40px" /></a>
 
-Also, we have <a href="https://app.eventnative.com/#/register">a hosted version of EventNative</a> where you can experiment with the product without running your own server.
+Also, we have <a href="https://app.jitsu.com/register">a hosted version of EventNative</a> where you can experiment with the product without running your own server.
 
 ## Features
- * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://docs.eventnative.org/javascript-reference/direct-tracking) and you're set!
+ * **Drop-in Segment & Google Analytics Backend**: No need to modify your existing tracking code if you're using `analytics.js` or `Google Analytics`, just add a few lines of [JavaScript](https://docs.eventnative.org/sending-data/javascript-reference) and you're set!
  
- * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.org/javascript-reference).
+ * **Self Hosted Tracker**: Don't want to send your user data to third parties? Use our self hosted [tracker](https://docs.eventnative.org/sending-data/javascript-reference/npm-or-yarn).
  
  * **Capture Events stopped by AdBlock**: Since EventNative is hosted on your domain, you get events for all users; not just those without AdBlock.
 
- * **Multiple Destination Support**: We support [Redshift](https://docs.eventnative.org/quick-start), [BigQuery](https://docs.eventnative.org/quick-start), [PostgreSQL](https://www.postgresql.org/), [ClickHouse](https://clickhouse.tech/), [Snowflake](https://www.snowflake.com/). EventNative automatically pushes to all your configured destinations at once without additional overhead.
+ * **Multiple Destination Support**: We support [Redshift](https://aws.amazon.com/ru/redshift/), [BigQuery](https://bigquery.cloud.google.com/welcome), [PostgreSQL](https://www.postgresql.org/), [ClickHouse](https://clickhouse.tech/), [Snowflake](https://www.snowflake.com/), [S3](https://aws.amazon.com/en/s3/), [Google Analytics](https://developers.google.com/analytics/devguides/collection/protocol/v1), [Facebook](https://developers.facebook.com/docs/marketing-api/conversions-api/). EventNative automatically pushes to all your configured destinations at once without additional overhead.
  
- * **High-Performance and Throughput**: EventNative is written in [Go](https://golang.org/) with performance in mind, you're only limited by local disk performance since we write events locally prior to sending them to your data warehouse in batches. Read more about scalability [here](https://docs.eventnative.org/scaling-eventnative).
+ * **High-Performance and Throughput**: EventNative is written in [Go](https://golang.org/) with performance in mind, you're only limited by local disk performance since we write events locally prior to sending them to your data warehouse in batches. Read more about scalability [here](https://docs.eventnative.org/other-features/scaling-eventnative).
  
  * **Dynamic Schema and JSON Interface**: EventNative parses incoming requests and adjusts the underlying schema automatically. We map JSON events to tables and create necessary columns on the fly.
  
  * **Data Enrichment**: EventNative can connect with [MaxMind's](https://www.maxmind.com/en/home) selfhosted DB for geo resolution to determine a user's country, city, and zip code from their IP address
    
- * **Retrospective User Recognition**: [Coming soon](https://github.com/jitsucom/eventnative/issues/25) for selected destination (BigQuery, pSQL and ClickHouse).
- 
+ * **Retrospective User Recognition**: Once user's identity is known (as a result of registration or any other type of conversion), EventNative amends all previous events made by this user and assigns a user id to all of them in DWH! Read more about this feature [here](https://jitsu.com/docs/other-features/retrospective-user-recognition)
+
  * **Mobile Application SDKs**: Coming soon for [iOS](https://github.com/jitsucom/eventnative/issues/4) and [Android](https://github.com/jitsucom/eventnative/issues/5).
  
  * **Telemetry**: To help us improve EventNative, we collect usage metrics **without any customer data**. For more details, please check out our [wiki page](https://github.com/jitsucom/eventnative/wiki/Telemetry).
@@ -52,9 +52,9 @@ We host a [simple page that demonstrates how EventNative works](https://track-de
 
 Please see our extensive documentation [here](https://docs.eventnative.org/). Key sections include:
  * [Deployment](https://docs.eventnative.org/deployment) - Getting EventNative running on Heroku, Docker, and building from source.
- * [Configuration](https://docs.eventnative.org/configuration) - How to modify EventNative's `yaml` file. 
- * [Geo Data](https://docs.eventnative.org/geo-data-resolution) - Configuring data enrichment with [MaxMind](https://www.maxmind.com/en/home).
- * [Scaling](https://docs.eventnative.org/scaling-eventnative) - How to setup a distributed deployment of EventNative. 
+ * [Configuration](https://jitsu.com/docs/configuration) - How to modify EventNative's `yaml` file. 
+ * [Geo Data](https://docs.eventnative.org/other-features/geo-data-resolution) - Configuring data enrichment with [MaxMind](https://www.maxmind.com/en/home).
+ * [Scaling](https://docs.eventnative.org/other-features/scaling-eventnative) - How to setup a distributed deployment of EventNative. 
  
 
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/eventnative/master/artwork/com-n.png" width="40px" /></a>
