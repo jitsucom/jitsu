@@ -53,7 +53,7 @@ const (
 	uploaderFileMask   = "incoming.tok=*-20*.log"
 	uploaderLoadEveryS = 60
 	//streaming-archive.dst=$destinationId-$timestamp.log
-	streamArchiveFileMask = "*-20*.log"
+	streamArchiveFileMask = "streaming-archive*-20*.log"
 	streamArchiveEveryS   = 60
 
 	destinationsKey = "destinations"
