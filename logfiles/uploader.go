@@ -28,8 +28,8 @@ type PeriodicUploader struct {
 }
 
 func NewUploader(logEventPath, fileMask string, uploadEveryS int, destinationService *destinations.Service) (*PeriodicUploader, error) {
-	logIncomingEventPath := path.Join(logEventPath, "incoming")
-	logArchiveEventPath := path.Join(logEventPath, "archive")
+	logIncomingEventPath := path.Join(logEventPath, logging.IncomingDir)
+	logArchiveEventPath := path.Join(logEventPath, logging.ArchiveDir)
 	statusManager, err := NewStatusManager(logIncomingEventPath)
 	if err != nil {
 		return nil, err
