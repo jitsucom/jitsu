@@ -1,15 +1,16 @@
 package destinations
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"net/http/httptest"
-	"testing"
-	"time"
 )
 
 type payloadHolder struct {
@@ -47,7 +48,7 @@ func TestServiceInit(t *testing.T) {
 	authPayload := &payloadHolder{payload: []byte(initialAuth)}
 	mockAuthServer := startTestServer(authPayload)
 	viper.Set("server.auth", mockAuthServer.URL)
-	appconfig.Init()
+	appconfig.Init(false)
 
 	initialDestinations := `{
   "destinations": {

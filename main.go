@@ -42,7 +42,6 @@ import (
 	"github.com/jitsucom/eventnative/synchronization"
 	"github.com/jitsucom/eventnative/telemetry"
 	"github.com/jitsucom/eventnative/users"
-
 	"github.com/spf13/viper"
 )
 
@@ -178,7 +177,7 @@ func main() {
 		appconfig.Beta = parsed[2] == "beta"
 	}
 
-	if err := appconfig.Init(); err != nil {
+	if err := appconfig.Init(*containerizedRun); err != nil {
 		logging.Fatal(err)
 	}
 
