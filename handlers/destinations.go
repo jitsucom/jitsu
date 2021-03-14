@@ -74,8 +74,7 @@ func testConnection(config *storages.DestinationConfig) error {
 				return err
 			}
 			defer s3.Close()
-			err = s3.ValidateWritePermission()
-			if err != nil {
+			if err = s3.ValidateWritePermission(); err != nil {
 				return err
 			}
 		}
@@ -103,6 +102,9 @@ func testConnection(config *storages.DestinationConfig) error {
 				return err
 			}
 			defer googleStorage.Close()
+			if err = googleStorage.ValidateWritePermission(); err != nil {
+				return nil
+			}
 		}
 		return bq.Test()
 	case storages.SnowflakeType:
@@ -124,8 +126,7 @@ func testConnection(config *storages.DestinationConfig) error {
 					return err
 				}
 				defer s3.Close()
-				err = s3.ValidateWritePermission()
-				if err != nil {
+				if err = s3.ValidateWritePermission(); err != nil {
 					return err
 				}
 			} else if config.Google != nil && config.Google.Bucket != "" {
@@ -137,6 +138,9 @@ func testConnection(config *storages.DestinationConfig) error {
 					return err
 				}
 				defer gcp.Close()
+				if err = gcp.ValidateWritePermission(); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
