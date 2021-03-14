@@ -1,15 +1,18 @@
 package adapters
 
 import (
-	"cloud.google.com/go/storage"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"google.golang.org/api/iterator"
-	"google.golang.org/api/option"
 	"io/ioutil"
 	"strings"
+
+	"cloud.google.com/go/storage"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/timestamp"
+	"google.golang.org/api/iterator"
+	"google.golang.org/api/option"
 )
 
 type GoogleCloudStorage struct {
@@ -134,6 +137,24 @@ func (gcs *GoogleCloudStorage) GetObject(key string) ([]byte, error) {
 	defer r.Close()
 
 	return ioutil.ReadAll(r)
+}
+
+// Function tries to create temporary file and remove it.
+// Returns OK if file creation was successfull.
+func (gcs *GoogleCloudStorage) ValidateWritePermission() error {
+	filename := fmt.Sprintf("test_%v", timestamp.NowUTC())
+
+	if err := gcs.UploadBytes(filename, []byte{}); err != nil {
+		return err
+	}
+
+	if err := gcs.DeleteObject(filename); err != nil {
+		logging.Warnf("Cannot remove object %q from Google Cloud Storage: %v", filename, err)
+		// Suppressing error because we need to check only write permission
+		// return err
+	}
+
+	return nil
 }
 
 func (gcs *GoogleCloudStorage) Close() error {
