@@ -153,23 +153,13 @@ func (a *S3) DeleteObject(key string) error {
 // Function tries to create temporary file and remove it.
 // Returns OK if file creation was successfull.
 func (a *S3) ValidateWritePermission() error {
-	filename := fmt.Sprintf("%v/test_%v", a.config.Folder, timestamp.NowUTC())
+	filename := fmt.Sprintf("test_%v", timestamp.NowUTC())
 
-	creation := &s3.PutObjectInput{
-		Bucket: &a.config.Bucket,
-		Key:    &filename,
-	}
-	_, err := a.client.PutObject(creation)
-	if err != nil {
+	if err := a.UploadBytes(filename, []byte{}); err != nil {
 		return err
 	}
 
-	deletion := &s3.DeleteObjectInput{
-		Bucket: &a.config.Bucket,
-		Key:    &filename,
-	}
-	_, err = a.client.DeleteObject(deletion)
-	if err != nil {
+	if err := a.DeleteObject(filename); err != nil {
 		logging.Warnf("Cannot remove object %q from S3: %v", filename, err)
 		// Suppressing error because we need to check only write permission
 		// return err
