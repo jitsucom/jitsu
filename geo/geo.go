@@ -3,13 +3,14 @@ package geo
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/logging"
-	"github.com/oschwald/geoip2-golang"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"path"
 	"strings"
+
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/oschwald/geoip2-golang"
 )
 
 var (
@@ -70,11 +71,16 @@ func createGeoIpParser(geoipPath string) (*geoip2.Reader, error) {
 
 		return geoip2.FromBytes(b)
 	} else {
-		if !strings.HasSuffix(geoipPath, mmdbSuffix) {
-			geoipPath = findMmdbFile(geoipPath)
+		var geoipFilePath string
+		if strings.HasSuffix(geoipPath, mmdbSuffix) {
+			geoipFilePath = geoipPath
+		} else {
+			geoipFilePath = findMmdbFile(geoipPath)
+			if geoipFilePath == "" {
+				return nil, fmt.Errorf("Cannot find maxmind db in directory: %s", geoipPath)
+			}
 		}
-
-		return geoip2.Open(geoipPath)
+		return geoip2.Open(geoipFilePath)
 	}
 }
 

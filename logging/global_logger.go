@@ -3,11 +3,12 @@ package logging
 import (
 	"errors"
 	"fmt"
-	"github.com/gookit/color"
-	"github.com/jitsucom/eventnative/notifications"
 	"io"
 	"log"
 	"strings"
+
+	"github.com/gookit/color"
+	"github.com/jitsucom/eventnative/notifications"
 )
 
 const (
@@ -123,7 +124,7 @@ func Fatal(v ...interface{}) {
 
 func Fatalf(format string, v ...interface{}) {
 	if LogLevel <= FATAL {
-		log.Fatalf(format, errMsg(v...))
+		log.Fatalf(errMsg(fmt.Sprintf(format, v...)))
 	}
 }
 

@@ -1,13 +1,14 @@
 package appconfig
 
 import (
+	"io"
+	"os"
+
 	"github.com/jitsucom/eventnative/authorization"
 	"github.com/jitsucom/eventnative/geo"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/useragent"
 	"github.com/spf13/viper"
-	"io"
-	"os"
 )
 
 type AppConfig struct {
@@ -33,7 +34,7 @@ var (
 	Beta         bool
 )
 
-func setDefaultParams() {
+func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.name", "unnamed-server")
 	viper.SetDefault("server.port", "8001")
 	viper.SetDefault("server.log.level", "info")
@@ -44,8 +45,6 @@ func setDefaultParams() {
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("server.disable_skip_events_warn", false)
 	viper.SetDefault("server.cache.events.size", 100)
-	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
-	viper.SetDefault("log.path", "/home/eventnative/logs/events")
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
@@ -56,10 +55,19 @@ func setDefaultParams() {
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.venv_dir", "./venv")
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
+	if containerized {
+		viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
+		viper.SetDefault("log.path", "/home/eventnative/logs/events")
+		viper.SetDefault("server.log.path", "/home/eventnative/logs")
+	} else {
+		viper.SetDefault("geo.maxmind_path", "./")
+		viper.SetDefault("log.path", "./logs/events")
+		viper.SetDefault("server.log.path", "./logs")
+	}
 }
 
-func Init() error {
-	setDefaultParams()
+func Init(containerized bool) error {
+	setDefaultParams(containerized)
 
 	serverName := viper.GetString("server.name")
 	globalLoggerConfig := logging.Config{
@@ -88,6 +96,10 @@ func Init() error {
 	}
 
 	logWelcomeBanner(RawVersion)
+
+	if globalLoggerConfig.FileDir != "" {
+		logging.Infof("Using server.log.path directory: %q", globalLoggerConfig.FileDir)
+	}
 
 	logging.Info("*** Creating new AppConfig ***")
 	logging.Info("Server Name:", serverName)

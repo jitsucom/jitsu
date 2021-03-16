@@ -1,11 +1,15 @@
 package integration_tests
 
 import (
-	"bou.ke/monkey"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"testing"
+	"time"
+
+	"bou.ke/monkey"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/coordination"
@@ -25,9 +29,6 @@ import (
 	"github.com/jitsucom/eventnative/users"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"testing"
-	"time"
 )
 
 func TestRetrospectiveUsersRecognition(t *testing.T) {
@@ -83,7 +84,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	destinationConfig := fmt.Sprintf(configTemplate, postgresContainer.Host, postgresContainer.Port, postgresContainer.Database, postgresContainer.Schema, postgresContainer.Username, postgresContainer.Password)
 
 	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init()
+	err = appconfig.Init(false)
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 

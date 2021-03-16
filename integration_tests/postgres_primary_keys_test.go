@@ -2,6 +2,8 @@ package integration_tests
 
 import (
 	"context"
+	"testing"
+
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/coordination"
@@ -12,7 +14,6 @@ import (
 	"github.com/jitsucom/eventnative/test"
 	"github.com/jitsucom/eventnative/typing"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 //Test postgres adapter with primary keys and without (make sure primary keys are deleted)
@@ -24,7 +25,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	}
 	defer container.Close()
 
-	err = appconfig.Init()
+	err = appconfig.Init(false)
 	require.NoError(t, err)
 
 	enrichment.InitDefault()

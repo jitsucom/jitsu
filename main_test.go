@@ -4,7 +4,16 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+
+	"bou.ke/monkey"
 	"github.com/gin-gonic/gin/binding"
+	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/coordination"
 	"github.com/jitsucom/eventnative/destinations"
@@ -22,18 +31,8 @@ import (
 	"github.com/jitsucom/eventnative/test"
 	"github.com/jitsucom/eventnative/users"
 	"github.com/jitsucom/eventnative/uuid"
-	"strings"
-	"time"
-
-	"bou.ke/monkey"
-	"github.com/jitsucom/eventnative/appconfig"
-
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
-	"log"
-	"net/http"
-	"testing"
 )
 
 func SetTestDefaultParams() {
@@ -172,7 +171,7 @@ func TestCors(t *testing.T) {
 			telemetry.Init("test", "test", "test", "test", true)
 			httpAuthority, _ := test.GetLocalAuthority()
 
-			err := appconfig.Init()
+			err := appconfig.Init(false)
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
@@ -301,7 +300,7 @@ func TestApiEvent(t *testing.T) {
 			telemetry.Init("test", "test", "test", "test", true)
 			httpAuthority, _ := test.GetLocalAuthority()
 
-			err := appconfig.Init()
+			err := appconfig.Init(false)
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
@@ -470,7 +469,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	destinationConfig := fmt.Sprintf(pgDestinationConfigTemplate, container.Host, container.Port, container.Database, container.Schema, container.Username, container.Password)
 
 	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init()
+	err = appconfig.Init(false)
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
@@ -578,7 +577,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	destinationConfig := fmt.Sprintf(configTemplate, strings.Join(dsns, ","), container.Database)
 
 	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init()
+	err = appconfig.Init(false)
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
