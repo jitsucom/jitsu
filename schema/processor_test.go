@@ -1,6 +1,10 @@
 package schema
 
 import (
+	"io/ioutil"
+	"testing"
+	"time"
+
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
@@ -11,13 +15,10 @@ import (
 	"github.com/jitsucom/eventnative/typing"
 	"github.com/jitsucom/eventnative/useragent"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
-	"testing"
-	"time"
 )
 
 func TestProcessFilePayload(t *testing.T) {
-	err := appconfig.Init()
+	err := appconfig.Init(false)
 	require.NoError(t, err)
 
 	testTime1, _ := time.Parse(time.RFC3339Nano, "2020-07-02T18:23:59.757719Z")
@@ -167,7 +168,7 @@ func TestProcessFilePayload(t *testing.T) {
 }
 
 func TestProcessFact(t *testing.T) {
-	err := appconfig.Init()
+	err := appconfig.Init(false)
 	require.NoError(t, err)
 
 	testTime, _ := time.Parse(timestamp.Layout, "2020-08-02T18:23:58.057807Z")
@@ -245,7 +246,7 @@ func TestProcessFact(t *testing.T) {
 			"",
 		},
 	}
-	appconfig.Init()
+	appconfig.Init(false)
 	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
 	appconfig.Instance.UaResolver = useragent.Mock{}
 	uaRule, err := enrichment.NewRule(&enrichment.RuleConfig{
