@@ -42,6 +42,7 @@ type Redis struct {
 //
 // * per source *
 //daily_events:source#sourceId:month#yyyymm:success            [day] - hashtable with success events counter by day
+//hourly_events:source#sourceId:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
 //
 //** Last events cache**
 //last_events:destination#destinationId:id#eventn_ctx_event_id [original, success, error] - hashtable with original event json, processed with schema json, error json
@@ -609,7 +610,7 @@ func (r *Redis) incrementEventsCount(id, namespace, status string, now time.Time
 
 	//increment daily events
 	monthKey := now.Format(timestamp.MonthLayout)
-	dailyEventsKey := "daily_events:destination#" + id + ":month#" + monthKey + ":" + status
+	dailyEventsKey := "daily_events:" + namespace + "#" + id + ":month#" + monthKey + ":" + status
 	fieldDay := strconv.Itoa(now.Day())
 	_, err = conn.Do("HINCRBY", dailyEventsKey, fieldDay, value)
 	noticeError(err)
