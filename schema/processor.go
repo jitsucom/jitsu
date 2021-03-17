@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
@@ -23,7 +24,7 @@ type Processor struct {
 	breakOnError         bool
 }
 
-func NewProcessor(identifier, tableNameFuncExpression string, fieldMapper Mapper, enrichmentRules []enrichment.Rule,
+func NewProcessor(destinationId, tableNameFuncExpression string, fieldMapper Mapper, enrichmentRules []enrichment.Rule,
 	flattener Flattener, typeResolver TypeResolver, breakOnError bool) (*Processor, error) {
 	mappingStep := NewMappingStep(fieldMapper, flattener, typeResolver)
 	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression)
@@ -32,7 +33,7 @@ func NewProcessor(identifier, tableNameFuncExpression string, fieldMapper Mapper
 	}
 
 	return &Processor{
-		identifier:           identifier,
+		identifier:           destinationId,
 		tableNameExtractor:   tableNameExtractor,
 		lookupEnrichmentStep: enrichment.NewLookupEnrichmentStep(enrichmentRules),
 		mappingStep:          mappingStep,
@@ -70,6 +71,8 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, alreadyU
 				if !appconfig.Instance.DisableSkipEventsWarn {
 					logging.Warnf("[%s] Event [%s]: %v", p.identifier, events.ExtractEventId(object), err)
 				}
+
+				counters.SkipEvents(p.identifier, 1)
 			} else if p.breakOnError {
 				return nil, nil, err
 			} else {

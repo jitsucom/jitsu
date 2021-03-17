@@ -15,6 +15,8 @@ import (
 
 const (
 	syncTasksPriorityQueueKey = "sync_tasks_priority_queue"
+	DestinationNamespace      = "destination"
+	SourceNamespace           = "source"
 )
 
 var ErrTaskNotFound = errors.New("Sync task wasn't found")
@@ -30,10 +32,17 @@ type Redis struct {
 //source#sourceId:collection#collectionId:chunks [sourceId, collectionId] - hashtable with signatures
 //
 //** Events counters **
+// * per destination *
 //hourly_events:destination#destinationId:day#yyyymmdd:success [hour] - hashtable with success events counter by hour
 //hourly_events:destination#destinationId:day#yyyymmdd:errors  [hour] - hashtable with error events counter by hour
+//hourly_events:destination#destinationId:day#yyyymmdd:skip    [hour] - hashtable with skipped events counter by hour
 //daily_events:destination#destinationId:month#yyyymm:success  [day] - hashtable with success events counter by day
 //daily_events:destination#destinationId:month#yyyymm:errors   [day] - hashtable with error events counter by day
+//daily_events:destination#destinationId:month#yyyymm:skip     [day] - hashtable with skipped events counter by day
+//
+// * per source *
+//daily_events:source#sourceId:month#yyyymm:success            [day] - hashtable with success events counter by day
+//hourly_events:source#sourceId:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
 //
 //** Last events cache**
 //last_events:destination#destinationId:id#eventn_ctx_event_id [original, success, error] - hashtable with original event json, processed with schema json, error json
@@ -129,12 +138,16 @@ func (r *Redis) SaveSignature(sourceId, collection, interval, signature string) 
 	return nil
 }
 
-func (r *Redis) SuccessEvents(destinationId string, now time.Time, value int) error {
-	return r.incrementEventsCount(destinationId, "success", now, value)
+func (r *Redis) SuccessEvents(id, namespace string, now time.Time, value int) error {
+	return r.incrementEventsCount(id, namespace, "success", now, value)
 }
 
-func (r *Redis) ErrorEvents(destinationId string, now time.Time, value int) error {
-	return r.incrementEventsCount(destinationId, "errors", now, value)
+func (r *Redis) ErrorEvents(id, namespace string, now time.Time, value int) error {
+	return r.incrementEventsCount(id, namespace, "errors", now, value)
+}
+
+func (r *Redis) SkipEvents(id, namespace string, now time.Time, value int) error {
+	return r.incrementEventsCount(id, namespace, "skip", now, value)
 }
 
 func (r *Redis) AddEvent(destinationId, eventId, payload string, now time.Time) (int, error) {
@@ -579,13 +592,15 @@ func (r *Redis) Close() error {
 	return r.pool.Close()
 }
 
-//increment success or errors keys depends on input status string
-func (r *Redis) incrementEventsCount(destinationId, status string, now time.Time, value int) error {
+//incrementEventsCount increment events counter
+//namespaces: [destination, source]
+//status: [success, error, skip]
+func (r *Redis) incrementEventsCount(id, namespace, status string, now time.Time, value int) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//increment hourly events
 	dayKey := now.Format(timestamp.DayLayout)
-	hourlyEventsKey := "hourly_events:destination#" + destinationId + ":day#" + dayKey + ":" + status
+	hourlyEventsKey := "hourly_events:" + namespace + "#" + id + ":day#" + dayKey + ":" + status
 	fieldHour := strconv.Itoa(now.Hour())
 	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, 1)
 	noticeError(err)
@@ -595,7 +610,7 @@ func (r *Redis) incrementEventsCount(destinationId, status string, now time.Time
 
 	//increment daily events
 	monthKey := now.Format(timestamp.MonthLayout)
-	dailyEventsKey := "daily_events:destination#" + destinationId + ":month#" + monthKey + ":" + status
+	dailyEventsKey := "daily_events:" + namespace + "#" + id + ":month#" + monthKey + ":" + status
 	fieldDay := strconv.Itoa(now.Day())
 	_, err = conn.Do("HINCRBY", dailyEventsKey, fieldDay, value)
 	noticeError(err)

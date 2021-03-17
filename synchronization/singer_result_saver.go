@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/drivers"
 	"github.com/jitsucom/eventnative/events"
 	"github.com/jitsucom/eventnative/logging"
@@ -66,6 +67,8 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 			metrics.SuccessSourceEvents(rs.task.Source, storage.Name(), rowsCount)
 			metrics.SuccessObjects(rs.task.Source, rowsCount)
 		}
+
+		counters.SuccessSourceEvents(rs.task.Source, len(stream.Objects))
 
 		rs.taskLogger.INFO("Synchronized successfully Table [%s] key fields [%s] objects [%d]", tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 	}
