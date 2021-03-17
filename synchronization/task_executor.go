@@ -3,6 +3,7 @@ package synchronization
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/drivers"
 	"github.com/jitsucom/eventnative/events"
@@ -260,6 +261,8 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			metrics.SuccessSourceEvents(task.Source, storage.Name(), rowsCount)
 			metrics.SuccessObjects(task.Source, rowsCount)
 		}
+
+		counters.SuccessSourceEvents(task.Source, len(objects))
 
 		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
 			logging.SystemErrorf("Unable to save source [%s] collection [%s] signature: %v", task.Source, task.Collection, err)

@@ -25,8 +25,9 @@ type Storage interface {
 
 	//** Counters **
 	//events counters
-	SuccessEvents(destinationId string, now time.Time, value int) error
-	ErrorEvents(destinationId string, now time.Time, value int) error
+	SuccessEvents(id, namespace string, now time.Time, value int) error
+	ErrorEvents(id, namespace string, now time.Time, value int) error
+	SkipEvents(id, namespace string, now time.Time, value int) error
 
 	//** Cache **
 	//events caching

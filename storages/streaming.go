@@ -78,6 +78,8 @@ func (sw *StreamingWorker) start() {
 					if !appconfig.Instance.DisableSkipEventsWarn {
 						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.Name(), events.ExtractEventId(fact), err)
 					}
+
+					counters.SkipEvents(sw.streamingStorage.Name(), 1)
 				} else {
 					serialized := fact.Serialize()
 					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.Name(), serialized, err)

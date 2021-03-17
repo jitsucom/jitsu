@@ -8,8 +8,9 @@ type Dummy struct {
 func (d *Dummy) GetSignature(sourceId, collection, interval string) (string, error)   { return "", nil }
 func (d *Dummy) SaveSignature(sourceId, collection, interval, signature string) error { return nil }
 
-func (d *Dummy) SuccessEvents(destinationId string, now time.Time, value int) error { return nil }
-func (d *Dummy) ErrorEvents(destinationId string, now time.Time, value int) error   { return nil }
+func (d *Dummy) SuccessEvents(id, namespace string, now time.Time, value int) error { return nil }
+func (d *Dummy) ErrorEvents(id, namespace string, now time.Time, value int) error   { return nil }
+func (d *Dummy) SkipEvents(id, namespace string, now time.Time, value int) error    { return nil }
 
 func (d *Dummy) AddEvent(destinationId, eventId, payload string, now time.Time) (int, error) {
 	return 0, nil
