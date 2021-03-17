@@ -2,6 +2,7 @@ package integration_tests
 
 import (
 	"context"
+	"github.com/spf13/viper"
 	"testing"
 
 	"github.com/jitsucom/eventnative/adapters"
@@ -18,6 +19,8 @@ import (
 
 //Test postgres adapter with primary keys and without (make sure primary keys are deleted)
 func TestPrimaryKeyRemoval(t *testing.T) {
+	viper.Set("server.log.path", "")
+
 	ctx := context.Background()
 	container, err := test.NewPostgresContainer(ctx)
 	if err != nil {

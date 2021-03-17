@@ -2,6 +2,7 @@ package enrichment
 
 import (
 	"encoding/json"
+	"github.com/spf13/viper"
 	"testing"
 
 	"github.com/jitsucom/eventnative/appconfig"
@@ -12,6 +13,8 @@ import (
 )
 
 func TestIpLookup(t *testing.T) {
+	viper.Set("server.log.path", "")
+
 	geoDataMock := &geo.Data{
 		Country: "US",
 		City:    "New York",

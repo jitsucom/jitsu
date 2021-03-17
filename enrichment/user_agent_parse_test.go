@@ -1,6 +1,7 @@
 package enrichment
 
 import (
+	"github.com/spf13/viper"
 	"testing"
 
 	"github.com/jitsucom/eventnative/appconfig"
@@ -11,6 +12,8 @@ import (
 )
 
 func TestUserAgentParse(t *testing.T) {
+	viper.Set("server.log.path", "")
+
 	tests := []struct {
 		name        string
 		source      string

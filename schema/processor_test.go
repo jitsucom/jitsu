@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"github.com/spf13/viper"
 	"io/ioutil"
 	"testing"
 	"time"
@@ -18,6 +19,8 @@ import (
 )
 
 func TestProcessFilePayload(t *testing.T) {
+	viper.Set("server.log.path", "")
+
 	err := appconfig.Init(false)
 	require.NoError(t, err)
 
@@ -168,6 +171,8 @@ func TestProcessFilePayload(t *testing.T) {
 }
 
 func TestProcessFact(t *testing.T) {
+	viper.Set("server.log.path", "")
+
 	err := appconfig.Init(false)
 	require.NoError(t, err)
 

@@ -32,6 +32,8 @@ import (
 )
 
 func TestRetrospectiveUsersRecognition(t *testing.T) {
+	viper.Set("server.log.path", "")
+
 	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
 	defer patch.Unpatch()
@@ -74,7 +76,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
       		}
     	}}`
 
-	telemetry.Init("test", "test", "test", "test", true)
+	telemetry.InitTest()
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken"}]}`)
 	viper.Set("meta.storage.redis.host", redisContainer.Host)
