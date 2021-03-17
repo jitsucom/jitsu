@@ -3,13 +3,15 @@ package telemetry
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/resources"
 	"github.com/jitsucom/eventnative/safego"
 	"github.com/spf13/viper"
-	"io/ioutil"
+	"go.uber.org/atomic"
 	"net/http"
 	"time"
 )
+
+var reloadEvery = 20 * time.Second
 
 type Configuration struct {
 	Disabled map[string]bool `json:"disabled,omitempty"`
@@ -22,7 +24,7 @@ type Service struct {
 	client     *http.Client
 	url        string
 
-	usageOptOut bool
+	usageOptOut *atomic.Bool
 
 	collector *Collector
 	usageCh   chan *Request
@@ -31,19 +33,23 @@ type Service struct {
 	closed  bool
 }
 
-func InitFromViper(serviceName, commit, tag, builtAt string) {
-	var usageOptOut bool
-	telemetrySourceUrl := viper.GetString("server.telemetry")
-	if telemetrySourceUrl != "" {
-		usageOptOut = extractUsageOptOut(telemetrySourceUrl)
-	} else {
-		usageOptOut = viper.GetBool("server.telemetry.disabled.usage")
-	}
-
-	Init(serviceName, commit, tag, builtAt, usageOptOut)
+//InitTest for tests only
+func InitTest() {
+	instance = Service{usageOptOut: atomic.NewBool(true)}
 }
 
-func Init(serviceName, commit, tag, builtAt string, usageOptOut bool) {
+func InitFromViper(serviceName, commit, tag, builtAt string) {
+	Init(serviceName, commit, tag, builtAt)
+
+	telemetrySourceUrl := viper.GetString("server.telemetry")
+	if telemetrySourceUrl != "" {
+		resources.Watch(serviceName, telemetrySourceUrl, resources.LoadFromHttp, reInit, reloadEvery)
+	} else {
+		instance.usageOptOut = atomic.NewBool(viper.GetBool("server.telemetry.disabled.usage"))
+	}
+}
+
+func Init(serviceName, commit, tag, builtAt string) {
 	instance = Service{
 		reqFactory: newRequestFactory(serviceName, commit, tag, builtAt),
 		client: &http.Client{
@@ -54,7 +60,7 @@ func Init(serviceName, commit, tag, builtAt string, usageOptOut bool) {
 			},
 		},
 		url:         "https://t.jitsu.com/api/v1/s2s/event?token=ttttd50c-d8f2-414c-bf3d-9902a5031fd2",
-		usageOptOut: usageOptOut,
+		usageOptOut: atomic.NewBool(false),
 
 		collector: &Collector{},
 
@@ -63,8 +69,25 @@ func Init(serviceName, commit, tag, builtAt string, usageOptOut bool) {
 		flushCh: make(chan bool, 1),
 	}
 
-	if !usageOptOut {
-		instance.startUsage()
+	instance.startUsage()
+}
+
+func reInit(payload []byte) {
+	c := &Configuration{}
+	err := json.Unmarshal(payload, c)
+	if err != nil {
+		return
+	}
+
+	if c.Disabled != nil {
+		optOut, ok := c.Disabled["usage"]
+		if ok {
+			if instance.usageOptOut == nil {
+				instance.usageOptOut = atomic.NewBool(false)
+			}
+
+			instance.usageOptOut.Store(optOut)
+		}
 	}
 }
 
@@ -77,17 +100,18 @@ func ServerStop() {
 }
 
 func Event() {
-	if !instance.usageOptOut {
+	if !instance.usageOptOut.Load() {
 		instance.collector.Event()
 	}
 }
 
+//User is used in manager
 func User(user *UserData) {
 	instance.usageCh <- instance.reqFactory.fromUser(user)
 }
 
 func (s *Service) usage(usage *Usage) {
-	if !s.usageOptOut {
+	if !s.usageOptOut.Load() {
 		select {
 		case instance.usageCh <- instance.reqFactory.fromUsage(usage):
 		default:
@@ -125,6 +149,12 @@ func (s *Service) startUsage() {
 				break
 			}
 
+			//wait until configuration is changed
+			if instance.usageOptOut.Load() {
+				time.Sleep(reloadEvery)
+				continue
+			}
+
 			req := <-s.usageCh
 			if b, err := json.Marshal(req); err == nil {
 				s.client.Post(s.url, "application/json", bytes.NewBuffer(b))
@@ -139,39 +169,4 @@ func Flush() {
 
 func Close() {
 	instance.closed = true
-}
-
-//from http
-func extractUsageOptOut(url string) bool {
-	r, err := http.Get(url)
-	if r != nil && r.Body != nil {
-		defer r.Body.Close()
-	}
-
-	if err != nil {
-		logging.Debugf("Error getting usage opt out settings: %v", err)
-		return false
-	}
-
-	content, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		logging.Debugf("Error reading usage opt out settings: %v", err)
-		return false
-	}
-
-	c := &Configuration{}
-	err = json.Unmarshal(content, c)
-	if err != nil {
-		logging.Debugf("Error parsing usage opt out settings: %v", err)
-		return false
-	}
-
-	if c.Disabled != nil {
-		optOut, ok := c.Disabled["usage"]
-		if ok {
-			return optOut
-		}
-	}
-
-	return false
 }

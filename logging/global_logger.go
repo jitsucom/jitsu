@@ -16,6 +16,8 @@ const (
 	warnPrefix  = "[WARN]:"
 	infoPrefix  = "[INFO]:"
 	debugPrefix = "[DEBUG]:"
+
+	GlobalType = "global"
 )
 
 var GlobalLogsWriter io.Writer

@@ -30,7 +30,7 @@ type RollingWriterProxy struct {
 }
 
 func CreateLogWriter(config *Config) io.Writer {
-	if config.FileDir != "global" {
+	if config.FileDir != GlobalType {
 		return NewRollingWriter(config)
 	} else {
 		return GlobalLogsWriter

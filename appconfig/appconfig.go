@@ -81,7 +81,7 @@ func Init(containerized bool) error {
 	//   configured file logger            no file logger configured
 	//     /             \                            |
 	// os.Stdout      FileWriter                  os.Stdout
-	if globalLoggerConfig.FileDir != "" {
+	if globalLoggerConfig.FileDir != "" && globalLoggerConfig.FileDir != logging.GlobalType {
 		fileWriter := logging.NewRollingWriter(&globalLoggerConfig)
 		logging.GlobalLogsWriter = logging.Dual{
 			FileWriter: fileWriter,
@@ -142,7 +142,7 @@ func Init(containerized bool) error {
 			RotationMin: singerLoggerViper.GetInt64("rotation_min"),
 			MaxBackups:  singerLoggerViper.GetInt("max_backups")})
 	} else {
-		appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: "global"})
+		appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
 	}
 
 	port := viper.GetString("port")
