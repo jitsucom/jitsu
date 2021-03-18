@@ -6,6 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
@@ -114,6 +115,8 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 
 		//Retrospective users recognition
 		eh.userRecognitionService.Event(payload, destinationIds)
+
+		counters.SuccessSourceEvents(tokenId, 1)
 	}
 
 	c.JSON(http.StatusOK, middleware.OkResponse())
