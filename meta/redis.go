@@ -17,6 +17,9 @@ const (
 	syncTasksPriorityQueueKey = "sync_tasks_priority_queue"
 	DestinationNamespace      = "destination"
 	SourceNamespace           = "source"
+
+	destinationIndex = "destinations_index"
+	sourceIndex      = "sources_index"
 )
 
 var ErrTaskNotFound = errors.New("Sync task wasn't found")
@@ -33,6 +36,7 @@ type Redis struct {
 //
 //** Events counters **
 // * per destination *
+//destinations_index:project#projectId [destinationId1, destinationId2] - set of destination ids
 //hourly_events:destination#destinationId:day#yyyymmdd:success [hour] - hashtable with success events counter by hour
 //hourly_events:destination#destinationId:day#yyyymmdd:errors  [hour] - hashtable with error events counter by hour
 //hourly_events:destination#destinationId:day#yyyymmdd:skip    [hour] - hashtable with skipped events counter by hour
@@ -41,6 +45,7 @@ type Redis struct {
 //daily_events:destination#destinationId:month#yyyymm:skip     [day] - hashtable with skipped events counter by day
 //
 // * per source *
+//sources_index:project#projectId [sourceId1, sourceId2] - set of source ids
 //daily_events:source#sourceId:month#yyyymm:success            [day] - hashtable with success events counter by day
 //hourly_events:source#sourceId:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
 //
@@ -139,6 +144,10 @@ func (r *Redis) SaveSignature(sourceId, collection, interval, signature string) 
 }
 
 func (r *Redis) SuccessEvents(id, namespace string, now time.Time, value int) error {
+	err := r.ensureIdInIndex(id, namespace)
+	if err != nil {
+		return fmt.Errorf("Error ensuring id in index: %v", err)
+	}
 	return r.incrementEventsCount(id, namespace, "success", now, value)
 }
 
@@ -590,6 +599,39 @@ func (r *Redis) Type() string {
 
 func (r *Redis) Close() error {
 	return r.pool.Close()
+}
+
+//ensureIdInIndex add id to corresponding index by projectId
+//namespaces: [destination, source]
+func (r *Redis) ensureIdInIndex(id, namespace string) error {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	var indexName string
+	if namespace == DestinationNamespace {
+		indexName = destinationIndex
+	} else if namespace == SourceNamespace {
+		indexName = sourceIndex
+	} else {
+		return fmt.Errorf("Unknown namespace: %v", namespace)
+	}
+
+	//get projectId from id or empty
+	var projectId string
+	splitted := strings.Split(id, ".")
+	if len(splitted) > 1 {
+		projectId = splitted[0]
+	}
+
+	key := indexName + ":project#" + projectId
+
+	_, err := conn.Do("SADD", key, id)
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
 }
 
 //incrementEventsCount increment events counter

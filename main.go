@@ -224,9 +224,10 @@ func main() {
 	logEventPath := viper.GetString("log.path")
 	// Create full path to logs directory if it is necessary
 	logging.Infof("Create log.path directory: %q", logEventPath)
-	if err := os.MkdirAll(logEventPath, 0644); err != nil {
+	if err := logging.EnsureDir(logEventPath); err != nil {
 		logging.Fatalf("log.path %q cannot be created!", logEventPath)
 	}
+
 	//check if log.path is writable
 	if !logging.IsDirWritable(logEventPath) {
 		logging.Fatal("log.path:", logEventPath, "must be writable! Since EventNative docker user and owner of mounted dir are different: Please use 'chmod 777 your_mount_dir'")
