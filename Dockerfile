@@ -27,12 +27,9 @@ RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /go/src/github.com/jitsucom/eve
 WORKDIR /go/src/github.com/jitsucom/eventnative
 USER $EVENTNATIVE_USER
 
-# Build js (for caching)
-RUN make clean_js
-RUN make assemble_js
-
-# Copy builded files
-RUN cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
+# Build js (for caching) and copy builded files
+RUN make clean_js assemble_js &&\
+    cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
 
 #######################################
 # BUILD BACKEND STAGE
@@ -48,12 +45,9 @@ RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /go/src/github.com/jitsucom/eve
 WORKDIR /go/src/github.com/jitsucom/eventnative
 USER $EVENTNATIVE_USER
 
-# Build backend
-RUN make clean_backend
-RUN make assemble_backend
-
-# Copy builded files
-RUN cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
+# Build backend and copy builded files
+RUN make clean_backend assemble_backend &&\
+    cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
 
 #######################################
 # FINAL STAGE
