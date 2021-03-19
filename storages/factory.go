@@ -235,7 +235,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 	//duplication data error warning
 	//if global enabled or overridden enabled - check primary key fields
 	//don't process user recognition in this case
-	if (f.globalConfiguration.IsEnabled() || destination.UsersRecognition.IsEnabled()) && destination.Type == PostgresType && len(pkFields) == 0 {
+	if (f.globalConfiguration.IsEnabled() || destination.UsersRecognition.IsEnabled()) && (destination.Type == PostgresType || destination.Type == RedshiftType) && len(pkFields) == 0 {
 		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", name)
 		usersRecognitionConfiguration = &UserRecognitionConfiguration{Enabled: false}
 	}
@@ -258,7 +258,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == StreamMode {
-		eventQueue, err = events.NewPersistentQueue("queue.dst="+name, f.logEventPath)
+		eventQueue, err = events.NewPersistentQueue(name, "queue.dst="+name, f.logEventPath)
 		if err != nil {
 			return nil, nil, err
 		}

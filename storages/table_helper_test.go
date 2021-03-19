@@ -1,11 +1,12 @@
 package storages
 
 import (
+	"testing"
+
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/typing"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestMapTableSchema(t *testing.T) {
@@ -34,7 +35,7 @@ func TestMapTableSchema(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tableHelper := NewTableHelper(nil, nil, tt.pkFields, tt.columnTypesMapping)
+			tableHelper := NewTableHelper(nil, nil, tt.pkFields, tt.columnTypesMapping, false)
 			actual := tableHelper.MapTableSchema(&tt.input)
 			require.Equal(t, tt.expected, *actual, "Tables aren't equal")
 		})

@@ -1,13 +1,14 @@
 package appconfig
 
 import (
+	"io"
+	"os"
+
 	"github.com/jitsucom/eventnative/authorization"
 	"github.com/jitsucom/eventnative/geo"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/useragent"
 	"github.com/spf13/viper"
-	"io"
-	"os"
 )
 
 type AppConfig struct {
@@ -20,6 +21,7 @@ type AppConfig struct {
 	GlobalDDLLogsWriter   io.Writer
 	GlobalQueryLogsWriter io.Writer
 	SingerLogsWriter      io.Writer
+	DisableSkipEventsWarn bool
 
 	closeMe []io.Closer
 }
@@ -32,21 +34,19 @@ var (
 	Beta         bool
 )
 
-func setDefaultParams() {
+func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.name", "unnamed-server")
 	viper.SetDefault("server.port", "8001")
+	viper.SetDefault("server.log.level", "info")
 	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("server.auth_reload_sec", 30)
 	viper.SetDefault("server.destinations_reload_sec", 40)
-	viper.SetDefault("server.sync_tasks.pool.size", 500)
+	viper.SetDefault("server.sync_tasks.pool.size", 16)
 	viper.SetDefault("server.disable_version_reminder", false)
+	viper.SetDefault("server.disable_skip_events_warn", false)
 	viper.SetDefault("server.cache.events.size", 100)
-	viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
-	viper.SetDefault("log.path", "/home/eventnative/logs/events")
 	viper.SetDefault("log.show_in_server", false)
-	viper.SetDefault("log.level", "info")
 	viper.SetDefault("log.rotation_min", 5)
-	viper.SetDefault("synchronization_service.connection_timeout_seconds", 20)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
 	viper.SetDefault("sql_debug_log.ddl.rotation_min", "1440")
 	viper.SetDefault("users_recognition.enabled", false)
@@ -55,10 +55,19 @@ func setDefaultParams() {
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.venv_dir", "./venv")
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
+	if containerized {
+		viper.SetDefault("geo.maxmind_path", "/home/eventnative/app/res/")
+		viper.SetDefault("log.path", "/home/eventnative/logs/events")
+		viper.SetDefault("server.log.path", "/home/eventnative/logs")
+	} else {
+		viper.SetDefault("geo.maxmind_path", "./")
+		viper.SetDefault("log.path", "./logs/events")
+		viper.SetDefault("server.log.path", "./logs")
+	}
 }
 
-func Init() error {
-	setDefaultParams()
+func Init(containerized bool) error {
+	setDefaultParams(containerized)
 
 	serverName := viper.GetString("server.name")
 	globalLoggerConfig := logging.Config{
@@ -72,7 +81,7 @@ func Init() error {
 	//   configured file logger            no file logger configured
 	//     /             \                            |
 	// os.Stdout      FileWriter                  os.Stdout
-	if globalLoggerConfig.FileDir != "" {
+	if globalLoggerConfig.FileDir != "" && globalLoggerConfig.FileDir != logging.GlobalType {
 		fileWriter := logging.NewRollingWriter(&globalLoggerConfig)
 		logging.GlobalLogsWriter = logging.Dual{
 			FileWriter: fileWriter,
@@ -87,6 +96,10 @@ func Init() error {
 	}
 
 	logWelcomeBanner(RawVersion)
+
+	if globalLoggerConfig.FileDir != "" {
+		logging.Infof("Using server.log.path directory: %q", globalLoggerConfig.FileDir)
+	}
 
 	logging.Info("*** Creating new AppConfig ***")
 	logging.Info("Server Name:", serverName)
@@ -128,6 +141,8 @@ func Init() error {
 			FileDir:     singerLoggerViper.GetString("path"),
 			RotationMin: singerLoggerViper.GetInt64("rotation_min"),
 			MaxBackups:  singerLoggerViper.GetInt("max_backups")})
+	} else {
+		appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
 	}
 
 	port := viper.GetString("port")
@@ -149,6 +164,7 @@ func Init() error {
 	appConfig.AuthorizationService = authService
 	appConfig.GeoResolver = geoResolver
 	appConfig.UaResolver = useragent.NewResolver()
+	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 
 	Instance = &appConfig
 	return nil

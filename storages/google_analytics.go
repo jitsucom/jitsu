@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
@@ -38,7 +39,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
 	gaAdapter := adapters.NewGoogleAnalytics(gaConfig, requestDebugLogger)
 
-	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToGoogleAnalytics)
+	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToGoogleAnalytics, config.streamMode)
 
 	ga := &GoogleAnalytics{
 		name:           config.name,
@@ -74,6 +75,10 @@ func (ga *GoogleAnalytics) StoreWithParseFunc(fileName string, payload []byte, s
 
 func (ga *GoogleAnalytics) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("GoogleAnalytics doesn't support SyncStore() func")
+}
+
+func (ga *GoogleAnalytics) Update(object map[string]interface{}) error {
+	return errors.New("GoogleAnalytics doesn't support updates")
 }
 
 func (ga *GoogleAnalytics) GetUsersRecognition() *UserRecognitionConfiguration {

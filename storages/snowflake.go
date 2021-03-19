@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
@@ -81,7 +82,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake)
+	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.streamMode)
 
 	snowflake := &Snowflake{
 		name:             config.name,
@@ -252,6 +253,10 @@ func (s *Snowflake) Fallback(failedEvents ...*events.FailedEvent) {
 
 func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("Snowflake doesn't support sync store")
+}
+
+func (s *Snowflake) Update(object map[string]interface{}) error {
+	return errors.New("Snowflake doesn't support updates")
 }
 
 func (s *Snowflake) Name() string {

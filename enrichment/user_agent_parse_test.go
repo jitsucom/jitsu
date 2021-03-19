@@ -1,15 +1,19 @@
 package enrichment
 
 import (
+	"github.com/spf13/viper"
+	"testing"
+
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/test"
 	"github.com/jitsucom/eventnative/useragent"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestUserAgentParse(t *testing.T) {
+	viper.Set("server.log.path", "")
+
 	tests := []struct {
 		name        string
 		source      string
@@ -55,7 +59,7 @@ func TestUserAgentParse(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			appconfig.Init()
+			appconfig.Init(false)
 			appconfig.Instance.UaResolver = useragent.Mock{}
 
 			uaRule, err := NewUserAgentParseRule(jsonutils.NewJsonPath(tt.source), jsonutils.NewJsonPath(tt.destination))

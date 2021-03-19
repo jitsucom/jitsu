@@ -16,3 +16,7 @@ func IsDirWritable(dir string) bool {
 	os.Remove(testFile)
 	return true
 }
+
+func EnsureDir(dir string) error {
+	return os.MkdirAll(dir, 0766)
+}

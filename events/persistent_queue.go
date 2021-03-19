@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/metrics"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/joncrlsn/dque"
 	"time"
@@ -27,16 +28,19 @@ func QueuedFactBuilder() interface{} {
 }
 
 type PersistentQueue struct {
-	queue *dque.DQue
+	queue      *dque.DQue
+	identifier string
 }
 
-func NewPersistentQueue(queueName, fallbackDir string) (*PersistentQueue, error) {
+func NewPersistentQueue(identifier, queueName, fallbackDir string) (*PersistentQueue, error) {
 	queue, err := dque.NewOrOpen(queueName, fallbackDir, eventsPerPersistedFile, QueuedFactBuilder)
 	if err != nil {
 		return nil, fmt.Errorf("Error opening/creating event queue [%s] in dir [%s]: %v", queueName, fallbackDir, err)
 	}
 
-	return &PersistentQueue{queue: queue}, nil
+	metrics.InitialStreamEventsQueueSize(identifier, queue.Size())
+
+	return &PersistentQueue{queue: queue, identifier: identifier}, nil
 }
 
 func (pq *PersistentQueue) Consume(f map[string]interface{}, tokenId string) {
@@ -54,6 +58,8 @@ func (pq *PersistentQueue) ConsumeTimed(f map[string]interface{}, t time.Time, t
 		logSkippedEvent(f, fmt.Errorf("Error putting event event bytes to the persistent queue: %v", err))
 		return
 	}
+
+	metrics.EnqueuedEvent(pq.identifier)
 }
 
 func (pq *PersistentQueue) DequeueBlock() (Event, time.Time, string, error) {
@@ -64,6 +70,8 @@ func (pq *PersistentQueue) DequeueBlock() (Event, time.Time, string, error) {
 		}
 		return nil, time.Time{}, "", err
 	}
+
+	metrics.DequeuedEvent(pq.identifier)
 
 	wrappedFact, ok := iface.(*QueuedEvent)
 	if !ok || len(wrappedFact.FactBytes) == 0 {

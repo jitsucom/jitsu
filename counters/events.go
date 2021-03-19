@@ -6,7 +6,9 @@ import (
 	"time"
 )
 
-var eventsInstance *Events
+var (
+	eventsInstance *Events
+)
 
 type Events struct {
 	storage meta.Storage
@@ -16,13 +18,23 @@ func InitEvents(storage meta.Storage) {
 	eventsInstance = &Events{storage: storage}
 }
 
-func SuccessEvents(destinationId string, value int) {
+func SuccessSourceEvents(sourceId string, value int) {
 	if eventsInstance == nil {
-		logging.Warnf("Counters instance isn't configured!")
 		return
 	}
 
-	err := eventsInstance.storage.SuccessEvents(destinationId, time.Now().UTC(), value)
+	err := eventsInstance.storage.SuccessEvents(sourceId, meta.SourceNamespace, time.Now().UTC(), value)
+	if err != nil {
+		logging.SystemErrorf("Error updating success events counter source [%s] value [%d]: %v", sourceId, value, err)
+	}
+}
+
+func SuccessEvents(destinationId string, value int) {
+	if eventsInstance == nil {
+		return
+	}
+
+	err := eventsInstance.storage.SuccessEvents(destinationId, meta.DestinationNamespace, time.Now().UTC(), value)
 	if err != nil {
 		logging.SystemErrorf("Error updating success events counter destination [%s] value [%d]: %v", destinationId, value, err)
 	}
@@ -30,12 +42,22 @@ func SuccessEvents(destinationId string, value int) {
 
 func ErrorEvents(destinationId string, value int) {
 	if eventsInstance == nil {
-		logging.Warnf("Counters instance isn't configured!")
 		return
 	}
 
-	err := eventsInstance.storage.ErrorEvents(destinationId, time.Now().UTC(), value)
+	err := eventsInstance.storage.ErrorEvents(destinationId, meta.DestinationNamespace, time.Now().UTC(), value)
 	if err != nil {
 		logging.SystemErrorf("Error updating error events counter destination [%s] value [%d]: %v", destinationId, value, err)
+	}
+}
+
+func SkipEvents(destinationId string, value int) {
+	if eventsInstance == nil {
+		return
+	}
+
+	err := eventsInstance.storage.SkipEvents(destinationId, meta.DestinationNamespace, time.Now().UTC(), value)
+	if err != nil {
+		logging.SystemErrorf("Error updating skipped events counter destination [%s] value [%d]: %v", destinationId, value, err)
 	}
 }

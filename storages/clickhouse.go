@@ -2,6 +2,8 @@ package storages
 
 import (
 	"fmt"
+	"math/rand"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
@@ -9,7 +11,6 @@ import (
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
-	"math/rand"
 )
 
 //Store files to ClickHouse in two modes:
@@ -61,7 +62,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 		}
 
 		chAdapters = append(chAdapters, adapter)
-		tableHelpers = append(tableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse))
+		tableHelpers = append(tableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse, config.streamMode))
 	}
 
 	ch := &ClickHouse{
@@ -262,6 +263,11 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 	}
 
 	return rowsCount, nil
+}
+
+func (ch *ClickHouse) Update(object map[string]interface{}) error {
+	_, err := ch.SyncStore(nil, []map[string]interface{}{object}, "")
+	return err
 }
 
 func (ch *ClickHouse) GetUsersRecognition() *UserRecognitionConfiguration {

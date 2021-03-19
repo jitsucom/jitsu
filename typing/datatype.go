@@ -3,9 +3,10 @@ package typing
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/eventnative/logging"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/eventnative/logging"
 )
 
 type DataType int
@@ -99,6 +100,21 @@ func ReformatValue(v interface{}) interface{} {
 		return v
 	}
 	return interface{}(intValue)
+}
+
+// ReformatTimeValue processes string with ISO DateTime into time.Time
+func ReformatTimeValue(value interface{}) interface{} {
+	stringValue, ok := value.(string)
+	if !ok {
+		return value
+	}
+
+	timeValue, err := time.Parse(time.RFC3339Nano, stringValue)
+	if err == nil {
+		return timeValue
+	}
+
+	return value
 }
 
 //TypeFromValue return DataType from v type

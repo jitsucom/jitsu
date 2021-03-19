@@ -2,6 +2,8 @@ package storages
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
@@ -9,7 +11,6 @@ import (
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/parsers"
 	"github.com/jitsucom/eventnative/schema"
-	"time"
 )
 
 //Store files to Postgres in two modes:
@@ -23,8 +24,8 @@ type Postgres struct {
 	streamingWorker               *StreamingWorker
 	fallbackLogger                *logging.AsyncLogger
 	eventsCache                   *caching.EventsCache
-	staged                        bool
 	usersRecognitionConfiguration *UserRecognitionConfiguration
+	staged                        bool
 }
 
 func NewPostgres(config *Config) (Storage, error) {
@@ -59,7 +60,7 @@ func NewPostgres(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres)
+	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres, config.streamMode)
 
 	p := &Postgres{
 		name:                          config.name,
@@ -216,6 +217,11 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 	}
 
 	return rowsCount, nil
+}
+
+func (p *Postgres) Update(object map[string]interface{}) error {
+	_, err := p.SyncStore(nil, []map[string]interface{}{object}, "")
+	return err
 }
 
 //Insert event in Postgres (1 retry if error)

@@ -17,10 +17,15 @@ type Lock interface {
 
 type MonitorKeeper interface {
 	io.Closer
-	//system: [source_id, destination_id], collection: [collectionName, tableName]
+	//system values: [source_id, destination_id], collection values: [collectionName, tableName]
 
+	//wait if lock acquired
 	Lock(system string, collection string) (Lock, error)
+	//err if lock acquired
+	TryLock(system string, collection string) (Lock, error)
 	Unlock(lock Lock) error
+
+	IsLocked(system string, collection string) (bool, error)
 
 	GetVersion(system string, collection string) (int64, error)
 	IncrementVersion(system string, collection string) (int64, error)

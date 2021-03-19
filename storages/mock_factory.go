@@ -25,7 +25,7 @@ func NewMockFactory() Factory {
 func (mf *MockFactory) Create(name string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error) {
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == StreamMode {
-		eventQueue, _ = events.NewPersistentQueue(name, "/tmp")
+		eventQueue, _ = events.NewPersistentQueue(name, name, "/tmp")
 	}
 	return &testProxyMock{}, eventQueue, nil
 }

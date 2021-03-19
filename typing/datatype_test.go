@@ -2,9 +2,11 @@ package typing
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/require"
 	"reflect"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestDataTypeValues(t *testing.T) {
@@ -277,6 +279,93 @@ func TestReformat(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actual := ReformatValue(tt.input)
+			if tt.expectedType != "" {
+				require.Equal(t, tt.expectedType, reflect.TypeOf(actual).String(), "types aren't equal")
+			}
+		})
+	}
+}
+
+func TestReformatTimeValue(t *testing.T) {
+	tests := []struct {
+		name         string
+		input        interface{}
+		expectedType string
+	}{
+		{
+			"Unknown nil",
+			nil,
+			"",
+		},
+		{
+			"Any string",
+			"Some string",
+			"string",
+		},
+		{
+			"Current time",
+			time.Now(),
+			"time.Time",
+		},
+		{
+			"ISO time 0",
+			"2021-03-05T20:21:03Z",
+			"time.Time",
+		},
+		{
+			"ISO time 1",
+			"2021-03-05T20:21:03.1Z",
+			"time.Time",
+		},
+		{
+			"ISO time 2",
+			"2021-03-05T20:21:03.12Z",
+			"time.Time",
+		},
+		{
+			"ISO time 3",
+			"2021-03-05T20:21:03.123Z",
+			"time.Time",
+		},
+		{
+			"ISO time 4",
+			"2021-03-05T20:21:03.1234Z",
+			"time.Time",
+		},
+		{
+			"ISO time 5",
+			"2021-03-05T20:21:03.12345Z",
+			"time.Time",
+		},
+		{
+			"ISO time 6",
+			"2021-03-05T20:21:03.123456Z",
+			"time.Time",
+		},
+		{
+			"ISO time 7",
+			"2021-03-05T20:21:03.1234567Z",
+			"time.Time",
+		},
+		{
+			"ISO time 8",
+			"2021-03-05T20:21:03.12345678Z",
+			"time.Time",
+		},
+		{
+			"ISO time 9",
+			"2021-03-05T20:21:03.123456789Z",
+			"time.Time",
+		},
+		{
+			"Not ISO time",
+			"2021-03-05T20:21:03.1234567898Z",
+			"string",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			actual := ReformatTimeValue(tt.input)
 			if tt.expectedType != "" {
 				require.Equal(t, tt.expectedType, reflect.TypeOf(actual).String(), "types aren't equal")
 			}

@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
@@ -38,7 +39,7 @@ func NewFacebook(config *Config) (Storage, error) {
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
 	fbAdapter := adapters.NewFacebookConversion(fbConfig, requestDebugLogger)
 
-	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion)
+	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion, config.streamMode)
 
 	fb := &Facebook{
 		name:           config.name,
@@ -74,6 +75,10 @@ func (fb *Facebook) StoreWithParseFunc(fileName string, payload []byte, skipTabl
 
 func (fb *Facebook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
 	return 0, errors.New("Facebook Conversion doesn't support SyncStore() func")
+}
+
+func (fb *Facebook) Update(object map[string]interface{}) error {
+	return errors.New("Facebook doesn't support updates")
 }
 
 func (fb *Facebook) GetUsersRecognition() *UserRecognitionConfiguration {
