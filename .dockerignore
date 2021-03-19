@@ -1,0 +1,8 @@
+.idea/
+server/web/node_modules
+server/build
+configurator/frontend/node_modules
+configurator/frontend/build
+configurator/frontend/src/config
+configurator/frontend/build
+configurator/backend/build

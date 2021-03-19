@@ -18,14 +18,14 @@ FROM main as jsbuilder
 RUN apk add git make npm yarn
 
 # Install yarn dependencies
-ADD configurator/frontend/package.json /app/packange.json
+ADD configurator/frontend/package.json /app/package.json
 
 WORKDIR /app
 
 RUN yarn install
 
 # Copy project
-ADD configurator/frontend/. .
+ADD configurator/frontend/. ./
 
 # Build
 RUN yarn build
