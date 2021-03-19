@@ -5,10 +5,11 @@ import ComponentTest from './lib/components/componentTest';
 
 import { routes as sourcesPageRoutes } from '@page/SourcesPage/routes';
 import { useLocation } from 'react-router-dom';
+import { destinationPageRoutes } from "@page/DestinationsPage/DestinationsPage.routes";
 
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
-const DestinationsList = React.lazy(() => import('./lib/components/DestinationsEditor/DestinationsList'));
+const DestinationsPage = React.lazy(() => import('@page/DestinationsPage/DestinationsPage'));
 const EventsStream = React.lazy(() => import('./lib/components/EventsStream/EventsStream'));
 const LoginForm = React.lazy(() => import('./lib/components/LoginForm/LoginForm'));
 const SetupForm = React.lazy(() => import('@page/SetupPage/SetupForm'));
@@ -89,8 +90,8 @@ export const PRIVATE_PAGES: Page[] = [
   new Page('Jitsu | dashboard', ['/dashboard', ''], StatusPage, 'Dashboard'),
   new Page(
       'Jitsu | edit destinations',
-      '/destinations',
-      DestinationsList,
+    Object.values(destinationPageRoutes),
+    DestinationsPage,
       'Edit destinations'
   ),
   new Page(

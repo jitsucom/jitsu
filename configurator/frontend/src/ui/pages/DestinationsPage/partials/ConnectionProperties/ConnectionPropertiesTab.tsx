@@ -24,4 +24,5 @@ export function ConnectionPropertiesTab(props: ConnectionPropertiesTabProps) {
   </div>
 }
 
+
 export default ConnectionPropertiesTab;

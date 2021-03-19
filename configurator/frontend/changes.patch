@@ -1,0 +1,3614 @@
+diff --git a/craco.config.js b/craco.config.js
+index 67e20d0..00444a7 100644
+--- a/craco.config.js
++++ b/craco.config.js
+@@ -33,6 +33,7 @@ module.exports = {
+       /**
+        * Once alias added here, it should be added to tsconfig.paths.json as well
+        */
++      '@.': path.resolve(__dirname, './src/'),
+       '@atom': path.resolve(__dirname, './src/ui/components/atom'),
+       '@molecule': path.resolve(__dirname, './src/ui/components/molecule'),
+       '@page': path.resolve(__dirname, './src/ui/pages')
+diff --git a/package.json b/package.json
+index 597d4e1..34e777e 100644
+--- a/package.json
++++ b/package.json
+@@ -12,6 +12,7 @@
+     "@types/node": "^12.0.0",
+     "@types/react": "^17.0.0",
+     "@types/react-dom": "^17.0.0",
++    "@types/react-router-dom": "^5.1.7",
+     "antd": "^4.13.1",
+     "axios": "^0.21.1",
+     "classnames": "^2.2.6",
+diff --git a/src/App.less b/src/App.less
+index af35460..283f2c7 100644
+--- a/src/App.less
++++ b/src/App.less
+@@ -12,6 +12,14 @@ body {
+   min-height: 100%;
+ }
+ 
++*,
++::before,
++::after {
++  border-width: 0;
++  border-style: solid;
++  border-color: @splitBorder;
++}
++
+ .app-layout-header, .app-layout-content, .app-layout-root, .app-layout-header-and-content {
+   padding: 0;
+ }
+diff --git a/src/lib/commons/useLoader.ts b/src/lib/commons/useLoader.ts
+new file mode 100644
+index 0000000..bd2ff4b
+--- /dev/null
++++ b/src/lib/commons/useLoader.ts
+@@ -0,0 +1,43 @@
++import { Dispatch, SetStateAction, useEffect, useState } from "react";
++
++export type Loader<T> = () => Promise<T>;
++
++/**
++ * React hook for loading the data from remote component. Use it like this:
++ * ```tsx
++ * function TestComponent() {
++ *   const [error, data] = useLoader(async () => {
++ *     return await getData();
++ *   });
++ *
++ *   if (error) {
++ *     return <ErrorComponent />
++ *   } else if (!data) {
++ *     return <LoadingComponent />
++ *   }
++ *   //main component render
++ * }
++ * ```
++ * TODO: implement loader chaining e.g. useLoader(loader1, loader2)
++ *
++ *
++ */
++function useLoader<T>(loader: Loader<T>): [Error, T, Dispatch<SetStateAction<T>>] {
++  const [data, setData] = useState(undefined);
++  const [error, setError] = useState(undefined);
++  const loaderWrapper = async() => {
++    try {
++      setData(await loader())
++    } catch (e) {
++      setError(e)
++    }
++  }
++  useEffect(() => {
++    loaderWrapper();
++  }, [])
++  return [error, data, setData];
++}
++
++
++export default useLoader;
++export { useLoader };
+\ No newline at end of file
+diff --git a/src/lib/commons/utils.test.ts b/src/lib/commons/utils.test.ts
+index 8922652..ea465fd 100644
+--- a/src/lib/commons/utils.test.ts
++++ b/src/lib/commons/utils.test.ts
+@@ -1,13 +1,4 @@
+-import { IndexedList, numberFormat } from './utils';
+-
+-test('indexedList', () => {
+-  let indexedList = new IndexedList<string>((str) => (str.length > 0 ? str[0] : ''));
+-  indexedList.push('12', '34', '45');
+-  expect(indexedList.toArray()).toStrictEqual(['12', '34', '45']);
+-  expect(indexedList.remove('3')).toBeDefined();
+-  expect(indexedList.toArray()).toStrictEqual(['12', '45']);
+-  expect(() => indexedList.push('13')).toThrow(Error);
+-});
++import { numberFormat } from './utils';
+ 
+ test('numberFormat', () => {
+   expect(numberFormat(1000)).toBe('1,000');
+diff --git a/src/lib/commons/utils.ts b/src/lib/commons/utils.ts
+index 94b16eb..de19f00 100644
+--- a/src/lib/commons/utils.ts
++++ b/src/lib/commons/utils.ts
+@@ -60,62 +60,6 @@ export function randomId(len?: number) {
+   return len ? str.substr(0, len) : str;
+ }
+ 
+-/**
+- *
+- */
+-export class IndexedList<T> {
+-  private readonly indexF: (T) => string;
+-  private index: Record<string, number>;
+-  private list: T[];
+-
+-  constructor(indexF: (T) => string);
+-  constructor(indexF: (T) => string, ...items: T[]) {
+-    this.indexF = indexF;
+-    this.index = {};
+-    this.list = [];
+-    items.forEach((item) => this.pushSingle(item));
+-  }
+-
+-  public toArray(): T[] {
+-    return this.list;
+-  }
+-
+-  public pushSingle(item: T): void {
+-    let key = this.indexF(item);
+-    if (this.index[key] !== undefined) {
+-      throw new Error('Duplicate key ' + key);
+-    }
+-    this.list.push(item);
+-    this.index[key] = this.list.length - 1;
+-  }
+-
+-  public push(...items: T[]): IndexedList<T> {
+-    items.forEach((item) => this.pushSingle(item));
+-    return this;
+-  }
+-
+-  public remove(key: string): T {
+-    let index = this.index[key];
+-    if (index === undefined) {
+-      return undefined;
+-    } else {
+-      delete this.index[key];
+-      let result = this.list[index];
+-      this.list = this.list.filter((item, i) => i != index);
+-      return result;
+-    }
+-  }
+-  public addOrUpdate(item: T): IndexedList<T> {
+-    let existingIndex = this.index[this.indexF(item)];
+-    if (existingIndex === undefined) {
+-      this.push(item);
+-    } else {
+-      this.list[existingIndex] = item;
+-    }
+-    return this;
+-  }
+-}
+-
+ type INumberFormatOpts = {};
+ 
+ type Formatter = (val: any) => string;
+diff --git a/src/lib/components/DestinationsEditor/DestinationsList.tsx b/src/lib/components/DestinationsEditor/DestinationsList.tsx
+deleted file mode 100644
+index c548e02..0000000
+--- a/src/lib/components/DestinationsEditor/DestinationsList.tsx
++++ /dev/null
+@@ -1,1331 +0,0 @@
+-/* eslint-disable */
+-import * as React from 'react';
+-import { ReactNode, useState } from 'react';
+-import {
+-  BQConfig,
+-  ClickHouseConfig,
+-  DestinationConfig,
+-  destinationConfigTypes,
+-  destinationsByTypeId,
+-  FacebookConversionConfig,
+-  GoogleAnalyticsConfig,
+-  PostgresConfig,
+-  RedshiftConfig,
+-  SnowflakeConfig
+-} from '../../services/destinations';
+-import {
+-  Avatar,
+-  Button,
+-  Col,
+-  Divider,
+-  Dropdown,
+-  Form,
+-  Input,
+-  List,
+-  Menu,
+-  message,
+-  Modal,
+-  Popover,
+-  Radio,
+-  Row,
+-  Select,
+-  Switch,
+-  Tooltip
+-} from 'antd';
+-
+-import ColumnWidthOutlined from '@ant-design/icons/lib/icons/ColumnWidthOutlined';
+-import DatabaseOutlined from '@ant-design/icons/lib/icons/DatabaseOutlined';
+-import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
+-import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
+-import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
+-import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
+-import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
+-import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
+-
+-import './DestinationEditor.less';
+-import {
+-  ActionLink,
+-  Align,
+-  CodeInline,
+-  CodeSnippet,
+-  handleError,
+-  LabelWithTooltip,
+-  LoadableComponent
+-} from '../components';
+-import ApplicationServices from '../../services/ApplicationServices';
+-import { copyToClipboard, firstToLower, IndexedList } from '../../commons/utils';
+-import Marshal from '../../commons/marshalling';
+-import { Option } from 'antd/es/mentions';
+-import { FieldMappings, Mapping } from '../../services/mappings';
+-import { MappingEditor } from './MappingEditor';
+-import Icon from '@ant-design/icons';
+-import { EditableList } from '../EditableList/EditableList';
+-
+-const AWS_ZONES = [
+-  'us-east-2',
+-  'us-east-1',
+-  'us-west-1',
+-  'us-west-2',
+-  'ap-south-1',
+-  'ap-northeast-3',
+-  'ap-northeast-2',
+-  'ap-southeast-1',
+-  'ap-southeast-2',
+-  'ap-northeast-1',
+-  'ca-central-1',
+-  'cn-north-1',
+-  'cn-northwest-1',
+-  'eu-central-1',
+-  'eu-west-1',
+-  'eu-west-2',
+-  'eu-south-1',
+-  'eu-west-3',
+-  'eu-north-1',
+-  'me-south-1',
+-  'sa-east-1',
+-  'us-gov-east-1',
+-  'us-gov-west-1'
+-];
+-
+-type State = {
+-  destinations?: IndexedList<DestinationConfig>;
+-  activeEditorConfig?: DestinationConfig;
+-  activeMapping?: FieldMappings;
+-};
+-
+-const SERIALIZABLE_CLASSES = [
+-  DestinationConfig,
+-  PostgresConfig,
+-  ClickHouseConfig,
+-  RedshiftConfig,
+-  FieldMappings,
+-  Mapping,
+-  SnowflakeConfig,
+-  BQConfig,
+-  GoogleAnalyticsConfig,
+-  FacebookConversionConfig
+-];
+-
+-export default class DestinationsList extends LoadableComponent<any, State> {
+-  private services: ApplicationServices;
+-
+-  constructor(props: Readonly<any>, context: any) {
+-    super(props, context);
+-    this.services = ApplicationServices.get();
+-  }
+-
+-  private newDestinationsList(items?: DestinationConfig[]) {
+-    let list = new IndexedList<DestinationConfig>((config: DestinationConfig) => config.id);
+-    items.forEach((item) => list.push(item));
+-    return list;
+-  }
+-
+-  protected async load() {
+-    let destinations = await this.services.storageService.get('destinations', this.services.activeProject.id);
+-    return {
+-      destinations: this.newDestinationsList(
+-        destinations && destinations.destinations
+-          ? Marshal.newInstance(destinations.destinations, SERIALIZABLE_CLASSES)
+-          : []
+-      ),
+-      loading: false
+-    };
+-  }
+-
+-  destinationComponent(config: DestinationConfig): ReactNode {
+-    let onClick = () => this.delete(config);
+-    let onMappings = () => {
+-      this.setState({
+-        activeMapping: config.mappings ? config.mappings : new FieldMappings([], true),
+-        activeEditorConfig: config
+-      });
+-    };
+-    let onEdit = () => {
+-      let destinationType = destinationsByTypeId[config.type];
+-      if (dialogsByType[config.type]) {
+-        this.setState({
+-          activeEditorConfig: config
+-        });
+-      } else {
+-        Modal.warning({
+-          title: 'Not supported',
+-          content: destinationType.name + ' destination is not supported yet'
+-        });
+-      }
+-    };
+-
+-    let description = config.describe();
+-    let descriptionComponent;
+-    if (!description.commandLineConnect) {
+-      descriptionComponent = description.displayURL;
+-    } else {
+-      let codeSnippet;
+-      if (description.commandLineConnect.indexOf('\n') < 0) {
+-        codeSnippet = (
+-          <>
+-            <div>
+-              <CodeInline>{description.commandLineConnect}</CodeInline>
+-            </div>
+-            <Align horizontal="right">
+-              <ActionLink
+-                onClick={() => {
+-                  copyToClipboard(description.commandLineConnect);
+-                  message.info('Command copied to clipboard', 2);
+-                }}
+-              >
+-                Copy command to clipboard
+-              </ActionLink>
+-            </Align>
+-          </>
+-        );
+-      } else {
+-        codeSnippet = (
+-          <>
+-            <CodeSnippet className="destinations-list-multiline-code" language="bash">
+-              {description.commandLineConnect}
+-            </CodeSnippet>
+-          </>
+-        );
+-      }
+-      descriptionComponent = (
+-        <>
+-          <Popover
+-            placement="topLeft"
+-            content={
+-              <>
+-                <h4>
+-                  <b>Use following command to connect to DB and run a test query:</b>
+-                </h4>
+-                {codeSnippet}
+-              </>
+-            }
+-            trigger="click"
+-          >
+-            <span className="destinations-list-show-connect-command">{description.displayURL}</span>
+-          </Popover>
+-        </>
+-      );
+-    }
+-
+-    return (
+-      <List.Item
+-        key={config.id}
+-        actions={[
+-          <Button icon={<ColumnWidthOutlined />} key="edit" shape="round" onClick={onMappings}>
+-            Mappings
+-          </Button>,
+-          <Button icon={<EditOutlined />} key="edit" shape="round" onClick={onEdit}>
+-            Edit
+-          </Button>,
+-          <Button icon={<DeleteOutlined />} key="delete" shape="round" onClick={onClick}>
+-            Delete
+-          </Button>
+-        ]}
+-        className="destination-list-item"
+-      >
+-        <List.Item.Meta
+-          avatar={<Avatar shape="square" src={DestinationsList.getIconSrc(config.type)} />}
+-          title={this.getTitle(config)}
+-          description={
+-            <>
+-              {descriptionComponent}
+-              <br />
+-              mode: {config.mode}
+-            </>
+-          }
+-        />
+-      </List.Item>
+-    );
+-  }
+-
+-  private getTitle(config: DestinationConfig): ReactNode {
+-    let configTitle = config.connectionTestOk ? (
+-      config.id
+-    ) : (
+-      <Tooltip
+-        trigger={['click', 'hover']}
+-        title={
+-          <>
+-            Last connection test failed with{' '}
+-            <b>
+-              <i>'{config.connectionErrorMessage}'</i>
+-            </b>
+-            . Destination might be not accepting data. Please, go to editor and fix the connection settings
+-          </>
+-        }
+-      >
+-        <span className="destinations-list-failed-connection">
+-          <b>!</b> {config.id}
+-        </span>
+-      </Tooltip>
+-    );
+-    if (config.comment) {
+-      return <LabelWithTooltip documentation={config.comment}>{configTitle}</LabelWithTooltip>;
+-    } else {
+-      return configTitle;
+-    }
+-  }
+-
+-  private static getIconSrc(destinationType: string): any {
+-    try {
+-      const icon = require('../../../icons/destinations/' + destinationType + '.svg');
+-      console.log("Icon", icon)
+-      return icon.default;
+-    } catch (e) {
+-      console.log('Icon for ' + destinationType + ' is not found');
+-      return null;
+-    }
+-  }
+-
+-  static getIcon(destinationType: string): any {
+-    let src = this.getIconSrc(destinationType);
+-    return src ? <img src={src} className="destination-type-icon" alt="[destination]" /> : <DatabaseOutlined />;
+-  }
+-
+-  renderReady() {
+-    let componentList = [
+-      <List key="list" className="destinations-list" itemLayout="horizontal" header={this.addButton()} split={true}>
+-        {this.state.destinations.toArray().map((config) => this.destinationComponent(config))}
+-      </List>
+-    ];
+-
+-    if (this.state.activeMapping) {
+-      componentList.push(
+-        <MappingEditor
+-          key="mapping-editor"
+-          entity={this.state.activeMapping}
+-          onChange={async (newMapping) => {
+-            this.state.activeEditorConfig.mappings = newMapping;
+-            await this.saveCurrentDestinations();
+-          }}
+-          closeDialog={() => {
+-            this.setState({ activeMapping: null, activeEditorConfig: null });
+-          }}
+-        />
+-      );
+-    } else if (this.state.activeEditorConfig) {
+-      componentList.push(
+-        <DestinationsEditorModal
+-          key="active-modal"
+-          config={this.state.activeEditorConfig}
+-          onCancel={() => this.setState({ activeEditorConfig: null })}
+-          testConnection={async (values) => {
+-            this.state.activeEditorConfig.update(values);
+-            await this.services.backendApiClient.post(
+-              '/destinations/test',
+-              Marshal.toPureJson(this.state.activeEditorConfig)
+-            );
+-            return values;
+-          }}
+-          onSave={(formValues, connectionTestResult) => {
+-            this.state.activeEditorConfig.update(formValues);
+-            this.state.activeEditorConfig.setConnectionTestResult(connectionTestResult);
+-            this.state.activeEditorConfig.trim();
+-            this.state.destinations.addOrUpdate(this.state.activeEditorConfig);
+-            if (this.saveCurrentDestinations()) {
+-              if (connectionTestResult) {
+-                message.warn(
+-                  `Destination has been saved, but test has failed with '${firstToLower(
+-                    connectionTestResult
+-                  )}'. Data will not be piped to this destination`,
+-                  10
+-                );
+-              } else {
+-                message.success('Destination has been saved');
+-              }
+-            }
+-          }}
+-        />
+-      );
+-    }
+-    return <>{componentList}</>;
+-  }
+-
+-  private async saveCurrentDestinations(): Promise<boolean> {
+-    let payload = { destinations: this.state.destinations.toArray() };
+-    try {
+-      await this.services.storageService.save('destinations', payload, this.services.activeProject.id);
+-    } catch (e) {
+-      message.error('Interval error, destination has not been saved!', 10);
+-      return false;
+-    }
+-
+-    this.setState({
+-      destinations: this.state.destinations,
+-      activeEditorConfig: null,
+-      activeMapping: null
+-    });
+-    return true;
+-  }
+-
+-  private addButton() {
+-    return (
+-      <Dropdown trigger={['click']} overlay={this.addMenu()}>
+-        <Button type="primary" icon={<PlusOutlined />}>
+-          Add destination
+-        </Button>
+-      </Dropdown>
+-    );
+-  }
+-
+-  addMenu() {
+-    return (
+-      <Menu className="destinations-list-add-menu">
+-        {destinationConfigTypes.map((type) => (
+-          <Menu.Item
+-            key={type.name}
+-            icon={
+-              <Icon
+-                component={() => (
+-                  <img
+-                    height={16}
+-                    width={16}
+-                    src={DestinationsList.getIconSrc(type.type)}
+-                    className="destination-type-icon"
+-                    alt="[destination]"
+-                  />
+-                )}
+-              />
+-            }
+-            onClick={() => this.addDestination(type.type)}
+-          >
+-            Add {type.name}
+-          </Menu.Item>
+-        ))}
+-      </Menu>
+-    );
+-  }
+-
+-  public delete(config: DestinationConfig) {
+-    Modal.confirm({
+-      title: 'Please confirm deletion of destination',
+-      icon: <ExclamationCircleOutlined />,
+-      content: 'Are you sure you want to delete ' + config.id + ' destination?',
+-      okText: 'Delete',
+-      cancelText: 'Cancel',
+-      onOk: () => {
+-        this.state.destinations.remove(config.id);
+-        this.saveCurrentDestinations();
+-      },
+-      onCancel: () => {}
+-    });
+-  }
+-
+-  private addDestination(type: string) {
+-    let destinationType = destinationsByTypeId[type];
+-    if (dialogsByType[type]) {
+-      this.setState({
+-        activeEditorConfig: destinationType.factory(this.pickId(type))
+-      });
+-    } else {
+-      Modal.warning({
+-        title: 'Not supported',
+-        content: destinationType.name + ' destination is not supported yet'
+-      });
+-    }
+-    return;
+-  }
+-
+-  private pickId(type) {
+-    let id = type;
+-    let baseId = type;
+-    let counter = 1;
+-    while (this.state.destinations.toArray().find((el) => el.id == id) !== undefined) {
+-      id = baseId + counter;
+-      counter++;
+-    }
+-    return id;
+-  }
+-}
+-
+-type IDestinationDialogProps<T extends DestinationConfig> = {
+-  initialConfigValue: T;
+-  form: any;
+-};
+-
+-type IDestinationDialogState<T extends DestinationConfig> = {
+-  currentValue: T;
+-};
+-
+-abstract class DestinationDialog<T extends DestinationConfig> extends React.Component<
+-  IDestinationDialogProps<T>,
+-  IDestinationDialogState<T>
+-> {
+-  constructor(props: Readonly<IDestinationDialogProps<T>> | IDestinationDialogProps<T>) {
+-    super(props);
+-    this.state = {
+-      currentValue: props.initialConfigValue
+-    };
+-  }
+-
+-  protected getDefaultMode(): string {
+-    return null;
+-  }
+-
+-  protected isTableNameSupported(): boolean {
+-    return true;
+-  }
+-
+-  public render() {
+-    let tableName = (
+-      <>
+-        Table name can be either constant (in that case all events will be written into the same table) or can be an
+-        event filter{' '}
+-        <a
+-          target="_blank"
+-          rel="noopener"
+-          href={'https://docs.eventnative.org/configuration-1/configuration/table-names-and-filters'}
+-        >
+-          Read more
+-        </a>
+-      </>
+-    );
+-    let modeValues;
+-    if (this.getDefaultMode() == null) {
+-      modeValues = (
+-        <>
+-          <Radio.Button value="stream">Streaming</Radio.Button>
+-          <Radio.Button value="batch">Batch</Radio.Button>
+-        </>
+-      );
+-    } else if (this.getDefaultMode() == 'stream') {
+-      modeValues = <Radio.Button value="stream">Streaming</Radio.Button>;
+-    } else {
+-      modeValues = <Radio.Button value="batch">Batch</Radio.Button>;
+-    }
+-
+-    let tableNameItem;
+-    if (this.isTableNameSupported()) {
+-      tableNameItem = (
+-        <Form.Item
+-          label={<LabelWithTooltip documentation={tableName}>Table Name</LabelWithTooltip>}
+-          name="tableName"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          required={true}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-      );
+-    }
+-
+-    return (
+-      <Form layout="horizontal" form={this.props.form} initialValues={this.state.currentValue.formData}>
+-        <Form.Item label="Mode" name="mode" labelCol={{ span: 4 }} wrapperCol={{ span: 18 }}>
+-          <Radio.Group optionType="button" buttonStyle="solid" onChange={() => this.refreshStateFromForm()}>
+-            {modeValues}
+-          </Radio.Group>
+-        </Form.Item>
+-
+-        {tableNameItem}
+-        {this.items()}
+-      </Form>
+-    );
+-  }
+-
+-  public getCurrentConfig(): T {
+-    return this.state.currentValue;
+-  }
+-
+-  public abstract items(): ReactNode;
+-
+-  public refreshStateFromForm() {
+-    this.state.currentValue.update(this.props.form.getFieldsValue());
+-    this.forceUpdate();
+-  }
+-}
+-
+-type IDestinationEditorModalProps = {
+-  config: DestinationConfig;
+-  onCancel: () => void;
+-  /**
+-   * @param connectionTestResult null if connection has been tested sucesfully, or error message test failed
+-   */
+-  onSave: (values: any, connectionTestResult: string) => void;
+-  testConnection: (values: any) => Promise<any>;
+-};
+-
+-function DestinationsEditorModal({ config, onCancel, onSave, testConnection }: IDestinationEditorModalProps) {
+-  let configType = destinationsByTypeId[(config as DestinationConfig).type];
+-  const [saving, setSaving] = useState(false);
+-
+-  const [connectionTesting, setConnectionTesting] = useState(false);
+-
+-  let title = (
+-    <h1 className="destination-modal-header">
+-      {DestinationsList.getIcon((config as DestinationConfig).type)}Edit {configType.name} connection
+-    </h1>
+-  );
+-  const [form] = Form.useForm();
+-  return (
+-    <Modal
+-      closable={true}
+-      keyboard={true}
+-      maskClosable={true}
+-      width="70%"
+-      className="destinations-editor-modal"
+-      title={title}
+-      visible={true}
+-      onCancel={onCancel}
+-      footer={
+-        <>
+-          <Button
+-            className="destination-connection-test"
+-            loading={connectionTesting}
+-            onClick={async () => {
+-              setConnectionTesting(true);
+-              let values;
+-              try {
+-                values = await form.validateFields();
+-              } catch (e) {
+-                setConnectionTesting(false);
+-                //no need for special handling, error will be displayed within the field
+-                return;
+-              }
+-              try {
+-                await testConnection(values);
+-                message.success('Successfully connected!');
+-              } catch (error) {
+-                handleError(error, 'Failed to validate connection');
+-              } finally {
+-                setConnectionTesting(false);
+-              }
+-            }}
+-          >
+-            Test connection
+-          </Button>
+-          <Button onClick={onCancel}>Close</Button>
+-          <Button
+-            type="primary"
+-            loading={saving}
+-            onClick={async () => {
+-              setSaving(true);
+-              let values;
+-              try {
+-                values = await form.validateFields();
+-              } catch (error) {
+-                setSaving(false);
+-                //no need for special handling, error will be displayed within the field
+-                return;
+-              }
+-              let connectionError = null;
+-              try {
+-                connectionError = await testConnectionResult(async () => await testConnection(values));
+-                onSave(values, connectionError);
+-              } catch (error) {
+-                handleError(error, 'Failed to connect to destination. ' + error.message);
+-              } finally {
+-                setSaving(false);
+-              }
+-            }}
+-          >
+-            Save
+-          </Button>
+-        </>
+-      }
+-    >
+-      {React.createElement(dialogsByType[configType.type], {
+-        initialConfigValue: config,
+-        form: form
+-      })}
+-    </Modal>
+-  );
+-}
+-
+-/**
+- * @return null if connection is ok, and error string if not
+- */
+-async function testConnectionResult(tester: () => Promise<any>): Promise<string> {
+-  try {
+-    await tester();
+-    return null;
+-  } catch (e) {
+-    console.warn('Connection test failed', e);
+-    return e.message || 'Failed to connect';
+-  }
+-}
+-
+-class ClickHouseDialog extends DestinationDialog<ClickHouseConfig> {
+-  isUrlValid(val) {
+-    let res = val.match(/((http(s)?|tcp):\/\/.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)/g);
+-    return res != null;
+-  }
+-
+-  items(): React.ReactNode {
+-    this.state.currentValue.migrateData();
+-    let dsnDocs = (
+-      <>
+-        A list of DSNs (server names). It's recommended to add at least two servers within the cluster for redundancy{' '}
+-        <a href="https://docs.eventnative.org/configuration-1/destination-configuration/clickhouse-destination#clickhouse)">
+-          documentation
+-        </a>
+-      </>
+-    );
+-    let clusterDoc = (
+-      <>
+-        <p>
+-          Cluster name. See{' '}
+-          <a href="https://docs.eventnative.org/configuration-1/destination-configuration/clickhouse-destination#clickhouse)">
+-            documentation
+-          </a>
+-          .
+-        </p>
+-        <p>
+-          Run <CodeInline>SELECT * from system.clusters</CodeInline> to the list of all available clusters
+-        </p>
+-      </>
+-    );
+-    let databaseDoc = (
+-      <>
+-        Database name. See{' '}
+-        <a href="https://docs.eventnative.org/configuration-1/destination-configuration/clickhouse-destination#clickhouse)">
+-          documentation
+-        </a>
+-      </>
+-    );
+-
+-    const dsnValidator = (val) => {
+-      if (val === '') {
+-        return "Value can't be empty";
+-      }
+-      if (!this.isUrlValid(val)) {
+-        return 'URL is not valid should be [tcp|http(s)]://host[:port]?params';
+-      }
+-      return null;
+-    };
+-    return (
+-      <>
+-        <Row>
+-          <Col span={16}>
+-            <Form.Item
+-              label={<LabelWithTooltip documentation={dsnDocs}>Datasources</LabelWithTooltip>}
+-              name="ch_dsns_list"
+-              rules={[
+-                {
+-                  validator: (rule, value, callback) => {
+-                    if (value.filter((val) => dsnValidator(val) != null).length > 0) {
+-                      callback('One of the urls are not valid, see above');
+-                    }
+-                    return Promise.resolve();
+-                  }
+-                }
+-              ]}
+-              labelCol={{ span: 6 }}
+-              wrapperCol={{ span: 18 }}
+-            >
+-              <EditableList newItemLabel="Add new server" validator={dsnValidator} />
+-            </Form.Item>
+-          </Col>
+-        </Row>
+-        <Form.Item
+-          label={<LabelWithTooltip documentation={clusterDoc}>Cluster</LabelWithTooltip>}
+-          rules={[{ required: true, message: 'Cluster name is required' }]}
+-          name="ch_cluster"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label={<LabelWithTooltip documentation={databaseDoc}>Database</LabelWithTooltip>}
+-          rules={[{ required: true, message: 'DB is required' }]}
+-          name="ch_database"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-      </>
+-    );
+-  }
+-}
+-
+-class PostgresDestinationDialog extends DestinationDialog<PostgresConfig> {
+-  constructor(props: Readonly<IDestinationDialogProps<PostgresConfig>> | IDestinationDialogProps<PostgresConfig>) {
+-    super(props);
+-  }
+-
+-  items(): React.ReactNode {
+-    return (
+-      <>
+-        <Row>
+-          <Col span={16}>
+-            <Form.Item
+-              label="Host"
+-              name="pghost"
+-              labelCol={{ span: 6 }}
+-              wrapperCol={{ span: 18 }}
+-              rules={[{ required: true, message: 'Host is required' }]}
+-            >
+-              <Input type="text" />
+-            </Form.Item>
+-          </Col>
+-          <Col span={8}>
+-            <Form.Item
+-              label="Port"
+-              name="pgport"
+-              labelCol={{ span: 6 }}
+-              wrapperCol={{ span: 6 }}
+-              rules={[{ required: true, message: 'Port is required' }]}
+-            >
+-              <Input type="number" />
+-            </Form.Item>
+-          </Col>
+-        </Row>
+-        <Form.Item
+-          label="Schema"
+-          name="pgschema"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Schema is required' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="Database"
+-          name="pgdatabase"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'DB is required' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="Username"
+-          name="pguser"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Username is required' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="Password"
+-          name="pgpassword"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Password is required' }]}
+-        >
+-          <Input.Password
+-            placeholder="input password"
+-            iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+-          />
+-        </Form.Item>
+-      </>
+-    );
+-  }
+-}
+-
+-class GoogleAnalyticsDialog extends DestinationDialog<GoogleAnalyticsConfig> {
+-  constructor(
+-    props: Readonly<IDestinationDialogProps<GoogleAnalyticsConfig>> | IDestinationDialogProps<GoogleAnalyticsConfig>
+-  ) {
+-    super(props);
+-  }
+-
+-  protected getDefaultMode(): string {
+-    return 'stream';
+-  }
+-
+-  protected isTableNameSupported(): boolean {
+-    return true;
+-  }
+-
+-  items(): React.ReactNode {
+-    return (
+-      <>
+-        <Row>
+-          <Col span={16}>
+-            <Form.Item
+-              label="Tracking ID"
+-              name="gaTrackingId"
+-              labelCol={{ span: 6 }}
+-              wrapperCol={{ span: 18 }}
+-              rules={[{ required: true, message: 'Tracking ID is required' }]}
+-            >
+-              <Input type="text" />
+-            </Form.Item>
+-          </Col>
+-        </Row>
+-      </>
+-    );
+-  }
+-}
+-
+-class FacebookConversionDialog extends DestinationDialog<FacebookConversionConfig> {
+-  constructor(
+-    props:
+-      | Readonly<IDestinationDialogProps<FacebookConversionConfig>>
+-      | IDestinationDialogProps<FacebookConversionConfig>
+-  ) {
+-    super(props);
+-  }
+-
+-  protected getDefaultMode(): string {
+-    return 'stream';
+-  }
+-
+-  protected isTableNameSupported(): boolean {
+-    return true;
+-  }
+-
+-  items(): React.ReactNode {
+-    let pixelIdDoc = (
+-      <>
+-        Your Facebook Pixel ID or{' '}
+-        <a target="_blank" rel="noopener" href={'https://www.facebook.com/ads/manager/pixel/facebook_pixel/'}>
+-          create a new one
+-        </a>
+-        .
+-        <br />
+-        Read more about{' '}
+-        <a
+-          target="_blank"
+-          rel="noopener"
+-          href={'https://developers.facebook.com/docs/marketing-api/conversions-api/get-started#-------'}
+-        >
+-          Facebook conversion API
+-        </a>
+-      </>
+-    );
+-    let accessTokenDoc = (
+-      <>
+-        Your Facebook Access Token.
+-        <br />
+-        <a
+-          target="_blank"
+-          rel="noopener"
+-          href={'https://developers.facebook.com/docs/marketing-api/conversions-api/get-started#--------------'}
+-        >
+-          Read more
+-        </a>
+-      </>
+-    );
+-    return (
+-      <>
+-        <Row>
+-          <Col span={16}>
+-            <Form.Item
+-              label={<LabelWithTooltip documentation={pixelIdDoc}>Pixel ID</LabelWithTooltip>}
+-              name="fbPixelId"
+-              labelCol={{ span: 6 }}
+-              wrapperCol={{ span: 18 }}
+-              rules={[{ required: true, message: 'Pixel ID is required' }]}
+-            >
+-              <Input type="text" />
+-            </Form.Item>
+-            <Form.Item
+-              label={<LabelWithTooltip documentation={accessTokenDoc}>Access Token</LabelWithTooltip>}
+-              name="fbAccessToken"
+-              labelCol={{ span: 6 }}
+-              wrapperCol={{ span: 18 }}
+-              rules={[{ required: true, message: 'Access Token is required' }]}
+-            >
+-              <Input type="text" />
+-            </Form.Item>
+-          </Col>
+-        </Row>
+-      </>
+-    );
+-  }
+-}
+-
+-class RedshiftDestinationDialog extends DestinationDialog<RedshiftConfig> {
+-  items(): React.ReactNode {
+-    let s3Doc = (
+-      <>
+-        If the switch is enabled internal S3 bucket will be used. You won't be able to see raw logs. However, the data
+-        will be streamed to RedShift as-is. You still need to choose a S3 region which is most close to your redshift
+-        server to get the best performance
+-      </>
+-    );
+-    let className =
+-      'destinations-list-s3config-' + (this.state.currentValue.formData['mode'] === 'batch' ? 'enabled' : 'disabled');
+-    return (
+-      <>
+-        <Row>
+-          <Col span={16}>
+-            <Form.Item
+-              label="Host"
+-              name="redshiftHost"
+-              labelCol={{ span: 6 }}
+-              wrapperCol={{ span: 18 }}
+-              rules={[{ required: true, message: 'Host is required' }]}
+-            >
+-              <Input type="text" />
+-            </Form.Item>
+-          </Col>
+-        </Row>
+-        <Form.Item
+-          label="Database"
+-          name="redshiftDB"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'DB is required' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="Schema"
+-          name="redshiftSchema"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Schema is required' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="Username"
+-          name="redshiftUser"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Username is required' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="Password"
+-          name="redshiftPassword"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Password is required' }]}
+-        >
+-          <Input type="password" />
+-        </Form.Item>
+-        <Divider className={className} plain>
+-          <>
+-            <LabelWithTooltip
+-              documentation={
+-                <>
+-                  If destination is working in batch mode (read about modes differences here), intermediate batches is
+-                  stored on S3. You need to provide S3 credentials. You can use S3 hosted by us as well, just switch off
+-                  'Use hosted S3 bucket' setting
+-                </>
+-              }
+-            >
+-              S3 configuration
+-            </LabelWithTooltip>
+-          </>
+-        </Divider>
+-        <Form.Item
+-          className={className}
+-          label={<LabelWithTooltip documentation={s3Doc}>Use Jitsu S3 bucket</LabelWithTooltip>}
+-          name="redshiftUseHostedS3"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 8 }}
+-          rules={[
+-            {
+-              required: this.state.currentValue.formData['mode'] === 'batch',
+-              message: 'Required'
+-            }
+-          ]}
+-        >
+-          <Switch
+-            disabled={!(this.state.currentValue.formData['mode'] === 'batch')}
+-            onChange={() => {
+-              this.refreshStateFromForm();
+-            }}
+-          />
+-        </Form.Item>
+-        {s3ConfigComponents(
+-          'redshift',
+-          !(this.state.currentValue.formData['mode'] === 'batch') ||
+-            this.state.currentValue.formData['redshiftUseHostedS3']
+-        )}
+-      </>
+-    );
+-  }
+-}
+-
+-class SnowflakeDialog extends DestinationDialog<SnowflakeConfig> {
+-  items(): React.ReactNode {
+-    let className =
+-      'destinations-list-s3config-' + (this.state.currentValue.formData['mode'] === 'batch' ? 'enabled' : 'disabled');
+-    return (
+-      <>
+-        <Row>
+-          <Col span={16}>
+-            <Form.Item
+-              label="Account"
+-              name="snowflakeAccount"
+-              labelCol={{ span: 6 }}
+-              wrapperCol={{ span: 18 }}
+-              rules={[{ required: true, message: 'Field is required' }]}
+-            >
+-              <Input type="text" />
+-            </Form.Item>
+-          </Col>
+-        </Row>
+-        <Form.Item
+-          label="Warehouse"
+-          name="snowflakeWarehouse"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Field is required' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="DB"
+-          name="snowflakeDB"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Field is required' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="Schema"
+-          initialValue="public"
+-          name="snowflakeSchema"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Field is required' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="Username"
+-          name="snowflakeUsername"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Field is required' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="Password"
+-          name="snowflakePassword"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'Field is required' }]}
+-        >
+-          <Input.Password
+-            type="password"
+-            iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+-          />
+-        </Form.Item>
+-        <Divider className={className} plain>
+-          <LabelWithTooltip
+-            documentation={
+-              <>
+-                For batch mode data is being uploaded through{' '}
+-                <a href="https://docs.snowflake.com/en/user-guide/data-load-local-file-system-create-stage.html">
+-                  stages
+-                </a>
+-                . We support S3 and GCP as stage.
+-              </>
+-            }
+-          >
+-            Intermediate Stage (S3 or GCP)
+-          </LabelWithTooltip>
+-        </Divider>
+-
+-        <Form.Item
+-          label="Stage name"
+-          className={className}
+-          name="snowflakeStageName"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[
+-            {
+-              required: this.state.currentValue.formData['mode'] === 'batch',
+-              message: 'Field is required'
+-            }
+-          ]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-
+-        <Form.Item
+-          className={className}
+-          label="Stage type"
+-          name="snowflakeStageType"
+-          initialValue={'hosted'}
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 8 }}
+-          rules={[
+-            {
+-              required: this.state.currentValue.formData['mode'] === 'batch',
+-              message: 'Required'
+-            }
+-          ]}
+-        >
+-          <Radio.Group optionType="button" buttonStyle="solid" onChange={() => this.refreshStateFromForm()}>
+-            <Radio.Button value="hosted">Hosted by Jitsu</Radio.Button>
+-            <Radio.Button value="s3">S3</Radio.Button>
+-            <Radio.Button value="gcs">Google Cloud Storage</Radio.Button>
+-          </Radio.Group>
+-        </Form.Item>
+-        {s3ConfigComponents(
+-          'snowflake',
+-          !(
+-            this.state.currentValue.formData['mode'] === 'batch' &&
+-            this.state.currentValue.formData['snowflakeStageType'] === 's3'
+-          )
+-        )}
+-        {gcsConfigComponents(
+-          'snowflake',
+-          !(
+-            this.state.currentValue.formData['mode'] === 'batch' &&
+-            this.state.currentValue.formData['snowflakeStageType'] === 'gcs'
+-          )
+-        )}
+-      </>
+-    );
+-  }
+-}
+-
+-class BiqQueryDialog extends DestinationDialog<BQConfig> {
+-  items(): React.ReactNode {
+-    return (
+-      <>
+-        <Form.Item
+-          label="Project ID"
+-          name="bqProjectId"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label="Dataset"
+-          name="bqDataset"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: false }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-        <Form.Item
+-          label={googleJsonKeyLabel()}
+-          name={'bqJSONKey'}
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: true, message: 'JSON Key is required' }]}
+-        >
+-          <Input.TextArea rows={10} className="destinations-list-json-textarea" allowClear={true} bordered={true} />
+-        </Form.Item>
+-        <Form.Item
+-          className={this.state.currentValue.formData['mode'] === 'batch' ? '' : 'destinations-list-hidden'}
+-          label="GCS Bucket"
+-          name="bqGCSBucket"
+-          labelCol={{ span: 4 }}
+-          wrapperCol={{ span: 12 }}
+-          rules={[{ required: this.state.currentValue.formData['mode'] === 'batch' }]}
+-        >
+-          <Input type="text" />
+-        </Form.Item>
+-      </>
+-    );
+-  }
+-}
+-
+-function s3ConfigComponents(prefix: string, disabled: boolean) {
+-  let className = 'destinations-list-s3config-' + (disabled ? 'disabled' : 'enabled');
+-  return (
+-    <>
+-      <Row>
+-        <Col span={8}>
+-          <Form.Item
+-            className={className}
+-            label="S3 Region"
+-            name={prefix + 'S3Region'}
+-            labelCol={{ span: 12 }}
+-            wrapperCol={{ span: 12 }}
+-            rules={[{ required: !disabled, message: 'DB is required' }]}
+-          >
+-            <Select disabled={disabled}>
+-              {AWS_ZONES.map((zone) => (
+-                <Option key={zone} value={zone}>
+-                  {zone}
+-                </Option>
+-              ))}
+-            </Select>
+-          </Form.Item>
+-        </Col>
+-        <Col span={8}>
+-          <Form.Item
+-            className={className}
+-            label="Bucket"
+-            name={prefix + 'S3Bucket'}
+-            labelCol={{ span: 6 }}
+-            wrapperCol={{ span: 18 }}
+-            rules={[{ required: !disabled, message: 'S3 Bucket is required' }]}
+-          >
+-            <Input type="text" disabled={disabled} />
+-          </Form.Item>
+-        </Col>
+-        <Col span={8}></Col>
+-      </Row>
+-
+-      <Form.Item
+-        className={className}
+-        label="S3 Access Key"
+-        name={prefix + 'S3AccessKey'}
+-        labelCol={{ span: 4 }}
+-        wrapperCol={{ span: 12 }}
+-        rules={[{ required: !disabled, message: 'S3 Access Key is required' }]}
+-      >
+-        <Input type="text" disabled={disabled} />
+-      </Form.Item>
+-      <Form.Item
+-        className={className}
+-        label="S3 Secret Key"
+-        name={prefix + 'S3SecretKey'}
+-        labelCol={{ span: 4 }}
+-        wrapperCol={{ span: 12 }}
+-        rules={[{ required: !disabled, message: 'S3 Secret Key is required' }]}
+-      >
+-        <Input.Password
+-          type="password"
+-          disabled={disabled}
+-          iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+-        />
+-      </Form.Item>
+-    </>
+-  );
+-}
+-
+-function googleJsonKeyLabel() {
+-  return <LabelWithTooltip documentation={<>JSON access credentials</>}>Access Key</LabelWithTooltip>;
+-}
+-
+-function gcsConfigComponents(prefix: string, disabled: boolean) {
+-  let className = 'destinations-list-s3config-' + (disabled ? 'disabled' : 'enabled');
+-  return (
+-    <>
+-      <Form.Item
+-        className={className}
+-        label="GCS Bucket"
+-        name={prefix + 'GcsBucket'}
+-        labelCol={{ span: 4 }}
+-        wrapperCol={{ span: 12 }}
+-        rules={[{ required: !disabled }]}
+-      >
+-        <Input type="text" disabled={disabled} />
+-      </Form.Item>
+-      <Form.Item
+-        className={className}
+-        label={googleJsonKeyLabel()}
+-        name={prefix + 'JSONKey'}
+-        labelCol={{ span: 4 }}
+-        wrapperCol={{ span: 12 }}
+-        rules={[{ required: !disabled, message: 'JSON Key is required' }]}
+-      >
+-        <Input.TextArea className="destinations-list-json-textarea" allowClear={true} bordered={true} />
+-      </Form.Item>
+-    </>
+-  );
+-}
+-
+-const dialogsByType = {
+-  postgres: PostgresDestinationDialog,
+-  clickhouse: ClickHouseDialog,
+-  redshift: RedshiftDestinationDialog,
+-  snowflake: SnowflakeDialog,
+-  bigquery: BiqQueryDialog,
+-  google_analytics: GoogleAnalyticsDialog,
+-  facebook: FacebookConversionDialog
+-};
+diff --git a/src/lib/components/DestinationsEditor/MappingEditor.tsx b/src/lib/components/DestinationsEditor/MappingEditor.tsx
+deleted file mode 100644
+index 3cd47da..0000000
+--- a/src/lib/components/DestinationsEditor/MappingEditor.tsx
++++ /dev/null
+@@ -1,277 +0,0 @@
+-/* eslint-disable */
+-import * as React from 'react';
+-import { useState } from 'react';
+-import cloneDeep from 'lodash/cloneDeep';
+-
+-import { Button, Input, message, Modal, Radio, Select, Table } from 'antd';
+-import MAPPING_NAMES, { FieldMappings, Mapping } from '../../services/mappings';
+-import { Align, handleError, LabelWithTooltip } from '../components';
+-import './MappingEditor.less';
+-
+-import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
+-import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
+-
+-type IMappingEditorProps = {
+-  entity: FieldMappings;
+-  onChange: (newEntity: FieldMappings) => Promise<void>;
+-  closeDialog: () => void;
+-};
+-
+-export function MappingEditor({ entity, onChange, closeDialog }: IMappingEditorProps) {
+-  entity = cloneDeep(entity);
+-  let rowId = 0;
+-  let [saving, setSaving] = useState(false);
+-  let [keepUnknownFields, setKeepUnknownFields] = useState(entity.keepUnmappedFields);
+-  let [currentMappings, setCurrentMappings] = useState(entity.mappings);
+-  let jsonPointerValidator = (val: string) => {
+-    return isValidJsonPointer(val) ? null : 'Invalid JSON pointer syntax. Should be /path/to/element';
+-  };
+-  let tableColumns = [
+-    {
+-      width: '35%',
+-      title: (
+-        <LabelWithTooltip
+-          documentation={
+-            <>
+-              Source field as JSON Pointer.{' '}
+-              <a
+-                target="_blank"
+-                rel="noopener"
+-                href="https://docs.eventnative.org/configuration/schema-and-mappings#step-3-mapping"
+-              >
+-                Read more about mappings
+-              </a>
+-            </>
+-          }
+-        >
+-          Source
+-        </LabelWithTooltip>
+-      ),
+-      render: (val, mapping: Mapping, index) => {
+-        if (mapping == null) {
+-          return (
+-            <Button
+-              icon={<PlusOutlined />}
+-              onClick={() => {
+-                setCurrentMappings([...currentMappings, new Mapping('', '', 'move')]);
+-              }}
+-            >
+-              Add New Field Mapping
+-            </Button>
+-          );
+-        }
+-        return (
+-          <JsonPointerInput
+-            initialValue={mapping.srcField}
+-            validator={jsonPointerValidator}
+-            onChange={(val) => (mapping.srcField = val)}
+-          />
+-        );
+-      }
+-    },
+-    {
+-      width: '200px',
+-      title: <Align horizontal="left">Transformation</Align>,
+-      render: (val, mapping: Mapping, index) => {
+-        if (mapping == null) {
+-          return '';
+-        }
+-        return (
+-          <Align horizontal="center">
+-            <Select
+-              dropdownMatchSelectWidth={false}
+-              className="mapping-editor-select-transform"
+-              size="small"
+-              value={mapping.action}
+-              onChange={(val) => {
+-                mapping.action = val;
+-                //don't really update list, just trigger re-render
+-                setCurrentMappings([...currentMappings]);
+-              }}
+-            >
+-              {Object.entries(MAPPING_NAMES).map(([key, val]) => {
+-                return (
+-                  <Select.Option value={key} key={key}>
+-                    {val}
+-                  </Select.Option>
+-                );
+-              })}
+-            </Select>
+-          </Align>
+-        );
+-      }
+-    },
+-    {
+-      width: '35%',
+-      title: (
+-        <LabelWithTooltip
+-          documentation={
+-            <>
+-              Destination field as JSON Pointer.{' '}
+-              <a
+-                target="_blank"
+-                rel="noopener"
+-                href="https://docs.eventnative.org/configuration/schema-and-mappings#step-3-mapping"
+-              >
+-                Read more about mappings
+-              </a>
+-            </>
+-          }
+-        >
+-          Destination
+-        </LabelWithTooltip>
+-      ),
+-      render: (val, mapping: Mapping, index) => {
+-        if (mapping == null || mapping.action == 'erase') {
+-          return null;
+-        }
+-        return (
+-          <JsonPointerInput
+-            initialValue={mapping.dstField}
+-            validator={jsonPointerValidator}
+-            onChange={(val) => (mapping.dstField = val)}
+-          />
+-        );
+-      }
+-    },
+-    {
+-      width: '5%',
+-      title: <Align horizontal="right">Action</Align>,
+-      render: (val, mapping: Mapping, index) => {
+-        if (mapping == null) {
+-          return '';
+-        }
+-        return (
+-          <Align horizontal="right">
+-            <a
+-              onClick={() => {
+-                let newMappings = [...currentMappings];
+-                newMappings.splice(index, 1);
+-                setCurrentMappings(newMappings);
+-              }}
+-            >
+-              <DeleteFilled />
+-            </a>
+-          </Align>
+-        );
+-      }
+-    }
+-  ];
+-  let cancel = () => {
+-    Modal.confirm({
+-      title: 'Are you sure?',
+-      content: 'Changes you made will be lost, are you sure?',
+-      onOk: () => closeDialog(),
+-      onCancel: () => {}
+-    });
+-  };
+-
+-  return (
+-    <Modal
+-      closable={true}
+-      keyboard={true}
+-      maskClosable={true}
+-      width="70%"
+-      className="destinations-editor-modal"
+-      title={'Edit field mappings'}
+-      visible={true}
+-      onCancel={cancel}
+-      footer={
+-        <>
+-          <Button onClick={cancel}>Cancel</Button>
+-          <Button
+-            type="primary"
+-            loading={saving}
+-            onClick={async () => {
+-              setSaving(true);
+-              try {
+-                for (let mapping of currentMappings) {
+-                  if (
+-                    !isValidJsonPointer(mapping.srcField) ||
+-                    (mapping.action !== 'erase' && !isValidJsonPointer(mapping.dstField))
+-                  ) {
+-                    message.error('Some mappings has invalid syntax. They are marked in red');
+-                    return;
+-                  }
+-                }
+-                await onChange(new FieldMappings(currentMappings, keepUnknownFields));
+-                closeDialog();
+-              } catch (error) {
+-                handleError(error, 'Failed to save: ' + error.message);
+-              } finally {
+-                setSaving(false);
+-              }
+-            }}
+-          >
+-            Save
+-          </Button>
+-        </>
+-      }
+-    >
+-      <div className="mapping-editor-top-panel">
+-        <Radio.Group
+-          optionType="button"
+-          buttonStyle="solid"
+-          defaultValue={keepUnknownFields ? 'keep' : 'remove'}
+-          onChange={(value) => {
+-            setKeepUnknownFields(value.target.value === 'keep');
+-          }}
+-        >
+-          <Radio.Button value="keep">Keep unmapped fields</Radio.Button>
+-          <Radio.Button value="remove">Remove unmapped fields</Radio.Button>
+-        </Radio.Group>
+-        <LabelWithTooltip
+-          documentation={
+-            <>If the field doesn't have mapping: Keep - keep field as is, Remove - remove field from original JSON</>
+-          }
+-        />
+-      </div>
+-
+-      <Table
+-        size="small"
+-        pagination={false}
+-        className="mapping-editor-table"
+-        columns={tableColumns}
+-        dataSource={[...(currentMappings ?? []), null]}
+-        rowKey={(mapping, index) => {
+-          return String(index + ++rowId);
+-        }}
+-      />
+-    </Modal>
+-  );
+-}
+-
+-function JsonPointerInput(props: {
+-  initialValue: any;
+-  onChange: (val: string) => void;
+-  validator: (val: string) => string;
+-}) {
+-  let [error, setError] = useState(props.validator(props.initialValue));
+-  let onChange = (value) => {
+-    let val = value.target.value;
+-    let error = props.validator(val);
+-    if (error) {
+-      setError(error);
+-    } else {
+-      setError(null);
+-    }
+-    props.onChange(val);
+-  };
+-  return (
+-    <>
+-      <Input
+-        type="text"
+-        className="mapping-editor-json-pointer"
+-        defaultValue={props.initialValue}
+-        onChange={onChange}
+-        size="small"
+-        contentEditable={true}
+-      />
+-      <div className="mapping-editor-json-poiter-error">{error ? error : '\u00A0'}</div>
+-    </>
+-  );
+-}
+-
+-function isValidJsonPointer(val) {
+-  return val.length > 0 && val[0] === '/' && val[val.length - 1] !== '/' && val.indexOf(' ') < 0;
+-}
+diff --git a/src/lib/components/DestinationsEditor/destinations.tsx b/src/lib/components/DestinationsEditor/destinations.tsx
+deleted file mode 100644
+index 61ffca5..0000000
+--- a/src/lib/components/DestinationsEditor/destinations.tsx
++++ /dev/null
+@@ -1,10 +0,0 @@
+-import { DestinationConfig, PostgresConfig } from '../../services/destinations';
+-import * as React from 'react';
+-
+-type DestinationProps<T extends DestinationConfig> = {
+-  config: T;
+-};
+-
+-abstract class DestinationComponent<T extends DestinationConfig> extends React.Component<DestinationProps<T>> {}
+-
+-class PostgresComponent extends DestinationComponent<PostgresConfig> {}
+diff --git a/src/lib/components/components.tsx b/src/lib/components/components.tsx
+index 32a843b..ff04658 100644
+--- a/src/lib/components/components.tsx
++++ b/src/lib/components/components.tsx
+@@ -32,7 +32,7 @@ export function Preloader(props: IPreloaderProps) {
+   //in pre-react boot loader
+   return (
+     <div style={{}} className="preloader-wrapper">
+-      <img src="boot/loading.gif" alt="[loading]" className="preloader-image" />
++      <img src="/boot/loading.gif" alt="[loading]" className="preloader-image" />
+       <div className="preloader-text">{text}</div>
+     </div>
+   );
+diff --git a/src/lib/services/ApplicationServices.ts b/src/lib/services/ApplicationServices.ts
+index 1c96822..1ccca00 100644
+--- a/src/lib/services/ApplicationServices.ts
++++ b/src/lib/services/ApplicationServices.ts
+@@ -22,9 +22,6 @@ export class ApplicationConfiguration {
+ 
+   constructor() {
+     this._rawConfig = getRawApplicationConfig();
+-    if (!this._rawConfig.env.BACKEND_API_BASE) {
+-      throw new Error('BACKEND_API_BASE env var must be provided');
+-    }
+     this._firebaseConfig = this._rawConfig.firebase;
+     this._backendApiBase = concatenateURLs(this._rawConfig.env.BACKEND_API_BASE, '/api/v1');
+     this._appEnvironment = (this._rawConfig.env.NODE_ENV || 'production').toLowerCase() as AppEnvironmentType;
+@@ -44,7 +41,7 @@ export class ApplicationConfiguration {
+   }
+ 
+   get backendApiBase(): string {
+-    return this._backendApiBase;
++    return this._backendApiBase || `${window.location.protocol}//${window.location.host}/`;
+   }
+ 
+   get rawConfig(): RawConfigObject {
+diff --git a/src/lib/services/mappings.ts b/src/lib/services/mappings.ts
+index 941c2bf..8dd618c 100644
+--- a/src/lib/services/mappings.ts
++++ b/src/lib/services/mappings.ts
+@@ -14,6 +14,14 @@ export class FieldMappings {
+   get mappings(): Mapping[] {
+     return this._mappings;
+   }
++
++  addMapping(mapping: Mapping) {
++    this._mappings.push(mapping);
++  }
++
++  removeMapping(index) {
++    this._mappings.splice(index, 1);
++  }
+ }
+ 
+ export class Mapping {
+diff --git a/src/navigation.tsx b/src/navigation.tsx
+index d773ef5..47b34c1 100644
+--- a/src/navigation.tsx
++++ b/src/navigation.tsx
+@@ -4,10 +4,11 @@ import ComponentTest from './lib/components/componentTest';
+ import DownloadConfig from './lib/components/DownloadConfig/DownloadConfig';
+ 
+ import { routes as sourcesPageRoutes } from '@page/SourcesPage/routes';
++import { destinationPageRoutes } from "@page/DestinationsPage/DestinationsPage.routes";
+ 
+ const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
+ const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
+-const DestinationsList = React.lazy(() => import('./lib/components/DestinationsEditor/DestinationsList'));
++const DestinationsPage = React.lazy(() => import('@page/DestinationsPage/DestinationsPage'));
+ const EventsStream = React.lazy(() => import('./lib/components/EventsStream/EventsStream'));
+ const LoginForm = React.lazy(() => import('./lib/components/LoginForm/LoginForm'));
+ const SetupForm = React.lazy(() => import('@page/SetupPage/SetupForm'));
+@@ -61,15 +62,14 @@ export const PUBLIC_PAGES: Page[] = [
+   new Page('Jitsu | register', ['/register'], () => <SignupForm />),
+   new Page('Jitsu | reset wpassword', ['/reset_password/:resetId'], (props) => <PasswordForm {...props} />)
+ ];
+-
+ export const PRIVATE_PAGES: Page[] = [
+   new Page('Test Component', '/test', (props) => <ComponentTest {...props} />, 'Component Test'),
+   new Page('Jitsu | recent events', '/events_stream', (props) => <EventsStream {...props} />, 'Recent events'),
+   new Page('Jitsu | dashboard', ['/dashboard', ''], (props) => <StatusPage {...props} />, 'Dashboard'),
+   new Page(
+-    'Jitsu | edit destinations',
+-    '/destinations',
+-    (props) => <DestinationsList {...props} />,
++    'Jitsu | destinations',
++    Object.values(destinationPageRoutes),
++    (props) => <DestinationsPage {...props} />,
+     'Edit destinations'
+   ),
+   new Page(
+diff --git a/src/theme.less b/src/theme.less
+index b65cbcf..7d83f18 100644
+--- a/src/theme.less
++++ b/src/theme.less
+@@ -46,6 +46,7 @@
+ @text-color-secondary: @secondaryText; // secondary text color
+ @disabled-color: @disabled; // disable state color
+ @border-color-base: @secondaryBorder; // major border color
++@divider-color: @secondaryBorder;
+ 
+ @border-radius-base: 6px;
+ 
+@@ -61,6 +62,12 @@
+ @font-monospace: 'Source Code Pro', monospace;
+ 
+ 
++.ant-select-disabled.ant-select:not(.ant-select-customize-input) .ant-select-selector {
++  color: rgba(0, 0, 0, 0.08) !important;
++  background-color: rgba(255, 255, 255, 0.08) !important;
++}
++
++
+ //body {
+ //  font-family: @font-main;
+ //}
+diff --git a/src/ui/components/molecule/TableNameMacrosEditor/TableNameMacrosEditor.module.less b/src/ui/components/molecule/TableNameMacrosEditor/TableNameMacrosEditor.module.less
+new file mode 100644
+index 0000000..e69de29
+diff --git a/src/ui/components/molecule/TableNameMacrosEditor/TableNameMacrosEditor.tsx b/src/ui/components/molecule/TableNameMacrosEditor/TableNameMacrosEditor.tsx
+new file mode 100644
+index 0000000..7dff4c3
+--- /dev/null
++++ b/src/ui/components/molecule/TableNameMacrosEditor/TableNameMacrosEditor.tsx
+@@ -0,0 +1,24 @@
++import { Button, Modal } from "antd";
++
++export type OnSaveCallback = (text: string) => void
++
++export type TableNameMacrosEditorProps = {
++  macros: string
++  onSave: OnSaveCallback
++}
++
++export function TableNameMacrosEditor(props: TableNameMacrosEditorProps) {
++  return <>
++    <textarea>{props.macros}</textarea>
++    <Button>Save</Button>
++  </>
++}
++
++
++
++/**
++ * Opens a modal dialog.
++ */
++TableNameMacrosEditor.modal = function(macros: string, onSave: OnSaveCallback) {
++  Modal.info({})
++}
+\ No newline at end of file
+diff --git a/src/lib/components/DestinationsEditor/DestinationEditor.less b/src/ui/pages/DestinationsPage/DestinationsPage.less
+similarity index 97%
+rename from src/lib/components/DestinationsEditor/DestinationEditor.less
+rename to src/ui/pages/DestinationsPage/DestinationsPage.less
+index 5f1199a..7fc4f3e 100644
+--- a/src/lib/components/DestinationsEditor/DestinationEditor.less
++++ b/src/ui/pages/DestinationsPage/DestinationsPage.less
+@@ -1,4 +1,4 @@
+-@import "../../../theme.less";
++@import "src/theme.less";
+ 
+ .destination-list-item {
+   border-bottom: 1px solid lightgray !important;
+diff --git a/src/ui/pages/DestinationsPage/DestinationsPage.routes.ts b/src/ui/pages/DestinationsPage/DestinationsPage.routes.ts
+new file mode 100644
+index 0000000..f853485
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/DestinationsPage.routes.ts
+@@ -0,0 +1,5 @@
++export const destinationPageRoutes = {
++  root: '/destinations',
++  newDestination: '/destinations/new/:type',
++  editDestination: '/destinations/edit/:id',
++}
+diff --git a/src/ui/pages/DestinationsPage/DestinationsPage.tsx b/src/ui/pages/DestinationsPage/DestinationsPage.tsx
+new file mode 100644
+index 0000000..05a0543
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/DestinationsPage.tsx
+@@ -0,0 +1,18 @@
++import React from 'react';
++import { Route, Switch, useHistory } from 'react-router-dom';
++import DestinationsList from "@page/DestinationsPage/partials/DestinationsList/DestinationsList";
++import { MappingEditor } from "@page/DestinationsPage/partials/MappingEditor/MappingEditor";
++import { destinationPageRoutes } from "./DestinationsPage.routes";
++import DestinationEditor from "@page/DestinationsPage/partials/DestinationEditor/DestinationEditor";
++
++export const DestinationsPage = () => {
++  return (
++    <Switch>
++      <Route path={destinationPageRoutes.root} exact component={DestinationsList} />
++      <Route path={destinationPageRoutes.newDestination} strict={false} exact component={DestinationEditor} />
++      <Route path={destinationPageRoutes.editDestination} strict={false} exact component={DestinationEditor} />
++    </Switch>
++  );
++};
++
++export default DestinationsPage;
+\ No newline at end of file
+diff --git a/src/ui/pages/DestinationsPage/commons.tsx b/src/ui/pages/DestinationsPage/commons.tsx
+new file mode 100644
+index 0000000..a0176b1
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/commons.tsx
+@@ -0,0 +1,32 @@
++import {
++  BQConfig,
++  ClickHouseConfig,
++  DestinationConfig, FacebookConversionConfig, GoogleAnalyticsConfig,
++  PostgresConfig,
++  RedshiftConfig,
++  SnowflakeConfig
++} from "@./lib/services/destinations";
++import { FieldMappings, Mapping } from "@./lib/services/mappings";
++import ApplicationServices from "@./lib/services/ApplicationServices";
++import Marshal from "@./lib/commons/marshalling";
++
++export const SERIALIZABLE_CLASSES = [
++  DestinationConfig,
++  PostgresConfig,
++  ClickHouseConfig,
++  RedshiftConfig,
++  FieldMappings,
++  Mapping,
++  SnowflakeConfig,
++  BQConfig,
++  GoogleAnalyticsConfig,
++  FacebookConversionConfig
++];
++
++export async function loadDestinations(appServices: ApplicationServices): Promise<DestinationConfig[]> {
++  let destinations = await appServices.storageService.get('destinations', appServices.activeProject.id);
++  let serializedDestinations = destinations && destinations.destinations
++    ? Marshal.newInstance(destinations.destinations, SERIALIZABLE_CLASSES)
++    : [];
++  return serializedDestinations;
++}
+\ No newline at end of file
+diff --git a/src/ui/pages/DestinationsPage/partials/ConnectionProperties/ConnectionPropertiesTab.tsx b/src/ui/pages/DestinationsPage/partials/ConnectionProperties/ConnectionPropertiesTab.tsx
+new file mode 100644
+index 0000000..981f72b
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/ConnectionProperties/ConnectionPropertiesTab.tsx
+@@ -0,0 +1,28 @@
++import { FormInstance } from "antd/lib/form/hooks/useForm";
++import { DestinationConfig } from "@./lib/services/destinations";
++import * as React from "react";
++import { Form, Input, Modal, Radio } from "antd";
++import { LabelWithTooltip } from "@./lib/components/components";
++import { ReactNode } from "react";
++import { dialogsByType } from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog.impl";
++import PostgresDestinationDialog from "@page/DestinationsPage/partials/DestinationDialog/PostgresDestinationDialog";
++
++export type ConnectionPropertiesTabProps = {
++  form: FormInstance
++  destination: DestinationConfig,
++  onModification: () => void
++}
++
++export function ConnectionPropertiesTab(props: ConnectionPropertiesTabProps) {
++  return <div>
++    {React.createElement(dialogsByType[props.destination.type], {
++      initialConfigValue: props.destination,
++      form: props.form,
++      onModification: props.onModification
++    })}
++
++  </div>
++}
++
++
++export default ConnectionPropertiesTab;
+\ No newline at end of file
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationDialog/BiqQueryDestinationDialog.tsx b/src/ui/pages/DestinationsPage/partials/DestinationDialog/BiqQueryDestinationDialog.tsx
+new file mode 100644
+index 0000000..bd08b89
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationDialog/BiqQueryDestinationDialog.tsx
+@@ -0,0 +1,53 @@
++import { BQConfig } from "@./lib/services/destinations";
++import * as React from "react";
++import { Form, Input } from "antd";
++import {
++  DestinationDialog,
++  googleJsonKeyLabel
++} from "./DestinationDialog";
++
++export default class BiqQueryDialog extends DestinationDialog<BQConfig> {
++  items(): React.ReactNode {
++    return (
++      <>
++        <Form.Item
++          label="Project ID"
++          name="bqProjectId"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true }]}
++        >
++          <Input type="text" />
++        </Form.Item>
++        <Form.Item
++          label="Dataset"
++          name="bqDataset"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: false }]}
++        >
++          <Input type="text" />
++        </Form.Item>
++        <Form.Item
++          label={googleJsonKeyLabel()}
++          name={'bqJSONKey'}
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'JSON Key is required' }]}
++        >
++          <Input.TextArea rows={10} className="destinations-list-json-textarea" allowClear={true} bordered={true} />
++        </Form.Item>
++        <Form.Item
++          className={this.state.currentValue.formData['mode'] === 'batch' ? '' : 'destinations-list-hidden'}
++          label="GCS Bucket"
++          name="bqGCSBucket"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: this.state.currentValue.formData['mode'] === 'batch' }]}
++        >
++          <Input type="text" />
++        </Form.Item>
++      </>
++    );
++  }
++}
+\ No newline at end of file
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationDialog/ClickHouseDestinationDialog.tsx b/src/ui/pages/DestinationsPage/partials/DestinationDialog/ClickHouseDestinationDialog.tsx
+new file mode 100644
+index 0000000..8a4cc05
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationDialog/ClickHouseDestinationDialog.tsx
+@@ -0,0 +1,113 @@
++import { ClickHouseConfig } from "@./lib/services/destinations";
++import * as React from "react";
++import { CodeInline, LabelWithTooltip } from "@./lib/components/components";
++import { Col, Form, Input, Row } from "antd";
++import { EditableList } from "@./lib/components/EditableList/EditableList";
++import { DestinationDialog } from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
++
++export default class ClickHouseDestinationDialog extends DestinationDialog<ClickHouseConfig> {
++  isUrlValid(val) {
++    let res = val.match(/((http(s)?|tcp):\/\/.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)/g);
++    return res != null;
++  }
++
++  items(): React.ReactNode {
++    this.state.currentValue.migrateData();
++    let dsnDocs = (
++      <>
++        A list of DSNs (server names). It's recommended to add at least two servers within the cluster for
++        redundancy{' '}
++        <a
++          href="https://docs.eventnative.org/configuration-1/destination-configuration/clickhouse-destination#clickhouse)">
++          documentation
++        </a>
++      </>
++    );
++    let clusterDoc = (
++      <>
++        <p>
++          Cluster name. See{' '}
++          <a
++            href="https://docs.eventnative.org/configuration-1/destination-configuration/clickhouse-destination#clickhouse)">
++            documentation
++          </a>
++          .
++        </p>
++        <p>
++          Run <CodeInline>SELECT * from system.clusters</CodeInline> to the list of all available clusters
++        </p>
++      </>
++    );
++    let databaseDoc = (
++      <>
++        Database name. See{' '}
++        <a
++          href="https://docs.eventnative.org/configuration-1/destination-configuration/clickhouse-destination#clickhouse)">
++          documentation
++        </a>
++      </>
++    );
++
++    const dsnValidator = (val) => {
++      if (val === '') {
++        return "Value can't be empty";
++      }
++      if (!this.isUrlValid(val)) {
++        return 'URL is not valid should be [tcp|http(s)]://host[:port]?params';
++      }
++      return null;
++    };
++    return (
++      <>
++        <Row>
++          <Col span={16}>
++            <Form.Item
++              label={<LabelWithTooltip documentation={dsnDocs}>Datasources</LabelWithTooltip>}
++              name="ch_dsns_list"
++              rules={[
++                {
++                  validator: (rule, value, callback) => {
++                    if (value.filter((val) => dsnValidator(val) != null).length > 0) {
++                      callback('One of the urls are not valid, see above');
++                    }
++                    return Promise.resolve();
++                  }
++                }
++              ]}
++              labelCol={{ span: 6 }}
++              wrapperCol={{ span: 18 }}
++            >
++              <EditableList newItemLabel="Add new server" validator={dsnValidator}/>
++            </Form.Item>
++          </Col>
++        </Row>
++        <Form.Item
++          label={<LabelWithTooltip documentation={clusterDoc}>Cluster</LabelWithTooltip>}
++          rules={[{ required: true, message: 'Cluster name is required' }]}
++          name="ch_cluster"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label={<LabelWithTooltip documentation={databaseDoc}>Database</LabelWithTooltip>}
++          rules={[{ required: true, message: 'DB is required' }]}
++          name="ch_database"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++        >
++          <Input type="text"/>
++        </Form.Item>
++      </>
++    );
++  }
++}
++
++
++
++
++
++
++
++
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationDialog/DestinationDialog.impl.ts b/src/ui/pages/DestinationsPage/partials/DestinationDialog/DestinationDialog.impl.ts
+new file mode 100644
+index 0000000..c9f4852
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationDialog/DestinationDialog.impl.ts
+@@ -0,0 +1,17 @@
++import SnowFlakeDestinationDialog from "./SnowFlakeDestinationDialog";
++import RedshiftDestinationDialog from "./RedshiftDestinationDialog";
++import PostgresDestinationDialog from "./PostgresDestinationDialog";
++import GoogleAnalyticsDestinationDialog from "./GoogleAnalyticsDestinationDialog";
++import FacebookConversionDestinationDialog  from "./FacebookConversionDestinationDialog";
++import ClickHouseDestinationDialog from "./ClickHouseDestinationDialog";
++import BigQueryDestinationDialog from "./BiqQueryDestinationDialog";
++
++export const dialogsByType = {
++  postgres: PostgresDestinationDialog,
++  clickhouse: ClickHouseDestinationDialog,
++  redshift: RedshiftDestinationDialog,
++  snowflake: SnowFlakeDestinationDialog,
++  bigquery: BigQueryDestinationDialog,
++  google_analytics: GoogleAnalyticsDestinationDialog,
++  facebook: FacebookConversionDestinationDialog
++};
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationDialog/DestinationDialog.tsx b/src/ui/pages/DestinationsPage/partials/DestinationDialog/DestinationDialog.tsx
+new file mode 100644
+index 0000000..7a1c4fb
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationDialog/DestinationDialog.tsx
+@@ -0,0 +1,210 @@
++import { DestinationConfig } from "@./lib/services/destinations";
++import * as React from "react";
++import { ReactNode } from "react";
++import { Col, Form, Input, Radio, Row, Select } from "antd";
++import { LabelWithTooltip } from "@./lib/components/components";
++import { Option } from "antd/es/mentions";
++import EyeTwoTone from "@ant-design/icons/lib/icons/EyeTwoTone";
++import EyeInvisibleOutlined from "@ant-design/icons/lib/icons/EyeInvisibleOutlined";
++
++export const AWS_ZONES = [
++  'us-east-2',
++  'us-east-1',
++  'us-west-1',
++  'us-west-2',
++  'ap-south-1',
++  'ap-northeast-3',
++  'ap-northeast-2',
++  'ap-southeast-1',
++  'ap-southeast-2',
++  'ap-northeast-1',
++  'ca-central-1',
++  'cn-north-1',
++  'cn-northwest-1',
++  'eu-central-1',
++  'eu-west-1',
++  'eu-west-2',
++  'eu-south-1',
++  'eu-west-3',
++  'eu-north-1',
++  'me-south-1',
++  'sa-east-1',
++  'us-gov-east-1',
++  'us-gov-west-1'
++];
++
++export type IDestinationDialogProps<T extends DestinationConfig> = {
++  initialConfigValue: T;
++  form: any;
++  onModification: () => void
++};
++
++export type IDestinationDialogState<T extends DestinationConfig> = {
++  currentValue: T;
++};
++
++export abstract class DestinationDialog<T extends DestinationConfig> extends React.Component<IDestinationDialogProps<T>,
++  IDestinationDialogState<T>> {
++  constructor(props: Readonly<IDestinationDialogProps<T>> | IDestinationDialogProps<T>) {
++    super(props);
++    this.state = {
++      currentValue: props.initialConfigValue
++    };
++  }
++
++  protected getDefaultMode(): string {
++    return null;
++  }
++
++  protected isTableNameSupported(): boolean {
++    return true;
++  }
++
++  public render() {
++    let tableName = <>
++      Table name can be either constant (in that case all events will be written into the same table) or can be an
++      event filter{' '}
++      <a
++        target="_blank"
++        rel="noopener"
++        href={'https://docs.eventnative.org/configuration-1/configuration/table-names-and-filters'}
++      >
++        Read more
++      </a>
++    </>;
++
++    return <Form layout="horizontal"
++                 form={this.props.form}
++                 initialValues={this.state.currentValue.formData}
++                 onChange={() => this.props.onModification()}
++    >
++      {!this.getDefaultMode() && <Form.Item label="Mode" name="mode" labelCol={{ span: 4 }} wrapperCol={{ span: 18 }}>
++        <Radio.Group buttonStyle="solid" onChange={() => this.refreshStateFromForm()}>
++          <Radio.Button value="stream">Streaming</Radio.Button>
++          <Radio.Button value="batch">Batch</Radio.Button>
++        </Radio.Group>
++      </Form.Item>}
++
++      {this.isTableNameSupported() && <Form.Item
++        label={<LabelWithTooltip documentation={tableName}>Table Name</LabelWithTooltip>}
++        name="tableName"
++        labelCol={{ span: 4 }}
++        wrapperCol={{ span: 12 }}
++        required={true}>
++        <Input type="text"/>
++      </Form.Item>}
++      {this.items()}
++    </Form>;
++  }
++
++  public getCurrentConfig(): T {
++    return this.state.currentValue;
++  }
++
++  public abstract items(): ReactNode;
++
++  public refreshStateFromForm() {
++    console.log("Refreshing state", this.props.form.getFieldsValue());
++    this.state.currentValue.update(this.props.form.getFieldsValue());
++    this.forceUpdate();
++  }
++}
++
++export function s3ConfigComponents(prefix: string, disabled: boolean) {
++  let className = 'destinations-list-s3config-' + (disabled ? 'disabled' : 'enabled');
++  return (
++    <>
++      <Row>
++        <Col span={8}>
++          <Form.Item
++            className={className}
++            label="S3 Region"
++            name={prefix + 'S3Region'}
++            labelCol={{ span: 12 }}
++            wrapperCol={{ span: 12 }}
++            rules={[{ required: !disabled, message: 'DB is required' }]}
++          >
++            <Select disabled={disabled}>
++              {AWS_ZONES.map((zone) => (
++                <Option key={zone} value={zone}>
++                  {zone}
++                </Option>
++              ))}
++            </Select>
++          </Form.Item>
++        </Col>
++        <Col span={8}>
++          <Form.Item
++            className={className}
++            label="Bucket"
++            name={prefix + 'S3Bucket'}
++            labelCol={{ span: 6 }}
++            wrapperCol={{ span: 18 }}
++            rules={[{ required: !disabled, message: 'S3 Bucket is required' }]}
++          >
++            <Input type="text" disabled={disabled}/>
++          </Form.Item>
++        </Col>
++        <Col span={8}></Col>
++      </Row>
++
++      <Form.Item
++        className={className}
++        label="S3 Access Key"
++        name={prefix + 'S3AccessKey'}
++        labelCol={{ span: 4 }}
++        wrapperCol={{ span: 12 }}
++        rules={[{ required: !disabled, message: 'S3 Access Key is required' }]}
++      >
++        <Input type="text" disabled={disabled}/>
++      </Form.Item>
++      <Form.Item
++        className={className}
++        label="S3 Secret Key"
++        name={prefix + 'S3SecretKey'}
++        labelCol={{ span: 4 }}
++        wrapperCol={{ span: 12 }}
++        rules={[{ required: !disabled, message: 'S3 Secret Key is required' }]}
++      >
++        <Input.Password
++          type="password"
++          disabled={disabled}
++          iconRender={(visible) => (visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>)}
++        />
++      </Form.Item>
++    </>
++  );
++}
++
++export function googleJsonKeyLabel() {
++  return <LabelWithTooltip documentation={<>JSON access credentials</>}>Access Key</LabelWithTooltip>;
++}
++
++export function gcsConfigComponents(prefix: string, disabled: boolean) {
++  let className = 'destinations-list-s3config-' + (disabled ? 'disabled' : 'enabled');
++  return (
++    <>
++      <Form.Item
++        className={className}
++        label="GCS Bucket"
++        name={prefix + 'GcsBucket'}
++        labelCol={{ span: 4 }}
++        wrapperCol={{ span: 12 }}
++        rules={[{ required: !disabled }]}
++      >
++        <Input type="text" disabled={disabled}/>
++      </Form.Item>
++      <Form.Item
++        className={className}
++        label={googleJsonKeyLabel()}
++        name={prefix + 'JSONKey'}
++        labelCol={{ span: 4 }}
++        wrapperCol={{ span: 12 }}
++        rules={[{ required: !disabled, message: 'JSON Key is required' }]}
++      >
++        <Input.TextArea className="destinations-list-json-textarea" allowClear={true} bordered={true}/>
++      </Form.Item>
++    </>
++  );
++}
++
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationDialog/FacebookConversionDestinationDialog.tsx b/src/ui/pages/DestinationsPage/partials/DestinationDialog/FacebookConversionDestinationDialog.tsx
+new file mode 100644
+index 0000000..624947e
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationDialog/FacebookConversionDestinationDialog.tsx
+@@ -0,0 +1,89 @@
++import { FacebookConversionConfig } from "@./lib/services/destinations";
++import * as React from "react";
++import { Col, Form, Input, Row } from "antd";
++import { LabelWithTooltip } from "@./lib/components/components";
++import {
++  DestinationDialog,
++  IDestinationDialogProps
++} from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
++
++export default class FacebookConversionDestinationDialog extends DestinationDialog<FacebookConversionConfig> {
++  constructor(
++    props:
++      | Readonly<IDestinationDialogProps<FacebookConversionConfig>>
++      | IDestinationDialogProps<FacebookConversionConfig>
++  ) {
++    super(props);
++  }
++
++  protected getDefaultMode(): string {
++    return 'stream';
++  }
++
++  protected isTableNameSupported(): boolean {
++    return true;
++  }
++
++  items(): React.ReactNode {
++    let pixelIdDoc = (
++      <>
++        Your Facebook Pixel ID or{' '}
++        <a target="_blank" rel="noopener" href={'https://www.facebook.com/ads/manager/pixel/facebook_pixel/'}>
++          create a new one
++        </a>
++        .
++        <br/>
++        Read more about{' '}
++        <a
++          target="_blank"
++          rel="noopener"
++          href={'https://developers.facebook.com/docs/marketing-api/conversions-api/get-started#-------'}
++        >
++          Facebook conversion API
++        </a>
++      </>
++    );
++    let accessTokenDoc = (
++      <>
++        Your Facebook Access Token.
++        <br/>
++        <a
++          target="_blank"
++          rel="noopener"
++          href={'https://developers.facebook.com/docs/marketing-api/conversions-api/get-started#--------------'}
++        >
++          Read more
++        </a>
++      </>
++    );
++    return (
++      <>
++        <Row>
++          <Col span={16}>
++            <Form.Item
++              label={<LabelWithTooltip documentation={pixelIdDoc}>Pixel ID</LabelWithTooltip>}
++              name="fbPixelId"
++              labelCol={{ span: 6 }}
++              wrapperCol={{ span: 18 }}
++              rules={[{ required: true, message: 'Pixel ID is required' }]}
++            >
++              <Input type="text"/>
++            </Form.Item>
++            <Form.Item
++              label={<LabelWithTooltip documentation={accessTokenDoc}>Access Token</LabelWithTooltip>}
++              name="fbAccessToken"
++              labelCol={{ span: 6 }}
++              wrapperCol={{ span: 18 }}
++              rules={[{ required: true, message: 'Access Token is required' }]}
++            >
++              <Input type="text"/>
++            </Form.Item>
++          </Col>
++        </Row>
++      </>
++    );
++  }
++}
++
++
++
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationDialog/GoogleAnalyticsDestinationDialog.tsx b/src/ui/pages/DestinationsPage/partials/DestinationDialog/GoogleAnalyticsDestinationDialog.tsx
+new file mode 100644
+index 0000000..3bd18b7
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationDialog/GoogleAnalyticsDestinationDialog.tsx
+@@ -0,0 +1,44 @@
++import { GoogleAnalyticsConfig } from "@./lib/services/destinations";
++import * as React from "react";
++import { Col, Form, Input, Row } from "antd";
++import {
++  DestinationDialog,
++  IDestinationDialogProps
++} from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
++
++export default class GoogleAnalyticsDestinationDialog extends DestinationDialog<GoogleAnalyticsConfig> {
++  constructor(
++    props: Readonly<IDestinationDialogProps<GoogleAnalyticsConfig>> | IDestinationDialogProps<GoogleAnalyticsConfig>
++  ) {
++    super(props);
++  }
++
++  protected getDefaultMode(): string {
++    return 'stream';
++  }
++
++  protected isTableNameSupported(): boolean {
++    return true;
++  }
++
++  items(): React.ReactNode {
++    return (
++      <>
++        <Row>
++          <Col span={16}>
++            <Form.Item
++              label="Tracking ID"
++              name="gaTrackingId"
++              labelCol={{ span: 6 }}
++              wrapperCol={{ span: 18 }}
++              rules={[{ required: true, message: 'Tracking ID is required' }]}
++            >
++              <Input type="text"/>
++            </Form.Item>
++          </Col>
++        </Row>
++      </>
++    );
++  }
++}
++
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationDialog/PostgresDestinationDialog.tsx b/src/ui/pages/DestinationsPage/partials/DestinationDialog/PostgresDestinationDialog.tsx
+new file mode 100644
+index 0000000..baaaf55
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationDialog/PostgresDestinationDialog.tsx
+@@ -0,0 +1,85 @@
++import { PostgresConfig } from "@./lib/services/destinations";
++import * as React from "react";
++import { Col, Form, Input, Row } from "antd";
++import EyeTwoTone from "@ant-design/icons/lib/icons/EyeTwoTone";
++import EyeInvisibleOutlined from "@ant-design/icons/lib/icons/EyeInvisibleOutlined";
++import {
++  DestinationDialog,
++  IDestinationDialogProps
++} from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
++
++export default class PostgresDestinationDialog extends DestinationDialog<PostgresConfig> {
++  constructor(props: Readonly<IDestinationDialogProps<PostgresConfig>> | IDestinationDialogProps<PostgresConfig>) {
++    super(props);
++  }
++
++  items(): React.ReactNode {
++    return (
++      <>
++        <Row>
++          <Col span={16}>
++            <Form.Item
++              label="Host"
++              name="pghost"
++              labelCol={{ span: 6 }}
++              wrapperCol={{ span: 18 }}
++              rules={[{ required: true, message: 'Host is required' }]}
++            >
++              <Input type="text"/>
++            </Form.Item>
++          </Col>
++          <Col span={8}>
++            <Form.Item
++              label="Port"
++              name="pgport"
++              labelCol={{ span: 6 }}
++              wrapperCol={{ span: 6 }}
++              rules={[{ required: true, message: 'Port is required' }]}
++            >
++              <Input type="number"/>
++            </Form.Item>
++          </Col>
++        </Row>
++        <Form.Item
++          label="Schema"
++          name="pgschema"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Schema is required' }]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label="Database"
++          name="pgdatabase"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'DB is required' }]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label="Username"
++          name="pguser"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Username is required' }]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label="Password"
++          name="pgpassword"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Password is required' }]}
++        >
++          <Input.Password
++            placeholder="input password"
++            iconRender={(visible) => (visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>)}
++          />
++        </Form.Item>
++      </>
++    );
++  }
++}
+\ No newline at end of file
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationDialog/RedshiftDestinationDialog.tsx b/src/ui/pages/DestinationsPage/partials/DestinationDialog/RedshiftDestinationDialog.tsx
+new file mode 100644
+index 0000000..9ff09c2
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationDialog/RedshiftDestinationDialog.tsx
+@@ -0,0 +1,115 @@
++import { RedshiftConfig } from "@./lib/services/destinations";
++import * as React from "react";
++import { Col, Divider, Form, Input, Row, Switch } from "antd";
++import { LabelWithTooltip } from "@./lib/components/components";
++import {
++  DestinationDialog,
++  s3ConfigComponents
++} from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
++
++export default class RedshiftDestinationDialog extends DestinationDialog<RedshiftConfig> {
++  items(): React.ReactNode {
++    let s3Doc = (
++      <>
++        If the switch is enabled internal S3 bucket will be used. You won't be able to see raw logs. However, the data
++        will be streamed to RedShift as-is. You still need to choose a S3 region which is most close to your redshift
++        server to get the best performance
++      </>
++    );
++    let className =
++      'destinations-list-s3config-' + (this.state.currentValue.formData['mode'] === 'batch' ? 'enabled' : 'disabled');
++    return (
++      <>
++        <Row>
++          <Col span={16}>
++            <Form.Item
++              label="Host"
++              name="redshiftHost"
++              labelCol={{ span: 6 }}
++              wrapperCol={{ span: 18 }}
++              rules={[{ required: true, message: 'Host is required' }]}
++            >
++              <Input type="text"/>
++            </Form.Item>
++          </Col>
++        </Row>
++        <Form.Item
++          label="Database"
++          name="redshiftDB"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'DB is required' }]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label="Schema"
++          name="redshiftSchema"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Schema is required' }]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label="Username"
++          name="redshiftUser"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Username is required' }]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label="Password"
++          name="redshiftPassword"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Password is required' }]}
++        >
++          <Input type="password"/>
++        </Form.Item>
++        <Divider className={className} plain>
++          <>
++            <LabelWithTooltip
++              documentation={
++                <>
++                  If destination is working in batch mode (read about modes differences here), intermediate batches is
++                  stored on S3. You need to provide S3 credentials. You can use S3 hosted by us as well, just switch off
++                  'Use hosted S3 bucket' setting
++                </>
++              }
++            >
++              S3 configuration
++            </LabelWithTooltip>
++          </>
++        </Divider>
++        <Form.Item
++          className={className}
++          label={<LabelWithTooltip documentation={s3Doc}>Use Jitsu S3 bucket</LabelWithTooltip>}
++          name="redshiftUseHostedS3"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 8 }}
++          rules={[
++            {
++              required: this.state.currentValue.formData['mode'] === 'batch',
++              message: 'Required'
++            }
++          ]}
++        >
++          <Switch
++            disabled={!(this.state.currentValue.formData['mode'] === 'batch')}
++            onChange={() => {
++              this.refreshStateFromForm();
++            }}
++          />
++        </Form.Item>
++        {s3ConfigComponents(
++          'redshift',
++          !(this.state.currentValue.formData['mode'] === 'batch') ||
++          this.state.currentValue.formData['redshiftUseHostedS3']
++        )}
++      </>
++    );
++  }
++}
+\ No newline at end of file
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationDialog/SnowFlakeDestinationDialog.tsx b/src/ui/pages/DestinationsPage/partials/DestinationDialog/SnowFlakeDestinationDialog.tsx
+new file mode 100644
+index 0000000..0cca82f
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationDialog/SnowFlakeDestinationDialog.tsx
+@@ -0,0 +1,151 @@
++import { SnowflakeConfig } from "@./lib/services/destinations";
++import * as React from "react";
++import { Col, Divider, Form, Input, Radio, Row } from "antd";
++import EyeTwoTone from "@ant-design/icons/lib/icons/EyeTwoTone";
++import EyeInvisibleOutlined from "@ant-design/icons/lib/icons/EyeInvisibleOutlined";
++import { LabelWithTooltip } from "@./lib/components/components";
++import {
++  DestinationDialog, gcsConfigComponents,
++  s3ConfigComponents
++} from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
++
++export class SnowFlakeDestinationDialog extends DestinationDialog<SnowflakeConfig> {
++  items(): React.ReactNode {
++    let className =
++      'destinations-list-s3config-' + (this.state.currentValue.formData['mode'] === 'batch' ? 'enabled' : 'disabled');
++    return (
++      <>
++        <Row>
++          <Col span={16}>
++            <Form.Item
++              label="Account"
++              name="snowflakeAccount"
++              labelCol={{ span: 6 }}
++              wrapperCol={{ span: 18 }}
++              rules={[{ required: true, message: 'Field is required' }]}
++            >
++              <Input type="text"/>
++            </Form.Item>
++          </Col>
++        </Row>
++        <Form.Item
++          label="Warehouse"
++          name="snowflakeWarehouse"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Field is required' }]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label="DB"
++          name="snowflakeDB"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Field is required' }]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label="Schema"
++          initialValue="public"
++          name="snowflakeSchema"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Field is required' }]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label="Username"
++          name="snowflakeUsername"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Field is required' }]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++        <Form.Item
++          label="Password"
++          name="snowflakePassword"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[{ required: true, message: 'Field is required' }]}
++        >
++          <Input.Password
++            type="password"
++            iconRender={(visible) => (visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>)}
++          />
++        </Form.Item>
++        <Divider className={className} plain>
++          <LabelWithTooltip
++            documentation={
++              <>
++                For batch mode data is being uploaded through{' '}
++                <a href="https://docs.snowflake.com/en/user-guide/data-load-local-file-system-create-stage.html">
++                  stages
++                </a>
++                . We support S3 and GCP as stage.
++              </>
++            }
++          >
++            Intermediate Stage (S3 or GCP)
++          </LabelWithTooltip>
++        </Divider>
++
++        <Form.Item
++          label="Stage name"
++          className={className}
++          name="snowflakeStageName"
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 12 }}
++          rules={[
++            {
++              required: this.state.currentValue.formData['mode'] === 'batch',
++              message: 'Field is required'
++            }
++          ]}
++        >
++          <Input type="text"/>
++        </Form.Item>
++
++        <Form.Item
++          className={className}
++          label="Stage type"
++          name="snowflakeStageType"
++          initialValue={'hosted'}
++          labelCol={{ span: 4 }}
++          wrapperCol={{ span: 8 }}
++          rules={[
++            {
++              required: this.state.currentValue.formData['mode'] === 'batch',
++              message: 'Required'
++            }
++          ]}
++        >
++          <Radio.Group optionType="button" buttonStyle="solid" onChange={() => this.refreshStateFromForm()}>
++            <Radio.Button value="hosted">Hosted by Jitsu</Radio.Button>
++            <Radio.Button value="s3">S3</Radio.Button>
++            <Radio.Button value="gcs">Google Cloud Storage</Radio.Button>
++          </Radio.Group>
++        </Form.Item>
++        {s3ConfigComponents(
++          'snowflake',
++          !(
++            this.state.currentValue.formData['mode'] === 'batch' &&
++            this.state.currentValue.formData['snowflakeStageType'] === 's3'
++          )
++        )}
++        {gcsConfigComponents(
++          'snowflake',
++          !(
++            this.state.currentValue.formData['mode'] === 'batch' &&
++            this.state.currentValue.formData['snowflakeStageType'] === 'gcs'
++          )
++        )}
++      </>
++    );
++  }
++}
++
++export default SnowFlakeDestinationDialog;
+\ No newline at end of file
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.module.less b/src/ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.module.less
+new file mode 100644
+index 0000000..2aa692c
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.module.less
+@@ -0,0 +1,15 @@
++.wrapper {
++  //height: calc(100vh - 170px);
++}
++
++.mainArea {
++}
++
++.tabCard {
++  height: calc(100vh - 200px);
++}
++
++.tabCard :global .ant-tabs-content {
++  overflow: auto;
++  height: 98%;
++}
+\ No newline at end of file
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.tsx b/src/ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.tsx
+new file mode 100644
+index 0000000..26f72b3
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.tsx
+@@ -0,0 +1,157 @@
++import cloneDeep from "lodash/cloneDeep";
++import styles from "./DestinationEditor.module.less"
++import { useParams, NavLink, useHistory, Prompt } from "react-router-dom";
++import ApplicationServices from "@./lib/services/ApplicationServices";
++import { DestinationConfig, destinationConfigTypes, destinationsByTypeId } from "@./lib/services/destinations";
++import { loadDestinations } from "@page/DestinationsPage/commons";
++import { CenteredError, CenteredSpin, handleError } from "@./lib/components/components";
++import { Button, Form, message, Tabs, Tooltip } from "antd";
++import useLoader from "@./lib/commons/useLoader";
++import * as React from "react";
++import DestinationsList, { getIconSrc } from "@page/DestinationsPage/partials/DestinationsList/DestinationsList";
++import ConnectionPropertiesTab from "@page/DestinationsPage/partials/ConnectionProperties/ConnectionPropertiesTab";
++import classNames from "classnames";
++import { ReactNode, useState } from "react";
++import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined";
++import Marshal from "@./lib/commons/marshalling";
++import { MappingEditor } from "@page/DestinationsPage/partials/MappingEditor/MappingEditor";
++
++export type Callback<T> = (p: T) => void
++
++function pickId(type: string, destinations: DestinationConfig[]) {
++  let id = type;
++  let baseId = type;
++  let counter = 1;
++  while (destinations.find((el) => el.id == id) !== undefined) {
++    id = baseId + counter;
++    counter++;
++  }
++  return id;
++}
++
++export function ComingSoon({ children, documentation }: { children: ReactNode, documentation: ReactNode }) {
++  return <>
++    <Tooltip title={documentation}>
++      {children}
++      <sup>
++        <i>Coming Soon!</i>
++      </sup>
++    </Tooltip>
++  </>
++}
++
++function DestinationEditor() {
++  const params = useParams<{ id?: string, type?: string }>();
++  const destinationId = params.id;
++  const history = useHistory();
++  const [activeTabKey, setActiveTabKey] = useState("config")
++  let [modCount, setModCount] = useState(0);
++  let [connectionTesting, setTestingConnection] = useState(false);
++  let [form] = Form.useForm();
++  const [sourcesError, sources, updateSources] = useLoader<DestinationConfig>(async() => {
++    return await ApplicationServices.get().storageService.get('sources', ApplicationServices.get().activeProject.id)
++  });
++
++  const [destinationError, destination, updateDestination] = useLoader<DestinationConfig>(async() => {
++      let destinations = await loadDestinations(ApplicationServices.get());
++      let destination: DestinationConfig;
++
++      if (params.id) {
++        destination = destinations.find(dest => dest.id === params.id);
++        if (!destination) {
++          new Error(`Unknown destination id: ${destinationId}. All destinations: ${JSON.stringify(destinations, null, 2)}`)
++        }
++      } else if (params.type) {
++        destination = destinationsByTypeId[params.type].factory(pickId(params.type, destinations))
++      } else {
++        throw new Error(":type of :id should present")
++      }
++      return destination;
++    }
++  );
++
++  if (sourcesError || destinationError) {
++    return <CenteredError error={sourcesError || destinationError}/>
++  } else if (!destination || !sources) {
++    return <CenteredSpin/>
++  } else {
++    let type = destinationsByTypeId[destination.type];
++
++    let img = <img
++      src={getIconSrc(type.type)} className="h-6 align-baseline ml-2" alt="[destination]"
++    />;
++    return <div className={classNames("flex flex-col items-stretch", styles.wrapper)}>
++      <div className=""><h2><NavLink to="/destinations">Destinations</NavLink> / {img} Edit {type.name} connection
++        (id: {destination.id})</h2></div>
++      <div className={classNames("flex-grow", styles.mainArea)}>
++        <Tabs type="card" className={styles.tabCard} activeKey={activeTabKey} onChange={(key) => setActiveTabKey(key)}>
++          <Tabs.TabPane key="config" tab="Connection Properties">
++            <ConnectionPropertiesTab form={form} destination={destination}
++                                     onModification={() => setModCount(modCount + 1)}/>
++          </Tabs.TabPane>
++          <Tabs.TabPane key="mappings" tab="Mappings">
++            <MappingEditor mappings={destination.mappings} onChange={(mappings) => {
++              destination.mappings = mappings;
++              updateDestination(destination);
++              setModCount(modCount + 1);
++            }} />
++
++          </Tabs.TabPane>
++          <Tabs.TabPane key="sources" tab={<ComingSoon documentation={<>
++            Edit sources which will send data to the destination
++          </>}>Connected sources</ComingSoon>} disabled={true}>
++
++          </Tabs.TabPane>
++          <Tabs.TabPane key="settings" tab={<ComingSoon documentation={<>
++            A predefined library of settings such as <a
++            href="https://jitsu.com/docs/other-features/segment-compatibility">Segment-like schema</a>
++          </>}>Settings Library</ComingSoon>} disabled={true}>
++
++          </Tabs.TabPane>
++          <Tabs.TabPane key="stat" tab={<ComingSoon documentation={<>
++            A detailed statistics on how many events have been sent to the destinations
++          </>}>Statistics</ComingSoon>} disabled={true}>
++
++          </Tabs.TabPane>
++        </Tabs>
++      </div>
++      <div className="flex-shrink border-t pt-2">
++        <Button type="primary" size="large" className="mr-3">Save</Button>
++        <Button type="default" onClick={async () => {
++          setTestingConnection(true);
++          let values;
++          try {
++            values = await form.validateFields();
++          } catch (e) {
++            setTestingConnection(false);
++            setActiveTabKey("config")
++            return;
++          }
++          try {
++            destination.update(values);
++            await ApplicationServices.get().backendApiClient.post(
++              '/destinations/test',
++              Marshal.toPureJson(destination)
++            );
++            message.success('Successfully connected!');
++            updateDestination(destination);
++            setTestingConnection(false);
++          } catch (e) {
++            handleError(e, 'Failed to validate connection');
++            setTestingConnection(false);
++          }
++        }} size="large"  className="mr-3" loading={connectionTesting}>Test Connection</Button>
++        <Button type="default" size="large" onClick={() => {
++          history.push("/destinations")
++        }} danger>Cancel</Button>
++      </div>
++      <Prompt message={() => {
++        if (modCount > 0) {
++          return "You have unsaved changes. Are you sure you want to leave the page?"
++        }
++      }}/>
++    </div>
++  }
++}
++
++export default DestinationEditor;
+\ No newline at end of file
+diff --git a/src/ui/pages/DestinationsPage/partials/DestinationsList/DestinationsList.tsx b/src/ui/pages/DestinationsPage/partials/DestinationsList/DestinationsList.tsx
+new file mode 100644
+index 0000000..092e68e
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/DestinationsList/DestinationsList.tsx
+@@ -0,0 +1,198 @@
++/* eslint-disable */
++import * as React from 'react';
++import { ReactNode, useState } from 'react';
++import { DestinationConfig, destinationConfigTypes, destinationsByTypeId } from '@./lib/services/destinations';
++import { Avatar, Button, Dropdown, Form, List, Menu, message, Modal, Popover, Tooltip } from 'antd';
++import DatabaseOutlined from '@ant-design/icons/lib/icons/DatabaseOutlined';
++import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
++import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
++import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
++import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
++import '../../DestinationsPage.less';
++
++import {
++  ActionLink,
++  Align, CenteredError, CenteredSpin,
++  CodeInline,
++  CodeSnippet,
++  handleError,
++  LabelWithTooltip,
++  LoadableComponent
++} from '@./lib/components/components';
++import ApplicationServices from '../../../../../lib/services/ApplicationServices';
++import { copyToClipboard } from '@./lib/commons/utils';
++import Icon from '@ant-design/icons';
++import { loadDestinations } from "@page/DestinationsPage/commons";
++import useLoader from "@./lib/commons/useLoader";
++import { useHistory } from "react-router-dom";
++
++export function getIconSrc(destinationType: string): string {
++  try {
++    const icon = require('../../../../../icons/destinations/' + destinationType + '.svg');
++    return icon.default;
++  } catch (e) {
++    console.log('Icon for ' + destinationType + ' is not found');
++    return null;
++  }
++}
++
++export function getIcon(destinationType: string): any {
++  let src = getIconSrc(destinationType);
++  return src ? <img src={src} className="destination-type-icon" alt="[destination]"/> : <DatabaseOutlined/>;
++}
++
++type DestinationComponentProps = {
++  config: DestinationConfig
++  destinations?: DestinationConfig[]
++  onChange?: (destinations: DestinationConfig[]) => void
++};
++
++function DestinationTitle({ config }: DestinationComponentProps) {
++  let configTitle = config.connectionTestOk ? <>{config.id}</> :
++    <Tooltip
++      trigger={['click', 'hover']}
++      title={
++        <>
++          Last connection test failed with <b><i>'{config.connectionErrorMessage}'</i></b>. Destination might be not
++          accepting data. Please, go to editor and fix the connection settings
++        </>
++      }>
++        <span className="destinations-list-failed-connection">
++          <b>!</b> {config.id}
++        </span>
++    </Tooltip>;
++  if (config.comment) {
++    return <LabelWithTooltip documentation={config.comment}>{configTitle}</LabelWithTooltip>;
++  } else {
++    return configTitle;
++  }
++}
++
++function DestinationRow({ config, destinations, onChange }: DestinationComponentProps) {
++  const history = useHistory();
++  let description = config.describe();
++  let descriptionComponent;
++  if (!description.commandLineConnect) {
++    descriptionComponent = description.displayURL;
++  } else {
++    let codeSnippet;
++    if (description.commandLineConnect.indexOf('\n') < 0) {
++      codeSnippet = <>
++        <div>
++          <CodeInline>{description.commandLineConnect}</CodeInline>
++        </div>
++        <Align horizontal="right">
++          <ActionLink
++            onClick={() => {
++              copyToClipboard(description.commandLineConnect);
++              message.info('Command copied to clipboard', 2);
++            }}>
++            Copy command to clipboard
++          </ActionLink>
++        </Align>
++      </>;
++    } else {
++      codeSnippet = <CodeSnippet className="destinations-list-multiline-code" language="bash">
++        {description.commandLineConnect}
++      </CodeSnippet>
++    }
++    descriptionComponent = <Popover
++      placement="topLeft"
++      content={
++        <>
++          <h4><b>Use following command to connect to DB and run a test query:</b></h4>
++          {codeSnippet}
++        </>
++      }
++      trigger="click">
++      <span className="destinations-list-show-connect-command">{description.displayURL}</span>
++    </Popover>;
++  }
++
++  return <List.Item
++    key={config.id}
++    actions={[
++      <Button icon={<EditOutlined/>} key="edit" shape="round" onClick={() => {
++        history.push(`/destinations/edit/${config.id}`)
++      }}>Edit</Button>,
++      <Button icon={<DeleteOutlined/>} key="delete" shape="round" onClick={() => {
++        Modal.confirm({
++          title: 'Please confirm deletion of destination',
++          icon: <ExclamationCircleOutlined/>,
++          content: 'Are you sure you want to delete ' + config.id + ' destination?',
++          okText: 'Delete',
++          cancelText: 'Cancel',
++          onOk: () => {
++            destinations = destinations.filter(dest => dest.id !== config.id);
++            onChange(destinations);
++          },
++          onCancel: () => {
++          }
++        });
++      }}>
++        Delete
++      </Button>
++    ]}
++    className="destination-list-item">
++    <List.Item.Meta
++      avatar={<Avatar shape="square" src={getIconSrc(config.type)}/>}
++      title={<DestinationTitle config={config} />}
++      description={
++        <>
++          {descriptionComponent}
++          <br/>
++          mode: {config.mode}
++        </>
++      }
++    />
++  </List.Item>;
++
++}
++
++export default function DestinationsList() {
++  const [error, destinations, updateDestinations] = useLoader(async() => await loadDestinations(ApplicationServices.get()))
++  const history = useHistory();
++  if (error) {
++    return <CenteredError error={error} />
++  } else if (!destinations) {
++    return <CenteredSpin />
++  }
++  let componentList = [
++    <List key="list" className="destinations-list" itemLayout="horizontal" header={(
++      <Dropdown trigger={['click']} overlay={(
++        <Menu className="destinations-list-add-menu">
++          {destinationConfigTypes.map((type) => (
++            <Menu.Item
++              key={type.name}
++              icon={
++                <Icon
++                  component={() => (
++                    <img
++                      height={16}
++                      width={16}
++                      src={getIconSrc(type.type)}
++                      className="destination-type-icon"
++                      alt="[destination]"
++                    />
++                  )}
++                />
++              }
++              onClick={() => history.push(`/destinations/new/${(type.type)}`)}>
++              Add {type.name}
++            </Menu.Item>
++          ))}
++        </Menu>
++      )}>
++        <Button type="primary" icon={<PlusOutlined/>}>
++          Add destination
++        </Button>
++      </Dropdown>
++    )} split={true}>
++      {destinations.map((config) => <DestinationRow config={config}
++                                                    destinations={destinations}
++                                                    onChange={updateDestinations}/>)}
++    </List>
++  ];
++
++  return <>{componentList}</>;
++}
+diff --git a/src/lib/components/DestinationsEditor/MappingEditor.less b/src/ui/pages/DestinationsPage/partials/MappingEditor/MappingEditor.less
+similarity index 97%
+rename from src/lib/components/DestinationsEditor/MappingEditor.less
+rename to src/ui/pages/DestinationsPage/partials/MappingEditor/MappingEditor.less
+index f3080aa..e7673f8 100644
+--- a/src/lib/components/DestinationsEditor/MappingEditor.less
++++ b/src/ui/pages/DestinationsPage/partials/MappingEditor/MappingEditor.less
+@@ -1,4 +1,4 @@
+-@import '../../../theme.less';
++@import 'src/theme.less';
+ 
+ .mapping-editor-json-pointer {
+   border: 0;
+diff --git a/src/ui/pages/DestinationsPage/partials/MappingEditor/MappingEditor.tsx b/src/ui/pages/DestinationsPage/partials/MappingEditor/MappingEditor.tsx
+new file mode 100644
+index 0000000..e3fab0d
+--- /dev/null
++++ b/src/ui/pages/DestinationsPage/partials/MappingEditor/MappingEditor.tsx
+@@ -0,0 +1,129 @@
++/* eslint-disable */
++import * as React from "react";
++import { useCallback, useEffect, useState } from "react";
++import cloneDeep from "lodash/cloneDeep";
++
++import { Button, Form, Input, message, Modal, Radio, Select, Table } from "antd";
++import MAPPING_NAMES, {
++  FieldMappings,
++  Mapping,
++} from "@./lib/services/mappings";
++import {
++  Align, CenteredError, CenteredSpin,
++  handleError,
++  LabelWithTooltip,
++} from "@./lib/components/components";
++import "./MappingEditor.less";
++import PlayCircleFilled from "@ant-design/icons/lib/icons/PlayCircleFilled"
++import DeleteFilled from "@ant-design/icons/lib/icons/DeleteFilled";
++import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined";
++import ApplicationServices from "@./lib/services/ApplicationServices";
++import { loadDestinations } from "@page/DestinationsPage/commons";
++import { useParams, NavLink } from "react-router-dom";
++import { DestinationConfig } from "@./lib/services/destinations";
++import Marshal from "@./lib/commons/marshalling";
++import { FloatingLabelInput } from "@molecule/FloatingLabelInput";
++
++export type MappingEditorProps = {
++  mappings: FieldMappings
++  onChange: (mappings: FieldMappings, isValid: boolean) => void
++}
++
++export function MappingEditor(props: MappingEditorProps) {
++  const [mappings, updateMappings] = useState(props.mappings);
++  return <div className="px-auto">
++    <div className="italic text-secondaryText">
++      Mappings defines how the data will be transformed before it landed to destination. The result of
++      transformation is an another.
++      Read more about <a href="https://jitsu.com/docs/configuration/schema-and-mappings">mappings in documentation</a>.
++    </div>
++    <div className="bg-bgSecondary rounded-xl mt-4">
++      <div className="flex rounded-t-xl items-center py-3 px-5 border-b">
++        <LabelWithTooltip className="flex-shrink pr-4" documentation={<>
++          Depending on this setting, mapping engine will either keep a field intact if it's not explicitly
++          mapped to other field, or remove it <a href="https://jitsu.com/docs/configuration/schema-and-mappings">Read
++          more about mappings</a>
++        </>}>Unmapped field strategy: </LabelWithTooltip>
++        <Select className="w-48" inputValue="keep">
++          <Select.Option value="keep">Keep fields</Select.Option>
++          <Select.Option value="remove">Remove fields</Select.Option>
++        </Select>
++        <div className="flex-grow flex justify-end">
++          <div>
++            <Button icon={<PlayCircleFilled/>}>Test Mapping</Button>
++          </div>
++        </div>
++      </div>
++      <div>
++        <div key="mappings">
++          {mappings.mappings.map((mapping => <MappingLine mapping={mapping}/>))}
++        </div>
++        <div key="bottomPane" className="py-3 px-5 border-t">
++          <Button type="primary" onClick={() => {
++            mappings.addMapping(new Mapping("/path/to/field", "/path/to/field2", null))
++            updateMappings(mappings);
++            props.onChange(mappings, false);
++          }}>Add Mapping</Button>
++        </div>
++      </div>
++    </div>
++  </div>
++}
++
++function MappingLine({ mapping }: { mapping: Mapping }) {
++  const [form] = Form.useForm();
++  let key = mapping['__rowKey'];
++  return <Form key={key} form={form} layout="horizontal" className="flex border-b">
++    <FloatingLabelInput name="src" formName={`row_form_${key}`} floatingLabelText="/src/field/path"/>
++    <FloatingLabelInput name="dst" formName={`row_form_${key}`} floatingLabelText="/destination/field/path"/>
++    <Form.Item name="type">
++      <Select>
++        {Object.entries(MAPPING_NAMES).map(([optName, displayName]) =>
++          <Select.Option value={optName}>{displayName}</Select.Option>
++        )}
++      </Select>
++    </Form.Item>
++  </Form>
++}
++
++function JsonPointerInput(props: {
++  initialValue: any;
++  onChange: (val: string) => void;
++  validator: (val: string) => string;
++}) {
++  let [error, setError] = useState(props.validator(props.initialValue));
++  let onChange = (value) => {
++    let val = value.target.value;
++    let error = props.validator(val);
++    if (error) {
++      setError(error);
++    } else {
++      setError(null);
++    }
++    props.onChange(val);
++  };
++  return (
++    <>
++      <Input
++        type="text"
++        className="mapping-editor-json-pointer"
++        defaultValue={props.initialValue}
++        onChange={onChange}
++        size="small"
++        contentEditable={true}
++      />
++      <div className="mapping-editor-json-poiter-error">
++        {error ? error : "\u00A0"}
++      </div>
++    </>
++  );
++}
++
++function isValidJsonPointer(val) {
++  return (
++    val.length > 0 &&
++    val[0] === "/" &&
++    val[val.length - 1] !== "/" &&
++    val.indexOf(" ") < 0
++  );
++}
+diff --git a/tsconfig.paths.json b/tsconfig.paths.json
+index d611ffb..f21f48d 100644
+--- a/tsconfig.paths.json
++++ b/tsconfig.paths.json
+@@ -1,6 +1,8 @@
+ {
++  //Any new alias should be added to craco.config.js as well
+   "compilerOptions": {
+     "paths": {
++      "@./*": ["./*"],
+       "@atom/*": ["./ui/components/atom/*"],
+       "@molecule/*": ["./ui/components/molecule/*"],
+       "@page/*": ["./ui/pages/*"]
+diff --git a/yarn.lock b/yarn.lock
+index 14f5b18..8a875d2 100644
+--- a/yarn.lock
++++ b/yarn.lock
+@@ -2148,6 +2148,11 @@
+   dependencies:
+     "@types/unist" "*"
+ 
++"@types/history@*":
++  version "4.7.8"
++  resolved "https://registry.yarnpkg.com/@types/history/-/history-4.7.8.tgz#49348387983075705fe8f4e02fb67f7daaec4934"
++  integrity sha512-S78QIYirQcUoo6UJZx9CSP0O2ix9IaeAXwQi26Rhr/+mg7qqPy8TzaxHSUut7eGjL8WmLccT7/MXf304WjqHcA==
++
+ "@types/html-minifier-terser@^5.0.0":
+   version "5.1.1"
+   resolved "https://registry.yarnpkg.com/@types/html-minifier-terser/-/html-minifier-terser-5.1.1.tgz#3c9ee980f1a10d6021ae6632ca3e79ca2ec4fb50"
+@@ -2247,6 +2252,23 @@
+   dependencies:
+     "@types/react" "*"
+ 
++"@types/react-router-dom@^5.1.7":
++  version "5.1.7"
++  resolved "https://registry.yarnpkg.com/@types/react-router-dom/-/react-router-dom-5.1.7.tgz#a126d9ea76079ffbbdb0d9225073eb5797ab7271"
++  integrity sha512-D5mHD6TbdV/DNHYsnwBTv+y73ei+mMjrkGrla86HthE4/PVvL1J94Bu3qABU+COXzpL23T1EZapVVpwHuBXiUg==
++  dependencies:
++    "@types/history" "*"
++    "@types/react" "*"
++    "@types/react-router" "*"
++
++"@types/react-router@*":
++  version "5.1.12"
++  resolved "https://registry.yarnpkg.com/@types/react-router/-/react-router-5.1.12.tgz#0f300e09468e7aed86e18241c90238c18c377e51"
++  integrity sha512-0bhXQwHYfMeJlCh7mGhc0VJTRm0Gk+Z8T00aiP4702mDUuLs9SMhnd2DitpjWFjdOecx2UXtICK14H9iMnziGA==
++  dependencies:
++    "@types/history" "*"
++    "@types/react" "*"
++
+ "@types/react@*", "@types/react@^17.0.0":
+   version "17.0.3"
+   resolved "https://registry.yarnpkg.com/@types/react/-/react-17.0.3.tgz#ba6e215368501ac3826951eef2904574c262cc79"
