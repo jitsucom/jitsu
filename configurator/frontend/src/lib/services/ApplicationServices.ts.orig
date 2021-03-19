@@ -19,7 +19,6 @@ export class ApplicationConfiguration {
    * One of the following: development, production
    */
   private readonly _appEnvironment: AppEnvironmentType;
-  private readonly _buildId: string;
 
   constructor() {
     this._rawConfig = getRawApplicationConfig();
@@ -27,11 +26,6 @@ export class ApplicationConfiguration {
     this._firebaseConfig = this._rawConfig.firebase;
     this._backendApiBase = concatenateURLs(backendApiBase, '/api/v1');
     this._appEnvironment = (this._rawConfig.env.NODE_ENV || 'production').toLowerCase() as AppEnvironmentType;
-    this._buildId = [
-        `b=${this._rawConfig.env.BUILD_ID || 'dev'}`,
-        `sc=${this._rawConfig.env.GIT_BRANCH || 'unknown'}/${this._rawConfig.env.GIT_COMMIT_REF || 'unknown'}`,
-        `t=${this._rawConfig.env.BUILD_TIMESTAMP || 'unknown'}`
-    ].join(";");
 
     console.log(
       `App initialized. Backend: ${this._backendApiBase}. Env: ${this._appEnvironment}. Firebase configured: ${!!this
@@ -48,7 +42,7 @@ export class ApplicationConfiguration {
   }
 
   get backendApiBase(): string {
-    return this._backendApiBase || `${window.location.protocol}//${window.location.host}/`;
+    return this._backendApiBase;
   }
 
   get rawConfig(): RawConfigObject {
