@@ -50,7 +50,7 @@ export class ApplicationConfiguration {
   }
 
   get backendApiBase(): string {
-    return this._backendApiBase;
+    return this._backendApiBase || `${window.location.protocol}//${window.location.host}/`;
   }
 
   get backendApiProxyBase(): string {
