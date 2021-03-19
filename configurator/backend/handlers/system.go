@@ -44,10 +44,12 @@ func (sh *SystemHandler) GetHandler(c *gin.Context) {
 	}
 
 	currentConfiguration := Configuration{
-		Authorization: sh.authService.GetAuthorizationType(),
-		Users:         exist,
-		Smtp:          sh.smtp,
-		SelfHosted:    sh.selfHosted,
+		Authorization:   sh.authService.GetAuthorizationType(),
+		Users:           exist,
+		Smtp:            sh.smtp,
+		SelfHosted:      sh.selfHosted,
+		SupportWidget:   !sh.selfHosted,
+		DefaultS3Bucket: !sh.selfHosted,
 	}
 
 	c.JSON(http.StatusOK, currentConfiguration)

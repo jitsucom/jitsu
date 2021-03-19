@@ -98,7 +98,7 @@ func main() {
 		}
 	}
 
-	//** Default destinations Postgres
+	//** Postgres for default destinations
 	var defaultPostgres *destinations.Postgres
 	var err error
 	if viper.IsSet("destinations.default.postgres") {
@@ -135,20 +135,20 @@ func main() {
 	appconfig.Instance.ScheduleClosing(authService)
 
 	//** Statistics **
-	statisticsStorage, err := statistics.NewStorage(viper.Sub("destinations.statistics"), viper.GetStringMapStringSlice("old_keys"))
+	statisticsStorage, err := statistics.NewStorage(viper.Sub("statistics"), viper.GetStringMapStringSlice("old_keys"))
 	if err != nil {
 		logging.Fatalf("Error initializing 'destinations.statistics': %v", err)
 	}
 	appconfig.Instance.ScheduleClosing(statisticsStorage)
 
 	//statistics postgres
-	var pgDestinationConfig *enstorages.DestinationConfig
-	if viper.IsSet("destinations.statistics.postgres") {
-		pgDestinationConfig = &enstorages.DestinationConfig{}
-		if err := viper.UnmarshalKey("destinations.statistics.postgres", pgDestinationConfig); err != nil {
+	var pgStatisticsConfig *enstorages.DestinationConfig
+	if viper.IsSet("statistics.postgres") {
+		pgStatisticsConfig = &enstorages.DestinationConfig{}
+		if err := viper.UnmarshalKey("statistics.postgres", pgStatisticsConfig); err != nil {
 			logging.Fatal("Error unmarshalling statistics postgres config:", err)
 		}
-		if err := pgDestinationConfig.DataSource.Validate(); err != nil {
+		if err := pgStatisticsConfig.DataSource.Validate(); err != nil {
 			logging.Fatal("Error validation statistics postgres config:", err)
 		}
 	}
@@ -209,9 +209,8 @@ func main() {
 		logging.Fatal("'server.domain' is required configuration parameter (format: 'domain.com'). It is used in CORS filter.")
 	}
 
-	//TODO replace with redis statisticsPostgres
 	router := SetupRouter(enService, configurationsStorage, configurationsService,
-		authService, s3Config, pgDestinationConfig, statisticsStorage, sslUpdateExecutor, emailsService)
+		authService, s3Config, pgStatisticsConfig, statisticsStorage, sslUpdateExecutor, emailsService)
 	notifications.ServerStart()
 	logging.Info("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
@@ -243,7 +242,7 @@ func readConfiguration(configFilePath string) {
 
 func SetupRouter(enService *eventnative.Service, configurationsStorage storages.ConfigurationsStorage,
 	configurationsService *storages.ConfigurationsService, authService *authorization.Service, defaultS3 *enadapters.S3Config,
-	statisticsPostgres *enstorages.DestinationConfig, statisticsStorage statistics.Storage, sslUpdateExecutor *ssl.UpdateExecutor,
+	pgStatisticsConfig *enstorages.DestinationConfig, statisticsStorage statistics.Storage, sslUpdateExecutor *ssl.UpdateExecutor,
 	emailService *emails.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -289,7 +288,7 @@ func SetupRouter(enService *eventnative.Service, configurationsStorage storages.
 			}
 		}
 
-		destinationsHandler := handlers.NewDestinationsHandler(configurationsService, defaultS3, statisticsPostgres, enService)
+		destinationsHandler := handlers.NewDestinationsHandler(configurationsService, defaultS3, pgStatisticsConfig, enService)
 		destinationsRoute := apiV1.Group("/destinations")
 		{
 			destinationsRoute.GET("/", middleware.ServerAuth(middleware.IfModifiedSince(destinationsHandler.GetHandler, configurationsService.GetDestinationsLastUpdated), serverToken))
