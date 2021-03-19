@@ -53,6 +53,7 @@ func TestCors(t *testing.T) {
 		XAuthToken string
 
 		ExpectedCorsHeaderValue string
+		ResponseCode            int
 	}{
 		{
 			"Wrong token in event url",
@@ -60,6 +61,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"",
+			401,
 		},
 		{
 			"Wrong token in random url",
@@ -67,6 +69,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"",
+			401,
 		},
 		{
 			"Wrong token in header event url",
@@ -74,6 +77,7 @@ func TestCors(t *testing.T) {
 			"",
 			"wrongtoken",
 			"",
+			401,
 		},
 		{
 			"Wrong token in header random url",
@@ -81,6 +85,7 @@ func TestCors(t *testing.T) {
 			"",
 			"wrongtoken",
 			"",
+			401,
 		},
 		{
 			"Wrong origin with token in event url",
@@ -88,6 +93,7 @@ func TestCors(t *testing.T) {
 			"origin.com",
 			"",
 			"",
+			200,
 		},
 		{
 			"Wrong origin with token in random url",
@@ -95,6 +101,7 @@ func TestCors(t *testing.T) {
 			"origin.com",
 			"",
 			"",
+			401,
 		},
 		{
 			"Wrong origin with token in header event url",
@@ -102,6 +109,7 @@ func TestCors(t *testing.T) {
 			"origin.com",
 			"c2stoken",
 			"",
+			200,
 		},
 		{
 			"Wrong origin with token in header random url",
@@ -109,6 +117,7 @@ func TestCors(t *testing.T) {
 			"origin.com",
 			"c2stoken",
 			"",
+			200,
 		},
 		{
 			"Ok origin with token in event url",
@@ -116,6 +125,7 @@ func TestCors(t *testing.T) {
 			"https://whiteorigin.com",
 			"",
 			"https://whiteorigin.com",
+			200,
 		},
 		{
 			"Ok origin with token in random url",
@@ -123,6 +133,7 @@ func TestCors(t *testing.T) {
 			"https://whiteorigin.com",
 			"",
 			"https://whiteorigin.com",
+			200,
 		},
 		{
 			"Ok origin with token in header event url",
@@ -130,6 +141,7 @@ func TestCors(t *testing.T) {
 			"http://whiteoriginmy.com",
 			"c2stoken",
 			"http://whiteoriginmy.com",
+			200,
 		},
 		{
 			"Ok origin with token in header random url",
@@ -137,6 +149,7 @@ func TestCors(t *testing.T) {
 			"http://whiteoriginmy.com",
 			"c2stoken",
 			"http://whiteoriginmy.com",
+			200,
 		},
 		{
 			"S2S endpoint without cors",
@@ -144,6 +157,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"",
+			200,
 		},
 		{
 			"static endpoint /t",
@@ -151,6 +165,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"*",
+			200,
 		},
 		{
 			"static endpoint /s",
@@ -158,6 +173,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"*",
+			200,
 		},
 		{
 			"static endpoint /p",
@@ -165,6 +181,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"*",
+			200,
 		},
 	}
 	for _, tt := range tests {
@@ -218,7 +235,8 @@ func TestCors(t *testing.T) {
 			}
 			optResp, err := http.DefaultClient.Do(optReq)
 			require.NoError(t, err)
-			require.Equal(t, 200, optResp.StatusCode)
+
+			require.Equal(t, tt.ResponseCode, optResp.StatusCode)
 
 			require.Equal(t, tt.ExpectedCorsHeaderValue, optResp.Header.Get("Access-Control-Allow-Origin"), "Cors header ACAO values aren't equal")
 			optResp.Body.Close()

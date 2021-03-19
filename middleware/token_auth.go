@@ -6,7 +6,10 @@ import (
 	"strings"
 )
 
-const TokenName = "token"
+const (
+	TokenName        = "token"
+	ErrTokenNotFound = "The token is not found"
+)
 
 //extractToken return token from
 //1. query parameter
@@ -51,7 +54,7 @@ func TokenAuth(main gin.HandlerFunc, originalToken string) gin.HandlerFunc {
 func TokenFuncAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([]string, bool), errMsg string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if errMsg == "" {
-			errMsg = "The token is not found"
+			errMsg = ErrTokenNotFound
 		}
 		token := extractToken(c.Request)
 
