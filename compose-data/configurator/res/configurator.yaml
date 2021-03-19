@@ -27,9 +27,3 @@ auth:
     port: 6379
     access_secret: access
     refresh_secret: refresh
-
-smtp:
-  host: 'smtp.sendgrid.net'
-  port: 587
-  user: apikey
-  password: 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
