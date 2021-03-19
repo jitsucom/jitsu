@@ -23,7 +23,7 @@ jobs:
       - setup_remote_docker
       - restore_cache:
           keys:
-            - go-mod-v1-{{ checksum "go.sum" }}
+            - go-mod-v1-{{ checksum "./server/go.sum" }}
       - run: mkdir -p $TEST_RESULTS
       - run: go get github.com/jstemmer/go-junit-report
       - run:
@@ -40,12 +40,12 @@ jobs:
           name: Run unit tests
           command: |
             trap "go-junit-report <${TEST_RESULTS}/go-test.out > ${TEST_RESULTS}/go-test-report.xml" EXIT
-            make test_backend | tee ${TEST_RESULTS}/go-test.out
+            cd server && make test_backend | tee ${TEST_RESULTS}/go-test.out
       - store_test_results:
           path: /tmp/test-results
       - run: go mod tidy
       - save_cache:
-          key: go-mod-v1-{{ checksum "go.sum" }}
+          key: go-mod-v1-{{ checksum "./server/go.sum" }}
           paths:
             - "/go/pkg/mod"
   build-latest-en-docker:
