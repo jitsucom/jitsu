@@ -50,7 +50,7 @@ We host a [simple page that demonstrates how EventNative works](https://track-de
 
 ## Documentation
 
-Please see our extensive documentation [here](https://docs.eventnative.org/). Key sections include:
+Please see our extensive documentation [here](https://jitsu.com/docs). Key sections include:
  * [Deployment](https://docs.eventnative.org/deployment) - Getting EventNative running on Heroku, Docker, and building from source.
  * [Configuration](https://docs.eventnative.org/configuration) - How to modify EventNative's `yaml` file. 
  * [Geo Data](https://docs.eventnative.org/geo-data-resolution) - Configuring data enrichment with [MaxMind](https://www.maxmind.com/en/home).
