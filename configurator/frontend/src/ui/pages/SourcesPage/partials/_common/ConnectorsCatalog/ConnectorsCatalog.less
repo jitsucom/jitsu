@@ -1,0 +1,88 @@
+@import './src/theme';
+
+.connectors-collection {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.connectors-catalog-list {
+  background: #1f1f1f;
+  margin-top: 4px;
+  border-radius: 4px;
+  overflow-x: hidden;
+
+  .connectors-catalog-list__item {
+    .connectors-catalog-list__item-link {
+      width: 100%;
+      box-sizing: border-box;
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 16px;
+      transition: color 200ms 0ms linear, background-color 200ms 0ms linear;
+
+      .connectors-catalog-list__item-link-txt {}
+
+      .connectors-catalog-list__item-link-pic {
+        width: 30px;
+        height: 30px;
+        margin-right: 4px;
+        border-radius: 50%;
+        padding: 3px;
+        overflow: hidden;
+
+        svg {
+          display: block;
+          width: 24px;
+        }
+      }
+
+      &:hover {
+        color: #fff;
+        background: #1f2937;
+      }
+    }
+  }
+}
+
+.connectors-catalog-table {
+  display: flex;
+  flex-wrap: wrap;
+
+  .connectors-catalog-table__item {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: 320px;
+    margin: 0 20px 20px 0;
+
+    .connectors-catalog-table__item-link {
+      display: flex;
+      border: 2px solid @heading-color;
+      border-radius: @border-radius-base;
+      padding: 20px;
+      transition: border-color 200ms 0ms linear;
+
+      .connectors-catalog-table__item-link-pic {
+        display: block;
+        width: 48px;
+        height: 48px;
+        margin-right: 10px;
+      }
+
+      .connectors-catalog-table__item-link-txt {
+        font-size: 24px;
+        margin-top: 10px;
+        color: @heading-color;
+        transition: color 200ms 0ms linear;
+
+        &:hover {
+          color: @link-color;
+        }
+      }
+
+      &:hover {
+        border-color: @link-color;
+      }
+    }
+  }
+}

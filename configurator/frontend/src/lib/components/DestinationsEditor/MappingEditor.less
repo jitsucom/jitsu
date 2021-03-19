@@ -1,0 +1,69 @@
+@import '../../../theme.less';
+
+.mapping-editor-json-pointer {
+  border: 0;
+  padding-left: 1px;
+  border-bottom: 1px solid black !important;
+  font-family: @font-monospace;
+  padding-bottom: 0 !important;
+  margin-bottom: 2px;
+}
+
+.mapping-editor-json-pointer:focus {
+  padding-bottom: 0 !important;
+  border: 0;
+  border-bottom: 2px solid black !important;
+  margin-bottom: 1px;
+}
+.mapping-editor-select-transform .ant-select-selector {
+  border: 0 !important;
+  border-bottom: 1px solid black !important;
+}
+
+
+.mapping-editor-select-transform .ant-select-selector,
+.mapping-editor-json-pointer, .mapping-editor-json-pointer:hover {
+  border-bottom: 1px solid black;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+}
+
+.mapping-editor-select-transform .ant-select-selector:focus,
+input.mapping-editor-json-pointer:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.mapping-editor-table tr, .mapping-editor-table tr td  {
+  border: 0 !important;
+}
+
+.mapping-editor-table td.ant-table-cell {
+  vertical-align: baseline !important;
+}
+
+.mapping-editor-table tr:hover {
+  background-color: transparent;
+}
+
+.mapping-editor-select-transform {
+  width: 100%;
+}
+
+.mapping-editor-table, .mapping-editor-table .ant-card, .mapping-editor-table .ant-table {
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.mapping-editor-json-poiter-error {
+  font-size: 70%;
+  color: red;
+  white-space: nowrap;
+}
+
+.mapping-editor-top-panel {
+  margin-bottom: 5px;
+  .label-with-tooltip {
+    padding-right: 20px;
+  }
+}

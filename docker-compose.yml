@@ -1,32 +1,38 @@
-version: '2'
-
-networks: 
-  en:
+version: "2.3"
+networks:
+  main:
 
 services:
-  redis:
-    container_name: eventnative_redis
-    image: redis:alpine
-    volumes:
-      - "${DATA_DIR}/redis_data/:/data"
-    expose:
-      - 6379
-    ports:
-      - 6379:6379
-    networks:
-      - en
-
-  eventnative:
+  configurator:
+    image: jitsucom/configurator
     depends_on:
       - redis
-    container_name: eventnative
-    image: ksense/eventnative:latest
-    tty: yes
     volumes:
-      - "${DATA_DIR}/res/:/home/eventnative/app/res/"
-      - "${DATA_DIR}/events/:/home/eventnative/logs/events/"
-      - "${DATA_DIR}/logs/:/home/eventnative/logs/"
+      - ./compose-data/configurator/res:/home/configurator/app/res/
+      - ./compose-data/configurator/logs/:/home/configurator/logs/
+    restart: always
     ports:
-      - 8001:8001
+      - "7000:7000"
     networks:
-      - en
+      - main
+  server:
+    image: jitsucom/server
+    depends_on:
+      - configurator
+      - redis
+    restart: always
+    volumes:
+      - ./compose-data/server/res:/home/eventnative/app/res/
+      - ./compose-data/server/logs/:/home/eventnative/logs/
+      - ./compose-data/server/events:/home/eventnative/logs/events/
+    ports:
+      - "8001:8001"
+    networks:
+      - main
+  redis:
+    image: redis:5.0-alpine
+    volumes:
+      - ./compose-data/redis/data:/data
+    restart: always
+    networks:
+      - main

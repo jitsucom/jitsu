@@ -1,0 +1,143 @@
+
+/**
+ * Main colors. Keep in sync with tailwind.config.js
+ */
+@bgPrimary: rgb(17, 24, 39); //#22313a;
+@bgSecondary: rgb(31, 41, 55); //#1e2a31;
+@bgComponent: rgb(26,35,50);
+
+@bgTableHeader: @bgComponent;
+@splitBorder: #394e5a;
+@primary: rgb(91, 20, 250);
+@link: rgb(135, 138, 252); //add to tailwind
+@success: #2cc56f;
+@warning: #ffc021;
+@error: #e53935;
+@heading: #c1c9d2;
+@text: #e5e7eb;
+@secondaryText: #7996a9;
+@disabled: #415969;
+@secondaryBorder: #415969;
+
+/**
+ * Antd theme customization
+ */
+@background-color-light: @bgComponent;
+@primary-background: @bgPrimary; // main bg color
+@secondary-background: @bgSecondary; // secondary bg color
+@component-background: @bgComponent; // widget or card bg color
+@popover-background: @bgComponent; // widget or card bg color
+
+@table-header-bg: @bgTableHeader;
+@table-row-hover-bg: @bgPrimary; // table tbody tr hover bg color
+@table-header-sort-active-bg: @bgComponent;
+@table-header-sort-bg: @bgTableHeader;
+@table-header-sort-active-bg: @bgTableHeader;
+
+@border-color-split: @splitBorder; // simple border color
+@primary-color: @primary; // primary color for all components
+@primary-5: @link;
+@link-color: @link;
+@success-color: @success; // success state color
+@warning-color: @warning; // warning state color
+@error-color: @error; // error state color
+@heading-color: @heading; // heading text color
+@text-color: @text; // major text color
+@text-color-secondary: @secondaryText; // secondary text color
+@disabled-color: @disabled; // disable state color
+@border-color-base: @secondaryBorder; // major border color
+
+@border-radius-base: 6px;
+
+
+@font-size-base: 14px; // major text font size
+@box-shadow-base: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 9px 28px 8px rgba(0, 0, 0, 0.05); // major shadow for layers
+
+@large-border-radius: 12px;
+@small-border-radius: 6px;
+
+@font-main: 'Nunito', sans-serif;
+
+@font-monospace: 'Source Code Pro', monospace;
+
+
+//body {
+//  font-family: @font-main;
+//}
+
+.ant-card, .ant-modal-content {
+  border-radius: @large-border-radius;
+}
+
+.ant-table-tbody {
+  border-bottom-left-radius: @large-border-radius;
+  border-bottom-right-radius: @large-border-radius;
+}
+
+.ant-table-thead {
+  border-top-left-radius: @large-border-radius;
+  border-top-right-radius: @large-border-radius;
+}
+
+.ant-input, .ant-btn {
+  //border-radius: @small-border-radius;
+}
+
+.ant-radio-group {
+  //border-radius: @small-border-radius !important;
+}
+
+.ant-radio-group .ant-radio-button-wrapper:first-child {
+  //border-top-left-radius: @small-border-radius !important;
+  //border-bottom-left-radius: @small-border-radius !important;
+}
+
+.ant-radio-group .ant-radio-button-wrapper:last-child {
+  //border-top-right-radius: @small-border-radius !important;
+  //border-bottom-right-radius: @small-border-radius !important;
+}
+
+.ant-input-affix-wrapper {
+  //border-radius: @small-border-radius;
+}
+
+.ant-modal-header {
+  border-top-left-radius: @large-border-radius;
+  border-top-right-radius: @large-border-radius;
+}
+
+.ant-radio-group {
+  //border-radius: @small-border-radius;
+}
+
+.ant-card, .ant-table {
+  box-shadow: 0 3px 3px rgba(0, 0, 0, 0.05);
+}
+
+.ant-list-split .ant-list-header {
+  border-bottom: 0 !important;
+}
+
+.ant-tag {
+  //border-radius: @small-border-radius;
+}
+
+.ant-tooltip-inner a {
+  //color: lightblue !important;
+  color: cyan !important;
+  text-decoration: underline
+}
+
+//Without this one, buttons looks weirdly aligned
+//.ant-btn-loading-icon {
+//  vertical-align: baseline !important;
+//  height: 90%;
+//}
+//
+//.ant-btn span.anticon {
+//  vertical-align: baseline !important;
+//}
+//
+//.ant-btn span.anticon svg {
+//  vertical-align: bottom !important;
+//}

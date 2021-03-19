@@ -1,17 +1,7 @@
 # Test binary, build with `go test -c`
-*.test
-.DS_Store
+compose-data/configurator/logs
+compose-data/redis
+compose-data/server/events
+compose-data/server/logs
 
 .idea/
-temp/
-*.iml
-*.retry
-
-tracker
-
-node_modules/
-/web/build/
-/web/dist/
-
-eventnative
-build/*

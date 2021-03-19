@@ -1,0 +1,228 @@
+@import '~antd/dist/antd.less';
+@import '~antd/lib/style/themes/dark.less';
+@import "theme.less";
+
+
+body {
+  background: @primary-background;
+}
+
+#root {
+  display: flex;
+  min-height: 100%;
+}
+
+.app-layout-header, .app-layout-content, .app-layout-root, .app-layout-header-and-content {
+  padding: 0;
+}
+
+.app-layout-header {
+  background: white;
+  border-bottom: 1px solid darkgray;
+}
+
+.app-layout-content {
+}
+
+.app-logo-wrapper {
+  text-align: center;
+  display: block;
+
+  .app-logo {
+    height: 50px !important;
+    padding-top: 10px;
+    margin-bottom: 13px;
+  }
+}
+
+.app-layout-side-bar {
+  .ant-layout-sider-children {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  .app-layout-side-bar-bottom-item {
+    padding-left: 24px;
+    font-size: 120%;
+  }
+
+  .app-layout-side-bar-bottom {
+    padding-bottom: 30px;
+  }
+
+  border: 0 !important;
+
+  .ant-menu-item-selected {
+    border-right: 0 !important;
+    background-color: @primary-background !important;
+    border-top-left-radius: 16px;
+    border-bottom-left-radius: 16px;
+    color: @link-color;
+
+    a {
+      font-weight: bold !important;
+      color: @link-color;
+    }
+  }
+
+  .ant-menu-item {
+    width: auto;
+    margin-left: 12px;
+    padding-left: 12px !important;
+    border-top-left-radius: 16px !important;
+    border-bottom-left-radius: 16px !important;
+  }
+
+  .ant-menu-item::after {
+    border-right: 0 !important;
+  }
+
+  .ant-menu-item-active {
+    border-top-left-radius: 16px !important;
+    border-bottom-left-radius: 16px !important;
+  }
+
+  .ant-menu-item-selected.ant-menu-item-active {
+    border-top-left-radius: 16px !important;
+    border-bottom-left-radius: 16px !important;
+  }
+}
+
+.app-layout-sidebar-menu {
+  border: 0 !important;
+
+}
+
+.user-drop-down-button {
+  margin-left: 10px;
+}
+
+.trigger {
+  font-size: 18px;
+  line-height: 64px;
+  padding: 0 24px;
+  cursor: pointer;
+  transition: color 0.3s;
+}
+
+
+.user-dropdown-info-panel {
+  font-size: x-small;
+  text-align: center;
+  text-decoration: underline;
+  background: @component-background;
+}
+
+.internal-page-wrapper {
+  padding-top: 14px;
+  padding-right: 40px;
+  padding-left: 40px;
+  padding-bottom: 20px;
+}
+
+.internal-page-header-container {
+  padding-bottom: 0;
+  border-bottom: 1px solid @border-color-split;
+  margin-bottom: 20px;
+
+  .ant-col, .ant-row {
+    margin-bottom: 0px !important;
+  }
+
+}
+
+.internal-page-header {
+  padding-bottom: 0px !important;
+  font-size: 180%;
+}
+
+.ant-table-content table,
+.ant-table,
+.ant-table-container,
+.ant-table-wrapper,
+.ant-table-wrapper .ant-spin-nested-loading,
+.ant-table-wrapper .ant-spin-container {
+  border-radius: @large-border-radius;
+  border: 0 !important;
+}
+
+.ant-table-thead,
+.ant-table-thead tr {
+  border-top-left-radius: @large-border-radius;
+  border-top-right-radius: @large-border-radius;
+}
+
+.ant-table-thead tr th:first-child {
+  border-top-left-radius: @large-border-radius !important;
+}
+
+.ant-table-thead tr th:last-child {
+  border-top-right-radius: @large-border-radius !important;
+}
+
+.ant-table-tbody > tr:last-child > td, .ant-table-tbody > tr:last-child {
+  border-bottom: 0 !important;
+}
+
+.oauth-provider {
+  display: inline-flex;
+  align-items: center;
+
+  img {
+    display: block;
+    margin: 0 5px 0 0;
+  }
+
+  span {
+    display: block;
+    margin: 1px 0 0 0;
+  }
+}
+
+.ant-layout-sider, .app-layout-side-bar .ant-menu {
+  background-color: @secondary-background;
+}
+
+.app-layout-content {
+  background-color: @primary-background;
+}
+
+.ant-table-tbody > tr > td, .ant-table-thead > tr > th {
+  border-bottom: 1px solid @table-header-sort-active-bg;
+}
+
+.ant-empty-img-simple-path, .ant-empty-img-simple-g {
+  fill: @component-background;
+  stroke: @disabled-color;
+}
+
+.recharts-default-tooltip {
+  background: transparent !important;
+  border: none !important;
+}
+
+.form-field_fixed-label {
+
+  .ant-form-item-label {
+    display: inline-flex;
+    justify-content: flex-start;
+    width: 150px;
+    flex-shrink: 0;
+    white-space: normal;
+
+    label {
+      text-align: left;
+      height: auto;
+      align-items: normal;
+
+      &:after {
+        content: '';
+      }
+    }
+  }
+}
+
+.fields-group {
+  margin-bottom: 20px;
+}

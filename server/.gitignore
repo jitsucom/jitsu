@@ -1,0 +1,17 @@
+# Test binary, build with `go test -c`
+*.test
+.DS_Store
+
+.idea/
+temp/
+*.iml
+*.retry
+
+tracker
+
+node_modules/
+/web/build/
+/web/dist/
+
+eventnative
+build/*
