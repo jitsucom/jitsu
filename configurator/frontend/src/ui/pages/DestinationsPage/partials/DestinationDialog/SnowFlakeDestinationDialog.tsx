@@ -1,13 +1,13 @@
-import { SnowflakeConfig } from '@./lib/services/destinations';
-import * as React from 'react';
-import { Col, Divider, Form, Input, Radio, Row } from 'antd';
-import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
-import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
-import { LabelWithTooltip } from '@./lib/components/components';
+import { SnowflakeConfig } from "@./lib/services/destinations";
+import * as React from "react";
+import { Col, Divider, Form, Input, Radio, Row } from "antd";
+import EyeTwoTone from "@ant-design/icons/lib/icons/EyeTwoTone";
+import EyeInvisibleOutlined from "@ant-design/icons/lib/icons/EyeInvisibleOutlined";
+import { LabelWithTooltip } from "@./lib/components/components";
 import {
   DestinationDialog, gcsConfigComponents,
   s3ConfigComponents
-} from '@page/DestinationsPage/partials/DestinationDialog/DestinationDialog';
+} from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
 
 export class SnowFlakeDestinationDialog extends DestinationDialog<SnowflakeConfig> {
   items(): React.ReactNode {
@@ -74,7 +74,7 @@ export class SnowFlakeDestinationDialog extends DestinationDialog<SnowflakeConfi
         >
           <Input.Password
             type="password"
-            iconRender={(visible) => visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>}
+            iconRender={(visible) => (visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>)}
           />
         </Form.Item>
         <Divider className={className} plain>

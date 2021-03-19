@@ -1,4 +1,4 @@
-import { Button, Modal } from 'antd';
+import { Button, Modal } from "antd";
 
 export type OnSaveCallback = (text: string) => void
 
@@ -13,6 +13,8 @@ export function TableNameMacrosEditor(props: TableNameMacrosEditorProps) {
     <Button>Save</Button>
   </>
 }
+
+
 
 /**
  * Opens a modal dialog.
