@@ -15,11 +15,10 @@ eventnative:
   admin_token: 'a123'
 
 
-destinations:
-  statistics:
-    redis:
-      host: redis
-      port: 6379
+statistics:
+  redis:
+    host: redis
+    port: 6379
 
 auth:
   redis:
