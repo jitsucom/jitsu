@@ -1,11 +1,11 @@
-import { DestinationConfig } from '@./lib/services/destinations';
-import * as React from 'react';
-import { ReactNode } from 'react';
-import { Col, Form, Input, Radio, Row, Select } from 'antd';
-import { LabelWithTooltip } from '@./lib/components/components';
-import { Option } from 'antd/es/mentions';
-import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
-import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
+import { DestinationConfig } from "@./lib/services/destinations";
+import * as React from "react";
+import { ReactNode } from "react";
+import { Col, Form, Input, Radio, Row, Select } from "antd";
+import { LabelWithTooltip } from "@./lib/components/components";
+import { Option } from "antd/es/mentions";
+import EyeTwoTone from "@ant-design/icons/lib/icons/EyeTwoTone";
+import EyeInvisibleOutlined from "@ant-design/icons/lib/icons/EyeInvisibleOutlined";
 
 export const AWS_ZONES = [
   'us-east-2',
@@ -74,9 +74,9 @@ export abstract class DestinationDialog<T extends DestinationConfig> extends Rea
     </>;
 
     return <Form layout="horizontal"
-      form={this.props.form}
-      initialValues={this.state.currentValue.formData}
-      onChange={() => this.props.onModification()}
+                 form={this.props.form}
+                 initialValues={this.state.currentValue.formData}
+                 onChange={() => this.props.onModification()}
     >
       {!this.getDefaultMode() && <Form.Item label="Mode" name="mode" labelCol={{ span: 4 }} wrapperCol={{ span: 18 }}>
         <Radio.Group buttonStyle="solid" onChange={() => this.refreshStateFromForm()}>
@@ -169,7 +169,7 @@ export function s3ConfigComponents(prefix: string, disabled: boolean) {
         <Input.Password
           type="password"
           disabled={disabled}
-          iconRender={(visible) => visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>}
+          iconRender={(visible) => (visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>)}
         />
       </Form.Item>
     </>

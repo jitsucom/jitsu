@@ -1,9 +1,9 @@
-import { ClickHouseConfig } from '@./lib/services/destinations';
-import * as React from 'react';
-import { CodeInline, LabelWithTooltip } from '@./lib/components/components';
-import { Col, Form, Input, Row } from 'antd';
-import { EditableList } from '@./lib/components/EditableList/EditableList';
-import { DestinationDialog } from '@page/DestinationsPage/partials/DestinationDialog/DestinationDialog';
+import { ClickHouseConfig } from "@./lib/services/destinations";
+import * as React from "react";
+import { CodeInline, LabelWithTooltip } from "@./lib/components/components";
+import { Col, Form, Input, Row } from "antd";
+import { EditableList } from "@./lib/components/EditableList/EditableList";
+import { DestinationDialog } from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
 
 export default class ClickHouseDestinationDialog extends DestinationDialog<ClickHouseConfig> {
   isUrlValid(val) {
@@ -103,4 +103,11 @@ export default class ClickHouseDestinationDialog extends DestinationDialog<Click
     );
   }
 }
+
+
+
+
+
+
+
 

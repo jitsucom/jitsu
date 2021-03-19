@@ -1,12 +1,12 @@
-import { PostgresConfig } from '@./lib/services/destinations';
-import * as React from 'react';
-import { Col, Form, Input, Row } from 'antd';
-import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
-import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
+import { PostgresConfig } from "@./lib/services/destinations";
+import * as React from "react";
+import { Col, Form, Input, Row } from "antd";
+import EyeTwoTone from "@ant-design/icons/lib/icons/EyeTwoTone";
+import EyeInvisibleOutlined from "@ant-design/icons/lib/icons/EyeInvisibleOutlined";
 import {
   DestinationDialog,
   IDestinationDialogProps
-} from '@page/DestinationsPage/partials/DestinationDialog/DestinationDialog';
+} from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
 
 export default class PostgresDestinationDialog extends DestinationDialog<PostgresConfig> {
   constructor(props: Readonly<IDestinationDialogProps<PostgresConfig>> | IDestinationDialogProps<PostgresConfig>) {
@@ -76,7 +76,7 @@ export default class PostgresDestinationDialog extends DestinationDialog<Postgre
         >
           <Input.Password
             placeholder="input password"
-            iconRender={(visible) => visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>}
+            iconRender={(visible) => (visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>)}
           />
         </Form.Item>
       </>
