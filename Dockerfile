@@ -13,24 +13,41 @@ RUN addgroup -S $EVENTNATIVE_USER \
     && chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER
 
 #######################################
-# BUILD STAGE
-FROM main as builder
+# BUILD JS STAGE
+FROM main as jsbuilder
 
 # Install dependencies
 RUN apk add git make bash npm
 
-# Copy project
+# Copy js
+ADD web /go/src/github.com/jitsucom/eventnative/web
+ADD Makefile /go/src/github.com/jitsucom/eventnative/Makefile
+
+RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /go/src/github.com/jitsucom/eventnative
+WORKDIR /go/src/github.com/jitsucom/eventnative
+USER $EVENTNATIVE_USER
+
+# Build js (for caching) and copy builded files
+RUN make clean_js assemble_js &&\
+    cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
+
+#######################################
+# BUILD BACKEND STAGE
+FROM main as builder
+
+# Install dependencies
+RUN apk add git make bash
+
+#Copy backend
 ADD . /go/src/github.com/jitsucom/eventnative
 
 RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /go/src/github.com/jitsucom/eventnative
-
-# Build
 WORKDIR /go/src/github.com/jitsucom/eventnative
 USER $EVENTNATIVE_USER
-RUN make
 
-# Copy static files
-RUN cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
+# Build backend and copy builded files
+RUN make clean_backend assemble_backend &&\
+    cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
 
 #######################################
 # FINAL STAGE
@@ -43,6 +60,7 @@ WORKDIR /home/$EVENTNATIVE_USER/app
 
 # copy static files from build-image
 COPY --from=builder /home/$EVENTNATIVE_USER/app .
+COPY --from=jsbuilder /home/$EVENTNATIVE_USER/app .
 
 VOLUME ["/home/$EVENTNATIVE_USER/app/res", "/home/$EVENTNATIVE_USER/logs/events"]
 EXPOSE 8001

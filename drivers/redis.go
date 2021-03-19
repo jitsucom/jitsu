@@ -28,9 +28,6 @@ func (rc *RedisConfig) Validate() error {
 	if rc.Host == "" {
 		return errors.New("host is not set")
 	}
-	if rc.Port <= 0 {
-		return errors.New("port must be positive")
-	}
 	return nil
 }
 
@@ -53,6 +50,11 @@ func NewRedis(ctx context.Context, sourceConfig *SourceConfig, collection *Colle
 	}
 	if collection.Type != "hash" {
 		return nil, errors.New("Only [hash] collection type is supported now")
+	}
+
+	if config.Port == 0 {
+		config.Port = 6379
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", sourceConfig.Name, config.Port)
 	}
 	return &Redis{collection: collection,
 		connectionPool: meta.NewRedisPool(config.Host, config.Port, config.Password)}, nil

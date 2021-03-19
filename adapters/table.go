@@ -40,6 +40,15 @@ func (t *Table) GetPKFields() []string {
 	return pkFields
 }
 
+func (t *Table) GetPKFieldsMap() map[string]bool {
+	pkFields := make(map[string]bool, len(t.PKFields))
+	for name := range t.PKFields {
+		pkFields[name] = true
+	}
+
+	return pkFields
+}
+
 // Diff calculates diff between current schema and another one.
 // Return schema to add to current schema (for being equal) or empty if
 // 1) another one is empty
@@ -59,10 +68,17 @@ func (t Table) Diff(another *Table) *Table {
 		}
 	}
 
+	//primary keys logic
 	if len(t.PKFields) > 0 && len(another.PKFields) == 0 {
+		//only delete
 		diff.DeletePkFields = true
 	} else {
-		if !reflect.DeepEqual(t.PKFields, another.PKFields) {
+		if len(t.PKFields) == 0 && len(another.PKFields) > 0 {
+			//create
+			diff.PKFields = another.PKFields
+		} else if !reflect.DeepEqual(t.PKFields, another.PKFields) {
+			//re-create
+			diff.DeletePkFields = true
 			diff.PKFields = another.PKFields
 		}
 	}

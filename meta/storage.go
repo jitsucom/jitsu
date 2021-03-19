@@ -18,19 +18,18 @@ const (
 type Storage interface {
 	io.Closer
 
-	//sources
+	//** Sources **
+	//signatures
 	GetSignature(sourceId, collection, interval string) (string, error)
 	SaveSignature(sourceId, collection, interval, signature string) error
 
-	GetCollectionStatus(sourceId, collection string) (string, error)
-	SaveCollectionStatus(sourceId, collection, status string) error
-	GetCollectionLog(sourceId, collection string) (string, error)
-	SaveCollectionLog(sourceId, collection, log string) error
-
+	//** Counters **
 	//events counters
-	SuccessEvents(destinationId string, now time.Time, value int) error
-	ErrorEvents(destinationId string, now time.Time, value int) error
+	SuccessEvents(id, namespace string, now time.Time, value int) error
+	ErrorEvents(id, namespace string, now time.Time, value int) error
+	SkipEvents(id, namespace string, now time.Time, value int) error
 
+	//** Cache **
 	//events caching
 	AddEvent(destinationId, eventId, payload string, now time.Time) (int, error)
 	UpdateSucceedEvent(destinationId, eventId, success string) error
@@ -40,10 +39,26 @@ type Storage interface {
 	GetEvents(destinationId string, start, end time.Time, n int) ([]Event, error)
 	GetTotalEvents(destinationId string) (int, error)
 
-	//user recognition
+	//** Users recognition **
 	SaveAnonymousEvent(destinationId, anonymousId, eventId, payload string) error
 	GetAnonymousEvents(destinationId, anonymousId string) (map[string]string, error)
 	DeleteAnonymousEvent(destinationId, anonymousId, eventId string) error
+
+	//sync tasks
+	CreateTask(sourceId, collection string, task *Task, createdAt time.Time) error
+	UpsertTask(task *Task) error
+	GetAllTasks(sourceId, collection string, start, end time.Time) ([]Task, error)
+	GetLastTask(sourceId, collection string) (*Task, error)
+	GetTask(taskId string) (*Task, error)
+
+	//task logs
+	AppendTaskLog(taskId string, now time.Time, message, level string) error
+	GetTaskLogs(taskId string, start, end time.Time) ([]TaskLogRecord, error)
+
+	//task queue
+	PushTask(task *Task) error
+	PollTask() (*Task, error)
+	IsTaskInQueue(sourceId, collection string) (string, bool, error)
 
 	Type() string
 }
@@ -56,6 +71,11 @@ func NewStorage(meta *viper.Viper) (Storage, error) {
 	host := meta.GetString("redis.host")
 	port := meta.GetInt("redis.port")
 	password := meta.GetString("redis.password")
+	anonymousEventsTtl := meta.GetInt("redis.ttl_minutes.anonymous_events")
 
-	return NewRedis(host, port, password)
+	if port == 0 {
+		port = 6379
+	}
+
+	return NewRedis(host, port, password, anonymousEventsTtl)
 }

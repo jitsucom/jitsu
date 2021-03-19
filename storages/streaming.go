@@ -2,6 +2,7 @@ package storages
 
 import (
 	"github.com/jitsucom/eventnative/adapters"
+	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
 	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/events"
@@ -74,7 +75,11 @@ func (sw *StreamingWorker) start() {
 			batchHeader, flattenObject, err := sw.processor.ProcessEvent(fact)
 			if err != nil {
 				if err == schema.ErrSkipObject {
-					logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.Name(), events.ExtractEventId(fact), err)
+					if !appconfig.Instance.DisableSkipEventsWarn {
+						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.Name(), events.ExtractEventId(fact), err)
+					}
+
+					counters.SkipEvents(sw.streamingStorage.Name(), 1)
 				} else {
 					serialized := fact.Serialize()
 					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.Name(), serialized, err)
@@ -104,7 +109,8 @@ func (sw *StreamingWorker) start() {
 				logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.Name(), flattenObject.Serialize(), table.Name, err)
 				if strings.Contains(err.Error(), "connection refused") ||
 					strings.Contains(err.Error(), "EOF") ||
-					strings.Contains(err.Error(), "write: broken pipe") {
+					strings.Contains(err.Error(), "write: broken pipe") ||
+					strings.Contains(err.Error(), "context deadline exceeded") {
 					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenId)
 				} else {
 					sw.streamingStorage.Fallback(&events.FailedEvent{

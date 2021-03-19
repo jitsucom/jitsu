@@ -2,10 +2,11 @@ package typing
 
 import (
 	"fmt"
-	"github.com/jitsucom/eventnative/timestamp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/eventnative/timestamp"
 )
 
 // Typecast tree
@@ -251,12 +252,9 @@ func StringToFloat(v interface{}) (interface{}, error) {
 }
 
 func stringToTimestamp(v interface{}) (interface{}, error) {
-	t, err := time.Parse(timestamp.Layout, v.(string))
+	t, err := time.Parse(time.RFC3339Nano, v.(string))
 	if err != nil {
-		t, err = time.Parse(timestamp.DeprecatedLayout, v.(string))
-		if err != nil {
-			return nil, fmt.Errorf("Error stringToTimestamp() for value: %v: %v", v, err)
-		}
+		return nil, fmt.Errorf("Error stringToTimestamp() for value: %v: %v", v, err)
 	}
 
 	return t, nil

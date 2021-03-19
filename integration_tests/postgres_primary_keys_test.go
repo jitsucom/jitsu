@@ -2,21 +2,25 @@ package integration_tests
 
 import (
 	"context"
+	"github.com/spf13/viper"
+	"testing"
+
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/appconfig"
+	"github.com/jitsucom/eventnative/coordination"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/logging"
 	"github.com/jitsucom/eventnative/schema"
 	"github.com/jitsucom/eventnative/storages"
-	"github.com/jitsucom/eventnative/synchronization"
 	"github.com/jitsucom/eventnative/test"
 	"github.com/jitsucom/eventnative/typing"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 //Test postgres adapter with primary keys and without (make sure primary keys are deleted)
 func TestPrimaryKeyRemoval(t *testing.T) {
+	viper.Set("server.log.path", "")
+
 	ctx := context.Background()
 	container, err := test.NewPostgresContainer(ctx)
 	if err != nil {
@@ -24,7 +28,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	}
 	defer container.Close()
 
-	err = appconfig.Init()
+	err = appconfig.Init(false)
 	require.NoError(t, err)
 
 	enrichment.InitDefault()
@@ -33,7 +37,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, pg)
 
-	tableHelperWithPk := storages.NewTableHelper(pg, synchronization.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToPostgres)
+	tableHelperWithPk := storages.NewTableHelper(pg, coordination.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToPostgres, true)
 
 	// all events should be merged as have the same PK value
 	tableWithMerge := tableHelperWithPk.MapTableSchema(&schema.BatchHeader{
@@ -56,7 +60,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, rowsUnique)
 
-	tableHelperWithoutPk := storages.NewTableHelper(pg, synchronization.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToPostgres)
+	tableHelperWithoutPk := storages.NewTableHelper(pg, coordination.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToPostgres, true)
 	// all events should be merged as have the same PK value
 	table := tableHelperWithoutPk.MapTableSchema(&schema.BatchHeader{
 		TableName: "users",

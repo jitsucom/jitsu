@@ -3,6 +3,8 @@ package logging
 import (
 	"io"
 	"time"
+
+	"github.com/jitsucom/eventnative/timestamp"
 )
 
 type DateTimeWriterProxy struct {
@@ -10,5 +12,5 @@ type DateTimeWriterProxy struct {
 }
 
 func (wp DateTimeWriterProxy) Write(bytes []byte) (int, error) {
-	return wp.writer.Write([]byte(time.Now().UTC().Format("2006-01-02 15:04:05") + " " + string(bytes)))
+	return wp.writer.Write([]byte(time.Now().UTC().Format(timestamp.LogsLayout) + " " + string(bytes)))
 }

@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"io"
-	"net/http"
+	"github.com/jitsucom/eventnative/logging"
+	"github.com/jitsucom/eventnative/timestamp"
 )
 
 type S3 struct {
@@ -142,6 +145,24 @@ func (a *S3) DeleteObject(key string) error {
 
 	if output != nil && output.DeleteMarker != nil && !*(output.DeleteMarker) {
 		return fmt.Errorf("Key %s wasn't deleted from s3", key)
+	}
+
+	return nil
+}
+
+// Function tries to create temporary file and remove it.
+// Returns OK if file creation was successfull.
+func (a *S3) ValidateWritePermission() error {
+	filename := fmt.Sprintf("test_%v", timestamp.NowUTC())
+
+	if err := a.UploadBytes(filename, []byte{}); err != nil {
+		return err
+	}
+
+	if err := a.DeleteObject(filename); err != nil {
+		logging.Warnf("Cannot remove object %q from S3: %v", filename, err)
+		// Suppressing error because we need to check only write permission
+		// return err
 	}
 
 	return nil

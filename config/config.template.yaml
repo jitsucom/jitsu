@@ -76,14 +76,14 @@ server:
 #    rotation_min: 10 #Optional. Default  value is 5 minutes. If set 0, 24 hours would be kept
 #    max_backups: 20  #Optional. Log files won't be deleted if not set
 
-### Destinations configuration https://docs.eventnative.org/configuration-1/destination-configuration
+### Destinations configuration https://jitsu.com/docs/destinations-configuration
 ### It might be http url of file source
 #destinations: https://source_of_destinations
 
 ### or yaml config
 destinations:
 
-   ### Redshift https://docs.eventnative.org/configuration-1/destination-configuration/redshift
+   ### Redshift https://jitsu.com/docs/destinations-configuration/redshift
 #  redshift_example: #Destination Unique name (id)
 #    type: redshift #Optional. Default value is destination name (id)
 #    only_tokens: ['client_secret1'] #Optional. Default all authorization tokens will be stored into destination
@@ -113,7 +113,7 @@ destinations:
 #          type: bigint #SQL type
 #      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #Optional. Default value constant is 'events'. Template for extracting table name
 #
-   ### BigQuery https://docs.eventnative.org/configuration-1/destination-configuration/bigquery
+   ### BigQuery https://jitsu.com/docs/destinations-configuration/bigquery
 #  bigquery:
 #    only_tokens: ['client_secret2'] #Optional. Default all authorization tokens will be stored into destination
 #    google:
@@ -124,7 +124,7 @@ destinations:
 #    data_layout:
 #      table_name_template: 'my_events' #Optional. Default value constant is 'events'. Template for extracting table name
 
-  ### Postgres https://docs.eventnative.org/configuration-1/destination-configuration/postgres
+  ### Postgres https://jitsu.com/docs/destinations-configuration/postgres
 #  postgres_jitsu:
 #    type: postgres
 #    only_tokens: ['client_secret1', 'client_secret2']
@@ -149,7 +149,7 @@ destinations:
 #      user_id_node: /user/id #Required if enabled
 
 
-  ### ClickHouse https://docs.eventnative.org/configuration-1/destination-configuration/clickhouse-destination
+  ### ClickHouse https://jitsu.com/docs/destinations-configuration/clickhouse-destination
 #  clickhouse_jitsu:
 #    type: clickhouse
 #    only_tokens: ['client_secret1', 'client_secret2']
@@ -177,7 +177,7 @@ destinations:
 #      tls: #Optional
 #        maincert: /home/eventnative/app/res/rootCa.crt
 
-  ### S3 https://docs.eventnative.org/configuration-1/destination-configuration/s3
+  ### S3 https://jitsu.com/docs/destinations-configuration/s3
 #  s3_destination:
 #    type: s3
 #    only_tokens: ['client_secret1']
@@ -190,7 +190,7 @@ destinations:
 #    data_layout:
 #      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #Template will be used for file naming
 
-  ### Snowflake https://docs.eventnative.org/configuration-1/destination-configuration/snowflake
+  ### Snowflake https://jitsu.com/docs/destinations-configuration/snowflake
 #  snowflake:
 #    type: snowflake
 #    mode: stream
@@ -214,7 +214,7 @@ destinations:
 #       gcs_bucket: my_google_bucket
 #       key_file: "{KEY_JSON}" #or path to json key file
 
-  ### Google Analytics https://docseventnativeorg/configuration-1/destination-configuration/google-analytics
+  ### Google Analytics https://jitsu.com/docs/destinations-configuration/google-analytics
 #  google_analytics:
 #    type: google_analytics
 #    mode: stream
@@ -314,10 +314,10 @@ destinations:
 
 
 ### Coordination in EventNative cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
-#synchronization_service: #Optional. This section is required in cluster deployments.
-#  type: etcd #Now EventNative supports only etcd
-#  endpoint: http://your_etcd_host
-#  connection_timeout_seconds: 60 #Optional. Default value is 60
+#coordination: #Optional. This section is required in cluster deployments.
+#  etcd: #Now EventNative supports only etcd
+#    endpoint: http://your_etcd_host
+#    connection_timeout_seconds: 60 #Optional. Default value is 60
 
 ### Sources https://docs.eventnative.org/configuration-1/sources-configuration
 #sources:
@@ -325,7 +325,11 @@ destinations:
 #  my_firebase:
 #    type: firebase
 #    destinations: [ "destination_id1" ]
-#    collections: [ "firestore_collection_id" ]
+#    collections:
+#      - name: collection_to_load
+#        type: firestore
+#      - name: known_users
+#        type: users
 #    config:
 #      project_id: "firebase_project_id"
 #      key: 'service_account_key_json'
@@ -364,12 +368,16 @@ destinations:
 
 ### Meta storage. It is required for using sources (see below).
 ### It is required for using events caching and counting https://docs.eventnative.org/other-features/events-cache
+### Also it is required if sources are used https://docs.eventnative.org/configuration-1/sources-configuration or
+### or Retrospective users recognition https://docs.eventnative.org/other-features/retrospective-user-recognition
 #meta:
 #  storage:
 #    redis: #Currently EventNative supports only Redis
-#      host: redis_host
+#      host: <redis_host>
 #      port: 6379
-#      password: secret_password
+#      password: <secret_password>
+#      ttl_minutes: #Optional
+#        anonymous_events: 1440 #Optional. Default value is 0 (without ttl). TTL for Redis record (all events by anonymous id)
 
 ### Notifications
 #notifications: #Optional. If configured - server starts, all system errors and panics info will be sent to notifier

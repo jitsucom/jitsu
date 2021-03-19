@@ -2,15 +2,19 @@ package enrichment
 
 import (
 	"encoding/json"
+	"github.com/spf13/viper"
+	"testing"
+
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/geo"
 	"github.com/jitsucom/eventnative/jsonutils"
 	"github.com/jitsucom/eventnative/test"
 	"github.com/stretchr/testify/require"
-	"testing"
 )
 
 func TestIpLookup(t *testing.T) {
+	viper.Set("server.log.path", "")
+
 	geoDataMock := &geo.Data{
 		Country: "US",
 		City:    "New York",
@@ -78,7 +82,7 @@ func TestIpLookup(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			appconfig.Init()
+			appconfig.Init(false)
 			appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
 
 			ipRule, err := NewIpLookupRule(jsonutils.NewJsonPath(tt.source), jsonutils.NewJsonPath(tt.destination))

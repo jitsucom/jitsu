@@ -4,8 +4,18 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"strings"
+	"testing"
+	"time"
+
+	"bou.ke/monkey"
 	"github.com/gin-gonic/gin/binding"
+	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/coordination"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
@@ -21,23 +31,14 @@ import (
 	"github.com/jitsucom/eventnative/test"
 	"github.com/jitsucom/eventnative/users"
 	"github.com/jitsucom/eventnative/uuid"
-	"strings"
-	"time"
-
-	"bou.ke/monkey"
-	"github.com/jitsucom/eventnative/appconfig"
-
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"io/ioutil"
-	"log"
-	"net/http"
-	"testing"
 )
 
 func SetTestDefaultParams() {
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
+	viper.Set("server.log.path", "")
 }
 
 func TestCors(t *testing.T) {
@@ -52,6 +53,7 @@ func TestCors(t *testing.T) {
 		XAuthToken string
 
 		ExpectedCorsHeaderValue string
+		ResponseCode            int
 	}{
 		{
 			"Wrong token in event url",
@@ -59,6 +61,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"",
+			401,
 		},
 		{
 			"Wrong token in random url",
@@ -66,6 +69,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"",
+			401,
 		},
 		{
 			"Wrong token in header event url",
@@ -73,6 +77,7 @@ func TestCors(t *testing.T) {
 			"",
 			"wrongtoken",
 			"",
+			401,
 		},
 		{
 			"Wrong token in header random url",
@@ -80,6 +85,7 @@ func TestCors(t *testing.T) {
 			"",
 			"wrongtoken",
 			"",
+			401,
 		},
 		{
 			"Wrong origin with token in event url",
@@ -87,6 +93,7 @@ func TestCors(t *testing.T) {
 			"origin.com",
 			"",
 			"",
+			200,
 		},
 		{
 			"Wrong origin with token in random url",
@@ -94,6 +101,7 @@ func TestCors(t *testing.T) {
 			"origin.com",
 			"",
 			"",
+			401,
 		},
 		{
 			"Wrong origin with token in header event url",
@@ -101,6 +109,7 @@ func TestCors(t *testing.T) {
 			"origin.com",
 			"c2stoken",
 			"",
+			200,
 		},
 		{
 			"Wrong origin with token in header random url",
@@ -108,6 +117,7 @@ func TestCors(t *testing.T) {
 			"origin.com",
 			"c2stoken",
 			"",
+			200,
 		},
 		{
 			"Ok origin with token in event url",
@@ -115,6 +125,7 @@ func TestCors(t *testing.T) {
 			"https://whiteorigin.com",
 			"",
 			"https://whiteorigin.com",
+			200,
 		},
 		{
 			"Ok origin with token in random url",
@@ -122,6 +133,7 @@ func TestCors(t *testing.T) {
 			"https://whiteorigin.com",
 			"",
 			"https://whiteorigin.com",
+			200,
 		},
 		{
 			"Ok origin with token in header event url",
@@ -129,6 +141,7 @@ func TestCors(t *testing.T) {
 			"http://whiteoriginmy.com",
 			"c2stoken",
 			"http://whiteoriginmy.com",
+			200,
 		},
 		{
 			"Ok origin with token in header random url",
@@ -136,6 +149,7 @@ func TestCors(t *testing.T) {
 			"http://whiteoriginmy.com",
 			"c2stoken",
 			"http://whiteoriginmy.com",
+			200,
 		},
 		{
 			"S2S endpoint without cors",
@@ -143,6 +157,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"",
+			200,
 		},
 		{
 			"static endpoint /t",
@@ -150,6 +165,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"*",
+			200,
 		},
 		{
 			"static endpoint /s",
@@ -157,6 +173,7 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"*",
+			200,
 		},
 		{
 			"static endpoint /p",
@@ -164,14 +181,15 @@ func TestCors(t *testing.T) {
 			"",
 			"",
 			"*",
+			200,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
-			telemetry.Init("test", "test", "test", true)
+			telemetry.InitTest()
 			httpAuthority, _ := test.GetLocalAuthority()
 
-			err := appconfig.Init()
+			err := appconfig.Init(false)
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
@@ -180,10 +198,10 @@ func TestCors(t *testing.T) {
 				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
-			dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
-			router := routers.SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
-				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(),
-				fallback.NewTestService(), dummyRecognitionService)
+			dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
+			router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+				dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
+				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -217,7 +235,8 @@ func TestCors(t *testing.T) {
 			}
 			optResp, err := http.DefaultClient.Do(optReq)
 			require.NoError(t, err)
-			require.Equal(t, 200, optResp.StatusCode)
+
+			require.Equal(t, tt.ResponseCode, optResp.StatusCode)
 
 			require.Equal(t, tt.ExpectedCorsHeaderValue, optResp.Header.Get("Access-Control-Allow-Origin"), "Cors header ACAO values aren't equal")
 			optResp.Body.Close()
@@ -297,10 +316,10 @@ func TestApiEvent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
-			telemetry.Init("test", "test", "test", true)
+			telemetry.InitTest()
 			httpAuthority, _ := test.GetLocalAuthority()
 
-			err := appconfig.Init()
+			err := appconfig.Init(false)
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
@@ -309,10 +328,10 @@ func TestApiEvent(t *testing.T) {
 				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
-			dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
-			router := routers.SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}),
-				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5), sources.NewTestService(),
-				fallback.NewTestService(), dummyRecognitionService)
+			dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
+			router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+				dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
+				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -462,29 +481,30 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	}
 	defer container.Close()
 
-	telemetry.Init("test", "test", "test", true)
+	telemetry.InitTest()
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
 
 	destinationConfig := fmt.Sprintf(pgDestinationConfigTemplate, container.Host, container.Port, container.Database, container.Schema, container.Username, container.Password)
 
 	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init()
+	err = appconfig.Init(false)
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
 	enrichment.InitDefault()
-	monitor := synchronization.NewInMemoryService([]string{})
+	monitor := coordination.NewInMemoryService([]string{})
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
 	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil)
-	dest, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
 	require.NoError(t, err)
-	defer dest.Close()
+	defer destinationService.Close()
 
-	dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
-	router := routers.SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5),
-		sources.NewTestService(), fallback.NewTestService(), dummyRecognitionService)
+	dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
+	router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+		dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
+		caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
 
 	server := &http.Server{
 		Addr:              httpAuthority,
@@ -565,7 +585,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 		t.Fatalf("failed to initialize container: %v", err)
 	}
 	defer container.Close()
-	telemetry.Init("test", "test", "test", true)
+	telemetry.InitTest()
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
 
@@ -576,21 +596,22 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	destinationConfig := fmt.Sprintf(configTemplate, strings.Join(dsns, ","), container.Database)
 
 	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init()
+	err = appconfig.Init(false)
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
-	monitor := synchronization.NewInMemoryService([]string{})
+	monitor := coordination.NewInMemoryService([]string{})
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
 	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil)
-	dest, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
 	require.NoError(t, err)
-	appconfig.Instance.ScheduleClosing(dest)
+	appconfig.Instance.ScheduleClosing(destinationService)
 
-	dummyRecognitionService, _ := users.NewRecognitionService(nil, nil, nil, "")
-	router := routers.SetupRouter(dest, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5),
-		sources.NewTestService(), fallback.NewTestService(), dummyRecognitionService)
+	dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
+	router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+		dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
+		caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
 
 	server := &http.Server{
 		Addr:              httpAuthority,

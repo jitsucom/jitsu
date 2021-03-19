@@ -1,13 +1,18 @@
 package integration_tests
 
 import (
-	"bou.ke/monkey"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"testing"
+	"time"
+
+	"bou.ke/monkey"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/coordination"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/enrichment"
 	"github.com/jitsucom/eventnative/events"
@@ -24,12 +29,11 @@ import (
 	"github.com/jitsucom/eventnative/users"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"testing"
-	"time"
 )
 
 func TestRetrospectiveUsersRecognition(t *testing.T) {
+	viper.Set("server.log.path", "")
+
 	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
 	defer patch.Unpatch()
@@ -72,7 +76,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
       		}
     	}}`
 
-	telemetry.Init("test", "test", "test", true)
+	telemetry.InitTest()
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken"}]}`)
 	viper.Set("meta.storage.redis.host", redisContainer.Host)
@@ -82,12 +86,12 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	destinationConfig := fmt.Sprintf(configTemplate, postgresContainer.Host, postgresContainer.Port, postgresContainer.Database, postgresContainer.Schema, postgresContainer.Username, postgresContainer.Password)
 
 	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init()
+	err = appconfig.Init(false)
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
 	enrichment.InitDefault()
-	monitor := synchronization.NewInMemoryService([]string{})
+	monitor := coordination.NewInMemoryService([]string{})
 
 	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
 	require.NoError(t, err)
@@ -114,8 +118,8 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 
-	router := routers.SetupRouter(destinationService, "", synchronization.NewInMemoryService([]string{}), eventsCache, events.NewCache(5),
-		sources.NewTestService(), fallback.NewTestService(), usersRecognitionService)
+	router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+		usersRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}), eventsCache, events.NewCache(5))
 
 	server := &http.Server{
 		Addr:              httpAuthority,

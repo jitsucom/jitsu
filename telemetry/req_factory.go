@@ -12,7 +12,7 @@ type RequestFactory struct {
 	iInfo *InstanceInfo
 }
 
-func newRequestFactory(commit, tag, buildAt string) *RequestFactory {
+func newRequestFactory(serviceName, commit, tag, buildAt string) *RequestFactory {
 	instanceID, err := getServerMacAddrHash()
 	if err != nil {
 		//TODO errors.New().GettingInstanceId()
@@ -21,10 +21,11 @@ func newRequestFactory(commit, tag, buildAt string) *RequestFactory {
 
 	return &RequestFactory{
 		iInfo: &InstanceInfo{
-			Id:      instanceID,
-			Commit:  commit,
-			Tag:     tag,
-			BuiltAt: buildAt,
+			Id:          instanceID,
+			Commit:      commit,
+			Tag:         tag,
+			BuiltAt:     buildAt,
+			ServiceName: serviceName,
 		},
 	}
 }
@@ -44,6 +45,15 @@ func (rf *RequestFactory) fromErrors(error *Errors) *Request {
 		InstanceInfo: rf.iInfo,
 		MetricType:   "errors",
 		Errors:       error,
+	}
+}
+
+func (rf *RequestFactory) fromUser(user *UserData) *Request {
+	return &Request{
+		Timestamp:    timestamp.NowUTC(),
+		InstanceInfo: rf.iInfo,
+		MetricType:   "users",
+		User:         user,
 	}
 }
 

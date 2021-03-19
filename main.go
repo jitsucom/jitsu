@@ -3,13 +3,24 @@ package main
 import (
 	"bytes"
 	"context"
-	"errors"
 	"flag"
 	"fmt"
+	"math/rand"
+	"net/http"
+	"os"
+	"os/signal"
+	"path"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+	"syscall"
+	"time"
+
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/eventnative/appconfig"
 	"github.com/jitsucom/eventnative/appstatus"
 	"github.com/jitsucom/eventnative/caching"
+	"github.com/jitsucom/eventnative/coordination"
 	"github.com/jitsucom/eventnative/counters"
 	"github.com/jitsucom/eventnative/destinations"
 	"github.com/jitsucom/eventnative/enrichment"
@@ -24,21 +35,13 @@ import (
 	"github.com/jitsucom/eventnative/resources"
 	"github.com/jitsucom/eventnative/routers"
 	"github.com/jitsucom/eventnative/safego"
+	"github.com/jitsucom/eventnative/scheduling"
 	"github.com/jitsucom/eventnative/singer"
 	"github.com/jitsucom/eventnative/sources"
 	"github.com/jitsucom/eventnative/storages"
 	"github.com/jitsucom/eventnative/synchronization"
 	"github.com/jitsucom/eventnative/telemetry"
 	"github.com/jitsucom/eventnative/users"
-	"math/rand"
-	"net/http"
-	"os"
-	"os/signal"
-	"runtime/debug"
-	"strings"
-	"syscall"
-	"time"
-
 	"github.com/spf13/viper"
 )
 
@@ -47,6 +50,9 @@ const (
 	//incoming.tok=$token-$timestamp.log
 	uploaderFileMask   = "incoming.tok=*-20*.log"
 	uploaderLoadEveryS = 60
+	//streaming-archive.dst=$destinationId-$timestamp.log
+	streamArchiveFileMask = "streaming-archive*-20*.log"
+	streamArchiveEveryS   = 60
 
 	destinationsKey = "destinations"
 	sourcesKey      = "sources"
@@ -86,10 +92,6 @@ func readInViperConfig() error {
 		configSourceStr = overriddenConfigLocation
 	}
 
-	if configSourceStr == "" {
-		return handleConfigErr(errors.New("-cfg is required parameter. Read more about EventNative configuration: https://docs.eventnative.org/configuration-1/configuration"))
-	}
-
 	var payload *resources.ResponsePayload
 	var err error
 	if strings.HasPrefix(configSourceStr, "http://") || strings.HasPrefix(configSourceStr, "https://") {
@@ -97,7 +99,7 @@ func readInViperConfig() error {
 	} else if strings.HasPrefix(configSourceStr, "{") && strings.HasSuffix(configSourceStr, "}") {
 		jsonContentType := resources.JsonContentType
 		payload = &resources.ResponsePayload{Content: []byte(configSourceStr), ContentType: &jsonContentType}
-	} else {
+	} else if configSourceStr != "" {
 		payload, err = resources.LoadFromFile(configSourceStr, "")
 	}
 
@@ -105,17 +107,19 @@ func readInViperConfig() error {
 		return handleConfigErr(err)
 	}
 
-	if payload.ContentType != nil {
+	if payload != nil && payload.ContentType != nil {
 		viper.SetConfigType(string(*payload.ContentType))
 	} else {
 		//default content type
 		viper.SetConfigType("json")
 	}
 
-	err = viper.ReadConfig(bytes.NewBuffer(payload.Content))
-	if err != nil {
-		errWithContext := fmt.Errorf("Error reading/parsing viper config from %s: %v", configSourceStr, err)
-		return handleConfigErr(errWithContext)
+	if payload != nil {
+		err = viper.ReadConfig(bytes.NewBuffer(payload.Content))
+		if err != nil {
+			errWithContext := fmt.Errorf("Error reading/parsing config from %s: %v", configSourceStr, err)
+			return handleConfigErr(errWithContext)
+		}
 	}
 
 	return nil
@@ -134,6 +138,19 @@ func handleConfigErr(err error) error {
 	return nil
 }
 
+func setAppWorkDir() {
+	application, err := os.Executable()
+	if err != nil {
+		logging.Errorf("Cannot get executable information: %v", err)
+	}
+
+	directory := filepath.Dir(application)
+
+	if err = os.Chdir(directory); err != nil {
+		logging.Errorf("Cannot setup working directory %v: %v", directory, err)
+	}
+}
+
 func main() {
 	//Setup seed for globalRand
 	rand.Seed(time.Now().Unix())
@@ -143,6 +160,9 @@ func main() {
 
 	//Setup default timezone for time.Now() calls
 	time.Local = time.UTC
+
+	// Setup application directory as working directory
+	setAppWorkDir()
 
 	if err := readInViperConfig(); err != nil {
 		logging.Fatal("Error while reading application config:", err)
@@ -157,7 +177,7 @@ func main() {
 		appconfig.Beta = parsed[2] == "beta"
 	}
 
-	if err := appconfig.Init(); err != nil {
+	if err := appconfig.Init(*containerizedRun); err != nil {
 		logging.Fatal(err)
 	}
 
@@ -174,7 +194,7 @@ func main() {
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
 	}
 
-	telemetry.Init(commit, tag, builtAt, viper.GetBool("server.telemetry.disabled.usage"))
+	telemetry.InitFromViper(notifications.ServiceName, commit, tag, builtAt)
 	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
@@ -202,6 +222,12 @@ func main() {
 
 	//Get logger configuration
 	logEventPath := viper.GetString("log.path")
+	// Create full path to logs directory if it is necessary
+	logging.Infof("Create log.path directory: %q", logEventPath)
+	if err := logging.EnsureDir(logEventPath); err != nil {
+		logging.Fatalf("log.path %q cannot be created!", logEventPath)
+	}
+
 	//check if log.path is writable
 	if !logging.IsDirWritable(logEventPath) {
 		logging.Fatal("log.path:", logEventPath, "must be writable! Since EventNative docker user and owner of mounted dir are different: Please use 'chmod 777 your_mount_dir'")
@@ -211,15 +237,20 @@ func main() {
 	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
 
-	//synchronization service
-	syncService, err := synchronization.NewService(
-		ctx,
-		appconfig.Instance.ServerName,
-		viper.GetString("synchronization_service.type"),
-		viper.GetString("synchronization_service.endpoint"),
-		viper.GetUint("synchronization_service.connection_timeout_seconds"))
+	//TODO remove deprecated someday
+	//coordination service
+	var coordinationService coordination.Service
+	var err error
+	if viper.IsSet("synchronization_service") {
+		logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
+
+		coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
+	} else {
+		coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
+	}
+
 	if err != nil {
-		logging.Fatal("Failed to initiate synchronization service", err)
+		logging.Fatal("Failed to initiate coordination service", err)
 	}
 
 	// ** Destinations **
@@ -262,7 +293,7 @@ func main() {
 		logging.Warnf("Global users recognition isn't configured")
 	}
 
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, syncService, eventsCache, loggerFactory, globalRecognitionConfiguration)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory)
@@ -279,15 +310,34 @@ func main() {
 
 	// ** Sources **
 
-	//sources sync tasks pool size
-	poolSize := viper.GetInt("server.sync_tasks.pool.size")
+	//Create source&collection sync scheduler
+	cronScheduler := scheduling.NewCronScheduler()
+	appconfig.Instance.ScheduleClosing(cronScheduler)
 
 	//Create sources
-	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage, syncService, poolSize)
+	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage, cronScheduler)
 	if err != nil {
 		logging.Fatal("Error creating sources service:", err)
 	}
 	appconfig.Instance.ScheduleClosing(sourceService)
+
+	//Create sync task service
+	taskService := synchronization.NewTaskService(sourceService, destinationsService, metaStorage, coordinationService)
+
+	//Start cron scheduler
+	if taskService.IsConfigured() {
+		cronScheduler.Start(taskService.ScheduleSyncFunc)
+	}
+
+	//sources sync tasks pool size
+	poolSize := viper.GetInt("server.sync_tasks.pool.size")
+
+	//Create task executor
+	taskExecutor, err := synchronization.NewTaskExecutor(poolSize, sourceService, destinationsService, metaStorage, coordinationService)
+	if err != nil {
+		logging.Fatal("Error creating sources sync task executor:", err)
+	}
+	appconfig.Instance.ScheduleClosing(taskExecutor)
 
 	//Uploader must read event logger directory
 	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderLoadEveryS, destinationsService)
@@ -295,6 +345,10 @@ func main() {
 		logging.Fatal("Error while creating file uploader", err)
 	}
 	uploader.Start()
+
+	//Streaming events archiver
+	periodicArchiver := logfiles.NewPeriodicArchiver(streamArchiveFileMask, path.Join(logEventPath, logging.ArchiveDir), time.Duration(streamArchiveEveryS)*time.Second)
+	appconfig.Instance.ScheduleClosing(periodicArchiver)
 
 	adminToken := viper.GetString("server.admin_token")
 
@@ -310,7 +364,8 @@ func main() {
 		appconfig.Instance.ScheduleClosing(vn)
 	}
 
-	router := routers.SetupRouter(destinationsService, adminToken, syncService, eventsCache, inMemoryEventsCache, sourceService, fallbackService, usersRecognitionService)
+	router := routers.SetupRouter(adminToken, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
+		coordinationService, eventsCache, inMemoryEventsCache)
 
 	telemetry.ServerStart()
 	notifications.ServerStart()

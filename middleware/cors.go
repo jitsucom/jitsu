@@ -1,15 +1,17 @@
 package middleware
 
 import (
+	"encoding/json"
 	"net/http"
 	"strings"
 )
 
 //Cors handle OPTIONS requests and check if request /event or dynamic event endpoint or static endpoint (/t /s /p)
-//check origins - if matched write origin to acao header otherwise don't write it
+//if token ok => check origins - if matched write origin to acao header otherwise don't write it
+//if not return 401
 func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/event") || strings.Contains(r.URL.Path, "/api.") {
+		if (!strings.Contains(r.URL.Path, "/api/v1/events/dry-run") && strings.Contains(r.URL.Path, "/api/v1/event")) || strings.Contains(r.URL.Path, "/api.") {
 			writeDefaultCorsHeaders(w)
 
 			token := extractToken(r)
@@ -26,6 +28,13 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 				} else {
 					w.Header().Add("Access-Control-Allow-Origin", reqOrigin)
 				}
+			} else {
+				//Unauthorized
+				response := ErrorResponse{Message: ErrTokenNotFound}
+				b, _ := json.Marshal(response)
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write(b)
+				return
 			}
 
 		} else if strings.Contains(r.URL.Path, "/p/") || strings.Contains(r.URL.Path, "/s/") || strings.Contains(r.URL.Path, "/t/") {

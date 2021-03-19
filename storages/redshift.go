@@ -3,6 +3,8 @@ package storages
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/eventnative/adapters"
 	"github.com/jitsucom/eventnative/caching"
@@ -16,15 +18,16 @@ import (
 //batch: via aws s3 in batch mode (1 file = 1 statement)
 //stream: via events queue in stream mode (1 object = 1 statement)
 type AwsRedshift struct {
-	name            string
-	s3Adapter       *adapters.S3
-	redshiftAdapter *adapters.AwsRedshift
-	tableHelper     *TableHelper
-	processor       *schema.Processor
-	streamingWorker *StreamingWorker
-	fallbackLogger  *logging.AsyncLogger
-	eventsCache     *caching.EventsCache
-	staged          bool
+	name                          string
+	s3Adapter                     *adapters.S3
+	redshiftAdapter               *adapters.AwsRedshift
+	tableHelper                   *TableHelper
+	processor                     *schema.Processor
+	streamingWorker               *StreamingWorker
+	fallbackLogger                *logging.AsyncLogger
+	eventsCache                   *caching.EventsCache
+	usersRecognitionConfiguration *UserRecognitionConfiguration
+	staged                        bool
 }
 
 //NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
@@ -69,17 +72,18 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift)
+	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.streamMode)
 
 	ar := &AwsRedshift{
-		name:            config.name,
-		s3Adapter:       s3Adapter,
-		redshiftAdapter: redshiftAdapter,
-		tableHelper:     tableHelper,
-		processor:       config.processor,
-		fallbackLogger:  config.loggerFactory.CreateFailedLogger(config.name),
-		eventsCache:     config.eventsCache,
-		staged:          config.destination.Staged,
+		name:                          config.name,
+		s3Adapter:                     s3Adapter,
+		redshiftAdapter:               redshiftAdapter,
+		tableHelper:                   tableHelper,
+		processor:                     config.processor,
+		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
+		eventsCache:                   config.eventsCache,
+		usersRecognitionConfiguration: config.usersRecognition,
+		staged:                        config.destination.Staged,
 	}
 
 	if config.streamMode {
@@ -203,8 +207,30 @@ func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objec
 	return 0, errors.New("RedShift doesn't support sync store")
 }
 
+func (ar *AwsRedshift) Update(object map[string]interface{}) error {
+	batchHeader, processedObject, err := ar.processor.ProcessEvent(object)
+	if err != nil {
+		return err
+	}
+
+	table := ar.tableHelper.MapTableSchema(batchHeader)
+
+	dbSchema, err := ar.tableHelper.EnsureTable(ar.Name(), table)
+	if err != nil {
+		return err
+	}
+
+	start := time.Now()
+	if err = ar.redshiftAdapter.Update(dbSchema, processedObject, events.EventnCtxEventId, events.ExtractEventId(object)); err != nil {
+		return err
+	}
+	logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.Name(), time.Now().Sub(start).Seconds())
+
+	return nil
+}
+
 func (ar *AwsRedshift) GetUsersRecognition() *UserRecognitionConfiguration {
-	return disabledRecognitionConfiguration
+	return ar.usersRecognitionConfiguration
 }
 
 func (ar *AwsRedshift) Name() string {

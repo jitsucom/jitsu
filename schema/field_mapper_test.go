@@ -316,6 +316,7 @@ func TestNewStyleStrictMap(t *testing.T) {
 			"Map unflatten object",
 			[]MappingField{
 				{Src: "/key1", Dst: "/key10", Action: MOVE},
+				{Src: "/key1", Dst: "/key20", Action: MOVE},
 				{Src: "/key2/subkey2", Dst: "/key11", Action: MOVE},
 				{Src: "/key4/subkey1", Action: REMOVE},
 				{Src: "/key4/subkey3", Action: REMOVE},
@@ -345,6 +346,12 @@ func TestNewStyleStrictMap(t *testing.T) {
 			},
 			map[string]interface{}{
 				"key10": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+				"key20": map[string]interface{}{
 					"subkey1": map[string]interface{}{
 						"subsubkey1": 123,
 						"subsubkey2": 123,
