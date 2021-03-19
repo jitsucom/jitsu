@@ -49,7 +49,7 @@ jobs:
           paths:
             - "/go/pkg/mod"
   build-latest-docker:
-    working_directory: /go/src/github.com/jitsucom/eventnative/
+    working_directory: /go/src/github.com/jitsucom/eventnative/core/
     environment:
       IMAGE_NAME: ksense/eventnative
     docker:
@@ -81,7 +81,7 @@ jobs:
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME
   build-tagged-docker:
-    working_directory: /go/src/github.com/jitsucom/eventnative/
+    working_directory: /go/src/github.com/jitsucom/eventnative/core/
     environment:
       IMAGE_NAME: ksense/eventnative
     docker:

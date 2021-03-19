@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "paths": {
+      "@atom/*": ["./ui/components/atom/*"],
+      "@molecule/*": ["./ui/components/molecule/*"],
+      "@page/*": ["./ui/pages/*"]
+    }
+  }
+}

@@ -1,0 +1,15 @@
+server:
+  log:
+    level: debug
+  name: demo-eventnative
+  auth: 'http://configurator:7000/api/v1/apikeys?token=a123'
+  admin_token: a123
+  telemetry: 'http://configurator:7000/api/v1/telemetry?token=a123'
+
+destinations: 'http://configurator:7000/api/v1/destinations?token=a123'
+
+meta:
+  storage:
+    redis:
+      host: redis
+      port: 6379
