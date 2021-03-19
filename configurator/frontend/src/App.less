@@ -12,6 +12,14 @@ body {
   min-height: 100%;
 }
 
+*,
+::before,
+::after {
+  border-width: 0;
+  border-style: solid;
+  border-color: @splitBorder;
+}
+
 .app-layout-header, .app-layout-content, .app-layout-root, .app-layout-header-and-content {
   padding: 0;
 }

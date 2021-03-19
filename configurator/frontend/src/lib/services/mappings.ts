@@ -14,6 +14,14 @@ export class FieldMappings {
   get mappings(): Mapping[] {
     return this._mappings;
   }
+
+  addMapping(mapping: Mapping) {
+    this._mappings.push(mapping);
+  }
+
+  removeMapping(index) {
+    this._mappings.splice(index, 1);
+  }
 }
 
 export class Mapping {

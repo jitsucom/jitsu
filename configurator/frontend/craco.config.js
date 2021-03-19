@@ -34,6 +34,7 @@ module.exports = {
       /**
        * Once alias added here, it should be added to tsconfig.paths.json as well
        */
+      '@.': path.resolve(__dirname, './src/'),
       '@atom': path.resolve(__dirname, './src/ui/components/atom'),
       '@molecule': path.resolve(__dirname, './src/ui/components/molecule'),
       '@page': path.resolve(__dirname, './src/ui/pages'),

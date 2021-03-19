@@ -12,6 +12,7 @@
     "@types/node": "^12.0.0",
     "@types/react": "^17.0.0",
     "@types/react-dom": "^17.0.0",
+    "@types/react-router-dom": "^5.1.7",
     "antd": "^4.13.1",
     "axios": "^0.21.1",
     "classnames": "^2.2.6",
