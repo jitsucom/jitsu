@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
-	entime "github.com/jitsucom/eventnative/configurator/time"
-	"github.com/jitsucom/eventnative/server/logging"
+	entime "github.com/jitsucom/jitsu/configurator/time"
+	"github.com/jitsucom/jitsu/server/logging"
 	"strconv"
 	"time"
 )

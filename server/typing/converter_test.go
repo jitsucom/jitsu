@@ -1,7 +1,7 @@
 package typing
 
 import (
-	"github.com/jitsucom/eventnative/server/test"
+	"github.com/jitsucom/jitsu/server/test"
 	"github.com/stretchr/testify/require"
 	"testing"
 	"time"

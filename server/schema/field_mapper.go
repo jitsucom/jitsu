@@ -3,8 +3,8 @@ package schema
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/jsonutils"
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/logging"
 	"strings"
 )
 

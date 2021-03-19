@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/logging"
 )
 
 type DataType int

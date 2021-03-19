@@ -3,8 +3,8 @@ package events
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/maputils"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/maputils"
 )
 
 type Event map[string]interface{}

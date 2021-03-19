@@ -3,8 +3,8 @@ package destinations
 import (
 	"encoding/json"
 	"github.com/google/martian/log"
-	"github.com/jitsucom/eventnative/server/resources"
-	"github.com/jitsucom/eventnative/server/storages"
+	"github.com/jitsucom/jitsu/server/resources"
+	"github.com/jitsucom/jitsu/server/storages"
 )
 
 type Payload struct {

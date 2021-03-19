@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jitsucom/eventnative/server/timestamp"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 // Typecast tree

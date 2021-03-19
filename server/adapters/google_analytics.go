@@ -3,9 +3,9 @@ package adapters
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/schema"
-	"github.com/jitsucom/eventnative/server/typing"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/typing"
 	"net/http"
 	"net/url"
 	"time"

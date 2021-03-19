@@ -1,1 +1,1 @@
-FROM ksense/eventnative
+FROM jitsucom/server

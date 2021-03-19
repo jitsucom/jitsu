@@ -1,10 +1,10 @@
 package storages
 
 import (
-	"github.com/jitsucom/eventnative/server/adapters"
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/jsonutils"
-	"github.com/jitsucom/eventnative/server/schema"
+	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/schema"
 	"io"
 )
 

@@ -1,4 +1,4 @@
-module github.com/jitsucom/eventnative/server
+module github.com/jitsucom/jitsu/server
 
 go 1.14
 

@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"cloud.google.com/go/storage"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/timestamp"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )

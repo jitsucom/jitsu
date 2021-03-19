@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/configurator/entities"
-	"github.com/jitsucom/eventnative/configurator/random"
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/configurator/entities"
+	"github.com/jitsucom/jitsu/configurator/random"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/spf13/viper"
 	"strings"
 )

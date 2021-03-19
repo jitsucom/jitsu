@@ -2,7 +2,7 @@ package scheduling
 
 import (
 	"fmt"
-	"github.com/jitsucom/eventnative/server/timestamp"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/robfig/cron/v3"
 	"sync"
 )

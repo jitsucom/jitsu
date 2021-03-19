@@ -1,6 +1,6 @@
 package entities
 
-import "github.com/jitsucom/eventnative/server/enrichment"
+import "github.com/jitsucom/jitsu/server/enrichment"
 
 //Destination entity is stored in main storage (Firebase)
 type Destination struct {

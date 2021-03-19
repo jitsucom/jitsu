@@ -2,9 +2,9 @@ package storages
 
 import (
 	"bytes"
-	"github.com/jitsucom/eventnative/server/adapters"
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/schema"
+	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/schema"
 )
 
 //return rows count from byte array

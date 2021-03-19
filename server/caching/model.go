@@ -1,8 +1,8 @@
 package caching
 
 import (
-	"github.com/jitsucom/eventnative/server/adapters"
-	"github.com/jitsucom/eventnative/server/events"
+	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/events"
 )
 
 //entity

@@ -1,8 +1,8 @@
 package schema
 
 import (
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/typing"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
 type Fields map[string]Field

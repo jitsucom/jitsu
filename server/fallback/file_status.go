@@ -1,6 +1,6 @@
 package fallback
 
-import "github.com/jitsucom/eventnative/server/logfiles"
+import "github.com/jitsucom/jitsu/server/logfiles"
 
 type FileStatus struct {
 	FileName      string                      `json:"file_name"`

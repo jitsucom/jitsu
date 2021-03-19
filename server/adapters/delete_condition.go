@@ -1,7 +1,7 @@
 package adapters
 
 import (
-	"github.com/jitsucom/eventnative/server/events"
+	"github.com/jitsucom/jitsu/server/events"
 )
 
 type DeleteCondition struct {

@@ -1,8 +1,8 @@
 package schema
 
 import (
-	"github.com/jitsucom/eventnative/server/test"
-	"github.com/jitsucom/eventnative/server/typing"
+	"github.com/jitsucom/jitsu/server/test"
+	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/stretchr/testify/require"
 	"testing"
 )

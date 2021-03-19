@@ -1,11 +1,11 @@
 package enrichment
 
 import (
-	"github.com/jitsucom/eventnative/server/appconfig"
-	"github.com/jitsucom/eventnative/server/jsonutils"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/parsers"
-	"github.com/jitsucom/eventnative/server/useragent"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/parsers"
+	"github.com/jitsucom/jitsu/server/useragent"
 )
 
 const UserAgentParse = "user_agent_parse"

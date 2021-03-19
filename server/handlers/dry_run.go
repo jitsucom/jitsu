@@ -3,11 +3,11 @@ package handlers
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/eventnative/server/destinations"
-	"github.com/jitsucom/eventnative/server/enrichment"
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/middleware"
+	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/enrichment"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
 )
 

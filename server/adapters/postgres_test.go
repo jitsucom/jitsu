@@ -3,8 +3,8 @@ package adapters
 import (
 	"context"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/test"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/test"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/assert"
 	"math/rand"

@@ -3,9 +3,9 @@ package storages
 import (
 	"testing"
 
-	"github.com/jitsucom/eventnative/server/adapters"
-	"github.com/jitsucom/eventnative/server/schema"
-	"github.com/jitsucom/eventnative/server/typing"
+	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/stretchr/testify/require"
 )
 

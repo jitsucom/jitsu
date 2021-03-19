@@ -2,7 +2,7 @@ package coordination
 
 import (
 	"fmt"
-	"github.com/jitsucom/eventnative/server/storages"
+	"github.com/jitsucom/jitsu/server/storages"
 	"sync"
 	"sync/atomic"
 	"time"

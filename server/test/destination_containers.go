@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/docker/go-connections/nat"
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/testcontainers/testcontainers-go"
 	tcWait "github.com/testcontainers/testcontainers-go/wait"
 	"os"

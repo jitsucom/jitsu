@@ -3,8 +3,8 @@ package telemetry
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/jitsucom/eventnative/server/resources"
-	"github.com/jitsucom/eventnative/server/safego"
+	"github.com/jitsucom/jitsu/server/resources"
+	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/spf13/viper"
 	"go.uber.org/atomic"
 	"net/http"

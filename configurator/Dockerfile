@@ -38,11 +38,11 @@ FROM main as builder
 RUN apk add git make bash
 
 #Copy backend
-ADD configurator/backend /go/src/github.com/jitsucom/eventnative/$CONFIGURATOR_USER/backend
-ADD server /go/src/github.com/jitsucom/eventnative/server
-ADD .git /go/src/github.com/jitsucom/eventnative/.git
+ADD configurator/backend /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend
+ADD server /go/src/github.com/jitsucom/jitsu/server
+ADD .git /go/src/github.com/jitsucom/jitsu/.git
 
-WORKDIR /go/src/github.com/jitsucom/eventnative/$CONFIGURATOR_USER/backend
+WORKDIR /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend
 
 # Build
 RUN make
@@ -54,7 +54,7 @@ FROM main as final
 ENV TZ=UTC
 
 # copy static files from build-image
-COPY --from=builder /go/src/github.com/jitsucom/eventnative/$CONFIGURATOR_USER/backend/build/dist /home/$CONFIGURATOR_USER/app
+COPY --from=builder /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend/build/dist /home/$CONFIGURATOR_USER/app
 COPY --from=jsbuilder /app/build /home/$CONFIGURATOR_USER/app/web
 
 RUN chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/app

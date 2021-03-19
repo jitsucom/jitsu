@@ -2,7 +2,7 @@ package logfiles
 
 import (
 	"encoding/json"
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/logging"
 	"io/ioutil"
 	"os"
 	"path"

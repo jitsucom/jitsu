@@ -3,7 +3,7 @@ package authorization
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/resources"
+	"github.com/jitsucom/jitsu/server/resources"
 	"strings"
 )
 

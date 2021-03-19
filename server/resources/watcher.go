@@ -3,9 +3,9 @@ package resources
 import (
 	"crypto/md5"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/appstatus"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/safego"
+	"github.com/jitsucom/jitsu/server/appstatus"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/safego"
 	"time"
 )
 
