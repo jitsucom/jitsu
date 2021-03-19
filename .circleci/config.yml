@@ -1,8 +1,8 @@
 version: 2.1
 
 jobs:
-  backend-test:
-    working_directory: /go/src/github.com/jitsucom/jitsu/
+  server-test:
+    working_directory: /go/src/github.com/jitsucom/jitsu/server
     docker:
       - image: circleci/golang:1.14
       - image: yandex/clickhouse-server:20.3
@@ -48,23 +48,7 @@ jobs:
           key: go-mod-v1-{{ checksum "go.sum" }}
           paths:
             - "/go/pkg/mod"
-  build-latest-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/core/
-    environment:
-      IMAGE_NAME: ksense/eventnative
-    docker:
-      - image: circleci/golang:1.14-buster-node
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-      - run:
-          name: Build and Push Docker image
-          command: |
-            docker build -t $IMAGE_NAME:latest .
-            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker push $IMAGE_NAME
-  build-beta-docker:
+  build-latest-en-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: ksense/eventnative
@@ -77,11 +61,43 @@ jobs:
       - run:
           name: Build and Push Docker image
           command: |
-            docker build -t $IMAGE_NAME:beta .
+            docker build -t $IMAGE_NAME:latest -f server.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME
-  build-tagged-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/core/
+  build-latest-jitsu-docker:
+    working_directory: /go/src/github.com/jitsucom/jitsu/
+    environment:
+      IMAGE_NAME: jitsucom/server
+    docker:
+      - image: circleci/golang:1.14-buster-node
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build and Push Docker image
+          command: |
+            docker build -t $IMAGE_NAME:latest -f server.Dockerfile .
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $IMAGE_NAME
+  build-latest-configurator-docker:
+    working_directory: /go/src/github.com/jitsucom/jitsu/
+    environment:
+      IMAGE_NAME: jitsucom/configurator
+    docker:
+      - image: circleci/golang:1.14-buster-node
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build and Push Docker image
+          command: |
+            docker build -t $IMAGE_NAME:latest -f configurator.Dockerfile .
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $IMAGE_NAME
+  build-beta-en-docker:
+    working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: ksense/eventnative
     docker:
@@ -93,7 +109,87 @@ jobs:
       - run:
           name: Build and Push Docker image
           command: |
-            docker build -t $IMAGE_NAME:${CIRCLE_TAG//v} .
+            docker build -t $IMAGE_NAME:beta -f server.Dockerfile .
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $IMAGE_NAME
+  build-beta-configurator-docker:
+    working_directory: /go/src/github.com/jitsucom/jitsu/
+    environment:
+      IMAGE_NAME: jitsucom/configurator
+    docker:
+      - image: circleci/golang:1.14-buster-node
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build and Push Docker image
+          command: |
+            docker build -t $IMAGE_NAME:beta -f configurator.Dockerfile .
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $IMAGE_NAME
+  build-beta-jitsu-docker:
+    working_directory: /go/src/github.com/jitsucom/jitsu/
+    environment:
+      IMAGE_NAME: jitsucom/server
+    docker:
+      - image: circleci/golang:1.14-buster-node
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build and Push Docker image
+          command: |
+            docker build -t $IMAGE_NAME:beta -f server.Dockerfile .
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $IMAGE_NAME
+  build-tagged-en-docker:
+    working_directory: /go/src/github.com/jitsucom/jitsu/
+    environment:
+      IMAGE_NAME: ksense/eventnative
+    docker:
+      - image: circleci/golang:1.14-buster-node
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build and Push Docker image
+          command: |
+            docker build -t $IMAGE_NAME:${CIRCLE_TAG//v} -f server.Dockerfile .
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $IMAGE_NAME:${CIRCLE_TAG//v}
+  build-tagged-jitsu-docker:
+    working_directory: /go/src/github.com/jitsucom/jitsu/
+    environment:
+      IMAGE_NAME: jitsucom/server
+    docker:
+      - image: circleci/golang:1.14-buster-node
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build and Push Docker image
+          command: |
+            docker build -t $IMAGE_NAME:${CIRCLE_TAG//v} -f server.Dockerfile .
+            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+            docker push $IMAGE_NAME:${CIRCLE_TAG//v}
+  build-tagged-configurator-docker:
+    working_directory: /go/src/github.com/jitsucom/jitsu/
+    environment:
+      IMAGE_NAME: jitsucom/configurator
+    docker:
+      - image: circleci/golang:1.14-buster-node
+    steps:
+      - checkout
+      - setup_remote_docker:
+          version: 19.03.13
+      - run:
+          name: Build and Push Docker image
+          command: |
+            docker build -t $IMAGE_NAME:${CIRCLE_TAG//v} -f configurator.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME:${CIRCLE_TAG//v}
 
@@ -101,30 +197,76 @@ workflows:
   version: 2.1
   build-docker:
     jobs:
-      - backend-test:
+      - server-test:
           filters:
             tags:
               only: /.*/
             branches:
               only: /.*/
-      - build-latest-docker:
+      - build-latest-en-docker:
           context: eventnative
           requires:
-            - backend-test
+            - server-test
           filters:
             branches:
               only: master
-      - build-beta-docker:
+      - build-latest-jitsu-docker:
+          context: jitsu
+          requires:
+            - server-test
+          filters:
+            branches:
+              only: master
+      - build-latest-configurator-docker:
+          context: jitsu
+          requires:
+            - server-test
+          filters:
+            branches:
+              only: master
+      - build-beta-en-docker:
           context: eventnative
           requires:
-            - backend-test
+            - server-test
           filters:
             branches:
               only: beta
-      - build-tagged-docker:
+      - build-beta-jitsu-docker:
+          context: jitsu
+          requires:
+            - server-test
+          filters:
+            branches:
+              only: beta
+      - build-beta-configurator-docker:
+          context: jitsu
+          requires:
+            - server-test
+          filters:
+            branches:
+              only: beta
+      - build-tagged-en-docker:
           context: eventnative
           requires:
-            - backend-test
+            - server-test
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - build-tagged-jitsu-docker:
+          context: jitsu
+          requires:
+            - server-test
+          filters:
+            tags:
+              only: /^v.*/
+            branches:
+              ignore: /.*/
+      - build-tagged-configurator-docker:
+          context: jitsu
+          requires:
+            - server-test
           filters:
             tags:
               only: /^v.*/
