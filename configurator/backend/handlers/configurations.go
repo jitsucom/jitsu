@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/eventnative/configurator/authorization"
-	"github.com/jitsucom/eventnative/configurator/middleware"
-	"github.com/jitsucom/eventnative/configurator/storages"
-	"github.com/jitsucom/eventnative/server/logging"
-	mdlwr "github.com/jitsucom/eventnative/server/middleware"
+	"github.com/jitsucom/jitsu/configurator/authorization"
+	"github.com/jitsucom/jitsu/configurator/middleware"
+	"github.com/jitsucom/jitsu/configurator/storages"
+	"github.com/jitsucom/jitsu/server/logging"
+	mdlwr "github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
 )
 

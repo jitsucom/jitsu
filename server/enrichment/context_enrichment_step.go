@@ -1,9 +1,9 @@
 package enrichment
 
 import (
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/timestamp"
-	"github.com/jitsucom/eventnative/server/uuid"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"net/http"
 	"strings"
 )

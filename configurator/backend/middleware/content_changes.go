@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/eventnative/configurator/storages"
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/configurator/storages"
+	"github.com/jitsucom/jitsu/server/logging"
 	"net/http"
 	"time"
 )

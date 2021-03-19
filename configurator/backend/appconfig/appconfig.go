@@ -1,7 +1,7 @@
 package appconfig
 
 import (
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/spf13/viper"
 	"io"
 	"os"

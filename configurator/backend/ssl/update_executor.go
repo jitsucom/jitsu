@@ -2,11 +2,11 @@ package ssl
 
 import (
 	"fmt"
-	"github.com/jitsucom/eventnative/configurator/entities"
-	"github.com/jitsucom/eventnative/configurator/files"
-	entime "github.com/jitsucom/eventnative/configurator/time"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/safego"
+	"github.com/jitsucom/jitsu/configurator/entities"
+	"github.com/jitsucom/jitsu/configurator/files"
+	entime "github.com/jitsucom/jitsu/configurator/time"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/safego"
 	"io/ioutil"
 	"os/exec"
 	"strings"

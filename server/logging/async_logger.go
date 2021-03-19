@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/safego"
+	"github.com/jitsucom/jitsu/server/safego"
 	"io"
 )
 

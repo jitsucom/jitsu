@@ -3,8 +3,8 @@ package appconfig
 import (
 	"context"
 	"github.com/google/go-github/v32/github"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/safego"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/safego"
 	"regexp"
 	"strings"
 	"time"

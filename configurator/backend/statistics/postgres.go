@@ -3,7 +3,7 @@ package statistics
 import (
 	"database/sql"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/adapters"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"time"
 )
 

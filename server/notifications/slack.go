@@ -3,7 +3,7 @@ package notifications
 import (
 	"bytes"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/safego"
+	"github.com/jitsucom/jitsu/server/safego"
 	"io/ioutil"
 	"net/http"
 	"strings"

@@ -1,12 +1,12 @@
 package logfiles
 
 import (
-	"github.com/jitsucom/eventnative/server/appstatus"
-	"github.com/jitsucom/eventnative/server/counters"
-	"github.com/jitsucom/eventnative/server/destinations"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/metrics"
-	"github.com/jitsucom/eventnative/server/safego"
+	"github.com/jitsucom/jitsu/server/appstatus"
+	"github.com/jitsucom/jitsu/server/counters"
+	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/safego"
 	"io/ioutil"
 	"os"
 	"path"

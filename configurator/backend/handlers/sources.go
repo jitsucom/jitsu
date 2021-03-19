@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/eventnative/configurator/eventnative"
-	"github.com/jitsucom/eventnative/configurator/middleware"
-	"github.com/jitsucom/eventnative/configurator/storages"
+	"github.com/jitsucom/jitsu/configurator/eventnative"
+	"github.com/jitsucom/jitsu/configurator/middleware"
+	"github.com/jitsucom/jitsu/configurator/storages"
 	"net/http"
 )
 

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jitsucom/eventnative/server/appconfig"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/storages"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )

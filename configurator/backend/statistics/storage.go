@@ -2,8 +2,8 @@ package statistics
 
 import (
 	"errors"
-	"github.com/jitsucom/eventnative/server/logging"
-	enstorages "github.com/jitsucom/eventnative/server/storages"
+	"github.com/jitsucom/jitsu/server/logging"
+	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"github.com/spf13/viper"
 	"io"
 	"time"

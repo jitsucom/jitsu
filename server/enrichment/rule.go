@@ -3,7 +3,7 @@ package enrichment
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"strings"
 )
 

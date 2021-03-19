@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/configurator/storages"
+	"github.com/jitsucom/jitsu/configurator/storages"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/bcrypt"

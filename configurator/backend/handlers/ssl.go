@@ -3,9 +3,9 @@ package handlers
 import (
 	"fmt"
 	"github.com/gin-gonic/gin"
-	middleware2 "github.com/jitsucom/eventnative/configurator/middleware"
-	"github.com/jitsucom/eventnative/configurator/ssl"
-	"github.com/jitsucom/eventnative/server/middleware"
+	middleware2 "github.com/jitsucom/jitsu/configurator/middleware"
+	"github.com/jitsucom/jitsu/configurator/ssl"
+	"github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
 	"strings"
 )

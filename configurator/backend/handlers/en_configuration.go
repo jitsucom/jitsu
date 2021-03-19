@@ -2,13 +2,13 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/eventnative/configurator/destinations"
-	"github.com/jitsucom/eventnative/configurator/entities"
-	"github.com/jitsucom/eventnative/configurator/random"
-	"github.com/jitsucom/eventnative/configurator/storages"
-	enadapters "github.com/jitsucom/eventnative/server/adapters"
-	"github.com/jitsucom/eventnative/server/middleware"
-	enstorages "github.com/jitsucom/eventnative/server/storages"
+	"github.com/jitsucom/jitsu/configurator/destinations"
+	"github.com/jitsucom/jitsu/configurator/entities"
+	"github.com/jitsucom/jitsu/configurator/random"
+	"github.com/jitsucom/jitsu/configurator/storages"
+	enadapters "github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/middleware"
+	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"gopkg.in/yaml.v3"
 	"net/http"
 )

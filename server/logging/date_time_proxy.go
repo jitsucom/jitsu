@@ -4,7 +4,7 @@ import (
 	"io"
 	"time"
 
-	"github.com/jitsucom/eventnative/server/timestamp"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 type DateTimeWriterProxy struct {

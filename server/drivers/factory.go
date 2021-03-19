@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/scheduling"
-	"github.com/jitsucom/eventnative/server/timestamp"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/scheduling"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/spf13/cast"
 	"time"
 )

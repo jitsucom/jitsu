@@ -1,7 +1,7 @@
 package events
 
 import (
-	"github.com/jitsucom/eventnative/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"net/http"
 )
 

@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 	fb "github.com/huandu/facebook/v2"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/typing"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
 	"strings"
 	"time"
 )

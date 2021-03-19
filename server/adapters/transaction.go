@@ -3,7 +3,7 @@ package adapters
 import (
 	"database/sql"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/logging"
 )
 
 //Transaction is sql transaction wrapper. Used for handling and log errors with db type (postgres, redshift, clickhouse or snowflake)

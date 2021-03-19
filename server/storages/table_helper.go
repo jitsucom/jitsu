@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/jitsucom/eventnative/server/adapters"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/notifications"
-	"github.com/jitsucom/eventnative/server/schema"
-	"github.com/jitsucom/eventnative/server/typing"
+	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/notifications"
+	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
 const unlockRetryCount = 5

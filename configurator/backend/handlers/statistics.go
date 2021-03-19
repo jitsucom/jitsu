@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/eventnative/configurator/middleware"
-	"github.com/jitsucom/eventnative/configurator/statistics"
-	"github.com/jitsucom/eventnative/configurator/storages"
-	"github.com/jitsucom/eventnative/server/logging"
-	enmdlwr "github.com/jitsucom/eventnative/server/middleware"
+	"github.com/jitsucom/jitsu/configurator/middleware"
+	"github.com/jitsucom/jitsu/configurator/statistics"
+	"github.com/jitsucom/jitsu/configurator/storages"
+	"github.com/jitsucom/jitsu/server/logging"
+	enmdlwr "github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
 	"time"
 )

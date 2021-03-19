@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/logging"
 	gomail "gopkg.in/mail.v2"
 	"text/template"
 )

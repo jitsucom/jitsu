@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/martian/log"
-	"github.com/jitsucom/eventnative/server/safego"
+	"github.com/jitsucom/jitsu/server/safego"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 

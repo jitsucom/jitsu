@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/logging"
 	"html/template"
 	"io/ioutil"
 	"net/http"

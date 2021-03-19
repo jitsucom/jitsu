@@ -3,7 +3,7 @@ package schema
 import (
 	"fmt"
 
-	"github.com/jitsucom/eventnative/server/typing"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
 type TypeResolver interface {

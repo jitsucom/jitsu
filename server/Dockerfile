@@ -20,10 +20,10 @@ FROM main as jsbuilder
 RUN apk add git make bash npm
 
 # Copy js
-ADD server/web /go/src/github.com/jitsucom/eventnative/server/web
-ADD server/Makefile /go/src/github.com/jitsucom/eventnative/server/Makefile
+ADD server/web /go/src/github.com/jitsucom/jitsu/server/web
+ADD server/Makefile /go/src/github.com/jitsucom/jitsu/server/Makefile
 
-WORKDIR /go/src/github.com/jitsucom/eventnative/server
+WORKDIR /go/src/github.com/jitsucom/jitsu/server
 # Build js (for caching) and copy builded files
 RUN make clean_js assemble_js &&\
     cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/
@@ -36,10 +36,10 @@ FROM main as builder
 RUN apk add git make bash
 
 #Copy backend
-ADD server /go/src/github.com/jitsucom/eventnative/server
-ADD .git /go/src/github.com/jitsucom/eventnative/.git
+ADD server /go/src/github.com/jitsucom/jitsu/server
+ADD .git /go/src/github.com/jitsucom/jitsu/.git
 
-WORKDIR /go/src/github.com/jitsucom/eventnative/server
+WORKDIR /go/src/github.com/jitsucom/jitsu/server
 # Build backend and copy builded files
 RUN make clean_backend assemble_backend &&\
     cp -r ./build/dist/* /home/$EVENTNATIVE_USER/app/

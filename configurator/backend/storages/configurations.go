@@ -6,9 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
-	"github.com/jitsucom/eventnative/configurator/destinations"
-	"github.com/jitsucom/eventnative/configurator/entities"
-	"github.com/jitsucom/eventnative/configurator/random"
+	"github.com/jitsucom/jitsu/configurator/destinations"
+	"github.com/jitsucom/jitsu/configurator/entities"
+	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/spf13/viper"
 	"time"
 )

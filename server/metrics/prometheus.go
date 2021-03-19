@@ -1,7 +1,7 @@
 package metrics
 
 import (
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/logging"
 	"strings"
 )
 

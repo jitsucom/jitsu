@@ -3,14 +3,14 @@ package users
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/destinations"
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/jsonutils"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/meta"
-	"github.com/jitsucom/eventnative/server/metrics"
-	"github.com/jitsucom/eventnative/server/safego"
-	"github.com/jitsucom/eventnative/server/storages"
+	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/joncrlsn/dque"
 )
 

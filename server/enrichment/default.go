@@ -1,9 +1,9 @@
 package enrichment
 
 import (
-	"github.com/jitsucom/eventnative/server/appconfig"
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 )
 
 var (

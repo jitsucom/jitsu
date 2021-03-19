@@ -1,4 +1,4 @@
-module github.com/jitsucom/eventnative/configurator
+module github.com/jitsucom/jitsu/configurator
 
 go 1.14
 
@@ -12,7 +12,7 @@ require (
 	github.com/go-acme/lego v2.7.2+incompatible
 	github.com/gomodule/redigo v1.8.2
 	github.com/hashicorp/go-multierror v1.1.0
-	github.com/jitsucom/eventnative/server v1.28.2
+	github.com/jitsucom/jitsu/server v1.28.2
 	github.com/lib/pq v1.8.0
 	github.com/prometheus/common v0.15.0
 	github.com/satori/go.uuid v1.1.0
@@ -27,7 +27,7 @@ require (
 )
 
 replace (
-	github.com/jitsucom/eventnative/server => ./../../server
+	github.com/jitsucom/jitsu/server => ./../../server
 	google.golang.org/api v0.17.0 => google.golang.org/api v0.15.1
 	google.golang.org/grpc v1.27.0 => google.golang.org/grpc v1.26.0
 )

@@ -1,11 +1,11 @@
 package enrichment
 
 import (
-	"github.com/jitsucom/eventnative/server/appconfig"
-	"github.com/jitsucom/eventnative/server/geo"
-	"github.com/jitsucom/eventnative/server/jsonutils"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/parsers"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/parsers"
 )
 
 const IpLookup = "ip_lookup"

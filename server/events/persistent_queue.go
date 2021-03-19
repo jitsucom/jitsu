@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/metrics"
-	"github.com/jitsucom/eventnative/server/parsers"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/joncrlsn/dque"
 	"time"
 )

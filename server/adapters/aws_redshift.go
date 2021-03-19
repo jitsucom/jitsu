@@ -3,8 +3,8 @@ package adapters
 import (
 	"context"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/typing"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
 	_ "github.com/lib/pq"
 	"strconv"
 	"strings"

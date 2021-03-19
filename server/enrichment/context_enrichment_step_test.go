@@ -2,8 +2,8 @@ package enrichment
 
 import (
 	"bou.ke/monkey"
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/uuid"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"

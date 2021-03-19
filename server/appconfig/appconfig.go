@@ -4,10 +4,10 @@ import (
 	"io"
 	"os"
 
-	"github.com/jitsucom/eventnative/server/authorization"
-	"github.com/jitsucom/eventnative/server/geo"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/useragent"
+	"github.com/jitsucom/jitsu/server/authorization"
+	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/useragent"
 	"github.com/spf13/viper"
 )
 

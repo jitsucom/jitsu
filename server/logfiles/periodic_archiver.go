@@ -1,8 +1,8 @@
 package logfiles
 
 import (
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/safego"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/safego"
 	"path"
 	"path/filepath"
 	"time"

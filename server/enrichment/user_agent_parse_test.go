@@ -4,10 +4,10 @@ import (
 	"github.com/spf13/viper"
 	"testing"
 
-	"github.com/jitsucom/eventnative/server/appconfig"
-	"github.com/jitsucom/eventnative/server/jsonutils"
-	"github.com/jitsucom/eventnative/server/test"
-	"github.com/jitsucom/eventnative/server/useragent"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/test"
+	"github.com/jitsucom/jitsu/server/useragent"
 	"github.com/stretchr/testify/require"
 )
 

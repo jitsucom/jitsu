@@ -1,7 +1,7 @@
 package useragent
 
 import (
-	"github.com/jitsucom/eventnative/server/test"
+	"github.com/jitsucom/jitsu/server/test"
 	"testing"
 )
 

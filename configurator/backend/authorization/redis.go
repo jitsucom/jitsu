@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/logging"
 	"strconv"
 	"time"
 )

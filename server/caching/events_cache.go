@@ -2,11 +2,11 @@ package caching
 
 import (
 	"encoding/json"
-	"github.com/jitsucom/eventnative/server/adapters"
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/meta"
-	"github.com/jitsucom/eventnative/server/safego"
+	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/safego"
 	"time"
 )
 

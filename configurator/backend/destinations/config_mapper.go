@@ -3,10 +3,10 @@ package destinations
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/eventnative/configurator/entities"
-	enadapters "github.com/jitsucom/eventnative/server/adapters"
-	"github.com/jitsucom/eventnative/server/schema"
-	enstorages "github.com/jitsucom/eventnative/server/storages"
+	"github.com/jitsucom/jitsu/configurator/entities"
+	enadapters "github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/schema"
+	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"strings"
 )
 

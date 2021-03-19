@@ -5,12 +5,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/eventnative/server/appconfig"
-	"github.com/jitsucom/eventnative/server/counters"
-	"github.com/jitsucom/eventnative/server/enrichment"
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/maputils"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/counters"
+	"github.com/jitsucom/jitsu/server/enrichment"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/maputils"
 	"io"
 )
 

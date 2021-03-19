@@ -1,6 +1,6 @@
 package sources
 
-import "github.com/jitsucom/eventnative/server/drivers"
+import "github.com/jitsucom/jitsu/server/drivers"
 
 type Unit struct {
 	SourceType          string

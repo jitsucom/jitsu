@@ -2,7 +2,7 @@ package test
 
 import (
 	"context"
-	"github.com/jitsucom/eventnative/server/logging"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/testcontainers/testcontainers-go"
 	"os"
 	"strconv"

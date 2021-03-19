@@ -6,12 +6,12 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-multierror"
-	"github.com/jitsucom/eventnative/server/adapters"
-	"github.com/jitsucom/eventnative/server/caching"
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/logging"
-	"github.com/jitsucom/eventnative/server/parsers"
-	"github.com/jitsucom/eventnative/server/schema"
+	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/parsers"
+	"github.com/jitsucom/jitsu/server/schema"
 	sf "github.com/snowflakedb/gosnowflake"
 )
 

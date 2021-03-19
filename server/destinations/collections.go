@@ -1,8 +1,8 @@
 package destinations
 
 import (
-	"github.com/jitsucom/eventnative/server/events"
-	"github.com/jitsucom/eventnative/server/storages"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/storages"
 )
 
 //map["tokenId"]map["destination_name"]true

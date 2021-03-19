@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/gookit/color"
-	"github.com/jitsucom/eventnative/server/notifications"
+	"github.com/jitsucom/jitsu/server/notifications"
 )
 
 const (

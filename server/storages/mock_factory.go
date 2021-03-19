@@ -1,7 +1,7 @@
 package storages
 
 import (
-	"github.com/jitsucom/eventnative/server/events"
+	"github.com/jitsucom/jitsu/server/events"
 )
 
 type testProxyMock struct {
