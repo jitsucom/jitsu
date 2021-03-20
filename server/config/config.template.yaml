@@ -40,6 +40,11 @@ server:
   ### Public URL. It is used in welcome.html if not configured it will be taken from 'Host' http header on welcome.html requests
   #public_url: https://yourhost #Optional.
 
+  ### Limit the count of columns for any destinations.
+  ### It helps to prevent generating an infinite amount of columns in databases.
+  ### Zero value turns off column count calculation.
+  max_columns: 100 #Optional
+
   ### Application logs. If not configured - application logs will be written in std out. If configured in file and std out.
 #  log:
 #    path: /home/eventnative/logs/ #Optional.

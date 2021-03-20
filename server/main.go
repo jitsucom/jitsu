@@ -293,7 +293,9 @@ func main() {
 		logging.Warnf("Global users recognition isn't configured")
 	}
 
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration)
+	max_columns := viper.GetInt("server.max_columns")
+	logging.Infof("Limit server.max_columns is %d", max_columns)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, max_columns)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory)

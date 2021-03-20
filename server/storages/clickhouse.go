@@ -62,7 +62,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 		}
 
 		chAdapters = append(chAdapters, adapter)
-		tableHelpers = append(tableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse, config.streamMode))
+		tableHelpers = append(tableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse, config.streamMode, config.max_columns))
 	}
 
 	ch := &ClickHouse{
