@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -12,7 +14,6 @@ import (
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
-	"strings"
 )
 
 const (
@@ -83,6 +84,7 @@ type Config struct {
 	usersRecognition *UserRecognitionConfiguration
 	processor        *schema.Processor
 	streamMode       bool
+	max_columns      int
 	monitorKeeper    MonitorKeeper
 	eventQueue       *events.PersistentQueue
 	eventsCache      *caching.EventsCache
@@ -102,10 +104,11 @@ type FactoryImpl struct {
 	eventsCache         *caching.EventsCache
 	globalLoggerFactory *logging.Factory
 	globalConfiguration *UsersRecognition
+	max_columns         int
 }
 
 func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
-	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition) Factory {
+	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, max_columns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -113,6 +116,7 @@ func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorK
 		eventsCache:         eventsCache,
 		globalLoggerFactory: globalLoggerFactory,
 		globalConfiguration: globalConfiguration,
+		max_columns:         max_columns,
 	}
 }
 
@@ -291,6 +295,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		usersRecognition: usersRecognitionConfiguration,
 		processor:        processor,
 		streamMode:       destination.Mode == StreamMode,
+		max_columns:      f.max_columns,
 		monitorKeeper:    f.monitorKeeper,
 		eventQueue:       eventQueue,
 		eventsCache:      f.eventsCache,

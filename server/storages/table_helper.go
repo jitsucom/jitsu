@@ -26,11 +26,12 @@ type TableHelper struct {
 	pkFields           map[string]bool
 	columnTypesMapping map[typing.DataType]string
 
-	streamMode bool
+	streamMode  bool
+	max_columns int
 }
 
 func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, pkFields map[string]bool,
-	columnTypesMapping map[typing.DataType]string, streamMode bool) *TableHelper {
+	columnTypesMapping map[typing.DataType]string, streamMode bool, max_columns int) *TableHelper {
 
 	return &TableHelper{
 		manager:       manager,
@@ -40,7 +41,8 @@ func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, 
 		pkFields:           pkFields,
 		columnTypesMapping: columnTypesMapping,
 
-		streamMode: streamMode,
+		streamMode:  streamMode,
+		max_columns: max_columns,
 	}
 }
 
@@ -86,6 +88,14 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.
 	diff := dbSchema.Diff(dataSchema)
 	if !diff.Exists() {
 		return dbSchema, nil
+	}
+
+	if th.max_columns > 0 {
+		columns_count := len(dbSchema.Columns) + len(diff.Columns)
+		if columns_count > th.max_columns {
+			msg := fmt.Sprintf("Count of columns %d should be less or equal max_columns %d", columns_count, th.max_columns)
+			return nil, errors.New(msg)
+		}
 	}
 
 	//** Diff exists **
