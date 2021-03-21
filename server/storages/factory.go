@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/typing"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -15,6 +14,7 @@ import (
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
 const (
@@ -62,9 +62,10 @@ type DataLayout struct {
 }
 
 type UsersRecognition struct {
-	Enabled         bool   `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
-	AnonymousIDNode string `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
-	UserIDNode      string `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
+	Enabled         bool     `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	AnonymousIDNode string   `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
+	PropertyNodes   []string `mapstructure:"identification_nodes" json:"identification_nodes,omitempty" yaml:"identification_nodes,omitempty"`
+	UserIDNode      string   `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
 }
 
 func (ur *UsersRecognition) IsEnabled() bool {
@@ -77,8 +78,17 @@ func (ur *UsersRecognition) Validate() error {
 			return errors.New("anonymous_id_node is required")
 		}
 
-		if ur.UserIDNode == "" {
-			return errors.New("user_id_node is required")
+		if 0 == len(ur.PropertyNodes) {
+			if ur.UserIDNode == "" {
+				return errors.New("identification_nodes is required")
+			} else {
+				logging.Warn("user_id_node is deprecated. Please use identification_nodes instead")
+				ur.PropertyNodes = []string{ur.UserIDNode}
+			}
+		} else {
+			if ur.UserIDNode != "" {
+				logging.Warn("user_id_node is deprecated. Please use identification_nodes instead")
+			}
 		}
 	}
 
@@ -245,7 +255,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 			usersRecognitionConfiguration = &UserRecognitionConfiguration{
 				Enabled:             destination.UsersRecognition.Enabled,
 				AnonymousIDJSONPath: jsonutils.NewJSONPath(destination.UsersRecognition.AnonymousIDNode),
-				UserIDJSONPath:      jsonutils.NewJSONPath(destination.UsersRecognition.UserIDNode),
+				PropertyJSONPathes:  jsonutils.NewJSONPathArray(destination.UsersRecognition.PropertyNodes),
 			}
 		}
 	} else {

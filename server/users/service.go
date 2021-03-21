@@ -3,6 +3,7 @@ package users
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
@@ -30,13 +31,33 @@ type RecognitionPayload struct {
 type EventIdentifiers struct {
 	AnonymousID string
 	EventID     string
-	UserID      string
+	Properties  []interface{}
 }
 
 // RecognitionPayloadBuilder creates and returns a new *RecognitionPayload (must be pointer).
 // This is used when we load a segment of the queue from disk.
 func RecognitionPayloadBuilder() interface{} {
 	return &RecognitionPayload{}
+}
+
+func (ei *EventIdentifiers) IsAnyProperty() bool {
+	for _, value := range ei.Properties {
+		if value != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (ei *EventIdentifiers) IsAllProperties() bool {
+	for _, value := range ei.Properties {
+		if value == nil {
+			return false
+		}
+	}
+
+	return true
 }
 
 //RecognitionService has a thread pool under the hood
@@ -75,7 +96,7 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		globalConfiguration: &storages.UserRecognitionConfiguration{
 			Enabled:             configuration.Enabled,
 			AnonymousIDJSONPath: jsonutils.NewJSONPath(configuration.AnonymousIDNode),
-			UserIDJSONPath:      jsonutils.NewJSONPath(configuration.UserIDNode),
+			PropertyJSONPathes:  jsonutils.NewJSONPathArray(configuration.PropertyNodes),
 		},
 		queue: queue,
 	}
@@ -113,7 +134,7 @@ func (rs *RecognitionService) start() {
 
 			for destinationID, identifiers := range rp.DestinationsIdentifiers {
 				//recognized
-				if identifiers.UserID != "" {
+				if identifiers.IsAnyProperty() {
 					err := rs.runPipeline(destinationID, identifiers)
 					if err != nil {
 						logging.SystemErrorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
@@ -188,16 +209,12 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 
 		anonymousIDStr := fmt.Sprint(anonymousID)
 
-		var userIDStr string
-		userID, ok := configuration.UserIDJSONPath.Get(event)
-		if ok {
-			userIDStr = fmt.Sprint(userID)
-		}
+		properties, ok := configuration.PropertyJSONPathes.Get(event)
 
 		identifiers[destinationID] = EventIdentifiers{
 			EventID:     events.ExtractEventID(event),
 			AnonymousID: anonymousIDStr,
-			UserID:      userIDStr,
+			Properties:  properties,
 		}
 	}
 
@@ -242,15 +259,22 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 			continue
 		}
 
-		err = configuration.UserIDJSONPath.Set(event, identifiers.UserID)
+		err = configuration.PropertyJSONPathes.Set(event, identifiers.Properties)
 		if err != nil {
-			logging.Errorf("[%s] Error setting recognized user id into event: %s with json path rule [%s]: %v", destinationID, storedSerializedEvent, configuration.UserIDJSONPath.String(), err)
+			logging.Errorf("[%s] Error setting recognized user id into event: %s with json path rule [%s]: %v",
+				destinationID, storedSerializedEvent, configuration.PropertyJSONPathes.String(), err)
 			continue
 		}
 
 		err = storage.Update(event)
 		if err != nil {
 			logging.SystemErrorf("[%s] Error updating recognized user event: %v", destinationID, err)
+			continue
+		}
+
+		// If any property is empty event will be anonymous until filling out that last property.
+		// Removing event from storage is suitable only when all properties are filled out.
+		if !identifiers.IsAllProperties() {
 			continue
 		}
 

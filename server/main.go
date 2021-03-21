@@ -216,6 +216,7 @@ func main() {
 		globalRecognitionConfiguration = &storages.UsersRecognition{
 			Enabled:         viper.GetBool("users_recognition.enabled"),
 			AnonymousIDNode: viper.GetString("users_recognition.anonymous_id_node"),
+			PropertyNodes:   viper.GetStringSlice("users_recognition.identification_nodes"),
 			UserIDNode:      viper.GetString("users_recognition.user_id_node"),
 		}
 
