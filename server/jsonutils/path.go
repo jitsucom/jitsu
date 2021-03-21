@@ -1,6 +1,7 @@
 package jsonutils
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -116,4 +117,62 @@ func FormatPrefixSuffix(key string) string {
 		key = key[:len(key)-1]
 	}
 	return key
+}
+
+type JSONPathArray struct {
+	array []*JSONPath
+}
+
+func NewJSONPathArray(pathes []string) *JSONPathArray {
+	array := make([]*JSONPath, len(pathes))
+
+	for i, path := range pathes {
+		array[i] = NewJSONPath(path)
+	}
+
+	return &JSONPathArray{array: array}
+}
+
+func (jpa *JSONPathArray) String() string {
+	result := ""
+	for _, value := range jpa.array {
+		if result != "" {
+			result += ", "
+		}
+		result += value.String()
+	}
+
+	return "[" + result + "]"
+}
+
+func (jpa *JSONPathArray) Get(object map[string]interface{}) ([]interface{}, bool) {
+	result := false
+	array := make([]interface{}, len(jpa.array))
+
+	for i, path := range jpa.array {
+		value, answer := path.Get(object)
+		array[i] = value
+		result = result || answer
+	}
+
+	return array, result
+}
+
+func (jpa *JSONPathArray) Set(object map[string]interface{}, values []interface{}) error {
+	count := len(jpa.array)
+	if count != len(values) {
+		msg := fmt.Sprintf("Count of properties %d should be equal %d", count, len(values))
+		return errors.New(msg)
+	}
+
+	for i := 0; i < count; i++ {
+		if values[i] != nil {
+			err := jpa.array[i].Set(object, values[i])
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

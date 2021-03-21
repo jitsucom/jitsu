@@ -1,11 +1,12 @@
 package storages
 
 import (
+	"io"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/schema"
-	"io"
 )
 
 const (
@@ -46,5 +47,5 @@ type StoreResult struct {
 type UserRecognitionConfiguration struct {
 	Enabled             bool
 	AnonymousIDJSONPath *jsonutils.JSONPath
-	UserIDJSONPath      *jsonutils.JSONPath
+	PropertyJSONPathes  *jsonutils.JSONPathArray
 }
