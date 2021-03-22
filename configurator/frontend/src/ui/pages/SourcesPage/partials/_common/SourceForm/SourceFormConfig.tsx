@@ -1,25 +1,16 @@
 // @Libs
-import React, { useCallback, useMemo, useState } from 'react';
-import { Button, Form, Input, message } from 'antd';
+import React, { useCallback, useMemo } from 'react';
+import { Form, Input } from 'antd';
 import { get, snakeCase } from 'lodash';
 // @Utils
 import { naturalSort } from '@util/Array';
-// Components
-import { handleError } from '../../../../../../lib/components/components';
 import { SourceFormConfigField } from './SourceFormConfigField';
 // @Types
 import { RuleObject } from 'rc-field-form/lib/interface';
 import { Parameter } from '@connectors/types';
 import { SourceFormConfigProps as Props } from './SourceForm.types';
-// @Services
-import ApplicationServices from '@service/ApplicationServices';
-// @Icons
-import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 
 const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues }: Props) => {
-  const [connectionTestPending, setConnectionTestPending] = useState<boolean>();
-
-  const services = useMemo(() => ApplicationServices.get(), []);
 
   const isUniqueSourceId = useCallback((sourceId: string) => !Object.keys(alreadyExistSources).includes(sourceId), [
     alreadyExistSources
@@ -56,20 +47,6 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
 
     return sourceIdParts.join('_');
   }, [alreadyExistSources, isUniqueSourceId, initialValues, connectorSource]);
-
-  const handleClick = useCallback(async() => {
-    setConnectionTestPending(true);
-
-    try {
-      await services.backendApiClient.post('sources/test', {});
-
-      message.success('Successfully connected!');
-    } catch (error) {
-      handleError(error, 'Unable to test connection with filled data');
-    } finally {
-      setConnectionTestPending(false);
-    }
-  }, [services]);
 
   const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => Object.keys(alreadyExistSources).find((source) => source === value)
     ? Promise.reject('Source ID must be unique!')
@@ -108,8 +85,6 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
           documentation={documentation}
         />
       ))}
-
-      <Button className="fields-group" type="dashed" onClick={handleClick} loading={connectionTestPending} icon={<ApiOutlined />}>Test connection</Button>
     </>
   );
 };
