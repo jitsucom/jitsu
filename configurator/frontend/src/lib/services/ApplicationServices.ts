@@ -21,17 +21,17 @@ export class ApplicationConfiguration {
   private readonly _appEnvironment: AppEnvironmentType;
   private readonly _buildId: string;
 
-  constructor() {
-    this._rawConfig = getRawApplicationConfig();
-    let backendApiBase = this._rawConfig.env.BACKEND_API_BASE || `${window.location.protocol}//${window.location.host}`
-    this._firebaseConfig = this._rawConfig.firebase;
-    this._backendApiBase = concatenateURLs(backendApiBase, '/api/v1');
-    this._appEnvironment = (this._rawConfig.env.NODE_ENV || 'production').toLowerCase() as AppEnvironmentType;
-    this._buildId = [
-        `b=${this._rawConfig.env.BUILD_ID || 'dev'}`,
-        `sc=${this._rawConfig.env.GIT_BRANCH || 'unknown'}/${this._rawConfig.env.GIT_COMMIT_REF || 'unknown'}`,
-        `t=${this._rawConfig.env.BUILD_TIMESTAMP || 'unknown'}`
-    ].join(";");
+    constructor() {
+        this._rawConfig = getRawApplicationConfig();
+        let backendApiBase = this._rawConfig.env.BACKEND_API_BASE || `${window.location.protocol}//${window.location.host}`
+        this._firebaseConfig = this._rawConfig.firebase;
+        this._backendApiBase = concatenateURLs(backendApiBase, '/api/v1');
+        this._appEnvironment = (this._rawConfig.env.NODE_ENV || 'production').toLowerCase() as AppEnvironmentType;
+        this._buildId = [
+            `b=${this._rawConfig.env.BUILD_ID || 'dev'}`,
+            `sc=${this._rawConfig.env.GIT_BRANCH || 'unknown'}/${this._rawConfig.env.GIT_HEAD || 'unknown'}`,
+            `t=${this._rawConfig.env.BUILD_TIMESTAMP || 'unknown'}`
+        ].join(";");
 
     console.log(
       `App initialized. Backend: ${this._backendApiBase}. Env: ${this._appEnvironment}. Firebase configured: ${!!this
