@@ -1,32 +1,18 @@
 // @Libs
-import React, {memo, useCallback, useEffect, useMemo, useState} from 'react';
+import React, {memo, useCallback, useMemo, useState} from 'react';
 import { Form, FormInstance, Input } from 'antd';
 import { set } from 'lodash';
-import * as codemirror from "codemirror";
-import { UnControlled as CodeMirror } from 'react-codemirror2'
+import MonacoEditor from 'react-monaco-editor';
 // @Types
 import { SourceFormConfigFieldProps as Props } from './SourceForm.types';
 // @Components
 import { LabelWithTooltip } from "../../../../../../lib/components/components";
-// @Utils
-import 'codemirror/mode/javascript/javascript';
-// @Styles
-import 'codemirror/lib/codemirror.css';
-import 'codemirror/theme/material.css';
-
-let _editor = null as codemirror.Editor;
+import * as monacoEditor from "monaco-editor";
 
 const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, id, type, documentation }: Props) => {
   const fieldName = useMemo(() => `config.${id}`, [id]);
 
-  const [jsonValue, setJsonValue] = useState<any>();
-
-  const options: codemirror.EditorConfiguration = {
-      value: '',
-      mode: 'string',
-      theme: 'material',
-      lineNumbers: false
-  };
+  const [jsonValue, setJsonValue] = useState<string>();
 
   const handleChange = useCallback(
     (getFieldsValue, setFieldsValue) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -40,6 +26,16 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
     [fieldName]
   );
 
+  const handleMonacoChange = useCallback((getFieldsValue, setFieldsValue) => (value: string, e: monacoEditor.editor.IModelContentChangedEvent) => {
+      setJsonValue(JSON.stringify(value));
+
+      const formValues = getFieldsValue();
+
+      set(formValues, fieldName, value);
+
+      setFieldsValue(formValues);
+  }, [fieldName]);
+
   const formItemChild = useCallback(
     (getFieldsValue, setFieldsValue) => {
       switch (type) {
@@ -48,29 +44,23 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
         return <Input />;
 
       case 'json':
-        return <CodeMirror
-            options={options}
-            editorDidMount={(editor: codemirror.Editor) => {
-                _editor = editor;
-                _editor.setValue('');
+        return <MonacoEditor
+            height="300"
+            language="json"
+            theme="vs-dark"
+            options={{
+                selectOnLineNumbers: true,
+                lineNumbers: 'off'
             }}
-            onChange={(editor: codemirror.Editor, data: codemirror.EditorChange, value: string) => {
-                console.log('editor: ', editor);
-                console.log('data: ', data);
-                console.log('value: ', value);
-                console.log('_____________________________');
-            }}
+            onChange={handleMonacoChange(getFieldsValue, setFieldsValue)}
         />;
+
       case 'int':
         return <Input onChange={handleChange(getFieldsValue, setFieldsValue)} />;
       }
     },
     [type, handleChange]
   );
-
-    useEffect(() => {
-        _editor?.setValue('')
-    }, [])
 
   return (
     <div className="test-test">

@@ -3,6 +3,7 @@ const CracoLessPlugin = require('craco-less');
 const BundleAnalyzerPlugin = require("webpack-bundle-analyzer") .BundleAnalyzerPlugin
 const CracoAntDesignPlugin = require('craco-antd');
 const TerserPlugin = require('terser-webpack-plugin');
+const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 const webpack = require('webpack');
 const DEV_PORT = '9876';
 const DEV_HOST = 'localhost.jitsu.com';
@@ -58,6 +59,9 @@ module.exports = {
         analyzerMode: 'static',
         openAnalyzer: false,
         reportFilename: 'bundle-report.html'
+      }),
+      new MonacoWebpackPlugin({
+        languages: ['json']
       })
     ],
     configure: (webpackConfig, { env, paths }) => {
