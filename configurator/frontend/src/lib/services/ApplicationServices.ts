@@ -34,10 +34,10 @@ export class ApplicationConfiguration {
     ].join(";");
 
     console.log(
-      `App initialized. Backend: ${this._backendApiBase}. Env: ${this._appEnvironment}. Firebase configured: ${!!this
-        ._firebaseConfig}`
+        `App initialized. Backend: ${this._backendApiBase}. Env: ${this._appEnvironment}. Firebase configured: ${!!this
+            ._firebaseConfig}`
     );
-  }
+    }
 
   get firebaseConfig(): any {
     return this._firebaseConfig;
