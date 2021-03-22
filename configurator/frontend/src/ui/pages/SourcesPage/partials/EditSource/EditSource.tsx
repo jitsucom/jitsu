@@ -15,7 +15,7 @@ const EditSource = ({ projectId, sources }: CommonSourcePageProps) => {
   const sourceData = useMemo(() => sources[params.sourceId], [sources, params.sourceId]);
 
   const connectorSource = useMemo<SourceConnector>(
-    () => allSources.find((source: SourceConnector) => source.id === sourceData.sourceType) ?? ({} as SourceConnector),
+    () => allSources.find((source: SourceConnector) => source.id === sourceData.sourceType) ?? {} as SourceConnector,
     [sourceData.sourceType]
   );
 
