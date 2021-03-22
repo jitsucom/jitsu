@@ -269,7 +269,6 @@ export default class DestinationsList extends LoadableComponent<any, State> {
   private static getIconSrc(destinationType: string): any {
     try {
       const icon = require('../../../icons/destinations/' + destinationType + '.svg');
-      console.log("Icon", icon)
       return icon.default;
     } catch (e) {
       console.log('Icon for ' + destinationType + ' is not found');

@@ -32,7 +32,7 @@ const SourcesListItemComponent = ({ sourceId, sourceProto, handleDeleteSource }:
         </Button>
       ]}
     >
-      <List.Item.Meta avatar={sourceProto?.pic} title={sourceProto.displayName} description={itemDescription} />
+      <List.Item.Meta avatar={sourceProto?.pic} title={sourceProto?.displayName} description={itemDescription} />
     </List.Item>
   );
 };

@@ -1,0 +1,6 @@
+[submodule "configurator/frontend/connectors-catalog"]
+	path = configurator/frontend/connectors-catalog
+	url = git@github.com:jitsucom/connectors-catalog.git
+[submodule "configurator/frontend/src/connectors-catalog"]
+	path = configurator/frontend/src/connectors-catalog
+	url = git@github.com:jitsucom/connectors-catalog.git

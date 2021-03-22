@@ -1,20 +1,21 @@
 // @Libs
 import React, { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
+// @Components
+import { SourceFormWrap } from '@page/SourcesPage/partials/_common/SourceForm/SourceFormWrap';
 // @Types
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
-// @Hardcoded data
-import allSourcesList, { SourceConnector } from '../../../../../_temp';
-import { SourceFormWrap } from '@page/SourcesPage/partials/_common/SourceForm/SourceFormWrap';
+import { SourceConnector } from '@connectors/types';
+// @Sources
+import { allSources } from '@connectors/sources';
 
-const EditSource = ({ userUid, sources }: CommonSourcePageProps) => {
+const EditSource = ({ projectId, sources }: CommonSourcePageProps) => {
   const params = useParams<{ sourceId: string }>();
 
   const sourceData = useMemo(() => sources[params.sourceId], [sources, params.sourceId]);
 
   const connectorSource = useMemo<SourceConnector>(
-    () =>
-      allSourcesList.find((source: SourceConnector) => source.id === sourceData.sourceType) ?? ({} as SourceConnector),
+    () => allSources.find((source: SourceConnector) => source.id === sourceData.sourceType) ?? ({} as SourceConnector),
     [sourceData.sourceType]
   );
 
@@ -24,11 +25,13 @@ const EditSource = ({ userUid, sources }: CommonSourcePageProps) => {
         formMode="edit"
         sourceData={sourceData}
         connectorSource={connectorSource}
-        userUid={userUid}
+        projectId={projectId}
         sources={sources}
       />
     </div>
   );
 };
+
+EditSource.displayName = 'EditSource';
 
 export { EditSource };
