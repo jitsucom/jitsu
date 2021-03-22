@@ -5,14 +5,14 @@ import { get, snakeCase } from 'lodash';
 // @Utils
 import { naturalSort } from '@util/Array';
 // Components
-import { handleError } from "../../../../../../lib/components/components";
+import { handleError } from '../../../../../../lib/components/components';
 import { SourceFormConfigField } from './SourceFormConfigField';
 // @Types
 import { RuleObject } from 'rc-field-form/lib/interface';
 import { Parameter } from '@connectors/types';
 import { SourceFormConfigProps as Props } from './SourceForm.types';
 // @Services
-import ApplicationServices from "@service/ApplicationServices";
+import ApplicationServices from '@service/ApplicationServices';
 // @Icons
 import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 
@@ -72,8 +72,8 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
   }, [services]);
 
   const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => Object.keys(alreadyExistSources).find((source) => source === value)
-      ? Promise.reject('Source ID must be unique!')
-      : Promise.resolve(), [])
+    ? Promise.reject('Source ID must be unique!')
+    : Promise.resolve(), [])
 
   return (
     <>
@@ -81,7 +81,7 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
       <Form.Item
         initialValue={initialSourceId}
         className="form-field_fixed-label"
-        label={<span className="field-label">SourceId</span>}
+        label={<span className="field-label">SourceId:</span>}
         name="sourceId"
         rules={[
           {
