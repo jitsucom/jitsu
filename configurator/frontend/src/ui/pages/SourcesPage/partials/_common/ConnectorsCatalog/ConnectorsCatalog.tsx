@@ -24,8 +24,8 @@ const ConnectorsCatalogComponent = ({ className, viewType = 'list' }: Props) => 
       !filteredParam
         ? allSources
         : allSources.filter(
-            (source) => source.id.includes(filteredParam) || source.displayName.includes(filteredParam)
-          ),
+          (source) => source.id.includes(filteredParam) || source.displayName.includes(filteredParam)
+        ),
     [filteredParam]
   );
 
