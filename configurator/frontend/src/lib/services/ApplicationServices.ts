@@ -34,10 +34,10 @@ export class ApplicationConfiguration {
     ].join(";");
 
     console.log(
-        `App initialized. Backend: ${this._backendApiBase}. Env: ${this._appEnvironment}. Firebase configured: ${!!this
-            ._firebaseConfig}`
+      `App initialized. Backend: ${this._backendApiBase}. Env: ${this._appEnvironment}. Firebase configured: ${!!this
+          ._firebaseConfig}. Build info: ${this._buildId}`
     );
-    }
+  }
 
   get firebaseConfig(): any {
     return this._firebaseConfig;
@@ -47,9 +47,9 @@ export class ApplicationConfiguration {
     return this._appEnvironment;
   }
 
-    get backendApiBase(): string {
-        return this._backendApiBase;
-    }
+  get backendApiBase(): string {
+    return this._backendApiBase;
+  }
 
   get rawConfig(): RawConfigObject {
     return this._rawConfig;
@@ -89,7 +89,6 @@ function parseJson(envVar, defaultValue) {
 }
 
 function getRawApplicationConfig(): RawConfigObject {
-  console.log(process.env)
   return {
     env: process.env || {},
     firebase: parseJson(process.env.FIREBASE_CONFIG, null),
