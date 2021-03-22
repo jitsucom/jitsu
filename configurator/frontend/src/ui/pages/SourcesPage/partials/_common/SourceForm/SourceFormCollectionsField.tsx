@@ -2,11 +2,11 @@
 import React, { memo, useCallback, useMemo } from 'react';
 import { Form, Input, Select } from 'antd';
 // @Components
-import { LabelWithTooltip } from "../../../../../../lib/components/components";
+import { LabelWithTooltip } from '../../../../../../lib/components/components';
 // @Types
 import { SourceFormCollectionsFieldProps as Props } from './SourceForm.types';
-import { CollectionParameter } from "@connectors/types";
-import { Rule } from "antd/lib/form";
+import { CollectionParameter } from '@connectors/types';
+import { Rule } from 'antd/lib/form';
 
 const SourceFormCollectionsFieldComponent = ({
   collection,
@@ -61,8 +61,8 @@ const SourceFormCollectionsFieldComponent = ({
       initialValue={initial}
       className="form-field_fixed-label"
       label={documentation ?
-        <LabelWithTooltip documentation={documentation}>{collection.displayName}</LabelWithTooltip> :
-        <span className="field-label">{collection.displayName}</span>}
+        <LabelWithTooltip documentation={documentation}>{collection.displayName}:</LabelWithTooltip> :
+        <span className="field-label">{collection.displayName}:</span>}
       key={collection.id}
       name={[field.name, collection.id]}
       rules={validationRules}

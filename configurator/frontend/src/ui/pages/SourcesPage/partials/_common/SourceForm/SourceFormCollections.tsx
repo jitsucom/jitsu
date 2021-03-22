@@ -95,7 +95,7 @@ const SourceFormCollections = ({ initialValues, connectorSource }: Props) => {
                       initialValue={getCollectionTypeValue(field.key)}
                       name={[field.name, 'type']}
                       className="form-field_fixed-label"
-                      label="Report type"
+                      label="Report type:"
                     >
                       <Select
                         disabled={connectorSource.collectionTypes.length === 1}
@@ -118,7 +118,7 @@ const SourceFormCollections = ({ initialValues, connectorSource }: Props) => {
                   <>
                     <Form.Item
                       className="form-field_fixed-label"
-                      label={<span className="field-label">Destination table</span>}
+                      label={<span className="field-label">Destination table:</span>}
                       name={[field.name, 'name']}
                       rules={[{ required: true, message: 'Field is required. You can remove this collection.' }]}
                     >

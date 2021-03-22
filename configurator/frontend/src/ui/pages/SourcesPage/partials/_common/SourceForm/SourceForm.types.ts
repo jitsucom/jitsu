@@ -1,6 +1,5 @@
-import React from "react";
+import React from 'react';
 import { CollectionParameter, SourceConnector } from '@connectors/types';
-import { FormInstance } from "antd/lib/form/hooks/useForm";
 
 export interface FormProps {
   connectorSource: SourceConnector;
