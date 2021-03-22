@@ -49,9 +49,9 @@ export class ApplicationConfiguration {
     return this._appEnvironment;
   }
 
-  get backendApiBase(): string {
-    return this._backendApiBase || `${window.location.protocol}//${window.location.host}/`;
-  }
+    get backendApiBase(): string {
+        return this._backendApiBase;
+    }
 
   get backendApiProxyBase(): string {
     return this._backendApiProxyBase;
