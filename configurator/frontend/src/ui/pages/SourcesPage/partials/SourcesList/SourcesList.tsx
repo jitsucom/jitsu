@@ -8,8 +8,9 @@ import { SourcesListItem } from './SourcesListItem';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Services
-import ApplicationServices from '../../../../../lib/services/ApplicationServices';
+import ApplicationServices from '@service/ApplicationServices';
 // @Types
+import { SourceConnector } from '@connectors/types';
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
 import './SourcesList.less';
@@ -22,7 +23,7 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
   const sourcesMap = useMemo(
     () =>
       allSources.reduce(
-        (accumulator: any, current: any) => ({
+        (accumulator: { [key: string]: SourceConnector }, current: SourceConnector) => ({
           ...accumulator,
           [current.id]: current
         }),
@@ -71,7 +72,7 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
             );
           })}
         </List>
-      ) : 
+      ) :
         <div>No data</div>
       }
     </>
