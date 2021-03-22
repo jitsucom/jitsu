@@ -1,18 +1,16 @@
 // @Libs
-import React, {memo, useCallback, useMemo, useState} from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { Form, FormInstance, Input } from 'antd';
 import { set } from 'lodash';
+import * as monacoEditor from 'monaco-editor';
 import MonacoEditor from 'react-monaco-editor';
 // @Types
 import { SourceFormConfigFieldProps as Props } from './SourceForm.types';
 // @Components
-import { LabelWithTooltip } from "../../../../../../lib/components/components";
-import * as monacoEditor from "monaco-editor";
+import { LabelWithTooltip } from '../../../../../../lib/components/components';
 
 const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, id, type, documentation }: Props) => {
   const fieldName = useMemo(() => `config.${id}`, [id]);
-
-  const [jsonValue, setJsonValue] = useState<string>();
 
   const handleChange = useCallback(
     (getFieldsValue, setFieldsValue) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -27,13 +25,11 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
   );
 
   const handleMonacoChange = useCallback((getFieldsValue, setFieldsValue) => (value: string, e: monacoEditor.editor.IModelContentChangedEvent) => {
-      setJsonValue(JSON.stringify(value));
+    const formValues = getFieldsValue();
 
-      const formValues = getFieldsValue();
+    set(formValues, fieldName, value);
 
-      set(formValues, fieldName, value);
-
-      setFieldsValue(formValues);
+    setFieldsValue(formValues);
   }, [fieldName]);
 
   const formItemChild = useCallback(
@@ -45,21 +41,21 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
 
       case 'json':
         return <MonacoEditor
-            height="300"
-            language="json"
-            theme="vs-dark"
-            options={{
-                selectOnLineNumbers: true,
-                lineNumbers: 'off'
-            }}
-            onChange={handleMonacoChange(getFieldsValue, setFieldsValue)}
+          height="300"
+          language="json"
+          theme="vs-dark"
+          options={{
+            selectOnLineNumbers: true,
+            lineNumbers: 'off'
+          }}
+          onChange={handleMonacoChange(getFieldsValue, setFieldsValue)}
         />;
 
       case 'int':
         return <Input onChange={handleChange(getFieldsValue, setFieldsValue)} />;
       }
     },
-    [type, handleChange]
+    [type, handleChange, handleMonacoChange]
   );
 
   return (
