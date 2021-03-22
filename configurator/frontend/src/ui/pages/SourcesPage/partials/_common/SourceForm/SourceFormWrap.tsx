@@ -79,7 +79,7 @@ const SourceFormWrap = ({
   );
 
   return (
-    <>
+    <div className="add-source flex flex-col items-stretch">
       <p className="add-source__back">
         <Link className="add-source__back-link" to={routes.root}>
           <ArrowLeftOutlined className="add-source__back-link-ico" />
@@ -101,7 +101,7 @@ const SourceFormWrap = ({
         handleFinish={handleFinish}
         alreadyExistSources={sources}
       />
-    </>
+    </div>
   );
 };
 
