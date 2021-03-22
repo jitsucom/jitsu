@@ -1,5 +1,5 @@
 export interface CommonSourcePageProps {
   sources: any;
-  userUid: string;
+  projectId: string;
   setSources: any;
 }

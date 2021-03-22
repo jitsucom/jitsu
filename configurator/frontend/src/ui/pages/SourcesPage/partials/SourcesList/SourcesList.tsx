@@ -13,15 +13,15 @@ import ApplicationServices from '../../../../../lib/services/ApplicationServices
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
 import './SourcesList.less';
-// @hardcoded data
-import allSourcesList from '../../../../../_temp';
+// @Sources
+import { allSources } from '@connectors/sources';
 
-const SourcesList = ({ userUid, sources, setSources }: CommonSourcePageProps) => {
+const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
 
   const sourcesMap = useMemo(
     () =>
-      allSourcesList.reduce(
+      allSources.reduce(
         (accumulator: any, current: any) => ({
           ...accumulator,
           [current.id]: current
@@ -36,13 +36,13 @@ const SourcesList = ({ userUid, sources, setSources }: CommonSourcePageProps) =>
       const updatedSources = cloneDeep(sources);
       unset(updatedSources, sourceId);
 
-      services.storageService.save('sources', updatedSources, userUid).then(() => {
+      services.storageService.save('sources', updatedSources, projectId).then(() => {
         setSources(updatedSources);
 
         message.success('Sources list successfully updated');
       });
     },
-    [sources, setSources, services.storageService, userUid]
+    [sources, setSources, services.storageService, projectId]
   );
 
   return (
@@ -77,5 +77,7 @@ const SourcesList = ({ userUid, sources, setSources }: CommonSourcePageProps) =>
     </>
   );
 };
+
+SourcesList.displayName = 'SourcesList';
 
 export { SourcesList };

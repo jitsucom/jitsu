@@ -1,17 +1,28 @@
 // @Libs
 import React, { useCallback, useMemo, useState } from 'react';
 import { message } from 'antd';
-import { set } from 'lodash';
+import { Link, useHistory } from 'react-router-dom';
+import { set, snakeCase } from 'lodash';
 // @Components
 import { SourceForm } from './SourceForm';
 // @Services
-import ApplicationServices from '../../../../../../lib/services/ApplicationServices';
-import { Link } from 'react-router-dom';
+import ApplicationServices from '@service/ApplicationServices';
+// @Routes
 import { routes } from '@page/SourcesPage/routes';
+// @Icons
 import ArrowLeftOutlined from '@ant-design/icons/lib/icons/ArrowLeftOutlined';
+// @Types
 import { FormWrapProps } from '@page/SourcesPage/partials/_common/SourceForm/SourceForm.types';
 
-const SourceFormWrap = ({ sources, connectorSource, userUid, sourceData = {}, formMode = 'create' }: FormWrapProps) => {
+const SourceFormWrap = ({
+  sources,
+  connectorSource,
+  projectId,
+  sourceData = {},
+  formMode = 'create'
+}: FormWrapProps) => {
+  const history = useHistory();
+
   const [isPending, switchPending] = useState(false);
 
   const services = useMemo(() => ApplicationServices.get(), []);
@@ -21,18 +32,7 @@ const SourceFormWrap = ({ sources, connectorSource, userUid, sourceData = {}, fo
       switchPending(true);
 
       const payload = {
-        sourceType: connectorSource.id,
-        collections: collections.map((collection: any) => ({
-          name: collection.name,
-          type: collection.type,
-          parameters: connectorSource.collectionParameters.reduce(
-            (accumulator: any, current: any) => ({
-              ...accumulator,
-              [current.id]: collection[current.id]
-            }),
-            {}
-          )
-        })),
+        sourceType: snakeCase(connectorSource.id),
         ...Object.keys(rest).reduce((accumulator: any, current: any) => {
           if (rest[current]) {
             set(accumulator, current, rest[current]);
@@ -42,6 +42,19 @@ const SourceFormWrap = ({ sources, connectorSource, userUid, sourceData = {}, fo
         }, {})
       };
 
+      if (collections) {
+        payload.collections = collections.map((collection: any) => ({
+          name: collection.name,
+          type: collection.type,
+          parameters: connectorSource.collectionParameters.reduce((accumulator: any, current: any) => {
+            return {
+              ...accumulator,
+              [current.id]: collection[current.id]
+            };
+          }, {})
+        }));
+      }
+
       services.storageService
         .save(
           'sources',
@@ -49,18 +62,20 @@ const SourceFormWrap = ({ sources, connectorSource, userUid, sourceData = {}, fo
             ...sources,
             [payload.sourceId]: payload
           },
-          userUid
+          projectId
         )
         .then(() => {
           switchPending(false);
 
           message.success('New source has been added!');
+
+          history.push(routes.root);
         })
         .catch((error) => {
           message.error("Something goes wrong, source hasn't been added");
         });
     },
-    [connectorSource.id, connectorSource.collectionParameters, services.storageService, userUid, sources]
+    [connectorSource.collectionParameters, services.storageService, projectId, sources]
   );
 
   return (
@@ -89,5 +104,7 @@ const SourceFormWrap = ({ sources, connectorSource, userUid, sourceData = {}, fo
     </>
   );
 };
+
+SourceFormWrap.displayName = 'SourceFormWrap';
 
 export { SourceFormWrap };

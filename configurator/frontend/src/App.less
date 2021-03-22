@@ -1,5 +1,5 @@
-@import '~antd/dist/antd.less';
 @import '~antd/lib/style/themes/dark.less';
+@import '~antd/dist/antd.less';
 @import "theme.less";
 
 
@@ -203,7 +203,6 @@ body {
 }
 
 .form-field_fixed-label {
-
   .ant-form-item-label {
     display: inline-flex;
     justify-content: flex-start;
@@ -216,13 +215,68 @@ body {
       height: auto;
       align-items: normal;
 
-      &:after {
+      .field-label, .label-with-tooltip {
+        &::after {
+          content: ': ';
+          margin-left: 2px;
+          display: inline-block;
+        }
+      }
+
+      &::after {
         content: '';
       }
+    }
+  }
+
+  .ant-form-item-required {
+    &::before {
+      display: none !important;
+    }
+
+    &::after {
+      content: '*' !important;
+      color: @error-color;
     }
   }
 }
 
 .fields-group {
   margin-bottom: 20px;
+}
+
+.ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.ant-select-item-option:hover,
+.ant-select-item-option-selected,
+.ant-select-multiple .ant-select-selection-item {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.ant-select-disabled.ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  background: transparent !important;
+}
+
+.ant-tabs-nav .ant-tabs-tab:not(.ant-tabs-tab-active) {
+  background: transparent !important;
+  padding: 8px 16px;
+}
+
+.ant-tabs-nav .ant-tabs-tab-active {
+  border-bottom: none;
+  background: @component-background;
+}
+
+.ant-tabs-tabpane.ant-tabs-tabpane-active {
+  padding: 20px 20px 0;
+  background: @component-background !important;
+  border: 1px solid @border-color-split;
+  border-top: none;
+}
+
+.ant-tabs-nav {
+  margin-bottom: 0 !important;
+}
+
+.form-tabs {
+  margin-bottom: 20px !important;
 }

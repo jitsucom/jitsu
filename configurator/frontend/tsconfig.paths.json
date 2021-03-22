@@ -3,7 +3,10 @@
     "paths": {
       "@atom/*": ["./ui/components/atom/*"],
       "@molecule/*": ["./ui/components/molecule/*"],
-      "@page/*": ["./ui/pages/*"]
+      "@page/*": ["./ui/pages/*"],
+      "@connectors/*": ["./connectors-catalog/src/sources/*"],
+      "@service/*": ["./lib/services/*"],
+      "@util/*": ["./utils/*"]
     }
   }
 }
