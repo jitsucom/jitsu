@@ -71,9 +71,9 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
             );
           })}
         </List>
-      ) : (
+      ) : 
         <div>No data</div>
-      )}
+      }
     </>
   );
 };
