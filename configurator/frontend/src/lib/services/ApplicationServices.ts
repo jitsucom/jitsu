@@ -29,7 +29,7 @@ export class ApplicationConfiguration {
         this._appEnvironment = (this._rawConfig.env.NODE_ENV || 'production').toLowerCase() as AppEnvironmentType;
         this._buildId = [
             `b=${this._rawConfig.env.BUILD_ID || 'dev'}`,
-            `sc=${this._rawConfig.env.GIT_BRANCH || 'unknown'}/${this._rawConfig.env.GIT_HEAD || 'unknown'}`,
+            `sc=${this._rawConfig.env.GIT_BRANCH || 'unknown'}/${this._rawConfig.env.GIT_COMMIT_REF || 'unknown'}`,
             `t=${this._rawConfig.env.BUILD_TIMESTAMP || 'unknown'}`
         ].join(";");
 
