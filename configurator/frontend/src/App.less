@@ -22,6 +22,8 @@ body {
 }
 
 .app-layout-content {
+  display: flex;
+  flex-direction: column;
 }
 
 .app-logo-wrapper {
@@ -106,7 +108,6 @@ body {
   transition: color 0.3s;
 }
 
-
 .user-dropdown-info-panel {
   font-size: x-small;
   text-align: center;
@@ -115,10 +116,16 @@ body {
 }
 
 .internal-page-wrapper {
-  padding-top: 14px;
-  padding-right: 40px;
-  padding-left: 40px;
-  padding-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  padding: 14px 40px 20px;
+}
+
+.internal-page-content-wrapper {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .internal-page-header-container {
@@ -259,10 +266,7 @@ body {
 }
 
 .ant-tabs-tabpane.ant-tabs-tabpane-active {
-  padding: 20px 20px 0;
-  background: @component-background !important;
-  border: 1px solid @border-color-split;
-  border-top: none;
+  padding-top: 20px;
 }
 
 .ant-tabs-nav {

@@ -40,13 +40,13 @@ const AddSource = ({ projectId, sources }: CommonSourcePageProps) => {
   }
 
   return (
-    <div className="add-source">
+    <>
       <SourceFormWrap
         connectorSource={connectorSource}
         projectId={projectId}
         sources={sources}
       />
-    </div>
+    </>
   );
 };
 

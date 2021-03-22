@@ -20,7 +20,7 @@ const EditSource = ({ projectId, sources }: CommonSourcePageProps) => {
   );
 
   return (
-    <div className="add-source">
+    <>
       <SourceFormWrap
         formMode="edit"
         sourceData={sourceData}
@@ -28,7 +28,7 @@ const EditSource = ({ projectId, sources }: CommonSourcePageProps) => {
         projectId={projectId}
         sources={sources}
       />
-    </div>
+    </>
   );
 };
 

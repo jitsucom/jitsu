@@ -1,6 +1,8 @@
 @import './src/theme';
 
 .add-source {
+  flex: 1 1 auto;
+
   .add-source__back {
     margin-bottom: 10px;
 
@@ -78,11 +80,6 @@
 }
 
 .custom-report {
-  background: @component-background;
-  padding: 20px;
-  margin: 0 -20px 20px -20px;
-  border-radius: @border-radius-base;
-
   &__group {
     border-bottom: 1px dashed @border-color-base;
     margin-bottom: 20px;
@@ -101,4 +98,10 @@
       }
     }
   }
+}
+
+.source-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
 }
