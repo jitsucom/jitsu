@@ -71,6 +71,10 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
     }
   }, [services]);
 
+  const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => Object.keys(alreadyExistSources).find((source) => source === value)
+      ? Promise.reject('Source ID must be unique!')
+      : Promise.resolve(), [])
+
   return (
     <>
       <h3>Source ID</h3>
@@ -85,11 +89,7 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
             message: 'Source ID is required field'
           },
           {
-            validator: (rule: RuleObject, value: string, cb: (error?: string) => void) => {
-              Object.keys(alreadyExistSources).find((source) => source === value)
-                ? cb('Source ID must be unique!')
-                : cb();
-            }
+            validator: validateUniqueSourceId
           }
         ]}
       >
