@@ -1,5 +1,7 @@
+import { SourceConnector } from '@connectors/types';
+
 export interface SourcesListItemProps {
   sourceId: string;
-  sourceProto: any;
-  handleDeleteSource: (source: any) => void;
+  sourceProto: SourceConnector;
+  handleDeleteSource: (sourceId: string) => void;
 }
