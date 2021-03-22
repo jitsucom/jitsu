@@ -76,3 +76,29 @@
     }
   }
 }
+
+.custom-report {
+  background: @component-background;
+  padding: 20px;
+  margin: 0 -20px 20px -20px;
+  border-radius: @border-radius-base;
+
+  &__group {
+    border-bottom: 1px dashed @border-color-base;
+    margin-bottom: 20px;
+
+    &-composite {
+      display: flex;
+
+      .ant-form-item {
+        flex: 1 0 auto;
+      }
+
+      &-delete {
+        flex-shrink: 0;
+        display: block;
+        padding: 10px;
+      }
+    }
+  }
+}

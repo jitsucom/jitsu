@@ -3,7 +3,7 @@ import * as React from 'react';
 import {ReactNode, useState} from 'react';
 
 import {NavLink, Redirect, Route, Switch} from 'react-router-dom';
-import {Button, Col, Dropdown, Form, Input, Layout, Menu, message, Modal, Row, Tooltip} from 'antd';
+import {Button, Col, Dropdown, Form, Input, Layout, Menu, message, Modal, Row} from 'antd';
 
 import LogoutOutlined from '@ant-design/icons/lib/icons/LogoutOutlined';
 import CloudOutlined from '@ant-design/icons/lib/icons/CloudOutlined';
@@ -28,7 +28,6 @@ import {Page, PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation'
 import logo from './icons/logo.svg';
 import PapercupsWrapper from './lib/commons/papercups';
 import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
-import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined";
 
 enum AppLifecycle {
     LOADING, //Application is loading
@@ -264,13 +263,10 @@ export default class App extends React.Component<AppProperties, AppState> {
                         Event API Keys
                     </NavLink>
                 </Menu.Item>
-                <Menu.Item key="sources" icon={<ApiOutlined/>} disabled={true}>
-                    <Tooltip mouseEnterDelay={0} title={<>
-                        Pooling data from external sources is available
-                        only <a href="https://jitsu.com/docs/sources-configuration">in open-source version with YAML-file configuration</a>
-                    </>}>
-                        Sources<sup>Soon!</sup>
-                    </Tooltip>
+                <Menu.Item key="sources" icon={<ApiOutlined/>}>
+                    <NavLink to="/sources" activeClassName="selected">
+                        Sources
+                    </NavLink>
                 </Menu.Item>
                 <Menu.Item key="destinations" icon={<NotificationOutlined/>}>
                     <NavLink to="/destinations" activeClassName="selected">
