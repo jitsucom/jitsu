@@ -35,7 +35,6 @@ func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 
 	userProjectId := c.GetString(middleware.ProjectIdKey)
 	if userProjectId == "" {
-		logging.Error(systemErrProjectId)
 		c.JSON(http.StatusUnauthorized, enmdlwr.ErrorResponse{Error: systemErrProjectId.Error(), Message: "Authorization error"})
 		return
 	}
@@ -76,7 +75,6 @@ func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 	data, err := sh.storage.GetEvents(projectId, start, end, granularity)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, enmdlwr.ErrorResponse{Message: "Failed to provide statistics", Error: err.Error()})
-		logging.Errorf("Failed to provide statistics project_id[%s]: %v", projectId, err)
 		return
 	}
 

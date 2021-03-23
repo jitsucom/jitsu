@@ -11,7 +11,7 @@ import (
 //if not return 401
 func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if (!strings.Contains(r.URL.Path, "/api/v1/events/dry-run") && strings.Contains(r.URL.Path, "/api/v1/event")) || strings.Contains(r.URL.Path, "/api.") {
+		if r.URL.Path == "/api/v1/event" || strings.Contains(r.URL.Path, "/api.") {
 			writeDefaultCorsHeaders(w)
 
 			token := extractToken(r)

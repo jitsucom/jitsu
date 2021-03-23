@@ -24,8 +24,8 @@ type UserData struct {
 	Email       string `json:"email,omitempty"`
 	Name        string `json:"name,omitempty"`
 	Company     string `json:"company,omitempty"`
-	EmailOptout bool   `json:"email_optout,omitempty"`
-	UsageOptout bool   `json:"telemetry_usage_optout,omitempty"`
+	EmailOptout bool   `json:"email_optout"`
+	UsageOptout bool   `json:"telemetry_usage_optout"`
 }
 
 type Request struct {

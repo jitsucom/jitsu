@@ -20,8 +20,13 @@ type Postgres struct {
 
 func NewPostgres(config *adapters.DataSourceConfig, oldKeysByProject map[string][]string) (Storage, error) {
 	port := 5432
-	if config.Port != 0 {
-		port = config.Port
+	if config.Port.String() != "" {
+		portInt64, err := config.Port.Int64()
+		if err != nil {
+			return nil, fmt.Errorf("Error parsing port [%s] into int: %v", config.Port.String(), err)
+		}
+
+		port = int(portInt64)
 	}
 	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
 		config.Host, port, config.Db, config.Username, config.Password)

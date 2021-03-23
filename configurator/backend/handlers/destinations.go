@@ -44,7 +44,6 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 	begin := time.Now()
 	destinationsMap, err := dh.configurationsService.GetDestinations()
 	if err != nil {
-		logging.Error(err)
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: err.Error(), Message: "Destinations err"})
 		return
 	}

@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -34,9 +35,9 @@ func NewPostgres(config *Config) (Storage, error) {
 		return nil, err
 	}
 	//enrich with default parameters
-	if pgConfig.Port <= 0 {
-		pgConfig.Port = 5432
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.name, pgConfig.Port)
+	if pgConfig.Port.String() == "" {
+		pgConfig.Port = json.Number("5432")
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.name, pgConfig.Port.String())
 	}
 	if pgConfig.Schema == "" {
 		pgConfig.Schema = "public"
