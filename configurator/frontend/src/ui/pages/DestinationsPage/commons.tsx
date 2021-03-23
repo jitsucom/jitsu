@@ -5,10 +5,10 @@ import {
   PostgresConfig,
   RedshiftConfig,
   SnowflakeConfig
-} from "@./lib/services/destinations";
-import { FieldMappings, Mapping } from "@./lib/services/mappings";
-import ApplicationServices from "@./lib/services/ApplicationServices";
-import Marshal from "@./lib/commons/marshalling";
+} from '@./lib/services/destinations';
+import { FieldMappings, Mapping } from '@./lib/services/mappings';
+import ApplicationServices from '@./lib/services/ApplicationServices';
+import Marshal from '@./lib/commons/marshalling';
 
 export const SERIALIZABLE_CLASSES = [
   DestinationConfig,

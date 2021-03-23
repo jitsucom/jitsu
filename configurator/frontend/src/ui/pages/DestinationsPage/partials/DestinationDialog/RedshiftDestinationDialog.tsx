@@ -1,11 +1,11 @@
-import { RedshiftConfig } from "@./lib/services/destinations";
-import * as React from "react";
-import { Col, Divider, Form, Input, Row, Switch } from "antd";
-import { LabelWithTooltip } from "@./lib/components/components";
+import { RedshiftConfig } from '@./lib/services/destinations';
+import * as React from 'react';
+import { Col, Divider, Form, Input, Row, Switch } from 'antd';
+import { LabelWithTooltip } from '@./lib/components/components';
 import {
   DestinationDialog,
   s3ConfigComponents
-} from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
+} from '@page/DestinationsPage/partials/DestinationDialog/DestinationDialog';
 
 export default class RedshiftDestinationDialog extends DestinationDialog<RedshiftConfig> {
   items(): React.ReactNode {

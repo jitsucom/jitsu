@@ -1,10 +1,10 @@
-import { BQConfig } from "@./lib/services/destinations";
-import * as React from "react";
-import { Form, Input } from "antd";
+import { BQConfig } from '@./lib/services/destinations';
+import * as React from 'react';
+import { Form, Input } from 'antd';
 import {
   DestinationDialog,
   googleJsonKeyLabel
-} from "./DestinationDialog";
+} from './DestinationDialog';
 
 export default class BiqQueryDialog extends DestinationDialog<BQConfig> {
   items(): React.ReactNode {
