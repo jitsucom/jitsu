@@ -59,6 +59,10 @@ func (r *Redis) Get(collection string, documentId string) ([]byte, error) {
 	defer connection.Close()
 	data, err := connection.Do("hget", toRedisKey(collection), documentId)
 	if err != nil {
+		if err == redis.ErrNil {
+			return nil, ErrConfigurationNotFound
+		}
+
 		return nil, err
 	}
 	if data == nil {
@@ -98,11 +102,17 @@ func (r *Redis) GetCollectionLastUpdated(collection string) (*time.Time, error) 
 	defer connection.Close()
 	lastUpdated, err := redis.String(connection.Do("hget", lastUpdatedPerCollection, collection))
 	if err != nil {
+		if err == redis.ErrNil {
+			return &time.Time{}, nil
+		}
+
 		return nil, err
 	}
+
 	if lastUpdated == "" {
 		return nil, fmt.Errorf("Empty [%s] _lastUpdated", collection)
 	}
+
 	t, err := time.Parse(LastUpdatedLayout, lastUpdated)
 	if err != nil {
 		return nil, fmt.Errorf("Error converting [%s] to time: %v", lastUpdated, err)

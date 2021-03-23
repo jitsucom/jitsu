@@ -56,7 +56,7 @@ func Init(containerized bool) error {
 	} else {
 		globalLogsWriter = os.Stdout
 	}
-	err := logging.InitGlobalLogger(globalLogsWriter, "info")
+	err := logging.InitGlobalLogger(globalLogsWriter, viper.GetString("server.log.level"))
 	if err != nil {
 		return err
 	}

@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -70,7 +71,7 @@ var (
 //DataSourceConfig dto for deserialized datasource config (e.g. in Postgres or AwsRedshift destination)
 type DataSourceConfig struct {
 	Host       string            `mapstructure:"host" json:"host,omitempty" yaml:"host,omitempty"`
-	Port       int               `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
+	Port       json.Number       `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
 	Db         string            `mapstructure:"db" json:"db,omitempty" yaml:"db,omitempty"`
 	Schema     string            `mapstructure:"schema" json:"schema,omitempty" yaml:"schema,omitempty"`
 	Username   string            `mapstructure:"username" json:"username,omitempty" yaml:"username,omitempty"`
@@ -111,8 +112,8 @@ type Postgres struct {
 
 //NewPostgresUnderRedshift return configured Postgres adapter instance without mapping old types
 func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*Postgres, error) {
-	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
-		config.Host, config.Port, config.Db, config.Username, config.Password)
+	connectionString := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s ",
+		config.Host, config.Port.String(), config.Db, config.Username, config.Password)
 	//concat provided connection parameters
 	for k, v := range config.Parameters {
 		connectionString += k + "=" + v + " "
@@ -135,8 +136,8 @@ func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, que
 
 //NewPostgres return configured Postgres adapter instance
 func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*Postgres, error) {
-	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s ",
-		config.Host, config.Port, config.Db, config.Username, config.Password)
+	connectionString := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s ",
+		config.Host, config.Port.String(), config.Db, config.Username, config.Password)
 	//concat provided connection parameters
 	for k, v := range config.Parameters {
 		connectionString += k + "=" + v + " "

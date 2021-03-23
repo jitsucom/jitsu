@@ -5,7 +5,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
-	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
 )
@@ -35,7 +34,6 @@ func (eh *DatabaseHandler) PostHandler(c *gin.Context) {
 	projectId := body.ProjectId
 	userProjectId := c.GetString(middleware.ProjectIdKey)
 	if userProjectId == "" {
-		logging.Error(systemErrProjectId)
 		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: systemErrProjectId.Error(), Message: "Authorization error"})
 		return
 	}

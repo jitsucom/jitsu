@@ -2,6 +2,8 @@ server:
   log:
     level: debug
   name: demo-eventnative
+  auth_reload_sec: 4
+  destinations_reload_sec: 7
   auth: 'http://configurator:7000/api/v1/apikeys?token=a123'
   admin_token: a123
   telemetry: 'http://configurator:7000/api/v1/telemetry?token=a123'

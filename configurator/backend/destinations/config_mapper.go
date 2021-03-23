@@ -181,7 +181,7 @@ func mapRedshift(destinationId string, rsDestinations *entities.Destination, def
 		},
 		DataSource: &enadapters.DataSourceConfig{
 			Host:     rsFormData.Host,
-			Port:     5439,
+			Port:     json.Number("5439"),
 			Db:       rsFormData.Db,
 			Schema:   rsFormData.Schema,
 			Username: rsFormData.Username,

@@ -5,6 +5,7 @@ import (
 	"flag"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/jitsu/configurator/appconfig"
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/destinations"
@@ -18,11 +19,13 @@ import (
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/logging"
+	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/safego"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
+	"math/rand"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -34,7 +37,7 @@ import (
 	"time"
 )
 
-const serviceName = "EN-manager"
+const serviceName = "Jitsu-Configurator"
 
 var (
 	configFilePath   = flag.String("cfg", "", "config file path")
@@ -48,6 +51,12 @@ var (
 
 func main() {
 	flag.Parse()
+
+	//Setup seed for globalRand
+	rand.Seed(time.Now().Unix())
+
+	//Setup handlers binding for json parsing numbers into json.Number (not only in float64)
+	binding.EnableDecoderUseNumber = true
 
 	//Setup default timezone for time.Now() calls
 	time.Local = time.UTC
@@ -246,7 +255,7 @@ func SetupRouter(enService *eventnative.Service, configurationsStorage storages.
 	emailService *emails.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
-	router.Use(gin.Recovery())
+	router.Use(gin.Recovery(), enmiddleware.GinLogErrorBody)
 	//TODO when https://github.com/gin-gonic will have a new version (https://github.com/gin-gonic/gin/pull/2322)
 	/*router.Use(gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
 	    c.JSON(http.StatusInternalServerError, `{"err":"System error on %s server"}`

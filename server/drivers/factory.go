@@ -38,7 +38,8 @@ type SourceConfig struct {
 }
 
 type Collection struct {
-	DaysBackToLoad int //without serialization
+	DaysBackToLoad int    //without serialization
+	SourceID       string //without serialization
 
 	Name         string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 	Type         string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
@@ -53,14 +54,20 @@ func (c *Collection) Validate() error {
 		return errors.New("name is required collection field")
 	}
 
+	if c.SourceID == "" {
+		logging.SystemErrorf("Source ID isn't set in collection: %s of type: %s", c.Name, c.Type)
+	}
+
 	return nil
 }
 
+//GetTableName returns TableName if it's set
+//otherwise SourceID_CollectionName
 func (c *Collection) GetTableName() string {
 	if c.TableName != "" {
 		return c.TableName
 	}
-	return c.Name
+	return c.SourceID + "_" + c.Name
 }
 
 //RegisterDriverConstructor registers function to create new driver instance per driver type
@@ -145,14 +152,14 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronSc
 //or return one default collection with 'schedule' if singer type
 func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 	if sourceConfig.Type == SingerType {
-		return []*Collection{{Name: DefaultSingerCollection, Schedule: sourceConfig.Schedule}}, nil
+		return []*Collection{{SourceID: sourceConfig.Name, Name: DefaultSingerCollection, Schedule: sourceConfig.Schedule}}, nil
 	}
 
 	var collections []*Collection
 	for _, collectionI := range sourceConfig.Collections {
 		switch collectionI.(type) {
 		case string:
-			collections = append(collections, &Collection{Name: collectionI.(string), Type: collectionI.(string)})
+			collections = append(collections, &Collection{SourceID: sourceConfig.Name, Name: collectionI.(string), Type: collectionI.(string)})
 		case map[interface{}]interface{}:
 			collectionObjMap := cast.ToStringMap(collectionI)
 			parametersI, ok := collectionObjMap[collectionParametersField]
@@ -165,6 +172,8 @@ func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 			if err := unmarshalConfig(collectionObjMap, collectionObj); err != nil {
 				return nil, fmt.Errorf("error parsing collections: %v", err)
 			}
+
+			collectionObj.SourceID = sourceConfig.Name
 
 			if err := collectionObj.Validate(); err != nil {
 				return nil, err
