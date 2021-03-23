@@ -22,9 +22,7 @@ services:
       - redis
     restart: always
     volumes:
-      - ./compose-data/server/res:/home/eventnative/app/res/
-      - ./compose-data/server/logs/:/home/eventnative/logs/
-      - ./compose-data/server/events:/home/eventnative/logs/events/
+      - ./compose-data/server/data:/home/eventnative/data/
     ports:
       - "8001:8001"
     networks:

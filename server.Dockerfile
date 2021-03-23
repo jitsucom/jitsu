@@ -8,8 +8,9 @@ ENV EVENTNATIVE_USER=eventnative
 
 RUN addgroup -S $EVENTNATIVE_USER \
     && adduser -S -G $EVENTNATIVE_USER $EVENTNATIVE_USER \
-    && mkdir -p /home/$EVENTNATIVE_USER/logs/events \
-    && mkdir -p /home/$EVENTNATIVE_USER/app/res \
+    && mkdir -p /home/$EVENTNATIVE_USER/data/logs/events \
+    && mkdir -p /home/$EVENTNATIVE_USER/data/res \
+    && mkdir -p /home/$EVENTNATIVE_USER/app/ \
     && chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER
 
 #######################################
@@ -60,7 +61,7 @@ RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/app
 
 USER $EVENTNATIVE_USER
 
-VOLUME ["/home/$EVENTNATIVE_USER/app/res", "/home/$EVENTNATIVE_USER/logs", "/home/$EVENTNATIVE_USER/logs/events"]
+VOLUME ["/home/$EVENTNATIVE_USER/data"]
 EXPOSE 8001
 
-ENTRYPOINT ["./eventnative", "-cfg=./res/eventnative.yaml", "-cr=true"]
+ENTRYPOINT ["./eventnative", "-cfg=../data/res/eventnative.yaml", "-cr=true"]
