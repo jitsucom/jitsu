@@ -1,8 +1,8 @@
 // @Libs
 import React, { memo, useCallback, useMemo } from 'react';
-import { Form, Input, Select } from 'antd';
+import { Col, Form, Input, Row, Select } from 'antd';
 // @Components
-import { LabelWithTooltip } from '../../../../../../lib/components/components';
+import { LabelWithTooltip } from '@./lib/components/components';
 // @Types
 import { SourceFormCollectionsFieldProps as Props } from './SourceForm.types';
 import { CollectionParameter } from '@connectors/types';
@@ -57,18 +57,24 @@ const SourceFormCollectionsFieldComponent = ({
   }, [collection]);
 
   return (
-    <Form.Item
-      initialValue={initial}
-      className="form-field_fixed-label"
-      label={documentation ?
-        <LabelWithTooltip documentation={documentation}>{collection.displayName}:</LabelWithTooltip> :
-        <span className="field-label">{collection.displayName}:</span>}
-      key={collection.id}
-      name={[field.name, collection.id]}
-      rules={validationRules}
-    >
-      {formItemChild}
-    </Form.Item>
+    <Row>
+      <Col span={16}>
+        <Form.Item
+          initialValue={initial}
+          className="form-field_fixed-label"
+          label={documentation ?
+            <LabelWithTooltip documentation={documentation}>{collection.displayName}</LabelWithTooltip> :
+            <span>{collection.displayName}:</span>}
+          key={collection.id}
+          name={[field.name, collection.id]}
+          rules={validationRules}
+          labelCol={{ span: 6 }}
+          wrapperCol={{ span: 18 }}
+        >
+          {formItemChild}
+        </Form.Item>
+      </Col>
+    </Row>
   );
 };
 

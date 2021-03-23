@@ -1,6 +1,6 @@
 // @Libs
 import React, { memo, useCallback, useMemo } from 'react';
-import { Form, FormInstance, Input } from 'antd';
+import { Col, Form, FormInstance, Input, Row } from 'antd';
 import { set } from 'lodash';
 import * as monacoEditor from 'monaco-editor';
 import MonacoEditor from 'react-monaco-editor';
@@ -59,21 +59,25 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
   );
 
   return (
-    <div className="test-test">
-      <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues[fieldName] !== currentValues[fieldName]}>
-        {({ getFieldsValue, setFieldsValue }: FormInstance) => (
-          <Form.Item
-            initialValue={initialValue}
-            className="form-field_fixed-label"
-            label={documentation ? <LabelWithTooltip documentation={documentation}>{displayName}:</LabelWithTooltip> : <span className="field-label">{displayName}:</span>}
-            name={fieldName}
-            rules={required ? [{ required, message: `${displayName} is required` }] : undefined}
-          >
-            {formItemChild(getFieldsValue, setFieldsValue)}
-          </Form.Item>
-        )}
-      </Form.Item>
-    </div>
+    <Row>
+      <Col span={16}>
+        <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues[fieldName] !== currentValues[fieldName]}>
+          {({ getFieldsValue, setFieldsValue }: FormInstance) => (
+            <Form.Item
+              initialValue={initialValue}
+              className="form-field_fixed-label"
+              label={documentation ? <LabelWithTooltip documentation={documentation}>{displayName}:</LabelWithTooltip> : <span>{displayName}:</span>}
+              name={fieldName}
+              rules={required ? [{ required, message: `${displayName} is required` }] : undefined}
+              labelCol={{ span: 6 }}
+              wrapperCol={{ span: 18 }}
+            >
+              {formItemChild(getFieldsValue, setFieldsValue)}
+            </Form.Item>
+          )}
+        </Form.Item>
+      </Col>
+    </Row>
   );
 };
 
