@@ -40,6 +40,7 @@ const SourceFormCollectionsFieldComponent = ({
       return <Input/>;
     }
   }, [collection, handleChange]);
+
   const validationRules = useMemo(() => {
     const rules = [];
 
@@ -49,7 +50,7 @@ const SourceFormCollectionsFieldComponent = ({
 
     if (collection.type.data?.maxOptions) {
       rules.push({
-        validator: (rule: Rule, value: string[]) => value.length <= collection.type.data.maxOptions ? Promise.resolve() : Promise.reject(`You can select maximum ${collection.type.data?.maxOptions} options`)
+        validator: (rule: Rule, value: string[]) => value?.length <= collection.type.data.maxOptions ? Promise.resolve() : Promise.reject(`You can select maximum ${collection.type.data?.maxOptions} options`)
       });
     }
 
