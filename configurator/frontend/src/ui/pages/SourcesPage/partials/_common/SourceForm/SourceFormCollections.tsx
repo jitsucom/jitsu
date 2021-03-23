@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select } from 'antd';
 import { unset } from 'lodash';
 // @Icons
@@ -72,6 +72,16 @@ const SourceFormCollections = ({ initialValues, connectorSource }: Props) => {
     [initialValues, connectorSource.collectionTypes]
   );
 
+  const updatedInitialValues = useMemo(() => {
+    if (initialValues.collections) {
+      return initialValues.collections;
+    }
+
+    return [{
+      type: getCollectionTypeValue(0)
+    }];
+  }, [getCollectionTypeValue, initialValues.collections]);
+
   return (
     <div className="custom-report">
       <h3>Configure collections</h3>
@@ -84,7 +94,7 @@ const SourceFormCollections = ({ initialValues, connectorSource }: Props) => {
         </a>
         .
       </article>
-      <Form.List name="collections" initialValue={initialValues.collections}>
+      <Form.List name="collections" initialValue={updatedInitialValues}>
         {(fields: FormListFieldData[], operation: FormListOperation) => (
           <>
             {fields.map((field: FormListFieldData) => {
