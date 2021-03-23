@@ -1,11 +1,11 @@
-import { FacebookConversionConfig } from "@./lib/services/destinations";
-import * as React from "react";
-import { Col, Form, Input, Row } from "antd";
-import { LabelWithTooltip } from "@./lib/components/components";
+import { FacebookConversionConfig } from '@./lib/services/destinations';
+import * as React from 'react';
+import { Col, Form, Input, Row } from 'antd';
+import { LabelWithTooltip } from '@./lib/components/components';
 import {
   DestinationDialog,
   IDestinationDialogProps
-} from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
+} from '@page/DestinationsPage/partials/DestinationDialog/DestinationDialog';
 
 export default class FacebookConversionDestinationDialog extends DestinationDialog<FacebookConversionConfig> {
   constructor(
@@ -84,6 +84,4 @@ export default class FacebookConversionDestinationDialog extends DestinationDial
     );
   }
 }
-
-
 
