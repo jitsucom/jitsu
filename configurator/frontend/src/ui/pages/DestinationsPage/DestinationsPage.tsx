@@ -1,9 +1,9 @@
 import React from 'react';
 import { Route, Switch, useHistory } from 'react-router-dom';
-import DestinationsList from "@page/DestinationsPage/partials/DestinationsList/DestinationsList";
-import { MappingEditor } from "@page/DestinationsPage/partials/MappingEditor/MappingEditor";
-import { destinationPageRoutes } from "./DestinationsPage.routes";
-import DestinationEditor from "@page/DestinationsPage/partials/DestinationEditor/DestinationEditor";
+import DestinationsList from '@page/DestinationsPage/partials/DestinationsList/DestinationsList';
+import { MappingEditor } from '@page/DestinationsPage/partials/MappingEditor/MappingEditor';
+import { destinationPageRoutes } from './DestinationsPage.routes';
+import DestinationEditor from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor';
 
 export const DestinationsPage = () => {
   return (

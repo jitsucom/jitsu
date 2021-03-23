@@ -1,10 +1,10 @@
-import { GoogleAnalyticsConfig } from "@./lib/services/destinations";
-import * as React from "react";
-import { Col, Form, Input, Row } from "antd";
+import { GoogleAnalyticsConfig } from '@./lib/services/destinations';
+import * as React from 'react';
+import { Col, Form, Input, Row } from 'antd';
 import {
   DestinationDialog,
   IDestinationDialogProps
-} from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
+} from '@page/DestinationsPage/partials/DestinationDialog/DestinationDialog';
 
 export default class GoogleAnalyticsDestinationDialog extends DestinationDialog<GoogleAnalyticsConfig> {
   constructor(
