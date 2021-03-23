@@ -75,7 +75,7 @@ const SourceFormWrap = ({
           message.error("Something goes wrong, source hasn't been added");
         });
     },
-    [connectorSource.collectionParameters, services.storageService, projectId, sources]
+    [connectorSource.collectionParameters, connectorSource.id, services.storageService, projectId, sources, history]
   );
 
   return (
