@@ -79,7 +79,7 @@ const SourceFormCollections = ({ initialValues, connectorSource }: Props) => {
         Each source can export one or more collections.
         <br />
         Think of collection as a table in a database or sheet in a spreadsheet Read more about collections in our{' '}
-        <a href="https://jitsu.com/docs/sources-configuration#collections" target="_blank">
+        <a href="https://jitsu.com/docs/sources-configuration#collections" target="_blank" rel="noreferrer">
           documentation
         </a>
         .
