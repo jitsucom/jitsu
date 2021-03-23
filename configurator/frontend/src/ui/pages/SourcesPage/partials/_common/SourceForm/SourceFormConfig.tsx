@@ -50,7 +50,7 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
 
   const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => Object.keys(alreadyExistSources).find((source) => source === value)
     ? Promise.reject('Source ID must be unique!')
-    : Promise.resolve(), [])
+    : Promise.resolve(), [alreadyExistSources])
 
   return (
     <>
