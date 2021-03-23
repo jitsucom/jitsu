@@ -128,7 +128,6 @@ func (ah *AuthorizationHandler) SignIn(c *gin.Context) {
 			return
 		}
 
-		logging.Error(err)
 		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -157,7 +156,6 @@ func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 			return
 		}
 
-		logging.Error(err)
 		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -201,7 +199,6 @@ func (ah *AuthorizationHandler) SignUp(c *gin.Context) {
 			return
 		}
 
-		logging.Error(err)
 		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -258,7 +255,6 @@ func (ah *AuthorizationHandler) ResetPassword(c *gin.Context) {
 
 	err = ah.emailService.SendResetPassword(email, strings.ReplaceAll(req.Callback, "{{token}}", resetId))
 	if err != nil {
-		logging.Error(err)
 		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Message: "Error sending email message", Error: err.Error()})
 		return
 	}
