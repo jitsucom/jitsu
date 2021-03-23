@@ -29,6 +29,7 @@ import logo from './icons/logo.svg';
 import PapercupsWrapper from './lib/commons/papercups';
 import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
 import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined";
+import { logger } from './utils/logger';
 
 enum AppLifecycle {
     LOADING, //Application is loading
@@ -143,6 +144,7 @@ export default class App extends React.Component<AppProperties, AppState> {
     }
 
     public render() {
+        logger.log('This is test');
         return <React.Suspense fallback={<CenteredSpin/>}>{this.getRenderComponent()}</React.Suspense>;
     }
 

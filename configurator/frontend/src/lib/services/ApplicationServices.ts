@@ -9,8 +9,6 @@ import firebase from 'firebase';
 import Marshal from '../commons/marshalling';
 import {BackendUserService} from './backend';
 
-type AppEnvironmentType = 'development' | 'production';
-
 export class ApplicationConfiguration {
     private readonly _rawConfig: RawConfigObject;
     private readonly _firebaseConfig: any;
