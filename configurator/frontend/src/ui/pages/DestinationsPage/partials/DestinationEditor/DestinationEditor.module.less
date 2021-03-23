@@ -1,3 +1,5 @@
+@import "../../../../../theme.less";
+
 .wrapper {
   //height: calc(100vh - 170px);
 }
@@ -10,6 +12,34 @@
 }
 
 .tabCard :global .ant-tabs-content {
+  @apply px-6;
   overflow: auto;
   height: 98%;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  /* Track */
+  &::-webkit-scrollbar-track {
+    background: @splitBorder;
+    -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+    -webkit-border-radius: 10px;
+    border-radius: 10px;
+  }
+
+  /* Handle */
+  &::-webkit-scrollbar-thumb {
+    -webkit-border-radius: 10px;
+    border-radius: 10px;
+    background: @secondaryText;
+    -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.5);
+  }
+  &::-webkit-scrollbar-thumb:window-inactive {
+    background: @text;
+  }
+}
+
+.highlightNewElement {
+  transition: all 2s;
 }

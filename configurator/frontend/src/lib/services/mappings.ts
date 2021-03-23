@@ -1,5 +1,5 @@
 export class FieldMappings {
-  private readonly _keepUnmappedFields: boolean = true;
+  private _keepUnmappedFields: boolean = true;
   private readonly _mappings: Mapping[] = [];
 
   constructor(mappings: Mapping[], keepUnmappedFields: boolean) {
@@ -9,6 +9,10 @@ export class FieldMappings {
 
   get keepUnmappedFields(): boolean {
     return this._keepUnmappedFields;
+  }
+
+  set keepUnmappedFields(val: boolean) {
+    this._keepUnmappedFields = val;
   }
 
   get mappings(): Mapping[] {
