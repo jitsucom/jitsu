@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
-import { Form, Input } from 'antd';
+import { Col, Form, Input, Row } from 'antd';
 import { get, snakeCase } from 'lodash';
 // @Utils
 import { naturalSort } from '@util/Array';
@@ -54,26 +54,30 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
 
   return (
     <>
-      <h3>Source ID</h3>
-      <Form.Item
-        initialValue={initialSourceId}
-        className="form-field_fixed-label"
-        label={<span className="field-label">SourceId:</span>}
-        name="sourceId"
-        rules={[
-          {
-            required: true,
-            message: 'Source ID is required field'
-          },
-          {
-            validator: validateUniqueSourceId
-          }
-        ]}
-      >
-        <Input />
-      </Form.Item>
+      <Row>
+        <Col span={16}>
+          <Form.Item
+            initialValue={initialSourceId}
+            className="form-field_fixed-label"
+            label={<span>SourceId:</span>}
+            name="sourceId"
+            rules={[
+              {
+                required: true,
+                message: 'Source ID is required field'
+              },
+              {
+                validator: validateUniqueSourceId
+              }
+            ]}
+            labelCol={{ span: 6 }}
+            wrapperCol={{ span: 18 }}
+          >
+            <Input />
+          </Form.Item>
+        </Col>
+      </Row>
 
-      <h3>Config</h3>
       {connectorSource.configParameters.map(({ id, displayName, required, type, documentation }: Parameter) => (
         <SourceFormConfigField
           type={type.typeName}

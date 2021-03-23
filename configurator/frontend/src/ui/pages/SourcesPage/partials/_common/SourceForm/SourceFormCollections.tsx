@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useState } from 'react';
-import { Button, Form, Input, Select } from 'antd';
+import { Button, Col, Form, Input, Row, Select } from 'antd';
 import { unset } from 'lodash';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
@@ -90,40 +90,51 @@ const SourceFormCollections = ({ initialValues, connectorSource }: Props) => {
             {fields.map((field: FormListFieldData) => {
               return (
                 <div className="custom-report__group" key={field.key}>
-                  <div className="custom-report__group-composite">
-                    <Form.Item
-                      initialValue={getCollectionTypeValue(field.key)}
-                      name={[field.name, 'type']}
-                      className="form-field_fixed-label"
-                      label="Report type:"
-                    >
-                      <Select
-                        disabled={connectorSource.collectionTypes.length === 1}
-                        onChange={handleReportTypeChange(field.key)}
+                  <Row>
+                    <Col span={16}>
+                      <Form.Item
+                        initialValue={getCollectionTypeValue(field.key)}
+                        name={[field.name, 'type']}
+                        className="form-field_fixed-label"
+                        label="Report type:"
+                        labelCol={{ span: 6 }}
+                        wrapperCol={{ span: 18 }}
                       >
-                        {connectorSource.collectionTypes.map((type: string) => (
-                          <Select.Option key={type} value={type}>
-                            {type}
-                          </Select.Option>
-                        ))}
-                      </Select>
-                    </Form.Item>
-
-                    <DeleteOutlined
-                      className="custom-report__group-composite-delete"
-                      onClick={handleRemoveField(operation, field.key)}
-                    />
-                  </div>
+                        <Select
+                          disabled={connectorSource.collectionTypes.length === 1}
+                          onChange={handleReportTypeChange(field.key)}
+                        >
+                          {connectorSource.collectionTypes.map((type: string) => (
+                            <Select.Option key={type} value={type}>
+                              {type}
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      </Form.Item>
+                    </Col>
+                    <Col span={1}>
+                      <DeleteOutlined
+                        className="custom-report__group-composite-delete"
+                        onClick={handleRemoveField(operation, field.key)}
+                      />
+                    </Col>
+                  </Row>
 
                   <>
-                    <Form.Item
-                      className="form-field_fixed-label"
-                      label={<span className="field-label">Destination table:</span>}
-                      name={[field.name, 'name']}
-                      rules={[{ required: true, message: 'Field is required. You can remove this collection.' }]}
-                    >
-                      <Input />
-                    </Form.Item>
+                    <Row>
+                      <Col span={16}>
+                        <Form.Item
+                          className="form-field_fixed-label"
+                          label={<span>Report name:</span>}
+                          name={[field.name, 'name']}
+                          rules={[{ required: true, message: 'Field is required. You can remove this collection.' }]}
+                          labelCol={{ span: 6 }}
+                          wrapperCol={{ span: 18 }}
+                        >
+                          <Input />
+                        </Form.Item>
+                      </Col>
+                    </Row>
 
                     {getCollectionParameters(field.key).map((collection: CollectionParameter) => (
                       <SourceFormCollectionsField
