@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -37,9 +38,9 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		return nil, err
 	}
 	//enrich with default parameters
-	if redshiftConfig.Port <= 0 {
-		redshiftConfig.Port = 5439
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", config.name, redshiftConfig.Port)
+	if redshiftConfig.Port.String() == "" {
+		redshiftConfig.Port = json.Number("5439")
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.name, redshiftConfig.Port)
 	}
 	if redshiftConfig.Schema == "" {
 		redshiftConfig.Schema = "public"

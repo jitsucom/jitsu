@@ -49,7 +49,6 @@ func (eh *EventsHandler) OldGetHandler(c *gin.Context) {
 
 	userProjectId := c.GetString(middleware.ProjectIdKey)
 	if userProjectId == "" {
-		logging.Error(systemErrProjectId)
 		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: systemErrProjectId.Error(), Message: "Authorization error"})
 		return
 	}
@@ -77,7 +76,6 @@ func (eh *EventsHandler) OldGetHandler(c *gin.Context) {
 
 	events, err := eh.enService.GetOldEvents(apiKeys, limit)
 	if err != nil {
-		logging.Error(err)
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Message: "Events err", Error: err.Error()})
 		return
 	}
@@ -117,7 +115,6 @@ func (eh *EventsHandler) GetHandler(c *gin.Context) {
 
 	userProjectId := c.GetString(middleware.ProjectIdKey)
 	if userProjectId == "" {
-		logging.Error(systemErrProjectId)
 		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: systemErrProjectId.Error(), Message: "Authorization error"})
 		return
 	}
@@ -152,7 +149,6 @@ func (eh *EventsHandler) GetHandler(c *gin.Context) {
 
 	events, err := eh.enService.GetLastEvents(destinationIds, start, end, limit)
 	if err != nil {
-		logging.Error(err)
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Message: "Events err", Error: err.Error()})
 		return
 	}

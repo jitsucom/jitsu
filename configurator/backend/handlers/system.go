@@ -10,12 +10,13 @@ import (
 //Configuration is used for system endpoint
 //current authorization configuration and amount of registered users
 type Configuration struct {
-	Authorization   string `json:"authorization"`
-	Users           bool   `json:"users"`
-	Smtp            bool   `json:"smtp"`
-	SelfHosted      bool   `json:"selfhosted"`
-	SupportWidget   bool   `json:"support_widget"`
-	DefaultS3Bucket bool   `json:"default_s3_bucket"`
+	Authorization          string `json:"authorization"`
+	Users                  bool   `json:"users"`
+	Smtp                   bool   `json:"smtp"`
+	SelfHosted             bool   `json:"selfhosted"`
+	SupportWidget          bool   `json:"support_widget"`
+	DefaultS3Bucket        bool   `json:"default_s3_bucket"`
+	SupportTrackingDomains bool   `json:"support_tracking_domains"`
 }
 
 type SystemHandler struct {
@@ -44,12 +45,13 @@ func (sh *SystemHandler) GetHandler(c *gin.Context) {
 	}
 
 	currentConfiguration := Configuration{
-		Authorization:   sh.authService.GetAuthorizationType(),
-		Users:           exist,
-		Smtp:            sh.smtp,
-		SelfHosted:      sh.selfHosted,
-		SupportWidget:   !sh.selfHosted,
-		DefaultS3Bucket: !sh.selfHosted,
+		Authorization:          sh.authService.GetAuthorizationType(),
+		Users:                  exist,
+		Smtp:                   sh.smtp,
+		SelfHosted:             sh.selfHosted,
+		SupportWidget:          !sh.selfHosted,
+		DefaultS3Bucket:        !sh.selfHosted,
+		SupportTrackingDomains: !sh.selfHosted,
 	}
 
 	c.JSON(http.StatusOK, currentConfiguration)
