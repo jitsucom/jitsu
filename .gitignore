@@ -2,6 +2,6 @@
 compose-data/configurator/logs
 compose-data/redis
 compose-data/server/events
-compose-data/server/logs
+compose-data/server/data/logs
 
 .idea/
