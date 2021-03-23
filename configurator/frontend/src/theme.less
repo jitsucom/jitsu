@@ -66,6 +66,17 @@
   background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
+.ant-select-item-option-selected {
+  background-color: transparent !important;
+
+  &::before {
+    content: "✓\00a0";
+  }
+}
+
+.ant-select-item-option-active {
+  background-color: @bgSecondary !important;
+}
 
 //body {
 //  font-family: @font-main;
