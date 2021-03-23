@@ -23,7 +23,6 @@ func (akh *ApiKeysHandler) GetHandler(c *gin.Context) {
 	begin := time.Now()
 	keys, err := akh.configurationsService.GetApiKeys()
 	if err != nil {
-		logging.Error(err)
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: err.Error(), Message: "Api keys err"})
 		return
 	}
@@ -58,7 +57,6 @@ func (akh *ApiKeysHandler) CreateDefaultApiKeyHandler(c *gin.Context) {
 	}
 	userProjectId := c.GetString(middleware.ProjectIdKey)
 	if userProjectId == "" {
-		logging.Error(systemErrProjectId)
 		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: systemErrProjectId.Error(), Message: "Authorization error"})
 		return
 	}

@@ -2,6 +2,8 @@ package integration_tests
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"github.com/spf13/viper"
 	"testing"
 
@@ -32,7 +34,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 
 	enrichment.InitDefault()
-	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: container.Port, Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: map[string]string{"sslmode": "disable"}}
+	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: json.Number(fmt.Sprint(container.Port)), Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: map[string]string{"sslmode": "disable"}}
 	pg, err := adapters.NewPostgres(ctx, dsConfig, logging.NewQueryLogger("test", nil, nil), map[string]string{})
 	require.NoError(t, err)
 	require.NotNil(t, pg)

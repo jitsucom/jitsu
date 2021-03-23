@@ -31,7 +31,6 @@ func (th *TelemetryHandler) GetHandler(c *gin.Context) {
 		}
 
 		errorMessage := fmt.Sprintf("Error getting telemetry configuration : %v", err)
-		logging.Error(errorMessage)
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: errorMessage, Message: "Telemetry error"})
 		return
 	}
