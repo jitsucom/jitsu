@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	ServiceName         = "EventNative"
+	ServiceName         = "Jitsu-Server"
 	serverStartTemplate = `{
     "text": "*%s* [%s]: Start",
 	"attachments": [

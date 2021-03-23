@@ -18,7 +18,7 @@ func IfModifiedSince(main gin.HandlerFunc, getLastModified func() (*time.Time, e
 	return func(c *gin.Context) {
 		lastModified, err := getLastModified()
 		if err != nil {
-			logging.Warn(err)
+			logging.Warnf("Error getting last modified: %v", err)
 		} else {
 			c.Writer.Header().Add(lastModifiedHeader, lastModified.Format(storages.LastUpdatedLayout))
 

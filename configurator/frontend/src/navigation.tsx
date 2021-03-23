@@ -76,7 +76,7 @@ export const PRIVATE_PAGES: Page[] = [
     'Jitsu | download config',
     '/cfg_download',
     (props) => <DownloadConfig {...props} />,
-    'Download EventNative configuration'
+    'Download Jitsu Server configuration'
   ),
   new Page('Jitsu | edit API keys', '/api_keys', (props) => <ApiKeys {...props} />, 'API Keys'),
   new Page(

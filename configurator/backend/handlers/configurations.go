@@ -8,7 +8,6 @@ import (
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
-	"github.com/jitsucom/jitsu/server/logging"
 	mdlwr "github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
 )
@@ -65,14 +64,12 @@ func (ch *ConfigurationHandler) StoreUserInfo(c *gin.Context) {
 	err := c.BindJSON(&data)
 	if err != nil {
 		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get user info body from request: %v", err)
-		logging.Error(bodyExtractionErrorMessage)
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: bodyExtractionErrorMessage})
 		return
 	}
 	err = ch.configStorage.Store(authorization.UsersInfoCollection, userId, data)
 	if err != nil {
 		configStoreErrorMessage := fmt.Sprintf("Failed to save user info [%s]: %v", userId, err)
-		logging.Error(configStoreErrorMessage)
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: configStoreErrorMessage})
 		return
 	}
@@ -87,7 +84,6 @@ func (ch *ConfigurationHandler) getConfig(collection string, id string) ([]byte,
 			return json.Marshal(make(map[string]interface{}))
 		} else {
 			errorMessage := fmt.Sprintf("Failed to get config for collection=[%s], id=[%s]: %v", collection, id, err)
-			logging.Error(errorMessage)
 			return nil, errors.New(errorMessage)
 		}
 	}
@@ -99,14 +95,12 @@ func (ch *ConfigurationHandler) saveConfig(c *gin.Context, collection string, id
 	err := c.BindJSON(&data)
 	if err != nil {
 		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get config body from request: %v", err)
-		logging.Error(bodyExtractionErrorMessage)
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: bodyExtractionErrorMessage})
 		return
 	}
 	err = ch.configStorage.Store(collection, id, data)
 	if err != nil {
 		configStoreErrorMessage := fmt.Sprintf("Failed to save collection [%s], id=[%s]: %v", collection, id, err)
-		logging.Error(configStoreErrorMessage)
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: configStoreErrorMessage})
 		return
 	}
@@ -119,7 +113,6 @@ func writeResponse(c *gin.Context, config []byte) {
 	_, err := c.Writer.Write(config)
 	if err != nil {
 		writeErrorMessage := fmt.Sprintf("Failed to write response: %v", err)
-		logging.Error(writeErrorMessage)
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: writeErrorMessage})
 	}
 }

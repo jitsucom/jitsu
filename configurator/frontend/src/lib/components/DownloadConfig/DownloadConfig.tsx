@@ -37,10 +37,9 @@ export default class DownloadConfig extends LoadableComponent<{}, State> {
     return (
       <>
         <div className="download-config-documentation">
-          If you want to host your own instance of <a href="https://github.com/ksensehq/eventnative">EventNative</a>{' '}
-          (Jitsu open-source core), you can use this configuration file. It includes all your keys, destinations and
-          other settings you created here.
-          <a href="https://docs.eventnative.dev/deployment">EventNative can be deployed just in a few clicks!</a>
+          If you want to host your own instance of <a href="https://github.com/jitsucom/jitsu">Jitsu Server</a>{' '}
+          you can use this configuration file. It includes all your keys, destinations and other settings you created here. {' '}
+          <a href="https://docs.eventnative.dev/deployment">Jitsu can be deployed just in a few clicks!</a>
         </div>
         <CodeSnippet
           toolbarPosition="top"
@@ -49,10 +48,10 @@ export default class DownloadConfig extends LoadableComponent<{}, State> {
           extra={
             <a
               onClick={() => {
-                download('eventnative.yml', this.state.code);
+                download('eventnative.yaml', this.state.code);
               }}
             >
-              <u>./eventnative.yml</u> <CloudDownloadOutlined />
+              <u>./eventnative.yaml</u> <CloudDownloadOutlined />
             </a>
           }
         >
