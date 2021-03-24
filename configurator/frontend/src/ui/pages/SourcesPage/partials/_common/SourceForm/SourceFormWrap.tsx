@@ -18,7 +18,7 @@ const SourceFormWrap = ({
   sources,
   connectorSource,
   projectId,
-  sourceData = {},
+  sourceData = {} as SourceData,
   formMode = 'create'
 }: FormWrapProps) => {
   const history = useHistory();
@@ -99,7 +99,7 @@ const SourceFormWrap = ({
         connectorSource={connectorSource}
         isRequestPending={isPending}
         handleFinish={handleFinish}
-        alreadyExistSources={sources}
+        sources={sources}
       />
     </div>
   );

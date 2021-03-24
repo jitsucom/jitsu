@@ -12,10 +12,10 @@ import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 import { CollectionParameter } from '@connectors/types';
 import { SourceFormCollectionsProps as Props } from './SourceForm.types';
 
-const SourceFormCollections = ({ initialValues, connectorSource }: Props) => {
+const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) => {
   const [chosenTypes, setChosenTypes] = useState<{ [key: number]: string }>(
-    initialValues.collections?.reduce((accumulator: any, value: object, index: number) => {
-      return { ...accumulator, [index]: value };
+    initialValues.collections?.reduce((accumulator: any, value: CollectionSource, index: number) => {
+      return { ...accumulator, [index]: value.type };
     }, {}) ?? {}
   );
 
@@ -61,7 +61,7 @@ const SourceFormCollections = ({ initialValues, connectorSource }: Props) => {
 
   const getCollectionTypeValue = useCallback(
     (index: number) => {
-      const initial = initialValues.collection?.[index]?.type;
+      const initial = initialValues.collections?.[index]?.type;
 
       if (initial) {
         return initial;
@@ -109,6 +109,7 @@ const SourceFormCollections = ({ initialValues, connectorSource }: Props) => {
                         label="Report type:"
                         labelCol={{ span: 6 }}
                         wrapperCol={{ span: 18 }}
+                        rules={connectorSource.collectionTypes.length > 1 ? [{ required: true, message: 'You have top choose report type' }] : undefined}
                       >
                         <Select
                           disabled={connectorSource.collectionTypes.length === 1}
@@ -137,7 +138,19 @@ const SourceFormCollections = ({ initialValues, connectorSource }: Props) => {
                           className="form-field_fixed-label"
                           label={<span>Report name:</span>}
                           name={[field.name, 'name']}
-                          rules={[{ required: true, message: 'Field is required. You can remove this collection.' }]}
+                          rules={[
+                            { required: true, message: 'Field is required. You can remove this collection.' },
+                            {
+                              validator: (rule: any, value: string) => {
+                                const formValues = form.getFieldsValue();
+                                const isError = formValues.collections
+                                  .map((collection, index) => index !== field.key && collection.name)
+                                  .includes(value);
+
+                                return isError ? Promise.reject('Must be unique under the current collection') : Promise.resolve();
+                              }
+                            }
+                          ]}
                           labelCol={{ span: 6 }}
                           wrapperCol={{ span: 18 }}
                         >
