@@ -66,7 +66,7 @@ var (
 type ClickHouseConfig struct {
 	Dsns     []string          `mapstructure:"dsns" json:"dsns,omitempty" yaml:"dsns,omitempty"`
 	Database string            `mapstructure:"db" json:"db,omitempty" yaml:"db,omitempty"`
-	Tls      map[string]string `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
+	TLS      map[string]string `mapstructure:"tls" json:"tls,omitempty" yaml:"tls,omitempty"`
 	Cluster  string            `mapstructure:"cluster" json:"cluster,omitempty" yaml:"cluster,omitempty"`
 	Engine   *EngineConfig     `mapstructure:"engine" json:"engine,omitempty" yaml:"engine,omitempty"`
 }
@@ -295,10 +295,10 @@ func (ch *ClickHouse) CreateTable(tableSchema *Table) error {
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
 		//get sql type
-		sqlType := column.SqlType
-		castedSqlType, ok := ch.mappingTypeCasts[columnName]
+		sqlType := column.SQLType
+		castedSQLType, ok := ch.mappingTypeCasts[columnName]
 		if ok {
-			sqlType = castedSqlType
+			sqlType = castedSQLType
 		}
 
 		//get nullable or plain
@@ -344,7 +344,7 @@ func (ch *ClickHouse) GetTableSchema(tableName string) (*Table, error) {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
 
-		table.Columns[columnName] = Column{SqlType: columnClickhouseType}
+		table.Columns[columnName] = Column{SQLType: columnClickhouseType}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)
@@ -363,10 +363,10 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 
 	for columnName, column := range patchSchema.Columns {
 		//get sql type
-		sqlType := column.SqlType
-		castedSqlType, ok := ch.mappingTypeCasts[columnName]
+		sqlType := column.SQLType
+		castedSQLType, ok := ch.mappingTypeCasts[columnName]
 		if ok {
-			sqlType = castedSqlType
+			sqlType = castedSQLType
 		}
 
 		//get nullable or plain
@@ -510,7 +510,7 @@ func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, 
 				values = append(values, ch.reformatValue(value))
 			} else {
 				column, _ := table.Columns[column]
-				defaultValue, ok := ch.getDefaultValue(column.SqlType)
+				defaultValue, ok := ch.getDefaultValue(column.SQLType)
 				if ok {
 					values = append(values, defaultValue)
 				} else {
@@ -592,9 +592,9 @@ func (ch *ClickHouse) getDefaultValue(sqlType string) (interface{}, bool) {
 		dv, ok := defaultValues[strings.ToLower(sqlType)]
 		if ok {
 			return dv, true
-		} else {
-			logging.SystemErrorf("Unknown clickhouse default value for %s", sqlType)
 		}
+
+		logging.SystemErrorf("Unknown clickhouse default value for %s", sqlType)
 	}
 
 	return nil, false
@@ -608,9 +608,9 @@ func (ch *ClickHouse) reformatValue(v interface{}) interface{} {
 	if ok {
 		if booleanValue {
 			return 1
-		} else {
-			return 0
 		}
+
+		return 0
 	}
 
 	return v

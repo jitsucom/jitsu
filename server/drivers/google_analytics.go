@@ -17,7 +17,7 @@ const (
 	reportsCollection   = "report"
 	gaFieldsPrefix      = "ga:"
 	googleAnalyticsType = "google_analytics"
-	eventId             = "event_id"
+	eventID             = "event_id"
 
 	gaMaxAttempts = 3 // sometimes Google API returns errors for unknown reasons, this is a number of retries we make before fail to get a report
 )
@@ -49,7 +49,7 @@ var (
 
 type GoogleAnalyticsConfig struct {
 	AuthConfig *GoogleAuthConfig `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
-	ViewId     string            `mapstructure:"view_id" json:"view_id,omitempty" yaml:"view_id,omitempty"`
+	ViewID     string            `mapstructure:"view_id" json:"view_id,omitempty" yaml:"view_id,omitempty"`
 }
 
 type GAReportFieldsConfig struct {
@@ -58,7 +58,7 @@ type GAReportFieldsConfig struct {
 }
 
 func (gac *GoogleAnalyticsConfig) Validate() error {
-	if gac.ViewId == "" {
+	if gac.ViewID == "" {
 		return fmt.Errorf("view_id field must not be empty")
 	}
 	return gac.AuthConfig.Validate()
@@ -130,12 +130,12 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 	}
 
 	if g.collection.Type == reportsCollection {
-		result, err := g.loadReport(g.config.ViewId, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
+		result, err := g.loadReport(g.config.ViewID, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
 		logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(result))
 		return result, err
-	} else {
-		return nil, fmt.Errorf("Unknown collection %s: only 'report' is supported", g.collection.Type)
 	}
+
+	return nil, fmt.Errorf("Unknown collection %s: only 'report' is supported", g.collection.Type)
 }
 
 func (g *GoogleAnalytics) Type() string {
@@ -150,7 +150,7 @@ func (g *GoogleAnalytics) GetCollectionTable() string {
 	return g.collection.GetTableName()
 }
 
-func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, dimensions []string, metrics []string) ([]map[string]interface{}, error) {
+func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, dimensions []string, metrics []string) ([]map[string]interface{}, error) {
 	var gaDimensions []*ga.Dimension
 	for _, dimension := range dimensions {
 		gaDimensions = append(gaDimensions, &ga.Dimension{Name: dimension})
@@ -166,7 +166,7 @@ func (g *GoogleAnalytics) loadReport(viewId string, dateRanges []*ga.DateRange, 
 		req := &ga.GetReportsRequest{
 			ReportRequests: []*ga.ReportRequest{
 				{
-					ViewId:     viewId,
+					ViewId:     viewID,
 					DateRanges: dateRanges,
 					Metrics:    gaMetrics,
 					Dimensions: gaDimensions,

@@ -169,9 +169,9 @@ func (s *Snowflake) Insert(table *adapters.Table, event events.Event) (err error
 	return nil
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJson func
+//Store call StoreWithParseFunc with parsers.ParseJSON func
 func (s *Snowflake) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return s.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
+	return s.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
 }
 
 //Store file from byte payload to stage with processing
@@ -185,7 +185,7 @@ func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, alreadyU
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents {
-		s.eventsCache.Error(s.Name(), failedEvent.EventId, failedEvent.Error)
+		s.eventsCache.Error(s.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -201,9 +201,9 @@ func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, alreadyU
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				s.eventsCache.Error(s.Name(), events.ExtractEventId(object), err.Error())
+				s.eventsCache.Error(s.Name(), events.ExtractEventID(object), err.Error())
 			} else {
-				s.eventsCache.Succeed(s.Name(), events.ExtractEventId(object), object, table)
+				s.eventsCache.Succeed(s.Name(), events.ExtractEventID(object), object, table)
 			}
 		}
 	}

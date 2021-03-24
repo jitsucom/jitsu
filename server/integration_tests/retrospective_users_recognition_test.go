@@ -103,8 +103,8 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	if viper.IsSet("users_recognition") {
 		recognitionConfiguration = &storages.UsersRecognition{
 			Enabled:         viper.GetBool("users_recognition.enabled"),
-			AnonymousIdNode: viper.GetString("users_recognition.anonymous_id_node"),
-			UserIdNode:      viper.GetString("users_recognition.user_id_node"),
+			AnonymousIDNode: viper.GetString("users_recognition.anonymous_id_node"),
+			UserIDNode:      viper.GetString("users_recognition.user_id_node"),
 		}
 	}
 
@@ -170,7 +170,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(pageviewReq)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
+	require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
 	resp.Body.Close()
 	time.Sleep(1 * time.Second)
 
@@ -202,7 +202,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 	resp, err = http.DefaultClient.Do(identifyReq)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
+	require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
 	resp.Body.Close()
 
 	time.Sleep(2 * time.Second)

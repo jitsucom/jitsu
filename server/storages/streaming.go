@@ -57,7 +57,7 @@ func (sw *StreamingWorker) start() {
 				break
 			}
 
-			fact, dequeuedTime, tokenId, err := sw.eventQueue.DequeueBlock()
+			fact, dequeuedTime, tokenID, err := sw.eventQueue.DequeueBlock()
 			if err != nil {
 				if err == events.ErrQueueClosed && sw.closed {
 					continue
@@ -68,7 +68,7 @@ func (sw *StreamingWorker) start() {
 
 			//dequeued event was from retry call and retry timeout hasn't come
 			if time.Now().Before(dequeuedTime) {
-				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, tokenId)
+				sw.eventQueue.ConsumeTimed(fact, dequeuedTime, tokenID)
 				continue
 			}
 
@@ -76,24 +76,24 @@ func (sw *StreamingWorker) start() {
 			if err != nil {
 				if err == schema.ErrSkipObject {
 					if !appconfig.Instance.DisableSkipEventsWarn {
-						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.Name(), events.ExtractEventId(fact), err)
+						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.Name(), events.ExtractEventID(fact), err)
 					}
 
 					counters.SkipEvents(sw.streamingStorage.Name(), 1)
 				} else {
 					serialized := fact.Serialize()
 					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.Name(), serialized, err)
-					metrics.ErrorTokenEvent(tokenId, sw.streamingStorage.Name())
+					metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.Name())
 					counters.ErrorEvents(sw.streamingStorage.Name(), 1)
 					sw.streamingStorage.Fallback(&events.FailedEvent{
 						Event:   []byte(serialized),
 						Error:   err.Error(),
-						EventId: events.ExtractEventId(fact),
+						EventID: events.ExtractEventID(fact),
 					})
 				}
 
 				//cache
-				sw.eventsCache.Error(sw.streamingStorage.Name(), events.ExtractEventId(fact), err.Error())
+				sw.eventsCache.Error(sw.streamingStorage.Name(), events.ExtractEventID(fact), err.Error())
 
 				continue
 			}
@@ -111,32 +111,32 @@ func (sw *StreamingWorker) start() {
 					strings.Contains(err.Error(), "EOF") ||
 					strings.Contains(err.Error(), "write: broken pipe") ||
 					strings.Contains(err.Error(), "context deadline exceeded") {
-					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenId)
+					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenID)
 				} else {
 					sw.streamingStorage.Fallback(&events.FailedEvent{
 						Event:   []byte(fact.Serialize()),
 						Error:   err.Error(),
-						EventId: events.ExtractEventId(flattenObject),
+						EventID: events.ExtractEventID(flattenObject),
 					})
 				}
 
 				counters.ErrorEvents(sw.streamingStorage.Name(), 1)
 				//cache
-				sw.eventsCache.Error(sw.streamingStorage.Name(), events.ExtractEventId(fact), err.Error())
+				sw.eventsCache.Error(sw.streamingStorage.Name(), events.ExtractEventID(fact), err.Error())
 
-				metrics.ErrorTokenEvent(tokenId, sw.streamingStorage.Name())
+				metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.Name())
 				continue
 			}
 
 			counters.SuccessEvents(sw.streamingStorage.Name(), 1)
 
 			//cache
-			sw.eventsCache.Succeed(sw.streamingStorage.Name(), events.ExtractEventId(fact), flattenObject, table)
+			sw.eventsCache.Succeed(sw.streamingStorage.Name(), events.ExtractEventID(fact), flattenObject, table)
 
-			metrics.SuccessTokenEvent(tokenId, sw.streamingStorage.Name())
+			metrics.SuccessTokenEvent(tokenID, sw.streamingStorage.Name())
 
 			//archive
-			sw.archiveLogger.Consume(fact, tokenId)
+			sw.archiveLogger.Consume(fact, tokenID)
 		}
 	})
 }

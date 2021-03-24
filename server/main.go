@@ -50,7 +50,7 @@ const (
 	//incoming.tok=$token-$timestamp.log
 	uploaderFileMask   = "incoming.tok=*-20*.log"
 	uploaderLoadEveryS = 60
-	//streaming-archive.dst=$destinationId-$timestamp.log
+	//streaming-archive.dst=$destinationID-$timestamp.log
 	streamArchiveFileMask = "streaming-archive*-20*.log"
 	streamArchiveEveryS   = 60
 
@@ -95,9 +95,9 @@ func readInViperConfig() error {
 	var payload *resources.ResponsePayload
 	var err error
 	if strings.HasPrefix(configSourceStr, "http://") || strings.HasPrefix(configSourceStr, "https://") {
-		payload, err = resources.LoadFromHttp(configSourceStr, "")
+		payload, err = resources.LoadFromHTTP(configSourceStr, "")
 	} else if strings.HasPrefix(configSourceStr, "{") && strings.HasSuffix(configSourceStr, "}") {
-		jsonContentType := resources.JsonContentType
+		jsonContentType := resources.JSONContentType
 		payload = &resources.ResponsePayload{Content: []byte(configSourceStr), ContentType: &jsonContentType}
 	} else if configSourceStr != "" {
 		payload, err = resources.LoadFromFile(configSourceStr, "")
@@ -280,8 +280,8 @@ func main() {
 	if viper.IsSet("users_recognition") {
 		globalRecognitionConfiguration = &storages.UsersRecognition{
 			Enabled:         viper.GetBool("users_recognition.enabled"),
-			AnonymousIdNode: viper.GetString("users_recognition.anonymous_id_node"),
-			UserIdNode:      viper.GetString("users_recognition.user_id_node"),
+			AnonymousIDNode: viper.GetString("users_recognition.anonymous_id_node"),
+			UserIDNode:      viper.GetString("users_recognition.user_id_node"),
 		}
 
 		err := globalRecognitionConfiguration.Validate()

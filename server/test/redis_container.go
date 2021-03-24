@@ -10,6 +10,7 @@ import (
 
 const envRedisPortVariable = "REDIS_TEST_PORT"
 
+//RedisContainer is a Redis testcontainer
 type RedisContainer struct {
 	Container testcontainers.Container
 	Context   context.Context
@@ -17,7 +18,7 @@ type RedisContainer struct {
 	Port      int
 }
 
-// Creates new Redis test container if REDIS_TEST_PORT is not defined. Otherwise uses redis at defined port. This logic is required
+//NewRedisContainer creates new Redis test container if REDIS_TEST_PORT is not defined. Otherwise uses redis at defined port. This logic is required
 // for running test at CI environment
 func NewRedisContainer(ctx context.Context) (*RedisContainer, error) {
 	envRedisPort := os.Getenv(envRedisPortVariable)
@@ -54,6 +55,7 @@ func NewRedisContainer(ctx context.Context) (*RedisContainer, error) {
 	return &RedisContainer{Container: container, Context: ctx, Host: host, Port: port.Int()}, nil
 }
 
+//Close terminates underlying docker container
 func (rc *RedisContainer) Close() {
 	if rc.Container != nil {
 		err := rc.Container.Terminate(rc.Context)

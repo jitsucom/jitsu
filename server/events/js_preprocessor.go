@@ -11,17 +11,17 @@ type Preprocessor interface {
 
 //JsPreprocessor preprocess client integration events
 type JsPreprocessor struct {
-	userAgentJsonPath *jsonutils.JsonPath
+	userAgentJSONPath *jsonutils.JSONPath
 }
 
 func NewJsPreprocessor() Preprocessor {
-	return &JsPreprocessor{userAgentJsonPath: jsonutils.NewJsonPath(EventnKey + "/user_agent")}
+	return &JsPreprocessor{userAgentJSONPath: jsonutils.NewJSONPath(EventnKey + "/user_agent")}
 }
 
 //Preprocess set user-agent from request header
 func (jp *JsPreprocessor) Preprocess(event Event, r *http.Request) {
 	clientUserAgent := r.Header.Get("user-agent")
 	if clientUserAgent != "" {
-		jp.userAgentJsonPath.Set(event, clientUserAgent)
+		jp.userAgentJSONPath.Set(event, clientUserAgent)
 	}
 }

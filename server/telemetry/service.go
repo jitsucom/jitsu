@@ -13,12 +13,14 @@ import (
 
 var reloadEvery = 20 * time.Second
 
+//Configuration dto for telemetry enable/disable configuration
 type Configuration struct {
 	Disabled map[string]bool `json:"disabled,omitempty"`
 }
 
 var instance Service
 
+//Service is used for sending telemetry
 type Service struct {
 	reqFactory *RequestFactory
 	client     *http.Client
@@ -38,17 +40,20 @@ func InitTest() {
 	instance = Service{usageOptOut: atomic.NewBool(true)}
 }
 
+//InitFromViper creates telemetry instance, starts goroutine
+//if configuration is provided as a url - starts another goroutine (see resources.Watch)
 func InitFromViper(serviceName, commit, tag, builtAt string) {
 	Init(serviceName, commit, tag, builtAt)
 
-	telemetrySourceUrl := viper.GetString("server.telemetry")
-	if telemetrySourceUrl != "" {
-		resources.Watch(serviceName, telemetrySourceUrl, resources.LoadFromHttp, reInit, reloadEvery)
+	telemetrySourceURL := viper.GetString("server.telemetry")
+	if telemetrySourceURL != "" {
+		resources.Watch(serviceName, telemetrySourceURL, resources.LoadFromHTTP, reInit, reloadEvery)
 	} else {
 		instance.usageOptOut = atomic.NewBool(viper.GetBool("server.telemetry.disabled.usage"))
 	}
 }
 
+//Init creates telemetry instance and starts goroutine
 func Init(serviceName, commit, tag, builtAt string) {
 	instance = Service{
 		reqFactory: newRequestFactory(serviceName, commit, tag, builtAt),
@@ -72,6 +77,8 @@ func Init(serviceName, commit, tag, builtAt string) {
 	instance.startUsage()
 }
 
+//reInit initializes telemetry configuration
+//it is used in case of reloadable telemetry configuration (when configuration is provided as a url)
 func reInit(payload []byte) {
 	c := &Configuration{}
 	err := json.Unmarshal(payload, c)
@@ -91,21 +98,25 @@ func reInit(payload []byte) {
 	}
 }
 
+//ServerStart puts server start event into the queue
 func ServerStart() {
 	instance.usage(&Usage{ServerStart: 1})
 }
 
+//ServerStop puts server stop event into the queue
 func ServerStop() {
 	instance.usage(&Usage{ServerStop: 1})
 }
 
+//Event increment events collector counter
 func Event() {
 	if !instance.usageOptOut.Load() {
 		instance.collector.Event()
 	}
 }
 
-//User is used in manager
+//User puts user request into the queue
+//it is used in manager
 func User(user *UserData) {
 	instance.usageCh <- instance.reqFactory.fromUser(user)
 }
@@ -163,10 +174,12 @@ func (s *Service) startUsage() {
 	})
 }
 
+//Flush sends all requests that are in a queue
 func Flush() {
 	instance.flushCh <- true
 }
 
+//Close stopes underline goroutines
 func Close() {
 	instance.closed = true
 }

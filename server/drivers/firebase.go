@@ -19,12 +19,12 @@ const (
 	firebaseType             = "firebase"
 	firestoreCollection      = "firestore"
 	usersCollection          = "users"
-	userIdField              = "uid"
-	firestoreDocumentIdField = "_firestore_document_id"
+	userIDField              = "uid"
+	firestoreDocumentIDField = "_firestore_document_id"
 )
 
 type FirebaseConfig struct {
-	ProjectId   string `mapstructure:"project_id" json:"project_id,omitempty" yaml:"project_id,omitempty"`
+	ProjectID   string `mapstructure:"project_id" json:"project_id,omitempty" yaml:"project_id,omitempty"`
 	Credentials string `mapstructure:"key" json:"key,omitempty" yaml:"key,omitempty"`
 }
 
@@ -32,7 +32,7 @@ func (fc *FirebaseConfig) Validate() error {
 	if fc == nil {
 		return errors.New("firebase config is required")
 	}
-	if fc.ProjectId == "" {
+	if fc.ProjectID == "" {
 		return errors.New("project_id is not set")
 	}
 	if fc.Credentials == "" || !strings.HasPrefix(fc.Credentials, "{") || !strings.HasSuffix(fc.Credentials, "}") {
@@ -66,7 +66,7 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 	}
 
 	app, err := firebase.NewApp(context.Background(),
-		&firebase.Config{ProjectID: config.ProjectId},
+		&firebase.Config{ProjectID: config.ProjectID},
 		option.WithCredentialsJSON([]byte(config.Credentials)))
 	if err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface
 }
 
 func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
-	var documentJsons []map[string]interface{}
+	var documentJSONs []map[string]interface{}
 	iter := f.firestoreClient.Collection(f.collection.Name).Documents(f.ctx)
 	for {
 		doc, err := iter.Next()
@@ -118,10 +118,10 @@ func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 			return nil, fmt.Errorf("failed to get API keys from firestore: %v", err)
 		}
 		data := doc.Data()
-		data[firestoreDocumentIdField] = doc.Ref.ID
-		documentJsons = append(documentJsons, data)
+		data[firestoreDocumentIDField] = doc.Ref.ID
+		documentJSONs = append(documentJSONs, data)
 	}
-	return documentJsons, nil
+	return documentJSONs, nil
 }
 
 func (f *Firebase) Type() string {
@@ -145,7 +145,7 @@ func (f *Firebase) loadUsers() ([]map[string]interface{}, error) {
 		}
 		user := make(map[string]interface{})
 		user["email"] = authUser.Email
-		user[userIdField] = authUser.UID
+		user[userIDField] = authUser.UID
 		user["phone"] = authUser.PhoneNumber
 		var signInMethods []string
 		for _, info := range authUser.ProviderUserInfo {

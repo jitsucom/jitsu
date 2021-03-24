@@ -37,20 +37,20 @@ type Service struct {
 	//map for holding all destinations for closing
 	unitsByName map[string]*Unit
 	//map for holding all loggers for closing
-	loggersUsageByTokenId map[string]*LoggerUsage
+	loggersUsageByTokenID map[string]*LoggerUsage
 
 	sync.RWMutex
-	consumersByTokenId      TokenizedConsumers
-	storagesByTokenId       TokenizedStorages
-	destinationsIdByTokenId TokenizedIds
+	consumersByTokenID      TokenizedConsumers
+	storagesByTokenID       TokenizedStorages
+	destinationsIDByTokenID TokenizedIDs
 }
 
 //only for tests
-func NewTestService(consumersByTokenId TokenizedConsumers, storagesByTokenId TokenizedStorages, destinationsIdByTokenId TokenizedIds) *Service {
+func NewTestService(consumersByTokenID TokenizedConsumers, storagesByTokenID TokenizedStorages, destinationsIDByTokenID TokenizedIDs) *Service {
 	return &Service{
-		consumersByTokenId:      consumersByTokenId,
-		storagesByTokenId:       storagesByTokenId,
-		destinationsIdByTokenId: destinationsIdByTokenId,
+		consumersByTokenID:      consumersByTokenID,
+		storagesByTokenID:       storagesByTokenID,
+		destinationsIDByTokenID: destinationsIDByTokenID,
 	}
 }
 
@@ -61,11 +61,11 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 		loggerFactory:  loggerFactory,
 
 		unitsByName:           map[string]*Unit{},
-		loggersUsageByTokenId: map[string]*LoggerUsage{},
+		loggersUsageByTokenID: map[string]*LoggerUsage{},
 
-		consumersByTokenId:      map[string]map[string]events.Consumer{},
-		storagesByTokenId:       map[string]map[string]storages.StorageProxy{},
-		destinationsIdByTokenId: map[string]map[string]bool{},
+		consumersByTokenID:      map[string]map[string]events.Consumer{},
+		storagesByTokenID:       map[string]map[string]storages.StorageProxy{},
+		destinationsIDByTokenID: map[string]map[string]bool{},
 	}
 
 	reloadSec := viper.GetInt("server.destinations_reload_sec")
@@ -88,7 +88,7 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 
 	} else if destinationsSource != "" {
 		if strings.HasPrefix(destinationsSource, "http://") || strings.HasPrefix(destinationsSource, "https://") {
-			appconfig.Instance.AuthorizationService.DestinationsForceReload = resources.Watch(serviceName, destinationsSource, resources.LoadFromHttp, service.updateDestinations, time.Duration(reloadSec)*time.Second)
+			appconfig.Instance.AuthorizationService.DestinationsForceReload = resources.Watch(serviceName, destinationsSource, resources.LoadFromHTTP, service.updateDestinations, time.Duration(reloadSec)*time.Second)
 		} else if strings.Contains(destinationsSource, "file://") || strings.HasPrefix(destinationsSource, "/") {
 			appconfig.Instance.AuthorizationService.DestinationsForceReload = resources.Watch(serviceName, strings.Replace(destinationsSource, "file://", "", 1), resources.LoadFromFile, service.updateDestinations, time.Duration(reloadSec)*time.Second)
 		} else if strings.HasPrefix(destinationsSource, "{") && strings.HasSuffix(destinationsSource, "}") {
@@ -103,16 +103,16 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 	return service, nil
 }
 
-func (s *Service) GetConsumers(tokenId string) (consumers []events.Consumer) {
+func (s *Service) GetConsumers(tokenID string) (consumers []events.Consumer) {
 	s.RLock()
 	defer s.RUnlock()
-	for _, c := range s.consumersByTokenId[tokenId] {
+	for _, c := range s.consumersByTokenID[tokenID] {
 		consumers = append(consumers, c)
 	}
 	return
 }
 
-func (s *Service) GetStorageById(id string) (storages.StorageProxy, bool) {
+func (s *Service) GetStorageByID(id string) (storages.StorageProxy, bool) {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -124,20 +124,20 @@ func (s *Service) GetStorageById(id string) (storages.StorageProxy, bool) {
 	return unit.storage, true
 }
 
-func (s *Service) GetStorages(tokenId string) (storages []storages.StorageProxy) {
+func (s *Service) GetStorages(tokenID string) (storages []storages.StorageProxy) {
 	s.RLock()
 	defer s.RUnlock()
-	for _, s := range s.storagesByTokenId[tokenId] {
+	for _, s := range s.storagesByTokenID[tokenID] {
 		storages = append(storages, s)
 	}
 	return
 }
 
-func (s *Service) GetDestinationIds(tokenId string) map[string]bool {
+func (s *Service) GetDestinationIDs(tokenID string) map[string]bool {
 	ids := map[string]bool{}
 	s.RLock()
 	defer s.RUnlock()
-	for id := range s.destinationsIdByTokenId[tokenId] {
+	for id := range s.destinationsIDByTokenID[tokenID] {
 		ids[id] = true
 	}
 	return ids
@@ -181,7 +181,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	// create or recreate
 	newConsumers := TokenizedConsumers{}
 	newStorages := TokenizedStorages{}
-	newIds := TokenizedIds{}
+	newIDs := TokenizedIDs{}
 	for destinationName, d := range dc {
 		//common case
 		destinationConfig := d
@@ -189,10 +189,10 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 
 		//map token -> id
 		if len(destinationConfig.OnlyTokens) > 0 {
-			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIdsByToken(destinationConfig.OnlyTokens)
+			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIDsByToken(destinationConfig.OnlyTokens)
 		} else {
 			logging.Warnf("[%s] only_tokens aren't provided. All tokens will be stored.", name)
-			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIds()
+			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIDs()
 		}
 
 		hash := getHash(name, destinationConfig)
@@ -225,7 +225,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		s.unitsByName[name] = &Unit{
 			eventQueue: eventQueue,
 			storage:    newStorageProxy,
-			tokenIds:   destinationConfig.OnlyTokens,
+			tokenIDs:   destinationConfig.OnlyTokens,
 			hash:       hash,
 		}
 
@@ -237,39 +237,39 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		//  consumers per client_secret and server_secret
 		// If destination is staged, consumer must not be added as staged
 		// destinations may be used only by dry-run functionality
-		for _, tokenId := range destinationConfig.OnlyTokens {
+		for _, tokenID := range destinationConfig.OnlyTokens {
 			if destinationConfig.Staged {
 				logging.Warnf("[%s] Skipping consumer creation for staged destination", name)
 				continue
 			}
-			newIds.Add(tokenId, name)
+			newIDs.Add(tokenID, name)
 			if destinationConfig.Mode == storages.StreamMode {
-				newConsumers.Add(tokenId, name, eventQueue)
+				newConsumers.Add(tokenID, name, eventQueue)
 			} else {
 				//get or create new logger
-				loggerUsage, ok := s.loggersUsageByTokenId[tokenId]
+				loggerUsage, ok := s.loggersUsageByTokenID[tokenID]
 				if !ok {
-					incomeLogger := s.loggerFactory.CreateIncomingLogger(tokenId)
+					incomeLogger := s.loggerFactory.CreateIncomingLogger(tokenID)
 					loggerUsage = &LoggerUsage{logger: incomeLogger, usage: 0}
-					s.loggersUsageByTokenId[tokenId] = loggerUsage
+					s.loggersUsageByTokenID[tokenID] = loggerUsage
 				}
 
 				if loggerUsage != nil {
 					loggerUsage.usage += 1
-					//2 destinations with only 1 logger can be under 1 tokenId
-					newConsumers.Add(tokenId, tokenId, loggerUsage.logger)
+					//2 destinations with only 1 logger can be under 1 tokenID
+					newConsumers.Add(tokenID, tokenID, loggerUsage.logger)
 				}
 
 				//add storage only if batch mode
-				newStorages.Add(tokenId, name, newStorageProxy)
+				newStorages.Add(tokenID, name, newStorageProxy)
 			}
 		}
 	}
 
 	s.Lock()
-	s.consumersByTokenId.AddAll(newConsumers)
-	s.storagesByTokenId.AddAll(newStorages)
-	s.destinationsIdByTokenId.AddAll(newIds)
+	s.consumersByTokenID.AddAll(newConsumers)
+	s.storagesByTokenID.AddAll(newStorages)
+	s.destinationsIDByTokenID.AddAll(newIDs)
 	s.Unlock()
 
 	StatusInstance.Reloading = false
@@ -279,40 +279,40 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 //method must be called with locks
 func (s *Service) remove(name string, unit *Unit) {
 	//remove from other collections: queue or logger(if needed) + storage
-	for _, tokenId := range unit.tokenIds {
-		oldConsumers := s.consumersByTokenId[tokenId]
+	for _, tokenID := range unit.tokenIDs {
+		oldConsumers := s.consumersByTokenID[tokenID]
 		if unit.eventQueue != nil {
 			delete(oldConsumers, name)
 		} else {
 			//logger
-			loggerUsage := s.loggersUsageByTokenId[tokenId]
+			loggerUsage := s.loggersUsageByTokenID[tokenID]
 			loggerUsage.usage -= 1
 			if loggerUsage.usage == 0 {
-				delete(oldConsumers, tokenId)
-				delete(s.loggersUsageByTokenId, tokenId)
+				delete(oldConsumers, tokenID)
+				delete(s.loggersUsageByTokenID, tokenID)
 				loggerUsage.logger.Close()
 			}
 		}
 
 		if len(oldConsumers) == 0 {
-			delete(s.consumersByTokenId, tokenId)
+			delete(s.consumersByTokenID, tokenID)
 		}
 
 		//storage
-		oldStorages, ok := s.storagesByTokenId[tokenId]
+		oldStorages, ok := s.storagesByTokenID[tokenID]
 		if ok {
 			delete(oldStorages, name)
 			if len(oldStorages) == 0 {
-				delete(s.storagesByTokenId, tokenId)
+				delete(s.storagesByTokenID, tokenID)
 			}
 		}
 
 		//id
-		ids, ok := s.destinationsIdByTokenId[tokenId]
+		ids, ok := s.destinationsIDByTokenID[tokenID]
 		if ok {
 			delete(ids, name)
 			if len(ids) == 0 {
-				delete(s.destinationsIdByTokenId, tokenId)
+				delete(s.destinationsIDByTokenID, tokenID)
 			}
 		}
 	}
@@ -326,7 +326,7 @@ func (s *Service) remove(name string, unit *Unit) {
 }
 
 func (s *Service) Close() (multiErr error) {
-	for token, loggerUsage := range s.loggersUsageByTokenId {
+	for token, loggerUsage := range s.loggersUsageByTokenID {
 		if err := loggerUsage.logger.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing logger for token [%s]: %v", token, err))
 		}

@@ -8,17 +8,17 @@ import (
 	"github.com/jitsucom/jitsu/server/parsers"
 )
 
-const IpLookup = "ip_lookup"
+const IPLookup = "ip_lookup"
 
-type IpLookupRule struct {
-	source                  *jsonutils.JsonPath
-	destination             *jsonutils.JsonPath
+type IPLookupRule struct {
+	source                  *jsonutils.JSONPath
+	destination             *jsonutils.JSONPath
 	geoResolver             geo.Resolver
 	enrichmentConditionFunc func(map[string]interface{}) bool
 }
 
-func NewIpLookupRule(source, destination *jsonutils.JsonPath) (*IpLookupRule, error) {
-	return &IpLookupRule{
+func NewIPLookupRule(source, destination *jsonutils.JSONPath) (*IPLookupRule, error) {
+	return &IPLookupRule{
 		source:      source,
 		destination: destination,
 		geoResolver: appconfig.Instance.GeoResolver,
@@ -29,7 +29,7 @@ func NewIpLookupRule(source, destination *jsonutils.JsonPath) (*IpLookupRule, er
 	}, nil
 }
 
-func (ir *IpLookupRule) Execute(event map[string]interface{}) {
+func (ir *IPLookupRule) Execute(event map[string]interface{}) {
 	if !ir.enrichmentConditionFunc(event) {
 		return
 	}
@@ -63,6 +63,6 @@ func (ir *IpLookupRule) Execute(event map[string]interface{}) {
 	}
 }
 
-func (ir *IpLookupRule) Name() string {
-	return IpLookup
+func (ir *IPLookupRule) Name() string {
+	return IPLookup
 }

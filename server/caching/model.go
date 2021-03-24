@@ -7,22 +7,22 @@ import (
 
 //entity
 type SucceedEvent struct {
-	DestinationId string                 `json:"destination_id,omitempty"`
+	DestinationID string                 `json:"destination_id,omitempty"`
 	Table         string                 `json:"table,omitempty"`
 	Record        []*adapters.TableField `json:"record,omitempty"`
 }
 
 //channel dto
 type originalEvent struct {
-	destinationId string
-	eventId       string
+	destinationID string
+	eventID       string
 	event         events.Event
 }
 
 //channel dto
 type succeedEvent struct {
-	destinationId string
-	eventId       string
+	destinationID string
+	eventID       string
 
 	table     *adapters.Table
 	processed events.Event
@@ -30,8 +30,8 @@ type succeedEvent struct {
 
 //channel dto
 type failedEvent struct {
-	destinationId string
-	eventId       string
+	destinationID string
+	eventID       string
 
 	error string
 }

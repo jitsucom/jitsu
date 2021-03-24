@@ -9,15 +9,23 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 )
 
+//DataType is a type representation of common data types
 type DataType int
 
 const (
 	//IMPORTANT: order of iota values. Int values according to Typecast tree (see typing.typecastTree)
+
+	//UNKNOWN type for error cases
 	UNKNOWN DataType = iota
+	//BOOL type for boolean values
 	BOOL
+	//INT64 type for int values
 	INT64
+	//FLOAT64 type for float values
 	FLOAT64
+	//STRING type for string values
 	STRING
+	//TIMESTAMP type for string values that match timestamp pattern
 	TIMESTAMP
 )
 
@@ -57,6 +65,8 @@ func (dt DataType) String() string {
 	}
 }
 
+//TypeFromString returns DataType from input string
+//or error if mapping doesn't exist
 func TypeFromString(t string) (DataType, error) {
 	trimmed := strings.TrimSpace(t)
 	lowerTrimmed := strings.ToLower(trimmed)
@@ -67,6 +77,8 @@ func TypeFromString(t string) (DataType, error) {
 	return dataType, nil
 }
 
+//StringFromType returns string representation of DataType
+//or error if mapping doesn't exist
 func StringFromType(dataType DataType) (string, error) {
 	str, ok := typeToInputString[dataType]
 	if !ok {

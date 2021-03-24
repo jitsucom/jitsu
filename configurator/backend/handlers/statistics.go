@@ -27,20 +27,21 @@ func NewStatisticsHandler(storage statistics.Storage, configurationsService *sto
 
 func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 	begin := time.Now()
-	projectId := c.Query("project_id")
-	if projectId == "" {
+	projectID := c.Query("project_id")
+	if projectID == "" {
 		c.JSON(http.StatusBadRequest, enmdlwr.ErrorResponse{Message: "[project_id] is a required query parameter"})
 		return
 	}
 
-	userProjectId := c.GetString(middleware.ProjectIdKey)
-	if userProjectId == "" {
-		c.JSON(http.StatusUnauthorized, enmdlwr.ErrorResponse{Error: systemErrProjectId.Error(), Message: "Authorization error"})
+	userProjectID := c.GetString(middleware.ProjectIDKey)
+	if userProjectID == "" {
+		logging.SystemError(ErrProjectIDNotFoundInContext)
+		c.JSON(http.StatusUnauthorized, enmdlwr.ErrorResponse{Error: ErrProjectIDNotFoundInContext.Error(), Message: "Authorization error"})
 		return
 	}
 
-	if userProjectId != projectId {
-		c.JSON(http.StatusUnauthorized, enmdlwr.ErrorResponse{Message: "User does not have access to project " + projectId})
+	if userProjectID != projectID {
+		c.JSON(http.StatusUnauthorized, enmdlwr.ErrorResponse{Message: "User does not have access to project " + projectID})
 		return
 	}
 
@@ -72,13 +73,13 @@ func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 		return
 	}
 
-	data, err := sh.storage.GetEvents(projectId, start, end, granularity)
+	data, err := sh.storage.GetEvents(projectID, start, end, granularity)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, enmdlwr.ErrorResponse{Message: "Failed to provide statistics", Error: err.Error()})
 		return
 	}
 
-	logging.Debugf("Statistics %s project %s response in [%.2f] seconds", granularity, projectId, time.Now().Sub(begin).Seconds())
+	logging.Debugf("Statistics %s project %s response in [%.2f] seconds", granularity, projectID, time.Now().Sub(begin).Seconds())
 	response := ResponseBody{Data: data, Status: "ok"}
 	c.JSON(http.StatusOK, response)
 }

@@ -7,7 +7,7 @@ import (
 )
 
 //Parse json bytes into map with json Numbers
-func ParseJson(b []byte) (map[string]interface{}, error) {
+func ParseJSON(b []byte) (map[string]interface{}, error) {
 	decoder := json.NewDecoder(bytes.NewReader(b))
 	decoder.UseNumber()
 
@@ -17,8 +17,8 @@ func ParseJson(b []byte) (map[string]interface{}, error) {
 }
 
 //Return parsed into map[string]interface{} event from events.FailedFact
-func ParseFallbackJson(line []byte) (map[string]interface{}, error) {
-	object, err := ParseJson(line)
+func ParseFallbackJSON(line []byte) (map[string]interface{}, error) {
+	object, err := ParseJSON(line)
 	if err != nil {
 		return nil, err
 	}

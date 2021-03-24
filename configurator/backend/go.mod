@@ -13,7 +13,6 @@ require (
 	github.com/gomodule/redigo v1.8.2
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/jitsucom/jitsu/server v1.28.2
-	github.com/lib/pq v1.8.0
 	github.com/prometheus/common v0.15.0
 	github.com/satori/go.uuid v1.1.0
 	github.com/spf13/viper v1.7.1

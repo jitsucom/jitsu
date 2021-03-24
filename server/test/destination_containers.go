@@ -28,6 +28,7 @@ const (
 	envPostgresPortVariable   = "PG_TEST_PORT"
 )
 
+//PostgresContainer is a Postgres testcontainer
 type PostgresContainer struct {
 	Container testcontainers.Container
 	Context   context.Context
@@ -39,8 +40,8 @@ type PostgresContainer struct {
 	Password  string
 }
 
-// Creates new Postgres test container if PG_TEST_PORT is not defined. Otherwise uses db at defined port. This logic is required
-// for running test at CI environment
+//NewPostgresContainer creates new Postgres test container if PG_TEST_PORT is not defined. Otherwise uses db at defined port. This logic is required
+//for running test at CI environment
 func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 	if os.Getenv(envPostgresPortVariable) != "" {
 		port, err := strconv.Atoi(os.Getenv(envPostgresPortVariable))
@@ -82,6 +83,8 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 		Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}, nil
 }
 
+//CountRows returns row count in DB table with name = table
+//or error if occurred
 func (pgc *PostgresContainer) CountRows(table string) (int, error) {
 	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
 		pgc.Host, pgc.Port, pgc.Database, pgc.Username, pgc.Password)
@@ -94,9 +97,9 @@ func (pgc *PostgresContainer) CountRows(table string) (int, error) {
 		errMessage := err.Error()
 		if strings.HasPrefix(errMessage, "pq: relation") && strings.HasSuffix(errMessage, "does not exist") {
 			return 0, err
-		} else {
-			return -1, err
 		}
+
+		return -1, err
 	}
 	defer rows.Close()
 	rows.Next()
@@ -105,6 +108,8 @@ func (pgc *PostgresContainer) CountRows(table string) (int, error) {
 	return count, err
 }
 
+//GetAllSortedRows returns all selected row from table ordered according to orderClause
+//or error if occurred
 func (pgc *PostgresContainer) GetAllSortedRows(table, orderClause string) ([]map[string]interface{}, error) {
 	connectionString := fmt.Sprintf("host=%s port=%d dbname=%s user=%s password=%s sslmode=disable",
 		pgc.Host, pgc.Port, pgc.Database, pgc.Username, pgc.Password)
@@ -147,6 +152,7 @@ func (pgc *PostgresContainer) GetAllSortedRows(table, orderClause string) ([]map
 	return objects, nil
 }
 
+//Close terminates underlying docker container
 func (pgc *PostgresContainer) Close() {
 	if pgc.Container != nil {
 		err := pgc.Container.Terminate(pgc.Context)
@@ -156,6 +162,7 @@ func (pgc *PostgresContainer) Close() {
 	}
 }
 
+//ClickHouseContainer is a ClickHouse testcontainer
 type ClickHouseContainer struct {
 	Container testcontainers.Container
 	Context   context.Context
@@ -165,7 +172,7 @@ type ClickHouseContainer struct {
 	Database string
 }
 
-// Creates new Clickhouse test container if CH_TEST_PORT is not defined. Otherwise uses db at defined port.
+//NewClickhouseContainer creates new Clickhouse test container if CH_TEST_PORT is not defined. Otherwise uses db at defined port.
 //This logic is required for running test at CI environment
 func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
 	if os.Getenv(envClickhousePortVariable) != "" {
@@ -199,6 +206,8 @@ func NewClickhouseContainer(ctx context.Context) (*ClickHouseContainer, error) {
 		Dsns: []string{fmt.Sprintf(chDatasourceTemplate, port.Int())}, Database: chDatabase, Port: port.Int()}, nil
 }
 
+//CountRows returns row count in DB table with name = table
+//or error if occurred
 func (ch *ClickHouseContainer) CountRows(table string) (int, error) {
 	dataSource, err := sql.Open("clickhouse", ch.Dsns[0])
 	if err != nil {
@@ -215,6 +224,7 @@ func (ch *ClickHouseContainer) CountRows(table string) (int, error) {
 	return count, err
 }
 
+//Close terminates underlying docker container
 func (ch *ClickHouseContainer) Close() {
 	if ch.Container != nil {
 		err := ch.Container.Terminate(ch.Context)

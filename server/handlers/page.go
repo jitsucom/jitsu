@@ -16,13 +16,13 @@ const hostConstant = "<REPLACE WITH DEPLOYED HOST URL>"
 var blankPage = []byte(`<html><head></head><body></body></html>`)
 
 type PageHandler struct {
-	serverPublicUrl string
+	serverPublicURL string
 	welcome         *template.Template
 }
 
 //Serve html files
-func NewPageHandler(sourceDir, serverPublicUrl string, disableWelcomePage bool) (ph *PageHandler) {
-	ph = &PageHandler{serverPublicUrl: serverPublicUrl}
+func NewPageHandler(sourceDir, serverPublicURL string, disableWelcomePage bool) (ph *PageHandler) {
+	ph = &PageHandler{serverPublicURL: serverPublicURL}
 
 	if disableWelcomePage {
 		return
@@ -37,7 +37,7 @@ func NewPageHandler(sourceDir, serverPublicUrl string, disableWelcomePage bool) 
 		return
 	}
 
-	welcomeHtmlTmpl, err := template.New("html template").
+	welcomeHTMLTmpl, err := template.New("html template").
 		Option("missingkey=zero").
 		Parse(string(payload))
 	if err != nil {
@@ -47,7 +47,7 @@ func NewPageHandler(sourceDir, serverPublicUrl string, disableWelcomePage bool) 
 
 	logging.Info("Serve html file:", "/"+welcomePageName)
 
-	ph.welcome = welcomeHtmlTmpl
+	ph.welcome = welcomeHTMLTmpl
 
 	return
 }
@@ -65,8 +65,8 @@ func (ph *PageHandler) Handler(c *gin.Context) {
 		}
 
 		host := c.GetHeader("Host")
-		if ph.serverPublicUrl != "" {
-			host = ph.serverPublicUrl
+		if ph.serverPublicURL != "" {
+			host = ph.serverPublicURL
 		}
 		if host == "" {
 			host = hostConstant

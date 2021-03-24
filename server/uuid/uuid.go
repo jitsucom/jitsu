@@ -9,10 +9,12 @@ import (
 
 var mock bool
 
+//InitMock initializes mock flag => New() func will return mock value everytime
 func InitMock() {
 	mock = true
 }
 
+//New returns uuid v4 string or the mocked value
 func New() string {
 	if mock {
 		return "mockeduuid"
@@ -21,6 +23,7 @@ func New() string {
 	return googleuuid.New().String()
 }
 
+//GetHash returns GetKeysHash result with keys from m
 func GetHash(m map[string]interface{}) string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -30,6 +33,7 @@ func GetHash(m map[string]interface{}) string {
 	return GetKeysHash(m, keys)
 }
 
+//GetKeysHash returns md5 hashsum of concatenated map values (sort keys before)
 func GetKeysHash(m map[string]interface{}, keys []string) string {
 	sort.Strings(keys)
 
