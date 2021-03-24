@@ -1,6 +1,13 @@
 version: 2.1
 
 jobs:
+  lint:
+    docker:
+      - image: circleci/golang:1.14
+    working_directory: /go/src/github.com/jitsucom/jitsu
+    steps:
+      - checkout
+      - golint -set_exit_status=true -min_confidence=1 ./...
   server-test:
     working_directory: /go/src/github.com/jitsucom/jitsu/server
     docker:
@@ -198,6 +205,8 @@ workflows:
   build-docker:
     jobs:
       - server-test:
+          requires:
+            - lint
           filters:
             tags:
               only: /.*/
