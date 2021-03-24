@@ -7,7 +7,7 @@ import MonacoEditor from 'react-monaco-editor';
 // @Types
 import { SourceFormConfigFieldProps as Props } from './SourceForm.types';
 // @Components
-import { LabelWithTooltip } from '../../../../../../lib/components/components';
+import { LabelWithTooltip } from '@./lib/components/components';
 
 const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, id, type, documentation }: Props) => {
   const fieldName = useMemo(() => `config.${id}`, [id]);
