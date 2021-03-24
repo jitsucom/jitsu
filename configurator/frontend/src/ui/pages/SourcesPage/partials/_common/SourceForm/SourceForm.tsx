@@ -6,7 +6,7 @@ import { FormProps as Props } from './SourceForm.types';
 // @Components
 import { SourceFormConfig } from './SourceFormConfig';
 import { SourceFormCollections } from './SourceFormCollections';
-import { handleError } from '../../../../../../lib/components/components';
+import { handleError } from '@./lib/components/components';
 // @Icons
 import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 // @Services
@@ -16,7 +16,7 @@ const SourceForm = ({
   connectorSource,
   isRequestPending,
   handleFinish,
-  alreadyExistSources,
+  sources,
   initialValues = {},
   formMode
 }: Props) => {
@@ -40,39 +40,59 @@ const SourceForm = ({
     }
   }, [services]);
 
+  const [form] = Form.useForm();
+
+  const handleButtonClick = async() => {
+    try {
+      const values = await form.validateFields();
+
+      handleFinish(values);
+    } catch (errors) {
+    }
+  };
+
   return (
-    <Form autoComplete="off" name={formName} onFinish={handleFinish} className="source-form">
+    <Form form={form} autoComplete="off" name={formName} onFinish={handleFinish} className="source-form">
       <div className="flex-grow">
-        <Tabs defaultActiveKey="config" type="card" size="middle" className="form-tabs">
+        <Tabs defaultActiveKey="collections" type="card" size="middle" className="form-tabs">
           <Tabs.TabPane tab="Config" key="config">
             <SourceFormConfig
               initialValues={initialValues}
-              alreadyExistSources={alreadyExistSources}
+              sources={sources}
               connectorSource={connectorSource}
+              sourceIdMustBeUnique={formMode === 'create'}
             />
           </Tabs.TabPane>
           {
-            connectorSource.collectionParameters.length > 0 && <Tabs.TabPane tab="Collections" key="collections">
-              <SourceFormCollections initialValues={initialValues} connectorSource={connectorSource} />
+            connectorSource.collectionParameters.length > 0 &&
+            <Tabs.TabPane tab="Collections" key="collections" forceRender>
+              <SourceFormCollections initialValues={initialValues} connectorSource={connectorSource} form={form}/>
             </Tabs.TabPane>
           }
         </Tabs>
       </div>
 
       <div className="flex-shrink border-t pt-2">
-        <Form.Item>
-          <Button
-            key="pwd-login-button"
-            type="primary"
-            htmlType="submit"
-            className="login-form-button"
-            loading={isRequestPending}
-          >
-            <span style={{ textTransform: 'capitalize' }}>{formMode}</span>&nbsp;source
-          </Button>
-        </Form.Item>
+        <Button
+          key="pwd-login-button"
+          type="primary"
+          htmlType="button"
+          size="large"
+          className="mr-3"
+          loading={isRequestPending}
+          onClick={handleButtonClick}
+        >
+          <span style={{ textTransform: 'capitalize' }}>{formMode}</span>&nbsp;source
+        </Button>
 
-        <Button className="fields-group" type="dashed" onClick={handleClick} loading={connectionTestPending} icon={<ApiOutlined />}>Test connection</Button>
+        <Button
+          size="large"
+          className="mr-3"
+          type="dashed"
+          onClick={handleClick}
+          loading={connectionTestPending}
+          icon={<ApiOutlined/>}
+        >Test connection</Button>
       </div>
     </Form>
   );

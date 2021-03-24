@@ -1,46 +1,56 @@
 import React from 'react';
 import { CollectionParameter, SourceConnector } from '@connectors/types';
+import { FormInstance } from 'antd/lib/form/hooks/useForm';
+import { FormListFieldData } from 'antd/es/form/FormList';
 
 export interface FormProps {
   connectorSource: SourceConnector;
   isRequestPending: boolean;
-  handleFinish: (args: any) => any;
-  alreadyExistSources: any;
+  handleFinish: (args: SourceData) => void;
+  sources: {
+    [key: string]: SourceData;
+  };
   initialValues: any;
   formMode: 'create' | 'edit';
 }
 
 export interface FormWrapProps {
-  sources: any;
+  sources: {
+    [key: string]: SourceData;
+  };
   connectorSource: SourceConnector;
   projectId: string;
-  sourceData?: any;
+  sourceData?: SourceData;
   formMode?: 'create' | 'edit';
 }
 
 export interface SourceFormConfigFieldProps {
-  initialValue: any;
+  initialValue: any; // string, object?
   id: string;
   displayName: string;
   required: boolean;
-  type: any;
+  type: string; // 'string' | 'json' | 'int' | 'yaml';
   documentation?: React.ReactNode;
 }
 
 export interface SourceFormConfigProps {
-  alreadyExistSources: any;
+  sources: {
+    [key: string]: SourceData;
+  };
   connectorSource: SourceConnector;
-  initialValues: any;
+  initialValues: SourceData;
+  sourceIdMustBeUnique: boolean;
 }
 
 export interface SourceFormCollectionsProps {
-  initialValues: any;
+  form: FormInstance;
+  initialValues: SourceData;
   connectorSource: SourceConnector;
 }
 
 export interface SourceFormCollectionsFieldProps {
   collection: CollectionParameter;
-  field: any;
-  initialFieldValue: any;
+  field: FormListFieldData;
+  initialFieldValue: CollectionSource;
   documentation?: React.ReactNode;
 }

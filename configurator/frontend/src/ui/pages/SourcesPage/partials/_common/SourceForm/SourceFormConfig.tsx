@@ -6,14 +6,14 @@ import { get, snakeCase } from 'lodash';
 import { naturalSort } from '@util/Array';
 import { SourceFormConfigField } from './SourceFormConfigField';
 // @Types
-import { RuleObject } from 'rc-field-form/lib/interface';
+import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 import { Parameter } from '@connectors/types';
 import { SourceFormConfigProps as Props } from './SourceForm.types';
 
-const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues }: Props) => {
+const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMustBeUnique }: Props) => {
 
-  const isUniqueSourceId = useCallback((sourceId: string) => !Object.keys(alreadyExistSources).includes(sourceId), [
-    alreadyExistSources
+  const isUniqueSourceId = useCallback((sourceId: string) => !Object.keys(sources).includes(sourceId), [
+    sources
   ]);
 
   const initialSourceId = useMemo(() => {
@@ -28,7 +28,7 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
     }
 
     const maxIndexSourceId = naturalSort(
-      Object.keys(alreadyExistSources).filter((key: string) => key.includes(preparedBlank))
+      Object.keys(sources).filter((key: string) => key.includes(preparedBlank))
     )?.pop();
 
     if (!maxIndexSourceId) {
@@ -46,11 +46,23 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
     }
 
     return sourceIdParts.join('_');
-  }, [alreadyExistSources, isUniqueSourceId, initialValues, connectorSource]);
+  }, [sources, isUniqueSourceId, initialValues, connectorSource]);
 
-  const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => Object.keys(alreadyExistSources).find((source) => source === value)
+  const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => Object.keys(sources).find((source) => source === value)
     ? Promise.reject('Source ID must be unique!')
-    : Promise.resolve(), [alreadyExistSources])
+    : Promise.resolve(), [sources])
+
+  const sourceIdValidators = useMemo(() => {
+    const rules: Rule[] = [{ required: true, message: 'Source ID is required field' }];
+
+    if (sourceIdMustBeUnique) {
+      rules.push({
+        validator: validateUniqueSourceId
+      });
+    }
+
+    return rules;
+  }, [validateUniqueSourceId, sourceIdMustBeUnique]);
 
   return (
     <>
@@ -61,15 +73,7 @@ const SourceFormConfig = ({ alreadyExistSources, connectorSource, initialValues 
             className="form-field_fixed-label"
             label={<span>SourceId:</span>}
             name="sourceId"
-            rules={[
-              {
-                required: true,
-                message: 'Source ID is required field'
-              },
-              {
-                validator: validateUniqueSourceId
-              }
-            ]}
+            rules={sourceIdValidators}
             labelCol={{ span: 6 }}
             wrapperCol={{ span: 18 }}
           >

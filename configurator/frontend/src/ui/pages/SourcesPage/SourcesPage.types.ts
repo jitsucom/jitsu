@@ -1,5 +1,7 @@
 export interface CommonSourcePageProps {
-  sources: any;
+  sources: {
+    [key: string]: SourceData;
+  };
   projectId: string;
   setSources: any;
 }
