@@ -2,7 +2,7 @@ package telemetry
 
 //InstanceInfo is a deploed server data dto
 type InstanceInfo struct {
-	Id string `json:"id,omitempty"`
+	ID string `json:"id,omitempty"`
 
 	Commit      string `json:"commit,omitempty"`
 	Tag         string `json:"tag,omitempty"`
@@ -19,7 +19,7 @@ type Usage struct {
 
 //Errors is a error accounting dto
 type Errors struct {
-	Id       int64 `json:"id,omitempty"`
+	ID       int64 `json:"id,omitempty"`
 	Quantity int64 `json:"quantity,omitempty"`
 }
 

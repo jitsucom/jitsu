@@ -16,13 +16,13 @@ type RequestFactory struct {
 func newRequestFactory(serviceName, commit, tag, buildAt string) *RequestFactory {
 	instanceID, err := getServerMacAddrHash()
 	if err != nil {
-		//TODO errors.New().GettingInstanceId()
+		//TODO errors.New().GettingInstanceID()
 		instanceID = "UNKNOWN"
 	}
 
 	return &RequestFactory{
 		iInfo: &InstanceInfo{
-			Id:          instanceID,
+			ID:          instanceID,
 			Commit:      commit,
 			Tag:         tag,
 			BuiltAt:     buildAt,
@@ -65,11 +65,11 @@ func getServerMacAddrHash() (string, error) {
 		return "", err
 	}
 
-	var serverIpStr string
+	var serverIPStr string
 	for _, addr := range iAddresses {
 		ipNet, ok := addr.(*net.IPNet)
 		if ok && !ipNet.IP.IsLoopback() && ipNet.IP.To4() != nil {
-			serverIpStr = ipNet.IP.String()
+			serverIPStr = ipNet.IP.String()
 		}
 	}
 
@@ -78,7 +78,7 @@ func getServerMacAddrHash() (string, error) {
 	for _, i := range interfaces {
 		if iAddresses, err := i.Addrs(); err == nil {
 			for _, addr := range iAddresses {
-				if strings.Contains(addr.String(), serverIpStr) {
+				if strings.Contains(addr.String(), serverIPStr) {
 					interfaceName = i.Name
 				}
 			}

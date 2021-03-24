@@ -2,15 +2,15 @@ package events
 
 import "fmt"
 
-func ExtractEventId(event Event) string {
+func ExtractEventID(event Event) string {
 	if event == nil {
 		return ""
 	}
 
 	//lookup eventn_ctx_event_id string
-	eventId, ok := event[EventnKey+"_"+EventIdKey]
+	eventID, ok := event[EventnKey+"_"+EventIDKey]
 	if ok {
-		return fmt.Sprintf("%v", eventId)
+		return fmt.Sprintf("%v", eventID)
 	}
 
 	//lookup eventn_ctx.event_id
@@ -18,9 +18,9 @@ func ExtractEventId(event Event) string {
 	if ok {
 		eventnObject, ok := eventnRaw.(map[string]interface{})
 		if ok {
-			eventId, ok := eventnObject[EventIdKey]
+			eventID, ok := eventnObject[EventIDKey]
 			if ok {
-				return fmt.Sprintf("%v", eventId)
+				return fmt.Sprintf("%v", eventID)
 			}
 		}
 

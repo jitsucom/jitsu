@@ -22,8 +22,8 @@ type FieldMapper struct {
 type DummyMapper struct{}
 
 type MappingRule struct {
-	source      *jsonutils.JsonPath
-	destination *jsonutils.JsonPath
+	source      *jsonutils.JSONPath
+	destination *jsonutils.JSONPath
 	action      string
 	value       interface{}
 }
@@ -51,8 +51,8 @@ func NewFieldMapper(oldStyleMappingType FieldMappingType, oldStyleMappings []str
 			}
 
 			rule := &MappingRule{
-				source:      jsonutils.NewJsonPath(mapping.Src),
-				destination: jsonutils.NewJsonPath(mapping.Dst),
+				source:      jsonutils.NewJSONPath(mapping.Src),
+				destination: jsonutils.NewJSONPath(mapping.Dst),
 				action:      mapping.Action,
 				value:       mapping.Value,
 			}
@@ -86,8 +86,8 @@ func NewFieldMapper(oldStyleMappingType FieldMappingType, oldStyleMappings []str
 		//without type casting
 		if !strings.Contains(destination, ")") {
 			rule := &MappingRule{
-				source:      jsonutils.NewJsonPath(source),
-				destination: jsonutils.NewJsonPath(destination),
+				source:      jsonutils.NewJSONPath(source),
+				destination: jsonutils.NewJSONPath(destination),
 			}
 			if rule.destination.IsEmpty() {
 				rule.action = REMOVE
@@ -113,8 +113,8 @@ func NewFieldMapper(oldStyleMappingType FieldMappingType, oldStyleMappings []str
 		//old type: integer, double
 		sqlTypeCasts[formattedDestination] = castType
 		rules = append(rules, &MappingRule{
-			source:      jsonutils.NewJsonPath(source),
-			destination: jsonutils.NewJsonPath(destParts[1]),
+			source:      jsonutils.NewJSONPath(source),
+			destination: jsonutils.NewJSONPath(destParts[1]),
 			action:      MOVE,
 		})
 	}
@@ -150,7 +150,7 @@ func (DummyMapper) Map(object map[string]interface{}) (map[string]interface{}, e
 }
 
 func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*MappingRule) error {
-	var fieldsToRemove []*jsonutils.JsonPath
+	var fieldsToRemove []*jsonutils.JSONPath
 	for _, rule := range rules {
 		switch rule.action {
 		case REMOVE:

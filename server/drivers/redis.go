@@ -68,12 +68,12 @@ func (r *Redis) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{},
 	connection := r.connectionPool.Get()
 	defer connection.Close()
 
-	configsById, err := redis.StringMap(connection.Do("hgetall", r.collection.Name))
+	configsByID, err := redis.StringMap(connection.Do("hgetall", r.collection.Name))
 	if err != nil {
 		return nil, err
 	}
 	var configs []map[string]interface{}
-	for id, stringConfig := range configsById {
+	for id, stringConfig := range configsByID {
 		config := map[string]interface{}{}
 		err := json.Unmarshal([]byte(stringConfig), &config)
 		if err != nil {

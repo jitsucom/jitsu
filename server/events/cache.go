@@ -34,7 +34,7 @@ func (ce *CachedBucket) Put(value Event) {
 		last := ce.events[lastIndex]
 		ce.events[ce.swapPointer] = last
 		ce.events[lastIndex] = value
-		ce.swapPointer += 1
+		ce.swapPointer++
 		if ce.swapPointer == ce.capacity-1 {
 			ce.swapPointer = 0
 		}
@@ -58,14 +58,14 @@ func (ce *CachedBucket) GetN(n int) []Event {
 }
 
 //Cache keep capacityPerKey last elements
-//1. per key (perApiKey map)
+//1. per key (perAPIKey map)
 //2. without key filter (all)
 type Cache struct {
 	sync.RWMutex
 
 	putCh chan *CachedEvent
 
-	perApiKey map[string]*CachedBucket
+	perAPIKey map[string]*CachedBucket
 	all       *CachedBucket
 
 	capacityPerKey int
@@ -76,7 +76,7 @@ type Cache struct {
 func NewCache(capacityPerKey int) *Cache {
 	c := &Cache{
 		putCh:          make(chan *CachedEvent, 1000000),
-		perApiKey:      map[string]*CachedBucket{},
+		perAPIKey:      map[string]*CachedBucket{},
 		capacityPerKey: capacityPerKey,
 		all: &CachedBucket{
 			events:      make([]Event, 0, capacityPerKey),
@@ -120,19 +120,19 @@ func (c *Cache) Put(key string, value Event) {
 
 	//per key
 	c.RLock()
-	element, ok := c.perApiKey[key]
+	element, ok := c.perAPIKey[key]
 	c.RUnlock()
 
 	if !ok {
 		c.Lock()
-		element, ok = c.perApiKey[key]
+		element, ok = c.perAPIKey[key]
 		if !ok {
 			element = &CachedBucket{
 				events:      make([]Event, 0, c.capacityPerKey),
 				swapPointer: 0,
 				capacity:    c.capacityPerKey,
 			}
-			c.perApiKey[key] = element
+			c.perAPIKey[key] = element
 		}
 		c.Unlock()
 	}
@@ -143,7 +143,7 @@ func (c *Cache) Put(key string, value Event) {
 //GetN return at most n events by key
 func (c *Cache) GetN(key string, n int) []Event {
 	c.RLock()
-	element, ok := c.perApiKey[key]
+	element, ok := c.perAPIKey[key]
 	c.RUnlock()
 	if ok {
 		return element.GetN(n)

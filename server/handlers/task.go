@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-type TaskIdResponse struct {
+type TaskIDResponse struct {
 	ID string `json:"task_id"`
 }
 
@@ -34,13 +34,13 @@ func NewTaskHandler(taskService *synchronization.TaskService, sourceService *sou
 }
 
 func (sh *TaskHandler) GetByIDHandler(c *gin.Context) {
-	taskId := c.Param("taskId")
-	if taskId == "" {
+	taskID := c.Param("taskID")
+	if taskID == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'task_id' is required path parameter"})
 		return
 	}
 
-	task, err := sh.taskService.GetTask(taskId)
+	task, err := sh.taskService.GetTask(taskID)
 	if err != nil {
 		logging.Error(err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Sync Task gathering failed", Error: err.Error()})
@@ -51,13 +51,13 @@ func (sh *TaskHandler) GetByIDHandler(c *gin.Context) {
 }
 
 func (sh *TaskHandler) GetAllHandler(c *gin.Context) {
-	sourceId := c.Query("source")
-	if sourceId == "" {
+	sourceID := c.Query("source")
+	if sourceID == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'source' is required query parameter"})
 		return
 	}
 
-	source, err := sh.sourceService.GetSource(sourceId)
+	source, err := sh.sourceService.GetSource(sourceID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error getting source", Error: err.Error()})
 		return
@@ -100,11 +100,11 @@ func (sh *TaskHandler) GetAllHandler(c *gin.Context) {
 		statusFilter = &status
 	}
 
-	collectionIdFilter := extractCollectionId(source.SourceType, c)
+	collectionIDFilter := extractCollectionID(source.SourceType, c)
 
 	var collectionsFilter []string
-	if collectionIdFilter == "" {
-		collections, err := sh.sourceService.GetCollections(sourceId)
+	if collectionIDFilter == "" {
+		collections, err := sh.sourceService.GetCollections(sourceID)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error getting source collections", Error: err.Error()})
 			return
@@ -112,12 +112,12 @@ func (sh *TaskHandler) GetAllHandler(c *gin.Context) {
 
 		collectionsFilter = append(collectionsFilter, collections...)
 	} else {
-		collectionsFilter = append(collectionsFilter, collectionIdFilter)
+		collectionsFilter = append(collectionsFilter, collectionIDFilter)
 	}
 
 	tasks := []synchronization.TaskDto{}
 	for _, collection := range collectionsFilter {
-		tasksPerCollection, err := sh.taskService.GetTasks(sourceId, collection, statusFilter, start, end)
+		tasksPerCollection, err := sh.taskService.GetTasks(sourceID, collection, statusFilter, start, end)
 		if err != nil {
 			logging.Error(err)
 			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Task gathering failed", Error: err.Error()})
@@ -132,8 +132,8 @@ func (sh *TaskHandler) GetAllHandler(c *gin.Context) {
 
 func (sh *TaskHandler) TaskLogsHandler(c *gin.Context) {
 	var err error
-	taskId := c.Param("taskId")
-	if taskId == "" {
+	taskID := c.Param("taskID")
+	if taskID == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'task_id' is required path parameter"})
 		return
 	}
@@ -160,7 +160,7 @@ func (sh *TaskHandler) TaskLogsHandler(c *gin.Context) {
 		}
 	}
 
-	logRecords, err := sh.taskService.GetTaskLogs(taskId, start, end)
+	logRecords, err := sh.taskService.GetTaskLogs(taskID, start, end)
 	if err != nil {
 		logging.Error(err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Task logs gathering failed", Error: err.Error()})
@@ -171,28 +171,28 @@ func (sh *TaskHandler) TaskLogsHandler(c *gin.Context) {
 }
 
 func (sh *TaskHandler) SyncHandler(c *gin.Context) {
-	sourceId := c.Query("source")
-	if sourceId == "" {
+	sourceID := c.Query("source")
+	if sourceID == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'source' is required query parameter"})
 		return
 	}
 
-	source, err := sh.sourceService.GetSource(sourceId)
+	source, err := sh.sourceService.GetSource(sourceID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error getting source", Error: err.Error()})
 		return
 	}
 
-	collectionId := extractCollectionId(source.SourceType, c)
-	if collectionId == "" {
+	collectionID := extractCollectionID(source.SourceType, c)
+	if collectionID == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'collection' is required query parameter"})
 		return
 	}
 
-	taskId, err := sh.taskService.Sync(sourceId, collectionId, synchronization.NOW)
+	taskID, err := sh.taskService.Sync(sourceID, collectionID, synchronization.NOW)
 	if err != nil {
 		if err == synchronization.ErrSourceCollectionIsSyncing {
-			c.JSON(http.StatusOK, TaskIdResponse{ID: taskId})
+			c.JSON(http.StatusOK, TaskIDResponse{ID: taskID})
 			return
 		}
 
@@ -201,15 +201,15 @@ func (sh *TaskHandler) SyncHandler(c *gin.Context) {
 			return
 		}
 
-		logging.Errorf("Error sync source [%s] collection [%s]: %v", sourceId, collectionId, err)
+		logging.Errorf("Error sync source [%s] collection [%s]: %v", sourceID, collectionID, err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Sync Task creation failed", Error: err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusCreated, TaskIdResponse{ID: taskId})
+	c.JSON(http.StatusCreated, TaskIDResponse{ID: taskID})
 }
 
-func extractCollectionId(sourceType string, c *gin.Context) string {
+func extractCollectionID(sourceType string, c *gin.Context) string {
 	if sourceType == drivers.SingerType {
 		return drivers.DefaultSingerCollection
 	}

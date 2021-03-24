@@ -70,17 +70,17 @@ func TestParseFromBytes(t *testing.T) {
 
 func buildExpected() *TokensHolder {
 	token1 := Token{
-		Id:           "id1",
+		ID:           "id1",
 		ClientSecret: "cl_secret1",
 		ServerSecret: "sr_secret1",
 		Origins:      []string{"abc.com", "rr.ru"},
 	}
 	token2 := Token{
-		Id:           "31429624a471b9bdc6d60350c6cfc24d",
+		ID:           "31429624a471b9bdc6d60350c6cfc24d",
 		ClientSecret: "cl_secret2",
 	}
 	token3 := Token{
-		Id:           "03f9ed11a0268dd78766686f8f292b7b",
+		ID:           "03f9ed11a0268dd78766686f8f292b7b",
 		ServerSecret: "sr_secret3",
 	}
 	return &TokensHolder{
@@ -122,11 +122,11 @@ func TestFromStrings(t *testing.T) {
 				clientTokensOrigins: map[string][]string{"token1": nil, "token2": nil},
 				serverTokensOrigins: map[string][]string{},
 				all: map[string]Token{
-					"78b1e6d775cec5260001af137a79dbd5": {Id: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
-					"token1":                           {Id: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
+					"78b1e6d775cec5260001af137a79dbd5": {ID: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
+					"token1":                           {ID: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
 
-					"0e0530c1430da76495955eb06eb99d95": {Id: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
-					"token2":                           {Id: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
+					"0e0530c1430da76495955eb06eb99d95": {ID: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
+					"token2":                           {ID: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
 				},
 				ids: []string{"78b1e6d775cec5260001af137a79dbd5", "0e0530c1430da76495955eb06eb99d95"},
 			},
@@ -139,14 +139,14 @@ func TestFromStrings(t *testing.T) {
 				clientTokensOrigins: map[string][]string{"token1": nil, "token2": nil},
 				serverTokensOrigins: map[string][]string{"s2s": nil},
 				all: map[string]Token{
-					"78b1e6d775cec5260001af137a79dbd5": {Id: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
-					"token1":                           {Id: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
+					"78b1e6d775cec5260001af137a79dbd5": {ID: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
+					"token1":                           {ID: "78b1e6d775cec5260001af137a79dbd5", ClientSecret: "token1"},
 
-					"0e0530c1430da76495955eb06eb99d95": {Id: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
-					"token2":                           {Id: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
+					"0e0530c1430da76495955eb06eb99d95": {ID: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
+					"token2":                           {ID: "0e0530c1430da76495955eb06eb99d95", ClientSecret: "token2"},
 
-					"56c61ed958d9e124f3c2767637147a0c": {Id: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
-					"s2s":                              {Id: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
+					"56c61ed958d9e124f3c2767637147a0c": {ID: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
+					"s2s":                              {ID: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
 				},
 				ids: []string{"78b1e6d775cec5260001af137a79dbd5", "0e0530c1430da76495955eb06eb99d95", "56c61ed958d9e124f3c2767637147a0c"},
 			},
@@ -159,8 +159,8 @@ func TestFromStrings(t *testing.T) {
 				clientTokensOrigins: map[string][]string{},
 				serverTokensOrigins: map[string][]string{"s2s": nil},
 				all: map[string]Token{
-					"56c61ed958d9e124f3c2767637147a0c": {Id: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
-					"s2s":                              {Id: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
+					"56c61ed958d9e124f3c2767637147a0c": {ID: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
+					"s2s":                              {ID: "56c61ed958d9e124f3c2767637147a0c", ServerSecret: "s2s"},
 				},
 				ids: []string{"56c61ed958d9e124f3c2767637147a0c"},
 			},

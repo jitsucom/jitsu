@@ -74,7 +74,7 @@ func TestGet(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jp := NewJsonPath(tt.path)
+			jp := NewJSONPath(tt.path)
 
 			actualValue, ok := jp.Get(tt.inputObject)
 			require.Equal(t, tt.expectedExistence, ok)
@@ -171,7 +171,7 @@ func TestGetAndRemove(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jp := NewJsonPath(tt.path)
+			jp := NewJSONPath(tt.path)
 
 			actualValue, ok := jp.GetAndRemove(tt.inputObject)
 			require.Equal(t, tt.expectedExistence, ok)
@@ -266,7 +266,7 @@ func TestSet(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jp := NewJsonPath(tt.path)
+			jp := NewJSONPath(tt.path)
 
 			err := jp.Set(tt.inputObject, tt.inputValue)
 			if tt.expectedErr != "" {

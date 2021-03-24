@@ -100,25 +100,25 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 	}
 
 	//parse singer config as file path
-	configPath, err := parseJsonAsFile(pathToVenv, config.Config)
+	configPath, err := parseJSONAsFile(pathToVenv, config.Config)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
 	}
 
 	//parse singer catalog as file path
-	catalogPath, err := parseJsonAsFile(pathToVenv, config.Catalog)
+	catalogPath, err := parseJSONAsFile(pathToVenv, config.Catalog)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer catalog [%v]: %v", config.Catalog, err)
 	}
 
 	//parse singer properties as file path
-	propertiesPath, err := parseJsonAsFile(pathToVenv, config.Properties)
+	propertiesPath, err := parseJSONAsFile(pathToVenv, config.Properties)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer properties [%v]: %v", config.Properties, err)
 	}
 
 	//parse singer state as file path
-	statePath, err := parseJsonAsFile(pathToVenv, config.InitialState)
+	statePath, err := parseJSONAsFile(pathToVenv, config.InitialState)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer initial state [%v]: %v", config.InitialState, err)
 	}
@@ -197,7 +197,7 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 	var statePath string
 	var err error
 	if state != "" {
-		statePath, err = parseJsonAsFile(path.Join(singer.Instance.VenvDir, s.sourceName, s.tap, stateFileName), state)
+		statePath, err = parseJSONAsFile(path.Join(singer.Instance.VenvDir, s.sourceName, s.tap, stateFileName), state)
 		if err != nil {
 			return fmt.Errorf("Error parsing singer state %s: %v", state, err)
 		}
@@ -231,14 +231,14 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 	stderr, _ := syncCmd.StderrPipe()
 	defer stderr.Close()
 
-	commandId := uuid.New()
+	commandID := uuid.New()
 	s.Lock()
-	s.commands[commandId] = syncCmd
+	s.commands[commandID] = syncCmd
 	s.Unlock()
 
 	defer func() {
 		s.Lock()
-		delete(s.commands, commandId)
+		delete(s.commands, commandID)
 		s.Unlock()
 	}()
 
@@ -342,7 +342,7 @@ func execCmd(cmd string, args ...string) error {
 //parse value and write it to a json file
 //return path to created json file or return value if it is already path to json file
 //or empty string if value is nil
-func parseJsonAsFile(newPath string, value interface{}) (string, error) {
+func parseJSONAsFile(newPath string, value interface{}) (string, error) {
 	if value == nil {
 		return "", nil
 	}

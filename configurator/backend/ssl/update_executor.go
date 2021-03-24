@@ -50,8 +50,8 @@ func (e *UpdateExecutor) Run() error {
 	if err != nil {
 		return err
 	}
-	for projectId, domains := range domainsPerProject {
-		if err := e.processProjectDomains(projectId, domains); err != nil {
+	for projectID, domains := range domainsPerProject {
+		if err := e.processProjectDomains(projectID, domains); err != nil {
 			logging.Error(err)
 			return err
 		}
@@ -59,39 +59,39 @@ func (e *UpdateExecutor) Run() error {
 	return nil
 }
 
-func (e *UpdateExecutor) RunForProject(projectId string) error {
-	domains, err := e.sslService.LoadCustomDomainsByProjectId(projectId)
+func (e *UpdateExecutor) RunForProject(projectID string) error {
+	domains, err := e.sslService.LoadCustomDomainsByProjectID(projectID)
 	if err != nil {
 		return err
 	}
-	return e.processProjectDomains(projectId, domains)
+	return e.processProjectDomains(projectID, domains)
 }
 
-func (e *UpdateExecutor) processProjectDomains(projectId string, domains *entities.CustomDomains) error {
+func (e *UpdateExecutor) processProjectDomains(projectID string, domains *entities.CustomDomains) error {
 	validDomains := filterExistingCNames(domains, e.enCName)
 	updateRequired, err := updateRequired(domains, validDomains)
 	if err != nil {
 		return err
 	}
 	if !updateRequired {
-		return e.sslService.UpdateCustomDomains(projectId, domains)
+		return e.sslService.UpdateCustomDomains(projectID, domains)
 	}
 
-	certificate, privateKey, err := e.sslService.ExecuteHttp01Challenge(validDomains)
+	certificate, privateKey, err := e.sslService.ExecuteHTTP01Challenge(validDomains)
 	if err != nil {
 		return err
 	}
-	certFileName := e.sslCertificatesStorePath + projectId + "_cert.pem"
+	certFileName := e.sslCertificatesStorePath + projectID + "_cert.pem"
 	err = ioutil.WriteFile(certFileName, certificate, rwPermission)
 	if err != nil {
 		return err
 	}
-	pkFileName := e.privateKeyPath + projectId + "_pk.pem"
+	pkFileName := e.privateKeyPath + projectID + "_pk.pem"
 	err = ioutil.WriteFile(pkFileName, privateKey, rwPermission)
 	if err != nil {
 		return err
 	}
-	if err = e.sslService.UploadCertificate(certFileName, pkFileName, projectId, validDomains, e.enHosts); err != nil {
+	if err = e.sslService.UploadCertificate(certFileName, pkFileName, projectID, validDomains, e.enHosts); err != nil {
 		return err
 	}
 
@@ -102,7 +102,7 @@ func (e *UpdateExecutor) processProjectDomains(projectId string, domains *entiti
 	}
 	expirationDate := time.Now().UTC().Add(time.Hour * time.Duration(24*90))
 	domains.CertificateExpirationDate = entime.AsISOString(expirationDate)
-	err = e.sslService.UpdateCustomDomains(projectId, domains)
+	err = e.sslService.UpdateCustomDomains(projectID, domains)
 	if err != nil {
 		return err
 	}

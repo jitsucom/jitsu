@@ -78,16 +78,16 @@ func (u *PeriodicUploader) Start() {
 					continue
 				}
 				//get token from filename
-				regexResult := logging.TokenIdExtractRegexp.FindStringSubmatch(fileName)
+				regexResult := logging.TokenIDExtractRegexp.FindStringSubmatch(fileName)
 				if len(regexResult) != 2 {
 					logging.SystemErrorf("Error processing file %s. Malformed name", filePath)
 					continue
 				}
 
-				tokenId := regexResult[1]
-				storageProxies := u.destinationService.GetStorages(tokenId)
+				tokenID := regexResult[1]
+				storageProxies := u.destinationService.GetStorages(tokenID)
 				if len(storageProxies) == 0 {
-					logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenId)
+					logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
 					continue
 				}
 
@@ -110,7 +110,7 @@ func (u *PeriodicUploader) Start() {
 
 					resultPerTable, errRowsCount, err := storage.Store(fileName, b, alreadyUploadedTables)
 					if errRowsCount > 0 {
-						metrics.ErrorTokenEvents(tokenId, storage.Name(), errRowsCount)
+						metrics.ErrorTokenEvents(tokenID, storage.Name(), errRowsCount)
 						counters.ErrorEvents(storage.Name(), errRowsCount)
 					}
 
@@ -124,10 +124,10 @@ func (u *PeriodicUploader) Start() {
 						if result.Err != nil {
 							archiveFile = false
 							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.Name(), tableName, filePath, result.Err)
-							metrics.ErrorTokenEvents(tokenId, storage.Name(), result.RowsCount)
+							metrics.ErrorTokenEvents(tokenID, storage.Name(), result.RowsCount)
 							counters.ErrorEvents(storage.Name(), result.RowsCount)
 						} else {
-							metrics.SuccessTokenEvents(tokenId, storage.Name(), result.RowsCount)
+							metrics.SuccessTokenEvents(tokenID, storage.Name(), result.RowsCount)
 							counters.SuccessEvents(storage.Name(), result.RowsCount)
 						}
 

@@ -41,27 +41,28 @@ func (eh *EventsHandler) OldGetHandler(c *gin.Context) {
 		}
 	}
 
-	projectId := c.Query("project_id")
-	if projectId == "" {
+	projectID := c.Query("project_id")
+	if projectID == "" {
 		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "[project_id] is a required query parameter"})
 		return
 	}
 
-	userProjectId := c.GetString(middleware.ProjectIdKey)
-	if userProjectId == "" {
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: systemErrProjectId.Error(), Message: "Authorization error"})
+	userProjectID := c.GetString(middleware.ProjectIDKey)
+	if userProjectID == "" {
+		logging.SystemError(ErrProjectIDNotFoundInContext)
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: ErrProjectIDNotFoundInContext.Error(), Message: "Authorization error"})
 		return
 	}
 
-	if userProjectId != projectId {
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Message: "User does not have access to project " + projectId})
+	if userProjectID != projectID {
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Message: "User does not have access to project " + projectID})
 		return
 	}
 
-	apiKeysObjects, err := eh.configurationsProvider.GetApiKeysByProjectId(projectId)
+	apiKeysObjects, err := eh.configurationsProvider.GetAPIKeysByProjectID(projectID)
 	if err != nil {
-		logging.Errorf("Error getting api keys for [%s] project. All destinations will be skipped: %v", projectId, err)
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Error getting api keys for project " + projectId})
+		logging.Errorf("Error getting api keys for [%s] project. All destinations will be skipped: %v", projectID, err)
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Error getting api keys for project " + projectID})
 		return
 	}
 	if len(apiKeysObjects) == 0 {
@@ -107,29 +108,30 @@ func (eh *EventsHandler) GetHandler(c *gin.Context) {
 		end = time.Now().UTC().Format(timestamp.Layout)
 	}
 
-	projectId := c.Query("project_id")
-	if projectId == "" {
+	projectID := c.Query("project_id")
+	if projectID == "" {
 		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "[project_id] is a required query parameter"})
 		return
 	}
 
-	userProjectId := c.GetString(middleware.ProjectIdKey)
-	if userProjectId == "" {
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: systemErrProjectId.Error(), Message: "Authorization error"})
+	userProjectID := c.GetString(middleware.ProjectIDKey)
+	if userProjectID == "" {
+		logging.SystemError(ErrProjectIDNotFoundInContext)
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: ErrProjectIDNotFoundInContext.Error(), Message: "Authorization error"})
 		return
 	}
 
-	if userProjectId != projectId {
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Message: "User does not have access to project " + projectId})
+	if userProjectID != projectID {
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Message: "User does not have access to project " + projectID})
 		return
 	}
 
-	destinationIds := c.Query("destination_ids")
-	if destinationIds == "" {
-		destinationsObjects, err := eh.configurationsProvider.GetDestinationsByProjectId(projectId)
+	destinationIDs := c.Query("destination_ids")
+	if destinationIDs == "" {
+		destinationsObjects, err := eh.configurationsProvider.GetDestinationsByProjectID(projectID)
 		if err != nil {
-			logging.Errorf("Error getting destinations for [%s] project: %v", projectId, err)
-			c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Error getting destinations for project " + projectId})
+			logging.Errorf("Error getting destinations for [%s] project: %v", projectID, err)
+			c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Error getting destinations for project " + projectID})
 			return
 		}
 
@@ -138,16 +140,16 @@ func (eh *EventsHandler) GetHandler(c *gin.Context) {
 			return
 		}
 
-		var destinationIdsArray []string
+		var destinationIDsArray []string
 		for _, destinationObject := range destinationsObjects {
-			destinationId := projectId + "." + destinationObject.Uid
-			destinationIdsArray = append(destinationIdsArray, destinationId)
+			destinationID := projectID + "." + destinationObject.UID
+			destinationIDsArray = append(destinationIDsArray, destinationID)
 		}
 
-		destinationIds = strings.Join(destinationIdsArray, ",")
+		destinationIDs = strings.Join(destinationIDsArray, ",")
 	}
 
-	events, err := eh.enService.GetLastEvents(destinationIds, start, end, limit)
+	events, err := eh.enService.GetLastEvents(destinationIDs, start, end, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Message: "Events err", Error: err.Error()})
 		return

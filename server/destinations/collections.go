@@ -5,64 +5,64 @@ import (
 	"github.com/jitsucom/jitsu/server/storages"
 )
 
-//map["tokenId"]map["destination_name"]true
-type TokenizedIds map[string]map[string]bool
+//map["tokenID"]map["destination_name"]true
+type TokenizedIDs map[string]map[string]bool
 
-//map["tokenId"]map["destination_name"]interface
+//map["tokenID"]map["destination_name"]interface
 //because 1 token id = ∞ storages
 type TokenizedStorages map[string]map[string]storages.StorageProxy
 
-//map["tokenId"]map["tokenId | destination_name"]interface
+//map["tokenID"]map["tokenID | destination_name"]interface
 //because 1 token id = 1logger but ∞ event.queue
 type TokenizedConsumers map[string]map[string]events.Consumer
 
-func (ts TokenizedStorages) Add(tokenId, name string, proxy storages.StorageProxy) {
-	storageProxies, ok := ts[tokenId]
+func (ts TokenizedStorages) Add(tokenID, name string, proxy storages.StorageProxy) {
+	storageProxies, ok := ts[tokenID]
 	if !ok {
 		storageProxies = map[string]storages.StorageProxy{}
-		ts[tokenId] = storageProxies
+		ts[tokenID] = storageProxies
 	}
 	storageProxies[name] = proxy
 }
 
 func (ts TokenizedStorages) AddAll(other TokenizedStorages) {
-	for tokenId, storages := range other {
+	for tokenID, storages := range other {
 		for name, storage := range storages {
-			ts.Add(tokenId, name, storage)
+			ts.Add(tokenID, name, storage)
 		}
 	}
 }
 
-func (tc TokenizedConsumers) Add(tokenId, name string, proxy events.Consumer) {
-	consumers, ok := tc[tokenId]
+func (tc TokenizedConsumers) Add(tokenID, name string, proxy events.Consumer) {
+	consumers, ok := tc[tokenID]
 	if !ok {
 		consumers = map[string]events.Consumer{}
-		tc[tokenId] = consumers
+		tc[tokenID] = consumers
 	}
 	consumers[name] = proxy
 }
 
 func (tc TokenizedConsumers) AddAll(other TokenizedConsumers) {
-	for tokenId, consumers := range other {
+	for tokenID, consumers := range other {
 		for name, consumer := range consumers {
-			tc.Add(tokenId, name, consumer)
+			tc.Add(tokenID, name, consumer)
 		}
 	}
 }
 
-func (ti TokenizedIds) Add(tokenId, name string) {
-	ids, ok := ti[tokenId]
+func (ti TokenizedIDs) Add(tokenID, name string) {
+	ids, ok := ti[tokenID]
 	if !ok {
 		ids = map[string]bool{}
-		ti[tokenId] = ids
+		ti[tokenID] = ids
 	}
 	ids[name] = true
 }
 
-func (ti TokenizedIds) AddAll(other TokenizedIds) {
-	for tokenId, ids := range other {
+func (ti TokenizedIDs) AddAll(other TokenizedIDs) {
+	for tokenID, ids := range other {
 		for id := range ids {
-			ti.Add(tokenId, id)
+			ti.Add(tokenID, id)
 		}
 	}
 }
