@@ -11,7 +11,7 @@ import { SourceConnector } from '@connectors/types';
 // @Sources
 import { allSources } from '@connectors/sources';
 
-const AddSource = ({ projectId, sources }: CommonSourcePageProps) => {
+const AddSource = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
   const params = useParams<{ source: string }>();
 
   const connectorSource = useMemo<SourceConnector>(
@@ -45,6 +45,7 @@ const AddSource = ({ projectId, sources }: CommonSourcePageProps) => {
         connectorSource={connectorSource}
         projectId={projectId}
         sources={sources}
+        setSources={setSources}
       />
     </>
   );

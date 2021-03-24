@@ -19,7 +19,8 @@ const SourceFormWrap = ({
   connectorSource,
   projectId,
   sourceData = {} as SourceData,
-  formMode = 'create'
+  formMode = 'create',
+  setSources
 }: FormWrapProps) => {
   const history = useHistory();
 
@@ -64,8 +65,11 @@ const SourceFormWrap = ({
           },
           projectId
         )
-        .then(() => {
-          switchPending(false);
+        .then((response) => {
+          setSources({
+            ...sources,
+            [payload.sourceId]: payload
+          });
 
           message.success('New source has been added!');
 
@@ -73,9 +77,10 @@ const SourceFormWrap = ({
         })
         .catch((error) => {
           message.error("Something goes wrong, source hasn't been added");
-        });
+        })
+        .finally(() => switchPending(false));
     },
-    [connectorSource.collectionParameters, connectorSource.id, services.storageService, projectId, sources, history]
+    [connectorSource.collectionParameters, connectorSource.id, services.storageService, projectId, sources, history, setSources]
   );
 
   return (

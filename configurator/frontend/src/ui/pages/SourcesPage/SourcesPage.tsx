@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Route, Switch } from 'react-router-dom';
+import { Route, RouteProps, Switch } from 'react-router-dom';
 // @Routes
 import { routes } from './routes';
 // @Components
@@ -12,24 +12,24 @@ import { CenteredSpin } from '@./lib/components/components';
 import ApplicationServices from '@service/ApplicationServices';
 // @Styles
 import './SourcesPage.less';
+import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 
 const SourcesPage = () => {
-  const [sources, setSources] = useState();
+  const [sources, setSources] = useState<{ [key: string]: SourceData }>();
 
   const services = useMemo(() => ApplicationServices.get(), []);
 
   const projectId = useMemo(() => services.activeProject.id, [services]);
 
   const getComponent = useCallback(
-    (Component: React.FC<any>) => (currentProps: any) =>
-      <Component sources={sources} setSources={setSources} projectId={projectId} {...currentProps} />
-    ,
+    (Component: React.FC<CommonSourcePageProps>) => (currentProps: RouteProps) =>
+      <Component setSources={setSources} sources={sources} projectId={projectId} {...currentProps} />,
     [projectId, sources]
   );
 
   useEffect(() => {
-    services.storageService.get('sources', projectId).then(({ _lastUpdated, ...response }) => setSources(response));
-  }, [services.storageService, projectId]);
+    services.storageService.get('sources', projectId).then(({ _lastUpdated, ...response }) => setSources(response))
+  }, [services, projectId]);
 
   return (
     <>

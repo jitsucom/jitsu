@@ -2,6 +2,7 @@ import React from 'react';
 import { CollectionParameter, SourceConnector } from '@connectors/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData } from 'antd/es/form/FormList';
+import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 
 export interface FormProps {
   connectorSource: SourceConnector;
@@ -14,12 +15,8 @@ export interface FormProps {
   formMode: 'create' | 'edit';
 }
 
-export interface FormWrapProps {
-  sources: {
-    [key: string]: SourceData;
-  };
+export interface FormWrapProps extends CommonSourcePageProps {
   connectorSource: SourceConnector;
-  projectId: string;
   sourceData?: SourceData;
   formMode?: 'create' | 'edit';
 }
