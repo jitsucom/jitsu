@@ -134,19 +134,19 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 	//get destinations
 	var destinationStorages []storages.Storage
-	for _, destinationId := range sourceUnit.DestinationIds {
-		storageProxy, ok := te.destinationService.GetStorageById(destinationId)
+	for _, destinationID := range sourceUnit.DestinationIDs {
+		storageProxy, ok := te.destinationService.GetStorageByID(destinationID)
 		if ok {
 			storage, ok := storageProxy.Get()
 			if ok {
 				destinationStorages = append(destinationStorages, storage)
 			} else {
-				msg := fmt.Sprintf("Unable to get destination [%s] in source [%s]: destination isn't initialized", destinationId, task.Source)
+				msg := fmt.Sprintf("Unable to get destination [%s] in source [%s]: destination isn't initialized", destinationID, task.Source)
 				logging.SystemError(msg)
 				taskLogger.ERROR(msg)
 			}
 		} else {
-			msg := fmt.Sprintf("Unable to get destination [%s] in source [%s]: doesn't exist", destinationId, task.Source)
+			msg := fmt.Sprintf("Unable to get destination [%s] in source [%s]: doesn't exist", destinationID, task.Source)
 			logging.SystemError(msg)
 			taskLogger.ERROR(msg)
 		}
@@ -246,7 +246,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			//enrich with values
 			object["src"] = "source"
 			object[timestamp.Key] = timestamp.NowUTC()
-			events.EnrichWithEventId(object, uuid.GetHash(object))
+			events.EnrichWithEventID(object, uuid.GetHash(object))
 			events.EnrichWithCollection(object, task.Collection)
 			events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
 		}

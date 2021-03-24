@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-func MapConfig(destinationId string, destination *entities.Destination, defaultS3 *enadapters.S3Config) (*enstorages.DestinationConfig, error) {
+func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config) (*enstorages.DestinationConfig, error) {
 	var config *enstorages.DestinationConfig
 	var err error
 	switch destination.Type {
@@ -19,7 +19,7 @@ func MapConfig(destinationId string, destination *entities.Destination, defaultS
 	case enstorages.ClickHouseType:
 		config, err = mapClickhouse(destination)
 	case enstorages.RedshiftType:
-		config, err = mapRedshift(destinationId, destination, defaultS3)
+		config, err = mapRedshift(destinationID, destination, defaultS3)
 	case enstorages.BigQueryType:
 		config, err = mapBigQuery(destination)
 	case enstorages.SnowflakeType:
@@ -49,8 +49,8 @@ func MapConfig(destinationId string, destination *entities.Destination, defaultS
 	if destination.UsersRecognition != nil {
 		config.UsersRecognition = &enstorages.UsersRecognition{
 			Enabled:         destination.UsersRecognition.Enabled,
-			AnonymousIdNode: destination.UsersRecognition.AnonymousIdNode,
-			UserIdNode:      destination.UsersRecognition.UserIdJsonNode,
+			AnonymousIDNode: destination.UsersRecognition.AnonymousIDNode,
+			UserIDNode:      destination.UsersRecognition.UserIDJSONNode,
 		}
 	} else {
 		config.UsersRecognition = &enstorages.UsersRecognition{Enabled: false}
@@ -70,8 +70,8 @@ func mapBigQuery(bqDestination *entities.Destination) (*enstorages.DestinationCo
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshaling BigQuery form data: %v", err)
 	}
-	gcs := &enadapters.GoogleConfig{Project: bqFormData.ProjectId, Bucket: bqFormData.GCSBucket,
-		KeyFile: bqFormData.JsonKey, Dataset: bqFormData.Dataset}
+	gcs := &enadapters.GoogleConfig{Project: bqFormData.ProjectID, Bucket: bqFormData.GCSBucket,
+		KeyFile: bqFormData.JSONKey, Dataset: bqFormData.Dataset}
 	return &enstorages.DestinationConfig{
 		Type: enstorages.BigQueryType,
 		Mode: bqFormData.Mode,
@@ -142,7 +142,7 @@ func mapClickhouse(chDestinations *entities.Destination) (*enstorages.Destinatio
 	}, nil
 }
 
-func mapRedshift(destinationId string, rsDestinations *entities.Destination, defaultS3 *enadapters.S3Config) (*enstorages.DestinationConfig, error) {
+func mapRedshift(destinationID string, rsDestinations *entities.Destination, defaultS3 *enadapters.S3Config) (*enstorages.DestinationConfig, error) {
 	b, err := json.Marshal(rsDestinations.Data)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshaling redshift config destination: %v", err)
@@ -161,7 +161,7 @@ func mapRedshift(destinationId string, rsDestinations *entities.Destination, def
 			SecretKey:   defaultS3.SecretKey,
 			Bucket:      defaultS3.Bucket,
 			Region:      defaultS3.Region,
-			Folder:      destinationId,
+			Folder:      destinationID,
 		}
 	} else if rsFormData.Mode == enstorages.BatchMode {
 		s3 = &enadapters.S3Config{
@@ -169,7 +169,7 @@ func mapRedshift(destinationId string, rsDestinations *entities.Destination, def
 			SecretKey:   rsFormData.S3SecretKey,
 			Bucket:      rsFormData.S3Bucket,
 			Region:      rsFormData.S3Region,
-			Folder:      destinationId,
+			Folder:      destinationID,
 		}
 	}
 
@@ -238,7 +238,7 @@ func mapGoogleAnalytics(gaDestination *entities.Destination) (*enstorages.Destin
 		Type: enstorages.GoogleAnalyticsType,
 		Mode: gaFormData.Mode,
 		GoogleAnalytics: &enadapters.GoogleAnalyticsConfig{
-			TrackingId: gaFormData.TrackingId,
+			TrackingID: gaFormData.TrackingID,
 		},
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: gaFormData.TableName,
@@ -262,7 +262,7 @@ func mapFacebook(fbDestination *entities.Destination) (*enstorages.DestinationCo
 		Type: enstorages.FacebookType,
 		Mode: fbFormData.Mode,
 		Facebook: &enadapters.FacebookConversionAPIConfig{
-			PixelId:     fbFormData.PixelId,
+			PixelID:     fbFormData.PixelID,
 			AccessToken: fbFormData.AccessToken,
 		},
 		DataLayout: &enstorages.DataLayout{

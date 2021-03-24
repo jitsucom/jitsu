@@ -70,13 +70,13 @@ func NewRedis(config *RedisConfig) (*Redis, error) {
 }
 
 //GetEvents return events count by granularity
-func (r *Redis) GetEvents(projectId string, start, end time.Time, granularity string) ([]EventsPerTime, error) {
+func (r *Redis) GetEvents(projectID string, start, end time.Time, granularity string) ([]EventsPerTime, error) {
 	//get all source ids
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	key := "sources_index:project#" + projectId
-	sourceIds, err := redis.Strings(conn.Do("SMEMBERS", key))
+	key := "sources_index:project#" + projectID
+	sourceIDs, err := redis.Strings(conn.Do("SMEMBERS", key))
 	if err != nil {
 		if err == redis.ErrNil {
 			return []EventsPerTime{}, nil
@@ -86,15 +86,15 @@ func (r *Redis) GetEvents(projectId string, start, end time.Time, granularity st
 	}
 
 	if granularity == HourGranularity {
-		return r.getEventsPerHour(sourceIds, start, end)
+		return r.getEventsPerHour(sourceIDs, start, end)
 	} else if granularity == DayGranularity {
-		return r.getEventsPerDay(sourceIds, start, end)
+		return r.getEventsPerDay(sourceIDs, start, end)
 	} else {
 		return nil, fmt.Errorf("Unknown granulatiry: %s", granularity)
 	}
 }
 
-func (r *Redis) getEventsPerHour(sourceIds []string, start, end time.Time) ([]EventsPerTime, error) {
+func (r *Redis) getEventsPerHour(sourceIDs []string, start, end time.Time) ([]EventsPerTime, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
@@ -105,8 +105,8 @@ func (r *Redis) getEventsPerHour(sourceIds []string, start, end time.Time) ([]Ev
 	for _, day := range days {
 		keyTime, _ := time.Parse(timestamp.DayLayout, day)
 
-		for _, sourceId := range sourceIds {
-			key := fmt.Sprintf("hourly_events:source#%s:day#%s:success", sourceId, day)
+		for _, sourceID := range sourceIDs {
+			key := fmt.Sprintf("hourly_events:source#%s:day#%s:success", sourceID, day)
 
 			perHour, err := redis.IntMap(conn.Do("HGETALL", key))
 			if err != nil {
@@ -149,7 +149,7 @@ func (r *Redis) getEventsPerHour(sourceIds []string, start, end time.Time) ([]Ev
 	return eventsPerTime, nil
 }
 
-func (r *Redis) getEventsPerDay(sourceIds []string, start, end time.Time) ([]EventsPerTime, error) {
+func (r *Redis) getEventsPerDay(sourceIDs []string, start, end time.Time) ([]EventsPerTime, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
@@ -160,8 +160,8 @@ func (r *Redis) getEventsPerDay(sourceIds []string, start, end time.Time) ([]Eve
 	for _, month := range months {
 		keyTime, _ := time.Parse(timestamp.MonthLayout, month)
 
-		for _, sourceId := range sourceIds {
-			key := fmt.Sprintf("daily_events:source#%s:month#%s:success", sourceId, month)
+		for _, sourceID := range sourceIDs {
+			key := fmt.Sprintf("daily_events:source#%s:month#%s:success", sourceID, month)
 
 			perDay, err := redis.IntMap(conn.Do("HGETALL", key))
 			if err != nil {

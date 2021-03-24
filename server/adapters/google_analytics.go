@@ -38,14 +38,14 @@ var (
 )
 
 type GoogleAnalyticsConfig struct {
-	TrackingId string `mapstructure:"tracking_id" json:"tracking_id,omitempty" yaml:"tracking_id,omitempty"`
+	TrackingID string `mapstructure:"tracking_id" json:"tracking_id,omitempty" yaml:"tracking_id,omitempty"`
 }
 
 func (gac *GoogleAnalyticsConfig) Validate() error {
 	if gac == nil {
 		return errors.New("google_analytics config is required")
 	}
-	if gac.TrackingId == "" {
+	if gac.TrackingID == "" {
 		return errors.New("tracking_id is required parameter")
 	}
 
@@ -76,7 +76,7 @@ func NewGoogleAnalytics(config *GoogleAnalyticsConfig, requestDebugLogger *loggi
 //remove system fields and map event type
 func (ga *GoogleAnalytics) Send(object map[string]interface{}) error {
 	uv := make(url.Values)
-	uv.Add("tid", ga.config.TrackingId)
+	uv.Add("tid", ga.config.TrackingID)
 	uv.Add("v", "1")
 
 	//remove system fields
@@ -103,10 +103,10 @@ func (ga *GoogleAnalytics) Send(object map[string]interface{}) error {
 		uv.Add(k, strValue)
 	}
 
-	reqUrl := "https://www.google-analytics.com/collect?" + uv.Encode()
-	ga.debugLogger.LogQuery(reqUrl)
+	reqURL := "https://www.google-analytics.com/collect?" + uv.Encode()
+	ga.debugLogger.LogQuery(reqURL)
 
-	r, err := ga.client.Get(reqUrl)
+	r, err := ga.client.Get(reqURL)
 	if r != nil && r.Body != nil {
 		r.Body.Close()
 	}

@@ -23,9 +23,9 @@ func NewBecomeUserHandler(authService *authorization.Service) *BecomeUserHandler
 //Handler is used only if firebase authorization
 //becomeUser isn't supported with Redis authorization (without google authorization)
 func (buh *BecomeUserHandler) Handler(c *gin.Context) {
-	userId := c.GetString(middleware.UserIdKey)
+	userID := c.GetString(middleware.UserIDKey)
 
-	isAdmin, err := buh.authService.IsAdmin(userId)
+	isAdmin, err := buh.authService.IsAdmin(userID)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, mdlwr.ErrorResponse{Error: err.Error()})
 		return
@@ -36,8 +36,8 @@ func (buh *BecomeUserHandler) Handler(c *gin.Context) {
 		return
 	}
 
-	becomingUserId := c.Query("user_id")
-	userToken, err := buh.authService.GenerateUserToken(becomingUserId)
+	becomingUserID := c.Query("user_id")
+	userToken, err := buh.authService.GenerateUserToken(becomingUserID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Error: err.Error()})
 		return

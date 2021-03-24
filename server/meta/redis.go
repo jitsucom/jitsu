@@ -26,32 +26,32 @@ var ErrTaskNotFound = errors.New("Sync task wasn't found")
 
 type Redis struct {
 	pool                      *redis.Pool
-	anonymousEventsSecondsTtl int
+	anonymousEventsSecondsTTL int
 }
 
 //redis key [variables] - description
 //
 //** Sources state**
-//source#sourceId:collection#collectionId:chunks [sourceId, collectionId] - hashtable with signatures
+//source#sourceID:collection#collectionID:chunks [sourceID, collectionID] - hashtable with signatures
 //
 //** Events counters **
 // * per destination *
-//destinations_index:project#projectId [destinationId1, destinationId2] - set of destination ids
-//hourly_events:destination#destinationId:day#yyyymmdd:success [hour] - hashtable with success events counter by hour
-//hourly_events:destination#destinationId:day#yyyymmdd:errors  [hour] - hashtable with error events counter by hour
-//hourly_events:destination#destinationId:day#yyyymmdd:skip    [hour] - hashtable with skipped events counter by hour
-//daily_events:destination#destinationId:month#yyyymm:success  [day] - hashtable with success events counter by day
-//daily_events:destination#destinationId:month#yyyymm:errors   [day] - hashtable with error events counter by day
-//daily_events:destination#destinationId:month#yyyymm:skip     [day] - hashtable with skipped events counter by day
+//destinations_index:project#projectID [destinationID1, destinationID2] - set of destination ids
+//hourly_events:destination#destinationID:day#yyyymmdd:success [hour] - hashtable with success events counter by hour
+//hourly_events:destination#destinationID:day#yyyymmdd:errors  [hour] - hashtable with error events counter by hour
+//hourly_events:destination#destinationID:day#yyyymmdd:skip    [hour] - hashtable with skipped events counter by hour
+//daily_events:destination#destinationID:month#yyyymm:success  [day] - hashtable with success events counter by day
+//daily_events:destination#destinationID:month#yyyymm:errors   [day] - hashtable with error events counter by day
+//daily_events:destination#destinationID:month#yyyymm:skip     [day] - hashtable with skipped events counter by day
 //
 // * per source *
-//sources_index:project#projectId [sourceId1, sourceId2] - set of source ids
-//daily_events:source#sourceId:month#yyyymm:success            [day] - hashtable with success events counter by day
-//hourly_events:source#sourceId:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
+//sources_index:project#projectID [sourceID1, sourceID2] - set of source ids
+//daily_events:source#sourceID:month#yyyymm:success            [day] - hashtable with success events counter by day
+//hourly_events:source#sourceID:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
 //
 //** Last events cache**
-//last_events:destination#destinationId:id#eventn_ctx_event_id [original, success, error] - hashtable with original event json, processed with schema json, error json
-//last_events_index:destination#destinationId [timestamp_long eventn_ctx_event_id] - sorted set of eventIds and timestamps
+//last_events:destination#destinationID:id#eventn_ctx_event_id [original, success, error] - hashtable with original event json, processed with schema json, error json
+//last_events_index:destination#destinationID [timestamp_long eventn_ctx_event_id] - sorted set of eventIDs and timestamps
 //
 //** Retrospective user recognition **
 //anonymous_events:destination_id#${destination_id}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
@@ -60,18 +60,18 @@ type Redis struct {
 // - task_id = $source_$collection_$UUID
 //sync_tasks_priority_queue [priority, task_id] - tasks to execute with priority
 //
-//sync_tasks_index:source#sourceId:collection#collectionId [timestamp_long taskId] - sorted set of taskId and timestamps
+//sync_tasks_index:source#sourceID:collection#collectionID [timestamp_long taskID] - sorted set of taskID and timestamps
 //
-//sync_tasks#taskId:logs [timestamp, log record object] - sorted set of log objects and timestamps
-//sync_tasks#taskId hash with fields [id, source, collection, priority, created_at, started_at, finished_at, status]
+//sync_tasks#taskID:logs [timestamp, log record object] - sorted set of log objects and timestamps
+//sync_tasks#taskID hash with fields [id, source, collection, priority, created_at, started_at, finished_at, status]
 
-func NewRedis(host string, port int, password string, anonymousEventsMinutesTtl int) (*Redis, error) {
-	if anonymousEventsMinutesTtl > 0 {
-		logging.Infof("Initializing redis [%s:%d] with anonymous events ttl: %d...", host, port, anonymousEventsMinutesTtl)
+func NewRedis(host string, port int, password string, anonymousEventsMinutesTTL int) (*Redis, error) {
+	if anonymousEventsMinutesTTL > 0 {
+		logging.Infof("Initializing redis [%s:%d] with anonymous events ttl: %d...", host, port, anonymousEventsMinutesTTL)
 	} else {
 		logging.Infof("Initializing redis [%s:%d]...", host, port)
 	}
-	r := &Redis{pool: NewRedisPool(host, port, password), anonymousEventsSecondsTtl: anonymousEventsMinutesTtl * 60}
+	r := &Redis{pool: NewRedisPool(host, port, password), anonymousEventsSecondsTTL: anonymousEventsMinutesTTL * 60}
 
 	//test connection
 	connection := r.pool.Get()
@@ -111,8 +111,8 @@ func NewRedisPool(host string, port int, password string) *redis.Pool {
 	}
 }
 
-func (r *Redis) GetSignature(sourceId, collection, interval string) (string, error) {
-	key := "source#" + sourceId + ":collection#" + collection + ":chunks"
+func (r *Redis) GetSignature(sourceID, collection, interval string) (string, error) {
+	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
 	field := interval
 	connection := r.pool.Get()
 	defer connection.Close()
@@ -129,8 +129,8 @@ func (r *Redis) GetSignature(sourceId, collection, interval string) (string, err
 	return signature, nil
 }
 
-func (r *Redis) SaveSignature(sourceId, collection, interval, signature string) error {
-	key := "source#" + sourceId + ":collection#" + collection + ":chunks"
+func (r *Redis) SaveSignature(sourceID, collection, interval, signature string) error {
+	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
 	field := interval
 	connection := r.pool.Get()
 	defer connection.Close()
@@ -144,7 +144,7 @@ func (r *Redis) SaveSignature(sourceId, collection, interval, signature string) 
 }
 
 func (r *Redis) SuccessEvents(id, namespace string, now time.Time, value int) error {
-	err := r.ensureIdInIndex(id, namespace)
+	err := r.ensureIDInIndex(id, namespace)
 	if err != nil {
 		return fmt.Errorf("Error ensuring id in index: %v", err)
 	}
@@ -159,11 +159,11 @@ func (r *Redis) SkipEvents(id, namespace string, now time.Time, value int) error
 	return r.incrementEventsCount(id, namespace, "skip", now, value)
 }
 
-func (r *Redis) AddEvent(destinationId, eventId, payload string, now time.Time) (int, error) {
+func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) (int, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//add event
-	lastEventsKey := "last_events:destination#" + destinationId + ":id#" + eventId
+	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
 	field := "original"
 	_, err := conn.Do("HSET", lastEventsKey, field, payload)
 	noticeError(err)
@@ -172,8 +172,8 @@ func (r *Redis) AddEvent(destinationId, eventId, payload string, now time.Time) 
 	}
 
 	//enrich index
-	lastEventsIndexKey := "last_events_index:destination#" + destinationId
-	_, err = conn.Do("ZADD", lastEventsIndexKey, now.Unix(), eventId)
+	lastEventsIndexKey := "last_events_index:destination#" + destinationID
+	_, err = conn.Do("ZADD", lastEventsIndexKey, now.Unix(), eventID)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return 0, err
@@ -189,8 +189,8 @@ func (r *Redis) AddEvent(destinationId, eventId, payload string, now time.Time) 
 	return count, nil
 }
 
-func (r *Redis) UpdateSucceedEvent(destinationId, eventId, success string) error {
-	lastEventsKey := "last_events:destination#" + destinationId + ":id#" + eventId
+func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error {
+	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
 
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -204,8 +204,8 @@ func (r *Redis) UpdateSucceedEvent(destinationId, eventId, success string) error
 	return nil
 }
 
-func (r *Redis) UpdateErrorEvent(destinationId, eventId, error string) error {
-	lastEventsKey := "last_events:destination#" + destinationId + ":id#" + eventId
+func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
+	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
 
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -219,11 +219,11 @@ func (r *Redis) UpdateErrorEvent(destinationId, eventId, error string) error {
 	return nil
 }
 
-func (r *Redis) RemoveLastEvent(destinationId string) error {
+func (r *Redis) RemoveLastEvent(destinationID string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//remove last event from index
-	lastEventsIndexKey := "last_events_index:destination#" + destinationId
+	lastEventsIndexKey := "last_events_index:destination#" + destinationID
 	values, err := redis.Strings(conn.Do("ZPOPMIN", lastEventsIndexKey))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
@@ -234,9 +234,9 @@ func (r *Redis) RemoveLastEvent(destinationId string) error {
 		return fmt.Errorf("Error response format: %v", values)
 	}
 
-	eventId := values[0]
+	eventID := values[0]
 
-	lastEventsKey := "last_events:destination#" + destinationId + ":id#" + eventId
+	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
 	_, err = conn.Do("DEL", lastEventsKey)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
@@ -246,21 +246,21 @@ func (r *Redis) RemoveLastEvent(destinationId string) error {
 	return nil
 }
 
-func (r *Redis) GetEvents(destinationId string, start, end time.Time, n int) ([]Event, error) {
+func (r *Redis) GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	//get index
-	lastEventsIndexKey := "last_events_index:destination#" + destinationId
-	eventIds, err := redis.Strings(conn.Do("ZRANGEBYSCORE", lastEventsIndexKey, start.Unix(), end.Unix(), "LIMIT", 0, n))
+	lastEventsIndexKey := "last_events_index:destination#" + destinationID
+	eventIDs, err := redis.Strings(conn.Do("ZRANGEBYSCORE", lastEventsIndexKey, start.Unix(), end.Unix(), "LIMIT", 0, n))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return nil, err
 	}
 
 	events := []Event{}
-	for _, eventId := range eventIds {
-		lastEventsKey := "last_events:destination#" + destinationId + ":id#" + eventId
+	for _, eventID := range eventIDs {
+		lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
 		event, err := redis.Values(conn.Do("HGETALL", lastEventsKey))
 		noticeError(err)
 		if err != nil && err != redis.ErrNil {
@@ -281,11 +281,11 @@ func (r *Redis) GetEvents(destinationId string, start, end time.Time, n int) ([]
 	return events, nil
 }
 
-func (r *Redis) GetTotalEvents(destinationId string) (int, error) {
+func (r *Redis) GetTotalEvents(destinationID string) (int, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	lastEventsIndexKey := "last_events_index:destination#" + destinationId
+	lastEventsIndexKey := "last_events_index:destination#" + destinationID
 	count, err := redis.Int(conn.Do("ZCOUNT", lastEventsIndexKey, "-inf", "+inf"))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
@@ -295,33 +295,33 @@ func (r *Redis) GetTotalEvents(destinationId string) (int, error) {
 	return count, nil
 }
 
-func (r *Redis) SaveAnonymousEvent(destinationId, anonymousId, eventId, payload string) error {
+func (r *Redis) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//add event
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationId + ":anonymous_id#" + anonymousId
-	_, err := conn.Do("HSET", anonymousEventKey, eventId, payload)
+	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
+	_, err := conn.Do("HSET", anonymousEventKey, eventID, payload)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
 	}
 
-	if r.anonymousEventsSecondsTtl > 0 {
-		_, err := conn.Do("EXPIRE", anonymousEventKey, r.anonymousEventsSecondsTtl)
+	if r.anonymousEventsSecondsTTL > 0 {
+		_, err := conn.Do("EXPIRE", anonymousEventKey, r.anonymousEventsSecondsTTL)
 		noticeError(err)
 		if err != nil && err != redis.ErrNil {
-			logging.SystemErrorf("Error EXPIRE anonymous event %s %s: %v", anonymousEventKey, eventId, err)
+			logging.SystemErrorf("Error EXPIRE anonymous event %s %s: %v", anonymousEventKey, eventID, err)
 		}
 	}
 
 	return nil
 }
 
-func (r *Redis) GetAnonymousEvents(destinationId, anonymousId string) (map[string]string, error) {
+func (r *Redis) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//get events
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationId + ":anonymous_id#" + anonymousId
+	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
 
 	eventsMap, err := redis.StringMap(conn.Do("HGETALL", anonymousEventKey))
 	noticeError(err)
@@ -332,13 +332,13 @@ func (r *Redis) GetAnonymousEvents(destinationId, anonymousId string) (map[strin
 	return eventsMap, nil
 }
 
-func (r *Redis) DeleteAnonymousEvent(destinationId, anonymousId, eventId string) error {
+func (r *Redis) DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	//remove event
-	anonymousEventKey := "anonymous_events:destination_id#" + destinationId + ":anonymous_id#" + anonymousId
-	_, err := conn.Do("HDEL", anonymousEventKey, eventId)
+	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
+	_, err := conn.Do("HDEL", anonymousEventKey, eventID)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -347,7 +347,7 @@ func (r *Redis) DeleteAnonymousEvent(destinationId, anonymousId, eventId string)
 	return nil
 }
 
-func (r *Redis) CreateTask(sourceId, collection string, task *Task, createdAt time.Time) error {
+func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
 	err := r.UpsertTask(task)
 	if err != nil {
 		return err
@@ -357,7 +357,7 @@ func (r *Redis) CreateTask(sourceId, collection string, task *Task, createdAt ti
 	defer conn.Close()
 
 	//enrich index
-	taskIndexKey := "sync_tasks_index:source#" + sourceId + ":collection#" + collection
+	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
 	_, err = conn.Do("ZADD", taskIndexKey, createdAt.Unix(), task.ID)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
@@ -383,22 +383,22 @@ func (r *Redis) UpsertTask(task *Task) error {
 	return nil
 }
 
-func (r *Redis) GetAllTasks(sourceId, collection string, start, end time.Time) ([]Task, error) {
+func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time) ([]Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	//get index
-	taskIndexKey := "sync_tasks_index:source#" + sourceId + ":collection#" + collection
-	taskIds, err := redis.Strings(conn.Do("ZRANGEBYSCORE", taskIndexKey, start.Unix(), end.Unix()))
+	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
+	taskIDs, err := redis.Strings(conn.Do("ZRANGEBYSCORE", taskIndexKey, start.Unix(), end.Unix()))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return nil, err
 	}
 
 	var tasks []Task
-	for _, taskId := range taskIds {
+	for _, taskID := range taskIDs {
 		//get certain task
-		taskKey := "sync_tasks#" + taskId
+		taskKey := "sync_tasks#" + taskID
 		task, err := redis.Values(conn.Do("HGETALL", taskKey))
 		noticeError(err)
 		if err != nil && err != redis.ErrNil {
@@ -419,11 +419,11 @@ func (r *Redis) GetAllTasks(sourceId, collection string, start, end time.Time) (
 	return tasks, nil
 }
 
-func (r *Redis) GetLastTask(sourceId, collection string) (*Task, error) {
+func (r *Redis) GetLastTask(sourceID, collection string) (*Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	taskIndexKey := "sync_tasks_index:source#" + sourceId + ":collection#" + collection
+	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
 	taskValues, err := redis.Strings(conn.Do("ZREVRANGEBYSCORE", taskIndexKey, "+inf", "-inf", "LIMIT", "0", "1"))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
@@ -434,11 +434,11 @@ func (r *Redis) GetLastTask(sourceId, collection string) (*Task, error) {
 		return nil, ErrTaskNotFound
 	}
 
-	taskId := taskValues[0]
-	task, err := r.GetTask(taskId)
+	taskID := taskValues[0]
+	task, err := r.GetTask(taskID)
 	if err != nil {
 		if err == ErrTaskNotFound {
-			logging.SystemErrorf("Task with id: %s exists in priority queue but doesn't exist in sync_task#%s record", taskId, taskId)
+			logging.SystemErrorf("Task with id: %s exists in priority queue but doesn't exist in sync_task#%s record", taskID, taskID)
 		}
 
 		return nil, err
@@ -447,11 +447,11 @@ func (r *Redis) GetLastTask(sourceId, collection string) (*Task, error) {
 	return task, err
 }
 
-func (r *Redis) GetTask(taskId string) (*Task, error) {
+func (r *Redis) GetTask(taskID string) (*Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	taskFields, err := redis.Values(conn.Do("HGETALL", "sync_tasks#"+taskId))
+	taskFields, err := redis.Values(conn.Do("HGETALL", "sync_tasks#"+taskID))
 	noticeError(err)
 	if err != nil {
 		if err == redis.ErrNil {
@@ -468,17 +468,17 @@ func (r *Redis) GetTask(taskId string) (*Task, error) {
 	task := &Task{}
 	err = redis.ScanStruct(taskFields, task)
 	if err != nil {
-		return nil, fmt.Errorf("Error deserializing task entity [%s]: %v", taskId, err)
+		return nil, fmt.Errorf("Error deserializing task entity [%s]: %v", taskID, err)
 	}
 
 	return task, nil
 }
 
-func (r *Redis) AppendTaskLog(taskId string, now time.Time, message, level string) error {
+func (r *Redis) AppendTaskLog(taskID string, now time.Time, message, level string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	taskLogsKey := "sync_tasks#" + taskId + ":logs"
+	taskLogsKey := "sync_tasks#" + taskID + ":logs"
 	logRecord := TaskLogRecord{
 		Time:    now.Format(timestamp.Layout),
 		Message: message,
@@ -494,11 +494,11 @@ func (r *Redis) AppendTaskLog(taskId string, now time.Time, message, level strin
 	return nil
 }
 
-func (r *Redis) GetTaskLogs(taskId string, start, end time.Time) ([]TaskLogRecord, error) {
+func (r *Redis) GetTaskLogs(taskID string, start, end time.Time) ([]TaskLogRecord, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	taskLogsKey := "sync_tasks#" + taskId + ":logs"
+	taskLogsKey := "sync_tasks#" + taskID + ":logs"
 	logsRecords, err := redis.Strings(conn.Do("ZRANGEBYSCORE", taskLogsKey, start.Unix(), end.Unix()))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
@@ -510,7 +510,7 @@ func (r *Redis) GetTaskLogs(taskId string, start, end time.Time) ([]TaskLogRecor
 		tlr := TaskLogRecord{}
 		err := json.Unmarshal([]byte(logRecord), &tlr)
 		if err != nil {
-			return nil, fmt.Errorf("Error deserializing task [%s] log record: %s: %v", taskId, logRecord, err)
+			return nil, fmt.Errorf("Error deserializing task [%s] log record: %s: %v", taskID, logRecord, err)
 		}
 
 		taskLogs = append(taskLogs, tlr)
@@ -538,11 +538,11 @@ func (r *Redis) PollTask() (*Task, error) {
 		return nil, nil
 	}
 
-	taskId := values[0]
+	taskID := values[0]
 
-	task, err := r.GetTask(taskId)
+	task, err := r.GetTask(taskID)
 	if err != nil && err == ErrTaskNotFound {
-		logging.SystemErrorf("Task with id: %s exists in priority queue but doesn't exist in sync_task#%s record", taskId, taskId)
+		logging.SystemErrorf("Task with id: %s exists in priority queue but doesn't exist in sync_task#%s record", taskID, taskID)
 	}
 
 	return task, err
@@ -565,14 +565,14 @@ func (r *Redis) PushTask(task *Task) error {
 	return nil
 }
 
-func (r *Redis) IsTaskInQueue(sourceId, collection string) (string, bool, error) {
+func (r *Redis) IsTaskInQueue(sourceID, collection string) (string, bool, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	iter := 0
-	var taskId string
+	var taskID string
 	for {
-		values, err := redis.Values(conn.Do("ZSCAN", syncTasksPriorityQueueKey, iter, "MATCH", fmt.Sprintf("%s_%s_*", sourceId, collection)))
+		values, err := redis.Values(conn.Do("ZSCAN", syncTasksPriorityQueueKey, iter, "MATCH", fmt.Sprintf("%s_%s_*", sourceID, collection)))
 		noticeError(err)
 		if err != nil {
 			return "", false, err
@@ -581,7 +581,7 @@ func (r *Redis) IsTaskInQueue(sourceId, collection string) (string, bool, error)
 		iter, _ = redis.Int(values[0], nil)
 		resultArr, _ := redis.Strings(values[1], nil)
 		if len(resultArr) > 0 {
-			taskId = resultArr[0]
+			taskID = resultArr[0]
 			break
 		}
 
@@ -590,7 +590,7 @@ func (r *Redis) IsTaskInQueue(sourceId, collection string) (string, bool, error)
 		}
 	}
 
-	return taskId, len(taskId) > 0, nil
+	return taskID, len(taskID) > 0, nil
 }
 
 func (r *Redis) Type() string {
@@ -601,9 +601,9 @@ func (r *Redis) Close() error {
 	return r.pool.Close()
 }
 
-//ensureIdInIndex add id to corresponding index by projectId
+//ensureIDInIndex add id to corresponding index by projectID
 //namespaces: [destination, source]
-func (r *Redis) ensureIdInIndex(id, namespace string) error {
+func (r *Redis) ensureIDInIndex(id, namespace string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
@@ -616,14 +616,14 @@ func (r *Redis) ensureIdInIndex(id, namespace string) error {
 		return fmt.Errorf("Unknown namespace: %v", namespace)
 	}
 
-	//get projectId from id or empty
-	var projectId string
+	//get projectID from id or empty
+	var projectID string
 	splitted := strings.Split(id, ".")
 	if len(splitted) > 1 {
-		projectId = splitted[0]
+		projectID = splitted[0]
 	}
 
-	key := indexName + ":project#" + projectId
+	key := indexName + ":project#" + projectID
 
 	_, err := conn.Do("SADD", key, id)
 	noticeError(err)

@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	ProjectIdKey = "_project_id"
-	UserIdKey    = "_user_id"
+	ProjectIDKey = "_project_id"
+	UserIDKey    = "_user_id"
 	TokenKey     = "_token"
 )
 
@@ -25,22 +25,22 @@ func NewAuthenticator(service *authorization.Service) *Authenticator {
 func (a *Authenticator) ClientProjectAuth(main gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.GetHeader("X-Client-Auth")
-		userId, err := a.service.Authenticate(token)
+		userID, err := a.service.Authenticate(token)
 		if err != nil {
 			logging.Errorf("Failed to authenticate with token %s: %v", token, err)
 			c.JSON(http.StatusUnauthorized, middleware.ErrorResponse{Error: err.Error(), Message: "You are not authorized"})
 			return
 		}
 
-		projectId, err := a.service.GetProjectId(userId)
+		projectID, err := a.service.GetProjectID(userID)
 		if err != nil {
 			logging.SystemErrorf("Project id error in token %s: %v", token, err)
 			c.JSON(http.StatusUnauthorized, middleware.ErrorResponse{Message: "Authorization error", Error: err.Error()})
 			return
 		}
 
-		c.Set(ProjectIdKey, projectId)
-		c.Set(UserIdKey, userId)
+		c.Set(ProjectIDKey, projectID)
+		c.Set(UserIDKey, userID)
 		c.Set(TokenKey, token)
 
 		main(c)
@@ -50,14 +50,14 @@ func (a *Authenticator) ClientProjectAuth(main gin.HandlerFunc) gin.HandlerFunc 
 func (a *Authenticator) ClientAuth(main gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token := c.GetHeader("X-Client-Auth")
-		userId, err := a.service.Authenticate(token)
+		userID, err := a.service.Authenticate(token)
 		if err != nil {
 			logging.Errorf("Failed to authenticate with token %s: %v", token, err)
 			c.JSON(http.StatusUnauthorized, middleware.ErrorResponse{Error: err.Error(), Message: "You are not authorized"})
 			return
 		}
 
-		c.Set(UserIdKey, userId)
+		c.Set(UserIDKey, userID)
 		c.Set(TokenKey, token)
 
 		main(c)

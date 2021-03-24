@@ -75,13 +75,13 @@ func (sc *SSLConfig) Validate() error {
 
 type Config struct {
 	CName      string     `mapstructure:"cname"`
-	BaseUrl    string     `mapstructure:"base_url"`
+	BaseURL    string     `mapstructure:"base_url"`
 	AdminToken string     `mapstructure:"admin_token"`
 	SSL        *SSLConfig `mapstructure:"ssl"`
 }
 
 func (c *Config) Validate() error {
-	if c.BaseUrl == "" {
+	if c.BaseURL == "" {
 		return errors.New("eventnative.base_url is required parameter")
 	}
 

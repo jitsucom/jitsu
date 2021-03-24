@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	unknownSource      = errors.New("Unknown source type")
+	errUnknownSource   = errors.New("Unknown source type")
 	driverConstructors = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
 )
 
@@ -116,7 +116,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronSc
 
 	createDriverFunc, ok := driverConstructors[sourceConfig.Type]
 	if !ok {
-		return nil, unknownSource
+		return nil, errUnknownSource
 	}
 
 	for _, collection := range collections {

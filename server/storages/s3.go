@@ -11,7 +11,7 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-//Store files to aws s3 in batch mode
+//S3 Stores files to aws s3 in batch mode
 type S3 struct {
 	name           string
 	s3Adapter      *adapters.S3
@@ -50,7 +50,7 @@ func NewS3(config *Config) (Storage, error) {
 	return s3, nil
 }
 
-func (s3 *S3) Consume(event events.Event, tokenId string) {
+func (s3 *S3) Consume(event events.Event, tokenID string) {
 	logging.Errorf("[%s] S3 storage doesn't support streaming mode", s3.Name())
 }
 
@@ -58,9 +58,9 @@ func (s3 *S3) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return nil, errors.New("s3 does not support dry run functionality")
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJson func
+//Store call StoreWithParseFunc with parsers.ParseJSON func
 func (s3 *S3) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return s3.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
+	return s3.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
 }
 
 //Store file from byte payload to s3 with processing
@@ -74,13 +74,13 @@ func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, alreadyUploade
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents {
-		s3.eventsCache.Error(s3.Name(), failedEvent.EventId, failedEvent.Error)
+		s3.eventsCache.Error(s3.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
-		b := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+		b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
 		err := s3.s3Adapter.UploadBytes(fileName, b)
 
 		tableResults[fdata.BatchHeader.TableName] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
@@ -92,7 +92,7 @@ func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, alreadyUploade
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				s3.eventsCache.Error(s3.Name(), events.ExtractEventId(object), err.Error())
+				s3.eventsCache.Error(s3.Name(), events.ExtractEventID(object), err.Error())
 			}
 		}
 	}

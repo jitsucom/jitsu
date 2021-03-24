@@ -7,28 +7,28 @@ import (
 
 const (
 	EventnKey       = "eventn_ctx"
-	collectionIdKey = "collection_id"
+	collectionIDKey = "collection_id"
 	TimeChunkKey    = "time_interval"
 
-	EventIdKey = "event_id"
+	EventIDKey = "event_id"
 
-	EventnCtxEventId = "eventn_ctx_event_id"
+	EventnCtxEventID = "eventn_ctx_event_id"
 )
 
-//EnrichWithEventId put eventId to EventnKey_EventIdKey key if it doesn't exist there or if there is an empty string
-func EnrichWithEventId(object map[string]interface{}, eventId string) {
+//EnrichWithEventID put eventID to EventnKey_EventIDKey key if it doesn't exist there or if there is an empty string
+func EnrichWithEventID(object map[string]interface{}, eventID string) {
 	eventnObject, ok := object[EventnKey]
 	if !ok {
-		eventnObject = map[string]interface{}{EventIdKey: eventId}
+		eventnObject = map[string]interface{}{EventIDKey: eventID}
 		object[EventnKey] = eventnObject
 	} else {
 		if eventn, ok := eventnObject.(map[string]interface{}); ok {
-			val, ok := eventn[EventIdKey]
+			val, ok := eventn[EventIDKey]
 			if !ok || val == "" {
-				eventn[EventIdKey] = eventId
+				eventn[EventIDKey] = eventID
 			}
 		} else {
-			object[EventnCtxEventId] = eventId
+			object[EventnCtxEventID] = eventID
 		}
 	}
 }
@@ -36,15 +36,15 @@ func EnrichWithEventId(object map[string]interface{}, eventId string) {
 func EnrichWithCollection(object map[string]interface{}, collection string) {
 	eventnObject, ok := object[EventnKey]
 	if !ok {
-		eventnObject = map[string]interface{}{collectionIdKey: collection}
+		eventnObject = map[string]interface{}{collectionIDKey: collection}
 		object[EventnKey] = eventnObject
 	} else {
 		if eventn, ok := eventnObject.(map[string]interface{}); ok {
-			if _, ok := eventn[collectionIdKey]; !ok {
-				eventn[collectionIdKey] = collection
+			if _, ok := eventn[collectionIDKey]; !ok {
+				eventn[collectionIDKey] = collection
 			}
 		} else {
-			object[EventnKey+"_"+collectionIdKey] = collection
+			object[EventnKey+"_"+collectionIDKey] = collection
 		}
 	}
 }
