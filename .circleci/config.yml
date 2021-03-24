@@ -7,7 +7,8 @@ jobs:
     working_directory: /go/src/github.com/jitsucom/jitsu
     steps:
       - checkout
-      - golint -set_exit_status=true -min_confidence=1 ./...
+      - run: go get -u golang.org/x/lint/golint
+      - run: golint -set_exit_status=true -min_confidence=1 ./...
   server-test:
     working_directory: /go/src/github.com/jitsucom/jitsu/server
     docker:
