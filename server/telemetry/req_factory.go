@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+//RequestFactory is a factory for telemetry requests
 type RequestFactory struct {
 	iInfo *InstanceInfo
 }

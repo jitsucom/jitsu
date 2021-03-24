@@ -5,6 +5,7 @@ import (
 	"strconv"
 )
 
+//Integration is a struct for running Integration tests
 type Integration struct {
 	Name             string
 	ReqUrn           string
@@ -16,6 +17,7 @@ type Integration struct {
 	ExpectedErrMsg   string
 }
 
+//GetLocalAuthority returns host:port of local server
 func GetLocalAuthority() (string, error) {
 	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {

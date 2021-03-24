@@ -6,20 +6,26 @@ import (
 	"strings"
 )
 
+//ParsedUaKey is a json key for parsed user-agent data object
 const ParsedUaKey = "parsed_ua"
 
+//Resolver performs user-agent string parsing into ResolvedUa struct
+//can be mocked
 type Resolver interface {
 	Resolve(ua string) *ResolvedUa
 }
 
-type UapResolver struct {
+//UaResolver parses user-agent strings into ResolvedUa structures with "github.com/ua-parser/uap-go/uaparser"
+type UaResolver struct {
 	parser *uaparser.Parser
 }
 
+//NewResolver returns new instance of UaResolver
 func NewResolver() Resolver {
-	return &UapResolver{parser: uaparser.NewFromSaved()}
+	return &UaResolver{parser: uaparser.NewFromSaved()}
 }
 
+//ResolvedUa model for keeping resolved user-agent data
 type ResolvedUa struct {
 	UaFamily  string `json:"ua_family,omitempty"`
 	UaVersion string `json:"ua_version,omitempty"`
@@ -34,6 +40,7 @@ type ResolvedUa struct {
 	Bot bool `json:"bot,omitempty"`
 }
 
+//IsEmpty returns true if all values in ResolvedUa is empty
 func (rua ResolvedUa) IsEmpty() bool {
 	return rua.UaFamily == "" && rua.UaVersion == "" &&
 		rua.OsFamily == "" && rua.OsVersion == "" &&
@@ -42,7 +49,7 @@ func (rua ResolvedUa) IsEmpty() bool {
 
 //Resolve client user-agent with github.com/ua-parser/uap-go/uaparser lib
 //Return nil if parsed ua is empty
-func (r *UapResolver) Resolve(ua string) *ResolvedUa {
+func (r *UaResolver) Resolve(ua string) *ResolvedUa {
 	if ua == "" {
 		return nil
 	}
