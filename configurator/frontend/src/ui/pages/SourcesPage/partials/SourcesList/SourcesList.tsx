@@ -58,7 +58,7 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
 
       {Object.keys(sources).length > 0 ? (
         <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
-          {Object.keys(sources).map((sourceId) => {
+          {Object.keys(sources).sort().map((sourceId) => {
             const _current = sources[sourceId];
             const sourceProto = sourcesMap[_current.sourceType];
 
