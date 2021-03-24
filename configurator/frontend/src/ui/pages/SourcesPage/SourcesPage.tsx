@@ -7,7 +7,7 @@ import { routes } from './routes';
 import { SourcesList } from './partials/SourcesList';
 import { AddSource } from './partials/AddSource';
 import { EditSource } from './partials/EditSource';
-import { CenteredSpin } from '../../../lib/components/components';
+import { CenteredSpin } from '@./lib/components/components';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Styles
@@ -18,7 +18,7 @@ const SourcesPage = () => {
 
   const services = useMemo(() => ApplicationServices.get(), []);
 
-  const projectId = useMemo(() => services.userService.getUser().projects[0].id, [services]);
+  const projectId = useMemo(() => services.activeProject.id, [services]);
 
   const getComponent = useCallback(
     (Component: React.FC<any>) => (currentProps: any) =>

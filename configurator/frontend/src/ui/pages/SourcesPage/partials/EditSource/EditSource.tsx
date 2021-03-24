@@ -1,6 +1,6 @@
 // @Libs
 import React, { useMemo } from 'react';
-import { useHistory, useParams } from 'react-router-dom';
+import { Redirect, useParams } from 'react-router-dom';
 // @Components
 import { SourceFormWrap } from '@page/SourcesPage/partials/_common/SourceForm/SourceFormWrap';
 // @Types
@@ -12,8 +12,6 @@ import { allSources } from '@connectors/sources';
 import { routes } from '@page/SourcesPage/routes';
 
 const EditSource = ({ projectId, sources }: CommonSourcePageProps) => {
-  const history = useHistory();
-
   const params = useParams<{ sourceId: string }>();
 
   const sourceData = useMemo(() => sources[params.sourceId], [sources, params.sourceId]);
@@ -24,9 +22,7 @@ const EditSource = ({ projectId, sources }: CommonSourcePageProps) => {
   );
 
   if (!Object.keys(connectorSource).length) {
-    history.push(routes.root);
-
-    return null;
+    return <Redirect to={routes.root} />;
   }
 
   return (
