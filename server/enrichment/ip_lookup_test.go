@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestIpLookup(t *testing.T) {
+func TestIPLookup(t *testing.T) {
 	viper.Set("server.log.path", "")
 
 	geoDataMock := &geo.Data{
@@ -85,7 +85,7 @@ func TestIpLookup(t *testing.T) {
 			appconfig.Init(false)
 			appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
 
-			ipRule, err := NewIpLookupRule(jsonutils.NewJsonPath(tt.source), jsonutils.NewJsonPath(tt.destination))
+			ipRule, err := NewIPLookupRule(jsonutils.NewJSONPath(tt.source), jsonutils.NewJSONPath(tt.destination))
 			require.NoError(t, err)
 
 			ipRule.Execute(tt.input)

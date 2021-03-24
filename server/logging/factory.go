@@ -52,9 +52,9 @@ func (f *Factory) NewFactoryWithQueryLogsWriter(overriddenQueryLogsWriter io.Wri
 	}
 }
 
-func (f *Factory) CreateIncomingLogger(tokenId string) *AsyncLogger {
+func (f *Factory) CreateIncomingLogger(tokenID string) *AsyncLogger {
 	eventLogWriter := NewRollingWriter(&Config{
-		FileName:      "incoming.tok=" + tokenId,
+		FileName:      "incoming.tok=" + tokenID,
 		FileDir:       path.Join(f.logEventPath, IncomingDir),
 		RotationMin:   f.logRotationMin,
 		RotateOnClose: true,

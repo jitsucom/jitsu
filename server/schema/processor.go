@@ -24,7 +24,7 @@ type Processor struct {
 	breakOnError         bool
 }
 
-func NewProcessor(destinationId, tableNameFuncExpression string, fieldMapper Mapper, enrichmentRules []enrichment.Rule,
+func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper Mapper, enrichmentRules []enrichment.Rule,
 	flattener Flattener, typeResolver TypeResolver, breakOnError bool) (*Processor, error) {
 	mappingStep := NewMappingStep(fieldMapper, flattener, typeResolver)
 	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression)
@@ -33,7 +33,7 @@ func NewProcessor(destinationId, tableNameFuncExpression string, fieldMapper Map
 	}
 
 	return &Processor{
-		identifier:           destinationId,
+		identifier:           destinationID,
 		tableNameExtractor:   tableNameExtractor,
 		lookupEnrichmentStep: enrichment.NewLookupEnrichmentStep(enrichmentRules),
 		mappingStep:          mappingStep,
@@ -69,7 +69,7 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, alreadyU
 			//handle skip object functionality
 			if err == ErrSkipObject {
 				if !appconfig.Instance.DisableSkipEventsWarn {
-					logging.Warnf("[%s] Event [%s]: %v", p.identifier, events.ExtractEventId(object), err)
+					logging.Warnf("[%s] Event [%s]: %v", p.identifier, events.ExtractEventID(object), err)
 				}
 
 				counters.SkipEvents(p.identifier, 1)
@@ -82,7 +82,7 @@ func (p *Processor) ProcessFilePayload(fileName string, payload []byte, alreadyU
 					//remove last byte (\n)
 					Event:   line[:len(line)-1],
 					Error:   err.Error(),
-					EventId: events.ExtractEventId(object),
+					EventID: events.ExtractEventID(object),
 				})
 			}
 		}

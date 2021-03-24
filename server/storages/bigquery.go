@@ -123,9 +123,9 @@ func (bq *BigQuery) Insert(dataSchema *adapters.Table, event events.Event) (err 
 	return nil
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJson func
+//Store call StoreWithParseFunc with parsers.ParseJSON func
 func (bq *BigQuery) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return bq.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
+	return bq.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
 }
 
 //StoreWithParseFunc store file from byte payload to BigQuery with processing
@@ -139,7 +139,7 @@ func (bq *BigQuery) StoreWithParseFunc(fileName string, payload []byte, alreadyU
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents {
-		bq.eventsCache.Error(bq.Name(), failedEvent.EventId, failedEvent.Error)
+		bq.eventsCache.Error(bq.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -155,9 +155,9 @@ func (bq *BigQuery) StoreWithParseFunc(fileName string, payload []byte, alreadyU
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				bq.eventsCache.Error(bq.Name(), events.ExtractEventId(object), err.Error())
+				bq.eventsCache.Error(bq.Name(), events.ExtractEventID(object), err.Error())
 			} else {
-				bq.eventsCache.Succeed(bq.Name(), events.ExtractEventId(object), object, table)
+				bq.eventsCache.Succeed(bq.Name(), events.ExtractEventID(object), object, table)
 			}
 		}
 	}
@@ -178,7 +178,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 		return err
 	}
 
-	b := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+	b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
 	if err := bq.gcsAdapter.UploadBytes(fdata.FileName, b); err != nil {
 		return err
 	}

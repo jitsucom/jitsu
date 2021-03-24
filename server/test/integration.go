@@ -10,10 +10,10 @@ type Integration struct {
 	Name             string
 	ReqUrn           string
 	ReqBodyPath      string
-	ExpectedJsonPath string
+	ExpectedJSONPath string
 	XAuthToken       string
 
-	ExpectedHttpCode int
+	ExpectedHTTPCode int
 	ExpectedErrMsg   string
 }
 

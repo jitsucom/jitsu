@@ -8,7 +8,7 @@ import (
 )
 
 type Token struct {
-	Id           string   `mapstructure:"id" json:"id,omitempty"`
+	ID           string   `mapstructure:"id" json:"id,omitempty"`
 	ClientSecret string   `mapstructure:"client_secret" json:"client_secret,omitempty"`
 	ServerSecret string   `mapstructure:"server_secret" json:"server_secret,omitempty"`
 	Origins      []string `mapstructure:"origins" json:"origins,omitempty"`
@@ -63,13 +63,13 @@ func reformat(tokens []Token) *TokensHolder {
 	var ids []string
 
 	for _, tokenObj := range tokens {
-		if tokenObj.Id == "" {
+		if tokenObj.ID == "" {
 			//hash from client,server secret will be id
-			tokenObj.Id = resources.GetHash([]byte(tokenObj.ClientSecret + tokenObj.ServerSecret))
+			tokenObj.ID = resources.GetHash([]byte(tokenObj.ClientSecret + tokenObj.ServerSecret))
 		}
 
-		all[tokenObj.Id] = tokenObj
-		ids = append(ids, tokenObj.Id)
+		all[tokenObj.ID] = tokenObj
+		ids = append(ids, tokenObj.ID)
 
 		trimmedClientToken := strings.TrimSpace(tokenObj.ClientSecret)
 		if trimmedClientToken != "" {

@@ -8,8 +8,8 @@ import (
 	"testing"
 )
 
-//JsonBytesEqual unmarshalls two jsons into objects and uses ObjectsEqual
-func JsonBytesEqual(t *testing.T, expected, actual []byte, msgAndArgs ...interface{}) {
+//JSONBytesEqual unmarshalls two jsons into objects and uses ObjectsEqual
+func JSONBytesEqual(t *testing.T, expected, actual []byte, msgAndArgs ...interface{}) {
 	var expectedObj, actualObj map[string]interface{}
 	if err := json.Unmarshal(expected, &expectedObj); err != nil {
 		assert.Fail(t, "Error unmarshalling expected object: "+string(expected)+" err:"+err.Error(), msgAndArgs...)

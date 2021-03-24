@@ -54,12 +54,12 @@ type FacebookReportConfig struct {
 }
 
 type FacebookMarketingConfig struct {
-	AccountId   string `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
+	AccountID   string `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
 	AccessToken string `mapstructure:"access_token" json:"access_token,omitempty" yaml:"access_token,omitempty"`
 }
 
 func (fmc *FacebookMarketingConfig) Validate() error {
-	if fmc.AccountId == "" {
+	if fmc.AccountID == "" {
 		return errors.New("account_id is required")
 	}
 	if fmc.AccessToken == "" {
@@ -131,7 +131,7 @@ func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string
 }
 
 func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
-	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountId+"/insights", fm.reportConfig.Fields, interval, 0)
+	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/insights", fm.reportConfig.Fields, interval, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +141,7 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[s
 }
 
 func (fm *FacebookMarketing) syncAdsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
-	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountId+"/ads", fm.reportConfig.Fields, nil, 200)
+	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/ads", fm.reportConfig.Fields, nil, 200)
 	if err != nil {
 		return nil, err
 	}
@@ -204,7 +204,7 @@ func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, in
 
 		if fbErr, ok := err.(*fb.Error); ok {
 			if fbErr.Code == 80000 {
-				logging.Debugf("Facebook account: [%s] rate-limiting error: %v. Will be retry after 1 minute", fm.config.AccountId, err)
+				logging.Debugf("Facebook account: [%s] rate-limiting error: %v. Will be retry after 1 minute", fm.config.AccountID, err)
 
 				//rate limiting
 				time.Sleep(time.Duration(1) * time.Minute)
@@ -213,7 +213,7 @@ func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, in
 			}
 		}
 
-		logging.Debugf("Facebook account: [%s] error: %v. Will be retry after 1 second", fm.config.AccountId, err)
+		logging.Debugf("Facebook account: [%s] error: %v. Will be retry after 1 second", fm.config.AccountID, err)
 		time.Sleep(time.Duration(attempt+1) * time.Second)
 		attempt++
 	}
@@ -258,7 +258,7 @@ func (fm *FacebookMarketing) parseData(response fb.Result) ([]map[string]interfa
 func (fm *FacebookMarketing) logUsage(usage *fb.UsageInfo) {
 	if usage != nil {
 		b, _ := json.Marshal(usage)
-		logging.Debugf("Facebook account %s usage: %s", fm.config.AccountId, string(b))
+		logging.Debugf("Facebook account %s usage: %s", fm.config.AccountID, string(b))
 	}
 }
 

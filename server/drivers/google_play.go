@@ -46,7 +46,7 @@ var (
 )
 
 type GooglePlayConfig struct {
-	AccountId  string            `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
+	AccountID  string            `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
 	AccountKey *GoogleAuthConfig `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
 }
 
@@ -55,7 +55,7 @@ func (gpc *GooglePlayConfig) Validate() error {
 		return errors.New("GooglePlay config is required")
 	}
 
-	if gpc.AccountId == "" {
+	if gpc.AccountID == "" {
 		return errors.New("GooglePlay account_id is required")
 	}
 	return gpc.AccountKey.Validate()
@@ -101,7 +101,7 @@ func (gp *GooglePlay) GetCollectionTable() string {
 }
 
 func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
-	bucketName := bucketPrefix + gp.config.AccountId
+	bucketName := bucketPrefix + gp.config.AccountID
 	bucket := gp.client.Bucket(bucketName)
 
 	it := bucket.Objects(gp.ctx, &storage.Query{Prefix: gp.collection.Name})
@@ -144,7 +144,7 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 }
 
 func (gp *GooglePlay) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
-	bucketName := bucketPrefix + gp.config.AccountId
+	bucketName := bucketPrefix + gp.config.AccountID
 	bucket := gp.client.Bucket(bucketName)
 
 	var objects []map[string]interface{}

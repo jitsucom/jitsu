@@ -45,9 +45,9 @@ func InitTest() {
 func InitFromViper(serviceName, commit, tag, builtAt string) {
 	Init(serviceName, commit, tag, builtAt)
 
-	telemetrySourceUrl := viper.GetString("server.telemetry")
-	if telemetrySourceUrl != "" {
-		resources.Watch(serviceName, telemetrySourceUrl, resources.LoadFromHttp, reInit, reloadEvery)
+	telemetrySourceURL := viper.GetString("server.telemetry")
+	if telemetrySourceURL != "" {
+		resources.Watch(serviceName, telemetrySourceURL, resources.LoadFromHTTP, reInit, reloadEvery)
 	} else {
 		instance.usageOptOut = atomic.NewBool(viper.GetBool("server.telemetry.disabled.usage"))
 	}

@@ -18,7 +18,7 @@ const (
 )
 
 //regex for reading already rotated and closed log files
-var TokenIdExtractRegexp = regexp.MustCompile("incoming.tok=(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
+var TokenIDExtractRegexp = regexp.MustCompile("incoming.tok=(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
 //RollingWriterProxy for lumberjack.Logger
 //Rotate() only if file isn't empty

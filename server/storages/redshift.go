@@ -126,9 +126,9 @@ func (ar *AwsRedshift) Insert(table *adapters.Table, event events.Event) (err er
 	return nil
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJson func
+//Store call StoreWithParseFunc with parsers.ParseJSON func
 func (ar *AwsRedshift) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return ar.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
+	return ar.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
 }
 
 //StoreWithParseFunc file payload to AwsRedshift with processing
@@ -142,7 +142,7 @@ func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, alrea
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents {
-		ar.eventsCache.Error(ar.Name(), failedEvent.EventId, failedEvent.Error)
+		ar.eventsCache.Error(ar.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -158,9 +158,9 @@ func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, alrea
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				ar.eventsCache.Error(ar.Name(), events.ExtractEventId(object), err.Error())
+				ar.eventsCache.Error(ar.Name(), events.ExtractEventID(object), err.Error())
 			} else {
-				ar.eventsCache.Succeed(ar.Name(), events.ExtractEventId(object), object, table)
+				ar.eventsCache.Succeed(ar.Name(), events.ExtractEventID(object), object, table)
 			}
 		}
 	}
@@ -181,7 +181,7 @@ func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.T
 		return err
 	}
 
-	b := fdata.GetPayloadBytes(schema.JsonMarshallerInstance)
+	b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
 	if err := ar.s3Adapter.UploadBytes(fdata.FileName, b); err != nil {
 		return err
 	}
@@ -222,7 +222,7 @@ func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	}
 
 	start := time.Now()
-	if err = ar.redshiftAdapter.Update(dbSchema, processedObject, events.EventnCtxEventId, events.ExtractEventId(object)); err != nil {
+	if err = ar.redshiftAdapter.Update(dbSchema, processedObject, events.EventnCtxEventID, events.ExtractEventID(object)); err != nil {
 		return err
 	}
 	logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.Name(), time.Now().Sub(start).Seconds())

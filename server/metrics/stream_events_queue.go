@@ -21,21 +21,21 @@ func initStreamEventsQueue() {
 
 func InitialStreamEventsQueueSize(destinationName string, value int) {
 	if Enabled {
-		projectId, destinationId := extractLabels(destinationName)
-		streamEventsQueueSize.WithLabelValues(projectId, destinationId).Set(float64(value))
+		projectID, destinationID := extractLabels(destinationName)
+		streamEventsQueueSize.WithLabelValues(projectID, destinationID).Set(float64(value))
 	}
 }
 
 func DequeuedEvent(destinationName string) {
 	if Enabled {
-		projectId, destinationId := extractLabels(destinationName)
-		streamEventsQueueSize.WithLabelValues(projectId, destinationId).Sub(1)
+		projectID, destinationID := extractLabels(destinationName)
+		streamEventsQueueSize.WithLabelValues(projectID, destinationID).Sub(1)
 	}
 }
 
 func EnqueuedEvent(destinationName string) {
 	if Enabled {
-		projectId, destinationId := extractLabels(destinationName)
-		streamEventsQueueSize.WithLabelValues(projectId, destinationId).Add(1)
+		projectID, destinationID := extractLabels(destinationName)
+		streamEventsQueueSize.WithLabelValues(projectID, destinationID).Add(1)
 	}
 }

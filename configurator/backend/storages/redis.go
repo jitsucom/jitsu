@@ -54,10 +54,10 @@ func NewRedis(host string, port int, password string) (*Redis, error) {
 	return r, nil
 }
 
-func (r *Redis) Get(collection string, documentId string) ([]byte, error) {
+func (r *Redis) Get(collection string, documentID string) ([]byte, error) {
 	connection := r.pool.Get()
 	defer connection.Close()
-	data, err := connection.Do("hget", toRedisKey(collection), documentId)
+	data, err := connection.Do("hget", toRedisKey(collection), documentID)
 	if err != nil {
 		if err == redis.ErrNil {
 			return nil, ErrConfigurationNotFound
@@ -70,22 +70,22 @@ func (r *Redis) Get(collection string, documentId string) ([]byte, error) {
 	}
 	b, ok := data.([]byte)
 	if !ok {
-		logging.Errorf("Failed to convert Redis response to bytes for collection [%s], id=[%s], value: [%s]", collection, documentId, data)
-		return nil, fmt.Errorf("Error getting collection [%s], id=[%s] from configs storage", collection, documentId)
+		logging.Errorf("Failed to convert Redis response to bytes for collection [%s], id=[%s], value: [%s]", collection, documentID, data)
+		return nil, fmt.Errorf("Error getting collection [%s], id=[%s] from configs storage", collection, documentID)
 	}
 	return b, nil
 }
 
-func (r *Redis) GetAllGroupedById(collection string) ([]byte, error) {
+func (r *Redis) GetAllGroupedByID(collection string) ([]byte, error) {
 	connection := r.pool.Get()
 	defer connection.Close()
 
-	configsById, err := redis.StringMap(connection.Do("hgetall", toRedisKey(collection)))
+	configsByID, err := redis.StringMap(connection.Do("hgetall", toRedisKey(collection)))
 	if err != nil {
 		return nil, err
 	}
 	configs := make(map[string]interface{})
-	for id, stringConfig := range configsById {
+	for id, stringConfig := range configsByID {
 		config := map[string]interface{}{}
 		err := json.Unmarshal([]byte(stringConfig), &config)
 		if err != nil {

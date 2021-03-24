@@ -38,14 +38,14 @@ func TestProcessFilePayload(t *testing.T) {
 	}{
 		{
 			"Empty input file",
-			parsers.ParseJson,
+			parsers.ParseJSON,
 			"../test_data/fact_input_empty.log",
 			map[string]*ProcessedFile{},
 			[]events.FailedEvent{},
 		},
 		{
 			"Input file with some errors and one skipped line",
-			parsers.ParseJson,
+			parsers.ParseJSON,
 			"../test_data/fact_input_with_error_lines.log",
 			map[string]*ProcessedFile{
 				"user_2020_07": {FileName: "testfile", payload: []map[string]interface{}{
@@ -107,7 +107,7 @@ func TestProcessFilePayload(t *testing.T) {
 		},
 		{
 			"Input fallback file",
-			parsers.ParseFallbackJson,
+			parsers.ParseFallbackJSON,
 			"../test_data/fallback_fact_input.log",
 			map[string]*ProcessedFile{
 				"user_2020_08": {FileName: "testfile", payload: []map[string]interface{}{
@@ -261,7 +261,7 @@ func TestProcessFact(t *testing.T) {
 	})
 	require.NoError(t, err)
 	ipRule, err := enrichment.NewRule(&enrichment.RuleConfig{
-		Name: enrichment.IpLookup,
+		Name: enrichment.IPLookup,
 		From: "/field1/ip",
 		To:   "/field4",
 	})

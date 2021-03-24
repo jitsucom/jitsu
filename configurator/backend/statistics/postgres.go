@@ -48,15 +48,15 @@ func NewPostgres(config *adapters.DataSourceConfig, oldKeysByProject map[string]
 	return &Postgres{db: db, oldKeysByProject: oldKeysByProject}, nil
 }
 
-func (p *Postgres) GetEvents(projectId string, from, to time.Time, granularity string) ([]EventsPerTime, error) {
+func (p *Postgres) GetEvents(projectID string, from, to time.Time, granularity string) ([]EventsPerTime, error) {
 	oldKeysHackPart := ""
-	if keys, ok := p.oldKeysByProject[projectId]; ok {
+	if keys, ok := p.oldKeysByProject[projectID]; ok {
 		for i := range keys {
 			oldKeysHackPart = oldKeysHackPart + "api_key like '" + keys[i] + "' or "
 		}
 	}
 
-	query := fmt.Sprintf(queryTemplate, granularity, from.Format(responseTimestampLayout), to.Format(responseTimestampLayout), oldKeysHackPart, projectId, projectId)
+	query := fmt.Sprintf(queryTemplate, granularity, from.Format(responseTimestampLayout), to.Format(responseTimestampLayout), oldKeysHackPart, projectID, projectID)
 	rows, err := p.db.Query(query)
 	if err != nil {
 		return nil, err
