@@ -88,19 +88,19 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	eh.inMemoryEventsCache.PutAsync(token, cachingEvent)
 
 	//Persisted cache
-	eventId := events.ExtractEventId(payload)
-	if eventId == "" {
+	eventID := events.ExtractEventID(payload)
+	if eventID == "" {
 		logging.SystemErrorf("Empty extracted eventn_ctx_event_id in: %s", payload.Serialize())
 	}
-	tokenId := appconfig.Instance.AuthorizationService.GetTokenId(token)
-	var destinationIds []string
-	for destinationId := range eh.destinationService.GetDestinationIds(tokenId) {
-		destinationIds = append(destinationIds, destinationId)
-		eh.eventsCache.Put(destinationId, eventId, cachingEvent)
+	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
+	var destinationIDs []string
+	for destinationID := range eh.destinationService.GetDestinationIDs(tokenID) {
+		destinationIDs = append(destinationIDs, destinationID)
+		eh.eventsCache.Put(destinationID, eventID, cachingEvent)
 	}
 
 	//** Multiplexing **
-	consumers := eh.destinationService.GetConsumers(tokenId)
+	consumers := eh.destinationService.GetConsumers(tokenID)
 	if len(consumers) == 0 {
 		noConsumerMessage := fmt.Sprintf("No destination is configured for token [%s] (or only staged ones)", token)
 		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
@@ -110,13 +110,13 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		telemetry.Event()
 
 		for _, consumer := range consumers {
-			consumer.Consume(payload, tokenId)
+			consumer.Consume(payload, tokenID)
 		}
 
 		//Retrospective users recognition
-		eh.userRecognitionService.Event(payload, destinationIds)
+		eh.userRecognitionService.Event(payload, destinationIDs)
 
-		counters.SuccessSourceEvents(tokenId, 1)
+		counters.SuccessSourceEvents(tokenID, 1)
 	}
 
 	c.JSON(http.StatusOK, middleware.OkResponse())
@@ -151,8 +151,8 @@ func (eh *EventHandler) OldGetHandler(c *gin.Context) {
 
 func (eh *EventHandler) GetHandler(c *gin.Context) {
 	var err error
-	destinationIds := c.Query("destination_ids")
-	if destinationIds == "" {
+	destinationIDs := c.Query("destination_ids")
+	if destinationIDs == "" {
 		logging.Errorf("Empty destination ids in events cache handler")
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "destination_ids is required parameter."})
 		return
@@ -194,8 +194,8 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	}
 
 	response := CachedEventsResponse{Events: []CachedEvent{}}
-	for _, destinationId := range strings.Split(destinationIds, ",") {
-		eventsArray := eh.eventsCache.GetN(destinationId, start, end, limit)
+	for _, destinationID := range strings.Split(destinationIDs, ",") {
+		eventsArray := eh.eventsCache.GetN(destinationID, start, end, limit)
 		for _, event := range eventsArray {
 			response.Events = append(response.Events, CachedEvent{
 				Original: []byte(event.Original),
@@ -204,7 +204,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 			})
 		}
 		response.ResponseEvents += len(eventsArray)
-		response.TotalEvents += eh.eventsCache.GetTotal(destinationId)
+		response.TotalEvents += eh.eventsCache.GetTotal(destinationID)
 	}
 
 	c.JSON(http.StatusOK, response)

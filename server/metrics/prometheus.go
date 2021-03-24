@@ -22,7 +22,7 @@ func Init(enabled bool) {
 	}
 }
 
-func extractLabels(destinationName string) (projectId, destinationId string) {
+func extractLabels(destinationName string) (projectID, destinationID string) {
 	splitted := strings.Split(destinationName, ".")
 	if len(splitted) > 1 {
 		return splitted[0], splitted[1]

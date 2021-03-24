@@ -6,5 +6,5 @@ import (
 
 type Consumer interface {
 	io.Closer
-	Consume(event map[string]interface{}, tokenId string)
+	Consume(event map[string]interface{}, tokenID string)
 }

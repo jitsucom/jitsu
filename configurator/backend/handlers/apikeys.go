@@ -11,62 +11,63 @@ import (
 	"time"
 )
 
-type ApiKeysHandler struct {
+type APIKeysHandler struct {
 	configurationsService *storages.ConfigurationsService
 }
 
-func NewApiKeysHandler(configurationsService *storages.ConfigurationsService) *ApiKeysHandler {
-	return &ApiKeysHandler{configurationsService: configurationsService}
+func NewAPIKeysHandler(configurationsService *storages.ConfigurationsService) *APIKeysHandler {
+	return &APIKeysHandler{configurationsService: configurationsService}
 }
 
-func (akh *ApiKeysHandler) GetHandler(c *gin.Context) {
+func (akh *APIKeysHandler) GetHandler(c *gin.Context) {
 	begin := time.Now()
-	keys, err := akh.configurationsService.GetApiKeys()
+	keys, err := akh.configurationsService.GetAPIKeys()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: err.Error(), Message: "Api keys err"})
+		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: err.Error(), Message: "API keys err"})
 		return
 	}
 
 	var tokens []enauth.Token
 	for _, k := range keys {
 		tokens = append(tokens, enauth.Token{
-			Id:           k.Id,
+			ID:           k.ID,
 			ClientSecret: k.ClientSecret,
 			ServerSecret: k.ServerSecret,
 			Origins:      k.Origins,
 		})
 	}
 
-	logging.Debugf("ApiKeys response in [%.2f] seconds", time.Now().Sub(begin).Seconds())
+	logging.Debugf("APIKeys response in [%.2f] seconds", time.Now().Sub(begin).Seconds())
 	c.JSON(http.StatusOK, &enauth.TokensPayload{Tokens: tokens})
 }
 
-type ApiKeyCreationRequest struct {
-	ProjectId string `json:"projectId"`
+type APIKeyCreationRequest struct {
+	ProjectID string `json:"projectID"`
 }
 
-func (akh *ApiKeysHandler) CreateDefaultApiKeyHandler(c *gin.Context) {
+func (akh *APIKeysHandler) CreateDefaultAPIKeyHandler(c *gin.Context) {
 	body := DbCreationRequestBody{}
 	if err := c.BindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Failed to parse request body", Error: err.Error()})
 		return
 	}
-	if body.ProjectId == "" {
+	if body.ProjectID == "" {
 		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "[project_id] absents at request body"})
 		return
 	}
-	userProjectId := c.GetString(middleware.ProjectIdKey)
-	if userProjectId == "" {
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: systemErrProjectId.Error(), Message: "Authorization error"})
+	userProjectID := c.GetString(middleware.ProjectIDKey)
+	if userProjectID == "" {
+		logging.SystemError(ErrProjectIDNotFoundInContext)
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: ErrProjectIDNotFoundInContext.Error(), Message: "Authorization error"})
 		return
 	}
 
-	if userProjectId != body.ProjectId {
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Message: "User does not have access to project " + body.ProjectId})
+	if userProjectID != body.ProjectID {
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Message: "User does not have access to project " + body.ProjectID})
 		return
 	}
-	if err := akh.configurationsService.CreateDefaultApiKey(body.ProjectId); err != nil {
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Message: "Failed to create key for project " + body.ProjectId, Error: err.Error()})
+	if err := akh.configurationsService.CreateDefaultAPIKey(body.ProjectID); err != nil {
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Message: "Failed to create key for project " + body.ProjectID, Error: err.Error()})
 		return
 	}
 	c.JSON(http.StatusOK, enmiddleware.OkResponse())

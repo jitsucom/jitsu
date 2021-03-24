@@ -7,7 +7,7 @@ import (
 const SignatureLayout = "2006-01-02T15:04:05.000Z"
 
 type TimeInterval struct {
-	TimeZoneId string
+	TimeZoneID string
 
 	granularity Granularity
 	time        time.Time
@@ -15,7 +15,7 @@ type TimeInterval struct {
 
 func NewTimeInterval(granularity Granularity, t time.Time) *TimeInterval {
 	return &TimeInterval{
-		TimeZoneId:  time.UTC.String(),
+		TimeZoneID:  time.UTC.String(),
 		granularity: granularity,
 		time:        t,
 	}
@@ -39,7 +39,7 @@ func (ti *TimeInterval) CalculateSignatureFrom(t time.Time) string {
 }
 
 func (ti *TimeInterval) String() string {
-	return ti.TimeZoneId + "_" + ti.granularity.String() + "_" + ti.granularity.Format(ti.time)
+	return ti.TimeZoneID + "_" + ti.granularity.String() + "_" + ti.granularity.Format(ti.time)
 }
 
 func (ti *TimeInterval) IsAll() bool {

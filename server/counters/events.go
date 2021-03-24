@@ -18,46 +18,46 @@ func InitEvents(storage meta.Storage) {
 	eventsInstance = &Events{storage: storage}
 }
 
-func SuccessSourceEvents(sourceId string, value int) {
+func SuccessSourceEvents(sourceID string, value int) {
 	if eventsInstance == nil {
 		return
 	}
 
-	err := eventsInstance.storage.SuccessEvents(sourceId, meta.SourceNamespace, time.Now().UTC(), value)
+	err := eventsInstance.storage.SuccessEvents(sourceID, meta.SourceNamespace, time.Now().UTC(), value)
 	if err != nil {
-		logging.SystemErrorf("Error updating success events counter source [%s] value [%d]: %v", sourceId, value, err)
+		logging.SystemErrorf("Error updating success events counter source [%s] value [%d]: %v", sourceID, value, err)
 	}
 }
 
-func SuccessEvents(destinationId string, value int) {
+func SuccessEvents(destinationID string, value int) {
 	if eventsInstance == nil {
 		return
 	}
 
-	err := eventsInstance.storage.SuccessEvents(destinationId, meta.DestinationNamespace, time.Now().UTC(), value)
+	err := eventsInstance.storage.SuccessEvents(destinationID, meta.DestinationNamespace, time.Now().UTC(), value)
 	if err != nil {
-		logging.SystemErrorf("Error updating success events counter destination [%s] value [%d]: %v", destinationId, value, err)
+		logging.SystemErrorf("Error updating success events counter destination [%s] value [%d]: %v", destinationID, value, err)
 	}
 }
 
-func ErrorEvents(destinationId string, value int) {
+func ErrorEvents(destinationID string, value int) {
 	if eventsInstance == nil {
 		return
 	}
 
-	err := eventsInstance.storage.ErrorEvents(destinationId, meta.DestinationNamespace, time.Now().UTC(), value)
+	err := eventsInstance.storage.ErrorEvents(destinationID, meta.DestinationNamespace, time.Now().UTC(), value)
 	if err != nil {
-		logging.SystemErrorf("Error updating error events counter destination [%s] value [%d]: %v", destinationId, value, err)
+		logging.SystemErrorf("Error updating error events counter destination [%s] value [%d]: %v", destinationID, value, err)
 	}
 }
 
-func SkipEvents(destinationId string, value int) {
+func SkipEvents(destinationID string, value int) {
 	if eventsInstance == nil {
 		return
 	}
 
-	err := eventsInstance.storage.SkipEvents(destinationId, meta.DestinationNamespace, time.Now().UTC(), value)
+	err := eventsInstance.storage.SkipEvents(destinationID, meta.DestinationNamespace, time.Now().UTC(), value)
 	if err != nil {
-		logging.SystemErrorf("Error updating skipped events counter destination [%s] value [%d]: %v", destinationId, value, err)
+		logging.SystemErrorf("Error updating skipped events counter destination [%s] value [%d]: %v", destinationID, value, err)
 	}
 }

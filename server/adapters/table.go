@@ -11,7 +11,7 @@ type TableField struct {
 }
 
 type Column struct {
-	SqlType string
+	SQLType string
 }
 
 type Table struct {

@@ -20,7 +20,7 @@ const (
 var ErrUserNotFound = errors.New("User wasn't found")
 var ErrUserExists = errors.New("User already exists")
 var ErrOldPasswordIncorrect = errors.New("Old password is incorrect")
-var ErrResetIdNotFound = errors.New("Reset id wasn't found")
+var ErrResetIDNotFound = errors.New("Reset id wasn't found")
 var ErrIncorrectPassword = errors.New("Incorrect password")
 var ErrExpiredToken = errors.New("Expired token")
 var ErrUnknownToken = errors.New("Unknown token")
@@ -78,17 +78,17 @@ func NewService(ctx context.Context, authViper *viper.Viper, storage storages.Co
 
 //Authenticate verify acess token and return user id
 func (s *Service) Authenticate(token string) (string, error) {
-	userId, err := s.authProvider.VerifyAccessToken(token)
+	userID, err := s.authProvider.VerifyAccessToken(token)
 	if err != nil {
 		return "", err
 	}
 
-	return userId, nil
+	return userID, nil
 }
 
-//GetProjectId return projectId from storage by userId
-func (s *Service) GetProjectId(userId string) (string, error) {
-	usersInfoResponse, err := s.configurationsStorage.Get(UsersInfoCollection, userId)
+//GetProjectID return projectID from storage by userID
+func (s *Service) GetProjectID(userID string) (string, error) {
+	usersInfoResponse, err := s.configurationsStorage.Get(UsersInfoCollection, userID)
 	if err != nil {
 		return "", err
 	}
@@ -99,21 +99,21 @@ func (s *Service) GetProjectId(userId string) (string, error) {
 		return "", err
 	}
 
-	if userInfo.Project.Id == "" {
-		return "", fmt.Errorf("_project._id is not set for user %s", userId)
+	if userInfo.Project.ID == "" {
+		return "", fmt.Errorf("_project._id is not set for user %s", userID)
 	}
 
-	return userInfo.Project.Id, nil
+	return userInfo.Project.ID, nil
 }
 
-//GenerateUserToken generate access token for userId
-func (s *Service) GenerateUserToken(userId string) (string, error) {
-	return s.authProvider.GenerateUserAccessToken(userId)
+//GenerateUserToken generate access token for userID
+func (s *Service) GenerateUserToken(userID string) (string, error) {
+	return s.authProvider.GenerateUserAccessToken(userID)
 }
 
 //IsAdmin return true if the user id admin
-func (s *Service) IsAdmin(userId string) (bool, error) {
-	return s.authProvider.IsAdmin(userId)
+func (s *Service) IsAdmin(userID string) (bool, error) {
+	return s.authProvider.IsAdmin(userID)
 }
 
 //SignUp check existence of the email and create a new User
@@ -133,9 +133,9 @@ func (s *Service) SignUp(email, password string) (*TokenDetails, error) {
 		return nil, err
 	}
 
-	userId := "user-" + uuid.NewV4().String()
+	userID := "user-" + uuid.NewV4().String()
 	err = s.authProvider.SaveUser(&User{
-		ID:             userId,
+		ID:             userID,
 		Email:          email,
 		HashedPassword: hashedPassword,
 	})
@@ -143,7 +143,7 @@ func (s *Service) SignUp(email, password string) (*TokenDetails, error) {
 		return nil, err
 	}
 
-	return s.authProvider.CreateTokens(userId)
+	return s.authProvider.CreateTokens(userID)
 }
 
 //SignIn check email and password and return TokenDetails with JWT access token and refresh token
@@ -166,26 +166,26 @@ func (s *Service) SignOut(token string) error {
 	return s.authProvider.DeleteToken(token)
 }
 
-//CreateResetId return rest id and email
-func (s *Service) CreateResetId(email string) (string, string, error) {
+//CreateResetID return rest id and email
+func (s *Service) CreateResetID(email string) (string, string, error) {
 	user, err := s.authProvider.GetUserByEmail(email)
 	if err != nil {
 		return "", "", err
 	}
 
-	resetId := "reset-" + uuid.NewV4().String()
+	resetID := "reset-" + uuid.NewV4().String()
 
-	err = s.authProvider.SavePasswordResetId(resetId, user.ID)
+	err = s.authProvider.SavePasswordResetID(resetID, user.ID)
 	if err != nil {
 		return "", "", err
 	}
 
-	return resetId, user.Email, nil
+	return resetID, user.Email, nil
 }
 
 //ChangePassword change user password and delete all tokens
-func (s *Service) ChangePassword(resetId, newPassword string) (*TokenDetails, error) {
-	user, err := s.authProvider.GetUserByResetId(resetId)
+func (s *Service) ChangePassword(resetID, newPassword string) (*TokenDetails, error) {
+	user, err := s.authProvider.GetUserByResetID(resetID)
 	if err != nil {
 		return nil, err
 	}
@@ -206,7 +206,7 @@ func (s *Service) ChangePassword(resetId, newPassword string) (*TokenDetails, er
 		return nil, err
 	}
 
-	err = s.authProvider.DeletePasswordResetId(resetId)
+	err = s.authProvider.DeletePasswordResetID(resetID)
 	if err != nil {
 		return nil, err
 	}

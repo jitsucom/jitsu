@@ -4,7 +4,7 @@ type JwtToken struct {
 	Token  string
 	UUID   string
 	Exp    int64
-	UserId string
+	UserID string
 }
 
 type TokenDetails struct {
@@ -25,6 +25,6 @@ type UserInfo struct {
 }
 
 type Project struct {
-	Id   string `json:"_id"`
+	ID   string `json:"_id"`
 	Name string `json:"_name"`
 }

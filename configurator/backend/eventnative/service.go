@@ -22,23 +22,23 @@ const adminTokenName = "X-Admin-Token"
 type Service struct {
 	sync.RWMutex
 
-	balancerApiUrl string
+	balancerAPIURL string
 	adminToken     string
 
 	client *http.Client
 
-	instanceUrls []string
+	instanceURLs []string
 
 	closed bool
 }
 
-func NewService(balancerApiUrl, adminToken string) *Service {
+func NewService(balancerAPIURL, adminToken string) *Service {
 	s := &Service{
-		balancerApiUrl: strings.TrimRight(balancerApiUrl, "/"),
+		balancerAPIURL: strings.TrimRight(balancerAPIURL, "/"),
 		adminToken:     adminToken,
 		client:         &http.Client{Timeout: 1 * time.Minute},
 
-		instanceUrls: []string{},
+		instanceURLs: []string{},
 	}
 
 	s.startClusterMonitor()
@@ -48,7 +48,7 @@ func NewService(balancerApiUrl, adminToken string) *Service {
 
 func (s *Service) GetOldEvents(apiKeys []string, limit int) ([]enevents.Event, error) {
 	s.RLock()
-	enInstances := s.instanceUrls
+	enInstances := s.instanceURLs
 	s.RUnlock()
 
 	response := []enevents.Event{}
@@ -82,8 +82,8 @@ func (s *Service) GetOldEvents(apiKeys []string, limit int) ([]enevents.Event, e
 	return response, nil
 }
 
-func (s *Service) GetLastEvents(destinationIds string, start, end string, limit int) (*enhandlers.CachedEventsResponse, error) {
-	code, body, err := s.sendReq(http.MethodGet, s.balancerApiUrl+"/events/cache?destination_ids="+destinationIds+"&limit="+strconv.Itoa(limit)+"&start="+start+"&end="+end, nil)
+func (s *Service) GetLastEvents(destinationIDs string, start, end string, limit int) (*enhandlers.CachedEventsResponse, error) {
+	code, body, err := s.sendReq(http.MethodGet, s.balancerAPIURL+"/events/cache?destination_ids="+destinationIDs+"&limit="+strconv.Itoa(limit)+"&start="+start+"&end="+end, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (s *Service) GetLastEvents(destinationIds string, start, end string, limit 
 }
 
 func (s *Service) TestDestination(reqB []byte) (int, []byte, error) {
-	return s.sendReq(http.MethodPost, s.balancerApiUrl+"/destinations/test", bytes.NewBuffer(reqB))
+	return s.sendReq(http.MethodPost, s.balancerAPIURL+"/destinations/test", bytes.NewBuffer(reqB))
 }
 
 func (s *Service) startClusterMonitor() {
@@ -111,7 +111,7 @@ func (s *Service) startClusterMonitor() {
 				break
 			}
 
-			instanceUrls, err := s.getClusterFromEN()
+			instanceURLs, err := s.getClusterFromEN()
 			if err != nil {
 				logging.Errorf("Error getting cluster info from EventNative: %v", err)
 				//delay after error
@@ -120,7 +120,7 @@ func (s *Service) startClusterMonitor() {
 			}
 
 			s.Lock()
-			s.instanceUrls = instanceUrls
+			s.instanceURLs = instanceURLs
 			s.Unlock()
 
 			time.Sleep(time.Minute)
@@ -129,7 +129,7 @@ func (s *Service) startClusterMonitor() {
 }
 
 func (s *Service) getClusterFromEN() ([]string, error) {
-	code, body, err := s.sendReq(http.MethodGet, s.balancerApiUrl+"/cluster", nil)
+	code, body, err := s.sendReq(http.MethodGet, s.balancerAPIURL+"/cluster", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -143,15 +143,15 @@ func (s *Service) getClusterFromEN() ([]string, error) {
 		return nil, fmt.Errorf("Error unmarshalling response from EventNative: %v", err)
 	}
 
-	instanceUrls := []string{}
+	instanceURLs := []string{}
 	for _, instance := range content.Instances {
 		if !strings.HasPrefix(instance.Name, "http") {
 			instance.Name = "https://" + instance.Name
 		}
-		instanceUrls = append(instanceUrls, instance.Name)
+		instanceURLs = append(instanceURLs, instance.Name)
 	}
 
-	return instanceUrls, nil
+	return instanceURLs, nil
 }
 
 func (s *Service) sendReq(method, url string, body io.Reader) (int, []byte, error) {

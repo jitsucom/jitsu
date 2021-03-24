@@ -22,7 +22,7 @@ import (
 )
 
 const email = "reg@ksense.co"
-const defaultHttp01Location = "/var/www/html/.well-known/acme-challenge/"
+const defaultHTTP01Location = "/var/www/html/.well-known/acme-challenge/"
 const certificationServer = "https://acme-v02.api.letsencrypt.org/directory"
 const certsPath = "/opt/letsencrypt/certs/"
 const privateKeysPath = "/opt/letsencrypt/private/"
@@ -82,7 +82,7 @@ func (p *MultipleServersProvider) CleanUp(domain, token, keyAuth string) error {
 	return nil
 }
 
-func (s *CertificateService) ExecuteHttp01Challenge(domains []string) ([]byte, []byte, error) {
+func (s *CertificateService) ExecuteHTTP01Challenge(domains []string) ([]byte, []byte, error) {
 	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, nil, err
@@ -91,7 +91,7 @@ func (s *CertificateService) ExecuteHttp01Challenge(domains []string) ([]byte, [
 		Email: email,
 		key:   privateKey,
 	}
-	http01Provider := &MultipleServersProvider{SshClient: s.sshClient, TargetHosts: s.enHosts, HostChallengeDirectory: defaultHttp01Location, AcmeChallengePath: s.acmeChallengePath}
+	http01Provider := &MultipleServersProvider{SshClient: s.sshClient, TargetHosts: s.enHosts, HostChallengeDirectory: defaultHTTP01Location, AcmeChallengePath: s.acmeChallengePath}
 
 	config := lego.NewConfig(&myUser)
 	config.CADirURL = certificationServer
@@ -121,30 +121,30 @@ func (s *CertificateService) ExecuteHttp01Challenge(domains []string) ([]byte, [
 }
 
 type serverTemplateVariables struct {
-	ProjectId   string
+	ProjectID   string
 	ServerNames string
 }
 
-func (s *CertificateService) UploadCertificate(certificatePath string, privateKeyPath string, projectId string,
+func (s *CertificateService) UploadCertificate(certificatePath string, privateKeyPath string, projectID string,
 	approvedDomainNames []string, hostsToDeliver []string) error {
 	serverNames := strings.Join(approvedDomainNames[:], " ")
-	templateVariables := serverTemplateVariables{ProjectId: projectId, ServerNames: serverNames}
+	templateVariables := serverTemplateVariables{ProjectID: projectID, ServerNames: serverNames}
 	var tpl bytes.Buffer
 	if err := s.serverConfigTemplate.Execute(&tpl, templateVariables); err != nil {
 		return err
 	}
-	serverConfigPath := s.nginxConfigPath + projectId + ".conf"
+	serverConfigPath := s.nginxConfigPath + projectID + ".conf"
 	if err := ioutil.WriteFile(serverConfigPath, tpl.Bytes(), rwPermission); err != nil {
 		return err
 	}
 	for _, host := range hostsToDeliver {
-		if err := s.sshClient.CopyFile(certificatePath, host, certsPath+projectId+"_fullchain.pem"); err != nil {
+		if err := s.sshClient.CopyFile(certificatePath, host, certsPath+projectID+"_fullchain.pem"); err != nil {
 			return err
 		}
-		if err := s.sshClient.CopyFile(privateKeyPath, host, privateKeysPath+projectId+"_key.pem"); err != nil {
+		if err := s.sshClient.CopyFile(privateKeyPath, host, privateKeysPath+projectID+"_key.pem"); err != nil {
 			return err
 		}
-		if err := s.sshClient.CopyFile(serverConfigPath, host, nginxServerConfigPath+projectId+".conf"); err != nil {
+		if err := s.sshClient.CopyFile(serverConfigPath, host, nginxServerConfigPath+projectID+".conf"); err != nil {
 			return err
 		}
 		if err := s.sshClient.ExecuteCommand(host, configReloadCommand); err != nil {
@@ -168,14 +168,14 @@ func NewCertificateService(sshClient *ssh.ClientWrapper, enHosts []string, confi
 	return &CertificateService{sshClient: sshClient, enHosts: enHosts, configurationsService: configurationsService, serverConfigTemplate: serverConfigTemplate, nginxConfigPath: files.FixPath(nginxSSLConfigPath), acmeChallengePath: files.FixPath(acmeChallengePath)}, nil
 }
 
-func (s *CertificateService) UpdateCustomDomains(projectId string, domains *entities.CustomDomains) error {
-	return s.configurationsService.UpdateCustomDomain(projectId, domains)
+func (s *CertificateService) UpdateCustomDomains(projectID string, domains *entities.CustomDomains) error {
+	return s.configurationsService.UpdateCustomDomain(projectID, domains)
 }
 
 func (s *CertificateService) LoadCustomDomains() (map[string]*entities.CustomDomains, error) {
 	return s.configurationsService.GetCustomDomains()
 }
 
-func (s *CertificateService) LoadCustomDomainsByProjectId(projectId string) (*entities.CustomDomains, error) {
-	return s.configurationsService.GetCustomDomainsByProjectId(projectId)
+func (s *CertificateService) LoadCustomDomainsByProjectID(projectID string) (*entities.CustomDomains, error) {
+	return s.configurationsService.GetCustomDomainsByProjectID(projectID)
 }

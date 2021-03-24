@@ -9,6 +9,7 @@ import (
 const retryCount = 3
 const wait = time.Second * 1
 
+//RenewGet executes HTTP GET requests with retry and timeout
 func RenewGet(url string) (*http.Response, error) {
 	var multiErr error
 	for i := 0; i < retryCount; i++ {

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	entime "github.com/jitsucom/jitsu/configurator/time"
-	_ "github.com/lib/pq"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc/codes"
@@ -23,8 +22,8 @@ type Firebase struct {
 	defaultDestination *destinations.Postgres
 }
 
-func NewFirebase(ctx context.Context, projectId string, credentialsFile string, defaultDestination *destinations.Postgres) (ConfigurationsStorage, error) {
-	fbConfig := &firebase.Config{ProjectID: projectId}
+func NewFirebase(ctx context.Context, projectID string, credentialsFile string, defaultDestination *destinations.Postgres) (ConfigurationsStorage, error) {
+	fbConfig := &firebase.Config{ProjectID: projectID}
 	app, err := firebase.NewApp(ctx, fbConfig, option.WithCredentialsFile(credentialsFile))
 	if err != nil {
 		return nil, err
@@ -38,8 +37,8 @@ func NewFirebase(ctx context.Context, projectId string, credentialsFile string, 
 	return &Firebase{ctx: ctx, client: firestoreClient, defaultDestination: defaultDestination}, nil
 }
 
-func (fb *Firebase) Get(collection string, documentId string) ([]byte, error) {
-	data, err := fb.client.Collection(collection).Doc(documentId).Get(fb.ctx)
+func (fb *Firebase) Get(collection string, documentID string) ([]byte, error) {
+	data, err := fb.client.Collection(collection).Doc(documentID).Get(fb.ctx)
 	if err != nil {
 		if status.Code(err) == codes.NotFound {
 			return nil, ErrConfigurationNotFound
@@ -49,7 +48,7 @@ func (fb *Firebase) Get(collection string, documentId string) ([]byte, error) {
 	return json.Marshal(data.Data())
 }
 
-func (fb *Firebase) GetAllGroupedById(collection string) ([]byte, error) {
+func (fb *Firebase) GetAllGroupedByID(collection string) ([]byte, error) {
 	iter := fb.client.Collection(collection).Documents(fb.ctx)
 	configurations := make(map[string]interface{})
 	for {
@@ -95,14 +94,14 @@ func (fb *Firebase) GetCollectionLastUpdated(collection string) (*time.Time, err
 	return &t, nil
 }
 
-func (fb *Firebase) Store(collection string, documentId string, entity interface{}) error {
-	_, err := fb.client.Collection(collection).Doc(documentId).Set(fb.ctx, entity)
+func (fb *Firebase) Store(collection string, documentID string, entity interface{}) error {
+	_, err := fb.client.Collection(collection).Doc(documentID).Set(fb.ctx, entity)
 	if err != nil {
 		return err
 	}
 	var updates []firestore.Update
 	updates = append(updates, firestore.Update{Path: lastUpdatedField, Value: entime.AsISOString(time.Now().UTC())})
-	_, err = fb.client.Collection(collection).Doc(documentId).Update(fb.ctx, updates)
+	_, err = fb.client.Collection(collection).Doc(documentID).Update(fb.ctx, updates)
 	return err
 }
 

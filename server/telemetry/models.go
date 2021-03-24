@@ -1,7 +1,8 @@
 package telemetry
 
+//InstanceInfo is a deploed server data dto
 type InstanceInfo struct {
-	Id string `json:"id,omitempty"`
+	ID string `json:"id,omitempty"`
 
 	Commit      string `json:"commit,omitempty"`
 	Tag         string `json:"tag,omitempty"`
@@ -9,17 +10,20 @@ type InstanceInfo struct {
 	ServiceName string `json:"service,omitempty"`
 }
 
+//Usage is a usage accounting dto
 type Usage struct {
 	ServerStart int    `json:"server_start,omitempty"`
 	ServerStop  int    `json:"server_stop,omitempty"`
 	Events      uint64 `json:"events,omitempty"`
 }
 
+//Errors is a error accounting dto
 type Errors struct {
-	Id       int64 `json:"id,omitempty"`
+	ID       int64 `json:"id,omitempty"`
 	Quantity int64 `json:"quantity,omitempty"`
 }
 
+//UserData is a registered user data dto
 type UserData struct {
 	Email       string `json:"email,omitempty"`
 	Name        string `json:"name,omitempty"`
@@ -28,6 +32,7 @@ type UserData struct {
 	UsageOptout bool   `json:"telemetry_usage_optout"`
 }
 
+//Request is a telemetry request dto
 type Request struct {
 	Timestamp    string        `json:"timestamp,omitempty"`
 	InstanceInfo *InstanceInfo `json:"instance_info,omitempty"`

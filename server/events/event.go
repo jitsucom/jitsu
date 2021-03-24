@@ -12,7 +12,7 @@ type Event map[string]interface{}
 type FailedEvent struct {
 	Event   json.RawMessage `json:"event,omitempty"`
 	Error   string          `json:"error,omitempty"`
-	EventId string          `json:"event_id,omitempty"`
+	EventID string          `json:"event_id,omitempty"`
 }
 
 func (f Event) Serialize() string {

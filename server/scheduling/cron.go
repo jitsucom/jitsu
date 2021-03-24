@@ -12,7 +12,7 @@ type CronScheduler struct {
 	mutex *sync.RWMutex
 
 	cronInstance *cron.Cron
-	//sourceId_collectionId: EntryID
+	//sourceID_collectionID: EntryID
 	scheduledEntries map[string]cron.EntryID
 
 	executeFunc func(source, collection string, retryCount int)
@@ -53,12 +53,12 @@ func (s *CronScheduler) Schedule(source, collection, scheduleTiming string) erro
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
-	entryId, err := s.cronInstance.AddFunc(scheduleTiming, func() { s.executeFunc(source, collection, 0) })
+	entryID, err := s.cronInstance.AddFunc(scheduleTiming, func() { s.executeFunc(source, collection, 0) })
 	if err != nil {
 		return err
 	}
 
-	s.scheduledEntries[key] = entryId
+	s.scheduledEntries[key] = entryID
 	return nil
 }
 
