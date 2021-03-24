@@ -56,7 +56,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.venv_dir", "./venv")
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 	if containerized {
-		viper.SetDefault("geo.maxmind_path", "/home/eventnative/data/res")
+		viper.SetDefault("geo.maxmind_path", "/home/eventnative/data/config")
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
 	} else {
