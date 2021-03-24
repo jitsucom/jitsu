@@ -11,7 +11,9 @@ jobs:
           keys:
             - go-mod-v1-global-{{ checksum "./go.sum" }}
       - run: go get -u golang.org/x/lint/golint
-      - run: golint -set_exit_status=true -min_confidence=1 ./...
+      - run: golint ./...
+      # uncomment it for stopping build on golint error
+      # - run: golint -set_exit_status=true ./...
       - save_cache:
           key: go-mod-v1-global-{{ checksum "./go.sum" }}
           paths:
