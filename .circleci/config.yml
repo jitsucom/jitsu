@@ -7,8 +7,15 @@ jobs:
     working_directory: /go/src/github.com/jitsucom/jitsu
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-global-{{ checksum "./go.sum" }}
       - run: go get -u golang.org/x/lint/golint
       - run: golint -set_exit_status=true -min_confidence=1 ./...
+      - save_cache:
+          key: go-mod-v1-global-{{ checksum "./go.sum" }}
+          paths:
+            - "/go/pkg/mod"
   server-test:
     working_directory: /go/src/github.com/jitsucom/jitsu/server
     docker:
