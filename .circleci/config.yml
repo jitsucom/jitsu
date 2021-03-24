@@ -204,6 +204,12 @@ workflows:
   version: 2.1
   build-docker:
     jobs:
+      - lint:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: /.*/
       - server-test:
           requires:
             - lint
