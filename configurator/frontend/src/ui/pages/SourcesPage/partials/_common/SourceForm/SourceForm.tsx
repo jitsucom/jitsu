@@ -42,20 +42,21 @@ const SourceForm = ({
 
   const [form] = Form.useForm();
 
-  const handleButtonClick = async() => {
+  const handleButtonClick = useCallback(async() => {
     try {
       const values = await form.validateFields();
 
       handleFinish(values);
     } catch (errors) {
+      console.log('errors: ', errors);
     }
-  };
+  }, [form, handleFinish]);
 
   return (
     <Form form={form} autoComplete="off" name={formName} onFinish={handleFinish} className="source-form">
       <div className="flex-grow">
-        <Tabs defaultActiveKey="collections" type="card" size="middle" className="form-tabs">
-          <Tabs.TabPane tab="Config" key="config">
+        <Tabs defaultActiveKey="config" type="card" size="middle" className="form-tabs">
+          <Tabs.TabPane tab={<span>Config</span>} key="config">
             <SourceFormConfig
               initialValues={initialValues}
               sources={sources}
