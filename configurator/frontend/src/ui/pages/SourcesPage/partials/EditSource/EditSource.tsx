@@ -11,7 +11,7 @@ import { allSources } from '@connectors/sources';
 // @Routes
 import { routes } from '@page/SourcesPage/routes';
 
-const EditSource = ({ projectId, sources }: CommonSourcePageProps) => {
+const EditSource = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
   const params = useParams<{ sourceId: string }>();
 
   const sourceData = useMemo(() => sources[params.sourceId], [sources, params.sourceId]);
@@ -33,6 +33,7 @@ const EditSource = ({ projectId, sources }: CommonSourcePageProps) => {
         connectorSource={connectorSource}
         projectId={projectId}
         sources={sources}
+        setSources={setSources}
       />
     </>
   );
