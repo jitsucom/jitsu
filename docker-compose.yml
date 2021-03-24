@@ -8,8 +8,7 @@ services:
     depends_on:
       - redis
     volumes:
-      - ./compose-data/configurator/res:/home/configurator/app/res/
-      - ./compose-data/configurator/logs/:/home/configurator/logs/
+      - ./compose-data/configurator/data:/home/configurator/data/
     restart: always
     ports:
       - "7000:7000"

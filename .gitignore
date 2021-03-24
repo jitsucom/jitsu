@@ -1,7 +1,7 @@
 # Test binary, build with `go test -c`
-compose-data/configurator/logs
+compose-data/configurator/data/logs
 compose-data/redis
-compose-data/server/events
+compose-data/server/data/events
 compose-data/server/data/logs
 
 .idea/
