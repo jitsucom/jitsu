@@ -1,6 +1,6 @@
 // @Libs
 import React, { useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useHistory, useParams } from 'react-router-dom';
 // @Components
 import { SourceFormWrap } from '@page/SourcesPage/partials/_common/SourceForm/SourceFormWrap';
 // @Types
@@ -8,16 +8,26 @@ import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 import { SourceConnector } from '@connectors/types';
 // @Sources
 import { allSources } from '@connectors/sources';
+// @Routes
+import { routes } from '@page/SourcesPage/routes';
 
 const EditSource = ({ projectId, sources }: CommonSourcePageProps) => {
+  const history = useHistory();
+
   const params = useParams<{ sourceId: string }>();
 
   const sourceData = useMemo(() => sources[params.sourceId], [sources, params.sourceId]);
 
   const connectorSource = useMemo<SourceConnector>(
-    () => allSources.find((source: SourceConnector) => source.id === sourceData.sourceType) ?? {} as SourceConnector,
-    [sourceData.sourceType]
+    () => allSources.find((source: SourceConnector) => source.id === sourceData?.sourceType) ?? {} as SourceConnector,
+    [sourceData?.sourceType]
   );
+
+  if (!Object.keys(connectorSource).length) {
+    history.push(routes.root);
+
+    return null;
+  }
 
   return (
     <>
