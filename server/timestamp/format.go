@@ -2,18 +2,30 @@ package timestamp
 
 import "time"
 
-//default key and format of event timestamp
+//Key is a default key and format of event timestamp
 const Key = "_timestamp"
+
+//Layout is an ISO date time format
 const Layout = "2006-01-02T15:04:05.000000Z"
+
+//DayLayout is a Day format of time.Time
 const DayLayout = "20060102"
+
+//MonthLayout is a Month format of time.Time
 const MonthLayout = "200601"
+
+//DashDayLayout is a Day format with dash delimiter of time.Time
 const DashDayLayout = "2006-01-02"
+
+//LogsLayout is a date time representation for log records prefixies
 const LogsLayout = "2006-01-02 15:04:05"
 
+//NowUTC returns ISO string representation of current UTC time
 func NowUTC() string {
 	return time.Now().UTC().Format(Layout)
 }
 
+//ToISOFormat returns ISO string representation of input time.Time
 func ToISOFormat(t time.Time) string {
 	return t.Format(Layout)
 }

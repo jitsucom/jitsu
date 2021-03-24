@@ -86,9 +86,9 @@ func (p *Postgres) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return dryRun(payload, p.processor, p.tableHelper)
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJson func
+//Store call StoreWithParseFunc with parsers.ParseJSON func
 func (p *Postgres) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return p.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
+	return p.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
 }
 
 //StoreWithParseFunc file payload to Postgres with processing
@@ -102,7 +102,7 @@ func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, alreadyUp
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents {
-		p.eventsCache.Error(p.Name(), failedEvent.EventId, failedEvent.Error)
+		p.eventsCache.Error(p.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -118,9 +118,9 @@ func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, alreadyUp
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				p.eventsCache.Error(p.Name(), events.ExtractEventId(object), err.Error())
+				p.eventsCache.Error(p.Name(), events.ExtractEventID(object), err.Error())
 			} else {
-				p.eventsCache.Succeed(p.Name(), events.ExtractEventId(object), object, table)
+				p.eventsCache.Succeed(p.Name(), events.ExtractEventID(object), object, table)
 			}
 		}
 	}

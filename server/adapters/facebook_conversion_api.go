@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-const eventsUrlTemplate = "https://graph.facebook.com/v9.0/%s/events?access_token=%s&locale=en_EN"
+const eventsURLTemplate = "https://graph.facebook.com/v9.0/%s/events?access_token=%s&locale=en_EN"
 
 var (
 	//FB doesn't use types
@@ -43,7 +43,7 @@ var (
 
 //FacebookConversionAPIConfig dto for deserialized datasource config (e.g. in Facebook destination)
 type FacebookConversionAPIConfig struct {
-	PixelId     string `mapstructure:"pixel_id" json:"pixel_id,omitempty" yaml:"pixel_id,omitempty"`
+	PixelID     string `mapstructure:"pixel_id" json:"pixel_id,omitempty" yaml:"pixel_id,omitempty"`
 	AccessToken string `mapstructure:"access_token" json:"access_token,omitempty" yaml:"access_token,omitempty"`
 }
 
@@ -52,7 +52,7 @@ func (fmc *FacebookConversionAPIConfig) Validate() error {
 	if fmc == nil {
 		return errors.New("facebook config is required")
 	}
-	if fmc.PixelId == "" {
+	if fmc.PixelID == "" {
 		return errors.New("pixel_id is required parameter")
 	}
 
@@ -104,13 +104,13 @@ func NewFacebookConversion(config *FacebookConversionAPIConfig, requestDebugLogg
 
 //TestAccess send test request (empty POST) to Facebook and check if pixel id or access token are invalid
 func (fc *FacebookConversionAPI) TestAccess() error {
-	reqUrl := fmt.Sprintf(eventsUrlTemplate, fc.config.PixelId, fc.config.AccessToken)
+	reqURL := fmt.Sprintf(eventsURLTemplate, fc.config.PixelID, fc.config.AccessToken)
 	reqBody := &FacebookConversionEventsReq{}
 
 	bodyPayload, _ := json.Marshal(reqBody)
 
 	//send empty request and expect error
-	r, err := fc.client.Post(reqUrl, "application/json", bytes.NewBuffer(bodyPayload))
+	r, err := fc.client.Post(reqURL, "application/json", bytes.NewBuffer(bodyPayload))
 	if r != nil && r.Body != nil {
 		defer r.Body.Close()
 
@@ -202,14 +202,14 @@ func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	//sending
 	var responsePayload string
 
-	reqUrl := fmt.Sprintf(eventsUrlTemplate, fc.config.PixelId, fc.config.AccessToken)
+	reqURL := fmt.Sprintf(eventsURLTemplate, fc.config.PixelID, fc.config.AccessToken)
 	reqBody := &FacebookConversionEventsReq{Data: []map[string]interface{}{object}, TestEventCode: testEventCodeStr}
 
 	bodyPayload, _ := json.Marshal(reqBody)
 
-	fc.debugLogger.LogQueryWithValues("POST "+reqUrl, []interface{}{string(bodyPayload)})
+	fc.debugLogger.LogQueryWithValues("POST "+reqURL, []interface{}{string(bodyPayload)})
 
-	r, err := fc.client.Post(reqUrl, "application/json", bytes.NewBuffer(bodyPayload))
+	r, err := fc.client.Post(reqURL, "application/json", bytes.NewBuffer(bodyPayload))
 	if r != nil && r.Body != nil {
 		defer r.Body.Close()
 

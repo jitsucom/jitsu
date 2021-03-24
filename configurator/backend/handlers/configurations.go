@@ -21,13 +21,13 @@ func NewConfigurationsHandler(configStorage storages.ConfigurationsStorage) *Con
 }
 
 func (ch *ConfigurationHandler) GetConfig(c *gin.Context) {
-	configId := c.Query("id")
-	if configId == "" {
+	configID := c.Query("id")
+	if configID == "" {
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Required query parameter [id] is empty"})
 		return
 	}
 	collection := c.Param("collection")
-	config, err := ch.getConfig(collection, configId)
+	config, err := ch.getConfig(collection, configID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: err.Error()})
 		return
@@ -36,19 +36,19 @@ func (ch *ConfigurationHandler) GetConfig(c *gin.Context) {
 }
 
 func (ch *ConfigurationHandler) StoreConfig(c *gin.Context) {
-	configId := c.Query("id")
-	if configId == "" {
+	configID := c.Query("id")
+	if configID == "" {
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Required query parameter [id] is empty"})
 		return
 	}
 	collection := c.Param("collection")
-	ch.saveConfig(c, collection, configId)
+	ch.saveConfig(c, collection, configID)
 }
 
 func (ch *ConfigurationHandler) GetUserInfo(c *gin.Context) {
-	userId := c.GetString(middleware.UserIdKey)
+	userID := c.GetString(middleware.UserIDKey)
 
-	config, err := ch.getConfig(authorization.UsersInfoCollection, userId)
+	config, err := ch.getConfig(authorization.UsersInfoCollection, userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: err.Error()})
 		return
@@ -58,7 +58,7 @@ func (ch *ConfigurationHandler) GetUserInfo(c *gin.Context) {
 
 //StoreUserInfo save user info data after onboarding
 func (ch *ConfigurationHandler) StoreUserInfo(c *gin.Context) {
-	userId := c.GetString(middleware.UserIdKey)
+	userID := c.GetString(middleware.UserIDKey)
 
 	data := map[string]interface{}{}
 	err := c.BindJSON(&data)
@@ -67,9 +67,9 @@ func (ch *ConfigurationHandler) StoreUserInfo(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: bodyExtractionErrorMessage})
 		return
 	}
-	err = ch.configStorage.Store(authorization.UsersInfoCollection, userId, data)
+	err = ch.configStorage.Store(authorization.UsersInfoCollection, userID, data)
 	if err != nil {
-		configStoreErrorMessage := fmt.Sprintf("Failed to save user info [%s]: %v", userId, err)
+		configStoreErrorMessage := fmt.Sprintf("Failed to save user info [%s]: %v", userID, err)
 		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: configStoreErrorMessage})
 		return
 	}
@@ -82,10 +82,9 @@ func (ch *ConfigurationHandler) getConfig(collection string, id string) ([]byte,
 	if err != nil {
 		if err == storages.ErrConfigurationNotFound {
 			return json.Marshal(make(map[string]interface{}))
-		} else {
-			errorMessage := fmt.Sprintf("Failed to get config for collection=[%s], id=[%s]: %v", collection, id, err)
-			return nil, errors.New(errorMessage)
 		}
+		errorMessage := fmt.Sprintf("Failed to get config for collection=[%s], id=[%s]: %v", collection, id, err)
+		return nil, errors.New(errorMessage)
 	}
 	return config, nil
 }

@@ -18,9 +18,8 @@ const (
 func (f FieldMappingType) String() string {
 	if f == Strict {
 		return "Strict"
-	} else {
-		return "Default"
 	}
+	return "Default"
 }
 
 type Mapping struct {

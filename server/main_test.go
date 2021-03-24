@@ -195,7 +195,7 @@ func TestCors(t *testing.T) {
 
 			inmemWriter := logging.InitInMemoryWriter()
 			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
-				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
+				destinations.TokenizedStorages{}, destinations.TokenizedIDs{})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
 			dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
@@ -244,7 +244,7 @@ func TestCors(t *testing.T) {
 	}
 }
 
-func TestApiEvent(t *testing.T) {
+func TestAPIEvent(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
 
@@ -287,7 +287,7 @@ func TestApiEvent(t *testing.T) {
 			"",
 		},
 		{
-			"S2S Api event consuming test",
+			"S2S API event consuming test",
 			"/api/v1/s2s/event",
 			"test_data/api_event_input.json",
 			"test_data/api_fact_output.json",
@@ -296,7 +296,7 @@ func TestApiEvent(t *testing.T) {
 			"",
 		},
 		{
-			"S2S Api malformed event test",
+			"S2S API malformed event test",
 			"/api/v1/s2s/event",
 			"test_data/malformed_input.json",
 			"",
@@ -325,7 +325,7 @@ func TestApiEvent(t *testing.T) {
 
 			inmemWriter := logging.InitInMemoryWriter()
 			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
-				destinations.TokenizedStorages{}, destinations.TokenizedIds{})
+				destinations.TokenizedStorages{}, destinations.TokenizedIDs{})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
 			dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
@@ -367,8 +367,8 @@ func TestApiEvent(t *testing.T) {
 			resp, err = http.DefaultClient.Do(apiReq)
 			require.NoError(t, err)
 
-			if tt.ExpectedHttpCode != 200 {
-				require.Equal(t, tt.ExpectedHttpCode, resp.StatusCode, "Http cods aren't equal")
+			if tt.ExpectedHTTPCode != 200 {
+				require.Equal(t, tt.ExpectedHTTPCode, resp.StatusCode, "HTTP cods aren't equal")
 
 				b, err := ioutil.ReadAll(resp.Body)
 				require.NoError(t, err)
@@ -376,7 +376,7 @@ func TestApiEvent(t *testing.T) {
 				resp.Body.Close()
 				require.Equal(t, tt.ExpectedErrMsg, string(b))
 			} else {
-				require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
+				require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
 				b, err := ioutil.ReadAll(resp.Body)
 				require.NoError(t, err)
 				resp.Body.Close()
@@ -387,9 +387,9 @@ func TestApiEvent(t *testing.T) {
 				data := logging.InstanceMock.Data
 				require.Equal(t, 1, len(data))
 
-				fBytes, err := ioutil.ReadFile(tt.ExpectedJsonPath)
+				fBytes, err := ioutil.ReadFile(tt.ExpectedJSONPath)
 				require.NoError(t, err)
-				test.JsonBytesEqual(t, fBytes, data[0], "Logged facts aren't equal")
+				test.JSONBytesEqual(t, fBytes, data[0], "Logged facts aren't equal")
 			}
 		})
 	}
@@ -528,7 +528,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(apiReq)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
+		require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
 		resp.Body.Close()
 		time.Sleep(200 * time.Millisecond)
 	}
@@ -634,7 +634,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(apiReq)
 		require.NoError(t, err)
-		require.Equal(t, http.StatusOK, resp.StatusCode, "Http code isn't 200")
+		require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
 		resp.Body.Close()
 		time.Sleep(200 * time.Millisecond)
 	}

@@ -44,14 +44,14 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 			object["src"] = "source"
 			object[timestamp.Key] = timestamp.NowUTC()
 
-			//calculate eventId from key fields or whole object
-			var eventId string
+			//calculate eventID from key fields or whole object
+			var eventID string
 			if len(stream.KeyFields) > 0 {
-				eventId = uuid.GetKeysHash(object, stream.KeyFields)
+				eventID = uuid.GetKeysHash(object, stream.KeyFields)
 			} else {
-				eventId = uuid.GetHash(object)
+				eventID = uuid.GetHash(object)
 			}
-			events.EnrichWithEventId(object, eventId)
+			events.EnrichWithEventID(object, eventID)
 		}
 
 		//Sync stream
@@ -75,16 +75,16 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 
 	//save state
 	if representation.State != nil {
-		stateJson, err := json.Marshal(representation.State)
+		stateJSON, err := json.Marshal(representation.State)
 		if err != nil {
 			errMsg := fmt.Sprintf("Error marshalling Singer state in source [%s] tap [%s] signature [%v]: %v", rs.task.Source, rs.tap, representation.State, err)
 			logging.SystemError(errMsg)
 			return errors.New(errMsg)
 		}
 
-		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.tap, drivers.ALL.String(), string(stateJson))
+		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.tap, drivers.ALL.String(), string(stateJSON))
 		if err != nil {
-			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.task.Source, rs.tap, string(stateJson), err)
+			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.task.Source, rs.tap, string(stateJSON), err)
 			logging.SystemError(errMsg)
 			return errors.New(errMsg)
 		}
