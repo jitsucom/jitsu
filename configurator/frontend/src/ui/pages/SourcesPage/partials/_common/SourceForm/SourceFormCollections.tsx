@@ -154,7 +154,7 @@ const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) 
                           labelCol={{ span: 6 }}
                           wrapperCol={{ span: 18 }}
                         >
-                          <Input />
+                          <Input autoComplete="off" />
                         </Form.Item>
                       </Col>
                     </Row>

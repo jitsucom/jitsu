@@ -32,7 +32,7 @@ const SourceFormWrap = ({
     ({ collections, ...rest }: any) => {
       switchPending(true);
 
-      const payload = {
+      const createdSourceData = {
         sourceType: snakeCase(connectorSource.id),
         ...Object.keys(rest).reduce((accumulator: any, current: any) => {
           if (rest[current]) {
@@ -44,7 +44,7 @@ const SourceFormWrap = ({
       };
 
       if (collections) {
-        payload.collections = collections.map((collection: any) => ({
+        createdSourceData.collections = collections.map((collection: any) => ({
           name: collection.name,
           type: collection.type,
           parameters: connectorSource.collectionParameters.reduce((accumulator: any, current: any) => {
@@ -56,20 +56,18 @@ const SourceFormWrap = ({
         }));
       }
 
+      const payload = {
+        sources: [...sources ?? [], createdSourceData]
+      };
+
       services.storageService
         .save(
           'sources',
-          {
-            ...sources,
-            [payload.sourceId]: payload
-          },
+          payload,
           projectId
         )
         .then((response) => {
-          setSources({
-            ...sources,
-            [payload.sourceId]: payload
-          });
+          setSources(payload);
 
           message.success('New source has been added!');
 
