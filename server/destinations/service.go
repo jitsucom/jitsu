@@ -13,6 +13,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"github.com/mitchellh/hashstructure/v2"
 )
 
 const serviceName = "destinations"
@@ -43,6 +44,8 @@ type Service struct {
 	consumersByTokenId      TokenizedConsumers
 	storagesByTokenId       TokenizedStorages
 	destinationsIdByTokenId TokenizedIds
+
+	destinationsHashOpts *hashstructure.HashOptions
 }
 
 //only for tests
@@ -66,6 +69,8 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 		consumersByTokenId:      map[string]map[string]events.Consumer{},
 		storagesByTokenId:       map[string]map[string]storages.StorageProxy{},
 		destinationsIdByTokenId: map[string]map[string]bool{},
+
+		destinationsHashOpts: &hashstructure.HashOptions{SlicesAsSets: true},
 	}
 
 	reloadSec := viper.GetInt("server.destinations_reload_sec")
@@ -195,7 +200,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIds()
 		}
 
-		hash := getHash(name, destinationConfig)
+		hash := getHash(name, s.destinationsHashOpts, destinationConfig)
 		unit, ok := s.unitsByName[name]
 		if ok {
 			if unit.hash == hash {
