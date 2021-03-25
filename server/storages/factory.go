@@ -84,7 +84,7 @@ type Config struct {
 	usersRecognition *UserRecognitionConfiguration
 	processor        *schema.Processor
 	streamMode       bool
-	max_columns      int
+	maxColumns       int
 	monitorKeeper    MonitorKeeper
 	eventQueue       *events.PersistentQueue
 	eventsCache      *caching.EventsCache
@@ -104,11 +104,11 @@ type FactoryImpl struct {
 	eventsCache         *caching.EventsCache
 	globalLoggerFactory *logging.Factory
 	globalConfiguration *UsersRecognition
-	max_columns         int
+	maxColumns          int
 }
 
 func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
-	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, max_columns int) Factory {
+	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -116,7 +116,7 @@ func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorK
 		eventsCache:         eventsCache,
 		globalLoggerFactory: globalLoggerFactory,
 		globalConfiguration: globalConfiguration,
-		max_columns:         max_columns,
+		maxColumns:          maxColumns,
 	}
 }
 
@@ -295,7 +295,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		usersRecognition: usersRecognitionConfiguration,
 		processor:        processor,
 		streamMode:       destination.Mode == StreamMode,
-		max_columns:      f.max_columns,
+		maxColumns:       f.maxColumns,
 		monitorKeeper:    f.monitorKeeper,
 		eventQueue:       eventQueue,
 		eventsCache:      f.eventsCache,
