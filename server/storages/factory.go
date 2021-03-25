@@ -54,8 +54,8 @@ type DataLayout struct {
 
 type UsersRecognition struct {
 	Enabled         bool   `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
-	AnonymousIdNode string `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
-	UserIdNode      string `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
+	AnonymousIDNode string `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
+	UserIDNode      string `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
 }
 
 func (ur *UsersRecognition) IsEnabled() bool {
@@ -64,11 +64,11 @@ func (ur *UsersRecognition) IsEnabled() bool {
 
 func (ur *UsersRecognition) Validate() error {
 	if ur.IsEnabled() {
-		if ur.AnonymousIdNode == "" {
+		if ur.AnonymousIDNode == "" {
 			return errors.New("anonymous_id_node is required")
 		}
 
-		if ur.UserIdNode == "" {
+		if ur.UserIDNode == "" {
 			return errors.New("user_id_node is required")
 		}
 	}
@@ -170,7 +170,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 
 	//default enrichment rules
 	enrichmentRules := []enrichment.Rule{
-		enrichment.DefaultJsIpRule,
+		enrichment.DefaultJsIPRule,
 		enrichment.DefaultJsUaRule,
 	}
 
@@ -223,8 +223,8 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		} else {
 			usersRecognitionConfiguration = &UserRecognitionConfiguration{
 				Enabled:             destination.UsersRecognition.Enabled,
-				AnonymousIdJsonPath: jsonutils.NewJsonPath(destination.UsersRecognition.AnonymousIdNode),
-				UserIdJsonPath:      jsonutils.NewJsonPath(destination.UsersRecognition.UserIdNode),
+				AnonymousIDJSONPath: jsonutils.NewJSONPath(destination.UsersRecognition.AnonymousIDNode),
+				UserIDJSONPath:      jsonutils.NewJSONPath(destination.UsersRecognition.UserIDNode),
 			}
 		}
 	} else {

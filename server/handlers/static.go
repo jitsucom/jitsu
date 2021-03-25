@@ -24,7 +24,7 @@ const eventsChainJsTemplate = "eventN.track('%s'); "
 type StaticHandler struct {
 	servingFiles    map[string][]byte
 	gzippedFiles    map[string][]byte
-	serverPublicUrl string
+	serverPublicURL string
 	inlineJsParts   [][]byte
 }
 
@@ -34,10 +34,10 @@ type jsConfig struct {
 	TrackingHost string `json:"tracking_host" form:"tracking_host"`
 	CookieDomain string `json:"cookie_domain,omitempty" form:"cookie_domain"`
 	GaHook       bool   `json:"ga_hook" form:"ga_hook"`
-	RandomizeUrl bool   `json:"randomize_url" form:"randomize_url"`
+	RandomizeURL bool   `json:"randomize_url" form:"randomize_url"`
 }
 
-func NewStaticHandler(sourceDir, serverPublicUrl string) *StaticHandler {
+func NewStaticHandler(sourceDir, serverPublicURL string) *StaticHandler {
 	if !strings.HasSuffix(sourceDir, "/") {
 		sourceDir += "/"
 	}
@@ -80,7 +80,7 @@ func NewStaticHandler(sourceDir, serverPublicUrl string) *StaticHandler {
 	}
 	return &StaticHandler{
 		servingFiles:    servingFiles,
-		serverPublicUrl: serverPublicUrl,
+		serverPublicURL: serverPublicURL,
 		inlineJsParts:   inlineJsParts,
 		gzippedFiles:    gzippedFiles,
 	}
@@ -117,16 +117,16 @@ func (sh *StaticHandler) Handler(c *gin.Context) {
 		}
 
 		if config.TrackingHost == "" {
-			if sh.serverPublicUrl != "" {
-				config.TrackingHost = sh.serverPublicUrl
+			if sh.serverPublicURL != "" {
+				config.TrackingHost = sh.serverPublicURL
 			} else {
 				config.TrackingHost = c.Request.Host
 			}
 		}
 
 		c.Writer.Write(sh.inlineJsParts[0])
-		configJson, _ := json.MarshalIndent(config, "", " ")
-		c.Writer.Write(configJson)
+		configJSON, _ := json.MarshalIndent(config, "", " ")
+		c.Writer.Write(configJSON)
 		c.Writer.Write(sh.inlineJsParts[1])
 
 		eventsArr, ok := c.GetQueryArray("event")

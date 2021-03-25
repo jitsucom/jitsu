@@ -26,7 +26,7 @@ type EventsPerTime struct {
 
 type Storage interface {
 	io.Closer
-	GetEvents(projectId string, start, end time.Time, granularity string) ([]EventsPerTime, error)
+	GetEvents(projectID string, start, end time.Time, granularity string) ([]EventsPerTime, error)
 }
 
 func NewStorage(statisticsViper *viper.Viper, oldKeysByProject map[string][]string) (Storage, error) {
@@ -86,7 +86,7 @@ func NewStorage(statisticsViper *viper.Viper, oldKeysByProject map[string][]stri
 type DummyStorage struct {
 }
 
-func (ds *DummyStorage) GetEvents(projectId string, from, to time.Time, granularity string) ([]EventsPerTime, error) {
+func (ds *DummyStorage) GetEvents(projectID string, from, to time.Time, granularity string) ([]EventsPerTime, error) {
 	return []EventsPerTime{}, nil
 }
 

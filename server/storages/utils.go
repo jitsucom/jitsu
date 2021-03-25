@@ -27,7 +27,7 @@ func dryRun(payload events.Event, processor *schema.Processor, tableHelper *Tabl
 	var dryRunResponses []adapters.TableField
 
 	for name, column := range tableSchema.Columns {
-		dryRunResponses = append(dryRunResponses, adapters.TableField{Field: name, Type: column.SqlType, Value: event[name]})
+		dryRunResponses = append(dryRunResponses, adapters.TableField{Field: name, Type: column.SQLType, Value: event[name]})
 	}
 
 	return dryRunResponses, nil

@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	defaultStatisticsPostgresDestinationId = "statistics.postgres"
+	defaultStatisticsPostgresDestinationID = "statistics.postgres"
 )
 
 type DestinationsHandler struct {
@@ -49,21 +49,21 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 	}
 
 	idConfig := map[string]enstorages.DestinationConfig{}
-	keysByProject, err := dh.configurationsService.GetApiKeysGroupByProjectId()
+	keysByProject, err := dh.configurationsService.GetAPIKeysGroupByProjectID()
 	if err != nil {
 		logging.Errorf("Error getting api keys grouped by project id. All destinations will be skipped: %v", err)
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: err.Error(), Message: "Failed to get API keys"})
 		return
 	}
-	for projectId, destinationsEntity := range destinationsMap {
+	for projectID, destinationsEntity := range destinationsMap {
 		if len(destinationsEntity.Destinations) == 0 {
 			continue
 		}
 
 		//if only tokens empty - put all tokens by project
-		keys, ok := keysByProject[projectId]
+		keys, ok := keysByProject[projectID]
 		if !ok {
-			logging.Errorf("No API keys for project [%s], all destinations will be skipped", projectId)
+			logging.Errorf("No API keys for project [%s], all destinations will be skipped", projectID)
 			continue
 		}
 
@@ -71,30 +71,30 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 			continue
 		}
 
-		var projectTokenIds []string
+		var projectTokenIDs []string
 		for _, k := range keys {
-			projectTokenIds = append(projectTokenIds, k.Id)
+			projectTokenIDs = append(projectTokenIDs, k.ID)
 		}
 
 		for _, destination := range destinationsEntity.Destinations {
-			destinationId := projectId + "." + destination.Uid
-			enDestinationConfig, err := destinations.MapConfig(destinationId, destination, dh.defaultS3)
+			destinationID := projectID + "." + destination.UID
+			enDestinationConfig, err := destinations.MapConfig(destinationID, destination, dh.defaultS3)
 			if err != nil {
-				logging.Errorf("Error mapping destination config for destination type: %s id: %s projectId: %s err: %v", destination.Type, destination.Uid, projectId, err)
+				logging.Errorf("Error mapping destination config for destination type: %s id: %s projectID: %s err: %v", destination.Type, destination.UID, projectID, err)
 				continue
 			}
 
 			if len(destination.OnlyKeys) > 0 {
 				enDestinationConfig.OnlyTokens = destination.OnlyKeys
 			} else {
-				enDestinationConfig.OnlyTokens = projectTokenIds
+				enDestinationConfig.OnlyTokens = projectTokenIDs
 			}
-			idConfig[destinationId] = *enDestinationConfig
+			idConfig[destinationID] = *enDestinationConfig
 		}
 	}
 	if dh.statisticsPostgres != nil {
 		//default statistic destination
-		idConfig[defaultStatisticsPostgresDestinationId] = *dh.statisticsPostgres
+		idConfig[defaultStatisticsPostgresDestinationID] = *dh.statisticsPostgres
 	}
 
 	logging.Debugf("Destinations response in [%.2f] seconds", time.Now().Sub(begin).Seconds())

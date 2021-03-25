@@ -18,18 +18,18 @@ func NewRule(ruleConfig *RuleConfig) (Rule, error) {
 		return nil, err
 	}
 
-	source := jsonutils.NewJsonPath(ruleConfig.From)
+	source := jsonutils.NewJSONPath(ruleConfig.From)
 	if source.IsEmpty() {
 		return nil, errors.New("'from' must be a valid path like: /node1/node2")
 	}
-	destination := jsonutils.NewJsonPath(ruleConfig.To)
+	destination := jsonutils.NewJSONPath(ruleConfig.To)
 	if destination.IsEmpty() {
 		return nil, errors.New("'to' must be a valid path like: /node1/node2")
 	}
 
 	switch ruleConfig.Name {
-	case IpLookup:
-		return NewIpLookupRule(source, destination)
+	case IPLookup:
+		return NewIPLookupRule(source, destination)
 	case UserAgentParse:
 		return NewUserAgentParseRule(source, destination)
 	default:

@@ -153,10 +153,10 @@ func (s *Snowflake) CreateTable(tableSchema *Table) error {
 
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		sqlType := column.SqlType
-		castedSqlType, ok := s.mappingTypeCasts[columnName]
+		sqlType := column.SQLType
+		castedSQLType, ok := s.mappingTypeCasts[columnName]
 		if ok {
-			sqlType = castedSqlType
+			sqlType = castedSQLType
 		}
 		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, reformatValue(columnName), sqlType))
 	}
@@ -188,10 +188,10 @@ func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		sqlType := column.SqlType
-		castedSqlType, ok := s.mappingTypeCasts[columnName]
+		sqlType := column.SQLType
+		castedSQLType, ok := s.mappingTypeCasts[columnName]
 		if ok {
-			sqlType = castedSqlType
+			sqlType = castedSQLType
 		}
 		query := fmt.Sprintf(addSFColumnTemplate, s.config.Schema,
 			reformatValue(patchSchema.Name), reformatValue(columnName), sqlType)
@@ -205,7 +205,7 @@ func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
 		_, err = alterStmt.ExecContext(s.ctx)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, column.SqlType, err)
+			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, column.SQLType, err)
 		}
 	}
 
@@ -228,7 +228,7 @@ func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
 
-		table.Columns[strings.ToLower(columnName)] = Column{SqlType: columnSnowflakeType}
+		table.Columns[strings.ToLower(columnName)] = Column{SQLType: columnSnowflakeType}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("Last rows.Err: %v", err)

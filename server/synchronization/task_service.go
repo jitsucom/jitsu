@@ -73,7 +73,7 @@ func (ts *TaskService) ScheduleSyncFunc(source, collection string, retryCount in
 	}
 	logging.Infof("[%s_%s] Schedule sync %s..", source, collection, retryLog)
 
-	taskId, err := ts.Sync(source, collection, HIGH)
+	taskID, err := ts.Sync(source, collection, HIGH)
 	if err != nil {
 		if err == ErrSourceCollectionIsStartingToSync {
 			logging.Warnf("[%s_%s] Sync is being already started by another initiator", source, collection)
@@ -81,7 +81,7 @@ func (ts *TaskService) ScheduleSyncFunc(source, collection string, retryCount in
 		}
 
 		if err == ErrSourceCollectionIsSyncing {
-			logging.Warnf("[%s_%s] Sync is being already executed! task id: %s", source, collection, taskId)
+			logging.Warnf("[%s_%s] Sync is being already executed! task id: %s", source, collection, taskID)
 			return
 		}
 
@@ -98,24 +98,24 @@ func (ts *TaskService) ScheduleSyncFunc(source, collection string, retryCount in
 		logging.Errorf("[%s_%s] Error scheduling sync: %v", source, collection, err)
 	}
 
-	logging.Infof("[%s_%s] sync has been scheduled! task id: %s", source, collection, taskId)
+	logging.Infof("[%s_%s] sync has been scheduled! task id: %s", source, collection, taskID)
 }
 
 //Sync create task and return its ID
 //return error if task has been already scheduled or has been already in progress (lock in coordination service)
-func (ts *TaskService) Sync(sourceId, collection string, priority Priority) (string, error) {
+func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (string, error) {
 	if ts.metaStorage == nil {
 		return "", ErrMetaStorageRequired
 	}
 
 	//check source exists
-	_, err := ts.sourceService.GetSource(sourceId)
+	_, err := ts.sourceService.GetSource(sourceID)
 	if err != nil {
 		return "", err
 	}
 
 	//get task-creation lock
-	creationTaskLock, err := ts.monitorKeeper.TryLock(sourceId, collection+"task_creation")
+	creationTaskLock, err := ts.monitorKeeper.TryLock(sourceID, collection+"task_creation")
 	if err != nil {
 		if err == coordination.ErrAlreadyLocked {
 			return "", ErrSourceCollectionIsStartingToSync
@@ -125,14 +125,14 @@ func (ts *TaskService) Sync(sourceId, collection string, priority Priority) (str
 	}
 	defer ts.monitorKeeper.Unlock(creationTaskLock)
 
-	locked, err := ts.monitorKeeper.IsLocked(sourceId, collection)
+	locked, err := ts.monitorKeeper.IsLocked(sourceID, collection)
 	if err != nil {
 		return "", err
 	}
 
 	if locked {
 		//get last task
-		task, getTaskErr := ts.metaStorage.GetLastTask(sourceId, collection)
+		task, getTaskErr := ts.metaStorage.GetLastTask(sourceID, collection)
 		if getTaskErr != nil {
 			return "", fmt.Errorf("Collection sync task is in progress (unable to get last task: %v)", getTaskErr)
 		}
@@ -141,20 +141,20 @@ func (ts *TaskService) Sync(sourceId, collection string, priority Priority) (str
 			return task.ID, ErrSourceCollectionIsSyncing
 		}
 
-		logging.SystemErrorf("Error sync source [%s] collection [%s]: locked and last task has wrong status: %s", sourceId, collection, task.Status)
+		logging.SystemErrorf("Error sync source [%s] collection [%s]: locked and last task has wrong status: %s", sourceID, collection, task.Status)
 		return "", fmt.Errorf("Collection sync task is in progress (last task has wrong status: %s)", task.Status)
 	}
 
 	//check if in the queue
-	taskId, ok, err := ts.metaStorage.IsTaskInQueue(sourceId, collection)
+	taskID, ok, err := ts.metaStorage.IsTaskInQueue(sourceID, collection)
 	if err != nil {
 		return "", fmt.Errorf("Unable to check if task is in the queue: %v", err)
 	}
 	if ok {
-		return taskId, ErrSourceCollectionIsSyncing
+		return taskID, ErrSourceCollectionIsSyncing
 	}
 
-	sourceUnit, err := ts.sourceService.GetSource(sourceId)
+	sourceUnit, err := ts.sourceService.GetSource(sourceID)
 	if err != nil {
 		return "", err
 	}
@@ -162,26 +162,26 @@ func (ts *TaskService) Sync(sourceId, collection string, priority Priority) (str
 	//check if collection exists
 	_, ok = sourceUnit.DriverPerCollection[collection]
 	if !ok {
-		return "", fmt.Errorf("Collection with id [%s] wasn't found in source [%s]", collection, sourceId)
+		return "", fmt.Errorf("Collection with id [%s] wasn't found in source [%s]", collection, sourceID)
 	}
 
 	//make sure all destinations exist and ready
-	for _, destinationId := range sourceUnit.DestinationIds {
-		storageProxy, ok := ts.destinationService.GetStorageById(destinationId)
+	for _, destinationID := range sourceUnit.DestinationIDs {
+		storageProxy, ok := ts.destinationService.GetStorageByID(destinationID)
 		if !ok {
-			return "", fmt.Errorf("Destination [%s] doesn't exist", destinationId)
+			return "", fmt.Errorf("Destination [%s] doesn't exist", destinationID)
 		}
 
 		_, ok = storageProxy.Get()
 		if !ok {
-			return "", fmt.Errorf("Destination [%s] isn't initialized", destinationId)
+			return "", fmt.Errorf("Destination [%s] isn't initialized", destinationID)
 		}
 	}
 
 	now := time.Now().UTC()
 	task := meta.Task{
-		ID:         fmt.Sprintf("%s_%s_%s", sourceId, collection, uuid.NewV4().String()),
-		Source:     sourceId,
+		ID:         fmt.Sprintf("%s_%s_%s", sourceID, collection, uuid.NewV4().String()),
+		Source:     sourceID,
 		Collection: collection,
 		Priority:   priority.GetValue(now),
 		CreatedAt:  now.Format(timestamp.Layout),
@@ -190,7 +190,7 @@ func (ts *TaskService) Sync(sourceId, collection string, priority Priority) (str
 		Status:     SCHEDULED.String(),
 	}
 
-	err = ts.metaStorage.CreateTask(sourceId, collection, &task, now)
+	err = ts.metaStorage.CreateTask(sourceID, collection, &task, now)
 	if err != nil {
 		return "", fmt.Errorf("Error saving sync task: %v", err)
 	}
@@ -227,12 +227,12 @@ func (ts *TaskService) GetTask(id string) (*TaskDto, error) {
 }
 
 //GetTasks return all tasks with input filters
-func (ts *TaskService) GetTasks(sourceId, collectionId string, statusFilter *Status, start, end time.Time) ([]TaskDto, error) {
+func (ts *TaskService) GetTasks(sourceID, collectionID string, statusFilter *Status, start, end time.Time) ([]TaskDto, error) {
 	if ts.metaStorage == nil {
 		return nil, ErrMetaStorageRequired
 	}
 
-	tasks, err := ts.metaStorage.GetAllTasks(sourceId, collectionId, start, end)
+	tasks, err := ts.metaStorage.GetAllTasks(sourceID, collectionID, start, end)
 	if err != nil {
 		return nil, err
 	}
@@ -263,12 +263,12 @@ func (ts *TaskService) GetTasks(sourceId, collectionId string, statusFilter *Sta
 }
 
 //GetTaskLogs return task logs with input filters
-func (ts *TaskService) GetTaskLogs(taskId string, start, end time.Time) ([]LogRecordDto, error) {
+func (ts *TaskService) GetTaskLogs(taskID string, start, end time.Time) ([]LogRecordDto, error) {
 	if ts.metaStorage == nil {
 		return nil, ErrMetaStorageRequired
 	}
 
-	logRecords, err := ts.metaStorage.GetTaskLogs(taskId, start, end)
+	logRecords, err := ts.metaStorage.GetTaskLogs(taskID, start, end)
 	if err != nil {
 		return nil, err
 	}

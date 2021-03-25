@@ -91,7 +91,7 @@ func (s *Service) init(sc map[string]drivers.SourceConfig) {
 		s.sources[name] = &Unit{
 			SourceType:          sourceConfig.Type,
 			DriverPerCollection: driverPerCollection,
-			DestinationIds:      sourceConfig.Destinations,
+			DestinationIDs:      sourceConfig.Destinations,
 		}
 		s.Unlock()
 
@@ -105,29 +105,29 @@ func (s *Service) IsConfigured() bool {
 	return s.configured
 }
 
-func (s *Service) GetSource(sourceId string) (*Unit, error) {
+func (s *Service) GetSource(sourceID string) (*Unit, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	unit, ok := s.sources[sourceId]
+	unit, ok := s.sources[sourceID]
 	if !ok {
-		return nil, fmt.Errorf("Source [%s] doesn't exist", sourceId)
+		return nil, fmt.Errorf("Source [%s] doesn't exist", sourceID)
 	}
 
 	return unit, nil
 }
 
-func (s *Service) GetCollections(sourceId string) ([]string, error) {
+func (s *Service) GetCollections(sourceID string) ([]string, error) {
 	s.RLock()
 	defer s.RUnlock()
 
-	unit, ok := s.sources[sourceId]
+	unit, ok := s.sources[sourceID]
 	if !ok {
-		return nil, fmt.Errorf("Source [%s] doesn't exist", sourceId)
+		return nil, fmt.Errorf("Source [%s] doesn't exist", sourceID)
 	}
 
 	collections := []string{}
-	for collection, _ := range unit.DriverPerCollection {
+	for collection := range unit.DriverPerCollection {
 		collections = append(collections, collection)
 	}
 

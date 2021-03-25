@@ -14,7 +14,7 @@ import (
 )
 
 var (
-	EmptyIp    = errors.New("IP is empty")
+	EmptyIP    = errors.New("IP is empty")
 	mmdbSuffix = ".mmdb"
 )
 
@@ -42,20 +42,20 @@ func CreateResolver(geoipPath string) (Resolver, error) {
 		return &DummyResolver{}, errors.New("Maxmind db source wasn't provided")
 	}
 
-	geoIpParser, err := createGeoIpParser(geoipPath)
+	geoIPParser, err := createGeoIPParser(geoipPath)
 	if err != nil {
 		return &DummyResolver{}, fmt.Errorf("Error open maxmind db: %v", err)
 	}
 
 	resolver := &MaxMindResolver{}
-	resolver.parser = geoIpParser
+	resolver.parser = geoIPParser
 	logging.Info("Loaded MaxMind db:", geoipPath)
 
 	return resolver, nil
 }
 
 //Create maxmind geo resolver from http source or from local file
-func createGeoIpParser(geoipPath string) (*geoip2.Reader, error) {
+func createGeoIPParser(geoipPath string) (*geoip2.Reader, error) {
 	if strings.Contains(geoipPath, "http://") || strings.Contains(geoipPath, "https://") {
 		logging.Info("Start downloading maxmind from", geoipPath)
 		r, err := http.Get(geoipPath)
@@ -88,7 +88,7 @@ func createGeoIpParser(geoipPath string) (*geoip2.Reader, error) {
 func (mr *MaxMindResolver) Resolve(ip string) (*Data, error) {
 	data := &Data{}
 	if ip == "" {
-		return nil, EmptyIp
+		return nil, EmptyIP
 	}
 
 	city, err := mr.parser.City(net.ParseIP(ip))

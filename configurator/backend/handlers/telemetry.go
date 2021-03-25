@@ -10,7 +10,7 @@ import (
 )
 
 const telemetryCollection = "telemetry"
-const telemetryGlobalId = "global"
+const telemetryGlobalID = "global"
 
 type TelemetryHandler struct {
 	configStorage storages.ConfigurationsStorage
@@ -23,7 +23,7 @@ func NewTelemetryHandler(configStorage storages.ConfigurationsStorage) *Telemetr
 }
 
 func (th *TelemetryHandler) GetHandler(c *gin.Context) {
-	config, err := th.configStorage.Get(telemetryCollection, telemetryGlobalId)
+	config, err := th.configStorage.Get(telemetryCollection, telemetryGlobalID)
 	if err != nil {
 		if err == storages.ErrConfigurationNotFound {
 			c.JSON(http.StatusOK, map[string]interface{}{})

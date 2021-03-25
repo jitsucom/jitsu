@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-const rawJsonFormat = "raw_json"
+const rawJSONFormat = "raw_json"
 
 type FallbackFilesResponse struct {
 	Files []*fallback.FileStatus `json:"files"`
@@ -17,7 +17,7 @@ type FallbackFilesResponse struct {
 
 type ReplayRequest struct {
 	FileName      string `json:"file_name"`
-	DestinationId string `json:"destination_id"`
+	DestinationID string `json:"destination_id"`
 	FileFormat    string `json:"file_format"`
 }
 
@@ -30,11 +30,11 @@ func NewFallbackHandler(fallbackService *fallback.Service) *FallbackHandler {
 }
 
 func (fh *FallbackHandler) GetHandler(c *gin.Context) {
-	destinationIds := c.Query("destination_ids")
+	destinationIDs := c.Query("destination_ids")
 	destinationsFilter := map[string]bool{}
-	if destinationIds != "" {
-		for _, destinationId := range strings.Split(destinationIds, ",") {
-			destinationsFilter[destinationId] = true
+	if destinationIDs != "" {
+		for _, destinationID := range strings.Split(destinationIDs, ",") {
+			destinationsFilter[destinationID] = true
 		}
 	}
 
@@ -51,7 +51,7 @@ func (fh *FallbackHandler) ReplayHandler(c *gin.Context) {
 		return
 	}
 
-	err := fh.fallbackService.Replay(req.FileName, req.DestinationId, req.FileFormat == rawJsonFormat)
+	err := fh.fallbackService.Replay(req.FileName, req.DestinationID, req.FileFormat == rawJSONFormat)
 	if err != nil {
 		logging.Errorf("Error replaying file: [%s] from fallback: %v", req.FileName, err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to replay file: " + req.FileName, Error: err.Error()})
