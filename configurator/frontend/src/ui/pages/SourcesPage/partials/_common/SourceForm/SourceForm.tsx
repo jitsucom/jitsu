@@ -6,9 +6,10 @@ import { capitalize } from 'lodash';
 import { FormProps as Props } from './SourceForm.types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 // @Components
+import { handleError } from '@./lib/components/components';
 import { SourceFormConfig } from './SourceFormConfig';
 import { SourceFormCollections } from './SourceFormCollections';
-import { handleError } from '@./lib/components/components';
+import { SourceFormDestinations } from './SourceFormDestinations';
 // @Icons
 import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 // @Services
@@ -43,7 +44,9 @@ const sourceFormCleanFunctions = {
         return result;
       }, [])}
   </ul>),
-  getTabName: (currentTab: Tab) => currentTab.errorsCount === 0 ? currentTab.name : <span className="tab-name tab-name_error">{currentTab.name} <sup>{currentTab.errorsCount}</sup></span>
+  getTabName: (currentTab: Tab) => currentTab.errorsCount === 0
+    ? currentTab.name
+    : <span className="tab-name tab-name_error">{currentTab.name} <sup>{currentTab.errorsCount}</sup></span>
 };
 
 const SourceForm = ({
@@ -70,6 +73,12 @@ const SourceForm = ({
         name: 'Collections',
         form: Form.useForm()[0],
         getComponent: (form: FormInstance) => <SourceFormCollections initialValues={initialValues} connectorSource={connectorSource} form={form} />,
+        errorsCount: 0
+      },
+      destinations: {
+        name: 'Destinations',
+        form: Form.useForm()[0],
+        getComponent: () => <SourceFormDestinations initialValues={initialValues} />,
         errorsCount: 0
       }
     },
