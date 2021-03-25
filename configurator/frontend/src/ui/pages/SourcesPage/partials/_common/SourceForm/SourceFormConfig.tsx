@@ -28,7 +28,12 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
     }
 
     const maxIndexSourceId = naturalSort(
-      sources?.filter((source: SourceData) => source.sourceId.includes(preparedBlank))
+      sources?.reduce((accumulator: string[], current: SourceData) => {
+        if (current.sourceId.includes(preparedBlank)) {
+          accumulator.push(current.sourceId)
+        }
+        return accumulator;
+      }, [])
     )?.pop();
 
     if (!maxIndexSourceId) {
