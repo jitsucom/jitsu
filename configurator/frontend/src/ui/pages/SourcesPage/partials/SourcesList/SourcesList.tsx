@@ -1,7 +1,6 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
 import { Button, Dropdown, List, message } from 'antd';
-import { unset, cloneDeep } from 'lodash';
 // @Components
 import { ConnectorsCatalog } from '../_common/ConnectorsCatalog';
 import { SourcesListItem } from './SourcesListItem';
@@ -13,7 +12,7 @@ import ApplicationServices from '@service/ApplicationServices';
 import { SourceConnector } from '@connectors/types';
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
-import './SourcesList.less';
+import './SourcesListItem.module.less';
 // @Sources
 import { allSources } from '@connectors/sources';
 
@@ -55,22 +54,23 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
         </Dropdown>
       </div>
 
-      {sources?.length > 0 ? (
-        <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
-          {sources.map((source) => {
-            const sourceProto = sourcesMap[source.sourceId];
+      {sources?.length > 0
+        ? (
+          <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
+            {sources.map((source) => {
+              const sourceProto = sourcesMap[source.sourceId];
 
-            return (
-              <SourcesListItem
-                handleDeleteSource={handleDeleteSource}
-                sourceProto={sourceProto}
-                sourceId={source.sourceId}
-                key={source.sourceId}
-              />
-            );
-          })}
-        </List>
-      ) :
+              return (
+                <SourcesListItem
+                  handleDeleteSource={handleDeleteSource}
+                  sourceProto={sourceProto}
+                  sourceId={source.sourceId}
+                  key={source.sourceId}
+                />
+              );
+            })}
+          </List>
+        ) :
         <div>No data</div>
       }
     </>
