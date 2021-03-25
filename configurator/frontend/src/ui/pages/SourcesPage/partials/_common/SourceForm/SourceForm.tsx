@@ -1,5 +1,6 @@
 // @Libs
 import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useHistory } from 'react-router-dom';
 import { Popover, Button, Form, message, Tabs } from 'antd';
 import { capitalize } from 'lodash';
 // @Types
@@ -16,6 +17,8 @@ import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 import ApplicationServices from '@service/ApplicationServices';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
+// @Routes
+import { routes } from '@page/SourcesPage/routes';
 
 interface Tab {
   name: string;
@@ -57,6 +60,8 @@ const SourceForm = ({
   initialValues = {},
   formMode
 }: Props) => {
+  const history = useHistory();
+
   const forceUpdate = useForceUpdate();
 
   const [connectionTestPending, setConnectionTestPending] = useState<boolean>();
@@ -136,6 +141,8 @@ const SourceForm = ({
     }
   }, [forceUpdate, handleTabSubmit]);
 
+  const handleCancel = useCallback(() => history.push(routes.root), [history]);
+
   return (
     <>
       <div className="flex-grow">
@@ -184,6 +191,12 @@ const SourceForm = ({
           onClick={handleTestConnectionClick}
           icon={<ApiOutlined/>}
         >Test connection</Button>
+
+        <Button
+          type="default"
+          size="large"
+          onClick={handleCancel}
+          danger>Cancel</Button>
       </div>
     </>
   );
