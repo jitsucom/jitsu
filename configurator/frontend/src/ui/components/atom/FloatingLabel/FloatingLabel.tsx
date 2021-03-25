@@ -10,7 +10,7 @@ const FloatingLabelComponent = ({ className, htmlFor, render, hasValue, size }: 
   return (
     <label className={cn(
       'floating-label', className, hasValue && 'floating-label_active',
-      { "floating-label-large": size === "large" }
+      { 'floating-label-large': size === 'large' }
     )}
     htmlFor={htmlFor}>
       {render}

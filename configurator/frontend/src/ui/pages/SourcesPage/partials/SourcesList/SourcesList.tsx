@@ -1,28 +1,28 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
 import { Button, Dropdown, List, message } from 'antd';
-import { unset, cloneDeep } from 'lodash';
 // @Components
 import { ConnectorsCatalog } from '../_common/ConnectorsCatalog';
 import { SourcesListItem } from './SourcesListItem';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Services
-import ApplicationServices from '../../../../../lib/services/ApplicationServices';
+import ApplicationServices from '@service/ApplicationServices';
 // @Types
+import { SourceConnector } from '@connectors/types';
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
-import './SourcesList.less';
-// @hardcoded data
-import allSourcesList from '../../../../../_temp';
+import './SourcesListItem.module.less';
+// @Sources
+import { allSources } from '@connectors/sources';
 
-const SourcesList = ({ userUid, sources, setSources }: CommonSourcePageProps) => {
+const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
 
   const sourcesMap = useMemo(
     () =>
-      allSourcesList.reduce(
-        (accumulator: any, current: any) => ({
+      allSources.reduce(
+        (accumulator: { [key: string]: SourceConnector }, current: SourceConnector) => ({
           ...accumulator,
           [current.id]: current
         }),
@@ -33,16 +33,15 @@ const SourcesList = ({ userUid, sources, setSources }: CommonSourcePageProps) =>
 
   const handleDeleteSource = useCallback(
     (sourceId: string) => {
-      const updatedSources = cloneDeep(sources);
-      unset(updatedSources, sourceId);
+      const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
 
-      services.storageService.save('sources', updatedSources, userUid).then(() => {
-        setSources(updatedSources);
+      services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
+        setSources({ sources: updatedSources });
 
         message.success('Sources list successfully updated');
       });
     },
-    [sources, setSources, services.storageService, userUid]
+    [sources, setSources, services.storageService, projectId]
   );
 
   return (
@@ -55,27 +54,29 @@ const SourcesList = ({ userUid, sources, setSources }: CommonSourcePageProps) =>
         </Dropdown>
       </div>
 
-      {Object.keys(sources).length > 0 ? (
-        <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
-          {Object.keys(sources).map((sourceId) => {
-            const _current = sources[sourceId];
-            const sourceProto = sourcesMap[_current.sourceType];
+      {sources?.length > 0
+        ? (
+          <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
+            {sources.map((source) => {
+              const sourceProto = sourcesMap[source.sourceId];
 
-            return (
-              <SourcesListItem
-                handleDeleteSource={handleDeleteSource}
-                sourceProto={sourceProto}
-                sourceId={sourceId}
-                key={sourceId}
-              />
-            );
-          })}
-        </List>
-      ) : (
+              return (
+                <SourcesListItem
+                  handleDeleteSource={handleDeleteSource}
+                  sourceProto={sourceProto}
+                  sourceId={source.sourceId}
+                  key={source.sourceId}
+                />
+              );
+            })}
+          </List>
+        ) :
         <div>No data</div>
-      )}
+      }
     </>
   );
 };
+
+SourcesList.displayName = 'SourcesList';
 
 export { SourcesList };
