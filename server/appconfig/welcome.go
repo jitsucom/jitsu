@@ -1,6 +1,8 @@
 package appconfig
 
-import "fmt"
+import (
+	"github.com/jitsucom/jitsu/server/logging"
+)
 
 const banner = "========================================================================\n\n" +
 	"Welcome to EventNative %s!\n\n" +
@@ -12,5 +14,5 @@ const banner = "================================================================
 	"========================================================================\n"
 
 func logWelcomeBanner(version string) {
-	fmt.Printf(banner, version)
+	logging.Infof(banner, version)
 }
