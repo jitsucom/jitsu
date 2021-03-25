@@ -4,7 +4,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 )
 
-const banner = "========================================================================\n\n" +
+const banner = "\n========================================================================\n\n" +
 	"Welcome to EventNative %s!\n\n" +
 	"EventNative is a data collection platform developed by Jitsu\n\n" +
 	" 📚 Documentation: https://docs.eventnative.org/\n" +
