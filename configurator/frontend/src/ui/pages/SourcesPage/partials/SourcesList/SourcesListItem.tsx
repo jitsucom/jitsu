@@ -1,7 +1,8 @@
 // @Libs
 import React, { memo, useCallback, useMemo } from 'react';
-import { generatePath } from 'react-router-dom';
+import { generatePath, NavLink } from 'react-router-dom';
 import { Button, List } from 'antd';
+import cn from 'classnames';
 // @Icons
 import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
@@ -22,9 +23,10 @@ const SourcesListItemComponent = ({ sourceId, sourceProto, handleDeleteSource }:
       key={sourceId}
       className={styles.sourcesListItem}
       actions={[
-        <Button icon={<EditOutlined />} key="edit" shape="round" href={generatePath(routes.editExact, { sourceId })}>
-          Edit
-        </Button>,
+        <NavLink
+          to={generatePath(routes.editExact, { sourceId })}
+          className={cn('ant-btn', 'ant-btn-round', styles.editButton)}
+          key="edit"><EditOutlined /> Edit</NavLink>,
         <Button icon={<DeleteOutlined />} key="delete" shape="round" onClick={handleDelete}>
           Delete
         </Button>
