@@ -37,7 +37,7 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
       switch (type) {
       case 'string':
       default:
-        return <Input />;
+        return <Input autoComplete="off" />;
 
       case 'json':
         return <MonacoEditor
@@ -52,7 +52,7 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
         />;
 
       case 'int':
-        return <Input onChange={handleChange(getFieldsValue, setFieldsValue)} />;
+        return <Input autoComplete="off" onChange={handleChange(getFieldsValue, setFieldsValue)} />;
       }
     },
     [type, handleChange, handleMonacoChange]
