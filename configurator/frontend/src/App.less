@@ -1,5 +1,5 @@
-@import '~antd/dist/antd.less';
 @import '~antd/lib/style/themes/dark.less';
+@import '~antd/dist/antd.less';
 @import "theme.less";
 
 
@@ -12,6 +12,14 @@ body {
   min-height: 100%;
 }
 
+*,
+::before,
+::after {
+  border-width: 0;
+  border-style: solid;
+  border-color: @splitBorder;
+}
+
 .app-layout-header, .app-layout-content, .app-layout-root, .app-layout-header-and-content {
   padding: 0;
 }
@@ -22,6 +30,8 @@ body {
 }
 
 .app-layout-content {
+  display: flex;
+  flex-direction: column;
 }
 
 .app-logo-wrapper {
@@ -106,7 +116,6 @@ body {
   transition: color 0.3s;
 }
 
-
 .user-dropdown-info-panel {
   font-size: x-small;
   text-align: center;
@@ -115,10 +124,16 @@ body {
 }
 
 .internal-page-wrapper {
-  padding-top: 14px;
-  padding-right: 40px;
-  padding-left: 40px;
-  padding-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  padding: 14px 40px 20px;
+}
+
+.internal-page-content-wrapper {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .internal-page-header-container {
@@ -203,26 +218,59 @@ body {
 }
 
 .form-field_fixed-label {
-
   .ant-form-item-label {
-    display: inline-flex;
-    justify-content: flex-start;
-    width: 150px;
-    flex-shrink: 0;
-    white-space: normal;
-
     label {
-      text-align: left;
-      height: auto;
-      align-items: normal;
-
-      &:after {
+      &::after {
         content: '';
       }
+    }
+  }
+
+  .ant-form-item-required {
+    &::before {
+      display: none !important;
+    }
+
+    &::after {
+      content: '*' !important;
+      color: @error-color;
     }
   }
 }
 
 .fields-group {
   margin-bottom: 20px;
+}
+
+.ant-select-item-option-active:not(.ant-select-item-option-disabled),
+.ant-select-item-option:hover,
+.ant-select-item-option-selected,
+.ant-select-multiple .ant-select-selection-item {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.ant-select-disabled.ant-select:not(.ant-select-customize-input) .ant-select-selector {
+  background: transparent !important;
+}
+
+.ant-tabs-nav .ant-tabs-tab:not(.ant-tabs-tab-active) {
+  background: transparent !important;
+  padding: 8px 16px;
+}
+
+.ant-tabs-nav .ant-tabs-tab-active {
+  border-bottom: none;
+  background: @component-background;
+}
+
+.ant-tabs-tabpane.ant-tabs-tabpane-active {
+  padding-top: 20px;
+}
+
+.ant-tabs-nav {
+  margin-bottom: 0 !important;
+}
+
+.form-tabs {
+  margin-bottom: 20px !important;
 }

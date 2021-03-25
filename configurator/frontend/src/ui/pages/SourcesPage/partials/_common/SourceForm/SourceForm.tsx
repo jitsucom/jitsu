@@ -1,169 +1,209 @@
 // @Libs
-import React, { useCallback, useMemo, useRef } from 'react';
-import { Button, Form, Input, Select } from 'antd';
-import { get } from 'lodash';
-// @Icons
-import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { useHistory } from 'react-router-dom';
+import { Popover, Button, Form, message, Tabs } from 'antd';
+import { capitalize } from 'lodash';
 // @Types
-import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 import { FormProps as Props } from './SourceForm.types';
-// @Hardcoded data
-import { CollectionParameter, Parameter } from '../../../../../../_temp';
+import { FormInstance } from 'antd/lib/form/hooks/useForm';
+// @Components
+import { handleError } from '@./lib/components/components';
+import { SourceFormConfig } from './SourceFormConfig';
+import { SourceFormCollections } from './SourceFormCollections';
+import { SourceFormDestinations } from './SourceFormDestinations';
+// @Icons
+import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
+// @Services
+import ApplicationServices from '@service/ApplicationServices';
+// @Hooks
+import { useForceUpdate } from '@hooks/useForceUpdate';
+// @Routes
+import { routes } from '@page/SourcesPage/routes';
+// @Styles
+import styles from './SourceForm.module.less';
+
+interface Tab {
+  name: string;
+  form: FormInstance;
+  getComponent: (form: FormInstance) => JSX.Element;
+  errorsCount: number;
+}
+
+interface TabsMap {
+ [key: string]: Tab;
+}
+
+const sourceFormCleanFunctions = {
+  getErrorsCount: (tabs: TabsMap) => Object.keys(tabs).reduce((result: number, key: string) => {
+    result += tabs[key].errorsCount;
+    return result;
+  }, 0),
+  getErrors: (tabs: TabsMap) => (<ul>
+    {Object
+      .keys(tabs)
+      .reduce((result: React.ReactNode[], key: string) => {
+        if (tabs[key].errorsCount > 0) {
+          result.push(<li key={key}>{tabs[key].errorsCount} error(s) at `{tabs[key].name}` tab;</li>)
+        }
+
+        return result;
+      }, [])}
+  </ul>),
+  getTabName: (currentTab: Tab) => currentTab.errorsCount === 0
+    ? currentTab.name
+    : <span className="tab-name tab-name_error">{currentTab.name} <sup>{currentTab.errorsCount}</sup></span>
+};
 
 const SourceForm = ({
   connectorSource,
   isRequestPending,
   handleFinish,
-  alreadyExistSources,
-  initialValues,
+  sources,
+  initialValues = {},
   formMode
 }: Props) => {
-  const chosenTypes = useRef<{ indexes: string[] }>({
-    indexes: initialValues?.collections?.map((collection) => collection.type) ?? []
+  const history = useHistory();
+
+  const forceUpdate = useForceUpdate();
+
+  const [connectionTestPending, setConnectionTestPending] = useState<boolean>();
+
+  const mutableRefObject = useRef<{ tabs: TabsMap; submitOnce: boolean; }>({
+    tabs: {
+      config: {
+        name: 'Config',
+        form: Form.useForm()[0],
+        getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} sourceIdMustBeUnique={formMode === 'create'} />,
+        errorsCount: 0
+      },
+      collections: {
+        name: 'Collections',
+        form: Form.useForm()[0],
+        getComponent: (form: FormInstance) => <SourceFormCollections initialValues={initialValues} connectorSource={connectorSource} form={form} />,
+        errorsCount: 0
+      },
+      destinations: {
+        name: 'Destinations',
+        form: Form.useForm()[0],
+        getComponent: () => <SourceFormDestinations initialValues={initialValues} />,
+        errorsCount: 0
+      }
+    },
+    submitOnce: false
   });
 
-  const formName = useMemo<string>(() => `add-source${connectorSource.id}`, [connectorSource.id]);
+  const services = useMemo(() => ApplicationServices.get(), []);
 
-  const getCollectionParameters = useCallback(
-    (index: number) => {
-      return connectorSource.collectionParameters?.filter(
-        ({ applyOnlyTo }: CollectionParameter) => !applyOnlyTo || applyOnlyTo === chosenTypes.current.indexes[index]
-      );
-    },
-    [connectorSource.collectionParameters]
-  );
+  const handleTestConnectionClick = useCallback(async() => {
+    setConnectionTestPending(true);
 
-  const handleRemoveField = useCallback(
-    (operation: FormListOperation, index: number) => () => {
-      chosenTypes.current.indexes.splice(index, 1);
+    try {
+      await services.backendApiClient.post('sources/test', {});
 
-      operation.remove(index);
-    },
-    []
-  );
+      message.success('Successfully connected!');
+    } catch (error) {
+      handleError(error, 'Unable to test connection with filled data');
+    } finally {
+      setConnectionTestPending(false);
+    }
+  }, [services]);
 
-  const handleAddField = useCallback(
-    (operation: FormListOperation, type: string) => () => {
-      chosenTypes.current = {
-        indexes: [...chosenTypes.current.indexes, type]
+  const handleTabSubmit = useCallback(async(key: string) => {
+    const currentTab = mutableRefObject.current.tabs[key];
+
+    try {
+      return await currentTab.form.validateFields();
+    } catch (errors) {
+      const tabToUpdate = { ...currentTab, errorsCount: errors.errorFields.length };
+
+      mutableRefObject.current.tabs = {
+        ...mutableRefObject.current.tabs,
+        [key]: tabToUpdate
       };
+    }
+  }, []);
 
-      operation.add({ type });
-    },
-    []
-  );
+  const handleSubmit = useCallback(() => {
+    mutableRefObject.current.submitOnce = true;
 
-  console.log('initialValues: ', initialValues);
+    Promise
+      .all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key)))
+      .then(allValues => {
+        if (!allValues.some(values => !values)) {
+          handleFinish(Object.assign({}, ...allValues))
+        }
+
+        forceUpdate();
+      });
+  }, [forceUpdate, handleTabSubmit, handleFinish]);
+
+  const handleFormValuesChange = useCallback(() => {
+    if (mutableRefObject.current.submitOnce) {
+      Promise.all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key))).then(() => forceUpdate());
+    }
+  }, [forceUpdate, handleTabSubmit]);
+
+  const handleCancel = useCallback(() => history.push(routes.root), [history]);
 
   return (
-    <Form autoComplete="off" name={formName} onFinish={handleFinish} initialValues={initialValues}>
-      <h3>Source ID</h3>
-      <Form.Item
-        className="form-field_fixed-label"
-        label="SourceId"
-        name="sourceId"
-        rules={[
+    <>
+      <div className="flex-grow">
+        <Tabs defaultActiveKey="config" type="card" size="middle" className={styles.sourceTabs}>
           {
-            required: true,
-            message: 'Source ID is required field'
-          },
-          {
-            validator: (rule: any, value: string, cb: (error?: string) => void) => {
-              Object.keys(alreadyExistSources).find((source) => source === value)
-                ? cb('Source ID must be unique!')
-                : cb();
-            }
+            Object.keys(mutableRefObject.current.tabs).map(key => {
+              const { form, getComponent } = mutableRefObject.current.tabs[key];
+
+              return (
+                <React.Fragment key={key}>
+                  <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
+                    <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
+                  </Tabs.TabPane>
+                </React.Fragment>
+              );
+            })
           }
-        ]}
-      >
-        <Input />
-      </Form.Item>
-
-      <h3>Config</h3>
-      {connectorSource.configParameters.map(({ id, displayName, required }: Parameter) => (
-        <Form.Item
-          initialValue={get(initialValues, `config.${id}`)}
-          className="form-field_fixed-label"
-          label={displayName}
-          key={id}
-          name={`config.${id}`}
-          rules={required ? [{ required, message: `${displayName} id required` }] : undefined}
-        >
-          <Input />
-        </Form.Item>
-      ))}
-
-      <h3>Collections</h3>
-      <div className="fields-group">
-        <Form.List name="collections">
-          {(fields: FormListFieldData[], operation: FormListOperation) => (
-            <>
-              {fields.map((field: FormListFieldData) => (
-                <div className="fields-group" key={field.key}>
-                  <h4 className="fields-list-header">
-                    <span>
-                      {connectorSource.displayName} `{chosenTypes.current.indexes[field.key]}` collection
-                    </span>
-                    <DeleteOutlined onClick={handleRemoveField(operation, field.key)} />
-                  </h4>
-                  <Form.Item
-                    className="form-field_fixed-label"
-                    label="Destination table name"
-                    name={[field.name, 'name']}
-                    rules={[{ required: true, message: 'Field is required. You can remove this collection.' }]}
-                  >
-                    <Input />
-                  </Form.Item>
-                  {getCollectionParameters(field.key).map((collection: CollectionParameter) => {
-                    const initial = initialValues?.collections?.[field.name]?.parameters?.[collection.id];
-
-                    return (
-                      <Form.Item
-                        initialValue={initial}
-                        className="form-field_fixed-label"
-                        label={collection.displayName}
-                        key={collection.id}
-                        name={[field.name, collection.id]}
-                      >
-                        <Select allowClear mode="multiple">
-                          {collection.type.data.options.map((option: { displayName: string; id: string }) => (
-                            <Select.Option key={option.id} value={option.id}>
-                              {option.displayName}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-                    );
-                  })}
-                </div>
-              ))}
-
-              <div className="fields-group add-fields-container">
-                <span className="add-field-prefix">Add</span>
-                {connectorSource.collectionTypes.map((type: string) => (
-                  <Button type="dashed" key={type} onClick={handleAddField(operation, type)} className="add-field-btn">
-                    {type}
-                  </Button>
-                ))}
-              </div>
-            </>
-          )}
-        </Form.List>
+        </Tabs>
       </div>
 
-      <Form.Item>
-        <Button
-          key="pwd-login-button"
-          type="primary"
-          htmlType="submit"
-          className="login-form-button"
-          loading={isRequestPending}
+      <div className="flex-shrink border-t pt-2">
+        <Popover
+          content={sourceFormCleanFunctions.getErrors(mutableRefObject.current.tabs)}
+          title={`${capitalize(formMode)} source form errors:`}
+          trigger="click"
+          visible={mutableRefObject.current.submitOnce && sourceFormCleanFunctions.getErrorsCount(mutableRefObject.current.tabs) > 0}
         >
-          <span style={{ textTransform: 'capitalize' }}>{formMode}</span>&nbsp;source
-        </Button>
-      </Form.Item>
-    </Form>
+          <Button
+            key="pwd-login-button"
+            type="primary"
+            htmlType="button"
+            size="large"
+            className="mr-3"
+            loading={isRequestPending}
+            onClick={handleSubmit}
+          >
+            <span style={{ textTransform: 'capitalize' }}>{formMode}</span>&nbsp;source
+          </Button>
+        </Popover>
+
+        <Button
+          size="large"
+          className="mr-3"
+          type="dashed"
+          loading={connectionTestPending}
+          onClick={handleTestConnectionClick}
+          icon={<ApiOutlined/>}
+        >Test connection</Button>
+
+        <Button
+          type="default"
+          size="large"
+          onClick={handleCancel}
+          danger>Cancel</Button>
+      </div>
+    </>
   );
 };
+
+SourceForm.displayName = 'SourceForm';
 
 export { SourceForm };

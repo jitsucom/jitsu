@@ -7,16 +7,17 @@ import { ConnectorsCatalog } from '../_common/ConnectorsCatalog';
 import { SourceFormWrap } from '../_common/SourceForm/SourceFormWrap';
 // @Types
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
-// @Temporary hardcoded data
-import allSourcesList, { SourceConnector } from '../../../../../_temp';
+import { SourceConnector } from '@connectors/types';
+// @Sources
+import { allSources } from '@connectors/sources';
 
-const AddSource = ({ userUid, sources }: CommonSourcePageProps) => {
+const AddSource = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
   const params = useParams<{ source: string }>();
 
   const connectorSource = useMemo<SourceConnector>(
     () =>
-      allSourcesList.find((source: SourceConnector) => source.id === snakeCase(params.source)) ??
-      ({} as SourceConnector),
+      allSources.find((source: SourceConnector) => snakeCase(source.id) === snakeCase(params.source)) ??
+      {} as SourceConnector,
     [params.source]
   );
 
@@ -39,10 +40,17 @@ const AddSource = ({ userUid, sources }: CommonSourcePageProps) => {
   }
 
   return (
-    <div className="add-source">
-      <SourceFormWrap connectorSource={connectorSource} userUid={userUid} sources={sources}  sourceData={undefined}/>
-    </div>
+    <>
+      <SourceFormWrap
+        connectorSource={connectorSource}
+        projectId={projectId}
+        sources={sources}
+        setSources={setSources}
+      />
+    </>
   );
 };
+
+AddSource.displayName = 'AddSource';
 
 export { AddSource };
