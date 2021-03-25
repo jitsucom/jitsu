@@ -19,18 +19,15 @@ const SourcesPage = () => {
   const [sources, setSources] = useState<CollectionSourceData>();
 
   const services = useMemo(() => ApplicationServices.get(), []);
-
-  const projectId = useMemo(() => services.activeProject.id, [services]);
-
   const getComponent = useCallback(
     (Component: React.FC<CommonSourcePageProps>) => (currentProps: RouteProps) =>
-      <Component setSources={setSources} sources={sources?.sources} projectId={projectId} {...currentProps} />,
-    [projectId, sources]
+      <Component setSources={setSources} sources={sources?.sources} projectId={services.activeProject.id} {...currentProps} />,
+    [services.activeProject.id, sources]
   );
 
   useEffect(() => {
-    services.storageService.get('sources', projectId).then(({ _lastUpdated, ...response }) => setSources(response))
-  }, [services, projectId]);
+    services.storageService.get('sources', services.activeProject.id).then(({ _lastUpdated, ...response }) => setSources(response))
+  }, [services, services.activeProject.id]);
 
   return (
     <>

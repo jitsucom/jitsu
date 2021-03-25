@@ -52,7 +52,9 @@ const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) 
   const handleAddField = useCallback(
     (operation: FormListOperation) => () => {
       const addingValue =
-        connectorSource.collectionTypes.length > 1 ? {} : { type: connectorSource.collectionTypes[0] };
+        connectorSource.collectionTypes.length > 1
+          ? {}
+          : { type: connectorSource.collectionTypes[0] };
 
       operation.add(addingValue);
     },
@@ -67,7 +69,9 @@ const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) 
         return initial;
       }
 
-      return connectorSource.collectionTypes.length > 1 ? undefined : connectorSource.collectionTypes[0];
+      return connectorSource.collectionTypes.length > 1
+        ? undefined
+        : connectorSource.collectionTypes[0];
     },
     [initialValues, connectorSource.collectionTypes]
   );
@@ -109,7 +113,9 @@ const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) 
                         label="Report type:"
                         labelCol={{ span: 6 }}
                         wrapperCol={{ span: 18 }}
-                        rules={connectorSource.collectionTypes.length > 1 ? [{ required: true, message: 'You have top choose report type' }] : undefined}
+                        rules={connectorSource.collectionTypes.length > 1
+                          ? [{ required: true, message: 'You have top choose report type' }]
+                          : undefined}
                       >
                         <Select
                           disabled={connectorSource.collectionTypes.length === 1}
@@ -147,7 +153,9 @@ const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) 
                                   .map((collection, index) => index !== field.key && collection.name)
                                   .includes(value);
 
-                                return isError ? Promise.reject('Must be unique under the current collection') : Promise.resolve();
+                                return isError
+                                  ? Promise.reject('Must be unique under the current collection')
+                                  : Promise.resolve();
                               }
                             }
                           ]}

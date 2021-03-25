@@ -15,7 +15,7 @@ import ArrowLeftOutlined from '@ant-design/icons/lib/icons/ArrowLeftOutlined';
 import { FormWrapProps } from '@page/SourcesPage/partials/_common/SourceForm/SourceForm.types';
 
 const SourceFormWrap = ({
-  sources,
+  sources = [],
   connectorSource,
   projectId,
   sourceData = {} as SourceData,
@@ -29,7 +29,7 @@ const SourceFormWrap = ({
   const services = useMemo(() => ApplicationServices.get(), []);
 
   const handleFinish = useCallback(
-    ({ collections, ...rest }: any) => {
+    ({ collections, ...rest }: SourceData) => {
       switchPending(true);
 
       const createdSourceData = {
@@ -57,7 +57,14 @@ const SourceFormWrap = ({
       }
 
       const payload = {
-        sources: [...sources ?? [], createdSourceData]
+        sources: formMode === 'edit'
+          ? sources.reduce((accumulator: SourceData[], current: SourceData) => [
+            ...accumulator,
+            current.sourceId !== rest.sourceId
+              ? current
+              : createdSourceData
+          ], [])
+          : [...sources, createdSourceData]
       };
 
       services.storageService
@@ -78,7 +85,7 @@ const SourceFormWrap = ({
         })
         .finally(() => switchPending(false));
     },
-    [connectorSource.collectionParameters, connectorSource.id, services.storageService, projectId, sources, history, setSources]
+    [connectorSource.collectionParameters, connectorSource.id, services.storageService, projectId, sources, history, setSources, formMode]
   );
 
   return (

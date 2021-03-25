@@ -4,19 +4,21 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData } from 'antd/es/form/FormList';
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 
+type FormMode = 'create' | 'edit';
+
 export interface FormProps {
   connectorSource: SourceConnector;
   isRequestPending: boolean;
   handleFinish: (args: SourceData) => void;
   sources: SourceData[];
   initialValues: any;
-  formMode: 'create' | 'edit';
+  formMode: FormMode;
 }
 
 export interface FormWrapProps extends CommonSourcePageProps {
   connectorSource: SourceConnector;
   sourceData?: SourceData;
-  formMode?: 'create' | 'edit';
+  formMode?: FormMode;
 }
 
 export interface SourceFormConfigFieldProps {
@@ -46,4 +48,8 @@ export interface SourceFormCollectionsFieldProps {
   field: FormListFieldData;
   initialFieldValue: CollectionSource;
   documentation?: React.ReactNode;
+}
+
+export interface SourceFormDestinationsProps {
+  initialValues: SourceData;
 }
