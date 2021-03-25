@@ -56,7 +56,7 @@ func NewPrometheus(config *PrometheusConfig) (Storage, error) {
 	}, nil
 }
 
-func (p *Prometheus) GetEvents(projectId string, start, end time.Time, granularity string) ([]EventsPerTime, error) {
+func (p *Prometheus) GetEvents(projectID string, start, end time.Time, granularity string) ([]EventsPerTime, error) {
 	var sumWithTime, step string
 	switch granularity {
 	case DayGranularity:
@@ -75,7 +75,7 @@ func (p *Prometheus) GetEvents(projectId string, start, end time.Time, granulari
 	}
 
 	q := urlPath.Query()
-	q.Set("query", fmt.Sprintf(`round(sum(increase(eventnative_destinations_events{project_id="%s"}[%s])))`, projectId, sumWithTime))
+	q.Set("query", fmt.Sprintf(`round(sum(increase(eventnative_destinations_events{project_id="%s"}[%s])))`, projectID, sumWithTime))
 	q.Set("start", formatTime(start))
 	q.Set("end", formatTime(end))
 	q.Set("step", step)

@@ -4,16 +4,16 @@ import (
 	"net/http"
 )
 
-//ApiPreprocessor preprocess server 2 server integration events
-type ApiPreprocessor struct {
+//APIPreprocessor preprocess server 2 server integration events
+type APIPreprocessor struct {
 }
 
-func NewApiPreprocessor() Preprocessor {
-	return &ApiPreprocessor{}
+func NewAPIPreprocessor() Preprocessor {
+	return &APIPreprocessor{}
 }
 
 //Preprocess
 //put src = api
-func (ap *ApiPreprocessor) Preprocess(event Event, r *http.Request) {
+func (ap *APIPreprocessor) Preprocess(event Event, r *http.Request) {
 	event["src"] = "api"
 }

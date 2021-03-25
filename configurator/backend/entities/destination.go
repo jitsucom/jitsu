@@ -4,8 +4,8 @@ import "github.com/jitsucom/jitsu/server/enrichment"
 
 //Destination entity is stored in main storage (Firebase)
 type Destination struct {
-	Id               string                   `firestore:"_id" json:"_id"`
-	Uid              string                   `firestore:"_uid" json:"_uid"`
+	ID               string                   `firestore:"_id" json:"_id"`
+	UID              string                   `firestore:"_uid" json:"_uid"`
 	Type             string                   `firestore:"_type"  json:"_type"`
 	Data             interface{}              `firestore:"_formData" json:"_formData"`
 	Mappings         *Mappings                `firestore:"_mappings" json:"_mappings"`
@@ -27,8 +27,8 @@ type Mappings struct {
 
 type UsersRecognition struct {
 	Enabled         bool   `firestore:"_enabled" json:"_enabled"`
-	AnonymousIdNode string `firestore:"_anonymous_id_node" json:"_anonymous_id_node"`
-	UserIdJsonNode  string `firestore:"_user_id_node" json:"_user_id_node"`
+	AnonymousIDNode string `firestore:"_anonymous_id_node" json:"_anonymous_id_node"`
+	UserIDJSONNode  string `firestore:"_user_id_node" json:"_user_id_node"`
 }
 
 func (m *Mappings) IsEmpty() bool {

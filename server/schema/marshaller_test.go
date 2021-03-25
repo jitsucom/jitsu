@@ -8,11 +8,11 @@ import (
 	"time"
 )
 
-func TestJsonMarshal(t *testing.T) {
+func TestJSONMarshal(t *testing.T) {
 	testTime1, _ := time.Parse(timestamp.Layout, "2020-07-02T18:23:59.757719Z")
 	tests := []struct {
 		name      string
-		inputJson map[string]interface{}
+		inputJSON map[string]interface{}
 		expected  []byte
 	}{
 		{
@@ -40,7 +40,7 @@ func TestJsonMarshal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualBytes, err := JsonMarshallerInstance.Marshal([]string{}, tt.inputJson)
+			actualBytes, err := JSONMarshallerInstance.Marshal([]string{}, tt.inputJSON)
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, actualBytes, "Marshalled bytes aren't equal")
 		})
@@ -51,7 +51,7 @@ func TestCsvMarshal(t *testing.T) {
 	testTime1, _ := time.Parse(timestamp.Layout, "2020-07-02T18:23:59.757719Z")
 	tests := []struct {
 		name        string
-		inputJson   map[string]interface{}
+		inputJSON   map[string]interface{}
 		inputHeader []string
 		expected    []byte
 	}{
@@ -82,7 +82,7 @@ func TestCsvMarshal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualBytes, err := CsvMarshallerInstance.Marshal(tt.inputHeader, tt.inputJson)
+			actualBytes, err := CsvMarshallerInstance.Marshal(tt.inputHeader, tt.inputJSON)
 			logging.Info(string(actualBytes))
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, actualBytes, "Marshalled bytes aren't equal")

@@ -60,7 +60,7 @@ type SlackNotifier struct {
 	client           *http.Client
 	errorLoggingFunc func(format string, v ...interface{})
 	serviceName      string
-	webHookUrl       string
+	webHookURL       string
 	serverName       string
 
 	messagesCh chan string
@@ -68,7 +68,7 @@ type SlackNotifier struct {
 }
 
 func (sn *SlackNotifier) Send(payload string) error {
-	resp, err := sn.client.Post(sn.webHookUrl, "application/json", bytes.NewBufferString(payload))
+	resp, err := sn.client.Post(sn.webHookURL, "application/json", bytes.NewBufferString(payload))
 	if err != nil {
 		return fmt.Errorf("Error sending slack http request: %v", err)
 	}
@@ -110,7 +110,7 @@ func Init(serviceName, url, serverName string, errorLoggingFunc func(format stri
 		},
 		errorLoggingFunc: errorLoggingFunc,
 		serviceName:      serviceName,
-		webHookUrl:       url,
+		webHookURL:       url,
 		serverName:       serverName,
 		messagesCh:       make(chan string, 1000),
 	}

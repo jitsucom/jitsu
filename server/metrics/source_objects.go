@@ -31,8 +31,8 @@ func SuccessObject(sourceName string) {
 
 func SuccessObjects(sourceName string, value int) {
 	if Enabled {
-		projectId, sourceId := extractLabels(sourceName)
-		successObjects.WithLabelValues(projectId, sourceId).Add(float64(value))
+		projectID, sourceID := extractLabels(sourceName)
+		successObjects.WithLabelValues(projectID, sourceID).Add(float64(value))
 	}
 }
 
@@ -42,7 +42,7 @@ func ErrorObject(sourceName string) {
 
 func ErrorObjects(sourceName string, value int) {
 	if Enabled {
-		projectId, sourceId := extractLabels(sourceName)
-		errorsObjects.WithLabelValues(projectId, sourceId).Add(float64(value))
+		projectID, sourceID := extractLabels(sourceName)
+		errorsObjects.WithLabelValues(projectID, sourceID).Add(float64(value))
 	}
 }

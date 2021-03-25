@@ -177,7 +177,7 @@ func main() {
 		logging.Fatalf("Error validating 'eventnative' config: %v", err)
 	}
 
-	enService := eventnative.NewService(enConfig.BaseUrl, enConfig.AdminToken)
+	enService := eventnative.NewService(enConfig.BaseURL, enConfig.AdminToken)
 	appconfig.Instance.ScheduleClosing(enService)
 
 	//** SSL **
@@ -194,9 +194,9 @@ func main() {
 	}
 
 	//** SMTP (email service) **
-	var smtp *emails.SmtpConfiguration
+	var smtp *emails.SMTPConfiguration
 	if viper.IsSet("smtp") {
-		smtp = &emails.SmtpConfiguration{
+		smtp = &emails.SMTPConfiguration{
 			Host:     viper.GetString("smtp.host"),
 			Port:     viper.GetInt("smtp.port"),
 			User:     viper.GetString("smtp.user"),
@@ -275,16 +275,16 @@ func SetupRouter(enService *eventnative.Service, configurationsStorage storages.
 	serverToken := viper.GetString("server.auth")
 
 	statisticsHandler := handlers.NewStatisticsHandler(statisticsStorage, configurationsService)
-	apiKeysHandler := handlers.NewApiKeysHandler(configurationsService)
+	apiKeysHandler := handlers.NewAPIKeysHandler(configurationsService)
 
 	enConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsStorage)
 
 	apiV1 := router.Group("/api/v1")
 	{
 		apiV1.POST("/database", authenticatorMiddleware.ClientProjectAuth(handlers.NewDatabaseHandler(configurationsService).PostHandler))
-		apiV1.POST("/apikeys/default", authenticatorMiddleware.ClientProjectAuth(apiKeysHandler.CreateDefaultApiKeyHandler))
+		apiV1.POST("/apikeys/default", authenticatorMiddleware.ClientProjectAuth(apiKeysHandler.CreateDefaultAPIKeyHandler))
 
-		apiV1.GET("/apikeys", middleware.ServerAuth(middleware.IfModifiedSince(apiKeysHandler.GetHandler, configurationsService.GetApiKeysLastUpdated), serverToken))
+		apiV1.GET("/apikeys", middleware.ServerAuth(middleware.IfModifiedSince(apiKeysHandler.GetHandler, configurationsService.GetAPIKeysLastUpdated), serverToken))
 		apiV1.GET("/statistics", authenticatorMiddleware.ClientProjectAuth(statisticsHandler.GetHandler))
 
 		apiV1.GET("/eventnative/configuration", authenticatorMiddleware.ClientProjectAuth(handlers.NewConfigurationHandler(configurationsService, defaultS3).Handler))
@@ -324,28 +324,28 @@ func SetupRouter(enService *eventnative.Service, configurationsStorage storages.
 
 		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, emailService.IsConfigured(), viper.GetBool("server.self_hosted")).GetHandler)
 
-		usersApiGroup := apiV1.Group("/users")
+		usersAPIGroup := apiV1.Group("/users")
 		{
-			usersApiGroup.GET("/info", authenticatorMiddleware.ClientAuth(enConfigurationsHandler.GetUserInfo))
-			usersApiGroup.POST("/info", authenticatorMiddleware.ClientAuth(enConfigurationsHandler.StoreUserInfo))
+			usersAPIGroup.GET("/info", authenticatorMiddleware.ClientAuth(enConfigurationsHandler.GetUserInfo))
+			usersAPIGroup.POST("/info", authenticatorMiddleware.ClientAuth(enConfigurationsHandler.StoreUserInfo))
 		}
 
 		//authorization
 		if authService.GetAuthorizationType() == authorization.RedisType {
 			authHandler := handlers.NewAuthorizationHandler(authService, emailService, configurationsStorage)
 
-			usersApiGroup.POST("/signup", authHandler.SignUp)
-			usersApiGroup.POST("/onboarded/signup", authHandler.OnboardedSignUp)
-			usersApiGroup.POST("/signin", authHandler.SignIn)
-			usersApiGroup.POST("/signout", authenticatorMiddleware.ClientAuth(authHandler.SignOut))
+			usersAPIGroup.POST("/signup", authHandler.SignUp)
+			usersAPIGroup.POST("/onboarded/signup", authHandler.OnboardedSignUp)
+			usersAPIGroup.POST("/signin", authHandler.SignIn)
+			usersAPIGroup.POST("/signout", authenticatorMiddleware.ClientAuth(authHandler.SignOut))
 
-			passwordApiGroup := usersApiGroup.Group("/password")
+			passwordAPIGroup := usersAPIGroup.Group("/password")
 			{
-				passwordApiGroup.POST("/reset", authHandler.ResetPassword)
-				passwordApiGroup.POST("/change", authHandler.ChangePassword)
+				passwordAPIGroup.POST("/reset", authHandler.ResetPassword)
+				passwordAPIGroup.POST("/change", authHandler.ChangePassword)
 			}
 
-			usersApiGroup.POST("/token/refresh", authHandler.RefreshToken)
+			usersAPIGroup.POST("/token/refresh", authHandler.RefreshToken)
 		}
 
 	}

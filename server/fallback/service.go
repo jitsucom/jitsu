@@ -23,7 +23,7 @@ const (
 	fallbackIdentifier      = "fallback"
 )
 
-var destinationIdExtractRegexp = regexp.MustCompile("failed.dst=(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
+var destinationIDExtractRegexp = regexp.MustCompile("failed.dst=(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
 type Service struct {
 	fallbackDir        string
@@ -56,7 +56,7 @@ func NewService(logEventsPath string, destinationService *destinations.Service) 
 	}, nil
 }
 
-func (s *Service) Replay(fileName, destinationId string, rawFile bool) error {
+func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 	if fileName == "" {
 		return errors.New("File name can't be empty")
 	}
@@ -81,28 +81,28 @@ func (s *Service) Replay(fileName, destinationId string, rawFile bool) error {
 		return fmt.Errorf("Error reading fallback file [%s]: %v", fileName, err)
 	}
 
-	if destinationId == "" {
-		//get destinationId from filename
-		regexResult := destinationIdExtractRegexp.FindStringSubmatch(fileName)
+	if destinationID == "" {
+		//get destinationID from filename
+		regexResult := destinationIDExtractRegexp.FindStringSubmatch(fileName)
 		if len(regexResult) != 2 {
 			return fmt.Errorf("Error processing fallback file %s: Malformed name", fileName)
 		}
 
-		destinationId = regexResult[1]
+		destinationID = regexResult[1]
 	}
 
-	storageProxy, ok := s.destinationService.GetStorageById(destinationId)
+	storageProxy, ok := s.destinationService.GetStorageByID(destinationID)
 	if !ok {
-		return fmt.Errorf("Destination [%s] wasn't found", destinationId)
+		return fmt.Errorf("Destination [%s] wasn't found", destinationID)
 	}
 
 	storage, ok := storageProxy.Get()
 	if !ok {
-		return fmt.Errorf("Destination [%s] hasn't been initialized yet", destinationId)
+		return fmt.Errorf("Destination [%s] hasn't been initialized yet", destinationID)
 	}
 	if storage.IsStaging() {
 		return fmt.Errorf("Error running fallback for destination [%s] in staged mode, "+
-			"cannot be used to store data (only available for dry-run)", destinationId)
+			"cannot be used to store data (only available for dry-run)", destinationID)
 	}
 
 	alreadyUploadedTables := map[string]bool{}
@@ -113,9 +113,9 @@ func (s *Service) Replay(fileName, destinationId string, rawFile bool) error {
 		}
 	}
 
-	parserFunc := parsers.ParseFallbackJson
+	parserFunc := parsers.ParseFallbackJSON
 	if rawFile {
-		parserFunc = parsers.ParseJson
+		parserFunc = parsers.ParseJSON
 	}
 
 	resultPerTable, errRowsCount, err := storage.StoreWithParseFunc(fileName, b, alreadyUploadedTables, parserFunc)
@@ -177,24 +177,24 @@ func (s *Service) GetFileStatuses(destinationsFilter map[string]bool) []*FileSta
 			continue
 		}
 
-		//get destinationId from filename
-		regexResult := destinationIdExtractRegexp.FindStringSubmatch(fileName)
+		//get destinationID from filename
+		regexResult := destinationIDExtractRegexp.FindStringSubmatch(fileName)
 		if len(regexResult) != 2 {
 			logging.Errorf("Error processing fallback file %s. Malformed name", filePath)
 			continue
 		}
 
-		destinationId := regexResult[1]
-		_, ok := destinationsFilter[destinationId]
+		destinationID := regexResult[1]
+		_, ok := destinationsFilter[destinationID]
 		if len(destinationsFilter) > 0 && !ok {
 			continue
 		}
 
-		statuses := s.statusManager.GetTablesStatuses(fileName, destinationId)
+		statuses := s.statusManager.GetTablesStatuses(fileName, destinationID)
 
 		fileStatuses = append(fileStatuses, &FileStatus{
 			FileName:      fileName,
-			DestinationId: destinationId,
+			DestinationID: destinationID,
 			TablesStatus:  statuses,
 		})
 

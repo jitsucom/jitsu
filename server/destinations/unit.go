@@ -12,7 +12,7 @@ type Unit struct {
 	eventQueue *events.PersistentQueue
 	storage    storages.StorageProxy
 
-	tokenIds []string
+	tokenIDs []string
 	hash     uint64
 }
 

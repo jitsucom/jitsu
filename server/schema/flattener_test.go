@@ -9,8 +9,8 @@ import (
 func TestFlattenObject(t *testing.T) {
 	tests := []struct {
 		name         string
-		inputJson    map[string]interface{}
-		expectedJson map[string]interface{}
+		inputJSON    map[string]interface{}
+		expectedJSON map[string]interface{}
 	}{
 		{
 			"Empty input json",
@@ -62,9 +62,9 @@ func TestFlattenObject(t *testing.T) {
 	flattener := NewFlattener()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualFlattenJson, err := flattener.FlattenObject(tt.inputJson)
+			actualFlattenJSON, err := flattener.FlattenObject(tt.inputJSON)
 			require.NoError(t, err)
-			test.ObjectsEqual(t, tt.expectedJson, actualFlattenJson, "Wrong flattened json")
+			test.ObjectsEqual(t, tt.expectedJSON, actualFlattenJSON, "Wrong flattened json")
 		})
 	}
 }

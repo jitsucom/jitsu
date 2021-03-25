@@ -62,7 +62,7 @@ func TestUserAgentParse(t *testing.T) {
 			appconfig.Init(false)
 			appconfig.Instance.UaResolver = useragent.Mock{}
 
-			uaRule, err := NewUserAgentParseRule(jsonutils.NewJsonPath(tt.source), jsonutils.NewJsonPath(tt.destination))
+			uaRule, err := NewUserAgentParseRule(jsonutils.NewJSONPath(tt.source), jsonutils.NewJSONPath(tt.destination))
 			require.NoError(t, err)
 
 			uaRule.Execute(tt.input)
