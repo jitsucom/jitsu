@@ -1,9 +1,12 @@
 import { Dispatch, SetStateAction } from 'react';
 
+export interface CollectionSourceData {
+  sources: SourceData[];
+  _lastUpdated?: string;
+}
+
 export interface CommonSourcePageProps {
-  sources: {
-    [key: string]: SourceData;
-  };
+  sources: SourceData[];
   projectId: string;
-  setSources: Dispatch<SetStateAction<{ [key: string]: SourceData }>>;
+  setSources: Dispatch<SetStateAction<CollectionSourceData>>;
 }

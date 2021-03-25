@@ -34,11 +34,10 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
 
   const handleDeleteSource = useCallback(
     (sourceId: string) => {
-      const updatedSources = cloneDeep(sources);
-      unset(updatedSources, sourceId);
+      const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
 
-      services.storageService.save('sources', updatedSources, projectId).then(() => {
-        setSources(updatedSources);
+      services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
+        setSources({ sources: updatedSources });
 
         message.success('Sources list successfully updated');
       });
@@ -56,22 +55,22 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
         </Dropdown>
       </div>
 
-      {Object.keys(sources).length > 0 ? (
+      {sources?.length > 0 ? (
         <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
-          {Object.keys(sources).sort().map((sourceId) => {
-            const _current = sources[sourceId];
-            const sourceProto = sourcesMap[_current.sourceType];
+          {sources.map((source) => {
+            const sourceProto = sourcesMap[source.sourceId];
 
             return (
               <SourcesListItem
                 handleDeleteSource={handleDeleteSource}
                 sourceProto={sourceProto}
-                sourceId={sourceId}
-                key={sourceId}
+                sourceId={source.sourceId}
+                key={source.sourceId}
               />
             );
           })}
         </List>
+
       ) :
         <div>No data</div>
       }

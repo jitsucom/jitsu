@@ -29,7 +29,7 @@ const SourceFormCollectionsFieldComponent = ({
       );
     case 'string':
     default:
-      return <Input/>;
+      return <Input autoComplete="off" />;
     }
   }, [collection]);
 

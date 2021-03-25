@@ -27,7 +27,7 @@ interface TabsMap {
  [key: string]: Tab;
 }
 
-const helper = {
+const sourceFormCleanFunctions = {
   getErrorsCount: (tabs: TabsMap) => Object.keys(tabs).reduce((result: number, key: string) => {
     result += tabs[key].errorsCount;
     return result;
@@ -58,19 +58,22 @@ const SourceForm = ({
 
   const [connectionTestPending, setConnectionTestPending] = useState<boolean>();
 
-  const tabs = useRef<TabsMap>({
-    config: {
-      name: 'Config',
-      form: Form.useForm()[0],
-      getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} sourceIdMustBeUnique={formMode === 'create'} />,
-      errorsCount: 0
+  const mutableRefObject = useRef<{ tabs: TabsMap; submitOnce: boolean; }>({
+    tabs: {
+      config: {
+        name: 'Config',
+        form: Form.useForm()[0],
+        getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} sourceIdMustBeUnique={formMode === 'create'} />,
+        errorsCount: 0
+      },
+      collections: {
+        name: 'Collections',
+        form: Form.useForm()[0],
+        getComponent: (form: FormInstance) => <SourceFormCollections initialValues={initialValues} connectorSource={connectorSource} form={form} />,
+        errorsCount: 0
+      }
     },
-    collections: {
-      name: 'Collections',
-      form: Form.useForm()[0],
-      getComponent: (form: FormInstance) => <SourceFormCollections initialValues={initialValues} connectorSource={connectorSource} form={form} />,
-      errorsCount: 0
-    }
+    submitOnce: false
   });
 
   const services = useMemo(() => ApplicationServices.get(), []);
@@ -90,23 +93,25 @@ const SourceForm = ({
   }, [services]);
 
   const handleTabSubmit = useCallback(async(key: string) => {
-    const currentTab = tabs.current[key];
+    const currentTab = mutableRefObject.current.tabs[key];
 
     try {
       return await currentTab.form.validateFields();
     } catch (errors) {
       const tabToUpdate = { ...currentTab, errorsCount: errors.errorFields.length };
 
-      tabs.current = {
-        ...tabs.current,
+      mutableRefObject.current.tabs = {
+        ...mutableRefObject.current.tabs,
         [key]: tabToUpdate
       };
     }
   }, []);
 
   const handleSubmit = useCallback(() => {
+    mutableRefObject.current.submitOnce = true;
+
     Promise
-      .all(Object.keys(tabs.current).map((key: string) => handleTabSubmit(key)))
+      .all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key)))
       .then(allValues => {
         if (!allValues.some(values => !values)) {
           handleFinish(Object.assign({}, ...allValues))
@@ -117,7 +122,9 @@ const SourceForm = ({
   }, [forceUpdate, handleTabSubmit, handleFinish]);
 
   const handleFormValuesChange = useCallback(() => {
-    Promise.all(Object.keys(tabs.current).map((key: string) => handleTabSubmit(key))).then(() => forceUpdate());
+    if (mutableRefObject.current.submitOnce) {
+      Promise.all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key))).then(() => forceUpdate());
+    }
   }, [forceUpdate, handleTabSubmit]);
 
   return (
@@ -125,12 +132,12 @@ const SourceForm = ({
       <div className="flex-grow">
         <Tabs defaultActiveKey="config" type="card" size="middle" className="form-tabs">
           {
-            Object.keys(tabs.current).map(key => {
-              const { form, getComponent } = tabs.current[key];
+            Object.keys(mutableRefObject.current.tabs).map(key => {
+              const { form, getComponent } = mutableRefObject.current.tabs[key];
 
               return (
                 <React.Fragment key={key}>
-                  <Tabs.TabPane tab={helper.getTabName(tabs.current[key])} key={key} forceRender>
+                  <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
                     <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
                   </Tabs.TabPane>
                 </React.Fragment>
@@ -142,10 +149,10 @@ const SourceForm = ({
 
       <div className="flex-shrink border-t pt-2">
         <Popover
-          content={helper.getErrors(tabs.current)}
+          content={sourceFormCleanFunctions.getErrors(mutableRefObject.current.tabs)}
           title={`${capitalize(formMode)} source form errors:`}
           trigger="click"
-          visible={helper.getErrorsCount(tabs.current) > 0}
+          visible={mutableRefObject.current.submitOnce && sourceFormCleanFunctions.getErrorsCount(mutableRefObject.current.tabs) > 0}
         >
           <Button
             key="pwd-login-button"

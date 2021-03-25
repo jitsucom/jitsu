@@ -8,9 +8,7 @@ export interface FormProps {
   connectorSource: SourceConnector;
   isRequestPending: boolean;
   handleFinish: (args: SourceData) => void;
-  sources: {
-    [key: string]: SourceData;
-  };
+  sources: SourceData[];
   initialValues: any;
   formMode: 'create' | 'edit';
 }
@@ -31,9 +29,7 @@ export interface SourceFormConfigFieldProps {
 }
 
 export interface SourceFormConfigProps {
-  sources: {
-    [key: string]: SourceData;
-  };
+  sources: SourceData[];
   connectorSource: SourceConnector;
   initialValues: SourceData;
   sourceIdMustBeUnique: boolean;

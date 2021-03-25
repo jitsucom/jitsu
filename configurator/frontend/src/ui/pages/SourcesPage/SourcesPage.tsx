@@ -10,12 +10,13 @@ import { EditSource } from './partials/EditSource';
 import { CenteredSpin } from '@./lib/components/components';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
+// @Types
+import { CollectionSourceData, CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
 import './SourcesPage.less';
-import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 
 const SourcesPage = () => {
-  const [sources, setSources] = useState<{ [key: string]: SourceData }>();
+  const [sources, setSources] = useState<CollectionSourceData>();
 
   const services = useMemo(() => ApplicationServices.get(), []);
 
@@ -23,7 +24,7 @@ const SourcesPage = () => {
 
   const getComponent = useCallback(
     (Component: React.FC<CommonSourcePageProps>) => (currentProps: RouteProps) =>
-      <Component setSources={setSources} sources={sources} projectId={projectId} {...currentProps} />,
+      <Component setSources={setSources} sources={sources?.sources} projectId={projectId} {...currentProps} />,
     [projectId, sources]
   );
 

@@ -12,7 +12,7 @@ import { SourceFormConfigProps as Props } from './SourceForm.types';
 
 const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMustBeUnique }: Props) => {
 
-  const isUniqueSourceId = useCallback((sourceId: string) => !Object.keys(sources).includes(sourceId), [
+  const isUniqueSourceId = useCallback((sourceId: string) => !sources?.find((source: SourceData) => source.sourceId === sourceId), [
     sources
   ]);
 
@@ -28,7 +28,7 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
     }
 
     const maxIndexSourceId = naturalSort(
-      Object.keys(sources).filter((key: string) => key.includes(preparedBlank))
+      sources?.filter((source: SourceData) => source.sourceId.includes(preparedBlank))
     )?.pop();
 
     if (!maxIndexSourceId) {
@@ -48,7 +48,7 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
     return sourceIdParts.join('_');
   }, [sources, isUniqueSourceId, initialValues, connectorSource]);
 
-  const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => Object.keys(sources).find((source) => source === value)
+  const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => sources?.find((source: SourceData) => source.sourceId === value)
     ? Promise.reject('Source ID must be unique!')
     : Promise.resolve(), [sources])
 
@@ -77,7 +77,7 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
             labelCol={{ span: 6 }}
             wrapperCol={{ span: 18 }}
           >
-            <Input />
+            <Input autoComplete="off" />
           </Form.Item>
         </Col>
       </Row>
