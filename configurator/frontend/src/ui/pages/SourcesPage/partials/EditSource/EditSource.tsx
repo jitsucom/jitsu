@@ -14,7 +14,7 @@ import { routes } from '@page/SourcesPage/routes';
 const EditSource = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
   const params = useParams<{ sourceId: string }>();
 
-  const sourceData = useMemo(() => sources[params.sourceId], [sources, params.sourceId]);
+  const sourceData = useMemo(() => sources.find((source: SourceData) => source.sourceId === params.sourceId), [sources, params.sourceId]);
 
   const connectorSource = useMemo<SourceConnector>(
     () => allSources.find((source: SourceConnector) => source.id === sourceData?.sourceType) ?? {} as SourceConnector,
