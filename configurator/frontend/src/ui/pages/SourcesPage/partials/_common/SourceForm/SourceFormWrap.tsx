@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useMemo, useState } from 'react';
 import { message } from 'antd';
-import { Link, useHistory } from 'react-router-dom';
+import { Link, NavLink, useHistory } from 'react-router-dom';
 import { set, snakeCase } from 'lodash';
 // @Components
 import { SourceForm } from './SourceForm';
@@ -90,13 +90,11 @@ const SourceFormWrap = ({
 
   return (
     <div className="add-source flex flex-col items-stretch">
-      <p className="add-source__back">
-        <Link className="add-source__back-link" to={routes.root}>
-          <ArrowLeftOutlined className="add-source__back-link-ico" />
-          <span>Back to sources list</span>
-        </Link>
-      </p>
       <div className="add-source__head">
+        <h2 className="add-source__head-base">
+          <NavLink to={routes.root} className="add-source__head-base-link">Sources</NavLink>
+          <span>/</span>
+        </h2>
         <div className="add-source__head-pic">{connectorSource.pic}</div>
         <div className="add-source__head-text">
           <h2 className="add-source__head-text-title">{connectorSource.displayName}</h2>

@@ -19,6 +19,8 @@ import ApplicationServices from '@service/ApplicationServices';
 import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Routes
 import { routes } from '@page/SourcesPage/routes';
+// @Styles
+import styles from './SourceForm.module.less';
 
 interface Tab {
   name: string;
@@ -146,7 +148,7 @@ const SourceForm = ({
   return (
     <>
       <div className="flex-grow">
-        <Tabs defaultActiveKey="config" type="card" size="middle" className="form-tabs">
+        <Tabs defaultActiveKey="config" type="card" size="middle" className={styles.sourceTabs}>
           {
             Object.keys(mutableRefObject.current.tabs).map(key => {
               const { form, getComponent } = mutableRefObject.current.tabs[key];
