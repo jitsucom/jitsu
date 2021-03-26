@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/typing"
 	"net/http"
 	"net/url"
@@ -78,11 +77,6 @@ func (ga *GoogleAnalytics) Send(object map[string]interface{}) error {
 	uv := make(url.Values)
 	uv.Add("tid", ga.config.TrackingID)
 	uv.Add("v", "1")
-
-	//remove system fields
-	for _, systemField := range schema.SystemFields {
-		delete(object, systemField)
-	}
 
 	for k, v := range object {
 		strValue, ok := v.(string)

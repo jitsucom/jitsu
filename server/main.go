@@ -69,6 +69,7 @@ var (
 	//configSource might be URL or file path to yaml configuration
 	configSource     = flag.String("cfg", "", "config source")
 	containerizedRun = flag.Bool("cr", false, "containerised run marker")
+	dockerHubID      = flag.String("dhid", "", "ID of docker Hub")
 
 	//ldflags
 	commit  string
@@ -177,7 +178,7 @@ func main() {
 		appconfig.Beta = parsed[2] == "beta"
 	}
 
-	if err := appconfig.Init(*containerizedRun); err != nil {
+	if err := appconfig.Init(*containerizedRun, *dockerHubID); err != nil {
 		logging.Fatal(err)
 	}
 
