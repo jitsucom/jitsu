@@ -4,8 +4,8 @@ FROM golang:1.14.6-alpine3.12 as main
 RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata
 RUN pip install --upgrade pip
 
-ARG dhi
-ENV DOCKER_HUB_ID=$dhi
+ARG dhid
+ENV DOCKER_HUB_ID=$dhid
 
 ENV EVENTNATIVE_USER=eventnative
 

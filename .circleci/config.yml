@@ -78,7 +78,7 @@ jobs:
       - run:
           name: Build and Push Docker image
           command: |
-            docker build --build-arg dhi=ksense -t $IMAGE_NAME:latest -f server.Dockerfile .
+            docker build --build-arg dhid=ksense -t $IMAGE_NAME:latest -f server.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME
   build-latest-jitsu-docker:
@@ -126,7 +126,7 @@ jobs:
       - run:
           name: Build and Push Docker image
           command: |
-            docker build --build-arg dhi=ksense -t $IMAGE_NAME:beta -f server.Dockerfile .
+            docker build --build-arg dhid=ksense -t $IMAGE_NAME:beta -f server.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME
   build-beta-configurator-docker:
@@ -174,7 +174,7 @@ jobs:
       - run:
           name: Build and Push Docker image
           command: |
-            docker build --build-arg dhi=ksense -t $IMAGE_NAME:${CIRCLE_TAG//v} -f server.Dockerfile .
+            docker build --build-arg dhid=ksense -t $IMAGE_NAME:${CIRCLE_TAG//v} -f server.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME:${CIRCLE_TAG//v}
   build-tagged-jitsu-docker:

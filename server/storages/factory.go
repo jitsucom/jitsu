@@ -188,7 +188,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 
 	// ** Mapping rules **
 	if len(oldStyleMappings) > 0 {
-		logging.Warnf("\n\t [%s] ** DEPRECATED mapping configuration. Read more about new configuration schema: https://jitsu.com/docs/configuration/schema-and-mappings **\n", name)
+		logging.Warnf("\n\t ** [%s] DEPRECATED mapping configuration. Read more about new configuration schema: https://jitsu.com/docs/configuration/schema-and-mappings **\n", name)
 		var convertErr error
 		newStyleMapping, convertErr = schema.ConvertOldMappings(mappingFieldType, oldStyleMappings)
 		if convertErr != nil {
@@ -326,7 +326,10 @@ func enrichAndLogMappings(destinationID, destinationType string, mapping *schema
 		return
 	}
 
-	keepUnmapped := mapping.KeepUnmapped != nil && *mapping.KeepUnmapped
+	keepUnmapped := true
+	if mapping.KeepUnmapped != nil {
+		keepUnmapped = *mapping.KeepUnmapped
+	}
 
 	//check system fields and add default mappings
 	//if destination is SQL and not keep unmapped
@@ -343,13 +346,13 @@ func enrichAndLogMappings(destinationID, destinationType string, mapping *schema
 		}
 
 		if !configuredEventId {
-			eventIdMapping := schema.MappingField{Src: "/eventn_ctx/event_id", Dst: "/eventn_ctx/event_id", Action: "move"}
+			eventIdMapping := schema.MappingField{Src: "/eventn_ctx/event_id", Dst: "/eventn_ctx/event_id", Action: schema.MOVE}
 			mapping.Fields = append(mapping.Fields, eventIdMapping)
 			logging.Warnf("[%s] Added default system field mapping: %s", destinationID, eventIdMapping.String())
 		}
 
 		if !configuredTimestamp {
-			eventIdMapping := schema.MappingField{Src: "/_timestamp", Dst: "/_timestamp", Action: "move"}
+			eventIdMapping := schema.MappingField{Src: "/_timestamp", Dst: "/_timestamp", Action: schema.MOVE}
 			mapping.Fields = append(mapping.Fields, eventIdMapping)
 			logging.Warnf("[%s] Added default system field mapping: %s", destinationID, eventIdMapping.String())
 		}
