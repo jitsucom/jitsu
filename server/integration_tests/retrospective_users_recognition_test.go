@@ -86,7 +86,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	destinationConfig := fmt.Sprintf(configTemplate, postgresContainer.Host, postgresContainer.Port, postgresContainer.Database, postgresContainer.Schema, postgresContainer.Username, postgresContainer.Password)
 
 	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init(false)
+	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 

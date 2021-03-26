@@ -4,6 +4,9 @@ FROM golang:1.14.6-alpine3.12 as main
 RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata
 RUN pip install --upgrade pip
 
+ARG dhid
+ENV DOCKER_HUB_ID=$dhid
+
 ENV EVENTNATIVE_USER=eventnative
 
 RUN addgroup -S $EVENTNATIVE_USER \
@@ -63,4 +66,4 @@ USER $EVENTNATIVE_USER
 VOLUME ["/home/$EVENTNATIVE_USER/app/res", "/home/$EVENTNATIVE_USER/logs", "/home/$EVENTNATIVE_USER/logs/events"]
 EXPOSE 8001
 
-ENTRYPOINT ["./eventnative", "-cfg=./res/eventnative.yaml", "-cr=true"]
+ENTRYPOINT ./eventnative -cfg=./res/eventnative.yaml -cr=true -dhid=$DOCKER_HUB_ID

@@ -49,7 +49,7 @@ func TestServiceInit(t *testing.T) {
 	authPayload := &payloadHolder{payload: []byte(initialAuth)}
 	mockAuthServer := startTestServer(authPayload)
 	viper.Set("server.auth", mockAuthServer.URL)
-	appconfig.Init(false)
+	appconfig.Init(false, "")
 
 	initialDestinations := `{
   "destinations": {
