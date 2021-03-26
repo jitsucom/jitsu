@@ -143,7 +143,10 @@ func TestOldStyleMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mapper, _, err := NewFieldMapper(Default, tt.mappings, nil)
+			mappings, err := ConvertOldMappings(Default, tt.mappings)
+			require.NoError(t, err)
+
+			mapper, _, err := NewFieldMapper(mappings)
 			require.NoError(t, err)
 
 			actualObject, err := mapper.Map(tt.inputObject)
@@ -253,7 +256,6 @@ func TestOldStyleStrictMap(t *testing.T) {
 				"key5": 888,
 			},
 			map[string]interface{}{
-				"src": "api",
 				"key10": map[string]interface{}{
 					"subkey1": map[string]interface{}{
 						"subsubkey1": 123,
@@ -267,7 +269,10 @@ func TestOldStyleStrictMap(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mapper, _, err := NewFieldMapper(Strict, tt.mappings, nil)
+			mappings, err := ConvertOldMappings(Strict, tt.mappings)
+			require.NoError(t, err)
+
+			mapper, _, err := NewFieldMapper(mappings)
 			require.NoError(t, err)
 
 			actualObject, _ := mapper.Map(tt.inputObject)
@@ -363,6 +368,37 @@ func TestNewStyleStrictMap(t *testing.T) {
 				},
 			},
 		},
+		{
+			"Map real event",
+			[]MappingField{
+				{Src: "/src", Dst: "/channel", Action: MOVE},
+				{Src: "/eventn_ctx/event_id", Dst: "/eventn_ctx/event_id", Action: MOVE},
+				{Src: "/eventn_ctx/event_id", Dst: "/id", Action: MOVE},
+				{Src: "/_timestamp", Dst: "/_timestamp", Action: MOVE},
+				{Src: "/_timestamp", Dst: "/timestamp", Action: MOVE},
+			},
+			map[string]interface{}{
+				"_timestamp": "2020-10-26T09:43:47.374118Z",
+				"api_key":    "key",
+				"src":        "eventn",
+				"event_type": "pages",
+				"eventn_ctx": map[string]interface{}{
+					"event_id": "0001",
+					"ids": map[string]interface{}{
+						"ajs_anonymous_id": "123",
+					},
+				},
+			},
+			map[string]interface{}{
+				"_timestamp": "2020-10-26T09:43:47.374118Z",
+				"channel":    "eventn",
+				"eventn_ctx": map[string]interface{}{
+					"event_id": "0001",
+				},
+				"id":        "0001",
+				"timestamp": "2020-10-26T09:43:47.374118Z",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -370,7 +406,7 @@ func TestNewStyleStrictMap(t *testing.T) {
 				require.NoError(t, field.Validate())
 			}
 			f := false
-			mapper, _, err := NewFieldMapper(Strict, []string{}, &Mapping{KeepUnmapped: &f, Fields: tt.mappings})
+			mapper, _, err := NewFieldMapper(&Mapping{KeepUnmapped: &f, Fields: tt.mappings})
 			require.NoError(t, err)
 
 			actualObject, _ := mapper.Map(tt.inputObject)
