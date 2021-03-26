@@ -49,6 +49,7 @@ type DataLayout struct {
 	MappingType       schema.FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
 	Mapping           []string                `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 	Mappings          *schema.Mapping         `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
+	MaxColumns        int                     `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
 	TableNameTemplate string                  `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
 	PrimaryKeyFields  []string                `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
 }
@@ -137,6 +138,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 	var newStyleMapping *schema.Mapping
 	pkFields := map[string]bool{}
 	mappingFieldType := schema.Default
+	maxColumns := f.maxColumns
 	if destination.DataLayout != nil {
 		mappingFieldType = destination.DataLayout.MappingType
 		oldStyleMappings = destination.DataLayout.Mapping
@@ -148,6 +150,10 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 
 		for _, field := range destination.DataLayout.PrimaryKeyFields {
 			pkFields[field] = true
+		}
+
+		if destination.DataLayout.MaxColumns > 0 {
+			maxColumns = destination.DataLayout.MaxColumns
 		}
 	}
 
@@ -295,7 +301,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		usersRecognition: usersRecognitionConfiguration,
 		processor:        processor,
 		streamMode:       destination.Mode == StreamMode,
-		maxColumns:       f.maxColumns,
+		maxColumns:       maxColumns,
 		monitorKeeper:    f.monitorKeeper,
 		eventQueue:       eventQueue,
 		eventsCache:      f.eventsCache,
