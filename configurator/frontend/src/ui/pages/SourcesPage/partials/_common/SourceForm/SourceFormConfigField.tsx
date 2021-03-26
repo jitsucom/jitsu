@@ -66,9 +66,13 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
             <Form.Item
               initialValue={initialValue}
               className="form-field_fixed-label"
-              label={documentation ? <LabelWithTooltip documentation={documentation}>{displayName}:</LabelWithTooltip> : <span>{displayName}:</span>}
+              label={documentation
+                ? <LabelWithTooltip documentation={documentation}>{displayName}:</LabelWithTooltip>
+                : <span>{displayName}:</span>}
               name={fieldName}
-              rules={required ? [{ required, message: `${displayName} is required` }] : undefined}
+              rules={required
+                ? [{ required, message: `${displayName} is required` }]
+                : undefined}
               labelCol={{ span: 6 }}
               wrapperCol={{ span: 18 }}
             >
