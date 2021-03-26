@@ -189,7 +189,7 @@ func TestCors(t *testing.T) {
 			telemetry.InitTest()
 			httpAuthority, _ := test.GetLocalAuthority()
 
-			err := appconfig.Init(false)
+			err := appconfig.Init(false, "")
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
@@ -319,7 +319,7 @@ func TestAPIEvent(t *testing.T) {
 			telemetry.InitTest()
 			httpAuthority, _ := test.GetLocalAuthority()
 
-			err := appconfig.Init(false)
+			err := appconfig.Init(false, "")
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
@@ -488,7 +488,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	destinationConfig := fmt.Sprintf(pgDestinationConfigTemplate, container.Host, container.Port, container.Database, container.Schema, container.Username, container.Password)
 
 	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init(false)
+	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
@@ -596,7 +596,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	destinationConfig := fmt.Sprintf(configTemplate, strings.Join(dsns, ","), container.Database)
 
 	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init(false)
+	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
