@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"io/ioutil"
@@ -167,11 +166,6 @@ func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	}
 
 	object["event_time"] = eventTime.Unix()
-
-	// * remove system fields
-	for _, systemField := range schema.SystemFields {
-		delete(object, systemField)
-	}
 
 	// * event_name
 	eventName, ok := object["event_name"]

@@ -174,7 +174,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		enrichment.DefaultJsUaRule,
 	}
 
-	//configured enrichment rules
+	// ** Enrichment rules **
 	for _, ruleConfig := range destination.Enrichment {
 		logging.Infof("[%s] %s", name, ruleConfig.String())
 
@@ -186,28 +186,19 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		enrichmentRules = append(enrichmentRules, rule)
 	}
 
-	fieldMapper, sqlTypeCasts, err := schema.NewFieldMapper(mappingFieldType, oldStyleMappings, newStyleMapping)
+	// ** Mapping rules **
+	if len(oldStyleMappings) > 0 {
+		logging.Warnf("\n\t [%s] ** DEPRECATED mapping configuration. Read more about new configuration schema: https://jitsu.com/docs/configuration/schema-and-mappings **\n", name)
+		var convertErr error
+		newStyleMapping, convertErr = schema.ConvertOldMappings(mappingFieldType, oldStyleMappings)
+		if convertErr != nil {
+			return nil, nil, convertErr
+		}
+	}
+	enrichAndLogMappings(name, destination.Type, newStyleMapping)
+	fieldMapper, sqlTypeCasts, err := schema.NewFieldMapper(newStyleMapping)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	//write current mapping configuration to logs
-	if newStyleMapping != nil && len(newStyleMapping.Fields) != 0 {
-		mappingMode := "keep unmapped fields"
-		if newStyleMapping.KeepUnmapped != nil && !*newStyleMapping.KeepUnmapped {
-			mappingMode = "remove unmapped fields"
-		}
-		logging.Infof("[%s] Configured field mapping rules with [%s] mode:", name, mappingMode)
-		for _, mrc := range newStyleMapping.Fields {
-			logging.Infof("[%s] %s", name, mrc.String())
-		}
-	} else if len(oldStyleMappings) > 0 {
-		logging.Infof("[%s] Configured field mapping rules with [%s] mode:", name, mappingFieldType)
-		for _, m := range oldStyleMappings {
-			logging.Infof("[%s] %s", name, m)
-		}
-	} else {
-		logging.Warnf("[%s] doesn't have mapping rules", name)
 	}
 
 	//retrospective users recognition
@@ -325,4 +316,62 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 	}
 
 	return storageProxy, eventQueue, nil
+}
+
+//Add system fields as default mappings
+//write current mapping configuration to logs
+func enrichAndLogMappings(destinationID, destinationType string, mapping *schema.Mapping) {
+	if mapping == nil || len(mapping.Fields) == 0 {
+		logging.Warnf("[%s] doesn't have mapping rules", destinationID)
+		return
+	}
+
+	keepUnmapped := mapping.KeepUnmapped != nil && *mapping.KeepUnmapped
+
+	//check system fields and add default mappings
+	//if destination is SQL and not keep unmapped
+	if isSQLType(destinationType) && !keepUnmapped {
+		var configuredEventId, configuredTimestamp bool
+		for _, f := range mapping.Fields {
+			if f.Src == "/eventn_ctx/event_id" && (f.Dst == "/eventn_ctx/event_id" || f.Dst == "/eventn_ctx_event_id") {
+				configuredEventId = true
+			}
+
+			if f.Src == "/_timestamp" && f.Dst == "/_timestamp" {
+				configuredTimestamp = true
+			}
+		}
+
+		if !configuredEventId {
+			eventIdMapping := schema.MappingField{Src: "/eventn_ctx/event_id", Dst: "/eventn_ctx/event_id", Action: "move"}
+			mapping.Fields = append(mapping.Fields, eventIdMapping)
+			logging.Warnf("[%s] Added default system field mapping: %s", destinationID, eventIdMapping.String())
+		}
+
+		if !configuredTimestamp {
+			eventIdMapping := schema.MappingField{Src: "/_timestamp", Dst: "/_timestamp", Action: "move"}
+			mapping.Fields = append(mapping.Fields, eventIdMapping)
+			logging.Warnf("[%s] Added default system field mapping: %s", destinationID, eventIdMapping.String())
+		}
+	}
+
+	mappingMode := "keep unmapped fields"
+	if !keepUnmapped {
+		mappingMode = "remove unmapped fields"
+	}
+	logging.Infof("[%s] Configured field mapping rules with [%s] mode:", destinationID, mappingMode)
+
+	for _, mappingRule := range mapping.Fields {
+		logging.Infof("[%s] %s", destinationID, mappingRule.String())
+	}
+}
+
+func isSQLType(destinationType string) bool {
+	return destinationType == RedshiftType ||
+		destinationType == BigQueryType ||
+		destinationType == PostgresType ||
+		destinationType == ClickHouseType ||
+		destinationType == SnowflakeType ||
+		//S3 can be SQL (S3 as intermediate layer)
+		destinationType == S3Type
 }
