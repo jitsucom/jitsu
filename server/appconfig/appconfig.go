@@ -54,7 +54,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("sql_debug_log.ddl.rotation_min", "1440")
 	viper.SetDefault("users_recognition.enabled", false)
 	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id")
-	viper.SetDefault("users_recognition.user_id_node", "/eventn_ctx/user/internal_id")
+	viper.SetDefault("users_recognition.identification_nodes", "/eventn_ctx/user/internal_id")
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")

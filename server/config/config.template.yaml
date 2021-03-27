@@ -159,7 +159,8 @@ destinations:
 #    users_recognition: #Optional
 #      enabled: true #set false for disabling
 #      anonymous_id_node: /user/anonymous_id #Required if enabled
-#      user_id_node: /user/id #Required if enabled
+#      identification_nodes:
+#        - /user/id # Required if enabled
 
 
   ### ClickHouse https://jitsu.com/docs/destinations-configuration/clickhouse-destination
@@ -377,7 +378,8 @@ destinations:
 #users_recognition:
 #  enabled: true
 #  anonymous_id_node: /eventn_ctx/user/anonymous_id #Optional. Json path to user anonymous id. Default value is  /eventn_ctx/user/anonymous_id
-#  user_id_node: /eventn_ctx/user/email #Optional. Json path to identified user id. Default value is  /eventn_ctx/user/internal_id
+#  identification_nodes:
+#    - /eventn_ctx/user/email # Optional. Json path to identified user id. Default value is /eventn_ctx/user/internal_id
 
 
 ### Meta storage. It is required for using sources (see below).
