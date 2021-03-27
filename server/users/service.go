@@ -133,17 +133,19 @@ func (rs *RecognitionService) start() {
 			}
 
 			for destinationID, identifiers := range rp.DestinationsIdentifiers {
-				//recognized
-				if identifiers.IsAnyProperty() {
-					err := rs.runPipeline(destinationID, identifiers)
-					if err != nil {
-						logging.SystemErrorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
-					}
-				} else {
-					//still anonymous
-					err := rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes))
+				// If some property is missing - event is anonimous
+				if !identifiers.IsAllProperties() {
+					err = rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes))
 					if err != nil {
 						logging.SystemErrorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
+					}
+				}
+
+				// But if some property recognized - it is needed to update all other anonimous events
+				if identifiers.IsAnyProperty() {
+					err = rs.runPipeline(destinationID, identifiers)
+					if err != nil {
+						logging.SystemErrorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
 					}
 				}
 			}
@@ -228,7 +230,11 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 	}
 
 	for storedEventID, storedSerializedEvent := range eventsMap {
-		event := map[string]interface{}{}
+		if storedEventID == identifiers.EventID {
+			continue
+		}
+
+		event := events.Event{}
 		err := json.Unmarshal([]byte(storedSerializedEvent), &event)
 		if err != nil {
 			logging.SystemErrorf("[%s] Error unmarshalling anonymous event [%s] from meta storage with [%s] anonymous id: %v", destinationID, storedEventID, identifiers.AnonymousID, err)
@@ -274,14 +280,16 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 
 		// If any property is empty event will be anonymous until filling out that last property.
 		// Removing event from storage is suitable only when all properties are filled out.
-		if !identifiers.IsAllProperties() {
-			continue
-		}
-
-		err = rs.metaStorage.DeleteAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID)
-		if err != nil {
-			logging.SystemErrorf("[%s] Error deleting stored recognized event [%s]: %v", destinationID, storedEventID, err)
-			continue
+		if configuration.PropertyJSONPathes.IsFullFilled(event) {
+			err = rs.metaStorage.DeleteAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID)
+			if err != nil {
+				logging.SystemErrorf("[%s] Error deleting stored recognized event [%s]: %v", destinationID, storedEventID, err)
+			}
+		} else {
+			err = rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID, event.Serialize())
+			if err != nil {
+				logging.SystemErrorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
+			}
 		}
 	}
 
