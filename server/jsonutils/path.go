@@ -1,7 +1,6 @@
 package jsonutils
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -135,6 +134,7 @@ func NewJSONPathArray(pathes []string) *JSONPathArray {
 
 func (jpa *JSONPathArray) String() string {
 	result := ""
+
 	for _, value := range jpa.array {
 		if result != "" {
 			result += ", "
@@ -160,9 +160,9 @@ func (jpa *JSONPathArray) Get(object map[string]interface{}) ([]interface{}, boo
 
 func (jpa *JSONPathArray) Set(object map[string]interface{}, values []interface{}) error {
 	count := len(jpa.array)
+
 	if count != len(values) {
-		msg := fmt.Sprintf("Count of properties %d should be equal %d", count, len(values))
-		return errors.New(msg)
+		return fmt.Errorf("Count of properties %d should be equal %d", count, len(values))
 	}
 
 	for i := 0; i < count; i++ {
@@ -175,4 +175,19 @@ func (jpa *JSONPathArray) Set(object map[string]interface{}, values []interface{
 	}
 
 	return nil
+}
+
+func (jpa *JSONPathArray) IsFullFilled(object map[string]interface{}) bool {
+	result := true
+
+	for _, path := range jpa.array {
+		value, answer := path.Get(object)
+		result = result && answer && value != nil
+
+		if !result {
+			return result
+		}
+	}
+
+	return result
 }
