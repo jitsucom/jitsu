@@ -20,8 +20,8 @@ type Storage interface {
 
 	//** Sources **
 	//signatures
-	GetSignature(sourceId, collection, interval string) (string, error)
-	SaveSignature(sourceId, collection, interval, signature string) error
+	GetSignature(sourceID, collection, interval string) (string, error)
+	SaveSignature(sourceID, collection, interval, signature string) error
 
 	//** Counters **
 	//events counters
@@ -31,34 +31,34 @@ type Storage interface {
 
 	//** Cache **
 	//events caching
-	AddEvent(destinationId, eventId, payload string, now time.Time) (int, error)
-	UpdateSucceedEvent(destinationId, eventId, success string) error
-	UpdateErrorEvent(destinationId, eventId, error string) error
-	RemoveLastEvent(destinationId string) error
+	AddEvent(destinationID, eventID, payload string, now time.Time) (int, error)
+	UpdateSucceedEvent(destinationID, eventID, success string) error
+	UpdateErrorEvent(destinationID, eventID, error string) error
+	RemoveLastEvent(destinationID string) error
 
-	GetEvents(destinationId string, start, end time.Time, n int) ([]Event, error)
-	GetTotalEvents(destinationId string) (int, error)
+	GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error)
+	GetTotalEvents(destinationID string) (int, error)
 
 	//** Users recognition **
-	SaveAnonymousEvent(destinationId, anonymousId, eventId, payload string) error
-	GetAnonymousEvents(destinationId, anonymousId string) (map[string]string, error)
-	DeleteAnonymousEvent(destinationId, anonymousId, eventId string) error
+	SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error
+	GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error)
+	DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error
 
 	//sync tasks
-	CreateTask(sourceId, collection string, task *Task, createdAt time.Time) error
+	CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error
 	UpsertTask(task *Task) error
-	GetAllTasks(sourceId, collection string, start, end time.Time) ([]Task, error)
-	GetLastTask(sourceId, collection string) (*Task, error)
-	GetTask(taskId string) (*Task, error)
+	GetAllTasks(sourceID, collection string, start, end time.Time) ([]Task, error)
+	GetLastTask(sourceID, collection string) (*Task, error)
+	GetTask(taskID string) (*Task, error)
 
 	//task logs
-	AppendTaskLog(taskId string, now time.Time, message, level string) error
-	GetTaskLogs(taskId string, start, end time.Time) ([]TaskLogRecord, error)
+	AppendTaskLog(taskID string, now time.Time, message, level string) error
+	GetTaskLogs(taskID string, start, end time.Time) ([]TaskLogRecord, error)
 
 	//task queue
 	PushTask(task *Task) error
 	PollTask() (*Task, error)
-	IsTaskInQueue(sourceId, collection string) (string, bool, error)
+	IsTaskInQueue(sourceID, collection string) (string, bool, error)
 
 	Type() string
 }
@@ -71,11 +71,11 @@ func NewStorage(meta *viper.Viper) (Storage, error) {
 	host := meta.GetString("redis.host")
 	port := meta.GetInt("redis.port")
 	password := meta.GetString("redis.password")
-	anonymousEventsTtl := meta.GetInt("redis.ttl_minutes.anonymous_events")
+	anonymousEventsTTL := meta.GetInt("redis.ttl_minutes.anonymous_events")
 
 	if port == 0 {
 		port = 6379
 	}
 
-	return NewRedis(host, port, password, anonymousEventsTtl)
+	return NewRedis(host, port, password, anonymousEventsTTL)
 }

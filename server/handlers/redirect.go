@@ -7,13 +7,13 @@ import (
 
 //Handle redirects
 type RedirectHandler struct {
-	toUrl string
+	toURL string
 }
 
-func NewRedirectHandler(redirectToUrl string) *RedirectHandler {
-	return &RedirectHandler{toUrl: redirectToUrl}
+func NewRedirectHandler(redirectToURL string) *RedirectHandler {
+	return &RedirectHandler{toURL: redirectToURL}
 }
 
 func (rh *RedirectHandler) Handler(c *gin.Context) {
-	c.Redirect(http.StatusPermanentRedirect, rh.toUrl)
+	c.Redirect(http.StatusPermanentRedirect, rh.toURL)
 }

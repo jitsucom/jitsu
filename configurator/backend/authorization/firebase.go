@@ -17,8 +17,8 @@ type Provider interface {
 	//both authorization types
 	io.Closer
 	VerifyAccessToken(token string) (string, error)
-	IsAdmin(userId string) (bool, error)
-	GenerateUserAccessToken(userId string) (string, error)
+	IsAdmin(userID string) (bool, error)
+	GenerateUserAccessToken(userID string) (string, error)
 
 	UsersExist() (bool, error)
 	Type() string
@@ -26,12 +26,12 @@ type Provider interface {
 	//only in-house
 	GetUserByEmail(email string) (*User, error)
 	SaveUser(user *User) error
-	CreateTokens(userId string) (*TokenDetails, error)
+	CreateTokens(userID string) (*TokenDetails, error)
 	DeleteToken(token string) error
-	DeleteAllTokens(userId string) error
-	SavePasswordResetId(resetId, userId string) error
-	DeletePasswordResetId(resetId string) error
-	GetUserByResetId(resetId string) (*User, error)
+	DeleteAllTokens(userID string) error
+	SavePasswordResetID(resetID, userID string) error
+	DeletePasswordResetID(resetID string) error
+	GetUserByResetID(resetID string) (*User, error)
 	RefreshTokens(refreshToken string) (*TokenDetails, error)
 }
 
@@ -42,9 +42,9 @@ type FirebaseProvider struct {
 	firestoreClient *firestore.Client
 }
 
-func NewFirebaseProvider(ctx context.Context, projectId, credentialsFile, adminDomain string) (*FirebaseProvider, error) {
+func NewFirebaseProvider(ctx context.Context, projectID, credentialsFile, adminDomain string) (*FirebaseProvider, error) {
 	logging.Infof("Initializing firebase authorization storage..")
-	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectId}, option.WithCredentialsFile(credentialsFile))
+	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID}, option.WithCredentialsFile(credentialsFile))
 	if err != nil {
 		return nil, err
 	}
@@ -77,10 +77,10 @@ func (fp *FirebaseProvider) VerifyAccessToken(token string) (string, error) {
 }
 
 //IsAdmin return true only if the user is admin and auth type is Google
-func (fp *FirebaseProvider) IsAdmin(userId string) (bool, error) {
-	authUserInfo, err := fp.authClient.GetUser(fp.ctx, userId)
+func (fp *FirebaseProvider) IsAdmin(userID string) (bool, error) {
+	authUserInfo, err := fp.authClient.GetUser(fp.ctx, userID)
 	if err != nil {
-		return false, fmt.Errorf("Failed to get authorization data for user_id [%s]", userId)
+		return false, fmt.Errorf("Failed to get authorization data for user_id [%s]", userID)
 	}
 
 	// email domain validation
@@ -110,8 +110,8 @@ func (fp *FirebaseProvider) IsAdmin(userId string) (bool, error) {
 	return true, nil
 }
 
-func (fp *FirebaseProvider) GenerateUserAccessToken(userId string) (string, error) {
-	user, err := fp.authClient.GetUserByEmail(fp.ctx, userId)
+func (fp *FirebaseProvider) GenerateUserAccessToken(userID string) (string, error) {
+	user, err := fp.authClient.GetUserByEmail(fp.ctx, userID)
 	if err != nil {
 		return "", err
 	}
@@ -147,8 +147,8 @@ func (fp *FirebaseProvider) SaveUser(user *User) error {
 	return errors.New(errMsg)
 }
 
-func (fp *FirebaseProvider) CreateTokens(userId string) (*TokenDetails, error) {
-	errMsg := fmt.Sprintf("CreateTokens isn't supported in authorization FirebaseProvider. userId: %s", userId)
+func (fp *FirebaseProvider) CreateTokens(userID string) (*TokenDetails, error) {
+	errMsg := fmt.Sprintf("CreateTokens isn't supported in authorization FirebaseProvider. userID: %s", userID)
 	logging.SystemError(errMsg)
 	return nil, errors.New(errMsg)
 }
@@ -159,26 +159,26 @@ func (fp *FirebaseProvider) DeleteToken(token string) error {
 	return errors.New(errMsg)
 }
 
-func (fp *FirebaseProvider) SavePasswordResetId(resetId, userId string) error {
-	errMsg := "SavePasswordResetId isn't supported in authorization FirebaseProvider"
+func (fp *FirebaseProvider) SavePasswordResetID(resetID, userID string) error {
+	errMsg := "SavePasswordResetID isn't supported in authorization FirebaseProvider"
 	logging.SystemError(errMsg)
 	return errors.New(errMsg)
 }
 
-func (fp *FirebaseProvider) DeletePasswordResetId(resetId string) error {
-	errMsg := "DeletePasswordResetId isn't supported in authorization FirebaseProvider"
+func (fp *FirebaseProvider) DeletePasswordResetID(resetID string) error {
+	errMsg := "DeletePasswordResetID isn't supported in authorization FirebaseProvider"
 	logging.SystemError(errMsg)
 	return errors.New(errMsg)
 }
 
-func (fp *FirebaseProvider) GetUserByResetId(resetId string) (*User, error) {
-	errMsg := fmt.Sprintf("GetUserByResetId isn't supported in authorization FirebaseProvider. resetId: %s", resetId)
+func (fp *FirebaseProvider) GetUserByResetID(resetID string) (*User, error) {
+	errMsg := fmt.Sprintf("GetUserByResetID isn't supported in authorization FirebaseProvider. resetID: %s", resetID)
 	logging.SystemError(errMsg)
 	return nil, errors.New(errMsg)
 }
 
-func (fp *FirebaseProvider) DeleteAllTokens(userId string) error {
-	errMsg := fmt.Sprintf("DeleteAllTokens isn't supported in authorization FirebaseProvider. userId: %s", userId)
+func (fp *FirebaseProvider) DeleteAllTokens(userID string) error {
+	errMsg := fmt.Sprintf("DeleteAllTokens isn't supported in authorization FirebaseProvider. userID: %s", userID)
 	logging.SystemError(errMsg)
 	return errors.New(errMsg)
 }

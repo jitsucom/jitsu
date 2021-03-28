@@ -42,7 +42,7 @@ func (ec *EventsCache) start() {
 			}
 
 			cf := <-ec.originalCh
-			ec.put(cf.destinationId, cf.eventId, cf.event)
+			ec.put(cf.destinationID, cf.eventID, cf.event)
 		}
 	})
 
@@ -53,7 +53,7 @@ func (ec *EventsCache) start() {
 			}
 
 			cf := <-ec.succeedCh
-			ec.succeed(cf.destinationId, cf.eventId, cf.processed, cf.table)
+			ec.succeed(cf.destinationID, cf.eventID, cf.processed, cf.table)
 		}
 	})
 
@@ -64,51 +64,51 @@ func (ec *EventsCache) start() {
 			}
 
 			cf := <-ec.failedCh
-			ec.error(cf.destinationId, cf.eventId, cf.error)
+			ec.error(cf.destinationID, cf.eventID, cf.error)
 		}
 	})
 }
 
 //Put put value into channel which will be read and written to storage
-func (ec *EventsCache) Put(destinationId, eventId string, value events.Event) {
+func (ec *EventsCache) Put(destinationID, eventID string, value events.Event) {
 	select {
-	case ec.originalCh <- &originalEvent{destinationId: destinationId, eventId: eventId, event: value}:
+	case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
 	default:
 	}
 }
 
 //Succeed put value into channel which will be read and updated in storage
-func (ec *EventsCache) Succeed(destinationId, eventId string, processed events.Event, table *adapters.Table) {
+func (ec *EventsCache) Succeed(destinationID, eventID string, processed events.Event, table *adapters.Table) {
 	select {
-	case ec.succeedCh <- &succeedEvent{destinationId: destinationId, eventId: eventId, processed: processed, table: table}:
+	case ec.succeedCh <- &succeedEvent{destinationID: destinationID, eventID: eventID, processed: processed, table: table}:
 	default:
 	}
 }
 
 //Error put value into channel which will be read and updated in storage
-func (ec *EventsCache) Error(destinationId, eventId string, errMsg string) {
+func (ec *EventsCache) Error(destinationID, eventID string, errMsg string) {
 	select {
-	case ec.failedCh <- &failedEvent{destinationId: destinationId, eventId: eventId, error: errMsg}:
+	case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
 	default:
 	}
 }
 
 //put create new event in storage
-func (ec *EventsCache) put(destinationId, eventId string, value events.Event) {
-	if eventId == "" {
-		logging.SystemErrorf("[EventsCache] Put(): Event id can't be empty. Destination [%s] Event: %s", destinationId, value.Serialize())
+func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
+	if eventID == "" {
+		logging.SystemErrorf("[EventsCache] Put(): Event id can't be empty. Destination [%s] Event: %s", destinationID, value.Serialize())
 		return
 	}
 
 	b, err := json.Marshal(value)
 	if err != nil {
-		logging.SystemErrorf("[%s] Error marshalling event [%v] before caching: %v", destinationId, value, err)
+		logging.SystemErrorf("[%s] Error marshalling event [%v] before caching: %v", destinationID, value, err)
 		return
 	}
 
-	eventsInCache, err := ec.storage.AddEvent(destinationId, eventId, string(b), time.Now().UTC())
+	eventsInCache, err := ec.storage.AddEvent(destinationID, eventID, string(b), time.Now().UTC())
 	if err != nil {
-		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationId, value.Serialize(), err)
+		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationID, value.Serialize(), err)
 		return
 	}
 
@@ -116,12 +116,12 @@ func (ec *EventsCache) put(destinationId, eventId string, value events.Event) {
 	if eventsInCache > ec.capacityPerDestination {
 		toDelete := eventsInCache - ec.capacityPerDestination
 		if toDelete > 2 {
-			logging.Infof("[%s] Events cache size: [%d] capacity: [%d] elements to delete: [%d]", destinationId, eventsInCache, ec.capacityPerDestination, toDelete)
+			logging.Infof("[%s] Events cache size: [%d] capacity: [%d] elements to delete: [%d]", destinationID, eventsInCache, ec.capacityPerDestination, toDelete)
 		}
 		for i := 0; i < toDelete; i++ {
-			err := ec.storage.RemoveLastEvent(destinationId)
+			err := ec.storage.RemoveLastEvent(destinationID)
 			if err != nil {
-				logging.SystemErrorf("[%s] Error removing event from cache: %v", destinationId, err)
+				logging.SystemErrorf("[%s] Error removing event from cache: %v", destinationID, err)
 				return
 			}
 		}
@@ -129,9 +129,9 @@ func (ec *EventsCache) put(destinationId, eventId string, value events.Event) {
 }
 
 //succeed serialize and update processed event in storage
-func (ec *EventsCache) succeed(destinationId, eventId string, processed events.Event, table *adapters.Table) {
-	if eventId == "" {
-		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %s", destinationId, processed.Serialize())
+func (ec *EventsCache) succeed(destinationID, eventID string, processed events.Event, table *adapters.Table) {
+	if eventID == "" {
+		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %s", destinationID, processed.Serialize())
 		return
 	}
 
@@ -143,7 +143,7 @@ func (ec *EventsCache) succeed(destinationId, eventId string, processed events.E
 		if !ok {
 			sqlType = "unknown"
 		} else {
-			sqlType = column.SqlType
+			sqlType = column.SQLType
 		}
 
 		fields = append(fields, &adapters.TableField{
@@ -154,43 +154,43 @@ func (ec *EventsCache) succeed(destinationId, eventId string, processed events.E
 	}
 
 	sf := SucceedEvent{
-		DestinationId: destinationId,
+		DestinationID: destinationID,
 		Table:         table.Name,
 		Record:        fields,
 	}
 
 	b, err := json.Marshal(sf)
 	if err != nil {
-		logging.SystemErrorf("[%s] Error marshalling succeed event [%v] before update: %v", destinationId, sf, err)
+		logging.SystemErrorf("[%s] Error marshalling succeed event [%v] before update: %v", destinationID, sf, err)
 		return
 	}
 
-	err = ec.storage.UpdateSucceedEvent(destinationId, eventId, string(b))
+	err = ec.storage.UpdateSucceedEvent(destinationID, eventID, string(b))
 	if err != nil {
-		logging.SystemErrorf("[%s] Error updating success event %s in cache: %v", destinationId, processed.Serialize(), err)
+		logging.SystemErrorf("[%s] Error updating success event %s in cache: %v", destinationID, processed.Serialize(), err)
 		return
 	}
 }
 
 //error write error into event field in storage
-func (ec *EventsCache) error(destinationId, eventId string, errMsg string) {
-	if eventId == "" {
-		logging.SystemErrorf("[EventsCache] Error(): Event id can't be empty. Destination [%s]", destinationId)
+func (ec *EventsCache) error(destinationID, eventID string, errMsg string) {
+	if eventID == "" {
+		logging.SystemErrorf("[EventsCache] Error(): Event id can't be empty. Destination [%s]", destinationID)
 		return
 	}
 
-	err := ec.storage.UpdateErrorEvent(destinationId, eventId, errMsg)
+	err := ec.storage.UpdateErrorEvent(destinationID, eventID, errMsg)
 	if err != nil {
-		logging.SystemErrorf("[%s] Error updating error event [%s] in cache: %v", destinationId, eventId, err)
+		logging.SystemErrorf("[%s] Error updating error event [%s] in cache: %v", destinationID, eventID, err)
 		return
 	}
 }
 
 //GetN return at most n facts by key
-func (ec *EventsCache) GetN(destinationId string, start, end time.Time, n int) []meta.Event {
-	facts, err := ec.storage.GetEvents(destinationId, start, end, n)
+func (ec *EventsCache) GetN(destinationID string, start, end time.Time, n int) []meta.Event {
+	facts, err := ec.storage.GetEvents(destinationID, start, end, n)
 	if err != nil {
-		logging.SystemErrorf("Error getting %d cached events for [%s] destination: %v", n, destinationId, err)
+		logging.SystemErrorf("Error getting %d cached events for [%s] destination: %v", n, destinationID, err)
 		return []meta.Event{}
 	}
 
@@ -198,10 +198,10 @@ func (ec *EventsCache) GetN(destinationId string, start, end time.Time, n int) [
 }
 
 //GetTotal return total amount of destination events in storage
-func (ec *EventsCache) GetTotal(destinationId string) int {
-	total, err := ec.storage.GetTotalEvents(destinationId)
+func (ec *EventsCache) GetTotal(destinationID string) int {
+	total, err := ec.storage.GetTotalEvents(destinationID)
 	if err != nil {
-		logging.SystemErrorf("Error getting total events for [%s] destination: %v", destinationId, err)
+		logging.SystemErrorf("Error getting total events for [%s] destination: %v", destinationID, err)
 		return 0
 	}
 

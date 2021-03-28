@@ -5,36 +5,36 @@ import (
 	"strings"
 )
 
-type JsonPath struct {
+type JSONPath struct {
 	//[key1, key2, key3]
 	parts []string
 }
 
-//NewJsonPath return JsonPath
-func NewJsonPath(path string) *JsonPath {
+//NewJSONPath return JSONPath
+func NewJSONPath(path string) *JSONPath {
 	parts := strings.Split(FormatPrefixSuffix(path), "/")
 	if len(parts) == 1 && parts[0] == "" {
 		//empty json path
 		parts = []string{}
 	}
-	return &JsonPath{parts: parts}
+	return &JSONPath{parts: parts}
 }
 
-func (jp *JsonPath) IsEmpty() bool {
+func (jp *JSONPath) IsEmpty() bool {
 	return len(jp.parts) == 0
 }
 
 //Get return value of json path
-func (jp *JsonPath) Get(obj map[string]interface{}) (interface{}, bool) {
+func (jp *JSONPath) Get(obj map[string]interface{}) (interface{}, bool) {
 	return jp.getAndRemove(obj, false)
 }
 
 //Get return value of json path and remove it from origin json
-func (jp *JsonPath) GetAndRemove(obj map[string]interface{}) (interface{}, bool) {
+func (jp *JSONPath) GetAndRemove(obj map[string]interface{}) (interface{}, bool) {
 	return jp.getAndRemove(obj, true)
 }
 
-func (jp *JsonPath) getAndRemove(obj map[string]interface{}, remove bool) (interface{}, bool) {
+func (jp *JSONPath) getAndRemove(obj map[string]interface{}, remove bool) (interface{}, bool) {
 	//dive into obj and return last key
 	for i := 0; i < len(jp.parts); i++ {
 		key := jp.parts[i]
@@ -69,7 +69,7 @@ func (jp *JsonPath) getAndRemove(obj map[string]interface{}, remove bool) (inter
 //Set put value to json path
 //assume that obj can't be nil
 //return true if value was set
-func (jp *JsonPath) Set(obj map[string]interface{}, value interface{}) error {
+func (jp *JSONPath) Set(obj map[string]interface{}, value interface{}) error {
 	if obj == nil {
 		return nil
 	}
@@ -100,11 +100,11 @@ func (jp *JsonPath) Set(obj map[string]interface{}, value interface{}) error {
 	return nil
 }
 
-func (jp *JsonPath) String() string {
+func (jp *JSONPath) String() string {
 	return "/" + strings.Join(jp.parts, "/")
 }
 
-func (jp *JsonPath) FieldName() string {
+func (jp *JSONPath) FieldName() string {
 	return strings.Join(jp.parts, "_")
 }
 

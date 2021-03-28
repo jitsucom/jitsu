@@ -65,6 +65,7 @@ type typeNode struct {
 	right *typeNode
 }
 
+//ConvertFunc is a function for a certain DataType convertation
 type ConvertFunc func(v interface{}) (interface{}, error)
 
 type rule struct {
@@ -72,6 +73,7 @@ type rule struct {
 	to   DataType
 }
 
+//IsConvertible returns false if there isn't any rule for converting from DataType into to DataType
 func IsConvertible(from DataType, to DataType) bool {
 	if from == to {
 		return true
@@ -84,6 +86,8 @@ func IsConvertible(from DataType, to DataType) bool {
 	return false
 }
 
+//Convert returns converted into toType value
+//or error if occurred
 func Convert(toType DataType, v interface{}) (interface{}, error) {
 	currentType, err := TypeFromValue(v)
 	if err != nil {
@@ -102,6 +106,7 @@ func Convert(toType DataType, v interface{}) (interface{}, error) {
 	return f(v)
 }
 
+//GetCommonAncestorType returns lowest common ancestor type
 func GetCommonAncestorType(t1, t2 DataType) DataType {
 	return lowestCommonAncestor(typecastTree, t1, t2)
 }
@@ -210,9 +215,9 @@ func boolToNumber(v interface{}) (interface{}, error) {
 		boolValue, _ := v.(bool)
 		if boolValue {
 			return int64(1), nil
-		} else {
-			return int64(0), nil
 		}
+
+		return int64(0), nil
 	default:
 		return nil, fmt.Errorf("Error boolToNumber(): Unknown value type: %t", v)
 	}
@@ -224,14 +229,16 @@ func boolToFloat(v interface{}) (interface{}, error) {
 		boolValue, _ := v.(bool)
 		if boolValue {
 			return float64(1), nil
-		} else {
-			return float64(0), nil
 		}
+
+		return float64(0), nil
 	default:
 		return nil, fmt.Errorf("Error boolToFloat(): Unknown value type: %t", v)
 	}
 }
 
+//StringToInt returns int representation of input string
+//or error if unconvertable
 func StringToInt(v interface{}) (interface{}, error) {
 	intValue, err := strconv.Atoi(v.(string))
 	if err != nil {
@@ -242,6 +249,7 @@ func StringToInt(v interface{}) (interface{}, error) {
 }
 
 //StringToFloat return float64 value from string
+//or error if unconvertable
 func StringToFloat(v interface{}) (interface{}, error) {
 	floatValue, err := strconv.ParseFloat(v.(string), 64)
 	if err != nil {

@@ -16,7 +16,7 @@ const (
 //Enrich payload with ip, user-agent, token, event id and _timestamp
 func ContextEnrichmentStep(payload map[string]interface{}, token string, r *http.Request, preprocessor events.Preprocessor) {
 	//1. source IP
-	ip := extractIp(r)
+	ip := extractIP(r)
 	if ip != "" {
 		payload[ipKey] = ip
 	}
@@ -26,14 +26,14 @@ func ContextEnrichmentStep(payload map[string]interface{}, token string, r *http
 
 	//3. identifier
 	//put and get eventn_ctx_event_id if not set (e.g. It is used for ClickHouse)
-	events.EnrichWithEventId(payload, uuid.New())
+	events.EnrichWithEventID(payload, uuid.New())
 
 	//4. timestamp & api key
 	payload[apiTokenKey] = token
 	payload[timestamp.Key] = timestamp.NowUTC()
 }
 
-func extractIp(r *http.Request) string {
+func extractIP(r *http.Request) string {
 	ip := r.Header.Get("X-Real-IP")
 	if ip == "" {
 		ip = r.Header.Get("X-Forwarded-For")

@@ -35,8 +35,8 @@ func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger
 			}
 
 			if logger.showInGlobalLogger {
-				prettyJsonBytes, _ := json.MarshalIndent(&event, " ", " ")
-				Info(string(prettyJsonBytes))
+				prettyJSONBytes, _ := json.MarshalIndent(&event, " ", " ")
+				Info(string(prettyJSONBytes))
 			}
 
 			buf := bytes.NewBuffer(bts)
@@ -53,7 +53,7 @@ func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger
 }
 
 //Consume event event and put it to channel
-func (al *AsyncLogger) Consume(event map[string]interface{}, tokenId string) {
+func (al *AsyncLogger) Consume(event map[string]interface{}, tokenID string) {
 	al.logCh <- event
 }
 

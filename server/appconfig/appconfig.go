@@ -103,11 +103,11 @@ func Init(containerized bool) error {
 
 	logging.Info("*** Creating new AppConfig ***")
 	logging.Info("Server Name:", serverName)
-	publicUrl := viper.GetString("server.public_url")
-	if publicUrl == "" {
+	publicURL := viper.GetString("server.public_url")
+	if publicURL == "" {
 		logging.Warn("Server public url: will be taken from Host header")
 	} else {
-		logging.Info("Server public url:", publicUrl)
+		logging.Info("Server public url:", publicURL)
 	}
 
 	var appConfig AppConfig

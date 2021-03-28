@@ -1,6 +1,23 @@
 version: 2.1
 
 jobs:
+  lint:
+    docker:
+      - image: circleci/golang:1.14
+    working_directory: /go/src/github.com/jitsucom/jitsu
+    steps:
+      - checkout
+      - restore_cache:
+          keys:
+            - go-mod-v1-global-{{ checksum "./go.sum" }}
+      - run: go get -u golang.org/x/lint/golint
+      - run: golint ./...
+      # uncomment it for stopping build on golint error
+      # - run: golint -set_exit_status=true ./...
+      - save_cache:
+          key: go-mod-v1-global-{{ checksum "./go.sum" }}
+          paths:
+            - "/go/pkg/mod"
   server-test:
     working_directory: /go/src/github.com/jitsucom/jitsu/server
     docker:
@@ -197,7 +214,15 @@ workflows:
   version: 2.1
   build-docker:
     jobs:
+      - lint:
+          filters:
+            tags:
+              only: /.*/
+            branches:
+              only: /.*/
       - server-test:
+          requires:
+            - lint
           filters:
             tags:
               only: /.*/

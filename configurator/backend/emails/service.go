@@ -11,14 +11,14 @@ import (
 
 var ErrSMTPNotConfigured = errors.New("SMTP isn't configured")
 
-type SmtpConfiguration struct {
+type SMTPConfiguration struct {
 	Host     string
 	Port     int
 	User     string
 	Password string
 }
 
-func (sc *SmtpConfiguration) Validate() error {
+func (sc *SMTPConfiguration) Validate() error {
 	if sc.Host == "" {
 		return errors.New("smtp host is required")
 	}
@@ -35,11 +35,11 @@ func (sc *SmtpConfiguration) Validate() error {
 }
 
 type Service struct {
-	smtp               *SmtpConfiguration
+	smtp               *SMTPConfiguration
 	resetPasswordEmail *template.Template
 }
 
-func NewService(smtp *SmtpConfiguration) (*Service, error) {
+func NewService(smtp *SMTPConfiguration) (*Service, error) {
 	if smtp != nil {
 		logging.Info("Initializing SMTP email service..")
 	}

@@ -33,17 +33,17 @@ func SetupRouter(adminToken string, destinations *destinations.Service, sourcesS
 		c.String(http.StatusOK, "pong")
 	})
 
-	publicUrl := viper.GetString("server.public_url")
+	publicURL := viper.GetString("server.public_url")
 
-	htmlHandler := handlers.NewPageHandler(viper.GetString("server.static_files_dir"), publicUrl, viper.GetBool("server.disable_welcome_page"))
+	htmlHandler := handlers.NewPageHandler(viper.GetString("server.static_files_dir"), publicURL, viper.GetBool("server.disable_welcome_page"))
 	router.GET("/p/:filename", htmlHandler.Handler)
 
-	staticHandler := handlers.NewStaticHandler(viper.GetString("server.static_files_dir"), publicUrl)
+	staticHandler := handlers.NewStaticHandler(viper.GetString("server.static_files_dir"), publicURL)
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
 	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor(), eventsCache, inMemoryEventsCache, usersRecognitionService)
-	apiEventHandler := handlers.NewEventHandler(destinations, events.NewApiPreprocessor(), eventsCache, inMemoryEventsCache, usersRecognitionService)
+	apiEventHandler := handlers.NewEventHandler(destinations, events.NewAPIPreprocessor(), eventsCache, inMemoryEventsCache, usersRecognitionService)
 
 	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
@@ -61,9 +61,9 @@ func SetupRouter(adminToken string, destinations *destinations.Service, sourcesS
 		tasksRoute := apiV1.Group("/tasks")
 		{
 			tasksRoute.GET("/", adminTokenMiddleware.AdminAuth(taskHandler.GetAllHandler))
-			tasksRoute.GET("/:taskId", adminTokenMiddleware.AdminAuth(taskHandler.GetByIDHandler))
+			tasksRoute.GET("/:taskID", adminTokenMiddleware.AdminAuth(taskHandler.GetByIDHandler))
 			tasksRoute.POST("/", adminTokenMiddleware.AdminAuth(taskHandler.SyncHandler))
-			tasksRoute.GET("/:taskId/logs", adminTokenMiddleware.AdminAuth(taskHandler.TaskLogsHandler))
+			tasksRoute.GET("/:taskID/logs", adminTokenMiddleware.AdminAuth(taskHandler.TaskLogsHandler))
 		}
 
 		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler))
