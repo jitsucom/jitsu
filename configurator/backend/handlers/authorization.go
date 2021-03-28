@@ -16,11 +16,11 @@ import (
 
 type ChangePasswordRequest struct {
 	NewPassword string `json:"new_password"`
-	ResetId     string `json:"reset_id"`
+	ResetID     string `json:"reset_id"`
 }
 
 func (cpr *ChangePasswordRequest) Validate() error {
-	if cpr.ResetId == "" {
+	if cpr.ResetID == "" {
 		return errors.New("reset_id is required field")
 	}
 
@@ -39,7 +39,7 @@ type PasswordResetRequest struct {
 type TokensResponse struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
-	UserId       string `json:"user_id"`
+	UserID       string `json:"user_id"`
 }
 
 type SignRequest struct {
@@ -132,7 +132,7 @@ func (ah *AuthorizationHandler) SignIn(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserId: td.AccessToken.UserId})
+	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserID: td.AccessToken.UserID})
 }
 
 //OnboardedSignUp is used only for self-hosted
@@ -161,7 +161,7 @@ func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 	}
 
 	//store telemetry settings
-	err = ah.configStorage.Store(telemetryCollection, telemetryGlobalId, map[string]interface{}{"disabled": map[string]bool{"usage": req.UsageOptout}})
+	err = ah.configStorage.Store(telemetryCollection, telemetryGlobalID, map[string]interface{}{"disabled": map[string]bool{"usage": req.UsageOptout}})
 	if err != nil {
 		logging.Errorf("Error saving telemetry configuration [%v] to storage: %v", req.UsageOptout, err)
 	}
@@ -176,7 +176,7 @@ func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 	}
 	telemetry.User(user)
 
-	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserId: td.AccessToken.UserId})
+	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserID: td.AccessToken.UserID})
 }
 
 func (ah *AuthorizationHandler) SignUp(c *gin.Context) {
@@ -203,7 +203,7 @@ func (ah *AuthorizationHandler) SignUp(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserId: td.AccessToken.UserId})
+	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserID: td.AccessToken.UserID})
 }
 
 func (ah *AuthorizationHandler) SignOut(c *gin.Context) {
@@ -242,7 +242,7 @@ func (ah *AuthorizationHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	resetId, email, err := ah.authService.CreateResetId(req.Email)
+	resetID, email, err := ah.authService.CreateResetID(req.Email)
 	if err != nil {
 		if err == authorization.ErrUserNotFound {
 			c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: err.Error()})
@@ -253,7 +253,7 @@ func (ah *AuthorizationHandler) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	err = ah.emailService.SendResetPassword(email, strings.ReplaceAll(req.Callback, "{{token}}", resetId))
+	err = ah.emailService.SendResetPassword(email, strings.ReplaceAll(req.Callback, "{{token}}", resetID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Message: "Error sending email message", Error: err.Error()})
 		return
@@ -275,9 +275,9 @@ func (ah *AuthorizationHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	td, err := ah.authService.ChangePassword(req.ResetId, req.NewPassword)
+	td, err := ah.authService.ChangePassword(req.ResetID, req.NewPassword)
 	if err != nil {
-		if err == authorization.ErrResetIdNotFound {
+		if err == authorization.ErrResetIDNotFound {
 			c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "The link has been expired!"})
 			return
 		}
@@ -286,7 +286,7 @@ func (ah *AuthorizationHandler) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserId: td.AccessToken.UserId})
+	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserID: td.AccessToken.UserID})
 }
 
 func (ah *AuthorizationHandler) RefreshToken(c *gin.Context) {
@@ -312,5 +312,5 @@ func (ah *AuthorizationHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserId: td.AccessToken.UserId})
+	c.JSON(http.StatusOK, TokensResponse{AccessToken: td.AccessToken.Token, RefreshToken: td.RefreshToken.Token, UserID: td.AccessToken.UserID})
 }

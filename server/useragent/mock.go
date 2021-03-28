@@ -1,6 +1,6 @@
 package useragent
 
-var MockData = &ResolvedUa{
+var mockData = &ResolvedUa{
 	UaFamily:     "Chrome",
 	UaVersion:    "1.0.0",
 	OsFamily:     "Windows",
@@ -8,8 +8,10 @@ var MockData = &ResolvedUa{
 	DeviceFamily: "PK",
 }
 
+//Mock it is used for returning mocked user-agent object instead of resolving
 type Mock struct{}
 
+//Resolve returns mocked prased user-agent object
 func (Mock) Resolve(ua string) *ResolvedUa {
-	return MockData
+	return mockData
 }

@@ -25,8 +25,8 @@ func NewTokenManager(accessSecret, refreshSecret string) *JwtTokenManager {
 	}
 }
 
-func (jtm *JwtTokenManager) CreateTokens(userId string) (td *TokenDetails, err error) {
-	td = &TokenDetails{AccessToken: &JwtToken{UserId: userId}, RefreshToken: &JwtToken{UserId: userId}}
+func (jtm *JwtTokenManager) CreateTokens(userID string) (td *TokenDetails, err error) {
+	td = &TokenDetails{AccessToken: &JwtToken{UserID: userID}, RefreshToken: &JwtToken{UserID: userID}}
 	td.AccessToken.Exp = time.Now().Add(AccessTokenTTL).Unix()
 	td.AccessToken.UUID = uuid.NewV4().String()
 
@@ -35,7 +35,7 @@ func (jtm *JwtTokenManager) CreateTokens(userId string) (td *TokenDetails, err e
 
 	atClaims := jwt.MapClaims{}
 	atClaims["uuid"] = td.AccessToken.UUID
-	atClaims["user_id"] = userId
+	atClaims["user_id"] = userID
 	atClaims["exp"] = td.AccessToken.Exp
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
 	td.AccessToken.Token, err = at.SignedString(jtm.accessSecret)
@@ -45,7 +45,7 @@ func (jtm *JwtTokenManager) CreateTokens(userId string) (td *TokenDetails, err e
 
 	rtClaims := jwt.MapClaims{}
 	rtClaims["uuid"] = td.RefreshToken.UUID
-	rtClaims["user_id"] = userId
+	rtClaims["user_id"] = userID
 	rtClaims["exp"] = td.RefreshToken.Exp
 	rt := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
 	td.RefreshToken.Token, err = rt.SignedString(jtm.refreshSecret)
@@ -74,12 +74,12 @@ func (jtm *JwtTokenManager) ParseToken(strToken string, keyFunc func(token *jwt.
 		return nil, errors.New("Invalid token claims")
 	}
 
-	accessUuid, ok := claims["uuid"]
+	accessUUID, ok := claims["uuid"]
 	if !ok {
 		return nil, errors.New("Invalid token uuid")
 	}
 
-	userId, ok := claims["user_id"]
+	userID, ok := claims["user_id"]
 	if !ok {
 		return nil, errors.New("Invalid user_id")
 	}
@@ -96,9 +96,9 @@ func (jtm *JwtTokenManager) ParseToken(strToken string, keyFunc func(token *jwt.
 
 	return &JwtToken{
 		Token:  strToken,
-		UUID:   fmt.Sprint(accessUuid),
+		UUID:   fmt.Sprint(accessUUID),
 		Exp:    int64(expFloat),
-		UserId: fmt.Sprint(userId),
+		UserID: fmt.Sprint(userID),
 	}, nil
 }
 

@@ -241,7 +241,7 @@ func (p *Postgres) getTable(tableName string) (*Table, error) {
 			continue
 		}
 
-		table.Columns[columnName] = Column{SqlType: columnPostgresType}
+		table.Columns[columnName] = Column{SQLType: columnPostgresType}
 	}
 
 	if err := rows.Err(); err != nil {
@@ -437,9 +437,9 @@ func (p *Postgres) BulkInsert(table *Table, objects []map[string]interface{}) er
 func (p *Postgres) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	if len(table.PKFields) == 0 {
 		return p.bulkInsertInTransaction(wrappedTx, table, objects)
-	} else {
-		return p.bulkMergeInTransaction(wrappedTx, table, objects)
 	}
+
+	return p.bulkMergeInTransaction(wrappedTx, table, objects)
 }
 
 //Must be used when table has no primary keys. Inserts data in batches to improve performance.
@@ -591,10 +591,10 @@ func (p *Postgres) TablesList() ([]string, error) {
 //columnDDL return column DDL (column name, mapped sql type and 'not null' if pk field)
 func (p *Postgres) columnDDL(name string, column Column, pkFields map[string]bool) string {
 	var notNullClause string
-	sqlType := column.SqlType
+	sqlType := column.SQLType
 	//casted
-	if castedSqlType, ok := p.mappingTypeCasts[name]; ok {
-		sqlType = castedSqlType
+	if castedSQLType, ok := p.mappingTypeCasts[name]; ok {
+		sqlType = castedSQLType
 	}
 
 	//not null
@@ -708,8 +708,8 @@ func reformatMappings(mappingTypeCasts map[string]string, dbTypes map[typing.Dat
 			continue
 		}
 
-		dbSqlType, _ := dbTypes[innerType]
-		formattedMappingTypeCasts[column] = dbSqlType
+		dbSQLType, _ := dbTypes[innerType]
+		formattedMappingTypeCasts[column] = dbSQLType
 	}
 
 	return formattedMappingTypeCasts

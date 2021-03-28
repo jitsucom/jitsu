@@ -95,7 +95,7 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*Table, error) {
 	}
 
 	for _, field := range meta.Schema {
-		table.Columns[field.Name] = Column{SqlType: string(field.Type)}
+		table.Columns[field.Name] = Column{SQLType: string(field.Type)}
 	}
 
 	return table, nil
@@ -117,7 +117,7 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 
 	bqSchema := bigquery.Schema{}
 	for columnName, column := range table.Columns {
-		bigQueryType := bigquery.FieldType(strings.ToUpper(column.SqlType))
+		bigQueryType := bigquery.FieldType(strings.ToUpper(column.SQLType))
 		castedType, ok := bq.mappingTypeCasts[columnName]
 		if ok {
 			bigQueryType = bigquery.FieldType(strings.ToUpper(castedType))
@@ -159,7 +159,7 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		bigQueryType := bigquery.FieldType(strings.ToUpper(column.SqlType))
+		bigQueryType := bigquery.FieldType(strings.ToUpper(column.SQLType))
 		castedType, ok := bq.mappingTypeCasts[columnName]
 		if ok {
 			bigQueryType = bigquery.FieldType(strings.ToUpper(castedType))
@@ -180,14 +180,14 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 }
 
 func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl bool) {
-	entityJson, err := json.Marshal(entity)
+	entityJSON, err := json.Marshal(entity)
 	if err != nil {
 		logging.Warnf("Failed to serialize entity for logging: %s", fmt.Sprint(entity))
 	} else {
 		if ddl {
-			bq.queryLogger.LogDDL(messageTemplate + string(entityJson))
+			bq.queryLogger.LogDDL(messageTemplate + string(entityJSON))
 		} else {
-			bq.queryLogger.LogQuery(messageTemplate + string(entityJson))
+			bq.queryLogger.LogQuery(messageTemplate + string(entityJSON))
 		}
 	}
 }

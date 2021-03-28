@@ -7,7 +7,7 @@ import (
 
 const quotaByteValue = 34
 
-var JsonMarshallerInstance = JsonMarshaller{}
+var JSONMarshallerInstance = JSONMarshaller{}
 var CsvMarshallerInstance = CsvMarshaller{}
 
 type Marshaller interface {
@@ -15,15 +15,15 @@ type Marshaller interface {
 	NeedHeader() bool
 }
 
-type JsonMarshaller struct {
+type JSONMarshaller struct {
 }
 
 //Marshal object as json
-func (jm JsonMarshaller) Marshal(fields []string, object map[string]interface{}) ([]byte, error) {
+func (jm JSONMarshaller) Marshal(fields []string, object map[string]interface{}) ([]byte, error) {
 	return json.Marshal(object)
 }
 
-func (jm JsonMarshaller) NeedHeader() bool {
+func (jm JSONMarshaller) NeedHeader() bool {
 	return false
 }
 

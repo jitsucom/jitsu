@@ -12,7 +12,7 @@ import (
 type Configuration struct {
 	Authorization          string `json:"authorization"`
 	Users                  bool   `json:"users"`
-	Smtp                   bool   `json:"smtp"`
+	SMTP                   bool   `json:"smtp"`
 	SelfHosted             bool   `json:"selfhosted"`
 	SupportWidget          bool   `json:"support_widget"`
 	DefaultS3Bucket        bool   `json:"default_s3_bucket"`
@@ -26,7 +26,7 @@ type SystemHandler struct {
 }
 
 type ConfigurationResponse struct {
-	ProjectId string `json:"projectId"`
+	ProjectID string `json:"projectID"`
 }
 
 func NewSystemHandler(authService *authorization.Service, smtp, selfHosted bool) *SystemHandler {
@@ -47,7 +47,7 @@ func (sh *SystemHandler) GetHandler(c *gin.Context) {
 	currentConfiguration := Configuration{
 		Authorization:          sh.authService.GetAuthorizationType(),
 		Users:                  exist,
-		Smtp:                   sh.smtp,
+		SMTP:                   sh.smtp,
 		SelfHosted:             sh.selfHosted,
 		SupportWidget:          !sh.selfHosted,
 		DefaultS3Bucket:        !sh.selfHosted,

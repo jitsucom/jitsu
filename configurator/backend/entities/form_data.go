@@ -50,9 +50,9 @@ type BigQueryFormData struct {
 	Mode      string `firestore:"mode" json:"mode"`
 	TableName string `firestore:"tableName" json:"tableName"`
 
-	ProjectId string `firestore:"bqProjectId" json:"bqProjectId"`
+	ProjectID string `firestore:"bqProjectID" json:"bqProjectID"`
 	Dataset   string `firestore:"bqDataset" json:"bqDataset"`
-	JsonKey   string `firestore:"bqJSONKey" json:"bqJSONKey"`
+	JSONKey   string `firestore:"bqJSONKey" json:"bqJSONKey"`
 	GCSBucket string `firestore:"bqGCSBucket" json:"bqGCSBucket"`
 }
 
@@ -83,7 +83,7 @@ type GoogleAnalyticsFormData struct {
 	Mode      string `firestore:"mode" json:"mode"`
 	TableName string `firestore:"tableName" json:"tableName"`
 
-	TrackingId string `firestore:"gaTrackingId" json:"gaTrackingId"`
+	TrackingID string `firestore:"gaTrackingID" json:"gaTrackingID"`
 }
 
 //FacebookFormData entity is stored in main storage (Firebase/Redis)
@@ -91,6 +91,6 @@ type FacebookFormData struct {
 	Mode      string `firestore:"mode" json:"mode"`
 	TableName string `firestore:"tableName" json:"tableName"`
 
-	PixelId     string `firestore:"fbPixelId" json:"fbPixelId"`
+	PixelID     string `firestore:"fbPixelID" json:"fbPixelID"`
 	AccessToken string `firestore:"fbAccessToken" json:"fbAccessToken"`
 }

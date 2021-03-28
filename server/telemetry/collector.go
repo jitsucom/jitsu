@@ -4,6 +4,7 @@ import (
 	"sync/atomic"
 )
 
+//Collector is a thread-safe collector for events accounting
 type Collector struct {
 	events uint64
 }

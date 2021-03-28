@@ -18,7 +18,7 @@ var ErrQueueClosed = errors.New("queue is closed")
 type QueuedEvent struct {
 	FactBytes    []byte
 	DequeuedTime time.Time
-	TokenId      string
+	TokenID      string
 }
 
 // QueuedFactBuilder creates and returns a new *events.QueuedEvent (must be pointer).
@@ -43,18 +43,18 @@ func NewPersistentQueue(identifier, queueName, fallbackDir string) (*PersistentQ
 	return &PersistentQueue{queue: queue, identifier: identifier}, nil
 }
 
-func (pq *PersistentQueue) Consume(f map[string]interface{}, tokenId string) {
-	pq.ConsumeTimed(f, time.Now(), tokenId)
+func (pq *PersistentQueue) Consume(f map[string]interface{}, tokenID string) {
+	pq.ConsumeTimed(f, time.Now(), tokenID)
 }
 
-func (pq *PersistentQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tokenId string) {
+func (pq *PersistentQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string) {
 	factBytes, err := json.Marshal(f)
 	if err != nil {
 		logSkippedEvent(f, fmt.Errorf("Error marshalling events event: %v", err))
 		return
 	}
 
-	if err := pq.queue.Enqueue(&QueuedEvent{FactBytes: factBytes, DequeuedTime: t, TokenId: tokenId}); err != nil {
+	if err := pq.queue.Enqueue(&QueuedEvent{FactBytes: factBytes, DequeuedTime: t, TokenID: tokenID}); err != nil {
 		logSkippedEvent(f, fmt.Errorf("Error putting event event bytes to the persistent queue: %v", err))
 		return
 	}
@@ -78,12 +78,12 @@ func (pq *PersistentQueue) DequeueBlock() (Event, time.Time, string, error) {
 		return nil, time.Time{}, "", errors.New("Dequeued object is not a QueuedEvent instance or event bytes is empty")
 	}
 
-	fact, err := parsers.ParseJson(wrappedFact.FactBytes)
+	fact, err := parsers.ParseJSON(wrappedFact.FactBytes)
 	if err != nil {
 		return nil, time.Time{}, "", fmt.Errorf("Error unmarshalling events.Event from bytes: %v", err)
 	}
 
-	return fact, wrappedFact.DequeuedTime, wrappedFact.TokenId, nil
+	return fact, wrappedFact.DequeuedTime, wrappedFact.TokenID, nil
 }
 
 func (pq *PersistentQueue) Close() error {

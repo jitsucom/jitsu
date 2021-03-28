@@ -32,7 +32,7 @@ func NewConfigurationHandler(configurationsProvider *storages.ConfigurationsServ
 
 type Server struct {
 	Name    *yaml.Node         `json:"name" yaml:"name,omitempty"`
-	ApiKeys []*entities.ApiKey `json:"auth" yaml:"auth,omitempty"`
+	APIKeys []*entities.APIKey `json:"auth" yaml:"auth,omitempty"`
 }
 
 type Config struct {
@@ -41,30 +41,30 @@ type Config struct {
 }
 
 func (ch *ConfigHandler) Handler(c *gin.Context) {
-	projectId := c.Query("project_id")
-	if projectId == "" {
+	projectID := c.Query("project_id")
+	if projectID == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "[project_id] query parameter absents"})
 		return
 	}
-	if !hasAccessToProject(c, projectId) {
-		c.JSON(http.StatusUnauthorized, middleware.ErrorResponse{Message: "You are not authorized to request data for project " + projectId})
+	if !hasAccessToProject(c, projectID) {
+		c.JSON(http.StatusUnauthorized, middleware.ErrorResponse{Message: "You are not authorized to request data for project " + projectID})
 		return
 	}
 
-	keys, err := ch.configurationsService.GetApiKeysByProjectId(projectId)
+	keys, err := ch.configurationsService.GetAPIKeysByProjectID(projectID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to get API keys"})
 		return
 	}
 
-	projectDestinations, err := ch.configurationsService.GetDestinationsByProjectId(projectId)
+	projectDestinations, err := ch.configurationsService.GetDestinationsByProjectID(projectID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to get Destinations"})
 		return
 	}
 	mappedDestinations := make(map[string]*enstorages.DestinationConfig)
 	for _, destination := range projectDestinations {
-		id := destination.Id
+		id := destination.ID
 		config, err := destinations.MapConfig(id, destination, ch.defaultS3)
 
 		if err != nil {
@@ -75,7 +75,7 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 	}
 
 	// building yaml response
-	server := Server{ApiKeys: keys, Name: &yaml.Node{Kind: yaml.ScalarNode, Value: random.String(5), LineComment: "rename server if another name is desired"}}
+	server := Server{APIKeys: keys, Name: &yaml.Node{Kind: yaml.ScalarNode, Value: random.String(5), LineComment: "rename server if another name is desired"}}
 	config := Config{Server: server, Destinations: mappedDestinations}
 
 	marshal, err := yaml.Marshal(&config)

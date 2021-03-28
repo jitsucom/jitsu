@@ -65,7 +65,7 @@ func TestWithJsPreprocess(t *testing.T) {
 	}
 }
 
-func TestWithApiPreprocess(t *testing.T) {
+func TestWithAPIPreprocess(t *testing.T) {
 	uuid.InitMock()
 	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -107,7 +107,7 @@ func TestWithApiPreprocess(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jsPreprocessor := events.NewApiPreprocessor()
+			jsPreprocessor := events.NewAPIPreprocessor()
 
 			r := &http.Request{Header: map[string][]string{}}
 			for k, v := range tt.headers {

@@ -51,7 +51,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 	var chAdapters []*adapters.ClickHouse
 	var tableHelpers []*TableHelper
 	for _, dsn := range chConfig.Dsns {
-		adapter, err := adapters.NewClickHouse(config.ctx, dsn, chConfig.Database, chConfig.Cluster, chConfig.Tls,
+		adapter, err := adapters.NewClickHouse(config.ctx, dsn, chConfig.Database, chConfig.Cluster, chConfig.TLS,
 			tableStatementFactory, nullableFields, queryLogger, config.sqlTypeCasts)
 		if err != nil {
 			//close all previous created adapters
@@ -137,9 +137,9 @@ func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (er
 	return nil
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJson func
+//Store call StoreWithParseFunc with parsers.ParseJSON func
 func (ch *ClickHouse) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return ch.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJson)
+	return ch.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
 }
 
 //StoreWithParseFunc store file payload to ClickHouse with processing
@@ -153,7 +153,7 @@ func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alread
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents {
-		ch.eventsCache.Error(ch.Name(), failedEvent.EventId, failedEvent.Error)
+		ch.eventsCache.Error(ch.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -170,9 +170,9 @@ func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alread
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				ch.eventsCache.Error(ch.Name(), events.ExtractEventId(object), err.Error())
+				ch.eventsCache.Error(ch.Name(), events.ExtractEventID(object), err.Error())
 			} else {
-				ch.eventsCache.Succeed(ch.Name(), events.ExtractEventId(object), object, table)
+				ch.eventsCache.Succeed(ch.Name(), events.ExtractEventID(object), object, table)
 			}
 		}
 	}

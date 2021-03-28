@@ -16,7 +16,7 @@ const (
 	lastModifiedHeader    = "Last-Modified"
 	ifModifiedSinceHeader = "If-Modified-Since"
 
-	JsonContentType    ContentType = "json"
+	JSONContentType    ContentType = "json"
 	YamlContentType    ContentType = "yaml"
 	UnknownContentType ContentType = "unknown"
 )
@@ -43,7 +43,7 @@ func LoadFromFile(filePath, lastModified string) (*ResponsePayload, error) {
 	if strings.HasSuffix(filePath, ".yaml") {
 		contentType = YamlContentType
 	} else if strings.HasSuffix(filePath, ".json") {
-		contentType = JsonContentType
+		contentType = JSONContentType
 	} else {
 		logging.Errorf("Unknown content type in config file: %s", filePath)
 		contentType = UnknownContentType
@@ -53,31 +53,31 @@ func LoadFromFile(filePath, lastModified string) (*ResponsePayload, error) {
 }
 
 //return loaded content, Last-modified value from header, error
-func LoadFromHttp(fullUrl, ifModifiedSinceValue string) (*ResponsePayload, error) {
+func LoadFromHTTP(fullURL, ifModifiedSinceValue string) (*ResponsePayload, error) {
 	var username, password string
-	if strings.Contains(fullUrl, "@") {
-		parsedUrl, err := url.Parse(fullUrl)
+	if strings.Contains(fullURL, "@") {
+		parsedURL, err := url.Parse(fullURL)
 		if err != nil {
 			return nil, err
 		}
 
-		if parsedUrl.User != nil {
-			username = parsedUrl.User.Username()
-			pass, ok := parsedUrl.User.Password()
+		if parsedURL.User != nil {
+			username = parsedURL.User.Username()
+			pass, ok := parsedURL.User.Password()
 			if ok {
 				password = pass
 			}
 		}
 
-		urlParts := strings.Split(fullUrl, "@")
-		if strings.HasPrefix(fullUrl, "https:") {
-			fullUrl = "https://" + urlParts[1]
+		urlParts := strings.Split(fullURL, "@")
+		if strings.HasPrefix(fullURL, "https:") {
+			fullURL = "https://" + urlParts[1]
 		} else {
-			fullUrl = "http://" + urlParts[1]
+			fullURL = "http://" + urlParts[1]
 		}
 	}
 
-	req, err := http.NewRequest(http.MethodGet, fullUrl, nil)
+	req, err := http.NewRequest(http.MethodGet, fullURL, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func LoadFromHttp(fullUrl, ifModifiedSinceValue string) (*ResponsePayload, error
 	req.Header.Add(ifModifiedSinceHeader, ifModifiedSinceValue)
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("Error loading resource from url %s: %v", fullUrl, err)
+		return nil, fmt.Errorf("Error loading resource from url %s: %v", fullURL, err)
 	}
 	defer resp.Body.Close()
 
@@ -98,12 +98,12 @@ func LoadFromHttp(fullUrl, ifModifiedSinceValue string) (*ResponsePayload, error
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Error loading resource from url %s: http code isn't 200 [%d]", fullUrl, resp.StatusCode)
+		return nil, fmt.Errorf("Error loading resource from url %s: http code isn't 200 [%d]", fullURL, resp.StatusCode)
 	}
 
 	b, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Error reading resource from url %s: %v", fullUrl, err)
+		return nil, fmt.Errorf("Error reading resource from url %s: %v", fullURL, err)
 	}
 
 	httpContentType := resp.Header.Get("Content-Type")
@@ -112,9 +112,9 @@ func LoadFromHttp(fullUrl, ifModifiedSinceValue string) (*ResponsePayload, error
 	if strings.Contains(httpContentType, "yaml") {
 		contentType = YamlContentType
 	} else if strings.Contains(httpContentType, "json") {
-		contentType = JsonContentType
+		contentType = JSONContentType
 	} else {
-		logging.Errorf("Unknown content type [%s] in response from url: %s", httpContentType, fullUrl)
+		logging.Errorf("Unknown content type [%s] in response from url: %s", httpContentType, fullURL)
 		contentType = UnknownContentType
 	}
 

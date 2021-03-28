@@ -56,7 +56,7 @@ func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters
 		//map storage type
 		sqlType, ok := th.columnTypesMapping[field.GetType()]
 		if ok {
-			table.Columns[fieldName] = adapters.Column{SqlType: sqlType}
+			table.Columns[fieldName] = adapters.Column{SQLType: sqlType}
 		} else {
 			logging.SystemErrorf("Unknown column type mapping for %s mapping: %v", field.GetType(), th.columnTypesMapping)
 		}
