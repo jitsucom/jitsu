@@ -97,7 +97,7 @@ export function MappingEditor(props: MappingEditorProps) {
           {mappings?.length > 6 &&
           <Button className="mr-2 text-xs" type="primary" size="small" icon={<PlusOutlined/>} onClick={addFieldMapping}>Add Field Mapping</Button>}
         </div>
-        <div key="scroll-ref" ref={bottomScrollRef}/>
+        <div key="scroll-ref" ref={bottomScrollRef} />
 
       </div>
     </div>
