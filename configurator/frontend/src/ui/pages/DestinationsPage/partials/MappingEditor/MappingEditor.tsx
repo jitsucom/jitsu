@@ -24,21 +24,32 @@ import { DestinationConfig } from "@./lib/services/destinations";
 import Marshal from "@./lib/commons/marshalling";
 import { FloatingLabelInput } from "@molecule/FloatingLabelInput";
 import { DeleteOutlined } from "@ant-design/icons";
+import { validatePassword } from "@./lib/commons/passwordValidator";
+import classNames from "classnames";
 
 export type MappingEditorProps = {
   mappings: FieldMappings
   onChange: (mappings: FieldMappings, isValid: boolean) => void
 }
 
+export type MappingWrapper = {
+  mapping: Mapping
+  modified: boolean
+}
+
 export function MappingEditor(props: MappingEditorProps) {
-  const [mappings, updateMappings] = useState(props.mappings || new FieldMappings([], false));
-  console.log("Editing mappings", props);
+  const [keepUnmappedFields, setKeepUnmappedFields] = useState(props.mappings ? props.mappings.keepUnmappedFields : true);
+  const [mappings, updateMappings] = useState(props.mappings ? props.mappings.mappings.map(mapping => ({ mapping, modified: false })) : []);
   const bottomScrollRef = useRef<HTMLDivElement>(null);
 
+  let onChange = () => {
+    props.onChange(new FieldMappings(mappings.map(m => m.mapping), keepUnmappedFields), false)
+  }
+
   let addFieldMapping = () => {
-    mappings.addMapping(new Mapping("", "", null))
+    mappings.push({ mapping: new Mapping("", "", null), modified: true })
     updateMappings(mappings);
-    props.onChange(mappings, false);
+    onChange();
     if (bottomScrollRef.current) {
       bottomScrollRef.current.scrollIntoView({
         block: "end",
@@ -56,10 +67,10 @@ export function MappingEditor(props: MappingEditorProps) {
         </>}>Unmapped field strategy: </LabelWithTooltip>
         <Select
           className="w-48" size="small"
-          defaultValue={mappings.keepUnmappedFields ? "keep" : "remove"}
+          defaultValue={keepUnmappedFields ? "keep" : "remove"}
           onChange={(value) => {
-            mappings.keepUnmappedFields = value === "keep";
-            updateMappings(mappings);
+            setKeepUnmappedFields(value === "keep");
+            onChange();
           }}
         >
           <Select.Option value="keep">Keep fields</Select.Option>
@@ -72,8 +83,8 @@ export function MappingEditor(props: MappingEditorProps) {
       </div>
       <div>
         <div key="mappings">
-          {mappings.mappings?.length > 0 ?
-            (mappings.mappings.map(((mapping, index) => <MappingLine mapping={mapping} lineNumber={index + 1}/>))) :
+          {mappings?.length > 0 ?
+            (mappings.map(((mw, index) => <MappingLine mapping={mw.mapping} lineNumber={index + 1} modified={mw.modified}/>))) :
             <div className="text-center text-sm p-12 text-secondaryText italic">
               <p>Mappings list is empty! Please, add fields by clicking 'Add Field Mapping' button below.</p>
               <p>Mappings defines how the data will be transformed before it landed to destination. The result of
@@ -83,87 +94,66 @@ export function MappingEditor(props: MappingEditorProps) {
           }
         </div>
         <div key="scroll" className="text-right py-4">
-          {mappings.mappings?.length > 6 &&
-            <Button className="mr-2 text-xs" type="primary" size="small" icon={<PlusOutlined/>} onClick={addFieldMapping}>Add Field Mapping</Button>}
+          {mappings?.length > 6 &&
+          <Button className="mr-2 text-xs" type="primary" size="small" icon={<PlusOutlined/>} onClick={addFieldMapping}>Add Field Mapping</Button>}
         </div>
-        <div key="scroll-ref" ref={bottomScrollRef} />
+        <div key="scroll-ref" ref={bottomScrollRef}/>
 
       </div>
     </div>
   </div>
 }
 
-const MappingLine = React.memo(({ mapping, lineNumber }: { mapping: Mapping, lineNumber: number }) => {
-  const [form] = Form.useForm();
-  let key = mapping['__rowKey'];
-  return <Form key={key} layout="inline" className="py-2 flex border-b items items-center"
-               form={form}
-               initialValues={{
-                 src: mapping.srcField,
-                 dst: mapping.dstField,
-                 type: mapping.action
-               }}
-  >
-    <div className={"mr-2.5 w-6 text-right"}>{lineNumber}.</div>
-    <Form.Item name="src">
-      <Input className={styles.jsonPointer} type="text" size="small" placeholder="/src/field/path"/>
-    </Form.Item>
+const MappingLine = React.memo(({ mapping, lineNumber, modified }: { mapping: Mapping, lineNumber: number, modified: boolean }) => {
+  let dstVisible = mapping.action !== "erase";
+  return <div className="py-2 flex border-b items items-center">
+    <div className="mr-2.5 w-6 text-right whitespace-nowrap">{lineNumber} {modified && <sup>*</sup>}.</div>
+    <JsonFieldEditor value={mapping.srcField} onChange={(val) => {
+    }}/>
 
-    <div>→</div>
-    <Form.Item name="dst">
-      <Input className={styles.jsonPointer} name="dst" type="text" size="small" placeholder="/destination/field/path"/>
-    </Form.Item>
-    <Form.Item name="type" className="text-xs w-48">
+    {dstVisible && <>
+      <div>→</div>
+      <JsonFieldEditor value={mapping.srcField} onChange={(val) => {
+
+      }}/>
       <Select size="small">
         {Object.entries(MAPPING_NAMES).map(([optName, displayName]) =>
           <Select.Option value={optName}>{displayName}</Select.Option>
         )}
       </Select>
-    </Form.Item>
+    </>}
+
     <div className="text-right flex-grow">
       <Button icon={<DeleteOutlined/>}/>
     </div>
-  </Form>
+  </div>
 });
 
-function JsonPointerInput(props: {
-  initialValue: any;
-  onChange: (val: string) => void;
-  validator: (val: string) => string;
-}) {
-  let [error, setError] = useState(props.validator(props.initialValue));
-  let onChange = (value) => {
-    let val = value.target.value;
-    let error = props.validator(val);
-    if (error) {
-      setError(error);
-    } else {
-      setError(null);
-    }
-    props.onChange(val);
-  };
-  return (
-    <>
-      <Input
-        type="text"
-        className="mapping-editor-json-pointer"
-        defaultValue={props.initialValue}
-        onChange={onChange}
-        size="small"
-        contentEditable={true}
-      />
-      <div className="mapping-editor-json-poiter-error">
-        {error ? error : "\u00A0"}
-      </div>
-    </>
-  );
+const JsonFieldEditor = ({ value, onChange, className, ...rest }: { value: string, onChange: (string, valid) => void, className?: string }) => {
+  const [valid, setValid] = useState(true)
+  const [currentValue, setValue] = useState(value)
+  return <div>
+    <Input className={classNames(styles.jsonPointer, className)} name="dst" type="text" size="small"
+           placeholder="/path/to/node"
+           onChange={(e) => {
+             let value = e.target.value;
+             let valid = isValidJsonPointer(value);
+             setValid(valid);
+             setValue(value);
+             onChange(value, valid);
+           }} value={currentValue} {...rest}/>
+    {!(valid || value.length === 0) && <div className="text-xxs block text-error">Json pointer is not valid!</div>}
+  </div>
 }
 
 function isValidJsonPointer(val) {
-  return (
-    val.length > 0 &&
-    val[0] === "/" &&
-    val[val.length - 1] !== "/" &&
-    val.indexOf(" ") < 0
-  );
+  return val.length > 0 && val[0] === "/" && val[val.length - 1] !== "/" && val.indexOf(" ") < 0;
+}
+
+function jsonValidator(rule, val, callback) {
+  if (isValidJsonPointer(val)) {
+    callback()
+  } else {
+    callback("Field should be a valid json node pointer (as /node/subnode/...)")
+  }
 }
