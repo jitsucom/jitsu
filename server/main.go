@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/jitsucom/jitsu/server/config"
 	"math/rand"
 	"net/http"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
@@ -179,13 +179,26 @@ func main() {
 	//coordination service
 	var coordinationService coordination.Service
 	var err error
-	if viper.IsSet("synchronization_service") {
-		logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
+	if viper.IsSet("coordination") {
+		configuration := viper.Sub("coordination.redis")
+		if configuration != nil {
+			host := configuration.GetString("host")
+			port := configuration.GetInt("port")
+			coordinationService, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, host, port)
+		} else {
+			logging.Warn("Currently coordination service uses only redis implementation")
+		}
+	}
 
-		coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
-		telemetry.Coordination("etcd")
-	} else {
-		coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
+	if coordinationService == nil {
+		if viper.IsSet("synchronization_service") {
+			logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
+
+			coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
+			telemetry.Coordination("etcd")
+		} else {
+			coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
+		}
 	}
 
 	if err != nil {
