@@ -46,7 +46,7 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
 
   return (
     <>
-      <div className="sources-list__header">
+      <div className="sources-list__header mb-5">
         <Dropdown trigger={['click']} overlay={<ConnectorsCatalog />}>
           <Button type="primary" icon={<PlusOutlined />}>
             Add source
