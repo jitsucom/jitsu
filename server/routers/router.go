@@ -26,7 +26,7 @@ func SetupRouter(adminToken string, destinations *destinations.Service, sourcesS
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
-	router.Use(gin.Recovery(), middleware.GinLogErrorBody)
+	router.Use(gin.Recovery())
 
 	router.GET("/", handlers.NewRedirectHandler("/p/welcome.html").Handler)
 	router.GET("/ping", func(c *gin.Context) {
