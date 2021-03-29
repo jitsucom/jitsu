@@ -87,9 +87,11 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
         </Col>
       </Row>
 
-      {connectorSource.configParameters.map(({ id, displayName, required, type, documentation }: Parameter) => (
+      {connectorSource.configParameters.map(({ id, displayName, required, type, documentation, constant }: Parameter) => (
         <SourceFormConfigField
           type={type.typeName}
+          typeOptions={type.data}
+          preselectedTypeOption={constant}
           id={id}
           key={id}
           displayName={displayName}

@@ -28,6 +28,11 @@ export interface SourceFormConfigFieldProps {
   required: boolean;
   type: string; // 'string' | 'json' | 'int' | 'yaml';
   documentation?: React.ReactNode;
+  typeOptions?: {
+    maxOptions: number;
+    options: Array<{ displayName: string; id: string; }>;
+  };
+  preselectedTypeOption: string;
 }
 
 export interface SourceFormConfigProps {

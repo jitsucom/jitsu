@@ -1,6 +1,6 @@
 // @Libs
 import React, { memo, useCallback, useMemo } from 'react';
-import { Col, Form, FormInstance, Input, Row } from 'antd';
+import { Col, Form, FormInstance, Input, Row, Select } from 'antd';
 import { set } from 'lodash';
 import * as monacoEditor from 'monaco-editor';
 import MonacoEditor from 'react-monaco-editor';
@@ -9,7 +9,7 @@ import { SourceFormConfigFieldProps as Props } from './SourceForm.types';
 // @Components
 import { LabelWithTooltip } from '@./lib/components/components';
 
-const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, id, type, documentation }: Props) => {
+const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, id, type, documentation, typeOptions, preselectedTypeOption }: Props) => {
   const fieldName = useMemo(() => `config.${id}`, [id]);
 
   const handleChange = useCallback(
@@ -59,9 +59,14 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
 
       case 'int':
         return <Input autoComplete="off" onChange={handleChange(getFieldsValue, setFieldsValue)} />;
+
+      case 'selection':
+        return <Select disabled={id === 'tap'}>
+          {typeOptions.options.map(option => <Select.Option key={option.id} value={option.id}>{option.displayName}</Select.Option>)}
+        </Select>
       }
     },
-    [type, handleChange, handleMonacoChange]
+    [id, type, typeOptions, handleChange, handleMonacoChange]
   );
 
   return (
@@ -70,7 +75,7 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
         <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues[fieldName] !== currentValues[fieldName]}>
           {({ getFieldsValue, setFieldsValue }: FormInstance) => (
             <Form.Item
-              initialValue={initialValue}
+              initialValue={preselectedTypeOption ?? initialValue}
               className="form-field_fixed-label"
               label={documentation
                 ? <LabelWithTooltip documentation={documentation}>{displayName}:</LabelWithTooltip>
