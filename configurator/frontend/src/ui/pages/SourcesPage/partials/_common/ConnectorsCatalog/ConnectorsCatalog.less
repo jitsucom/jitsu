@@ -1,14 +1,22 @@
 @import './src/theme';
+@import './src/assets/mixins';
 
 .connectors-catalog-list-wrap {
   background: @secondary-background;
   width: 320px;
-  padding: 20px;
+  position: relative;
 
   .connectors-catalog-list {
     overflow: auto;
     max-height: 480px;
+    padding: 0 20px;
+
+    .custom-scrollbar();
   }
+}
+
+.connectors-catalog-list-filter {
+  padding: 20px;
 }
 
 .connectors-collection {

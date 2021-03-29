@@ -38,7 +38,7 @@ const ConnectorsCatalogComponent = ({ className, viewType = 'list' }: Props) => 
 
   return (
     <div className={`${classNameBase}-wrap`}>
-      <div>
+      <div className={`${classNameBase}-filter`}>
         <Input onChange={handleChange} placeholder="Filter by source name" />
       </div>
 
