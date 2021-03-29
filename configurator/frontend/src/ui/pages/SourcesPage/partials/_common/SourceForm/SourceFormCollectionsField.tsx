@@ -19,7 +19,12 @@ const SourceFormCollectionsFieldComponent = ({
     switch (collection.type.typeName) {
     case 'selection':
       return (
-        <Select allowClear mode={collection.type.data?.maxOptions > 1 ? 'multiple' : undefined}>
+        <Select
+          allowClear
+          mode={collection.type.data?.maxOptions > 1
+            ? 'multiple'
+            : undefined}
+        >
           {collection.type.data.options.map((option: { displayName: string; id: string }) => (
             <Select.Option key={option.id} value={option.id}>
               {option.displayName}
