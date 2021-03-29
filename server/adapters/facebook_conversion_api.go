@@ -167,6 +167,8 @@ func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 
 	object["event_time"] = eventTime.Unix()
 
+	delete(object, timestamp.Key)
+
 	// * event_name
 	eventName, ok := object["event_name"]
 	if !ok {
