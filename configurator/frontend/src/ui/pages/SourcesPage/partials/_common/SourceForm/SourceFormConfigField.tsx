@@ -43,10 +43,16 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
         return <MonacoEditor
           height="300"
           language="json"
-          theme="vs-dark"
+          theme="own-theme"
           options={{
-            selectOnLineNumbers: true,
-            lineNumbers: 'off'
+            lineNumbers: 'off',
+            minimap: {
+              enabled: false
+            },
+            scrollbar: {
+              verticalScrollbarSize: 8,
+              horizontalScrollbarSize: 8
+            }
           }}
           onChange={handleMonacoChange(getFieldsValue, setFieldsValue)}
         />;
