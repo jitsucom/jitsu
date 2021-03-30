@@ -191,7 +191,7 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
             })}
 
             <Button type="ghost" onClick={handleAddField(operation)} className="add-field-btn" icon={<PlusOutlined />}>
-              Add one
+              Add new collection
             </Button>
           </>
         )}
