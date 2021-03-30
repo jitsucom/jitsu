@@ -304,10 +304,11 @@ func SetupRouter(enService *eventnative.Service, configurationsStorage storages.
 			destinationsRoute.POST("/test", authenticatorMiddleware.ClientProjectAuth(destinationsHandler.TestHandler))
 		}
 
-		sourcesHandlers := handlers.NewSourcesHandler(configurationsService, enService)
+		sourcesHandler := handlers.NewSourcesHandler(configurationsService, enService)
 		sourcesRoute := apiV1.Group("/sources")
 		{
-			sourcesRoute.POST("/test", authenticatorMiddleware.ClientProjectAuth(sourcesHandlers.TestHandler))
+			sourcesRoute.GET("/", middleware.ServerAuth(middleware.IfModifiedSince(sourcesHandler.GetHandler, configurationsService.GetSourcesLastUpdated), serverToken))
+			sourcesRoute.POST("/test", authenticatorMiddleware.ClientProjectAuth(sourcesHandler.TestHandler))
 		}
 
 		telemetryHandler := handlers.NewTelemetryHandler(configurationsStorage)

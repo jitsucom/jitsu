@@ -128,7 +128,7 @@ func (r *Redis) Store(collection string, key string, entity interface{}) error {
 		return fmt.Errorf("Error converting configuration %s, id=[%s]: %v", collection, key, err)
 	}
 	lastUpdatedTimestamp := entime.AsISOString(time.Now().UTC())
-	configuration[lastUpdatedField] = lastUpdatedTimestamp
+
 	serialized, err := json.MarshalIndent(configuration, "", "    ")
 	if err != nil {
 		logging.Errorf("Error serializing entity to store to [%s], id=[%s]: %v", collection, key, err)
