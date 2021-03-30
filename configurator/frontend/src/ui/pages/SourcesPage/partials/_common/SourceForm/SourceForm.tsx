@@ -79,7 +79,7 @@ const SourceForm = ({
       collections: {
         name: 'Collections',
         form: Form.useForm()[0],
-        getComponent: (form: FormInstance) => <SourceFormCollections initialValues={initialValues} connectorSource={connectorSource} form={form} />,
+        getComponent: (form: FormInstance) => <SourceFormCollections reportPrefix={connectorSource.id} initialValues={initialValues} connectorSource={connectorSource} form={form} />,
         errorsCount: 0
       },
       destinations: {
