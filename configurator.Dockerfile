@@ -1,5 +1,5 @@
 # BASE STAGE
-FROM golang:1.14.6-alpine3.12 as main
+FROM alpine:3.12 as main
 
 ENV CONFIGURATOR_USER=configurator
 
@@ -12,7 +12,7 @@ RUN addgroup -S $CONFIGURATOR_USER \
 
 #######################################
 # BUILD JS STAGE
-FROM main as jsbuilder
+FROM golang:1.14.6-alpine3.12 as jsbuilder
 
 # Install dependencies
 RUN apk add git make npm yarn
@@ -32,7 +32,9 @@ RUN yarn build
 
 #######################################
 # BUILD BACKEND STAGE
-FROM main as builder
+FROM golang:1.14.6-alpine3.12 as builder
+
+ENV CONFIGURATOR_USER=configurator
 
 # Install dependencies
 RUN apk add git make bash

@@ -15,10 +15,10 @@ import { CheckboxChangeEvent } from 'antd/es/checkbox';
 
 import '../LoginForm/LoginForm.less';
 
-const logo = require('../../../icons/logo.svg');
+const logo = require('../../../icons/logo.svg').default;
 
-const googleLogo = require('../../../icons/google.svg');
-const githubLogo = require('../../../icons/github.svg');
+const googleLogo = require('../../../icons/google.svg').default;
+const githubLogo = require('../../../icons/github.svg').default;
 
 type State = {
   loading?: boolean;
