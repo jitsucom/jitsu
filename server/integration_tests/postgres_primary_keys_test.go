@@ -30,7 +30,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	}
 	defer container.Close()
 
-	err = appconfig.Init(false)
+	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 
 	enrichment.InitDefault()

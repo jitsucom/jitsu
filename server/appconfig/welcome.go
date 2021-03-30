@@ -1,6 +1,8 @@
 package appconfig
 
 import (
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/logging"
 )
 
@@ -15,4 +17,11 @@ const banner = "\n==============================================================
 
 func logWelcomeBanner(version string) {
 	logging.Infof(banner, version)
+}
+
+func logDeprecatedImageUsage(dockerHubID string) {
+	//check usage of deprecated image
+	if strings.TrimSpace(dockerHubID) == "ksense" {
+		logging.Warnf("\n\n\t *** ksense/eventnative docker image is DEPRECATED. Please use jitsucom/server. For more details read https://jitsu.com/docs/deployment/deploy-with-docker ***\n")
+	}
 }
