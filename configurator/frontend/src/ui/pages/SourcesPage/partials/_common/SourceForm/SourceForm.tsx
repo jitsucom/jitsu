@@ -12,6 +12,7 @@ import { SourceFormConfig } from './SourceFormConfig';
 import { SourceFormCollections } from './SourceFormCollections';
 import { SourceFormDestinations } from './SourceFormDestinations';
 // @Icons
+import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
 import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
@@ -66,6 +67,7 @@ const SourceForm = ({
 
   const forceUpdate = useForceUpdate();
 
+  const [isVisiblePopover, switchIsVisiblePopover] = useState<boolean>();
   const [connectionTestPending, setConnectionTestPending] = useState<boolean>();
 
   const mutableRefObject = useRef<{ tabs: TabsMap; submitOnce: boolean; }>({
@@ -124,6 +126,8 @@ const SourceForm = ({
   }, []);
 
   const handleSubmit = useCallback(() => {
+    switchIsVisiblePopover(true);
+
     mutableRefObject.current.submitOnce = true;
 
     Promise
@@ -144,6 +148,8 @@ const SourceForm = ({
   }, [forceUpdate, handleTabSubmit]);
 
   const handleCancel = useCallback(() => history.push(routes.root), [history]);
+
+  const handlePopoverClose = useCallback(() => switchIsVisiblePopover(false), []);
 
   return (
     <>
@@ -168,9 +174,9 @@ const SourceForm = ({
       <div className="flex-shrink border-t pt-2">
         <Popover
           content={sourceFormCleanFunctions.getErrors(mutableRefObject.current.tabs)}
-          title={`${capitalize(formMode)} source form errors:`}
+          title={<p className={styles.popoverTitle}><span>{capitalize(formMode)} source form errors:</span> <CloseOutlined onClick={handlePopoverClose} /></p>}
           trigger="click"
-          visible={mutableRefObject.current.submitOnce && sourceFormCleanFunctions.getErrorsCount(mutableRefObject.current.tabs) > 0}
+          visible={isVisiblePopover && sourceFormCleanFunctions.getErrorsCount(mutableRefObject.current.tabs) > 0}
         >
           <Button
             key="pwd-login-button"
