@@ -21,7 +21,7 @@ const SourceFormCollectionsFieldComponent = ({
       return (
         <Select
           allowClear
-          mode={(collection.type.data?.maxOptions > 1 || !collection.type.data?.maxOptions)
+          mode={collection.type.data?.maxOptions > 1 || !collection.type.data?.maxOptions
             ? 'multiple'
             : undefined}
         >
@@ -32,6 +32,7 @@ const SourceFormCollectionsFieldComponent = ({
           ))}
         </Select>
       );
+
     case 'string':
     default:
       return <Input autoComplete="off" />;
