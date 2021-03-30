@@ -1,5 +1,6 @@
 // @Libs
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Avatar, Checkbox, Form, List } from 'antd';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
@@ -11,6 +12,8 @@ import { CenteredError, CenteredSpin } from '@./lib/components/components';
 import { SourceFormDestinationsProps } from '@page/SourcesPage/partials/_common/SourceForm/SourceForm.types';
 // @Hooks
 import useLoader from '@./lib/commons/useLoader';
+// @Routes
+import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 
 const SourceFormDestinations = ({ initialValues }: SourceFormDestinationsProps) => {
   const [error, destinations] = useLoader(async() => await loadDestinations(ApplicationServices.get()));
@@ -24,7 +27,16 @@ const SourceFormDestinations = ({ initialValues }: SourceFormDestinationsProps) 
   return (
     <>
       <h3>Choose destinations</h3>
-      <article>Lorem ispium</article>
+      <article className="mb-5">
+        <p>Destination is a database where reports data will be aggregated. Read more about destinations in our <a href="https://jitsu.com/docs/destinations-configuration" target="_blank" rel="noreferrer">documentation</a>.</p>
+        {
+          destinations.length > 0
+            ? <>
+              <p>You have to choose at least one destination.</p>
+            </>
+            : <p>If you haven't added any destinations yet you can do it <Link to={destinationPageRoutes.root}>here</Link>.</p>
+        }
+      </article>
 
       <Form.Item
         name="destinations"
