@@ -9,6 +9,7 @@ import { SourceFormConfigField } from './SourceFormConfigField';
 import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 import { Parameter } from '@connectors/types';
 import { SourceFormConfigProps as Props } from './SourceForm.types';
+import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
 
 const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMustBeUnique }: Props) => {
 
@@ -27,30 +28,15 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
       return preparedBlank;
     }
 
-    const maxIndexSourceId = naturalSort(
-      sources?.reduce((accumulator: string[], current: SourceData) => {
-        if (current.sourceId.includes(preparedBlank)) {
-          accumulator.push(current.sourceId)
-        }
-        return accumulator;
-      }, [])
-    )?.pop();
+    const sourcesIds = sources?.reduce((accumulator: string[], current: SourceData) => {
+      if (current.sourceId.includes(preparedBlank)) {
+        accumulator.push(current.sourceId)
+      }
 
-    if (!maxIndexSourceId) {
-      return preparedBlank;
-    }
+      return accumulator;
+    }, []);
 
-    const sourceIdParts = maxIndexSourceId.split('_');
-    let sourceIdTail = parseInt(sourceIdParts[sourceIdParts.length - 1]);
-
-    if (isNaN(sourceIdTail)) {
-      sourceIdParts[sourceIdParts.length] = '1';
-    } else {
-      sourceIdTail++;
-      sourceIdParts[sourceIdParts.length - 1] = sourceIdTail;
-    }
-
-    return sourceIdParts.join('_');
+    return sourceFormCleanFunctions.getUniqueAutoIncremented(sourcesIds, preparedBlank, '_');
   }, [sources, isUniqueSourceId, initialValues, connectorSource]);
 
   const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => sources?.find((source: SourceData) => source.sourceId === value)

@@ -43,7 +43,7 @@ export interface SourceFormConfigProps {
 }
 
 export interface SourceFormCollectionsProps {
-  form: FormInstance;
+  form: FormInstance<{ collections: CollectionSource[] }>;
   initialValues: SourceData;
   connectorSource: SourceConnector;
   reportPrefix?: string;

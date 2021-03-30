@@ -11,6 +11,7 @@ import { SourceFormCollectionsField } from './SourceFormCollectionsField';
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 import { CollectionParameter } from '@connectors/types';
 import { SourceFormCollectionsProps as Props } from './SourceForm.types';
+import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
 
 const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, form }: Props) => {
   const [chosenTypes, setChosenTypes] = useState<{ [key: number]: string }>(
@@ -23,8 +24,15 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
     (index: number) => (value: string) => {
       const formValues = form.getFieldsValue();
       const collections = formValues.collections;
+      const blankName = `${reportPrefix}_${collections[index].type}`;
+      const reportNames = collections?.reduce((accumulator: string[], current: CollectionSource) => {
+        if (current?.name?.includes(blankName)) {
+          accumulator.push(current.name);
+        }
+        return accumulator;
+      }, []);
 
-      collections[index].name = `${reportPrefix}_${collections[index].type}`;
+      collections[index].name = sourceFormCleanFunctions.getUniqueAutoIncremented(reportNames, blankName, '_');
 
       form.setFieldsValue({
         ...formValues,
