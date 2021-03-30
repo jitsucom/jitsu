@@ -85,7 +85,7 @@ const SourceForm = ({
       destinations: {
         name: 'Destinations',
         form: Form.useForm()[0],
-        getComponent: () => <SourceFormDestinations initialValues={initialValues} />,
+        getComponent: (form: FormInstance) => <SourceFormDestinations initialValues={initialValues} form={form} />,
         errorsCount: 0
       }
     },
