@@ -21,7 +21,7 @@ import (
 func TestProcessFilePayload(t *testing.T) {
 	viper.Set("server.log.path", "")
 
-	err := appconfig.Init(false)
+	err := appconfig.Init(false, "")
 	require.NoError(t, err)
 
 	testTime1, _ := time.Parse(time.RFC3339Nano, "2020-07-02T18:23:59.757719Z")
@@ -173,7 +173,7 @@ func TestProcessFilePayload(t *testing.T) {
 func TestProcessFact(t *testing.T) {
 	viper.Set("server.log.path", "")
 
-	err := appconfig.Init(false)
+	err := appconfig.Init(false, "")
 	require.NoError(t, err)
 
 	testTime, _ := time.Parse(timestamp.Layout, "2020-08-02T18:23:58.057807Z")
@@ -251,7 +251,7 @@ func TestProcessFact(t *testing.T) {
 			"",
 		},
 	}
-	appconfig.Init(false)
+	appconfig.Init(false, "")
 	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
 	appconfig.Instance.UaResolver = useragent.Mock{}
 	uaRule, err := enrichment.NewRule(&enrichment.RuleConfig{
@@ -267,7 +267,11 @@ func TestProcessFact(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	fieldMapper, _, err := NewFieldMapper(Default, []string{"/field1->/field2"}, nil)
+	keepUnmapped := true
+	fieldMapper, _, err := NewFieldMapper(&Mapping{
+		KeepUnmapped: &keepUnmapped,
+		Fields:       []MappingField{{Src: "/field1", Dst: "/field2", Action: MOVE}},
+	})
 	require.NoError(t, err)
 
 	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false)

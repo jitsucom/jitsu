@@ -66,7 +66,7 @@ func setDefaultParams(containerized bool) {
 	}
 }
 
-func Init(containerized bool) error {
+func Init(containerized bool, dockerHubID string) error {
 	setDefaultParams(containerized)
 
 	serverName := viper.GetString("server.name")
@@ -96,6 +96,7 @@ func Init(containerized bool) error {
 	}
 
 	logWelcomeBanner(RawVersion)
+	logDeprecatedImageUsage(dockerHubID)
 
 	if globalLoggerConfig.FileDir != "" {
 		logging.Infof("Using server.log.path directory: %q", globalLoggerConfig.FileDir)

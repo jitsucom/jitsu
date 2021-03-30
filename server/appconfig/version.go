@@ -43,7 +43,7 @@ func (vn *VersionReminder) Start() {
 			}
 
 			<-ticker.C
-			releasesList, _, err := vn.client.Repositories.ListReleases(context.Background(), "jitsucom", "eventnative", &github.ListOptions{Page: 0, PerPage: 100})
+			releasesList, _, err := vn.client.Repositories.ListReleases(context.Background(), "jitsucom", "jitsu", &github.ListOptions{Page: 0, PerPage: 100})
 			if err != nil {
 				continue
 			}
