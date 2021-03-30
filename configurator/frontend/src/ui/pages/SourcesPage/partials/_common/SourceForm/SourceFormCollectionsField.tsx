@@ -21,7 +21,7 @@ const SourceFormCollectionsFieldComponent = ({
       return (
         <Select
           allowClear
-          mode={collection.type.data?.maxOptions > 1
+          mode={(collection.type.data?.maxOptions > 1 || !collection.type.data?.maxOptions)
             ? 'multiple'
             : undefined}
         >
