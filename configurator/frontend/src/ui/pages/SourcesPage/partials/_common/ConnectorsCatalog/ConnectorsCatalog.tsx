@@ -36,6 +36,8 @@ const ConnectorsCatalogComponent = ({ className, viewType = 'list' }: Props) => 
     500
   );
 
+  const isFirstSingerType = useCallback((item: SourceConnector, index: number) => !item.isSingerType && filteredSourcesList[index + 1]?.isSingerType, [filteredSourcesList]);
+
   return (
     <div className={`${classNameBase}-wrap`}>
       <div className={`${classNameBase}-filter`}>
@@ -43,8 +45,8 @@ const ConnectorsCatalogComponent = ({ className, viewType = 'list' }: Props) => 
       </div>
 
       <ul className={cn(classNameBase, 'connectors-collection', className)}>
-        {filteredSourcesList.map((item: SourceConnector) => (
-          <li key={`${item.id}-${item.displayName}`} className={`${classNameBase}__item`}>
+        {filteredSourcesList.map((item: SourceConnector, index: number) => (
+          <li key={`${item.id}-${item.displayName}`} className={cn(`${classNameBase}__item`, isFirstSingerType(item, index) && `${classNameBase}__item_not-singer`)}>
             <NavLink to={generatePath(routes.addExact, { source: item.id })} className={`${classNameBase}__item-link`}>
               <span className={`${classNameBase}__item-link-pic`}>{item.pic}</span>
               <span className={`${classNameBase}__item-link-txt`}>{item.displayName}</span>
