@@ -56,7 +56,7 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
 
           <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
             {sources.map((source) => {
-              const sourceProto = sourcesMap[source.sourceId];
+              const sourceProto = sourcesMap[source.sourceType];
 
               return (
                 <SourcesListItem
