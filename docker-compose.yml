@@ -4,7 +4,11 @@ networks:
 
 services:
   configurator:
-    image: jitsucom/configurator
+    container_name: jitsu_configurator
+    build:
+      context: .
+      dockerfile: configurator.Dockerfile
+    image: jitsucom/configurator:latest
     depends_on:
       - redis
     volumes:
@@ -16,7 +20,11 @@ services:
     networks:
       - main
   server:
-    image: jitsucom/server
+    container_name: jitsu_server
+    build:
+      context: .
+      dockerfile: server.Dockerfile
+    image: jitsucom/server:latest
     depends_on:
       - configurator
       - redis
@@ -30,6 +38,7 @@ services:
     networks:
       - main
   redis:
+    container_name: jitsu_redis
     image: redis:5.0-alpine
     volumes:
       - ./compose-data/redis/data:/data
