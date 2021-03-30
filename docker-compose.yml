@@ -12,8 +12,7 @@ services:
     depends_on:
       - redis
     volumes:
-      - ./compose-data/configurator/res:/home/configurator/app/res/
-      - ./compose-data/configurator/logs/:/home/configurator/logs/
+      - ./compose-data/configurator/data:/home/configurator/data/
     restart: always
     ports:
       - "7000:7000"
@@ -30,9 +29,7 @@ services:
       - redis
     restart: always
     volumes:
-      - ./compose-data/server/res:/home/eventnative/app/res/
-      - ./compose-data/server/logs/:/home/eventnative/logs/
-      - ./compose-data/server/events:/home/eventnative/logs/events/
+      - ./compose-data/server/data:/home/eventnative/data/
     ports:
       - "8001:8001"
     networks:

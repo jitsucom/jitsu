@@ -23,7 +23,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.log.level", "info")
 
 	if containerized {
-		viper.SetDefault("server.log.path", "/home/configurator/logs")
+		viper.SetDefault("server.log.path", "/home/configurator/data/logs")
 	} else {
 		viper.SetDefault("server.log.path", "./logs")
 	}
