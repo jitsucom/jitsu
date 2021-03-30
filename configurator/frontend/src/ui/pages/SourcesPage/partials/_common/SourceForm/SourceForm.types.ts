@@ -58,4 +58,5 @@ export interface SourceFormCollectionsFieldProps {
 
 export interface SourceFormDestinationsProps {
   initialValues: SourceData;
+  form: FormInstance<{ destinations: string[]; }>;
 }
