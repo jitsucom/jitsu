@@ -5,10 +5,14 @@ ENV CONFIGURATOR_USER=configurator
 
 RUN addgroup -S $CONFIGURATOR_USER \
     && adduser -S -G $CONFIGURATOR_USER $CONFIGURATOR_USER \
-    && mkdir -p /home/$CONFIGURATOR_USER/logs \
-    && mkdir -p /home/$CONFIGURATOR_USER/app/res \
+    && mkdir -p /home/$CONFIGURATOR_USER/data/logs \
+    && mkdir -p /home/$CONFIGURATOR_USER/data/config \
     && mkdir -p /home/$CONFIGURATOR_USER/app/web \
     && chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER
+
+# Create symlink for backward compatibility
+RUN ln -s /home/$CONFIGURATOR_USER/data/config /home/$CONFIGURATOR_USER/app/res
+RUN ln -s /home/$CONFIGURATOR_USER/data/logs /home/$CONFIGURATOR_USER/logs
 
 #######################################
 # BUILD JS STAGE
@@ -64,7 +68,7 @@ RUN chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/app
 USER $CONFIGURATOR_USER
 WORKDIR /home/$CONFIGURATOR_USER/app
 
-VOLUME ["/home/$CONFIGURATOR_USER/logs", "/home/$CONFIGURATOR_USER/app/res"]
+VOLUME ["/home/$CONFIGURATOR_USER/data"]
 EXPOSE 7000
 
-ENTRYPOINT ["./configurator", "-cfg=./res/configurator.yaml", "-cr=true"]
+ENTRYPOINT ["./configurator", "-cfg=../data/config/configurator.yaml", "-cr=true"]

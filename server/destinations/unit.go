@@ -13,7 +13,7 @@ type Unit struct {
 	storage    storages.StorageProxy
 
 	tokenIDs []string
-	hash     string
+	hash     uint64
 }
 
 //Close eventsQueue if exists and storage
