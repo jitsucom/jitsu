@@ -120,7 +120,7 @@ destinations:
 #      gcs_bucket: google_cloud_storage_bucket
 #      bq_project: big_query_project
 #      bq_dataset: big_query_dataset # Optional. Default value is 'default'
-#      key_file: /home/eventnative/app/res/bqkey.json # or json string of key e.g. "{"service_account":...}"
+#      key_file: /home/eventnative/data/config/bqkey.json # or json string of key e.g. "{"service_account":...}"
 #    data_layout:
 #      table_name_template: 'my_events' #Optional. Default value constant is 'events'. Template for extracting table name
 
@@ -175,7 +175,7 @@ destinations:
 #        primary_keys: #Optional. If provided - it overrides PRIMARY KEY in CREATE TABLE statement with provided fields
 #          - eventn_ctx_event_id
 #      tls: #Optional
-#        maincert: /home/eventnative/app/res/rootCa.crt
+#        maincert: /home/eventnative/data/config/rootCa.crt
 
   ### S3 https://jitsu.com/docs/destinations-configuration/s3
 #  s3_destination:
