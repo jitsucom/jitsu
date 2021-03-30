@@ -67,6 +67,7 @@ func NewConfigurationsService(storage ConfigurationsStorage, defaultDestination 
 const (
 	defaultDatabaseCredentialsCollection = "default_database_credentials"
 	destinationsCollection               = "destinations"
+	sourcesCollection                    = "sources"
 	apiKeysCollection                    = "api_keys"
 	customDomainsCollection              = "custom_domains"
 	lastUpdatedField                     = "_lastUpdated"
@@ -184,6 +185,25 @@ func (cs *ConfigurationsService) GetAPIKeysByProjectID(projectID string) ([]*ent
 		return nil, fmt.Errorf("Error parsing api keys of projectID [%s]: %v", projectID, err)
 	}
 	return apiKeys.Keys, nil
+}
+
+//GetSourcesLastUpdated returns sources last updated
+func (cs *ConfigurationsService) GetSourcesLastUpdated() (*time.Time, error) {
+	return cs.storage.GetCollectionLastUpdated(sourcesCollection)
+}
+
+//GetSources return map with projectID:sources
+func (cs ConfigurationsService) GetSources() (map[string]*entities.Sources, error) {
+	allDestinations, err := cs.storage.GetAllGroupedByID(sourcesCollection)
+	if err != nil {
+		return nil, err
+	}
+	result := map[string]*entities.Sources{}
+	err = json.Unmarshal(allDestinations, &result)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // Generates default key per project only in case if no other API key exists
