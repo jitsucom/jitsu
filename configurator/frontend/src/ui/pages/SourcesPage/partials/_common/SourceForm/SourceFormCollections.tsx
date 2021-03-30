@@ -12,7 +12,7 @@ import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 import { CollectionParameter } from '@connectors/types';
 import { SourceFormCollectionsProps as Props } from './SourceForm.types';
 
-const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) => {
+const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, form }: Props) => {
   const [chosenTypes, setChosenTypes] = useState<{ [key: number]: string }>(
     initialValues.collections?.reduce((accumulator: any, value: CollectionSource, index: number) => {
       return { ...accumulator, [index]: value.type };
@@ -21,12 +21,22 @@ const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) 
 
   const handleReportTypeChange = useCallback(
     (index: number) => (value: string) => {
+      const formValues = form.getFieldsValue();
+      const collections = formValues.collections;
+
+      collections[index].name = `${reportPrefix}_${collections[index].type}`;
+
+      form.setFieldsValue({
+        ...formValues,
+        collections
+      });
+
       setChosenTypes({
         ...chosenTypes,
         [index]: value
       });
     },
-    [chosenTypes]
+    [chosenTypes, form, reportPrefix]
   );
 
   const getCollectionParameters = useCallback(
