@@ -29,7 +29,7 @@ const SourceFormDestinations = ({ initialValues }: SourceFormDestinationsProps) 
       <Form.Item
         name="destinations"
         initialValue={initialValues.destinations}
-        rules={[{ required: true, message: 'You have to choose at least one destination.' }]}
+        rules={destinations.length > 0 && [{ required: true, message: 'You have to choose at least one destination.' }]}
       >
         <Checkbox.Group>
           <List key="list" className="destinations-list" itemLayout="horizontal">
