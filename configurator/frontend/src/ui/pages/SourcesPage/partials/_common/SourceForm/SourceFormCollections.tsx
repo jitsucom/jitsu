@@ -70,9 +70,9 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
   const handleAddField = useCallback(
     (operation: FormListOperation) => () => {
       const addingValue =
-        connectorSource.collectionTypes.length > 1
-          ? {}
-          : { type: connectorSource.collectionTypes[0] };
+                connectorSource.collectionTypes.length > 1
+                  ? {}
+                  : { type: connectorSource.collectionTypes[0] };
 
       operation.add(addingValue);
     },
@@ -108,13 +108,13 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
     <div className="custom-report">
       <h3>Configure collections</h3>
       <article className="fields-group">
-        Each source can export one or more collections.
+                Each source can export one or more collections.
         <br />
-        Think of collection as a table in a database or sheet in a spreadsheet Read more about collections in our{' '}
+                Think of collection as a table in a database or sheet in a spreadsheet Read more about collections in our{' '}
         <a href="https://jitsu.com/docs/sources-configuration#collections" target="_blank" rel="noreferrer">
-          documentation
+                    documentation
         </a>
-        .
+                .
       </article>
       <Form.List name="collections" initialValue={updatedInitialValues}>
         {(fields: FormListFieldData[], operation: FormListOperation) => (
@@ -132,7 +132,7 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
                         labelCol={{ span: 6 }}
                         wrapperCol={{ span: 18 }}
                         rules={connectorSource.collectionTypes.length > 1
-                          ? [{ required: true, message: 'You have top choose report type' }]
+                          ? [{ required: true, message: 'You have to choose report type' }]
                           : undefined}
                       >
                         <Select
@@ -152,6 +152,25 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
                         className="custom-report__group-composite-delete"
                         onClick={handleRemoveField(operation, field.key)}
                       />
+                    </Col>
+                  </Row>
+
+                  <Row>
+                    <Col span={16}>
+                      <Form.Item
+                        // initialValue={getCollectionTypeValue(field.key)}
+                        name={[field.name, 'schedule']}
+                        className="form-field_fixed-label"
+                        label="Schedule:"
+                        labelCol={{ span: 6 }}
+                        wrapperCol={{ span: 18 }}
+                        rules={[{ required: true, message: 'You have to choose schedule' }]}
+                      >
+                        <Select>
+                          <Select.Option value="*/5 * * * *">5 minutes</Select.Option>
+                          <Select.Option value="@hourly">1 hour</Select.Option>
+                        </Select>
+                      </Form.Item>
                     </Col>
                   </Row>
 
@@ -199,7 +218,7 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
             })}
 
             <Button type="ghost" onClick={handleAddField(operation)} className="add-field-btn" icon={<PlusOutlined />}>
-              Add new collection
+                            Add new collection
             </Button>
           </>
         )}
