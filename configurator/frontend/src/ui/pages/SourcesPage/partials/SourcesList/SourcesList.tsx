@@ -1,6 +1,7 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
 import { Button, Dropdown, List, message } from 'antd';
+import { snakeCase } from 'lodash';
 // @Components
 import { ConnectorsCatalog } from '../_common/ConnectorsCatalog';
 import { SourcesListItem } from './SourcesListItem';
@@ -24,7 +25,7 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
       allSources.reduce(
         (accumulator: { [key: string]: SourceConnector }, current: SourceConnector) => ({
           ...accumulator,
-          [current.id]: current
+          [snakeCase(current.id)]: current
         }),
         {}
       ),
