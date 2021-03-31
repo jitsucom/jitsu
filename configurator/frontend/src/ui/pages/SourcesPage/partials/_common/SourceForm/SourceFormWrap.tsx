@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useMemo, useState } from 'react';
 import { message } from 'antd';
-import { Link, NavLink, useHistory } from 'react-router-dom';
+import { NavLink, useHistory } from 'react-router-dom';
 import { set, snakeCase } from 'lodash';
 // @Components
 import { SourceForm } from './SourceForm';
@@ -9,8 +9,6 @@ import { SourceForm } from './SourceForm';
 import ApplicationServices from '@service/ApplicationServices';
 // @Routes
 import { routes } from '@page/SourcesPage/routes';
-// @Icons
-import ArrowLeftOutlined from '@ant-design/icons/lib/icons/ArrowLeftOutlined';
 // @Types
 import { FormWrapProps } from '@page/SourcesPage/partials/_common/SourceForm/SourceForm.types';
 
@@ -47,6 +45,7 @@ const SourceFormWrap = ({
         createdSourceData.collections = collections.map((collection: any) => ({
           name: collection.name,
           type: collection.type,
+          schedule: collection.schedule,
           parameters: connectorSource.collectionParameters.reduce((accumulator: any, current: any) => {
             return {
               ...accumulator,
