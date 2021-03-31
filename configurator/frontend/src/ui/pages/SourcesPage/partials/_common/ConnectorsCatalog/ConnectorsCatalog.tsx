@@ -5,11 +5,11 @@ import cn from 'classnames';
 import { debounce } from 'lodash';
 import { Input } from 'antd';
 // @Sources
-import { allSources } from '@connectors/sources';
+import { allSources } from '@catalog/sources/lib';
 // @Routes
 import { routes } from '@page/SourcesPage/routes';
 // @Types
-import { SourceConnector } from '@connectors/types';
+import { SourceConnector } from '@catalog/sources/types';
 import { Props } from './ConnectorsCatalog.types';
 // @Styles
 import './ConnectorsCatalog.less';

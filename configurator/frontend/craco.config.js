@@ -38,7 +38,7 @@ module.exports = {
       '@atom': path.resolve(__dirname, './src/ui/components/atom'),
       '@molecule': path.resolve(__dirname, './src/ui/components/molecule'),
       '@page': path.resolve(__dirname, './src/ui/pages'),
-      '@connectors': path.resolve(__dirname, './src/connectors-catalog/src/sources/'),
+      '@catalog': path.resolve(__dirname, './src/catalog'),
       '@service': path.resolve('./src/lib/services/'),
       '@util': path.resolve(__dirname, './src/utils'),
       '@hooks': path.resolve(__dirname, './src/hooks')

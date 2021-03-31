@@ -1,4 +1,4 @@
-import { SourceConnector } from '@connectors/types';
+import { SourceConnector } from '../../../../../catalog/sources/types';
 
 export interface SourcesListItemProps {
   sourceId: string;
