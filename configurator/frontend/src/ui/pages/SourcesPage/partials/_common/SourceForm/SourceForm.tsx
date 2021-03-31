@@ -28,6 +28,7 @@ interface Tab {
   form: FormInstance;
   getComponent: (form: FormInstance) => JSX.Element;
   errorsCount: number;
+  isActive: boolean;
 }
 
 interface TabsMap {
@@ -75,19 +76,22 @@ const SourceForm = ({
         name: 'Config',
         form: Form.useForm()[0],
         getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} sourceIdMustBeUnique={formMode === 'create'} />,
-        errorsCount: 0
+        errorsCount: 0,
+        isActive: true
       },
       collections: {
         name: 'Collections',
         form: Form.useForm()[0],
         getComponent: (form: FormInstance) => <SourceFormCollections reportPrefix={connectorSource.id} initialValues={initialValues} connectorSource={connectorSource} form={form} />,
-        errorsCount: 0
+        errorsCount: 0,
+        isActive: connectorSource.collectionParameters.length > 0
       },
       destinations: {
         name: 'Destinations',
         form: Form.useForm()[0],
         getComponent: (form: FormInstance) => <SourceFormDestinations initialValues={initialValues} form={form} />,
-        errorsCount: 0
+        errorsCount: 0,
+        isActive: true
       }
     },
     submitOnce: false,
@@ -170,15 +174,17 @@ const SourceForm = ({
         <Tabs defaultActiveKey="config" type="card" size="middle" className={styles.sourceTabs}>
           {
             Object.keys(mutableRefObject.current.tabs).map(key => {
-              const { form, getComponent } = mutableRefObject.current.tabs[key];
+              const { form, getComponent, isActive } = mutableRefObject.current.tabs[key];
 
-              return (
-                <React.Fragment key={key}>
-                  <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
-                    <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
-                  </Tabs.TabPane>
-                </React.Fragment>
-              );
+              return isActive
+                ? (
+                  <React.Fragment key={key}>
+                    <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
+                      <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
+                    </Tabs.TabPane>
+                  </React.Fragment>
+                )
+                : null;
             })
           }
         </Tabs>
