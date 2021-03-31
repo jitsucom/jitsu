@@ -190,7 +190,7 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
                         field={field}
                         key={collection.id}
                         collection={collection}
-                        initialFieldValue={initialValues?.collections?.[field.name]}
+                        initialValue={initialValues?.collections?.[field.name]?.parameters?.[collection.id] ?? collection.defaultValue}
                       />
                     ))}
                   </>

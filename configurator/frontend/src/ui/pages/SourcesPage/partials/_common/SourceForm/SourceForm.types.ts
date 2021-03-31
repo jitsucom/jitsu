@@ -52,7 +52,7 @@ export interface SourceFormCollectionsProps {
 export interface SourceFormCollectionsFieldProps {
   collection: CollectionParameter;
   field: FormListFieldData;
-  initialFieldValue: CollectionSource;
+  initialValue: any;
   documentation?: React.ReactNode;
 }
 

@@ -10,11 +10,9 @@ import { Rule } from 'antd/lib/form';
 const SourceFormCollectionsFieldComponent = ({
   collection,
   field,
-  initialFieldValue,
+  initialValue,
   documentation
 }: Props) => {
-  const initial = initialFieldValue?.parameters?.[collection.id];
-
   const formItemChild = useMemo(() => {
     switch (collection.type.typeName) {
     case 'selection':
@@ -61,7 +59,7 @@ const SourceFormCollectionsFieldComponent = ({
     <Row>
       <Col span={16}>
         <Form.Item
-          initialValue={initial}
+          initialValue={initialValue}
           className="form-field_fixed-label"
           label={documentation ?
             <LabelWithTooltip documentation={documentation}>{collection.displayName}</LabelWithTooltip> :
