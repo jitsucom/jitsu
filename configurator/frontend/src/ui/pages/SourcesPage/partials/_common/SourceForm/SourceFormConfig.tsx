@@ -3,13 +3,13 @@ import React, { useCallback, useMemo } from 'react';
 import { Col, Form, Input, Row } from 'antd';
 import { get, snakeCase } from 'lodash';
 // @Utils
-import { naturalSort } from '@util/Array';
 import { SourceFormConfigField } from './SourceFormConfigField';
 // @Types
 import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 import { Parameter } from '@connectors/types';
 import { SourceFormConfigProps as Props } from './SourceForm.types';
-import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
+// @Helper
+import { sourceFormCleanFunctions } from './sourceFormCleanFunctions';
 
 const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMustBeUnique }: Props) => {
 
@@ -73,7 +73,7 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
         </Col>
       </Row>
 
-      {connectorSource.configParameters.map(({ id, displayName, required, type, documentation, constant }: Parameter) => (
+      {connectorSource.configParameters.map(({ id, displayName, required, type, documentation, constant, defaultValue }: Parameter) => (
         <SourceFormConfigField
           type={type.typeName}
           typeOptions={type.data}
@@ -81,7 +81,7 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
           id={id}
           key={id}
           displayName={displayName}
-          initialValue={get(initialValues, `config.${id}`)}
+          initialValue={get(initialValues, `config.${id}`) || defaultValue}
           required={required}
           documentation={documentation}
         />
