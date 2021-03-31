@@ -10,16 +10,19 @@ import { Rule } from 'antd/lib/form';
 const SourceFormCollectionsFieldComponent = ({
   collection,
   field,
-  initialFieldValue,
+  initialValue,
   documentation
 }: Props) => {
-  const initial = initialFieldValue?.parameters?.[collection.id];
-
   const formItemChild = useMemo(() => {
     switch (collection.type.typeName) {
     case 'selection':
       return (
-        <Select allowClear mode={collection.type.data?.maxOptions > 1 ? 'multiple' : undefined}>
+        <Select
+          allowClear
+          mode={collection.type.data?.maxOptions > 1 || !collection.type.data?.maxOptions
+            ? 'multiple'
+            : undefined}
+        >
           {collection.type.data.options.map((option: { displayName: string; id: string }) => (
             <Select.Option key={option.id} value={option.id}>
               {option.displayName}
@@ -27,6 +30,7 @@ const SourceFormCollectionsFieldComponent = ({
           ))}
         </Select>
       );
+
     case 'string':
     default:
       return <Input autoComplete="off" />;
@@ -55,7 +59,7 @@ const SourceFormCollectionsFieldComponent = ({
     <Row>
       <Col span={16}>
         <Form.Item
-          initialValue={initial}
+          initialValue={initialValue}
           className="form-field_fixed-label"
           label={documentation ?
             <LabelWithTooltip documentation={documentation}>{collection.displayName}</LabelWithTooltip> :

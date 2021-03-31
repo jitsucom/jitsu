@@ -1,14 +1,22 @@
 @import './src/theme';
+@import './src/assets/mixins';
 
 .connectors-catalog-list-wrap {
   background: @secondary-background;
   width: 320px;
-  padding: 20px;
+  position: relative;
 
   .connectors-catalog-list {
     overflow: auto;
     max-height: 480px;
+    padding: 0 20px;
+
+    .custom-scrollbar();
   }
+}
+
+.connectors-catalog-list-filter {
+  padding: 20px;
 }
 
 .connectors-collection {
@@ -54,6 +62,12 @@
       }
     }
   }
+}
+
+.connectors-catalog-list li.connectors-catalog-list__item_not-singer {
+  border-bottom: 1px solid @splitBorder;
+  padding-bottom: 5px;
+  margin-bottom: 5px;
 }
 
 .connectors-catalog-table {

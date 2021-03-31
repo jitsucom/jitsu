@@ -3,12 +3,13 @@ import React, { useCallback, useMemo } from 'react';
 import { Col, Form, Input, Row } from 'antd';
 import { get, snakeCase } from 'lodash';
 // @Utils
-import { naturalSort } from '@util/Array';
 import { SourceFormConfigField } from './SourceFormConfigField';
 // @Types
 import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 import { Parameter } from '@connectors/types';
 import { SourceFormConfigProps as Props } from './SourceForm.types';
+// @Helper
+import { sourceFormCleanFunctions } from './sourceFormCleanFunctions';
 
 const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMustBeUnique }: Props) => {
 
@@ -27,30 +28,15 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
       return preparedBlank;
     }
 
-    const maxIndexSourceId = naturalSort(
-      sources?.reduce((accumulator: string[], current: SourceData) => {
-        if (current.sourceId.includes(preparedBlank)) {
-          accumulator.push(current.sourceId)
-        }
-        return accumulator;
-      }, [])
-    )?.pop();
+    const sourcesIds = sources?.reduce((accumulator: string[], current: SourceData) => {
+      if (current.sourceId.includes(preparedBlank)) {
+        accumulator.push(current.sourceId)
+      }
 
-    if (!maxIndexSourceId) {
-      return preparedBlank;
-    }
+      return accumulator;
+    }, []);
 
-    const sourceIdParts = maxIndexSourceId.split('_');
-    let sourceIdTail = parseInt(sourceIdParts[sourceIdParts.length - 1]);
-
-    if (isNaN(sourceIdTail)) {
-      sourceIdParts[sourceIdParts.length] = '1';
-    } else {
-      sourceIdTail++;
-      sourceIdParts[sourceIdParts.length - 1] = sourceIdTail;
-    }
-
-    return sourceIdParts.join('_');
+    return sourceFormCleanFunctions.getUniqueAutoIncremented(sourcesIds, preparedBlank, '_');
   }, [sources, isUniqueSourceId, initialValues, connectorSource]);
 
   const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => sources?.find((source: SourceData) => source.sourceId === value)
@@ -68,6 +54,16 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
 
     return rules;
   }, [validateUniqueSourceId, sourceIdMustBeUnique]);
+
+  const getInitialValue = useCallback((id: string, defaultValue: any) => {
+    const initial = get(initialValues, `config.${id}`);
+
+    return initial
+      ? initial
+      : Object.keys(defaultValue ?? {}).length > 0
+        ? JSON.stringify(defaultValue)
+        : '';
+  }, [initialValues]);
 
   return (
     <>
@@ -87,17 +83,21 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
         </Col>
       </Row>
 
-      {connectorSource.configParameters.map(({ id, displayName, required, type, documentation }: Parameter) => (
-        <SourceFormConfigField
-          type={type.typeName}
-          id={id}
-          key={id}
-          displayName={displayName}
-          initialValue={get(initialValues, `config.${id}`)}
-          required={required}
-          documentation={documentation}
-        />
-      ))}
+      {connectorSource.configParameters.map(({ id, displayName, required, type, documentation, constant, defaultValue }: Parameter) => {
+        return (
+          <SourceFormConfigField
+            type={type.typeName}
+            typeOptions={type.data}
+            preselectedTypeOption={constant}
+            id={id}
+            key={id}
+            displayName={displayName}
+            initialValue={getInitialValue(id, defaultValue)}
+            required={required}
+            documentation={documentation}
+          />
+        );
+      })}
     </>
   );
 };

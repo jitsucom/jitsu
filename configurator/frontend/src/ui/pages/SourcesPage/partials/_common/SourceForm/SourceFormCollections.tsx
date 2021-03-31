@@ -11,8 +11,9 @@ import { SourceFormCollectionsField } from './SourceFormCollectionsField';
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 import { CollectionParameter } from '@connectors/types';
 import { SourceFormCollectionsProps as Props } from './SourceForm.types';
+import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
 
-const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) => {
+const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, form }: Props) => {
   const [chosenTypes, setChosenTypes] = useState<{ [key: number]: string }>(
     initialValues.collections?.reduce((accumulator: any, value: CollectionSource, index: number) => {
       return { ...accumulator, [index]: value.type };
@@ -21,12 +22,29 @@ const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) 
 
   const handleReportTypeChange = useCallback(
     (index: number) => (value: string) => {
+      const formValues = form.getFieldsValue();
+      const collections = formValues.collections;
+      const blankName = `${reportPrefix}_${collections[index].type}`;
+      const reportNames = collections?.reduce((accumulator: string[], current: CollectionSource) => {
+        if (current?.name?.includes(blankName)) {
+          accumulator.push(current.name);
+        }
+        return accumulator;
+      }, []);
+
+      collections[index].name = sourceFormCleanFunctions.getUniqueAutoIncremented(reportNames, blankName, '_');
+
+      form.setFieldsValue({
+        ...formValues,
+        collections
+      });
+
       setChosenTypes({
         ...chosenTypes,
         [index]: value
       });
     },
-    [chosenTypes]
+    [chosenTypes, form, reportPrefix]
   );
 
   const getCollectionParameters = useCallback(
@@ -172,7 +190,7 @@ const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) 
                         field={field}
                         key={collection.id}
                         collection={collection}
-                        initialFieldValue={initialValues?.collections?.[field.name]}
+                        initialValue={initialValues?.collections?.[field.name]?.parameters?.[collection.id] ?? collection.defaultValue}
                       />
                     ))}
                   </>
@@ -181,7 +199,7 @@ const SourceFormCollections = ({ initialValues, connectorSource, form }: Props) 
             })}
 
             <Button type="ghost" onClick={handleAddField(operation)} className="add-field-btn" icon={<PlusOutlined />}>
-              Add one
+              Add new collection
             </Button>
           </>
         )}
