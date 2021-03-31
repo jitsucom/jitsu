@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@jitsu/connectors-catalog": "file:./../../catalog/build/dist",
     "@craco/craco": "^6.1.1",
     "@jitsu/eventnative": "^1.1.5",
     "@testing-library/jest-dom": "^5.11.4",

@@ -6,7 +6,7 @@
       "@atom/*": ["./ui/components/atom/*"],
       "@molecule/*": ["./ui/components/molecule/*"],
       "@page/*": ["./ui/pages/*"],
-      "@connectors/*": ["./connectors-catalog/src/sources/*"],
+      "@catalog/*": ["./catalog/*"],
       "@service/*": ["./lib/services/*"],
       "@util/*": ["./utils/*"],
       "@hooks/*": ["./hooks/*"],

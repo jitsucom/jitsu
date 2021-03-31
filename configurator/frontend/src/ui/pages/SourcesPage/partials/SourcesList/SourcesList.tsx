@@ -10,12 +10,12 @@ import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Types
-import { SourceConnector } from '@connectors/types';
+import { SourceConnector } from '../../../../../catalog/sources/types';
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
 import styles from './SourcesList.module.less';
 // @Sources
-import { allSources } from '@connectors/sources';
+import { allSources } from '@catalog/sources/lib';
 
 const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);

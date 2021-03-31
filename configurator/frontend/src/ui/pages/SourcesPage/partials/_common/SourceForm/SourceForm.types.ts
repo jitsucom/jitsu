@@ -1,5 +1,5 @@
 import React from 'react';
-import { CollectionParameter, SourceConnector } from '@connectors/types';
+import { CollectionParameter, SourceConnector } from '@catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData } from 'antd/es/form/FormList';
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';

@@ -9,7 +9,7 @@ import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
 import { SourceFormCollectionsField } from './SourceFormCollectionsField';
 // @Types
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
-import { CollectionParameter } from '@connectors/types';
+import { CollectionParameter } from '@catalog/sources/types';
 import { SourceFormCollectionsProps as Props } from './SourceForm.types';
 import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
 

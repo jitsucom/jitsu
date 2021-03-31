@@ -6,7 +6,7 @@ import { get, snakeCase } from 'lodash';
 import { SourceFormConfigField } from './SourceFormConfigField';
 // @Types
 import { Rule, RuleObject } from 'rc-field-form/lib/interface';
-import { Parameter } from '@connectors/types';
+import { Parameter } from '@catalog/sources/types';
 import { SourceFormConfigProps as Props } from './SourceForm.types';
 // @Helper
 import { sourceFormCleanFunctions } from './sourceFormCleanFunctions';
