@@ -55,6 +55,16 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
     return rules;
   }, [validateUniqueSourceId, sourceIdMustBeUnique]);
 
+  const getInitialValue = useCallback((id: string, defaultValue: any) => {
+    const initial = get(initialValues, `config.${id}`);
+
+    return initial
+      ? initial
+      : Object.keys(defaultValue ?? {}).length > 0
+        ? JSON.stringify(defaultValue)
+        : '';
+  }, [initialValues]);
+
   return (
     <>
       <Row>
@@ -73,19 +83,21 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
         </Col>
       </Row>
 
-      {connectorSource.configParameters.map(({ id, displayName, required, type, documentation, constant, defaultValue }: Parameter) => (
-        <SourceFormConfigField
-          type={type.typeName}
-          typeOptions={type.data}
-          preselectedTypeOption={constant}
-          id={id}
-          key={id}
-          displayName={displayName}
-          initialValue={get(initialValues, `config.${id}`) || defaultValue}
-          required={required}
-          documentation={documentation}
-        />
-      ))}
+      {connectorSource.configParameters.map(({ id, displayName, required, type, documentation, constant, defaultValue }: Parameter) => {
+        return (
+          <SourceFormConfigField
+            type={type.typeName}
+            typeOptions={type.data}
+            preselectedTypeOption={constant}
+            id={id}
+            key={id}
+            displayName={displayName}
+            initialValue={getInitialValue(id, defaultValue)}
+            required={required}
+            documentation={documentation}
+          />
+        );
+      })}
     </>
   );
 };
