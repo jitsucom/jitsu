@@ -4,6 +4,7 @@ declare interface CollectionSource {
   parameters: Array<{
     [key: string]: string[];
   }>;
+  schedule: string;
 }
 
 declare interface SourceData {
