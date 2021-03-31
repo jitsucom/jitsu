@@ -12,6 +12,7 @@ import { SourceFormConfig } from './SourceFormConfig';
 import { SourceFormCollections } from './SourceFormCollections';
 import { SourceFormDestinations } from './SourceFormDestinations';
 // @Icons
+import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
 import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
@@ -27,6 +28,7 @@ interface Tab {
   form: FormInstance;
   getComponent: (form: FormInstance) => JSX.Element;
   errorsCount: number;
+  isActive: boolean;
 }
 
 interface TabsMap {
@@ -38,16 +40,14 @@ const sourceFormCleanFunctions = {
     result += tabs[key].errorsCount;
     return result;
   }, 0),
-  getErrors: (tabs: TabsMap) => (<ul>
-    {Object
-      .keys(tabs)
-      .reduce((result: React.ReactNode[], key: string) => {
-        if (tabs[key].errorsCount > 0) {
-          result.push(<li key={key}>{tabs[key].errorsCount} error(s) at `{tabs[key].name}` tab;</li>)
-        }
+  getErrors: (tabs: TabsMap, tabsKeys: string[]) => (<ul>
+    {tabsKeys.reduce((result: React.ReactNode[], key: string) => {
+      if (tabs[key].errorsCount > 0) {
+        result.push(<li key={key}>{tabs[key].errorsCount} error(s) at `{tabs[key].name}` tab;</li>)
+      }
 
-        return result;
-      }, [])}
+      return result;
+    }, [])}
   </ul>),
   getTabName: (currentTab: Tab) => currentTab.errorsCount === 0
     ? currentTab.name
@@ -66,47 +66,39 @@ const SourceForm = ({
 
   const forceUpdate = useForceUpdate();
 
-  const [connectionTestPending, setConnectionTestPending] = useState<boolean>();
+  const [isVisiblePopover, switchIsVisiblePopover] = useState<boolean>(false);
+  const [isVisibleTestConnectionPopover, switchIsVisibleTestConnectionPopover] = useState<boolean>(false);
+  const [connectionTestPending, setConnectionTestPending] = useState<boolean>(false);
 
-  const mutableRefObject = useRef<{ tabs: TabsMap; submitOnce: boolean; }>({
+  const mutableRefObject = useRef<{ tabs: TabsMap; submitOnce: boolean; connectedOnce: boolean; }>({
     tabs: {
       config: {
         name: 'Config',
         form: Form.useForm()[0],
         getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} sourceIdMustBeUnique={formMode === 'create'} />,
-        errorsCount: 0
+        errorsCount: 0,
+        isActive: true
       },
       collections: {
         name: 'Collections',
         form: Form.useForm()[0],
-        getComponent: (form: FormInstance) => <SourceFormCollections initialValues={initialValues} connectorSource={connectorSource} form={form} />,
-        errorsCount: 0
+        getComponent: (form: FormInstance) => <SourceFormCollections reportPrefix={connectorSource.id} initialValues={initialValues} connectorSource={connectorSource} form={form} />,
+        errorsCount: 0,
+        isActive: connectorSource.collectionParameters.length > 0
       },
       destinations: {
         name: 'Destinations',
         form: Form.useForm()[0],
-        getComponent: () => <SourceFormDestinations initialValues={initialValues} />,
-        errorsCount: 0
+        getComponent: (form: FormInstance) => <SourceFormDestinations initialValues={initialValues} form={form} />,
+        errorsCount: 0,
+        isActive: true
       }
     },
-    submitOnce: false
+    submitOnce: false,
+    connectedOnce: false
   });
 
   const services = useMemo(() => ApplicationServices.get(), []);
-
-  const handleTestConnectionClick = useCallback(async() => {
-    setConnectionTestPending(true);
-
-    try {
-      await services.backendApiClient.post('sources/test', {});
-
-      message.success('Successfully connected!');
-    } catch (error) {
-      handleError(error, 'Unable to test connection with filled data');
-    } finally {
-      setConnectionTestPending(false);
-    }
-  }, [services]);
 
   const handleTabSubmit = useCallback(async(key: string) => {
     const currentTab = mutableRefObject.current.tabs[key];
@@ -120,10 +112,14 @@ const SourceForm = ({
         ...mutableRefObject.current.tabs,
         [key]: tabToUpdate
       };
+
+      throw errors;
     }
   }, []);
 
-  const handleSubmit = useCallback(() => {
+  const handleFormSubmit = useCallback(() => {
+    switchIsVisiblePopover(true);
+
     mutableRefObject.current.submitOnce = true;
 
     Promise
@@ -140,10 +136,37 @@ const SourceForm = ({
   const handleFormValuesChange = useCallback(() => {
     if (mutableRefObject.current.submitOnce) {
       Promise.all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key))).then(() => forceUpdate());
+    } else if (mutableRefObject.current.connectedOnce) {
+      handleTabSubmit('config').then(() => forceUpdate());
     }
   }, [forceUpdate, handleTabSubmit]);
 
   const handleCancel = useCallback(() => history.push(routes.root), [history]);
+
+  const handlePopoverClose = useCallback(() => switchIsVisiblePopover(false), []);
+  const handleTestConnectionPopoverClose = useCallback(() => switchIsVisibleTestConnectionPopover(false), []);
+
+  const handleTestConnectionClick = useCallback(async() => {
+    setConnectionTestPending(true);
+
+    mutableRefObject.current.connectedOnce = true;
+
+    try {
+      await handleTabSubmit('config');
+
+      try {
+        await services.backendApiClient.post('sources/test', {});
+
+        message.success('Successfully connected!');
+      } catch(e) {
+        handleError(e, 'Service is temporary unavailable');
+      }
+    } catch (error) {
+      handleError(error, 'Unable to test connection with filled data');
+    } finally {
+      setConnectionTestPending(false);
+    }
+  }, [handleTabSubmit, services]);
 
   return (
     <>
@@ -151,15 +174,17 @@ const SourceForm = ({
         <Tabs defaultActiveKey="config" type="card" size="middle" className={styles.sourceTabs}>
           {
             Object.keys(mutableRefObject.current.tabs).map(key => {
-              const { form, getComponent } = mutableRefObject.current.tabs[key];
+              const { form, getComponent, isActive } = mutableRefObject.current.tabs[key];
 
-              return (
-                <React.Fragment key={key}>
-                  <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
-                    <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
-                  </Tabs.TabPane>
-                </React.Fragment>
-              );
+              return isActive
+                ? (
+                  <React.Fragment key={key}>
+                    <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
+                      <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
+                    </Tabs.TabPane>
+                  </React.Fragment>
+                )
+                : null;
             })
           }
         </Tabs>
@@ -167,10 +192,10 @@ const SourceForm = ({
 
       <div className="flex-shrink border-t pt-2">
         <Popover
-          content={sourceFormCleanFunctions.getErrors(mutableRefObject.current.tabs)}
-          title={`${capitalize(formMode)} source form errors:`}
+          content={sourceFormCleanFunctions.getErrors(mutableRefObject.current.tabs, Object.keys(mutableRefObject.current.tabs))}
+          title={<p className={styles.popoverTitle}><span>{capitalize(formMode)} source form errors:</span> <CloseOutlined onClick={handlePopoverClose} /></p>}
           trigger="click"
-          visible={mutableRefObject.current.submitOnce && sourceFormCleanFunctions.getErrorsCount(mutableRefObject.current.tabs) > 0}
+          visible={isVisiblePopover && sourceFormCleanFunctions.getErrorsCount(mutableRefObject.current.tabs) > 0}
         >
           <Button
             key="pwd-login-button"
@@ -179,20 +204,27 @@ const SourceForm = ({
             size="large"
             className="mr-3"
             loading={isRequestPending}
-            onClick={handleSubmit}
+            onClick={handleFormSubmit}
           >
             <span style={{ textTransform: 'capitalize' }}>{formMode}</span>&nbsp;source
           </Button>
         </Popover>
 
-        <Button
-          size="large"
-          className="mr-3"
-          type="dashed"
-          loading={connectionTestPending}
-          onClick={handleTestConnectionClick}
-          icon={<ApiOutlined/>}
-        >Test connection</Button>
+        <Popover
+          content={sourceFormCleanFunctions.getErrors(mutableRefObject.current.tabs, ['config'])}
+          title={<p className={styles.popoverTitle}><span>Config form errors:</span> <CloseOutlined onClick={handleTestConnectionPopoverClose} /></p>}
+          trigger="click"
+          visible={isVisibleTestConnectionPopover && mutableRefObject.current.tabs.config.errorsCount > 0}
+        >
+          <Button
+            size="large"
+            className="mr-3"
+            type="dashed"
+            loading={connectionTestPending}
+            onClick={handleTestConnectionClick}
+            icon={<ApiOutlined/>}
+          >Test connection</Button>
+        </Popover>
 
         <Button
           type="default"

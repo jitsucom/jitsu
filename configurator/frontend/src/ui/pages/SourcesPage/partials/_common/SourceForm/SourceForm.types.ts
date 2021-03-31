@@ -28,6 +28,11 @@ export interface SourceFormConfigFieldProps {
   required: boolean;
   type: string; // 'string' | 'json' | 'int' | 'yaml';
   documentation?: React.ReactNode;
+  typeOptions?: {
+    maxOptions: number;
+    options: Array<{ displayName: string; id: string; }>;
+  };
+  preselectedTypeOption: string;
 }
 
 export interface SourceFormConfigProps {
@@ -38,18 +43,20 @@ export interface SourceFormConfigProps {
 }
 
 export interface SourceFormCollectionsProps {
-  form: FormInstance;
+  form: FormInstance<{ collections: CollectionSource[] }>;
   initialValues: SourceData;
   connectorSource: SourceConnector;
+  reportPrefix?: string;
 }
 
 export interface SourceFormCollectionsFieldProps {
   collection: CollectionParameter;
   field: FormListFieldData;
-  initialFieldValue: CollectionSource;
+  initialValue: any;
   documentation?: React.ReactNode;
 }
 
 export interface SourceFormDestinationsProps {
   initialValues: SourceData;
+  form: FormInstance<{ destinations: string[]; }>;
 }

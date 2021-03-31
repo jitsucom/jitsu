@@ -1,6 +1,7 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
 import { Button, Dropdown, List, message } from 'antd';
+import { snakeCase } from 'lodash';
 // @Components
 import { ConnectorsCatalog } from '../_common/ConnectorsCatalog';
 import { SourcesListItem } from './SourcesListItem';
@@ -12,7 +13,7 @@ import ApplicationServices from '@service/ApplicationServices';
 import { SourceConnector } from '@connectors/types';
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
-import './SourcesListItem.module.less';
+import styles from './SourcesList.module.less';
 // @Sources
 import { allSources } from '@connectors/sources';
 
@@ -24,7 +25,7 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
       allSources.reduce(
         (accumulator: { [key: string]: SourceConnector }, current: SourceConnector) => ({
           ...accumulator,
-          [current.id]: current
+          [snakeCase(current.id)]: current
         }),
         {}
       ),
@@ -46,19 +47,17 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
 
   return (
     <>
-      <div className="sources-list__header">
-        <Dropdown trigger={['click']} overlay={<ConnectorsCatalog />}>
-          <Button type="primary" icon={<PlusOutlined />}>
-            Add source
-          </Button>
-        </Dropdown>
-      </div>
-
       {sources?.length > 0
-        ? (
+        ? <>
+          <div className="mb-5">
+            <Dropdown trigger={['click']} overlay={<ConnectorsCatalog />}>
+              <Button type="primary" icon={<PlusOutlined />}>Add source</Button>
+            </Dropdown>
+          </div>
+
           <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
             {sources.map((source) => {
-              const sourceProto = sourcesMap[source.sourceId];
+              const sourceProto = sourcesMap[source.sourceType];
 
               return (
                 <SourcesListItem
@@ -70,8 +69,15 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
               );
             })}
           </List>
-        ) :
-        <div>No data</div>
+        </>
+        : <div className={styles.empty}>
+          <h3 className="text-2xl">Sources list is still empty</h3>
+          <div>
+            <Dropdown placement="bottomCenter" trigger={['click']} overlay={<ConnectorsCatalog />}>
+              <Button type="primary" size="large" icon={<PlusOutlined />}>Add source</Button>
+            </Dropdown>
+          </div>
+        </div>
       }
     </>
   );
