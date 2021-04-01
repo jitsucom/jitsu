@@ -12,6 +12,7 @@ import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 import { CollectionParameter } from '@catalog/sources/types';
 import { SourceFormCollectionsProps as Props } from './SourceForm.types';
 import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
+import { COLLECTIONS_SCHEDULES } from '@./constants/schedule';
 
 const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, form }: Props) => {
   const [chosenTypes, setChosenTypes] = useState<{ [key: number]: string }>(
@@ -94,6 +95,16 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
     [initialValues, connectorSource.collectionTypes]
   );
 
+  const getCollectionScheduleValue = useCallback((index: number) => {
+    const initial = initialValues.collections?.[index]?.schedule;
+
+    if (initial) {
+      return initial;
+    }
+
+    return COLLECTIONS_SCHEDULES[0].value;
+  }, [initialValues]);
+
   const updatedInitialValues = useMemo(() => {
     if (initialValues.collections) {
       return initialValues.collections;
@@ -158,7 +169,7 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
                   <Row>
                     <Col span={16}>
                       <Form.Item
-                        // initialValue={getCollectionTypeValue(field.key)}
+                        initialValue={getCollectionScheduleValue(field.key)}
                         name={[field.name, 'schedule']}
                         className="form-field_fixed-label"
                         label="Schedule:"
@@ -167,8 +178,11 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
                         rules={[{ required: true, message: 'You have to choose schedule' }]}
                       >
                         <Select>
-                          <Select.Option value="*/5 * * * *">5 minutes</Select.Option>
-                          <Select.Option value="@hourly">1 hour</Select.Option>
+                          {
+                            COLLECTIONS_SCHEDULES.map((option) =>
+                              <Select.Option value={option.value} key={option.value}>{option.label}</Select.Option>
+                            )
+                          }
                         </Select>
                       </Form.Item>
                     </Col>
