@@ -188,9 +188,12 @@ export default function DestinationsList() {
         </Button>
       </Dropdown>
     )} split={true}>
-      {destinations.map((config) => <DestinationRow config={config}
+      {destinations.map((config) => <DestinationRow
+          key={config.id}
+                                                    config={config}
                                                     destinations={destinations}
-                                                    onChange={updateDestinations}/>)}
+                                                    onChange={updateDestinations}
+      />)}
     </List>
   ];
 
