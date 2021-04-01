@@ -25,5 +25,5 @@ export type DestinationUI = {
      * Renders connect command for CLI interface
      * @param cfg destination configuration object
      */
-    connectCmd: (cfg: object) => string
+    connectCmd: (cfg: any) => string
 }

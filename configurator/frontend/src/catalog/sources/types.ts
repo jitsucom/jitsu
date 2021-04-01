@@ -35,6 +35,17 @@ export const yamlType: ParameterType<string> = {
   typeName: 'yaml'
 }
 
+export const passwordType: ParameterType<string> = {
+  typeName: 'password'
+}
+
+
+export const arrayOf = <T>(param: ParameterType<T>): ParameterType<T[]> => {
+  return {
+    typeName: 'array/' + param.typeName
+  }
+}
+
 /**
  * YYYY-MM-DD
  */

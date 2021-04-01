@@ -1,6 +1,6 @@
 import { Destination } from '../types';
 import { modeParameter, tableName } from './common';
-import { intType, stringType } from '../../sources/types';
+import { intType, stringType, passwordType } from '../../sources/types';
 
 const icon = <svg height="64" viewBox="0 0 25.6 25.6" width="64" xmlns="http://www.w3.org/2000/svg">
   <g fill="none" stroke="#fff">
@@ -88,7 +88,7 @@ const postgresDestination: Destination = {
       id: '_formData.pgpassword',
       displayName: 'Schema',
       required: true,
-      type: stringType
+      type: passwordType
     }
   ]
 
