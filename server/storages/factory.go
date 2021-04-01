@@ -157,6 +157,8 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		}
 	}
 
+	logging.Infof("[%s] uses max_columns setting: %d", name, maxColumns)
+
 	if tableName == "" {
 		tableName = defaultTableName
 		logging.Infof("[%s] uses default table name: %s", name, tableName)
