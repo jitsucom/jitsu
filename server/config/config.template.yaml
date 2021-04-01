@@ -231,7 +231,6 @@ destinations:
 #    google_analytics:
 #      tracking_id: UA-121905385-1
 #    data_layout:
-#      max_columns: 100 # Optional. The limit of the count of columns.
 #      mappings: #Actual working mappings list
 #        keep_unmapped: false
 #        fields:
