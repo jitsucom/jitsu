@@ -43,9 +43,14 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 		for _, source := range sourcesEntity.Sources {
 			sourceID := projectID + "." + source.SourceID
 
+			var destinations []string
+			for _, destinationID := range source.Destinations {
+				destinations = append(destinations, projectID+"."+destinationID)
+			}
+
 			idConfig[sourceID] = endrivers.SourceConfig{
 				Type:         source.SourceType,
-				Destinations: source.Destinations,
+				Destinations: destinations,
 				Collections:  source.Collections,
 				Config:       source.Config,
 			}

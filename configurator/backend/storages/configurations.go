@@ -194,12 +194,12 @@ func (cs *ConfigurationsService) GetSourcesLastUpdated() (*time.Time, error) {
 
 //GetSources return map with projectID:sources
 func (cs ConfigurationsService) GetSources() (map[string]*entities.Sources, error) {
-	allDestinations, err := cs.storage.GetAllGroupedByID(sourcesCollection)
+	allSources, err := cs.storage.GetAllGroupedByID(sourcesCollection)
 	if err != nil {
 		return nil, err
 	}
 	result := map[string]*entities.Sources{}
-	err = json.Unmarshal(allDestinations, &result)
+	err = json.Unmarshal(allSources, &result)
 	if err != nil {
 		return nil, err
 	}

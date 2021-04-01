@@ -28,5 +28,5 @@ func getHash(ID string, source drivers.SourceConfig) string {
 		return ""
 	}
 
-	return resources.GetHash(b)
+	return resources.GetBytesHash(b)
 }
