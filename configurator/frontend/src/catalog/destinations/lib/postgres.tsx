@@ -51,7 +51,7 @@ const postgresDestination: Destination = {
       constant: 'PostgresConfig'
     },
     modeParameter('stream'),
-    tableName,
+    tableName(),
     {
       id: '_formData.pghost',
       displayName: 'Host',
