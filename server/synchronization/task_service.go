@@ -96,6 +96,7 @@ func (ts *TaskService) ScheduleSyncFunc(source, collection string, retryCount in
 		}
 
 		logging.Errorf("[%s_%s] Error scheduling sync: %v", source, collection, err)
+		return
 	}
 
 	logging.Infof("[%s_%s] sync has been scheduled! task id: %s", source, collection, taskID)
