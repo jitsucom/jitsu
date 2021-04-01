@@ -1,6 +1,6 @@
 import { Destination } from '../types';
 import { modeParameter, s3Credentials, tableName } from './common';
-import { arrayOf, intType, stringType, passwordType } from '../../sources/types';
+import { arrayOf, intType, stringType, passwordType, booleanType } from '../../sources/types';
 import * as React from 'react';
 
 const icon = <svg enableBackground="new 0 0 1615 1783.7" viewBox="0 0 1615 1783.7" xmlns="http://www.w3.org/2000/svg">
@@ -55,6 +55,11 @@ const destination: Destination = {
       displayName: 'Password',
       required: true,
       type: passwordType
+    },
+    {
+      id: '_formData.redshiftUseHostedS3',
+      type: booleanType,
+      constant: false
     },
     ...s3Credentials('redshiftS3Region', 'redshiftS3Bucket', 'redshiftS3AccessKey', 'redshiftS3SecretKey', (cfg) => {
       return cfg?._formData?.mode !== 'batch';
