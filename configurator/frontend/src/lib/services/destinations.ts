@@ -282,10 +282,7 @@ export class BQConfig extends DestinationConfig {
   describe(): ConnectionDescription {
     return {
       displayURL: `${this.formData['bqProjectId']}`,
-      commandLineConnect: `echo '${this.formData['bqJSONKey'].replaceAll(
-        '\n',
-        ' '
-      )}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`
+      commandLineConnect: `echo '${this.formData['bqJSONKey'].replaceAll('\n', ' ')}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`
     };
   }
 }

@@ -14,9 +14,9 @@ export const modeParameter = (constValue?: string): Parameter => {
     }
 }
 
-export const tableName = ((): Parameter => {
+export const tableName = (paramName: string = "tableName"): Parameter => {
     return {
-        id: "_formData.tableName",
+        id: `_formData.${paramName}`,
         displayName: "Table Name",
         documentation: <>
             Table name (or table name template)
@@ -25,4 +25,4 @@ export const tableName = ((): Parameter => {
         defaultValue: "events",
         type: stringType
     }
-})();
+};
