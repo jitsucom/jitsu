@@ -20,7 +20,7 @@ export type DestinationUI = {
      * Renders title
      * @param cfg destination configuration object
      */
-    title: (cfg: object) => ReactNode
+    title: (cfg: any) => ReactNode
     /**
      * Renders connect command for CLI interface
      * @param cfg destination configuration object
