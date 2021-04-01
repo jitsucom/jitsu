@@ -31,9 +31,8 @@ Pass external configuration to **EventNative** with or without basic auth:
 #or in docker deployments
 
 docker run -p <local_port>:8001 \
-  -v /<log_dir>/:/home/eventnative/logs/events/ \
   -e CONFIG_LOCATION='https://username:password@config-server.com?env=prod' \
-  ksense/eventnative:beta
+  jitsucom/server:beta
 ```
 
 <Hint>
@@ -50,8 +49,7 @@ Pass raw JSON payload to **EventNative**:
 #or in docker deployments
 
 docker run -p <local_port>:8001 \
-  -v /<log_dir>/:/home/eventnative/logs/events/ \
   -e CONFIG_LOCATION='{"server":{"name":"test_instance", "auth":"token1"}}' \
-  ksense/eventnative:beta
+  jitsucom/server:beta
 ```
 
