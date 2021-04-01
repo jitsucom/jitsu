@@ -39,6 +39,9 @@ export const passwordType: ParameterType<string> = {
   typeName: 'password'
 }
 
+export const booleanType: ParameterType<boolean> = {
+  typeName: 'boolean'
+}
 
 export const arrayOf = <T>(param: ParameterType<T>): ParameterType<T[]> => {
   return {
