@@ -141,8 +141,8 @@ func (rs *RecognitionService) start() {
 					}
 				}
 
-				// But if some property recognized - it is needed to update all other anonimous events
-				if identifiers.IsAnyProperty() {
+				// Run pipeline only if all properties were recognized - it is needed to update all other anonimous events
+				if identifiers.IsAllProperties() {
 					err = rs.runPipeline(destinationID, identifiers)
 					if err != nil {
 						logging.SystemErrorf("[%s] Error running recognizing pipeline: %v", destinationID, err)

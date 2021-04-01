@@ -78,16 +78,12 @@ func (ur *UsersRecognition) Validate() error {
 			return errors.New("anonymous_id_node is required")
 		}
 
-		if 0 == len(ur.PropertyNodes) {
+		if len(ur.PropertyNodes) == 0 {
 			if ur.UserIDNode == "" {
 				return errors.New("identification_nodes is required")
 			} else {
 				logging.Warn("user_id_node is deprecated. Please use identification_nodes instead")
 				ur.PropertyNodes = []string{ur.UserIDNode}
-			}
-		} else {
-			if ur.UserIDNode != "" {
-				logging.Warn("user_id_node is deprecated. Please use identification_nodes instead")
 			}
 		}
 	}
