@@ -316,7 +316,7 @@ func main() {
 	appconfig.Instance.ScheduleClosing(cronScheduler)
 
 	//Create sources
-	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage, cronScheduler)
+	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), viper.GetString(sourcesKey), destinationsService, metaStorage, cronScheduler)
 	if err != nil {
 		logging.Fatal("Error creating sources service:", err)
 	}

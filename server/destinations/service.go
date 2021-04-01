@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"github.com/mitchellh/hashstructure/v2"
 )
 
 const serviceName = "destinations"
@@ -45,8 +44,6 @@ type Service struct {
 	consumersByTokenID      TokenizedConsumers
 	storagesByTokenID       TokenizedStorages
 	destinationsIDByTokenID TokenizedIDs
-	
-	destinationsHashOpts *hashstructure.HashOptions
 }
 
 //only for tests
@@ -70,8 +67,6 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 		consumersByTokenID:      map[string]map[string]events.Consumer{},
 		storagesByTokenID:       map[string]map[string]storages.StorageProxy{},
 		destinationsIDByTokenID: map[string]map[string]bool{},
-
-		destinationsHashOpts: &hashstructure.HashOptions{SlicesAsSets: true},
 	}
 
 	reloadSec := viper.GetInt("server.destinations_reload_sec")
@@ -159,7 +154,7 @@ func (s *Service) updateDestinations(payload []byte) {
 	s.init(dc)
 
 	if len(s.unitsByName) == 0 {
-		logging.Errorf("Destinations are empty")
+		logging.Error("Destinations are empty")
 	}
 }
 
@@ -201,7 +196,12 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIDs()
 		}
 
-		hash := getHash(name, s.destinationsHashOpts, destinationConfig)
+		hash, err := resources.GetHash(destinationConfig)
+		if err != nil {
+			logging.SystemErrorf("Error getting hash from [%s] destination: %v. Destination will be skipped!", name, err)
+			continue
+		}
+
 		unit, ok := s.unitsByName[name]
 		if ok {
 			if unit.hash == hash {
