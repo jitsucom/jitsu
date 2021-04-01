@@ -46,9 +46,9 @@
 @text-color-secondary: @secondaryText; // secondary text color
 @disabled-color: @disabled; // disable state color
 @border-color-base: @secondaryBorder; // major border color
-@divider-color: @secondaryBorder;
 
 @border-radius-base: 6px;
+
 
 @font-size-base: 14px; // major text font size
 @box-shadow-base: 0 3px 6px -4px rgba(0, 0, 0, 0.12), 0 6px 16px 0 rgba(0, 0, 0, 0.08), 0 9px 28px 8px rgba(0, 0, 0, 0.05); // major shadow for layers
@@ -60,22 +60,6 @@
 
 @font-monospace: 'Source Code Pro', monospace;
 
-
-.ant-select-disabled.ant-select:not(.ant-select-customize-input) .ant-select-selector {
-  background-color: rgba(255, 255, 255, 0.08) !important;
-}
-
-.ant-select-item-option-selected {
-  background-color: transparent !important;
-
-  &::before {
-    content: "✓\00a0";
-  }
-}
-
-.ant-select-item-option-active {
-  background-color: @bgSecondary !important;
-}
 
 //body {
 //  font-family: @font-main;

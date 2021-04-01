@@ -24,17 +24,13 @@
     "@typescript-eslint"
   ],
   "rules": {
-    "comma-dangle": ["error", "never"],
     "indent": ["error", 2],
     "lines-between-class-members": ["error", "always"],
     "jsx-quotes": ["error", "prefer-double"],
-    "multiline-ternary": ["error", "always"],
     "no-extra-parens": ["error", "all", { "ignoreJSX": "multi-line" }],
     "no-multiple-empty-lines": ["error", { "max":  1 }],
-    "no-trailing-spaces": ["error"],
     "object-curly-spacing": ["error", "always"],
     "quote-props": ["error", "as-needed"],
-    "quotes": ["error", "single", { "allowTemplateLiterals": true, "avoidEscape": true }],
     "semi-spacing": ["error", {"before": false, "after": true}],
     "space-before-function-paren": ["error", "never"]
   }

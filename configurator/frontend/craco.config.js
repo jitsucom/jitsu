@@ -1,9 +1,8 @@
 const path = require('path');
 const CracoLessPlugin = require('craco-less');
-const BundleAnalyzerPlugin = require('webpack-bundle-analyzer').BundleAnalyzerPlugin
+const BundleAnalyzerPlugin = require("webpack-bundle-analyzer") .BundleAnalyzerPlugin
 const CracoAntDesignPlugin = require('craco-antd');
 const TerserPlugin = require('terser-webpack-plugin');
-const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 const webpack = require('webpack');
 const DEV_PORT = '9876';
 const DEV_HOST = 'localhost.jitsu.com';
@@ -34,14 +33,9 @@ module.exports = {
       /**
        * Once alias added here, it should be added to tsconfig.paths.json as well
        */
-      '@.': path.resolve(__dirname, './src/'),
       '@atom': path.resolve(__dirname, './src/ui/components/atom'),
       '@molecule': path.resolve(__dirname, './src/ui/components/molecule'),
-      '@page': path.resolve(__dirname, './src/ui/pages'),
-      '@catalog': path.resolve(__dirname, './src/catalog'),
-      '@service': path.resolve('./src/lib/services/'),
-      '@util': path.resolve(__dirname, './src/utils'),
-      '@hooks': path.resolve(__dirname, './src/hooks')
+      '@page': path.resolve(__dirname, './src/ui/pages')
     },
     plugins: [
       new webpack.DefinePlugin({
@@ -61,9 +55,6 @@ module.exports = {
         analyzerMode: 'static',
         openAnalyzer: false,
         reportFilename: 'bundle-report.html'
-      }),
-      new MonacoWebpackPlugin({
-        languages: ['json']
       })
     ],
     configure: (webpackConfig, { env, paths }) => {
@@ -104,7 +95,7 @@ module.exports = {
         cssLoaderOptions: {
           modules: { localIdentName: '[local]_[hash:base64:5]' }
         },
-        modifyLessRule: function(lessRule, _context) {
+        modifyLessRule: function (lessRule, _context) {
           lessRule.test = /\.(module)\.(less)$/;
           lessRule.exclude = path.join(__dirname, 'node_modules');
           return lessRule;

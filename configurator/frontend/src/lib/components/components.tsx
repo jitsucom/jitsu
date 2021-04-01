@@ -32,7 +32,7 @@ export function Preloader(props: IPreloaderProps) {
   //in pre-react boot loader
   return (
     <div style={{}} className="preloader-wrapper">
-      <img src="/boot/loading.gif" alt="[loading]" className="preloader-image" />
+      <img src="boot/loading.gif" alt="[loading]" className="preloader-image" />
       <div className="preloader-text">{text}</div>
     </div>
   );
@@ -40,8 +40,8 @@ export function Preloader(props: IPreloaderProps) {
 
 const DEFAULT_ERROR_TEXT = (
   <p>
-    The application has crashed :( We are making everything possible to fix the situation ASAP. Please, contact us at
-    support@jitsu.com. Useful information may be found in developer console
+    The application has crashed :( We are making everything possible to fix the situation ASAP. Please, contact us at support@jitsu.com. Useful information may
+    be found in developer console
   </p>
 );
 
@@ -67,11 +67,7 @@ export function CenteredError({ error }) {
   return <div className="common-centered-spin">Error: {error?.message ? error.message : 'Unknown error'}</div>;
 }
 
-export function LabelWithTooltip(props: {
-  children?: React.ReactNode;
-  documentation: React.ReactNode;
-  className?: string;
-}) {
+export function LabelWithTooltip(props: { children?: React.ReactNode; documentation: React.ReactNode; className?: string }) {
   return (
     <span className={'label-with-tooltip' + (props.className ? ' ' + props.className : '')}>
       {props.children ? props.children : ''}&nbsp;
@@ -239,11 +235,7 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
       return LoadableComponent.error(this.state['__errorObject']);
     } else {
       try {
-        return (
-          <div className={this.state['__doNotFadeIn'] === true ? '' : 'common-component-fadein'}>
-            {this.renderReady()}
-          </div>
-        );
+        return <div className={this.state['__doNotFadeIn'] === true ? '' : 'common-component-fadein'}>{this.renderReady()}</div>;
       } catch (e) {
         console.error('Error rendering state', e);
         return LoadableComponent.error(e);
@@ -407,11 +399,7 @@ export function CodeSnippet(props: ICodeSnippetProps) {
     </Row>
   );
 
-  let classes = [
-    'code-snippet-wrapper-' + toolBarPos,
-    'code-snippet-wrapper',
-    props.size === 'large' ? 'code-snippet-large' : 'code-snippet-small'
-  ];
+  let classes = ['code-snippet-wrapper-' + toolBarPos, 'code-snippet-wrapper', props.size === 'large' ? 'code-snippet-large' : 'code-snippet-small'];
   if (props.className) {
     classes.push(props.className);
   }

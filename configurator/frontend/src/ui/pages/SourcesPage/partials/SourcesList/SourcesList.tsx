@@ -1,31 +1,30 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
 import { Button, Dropdown, List, message } from 'antd';
-import { snakeCase } from 'lodash';
+import { unset, cloneDeep } from 'lodash';
 // @Components
 import { ConnectorsCatalog } from '../_common/ConnectorsCatalog';
 import { SourcesListItem } from './SourcesListItem';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
+import ApplicationServices from '../../../../../lib/services/ApplicationServices';
 // @Types
-import { SourceConnector } from '../../../../../catalog/sources/types';
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
-import styles from './SourcesList.module.less';
-// @Sources
-import { allSources } from '@catalog/sources/lib';
+import './SourcesList.less';
+// @hardcoded data
+import allSourcesList from '../../../../../_temp';
 
-const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
+const SourcesList = ({ userUid, sources, setSources }: CommonSourcePageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
 
   const sourcesMap = useMemo(
     () =>
-      allSources.reduce(
-        (accumulator: { [key: string]: SourceConnector }, current: SourceConnector) => ({
+      allSourcesList.reduce(
+        (accumulator: any, current: any) => ({
           ...accumulator,
-          [snakeCase(current.id)]: current
+          [current.id]: current
         }),
         {}
       ),
@@ -34,55 +33,49 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
 
   const handleDeleteSource = useCallback(
     (sourceId: string) => {
-      const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
+      const updatedSources = cloneDeep(sources);
+      unset(updatedSources, sourceId);
 
-      services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
-        setSources({ sources: updatedSources });
+      services.storageService.save('sources', updatedSources, userUid).then(() => {
+        setSources(updatedSources);
 
         message.success('Sources list successfully updated');
       });
     },
-    [sources, setSources, services.storageService, projectId]
+    [sources, setSources, services.storageService, userUid]
   );
 
   return (
     <>
-      {sources?.length > 0
-        ? <>
-          <div className="mb-5">
-            <Dropdown trigger={['click']} overlay={<ConnectorsCatalog />}>
-              <Button type="primary" icon={<PlusOutlined />}>Add source</Button>
-            </Dropdown>
-          </div>
+      <div className="sources-list__header">
+        <Dropdown trigger={['click']} overlay={<ConnectorsCatalog />}>
+          <Button type="primary" icon={<PlusOutlined />}>
+            Add source
+          </Button>
+        </Dropdown>
+      </div>
 
-          <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
-            {sources.map((source) => {
-              const sourceProto = sourcesMap[source.sourceType];
+      {Object.keys(sources).length > 0 ? (
+        <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
+          {Object.keys(sources).map((sourceId) => {
+            const _current = sources[sourceId];
+            const sourceProto = sourcesMap[_current.sourceType];
 
-              return (
-                <SourcesListItem
-                  handleDeleteSource={handleDeleteSource}
-                  sourceProto={sourceProto}
-                  sourceId={source.sourceId}
-                  key={source.sourceId}
-                />
-              );
-            })}
-          </List>
-        </>
-        : <div className={styles.empty}>
-          <h3 className="text-2xl">Sources list is still empty</h3>
-          <div>
-            <Dropdown placement="bottomCenter" trigger={['click']} overlay={<ConnectorsCatalog />}>
-              <Button type="primary" size="large" icon={<PlusOutlined />}>Add source</Button>
-            </Dropdown>
-          </div>
-        </div>
-      }
+            return (
+              <SourcesListItem
+                handleDeleteSource={handleDeleteSource}
+                sourceProto={sourceProto}
+                sourceId={sourceId}
+                key={sourceId}
+              />
+            );
+          })}
+        </List>
+      ) : (
+        <div>No data</div>
+      )}
     </>
   );
 };
-
-SourcesList.displayName = 'SourcesList';
 
 export { SourcesList };

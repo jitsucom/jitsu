@@ -1,37 +1,38 @@
 // @Libs
 import React, { useCallback, useMemo, useState } from 'react';
 import { message } from 'antd';
-import { NavLink, useHistory } from 'react-router-dom';
-import { set, snakeCase } from 'lodash';
+import { set } from 'lodash';
 // @Components
 import { SourceForm } from './SourceForm';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
-// @Routes
+import ApplicationServices from '../../../../../../lib/services/ApplicationServices';
+import { Link } from 'react-router-dom';
 import { routes } from '@page/SourcesPage/routes';
-// @Types
+import ArrowLeftOutlined from '@ant-design/icons/lib/icons/ArrowLeftOutlined';
 import { FormWrapProps } from '@page/SourcesPage/partials/_common/SourceForm/SourceForm.types';
 
-const SourceFormWrap = ({
-  sources = [],
-  connectorSource,
-  projectId,
-  sourceData = {} as SourceData,
-  formMode = 'create',
-  setSources
-}: FormWrapProps) => {
-  const history = useHistory();
-
+const SourceFormWrap = ({ sources, connectorSource, userUid, sourceData = {}, formMode = 'create' }: FormWrapProps) => {
   const [isPending, switchPending] = useState(false);
 
   const services = useMemo(() => ApplicationServices.get(), []);
 
   const handleFinish = useCallback(
-    ({ collections, ...rest }: SourceData) => {
+    ({ collections, ...rest }: any) => {
       switchPending(true);
 
-      const createdSourceData = {
-        sourceType: snakeCase(connectorSource.id),
+      const payload = {
+        sourceType: connectorSource.id,
+        collections: collections.map((collection: any) => ({
+          name: collection.name,
+          type: collection.type,
+          parameters: connectorSource.collectionParameters.reduce(
+            (accumulator: any, current: any) => ({
+              ...accumulator,
+              [current.id]: collection[current.id]
+            }),
+            {}
+          )
+        })),
         ...Object.keys(rest).reduce((accumulator: any, current: any) => {
           if (rest[current]) {
             set(accumulator, current, rest[current]);
@@ -41,59 +42,36 @@ const SourceFormWrap = ({
         }, {})
       };
 
-      if (collections) {
-        createdSourceData.collections = collections.map((collection: any) => ({
-          name: collection.name,
-          type: collection.type,
-          schedule: collection.schedule,
-          parameters: connectorSource.collectionParameters.reduce((accumulator: any, current: any) => {
-            return {
-              ...accumulator,
-              [current.id]: collection[current.id]
-            };
-          }, {})
-        }));
-      }
-
-      const payload = {
-        sources: formMode === 'edit'
-          ? sources.reduce((accumulator: SourceData[], current: SourceData) => [
-            ...accumulator,
-            current.sourceId !== rest.sourceId
-              ? current
-              : createdSourceData
-          ], [])
-          : [...sources, createdSourceData]
-      };
-
       services.storageService
         .save(
           'sources',
-          payload,
-          projectId
+          {
+            ...sources,
+            [payload.sourceId]: payload
+          },
+          userUid
         )
-        .then((response) => {
-          setSources(payload);
+        .then(() => {
+          switchPending(false);
 
           message.success('New source has been added!');
-
-          history.push(routes.root);
         })
         .catch((error) => {
           message.error("Something goes wrong, source hasn't been added");
-        })
-        .finally(() => switchPending(false));
+        });
     },
-    [connectorSource.collectionParameters, connectorSource.id, services.storageService, projectId, sources, history, setSources, formMode]
+    [connectorSource.id, connectorSource.collectionParameters, services.storageService, userUid, sources]
   );
 
   return (
-    <div className="add-source flex flex-col items-stretch">
+    <>
+      <p className="add-source__back">
+        <Link className="add-source__back-link" to={routes.root}>
+          <ArrowLeftOutlined className="add-source__back-link-ico" />
+          <span>Back to sources list</span>
+        </Link>
+      </p>
       <div className="add-source__head">
-        <h2 className="add-source__head-base">
-          <NavLink to={routes.root} className="add-source__head-base-link">Sources</NavLink>
-          <span>/</span>
-        </h2>
         <div className="add-source__head-pic">{connectorSource.pic}</div>
         <div className="add-source__head-text">
           <h2 className="add-source__head-text-title">{connectorSource.displayName}</h2>
@@ -106,12 +84,10 @@ const SourceFormWrap = ({
         connectorSource={connectorSource}
         isRequestPending={isPending}
         handleFinish={handleFinish}
-        sources={sources}
+        alreadyExistSources={sources}
       />
-    </div>
+    </>
   );
 };
-
-SourceFormWrap.displayName = 'SourceFormWrap';
 
 export { SourceFormWrap };
