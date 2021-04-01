@@ -1,4 +1,4 @@
-import {ReactNode} from "react";
+import { ReactNode } from 'react';
 
 /**
  * Type of parameter
@@ -20,33 +20,33 @@ export interface ParameterType<T> {
 }
 
 export const stringType: ParameterType<string> = {
-    typeName: "string"
+  typeName: 'string'
 }
 
 export const intType: ParameterType<bigint> = {
-    typeName: "int"
+  typeName: 'int'
 }
 
 export const jsonType: ParameterType<string> = {
-    typeName: "json"
+  typeName: 'json'
 }
 
 export const yamlType: ParameterType<string> = {
-    typeName: "yaml"
+  typeName: 'yaml'
 }
 
 /**
  * YYYY-MM-DD
  */
 export const dashDateType: ParameterType<string> = {
-    typeName: "dashDate"
+  typeName: 'dashDate'
 }
 
 /**
  * ISO_8601 (https://en.wikipedia.org/wiki/ISO_8601) time
  */
 export const isoUtcDateType: ParameterType<string> = {
-    typeName: "isoUtcDate"
+  typeName: 'isoUtcDate'
 }
 
 export interface SelectOption {
@@ -64,20 +64,20 @@ export interface SelectOptionCollection {
 }
 
 export const selectionType = (options: string[], maxOptions?: number): ParameterType<SelectOptionCollection>  => {
-    return {
-        data: {
-            options: options.map((id) => ({displayName: id, id: id})),
-            maxOptions
-        },
-        typeName: "selection",
-    }
+  return {
+    data: {
+      options: options.map((id) => ({ displayName: id, id: id })),
+      maxOptions
+    },
+    typeName: 'selection'
+  }
 }
 
 export type Parameter = {
     /**
      * Display name (for UI)
      */
-    displayName: string
+    displayName?: string
     /**
      * Id (corresponds to key in yaml config)
      */
@@ -85,7 +85,7 @@ export type Parameter = {
     /**
      * Type of parameter
      */
-    type: ParameterType<any>
+    type?: ParameterType<any>
 
     /**
      * Default value (should be displayed by default)
