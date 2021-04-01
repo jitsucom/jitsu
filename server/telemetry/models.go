@@ -8,6 +8,7 @@ type InstanceInfo struct {
 	Tag         string `json:"tag,omitempty"`
 	BuiltAt     string `json:"built_at,omitempty"`
 	ServiceName string `json:"service,omitempty"`
+	RunID       string `json:"run_id,omitempty"`
 }
 
 //Usage is a usage accounting dto
