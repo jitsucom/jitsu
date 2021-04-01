@@ -38,13 +38,14 @@ func NewWebHook(config *Config) (Storage, error) {
 	}
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
-	wbAdapter := adapters.NewWebHookConversion(webHookConfig, requestDebugLogger)
+	wbAdapter := adapters.NewWebHookConversion(webHookConfig, config.httpQueue, requestDebugLogger)
 
 	tableHelper := NewTableHelper(wbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion, config.streamMode)
 
 	wh := &WebHook{
 		name:           config.name,
 		tableHelper:    tableHelper,
+		whAdapter:      wbAdapter,
 		processor:      config.processor,
 		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
 		eventsCache:    config.eventsCache,

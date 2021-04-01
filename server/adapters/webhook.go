@@ -29,16 +29,22 @@ func (whc *WebHookConfig) Validate() error {
 }
 
 type WebHookConversion struct {
-	config *WebHookConfig
+	config      *WebHookConfig
+	httpQueue   *HttpAdapter
+	debugLogger *logging.QueryLogger
 }
 
-func NewWebHookConversion(config *WebHookConfig, requestDebugLogger *logging.QueryLogger) *WebHookConversion {
+func NewWebHookConversion(config *WebHookConfig, httpQueue *HttpAdapter, requestDebugLogger *logging.QueryLogger) *WebHookConversion {
 	return &WebHookConversion{
-		config: config,
+		config:      config,
+		httpQueue:   httpQueue,
+		debugLogger: requestDebugLogger,
 	}
 }
 
 func (wh *WebHookConversion) Send(object map[string]interface{}) error {
+	wh.httpQueue.AddRequest(&Request{})
+
 	return nil
 }
 
