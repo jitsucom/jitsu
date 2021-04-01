@@ -56,7 +56,7 @@ const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsP
             ? <>
               <p>You have to choose at least one destination.</p>
             </>
-            : <p>If you haven't added any destinations yet you can do it <Link to={destinationPageRoutes.root}>here</Link>.</p>
+            : <p>If you haven't added any destinations yet you can do it <Link to="/destinations">here</Link>.</p>
         }
       </article>
 
