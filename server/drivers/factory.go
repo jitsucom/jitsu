@@ -27,7 +27,7 @@ const (
 )
 
 type SourceConfig struct {
-	Name string //without serialization
+	Name string `json:"-"` //without serialization
 
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
@@ -38,8 +38,8 @@ type SourceConfig struct {
 }
 
 type Collection struct {
-	DaysBackToLoad int    //without serialization
-	SourceID       string //without serialization
+	DaysBackToLoad int    `json:"-"` //without serialization
+	SourceID       string `json:"-"` //without serialization
 
 	Name         string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 	Type         string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
