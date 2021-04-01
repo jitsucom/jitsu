@@ -29,9 +29,9 @@ type RecognitionPayload struct {
 
 //EventIdentifiers is used for holding event identifiers
 type EventIdentifiers struct {
-	AnonymousID string
-	EventID     string
-	Properties  []interface{}
+	AnonymousID          string
+	EventID              string
+	IdentificationValues []interface{}
 }
 
 // RecognitionPayloadBuilder creates and returns a new *RecognitionPayload (must be pointer).
@@ -40,18 +40,8 @@ func RecognitionPayloadBuilder() interface{} {
 	return &RecognitionPayload{}
 }
 
-func (ei *EventIdentifiers) IsAnyProperty() bool {
-	for _, value := range ei.Properties {
-		if value != nil {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (ei *EventIdentifiers) IsAllProperties() bool {
-	for _, value := range ei.Properties {
+	for _, value := range ei.IdentificationValues {
 		if value == nil {
 			return false
 		}
@@ -94,9 +84,9 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		destinationService: destinationService,
 		metaStorage:        metaStorage,
 		globalConfiguration: &storages.UserRecognitionConfiguration{
-			Enabled:             configuration.Enabled,
-			AnonymousIDJSONPath: jsonutils.NewJSONPath(configuration.AnonymousIDNode),
-			PropertyJSONPathes:  jsonutils.NewJSONPathArray(configuration.PropertyNodes),
+			Enabled:                  configuration.Enabled,
+			AnonymousIDJSONPath:      jsonutils.NewJSONPath(configuration.AnonymousIDNode),
+			IdentificationJSONPathes: jsonutils.NewJSONPathArray(configuration.IdentificationNodes),
 		},
 		queue: queue,
 	}
@@ -211,12 +201,12 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 
 		anonymousIDStr := fmt.Sprint(anonymousID)
 
-		properties, ok := configuration.PropertyJSONPathes.Get(event)
+		properties, ok := configuration.IdentificationJSONPathes.Get(event)
 
 		identifiers[destinationID] = EventIdentifiers{
-			EventID:     events.ExtractEventID(event),
-			AnonymousID: anonymousIDStr,
-			Properties:  properties,
+			EventID:              events.ExtractEventID(event),
+			AnonymousID:          anonymousIDStr,
+			IdentificationValues: properties,
 		}
 	}
 
@@ -265,10 +255,10 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 			continue
 		}
 
-		err = configuration.PropertyJSONPathes.Set(event, identifiers.Properties)
+		err = configuration.IdentificationJSONPathes.Set(event, identifiers.IdentificationValues)
 		if err != nil {
 			logging.Errorf("[%s] Error setting recognized user id into event: %s with json path rule [%s]: %v",
-				destinationID, storedSerializedEvent, configuration.PropertyJSONPathes.String(), err)
+				destinationID, storedSerializedEvent, configuration.IdentificationJSONPathes.String(), err)
 			continue
 		}
 
@@ -280,7 +270,7 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 
 		// If any property is empty event will be anonymous until filling out that last property.
 		// Removing event from storage is suitable only when all properties are filled out.
-		if configuration.PropertyJSONPathes.IsFullFilled(event) {
+		if configuration.IdentificationJSONPathes.IsFullFilled(event) {
 			err = rs.metaStorage.DeleteAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID)
 			if err != nil {
 				logging.SystemErrorf("[%s] Error deleting stored recognized event [%s]: %v", destinationID, storedEventID, err)

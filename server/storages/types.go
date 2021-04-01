@@ -45,7 +45,7 @@ type StoreResult struct {
 }
 
 type UserRecognitionConfiguration struct {
-	Enabled             bool
-	AnonymousIDJSONPath *jsonutils.JSONPath
-	PropertyJSONPathes  *jsonutils.JSONPathArray
+	Enabled                  bool
+	AnonymousIDJSONPath      *jsonutils.JSONPath
+	IdentificationJSONPathes *jsonutils.JSONPathArray
 }
