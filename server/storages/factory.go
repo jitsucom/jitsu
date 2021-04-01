@@ -91,6 +91,7 @@ type Config struct {
 	loggerFactory    *logging.Factory
 	pkFields         map[string]bool
 	sqlTypeCasts     map[string]string
+	httpQueue 		 *adapters.HttpAdapter
 }
 
 type Factory interface {
@@ -104,10 +105,11 @@ type FactoryImpl struct {
 	eventsCache         *caching.EventsCache
 	globalLoggerFactory *logging.Factory
 	globalConfiguration *UsersRecognition
+	httpQueue 			*adapters.HttpAdapter
 }
 
 func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
-	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition) Factory {
+	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, httpQueue *adapters.HttpAdapter) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -115,6 +117,7 @@ func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorK
 		eventsCache:         eventsCache,
 		globalLoggerFactory: globalLoggerFactory,
 		globalConfiguration: globalConfiguration,
+		httpQueue: 			 httpQueue,
 	}
 }
 
@@ -290,6 +293,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		loggerFactory:    destinationLoggerFactory,
 		pkFields:         pkFields,
 		sqlTypeCasts:     sqlTypeCasts,
+		httpQueue: 		  f.httpQueue,
 	}
 
 	var storageProxy StorageProxy
@@ -310,6 +314,8 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		storageProxy = newProxy(NewGoogleAnalytics, storageConfig)
 	case FacebookType:
 		storageProxy = newProxy(NewFacebook, storageConfig)
+	case WebHookType:
+		storageProxy = newProxy(NewWebHook, storageConfig)
 	default:
 		if eventQueue != nil {
 			eventQueue.Close()
