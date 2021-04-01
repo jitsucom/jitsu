@@ -42,7 +42,7 @@ const bigQueryDestination: Destination = {
         {
             id: "_formData.bqProjectId",
             displayName: "Project Id",
-            require: true,
+            required: true,
             type: stringType
         },
         {
@@ -55,14 +55,14 @@ const bigQueryDestination: Destination = {
             id: "_formData.bqJSONKey",
             displayName: "Access Key",
             documentation: <>JSON access credentials</>,
-            require: true,
+            required: true,
             type: jsonType
         },
         {
             id: "_formData.bqGCSBucket",
-            display: <>Name of GCS Bucket. The bucket should be accessible with the same Access Key as dataset</>,
+            documentation: <>Name of GCS Bucket. The bucket should be accessible with the same Access Key as dataset</>,
             displayName: "GCS Bucket",
-            require: true,
+            required: true,
             type: stringType,
             constant: (cfg: any) => {
                 return cfg?._formData?.mode === "batch" ? undefined : "";
