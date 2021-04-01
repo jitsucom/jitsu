@@ -1,6 +1,7 @@
 import { Destination } from '../types';
-import { modeParameter, tableName } from './common';
-import { stringType } from '@catalog/sources/types';
+import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
+import { stringType } from '../../sources/types';
+import * as React from 'react';
 
 const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48px" height="48px">
   <linearGradient id="Ld6sqrtcxMyckEl6xeDdMa" x1="9.993" x2="40.615" y1="9.993" y2="40.615" gradientUnits="userSpaceOnUse">
@@ -22,20 +23,32 @@ const facebookDestination: Destination = {
   },
   parameters: [
     modeParameter('stream'),
-    tableName(<>The table name as treated as expression rather than an actual value. If expression returns
-      non-empty string,
-
-    </>),
+    tableName(filteringExpressionDocumentation),
     {
-      id: '_formData.tableName',
-      displayName: 'Table Name',
-      documentation: <>
-        Table name (or table name template).
-      </>,
+      id: '_formData.fbPixelId',
+      displayName: 'Pixel ID',
       required: true,
-      defaultValue: 'events',
-      type: stringType
+      type: stringType,
+      documentation: <>
+        Your Facebook Pixel ID or{' '}
+        <a target="_blank" rel="noopener" href={'https://www.facebook.com/ads/manager/pixel/facebook_pixel/'}>create a new one</a>.
+        <br/>Read more about{' '}
+        <a target="_blank" rel="noopener" href={'https://developers.facebook.com/docs/marketing-api/conversions-api/get-started#-------'}>Facebook conversion API</a>
+      </>
+    },
+    {
+      id: '_formData.fbAccessToken',
+      displayName: 'Access Token',
+      required: true,
+      type: stringType,
+      documentation: <>Your Facebook Access Token.
+        <br/>
+        <a target="_blank" rel="noopener" href={'https://developers.facebook.com/docs/marketing-api/conversions-api/get-started#--------------'}>
+          Read more
+        </a>
+      </>
     }
+
   ]
 }
 

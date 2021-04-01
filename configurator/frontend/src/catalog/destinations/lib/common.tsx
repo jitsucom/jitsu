@@ -15,6 +15,14 @@ export const modeParameter = (constValue?: string): Parameter => {
     }
 }
 
+
+export const filteringExpressionDocumentation = <>
+    Table name (or table name template). The value is treated as expression, if the expression
+    returns null or empty string, the event will not be sent to API. Otherwise the event will go through.
+    Any non-empty (null or '') will be treated the same way. If you do not intend to make any filtering, leave the value
+    as is.
+</>;
+
 /**
  * Destination table name for DBS
  */
