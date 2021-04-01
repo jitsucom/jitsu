@@ -160,8 +160,9 @@ func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 		switch collectionI.(type) {
 		case string:
 			collections = append(collections, &Collection{SourceID: sourceConfig.Name, Name: collectionI.(string), Type: collectionI.(string)})
-		case map[interface{}]interface{}:
+		case map[string]interface{}, map[interface{}]interface{}:
 			collectionObjMap := cast.ToStringMap(collectionI)
+
 			parametersI, ok := collectionObjMap[collectionParametersField]
 			if ok {
 				parametersObjMap := cast.ToStringMap(parametersI)
