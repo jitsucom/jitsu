@@ -1,0 +1,71 @@
+@import 'src/theme.less';
+
+.jsonPointer {
+  @apply text-xs;
+  border: 0;
+  border-radius: 0 !important;
+  border-bottom: 1px solid @secondaryText !important;
+  font-family: @font-monospace;
+  outline: none !important;
+  padding: 0.25rem !important;
+  min-width: 15rem;
+  max-width: 15rem;
+}
+
+
+.jsonPointer:hover {
+  //border: 0 !important;
+}
+
+.jsonPointer:focus {
+  outline: none !important;
+}
+
+
+
+
+
+.jsonPointer :global .ant-select-selector {
+  border-bottom: 1px solid black;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+}
+
+.jsonPointer :global .ant-select-selector:focus{
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.mapping-editor-table tr, .mapping-editor-table tr td  {
+  border: 0 !important;
+}
+
+.mapping-editor-table td.ant-table-cell {
+  vertical-align: baseline !important;
+}
+
+.mapping-editor-table tr:hover {
+  background-color: transparent;
+}
+
+.mapping-editor-select-transform {
+  width: 100%;
+}
+
+.mapping-editor-table, .mapping-editor-table .ant-card, .mapping-editor-table .ant-table {
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.mapping-editor-json-poiter-error {
+  font-size: 70%;
+  color: red;
+  white-space: nowrap;
+}
+
+.mapping-editor-top-panel {
+  margin-bottom: 5px;
+  .label-with-tooltip {
+    padding-right: 20px;
+  }
+}
