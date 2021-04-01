@@ -1,6 +1,8 @@
 @import './src/theme';
 
 .add-source {
+  flex: 1 1 auto;
+
   .add-source__back {
     margin-bottom: 10px;
 
@@ -18,6 +20,16 @@
   .add-source__head {
     display: flex;
     margin-bottom: 10px;
+
+    &-base {
+      display: inline-flex;
+      margin-right: 5px;
+
+      &-link {
+        display: block;
+        margin-right: 5px;
+      }
+    }
 
     .add-source__head-pic {
       width: 32px;
@@ -72,6 +84,66 @@
 
     span {
       display: block;
+      margin-right: 10px;
+    }
+  }
+}
+
+.custom-report {
+  &__group {
+    border-bottom: 1px dashed @border-color-base;
+    margin-bottom: 20px;
+
+    &-composite {
+      display: flex;
+
+      .ant-form-item {
+        flex: 1 0 auto;
+      }
+
+      &-delete {
+        flex-shrink: 0;
+        display: block;
+        padding: 10px;
+      }
+    }
+  }
+}
+
+.source-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.ant-tabs-content {
+  padding: 0 1.5rem;
+}
+
+.tab-name {
+  &_error {
+    color: @error-color;
+  }
+}
+
+.ant-checkbox-group {
+  width: 100%;
+}
+
+.ant-list-item-meta-avatar {
+  width: auto;
+}
+
+.ant-switch-group-label {
+  display: block;
+  width: 100%;
+  cursor: pointer;
+
+  &__avatar {
+    display: inline-flex;
+    align-items: center;
+
+    .ant-switch {
       margin-right: 10px;
     }
   }
