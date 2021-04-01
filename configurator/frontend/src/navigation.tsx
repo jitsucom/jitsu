@@ -4,11 +4,10 @@ import ComponentTest from './lib/components/componentTest';
 import DownloadConfig from './lib/components/DownloadConfig/DownloadConfig';
 
 import { routes as sourcesPageRoutes } from '@page/SourcesPage/routes';
-import { destinationPageRoutes } from "@page/DestinationsPage/DestinationsPage.routes";
 
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
-const DestinationsPage = React.lazy(() => import('@page/DestinationsPage/DestinationsPage'));
+const DestinationsList = React.lazy(() => import('./lib/components/DestinationsEditor/DestinationsList'));
 const EventsStream = React.lazy(() => import('./lib/components/EventsStream/EventsStream'));
 const LoginForm = React.lazy(() => import('./lib/components/LoginForm/LoginForm'));
 const SetupForm = React.lazy(() => import('@page/SetupPage/SetupForm'));
@@ -67,10 +66,10 @@ export const PRIVATE_PAGES: Page[] = [
   new Page('Jitsu | recent events', '/events_stream', (props) => <EventsStream {...props} />, 'Recent events'),
   new Page('Jitsu | dashboard', ['/dashboard', ''], (props) => <StatusPage {...props} />, 'Dashboard'),
   new Page(
-    'Jitsu | destinations',
-    Object.values(destinationPageRoutes),
-    (props) => <DestinationsPage {...props} />,
-    'Edit destinations'
+      'Jitsu | edit destinations',
+      '/destinations',
+      (props) => <DestinationsList {...props} />,
+      'Edit destinations'
   ),
   new Page(
     'Jitsu | download config',
