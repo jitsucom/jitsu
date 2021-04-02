@@ -36,7 +36,6 @@ var (
 )
 
 const (
-	fbMarketingType    = "facebook_marketing"
 	insightsCollection = "insights"
 	adsCollection      = "ads"
 	fbMaxAttempts      = 2
@@ -93,8 +92,8 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, colle
 }
 
 func init() {
-	if err := RegisterDriverConstructor(fbMarketingType, NewFacebookMarketing); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", fbMarketingType, err)
+	if err := RegisterDriver(FbMarketingType, NewFacebookMarketing); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", FbMarketingType, err)
 	}
 }
 
@@ -130,8 +129,17 @@ func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string
 	}
 }
 
+func (fm *FacebookMarketing) TestConnection() error {
+	_, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/insights", fm.reportConfig.Fields, nil, 0, true)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
-	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/insights", fm.reportConfig.Fields, interval, 0)
+	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/insights", fm.reportConfig.Fields, interval, 0, false)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +149,7 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[s
 }
 
 func (fm *FacebookMarketing) syncAdsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
-	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/ads", fm.reportConfig.Fields, nil, 200)
+	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/ads", fm.reportConfig.Fields, nil, 200, false)
 	if err != nil {
 		return nil, err
 	}
@@ -157,7 +165,7 @@ func (fm *FacebookMarketing) buildTimeInterval(interval *TimeInterval) string {
 	return fmt.Sprintf("{'since': '%s', 'until': '%s'}", since, until)
 }
 
-func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, interval *TimeInterval, pageLimit int) ([]map[string]interface{}, error) {
+func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, interval *TimeInterval, pageLimit int, failFast bool) ([]map[string]interface{}, error) {
 	requestParameters := fb.Params{
 		"level":        fm.reportConfig.Level,
 		"fields":       strings.Join(fields, ","),
@@ -200,6 +208,10 @@ func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, in
 			}
 
 			return data, nil
+		}
+
+		if failFast {
+			return nil, err
 		}
 
 		if fbErr, ok := err.(*fb.Error); ok {
@@ -263,7 +275,7 @@ func (fm *FacebookMarketing) logUsage(usage *fb.UsageInfo) {
 }
 
 func (fm *FacebookMarketing) Type() string {
-	return fbMarketingType
+	return FbMarketingType
 }
 
 func (fm *FacebookMarketing) GetCollectionTable() string {

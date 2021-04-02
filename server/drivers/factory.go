@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	errUnknownSource   = errors.New("Unknown source type")
-	driverConstructors = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+	ErrUnknownSource   = errors.New("Unknown source type")
+	DriverConstructors = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+	DriverTests        = make(map[string]func(ctx context.Context, config *SourceConfig) (Driver, error))
 )
 
 const (
@@ -70,10 +71,12 @@ func (c *Collection) GetTableName() string {
 	return c.SourceID + "_" + c.Name
 }
 
-//RegisterDriverConstructor registers function to create new driver instance per driver type
-func RegisterDriverConstructor(driverType string,
+//RegisterDriver registers two functions per driver type:
+//function to create new driver instance
+//function to test driver
+func RegisterDriver(driverType string,
 	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) error {
-	driverConstructors[driverType] = createDriverFunc
+	DriverConstructors[driverType] = createDriverFunc
 	return nil
 }
 
@@ -114,9 +117,9 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronSc
 
 	driverPerCollection := map[string]Driver{}
 
-	createDriverFunc, ok := driverConstructors[sourceConfig.Type]
+	createDriverFunc, ok := DriverConstructors[sourceConfig.Type]
 	if !ok {
-		return nil, errUnknownSource
+		return nil, ErrUnknownSource
 	}
 
 	for _, collection := range collections {

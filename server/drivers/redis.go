@@ -11,8 +11,7 @@ import (
 )
 
 const (
-	idField   = "__id"
-	redisType = "redis"
+	idField = "__id"
 )
 
 type RedisConfig struct {
@@ -37,8 +36,8 @@ type Redis struct {
 }
 
 func init() {
-	if err := RegisterDriverConstructor(redisType, NewRedis); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", redisType, err)
+	if err := RegisterDriver(RedisType, NewRedis); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", RedisType, err)
 	}
 }
 
@@ -86,8 +85,21 @@ func (r *Redis) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{},
 	return configs, nil
 }
 
+func (r *Redis) TestConnection() error {
+	//test connection
+	connection := r.connectionPool.Get()
+	defer connection.Close()
+
+	_, err := redis.String(connection.Do("PING"))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (r *Redis) Type() string {
-	return redisType
+	return RedisType
 }
 
 func (r *Redis) GetCollectionTable() string {

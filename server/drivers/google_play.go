@@ -18,8 +18,7 @@ import (
 )
 
 const (
-	googlePlayType = "google_play"
-	bucketPrefix   = "pubsite_prod_rev_"
+	bucketPrefix = "pubsite_prod_rev_"
 
 	salesCollection    = "sales"
 	earningsCollection = "earnings"
@@ -70,8 +69,8 @@ type GooglePlay struct {
 }
 
 func init() {
-	if err := RegisterDriverConstructor(googlePlayType, NewGooglePlay); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", googlePlayType, err)
+	if err := RegisterDriver(GooglePlayType, NewGooglePlay); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", GooglePlayType, err)
 	}
 }
 
@@ -166,6 +165,19 @@ func (gp *GooglePlay) GetObjectsFor(interval *TimeInterval) ([]map[string]interf
 	return objects, nil
 }
 
+func (gp *GooglePlay) TestConnection() error {
+	bucketName := bucketPrefix + gp.config.AccountID
+	bucket := gp.client.Bucket(bucketName)
+
+	it := bucket.Objects(gp.ctx, &storage.Query{Prefix: gp.collection.Name})
+	_, err := it.Next()
+	if err != nil && err != iterator.Done {
+		return err
+	}
+
+	return nil
+}
+
 func (gp *GooglePlay) getFilesObjects(bucket *storage.BucketHandle, prefix string) ([]map[string]interface{}, error) {
 	var objects []map[string]interface{}
 
@@ -234,7 +246,7 @@ func (gp *GooglePlay) getFileObjects(bucket *storage.BucketHandle, key string) (
 }
 
 func (gp *GooglePlay) Type() string {
-	return googlePlayType
+	return GooglePlayType
 }
 
 func (gp *GooglePlay) Close() error {
