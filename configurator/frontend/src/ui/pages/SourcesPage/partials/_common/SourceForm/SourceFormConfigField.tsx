@@ -45,13 +45,21 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
           language="json"
           theme="own-theme"
           options={{
+            glyphMargin: false,
+            folding: false,
             lineNumbers: 'off',
+            lineDecorationsWidth: 11,
+            lineNumbersMinChars: 0,
             minimap: {
               enabled: false
             },
             scrollbar: {
               verticalScrollbarSize: 8,
               horizontalScrollbarSize: 8
+            },
+            padding: {
+              top: 4,
+              bottom: 4
             }
           }}
           onChange={handleMonacoChange(getFieldsValue, setFieldsValue)}
