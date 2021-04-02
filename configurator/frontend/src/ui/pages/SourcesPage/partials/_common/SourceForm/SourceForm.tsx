@@ -159,7 +159,7 @@ const SourceForm = ({
         const { form } = mutableRefObject.current.tabs.config;
         const configObjectValues = makeObjectFromFieldsValues<Partial<SourceData>>(form.getFieldsValue());
 
-        await services.backendApiClient.post('sources/test', configObjectValues.config);
+        await services.backendApiClient.post('sources/test', configObjectValues);
 
         message.success('Successfully connected!');
       } catch(e) {
