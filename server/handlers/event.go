@@ -107,7 +107,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: noConsumerMessage})
 		return
 	} else {
-		telemetry.Event()
+		telemetry.PushEvent()
 
 		for _, consumer := range consumers {
 			consumer.Consume(payload, tokenID)

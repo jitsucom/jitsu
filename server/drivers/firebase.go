@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	firebaseType             = "firebase"
 	firestoreCollection      = "firestore"
 	usersCollection          = "users"
 	userIDField              = "uid"
@@ -50,8 +49,8 @@ type Firebase struct {
 }
 
 func init() {
-	if err := RegisterDriverConstructor(firebaseType, NewFirebase); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", firebaseType, err)
+	if err := RegisterDriver(FirebaseType, NewFirebase); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", FirebaseType, err)
 	}
 }
 
@@ -106,6 +105,17 @@ func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface
 	return nil, fmt.Errorf("Unknown collection: %s", f.collection.Type)
 }
 
+func (f *Firebase) TestConnection() error {
+	iter := f.authClient.Users(f.ctx, "")
+
+	_, err := iter.Next()
+	if err != nil && err != iterator.Done {
+		return err
+	}
+
+	return nil
+}
+
 func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 	var documentJSONs []map[string]interface{}
 	iter := f.firestoreClient.Collection(f.collection.Name).Documents(f.ctx)
@@ -125,7 +135,7 @@ func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 }
 
 func (f *Firebase) Type() string {
-	return firebaseType
+	return FirebaseType
 }
 
 func (f *Firebase) Close() error {

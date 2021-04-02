@@ -109,9 +109,9 @@ func ServerStop() {
 }
 
 //Event increment events collector counter
-func Event() {
+func PushEvent() {
 	if !instance.usageOptOut.Load() {
-		instance.collector.Event()
+		instance.collector.PushEvent()
 	}
 }
 
@@ -141,14 +141,14 @@ func (s *Service) startUsage() {
 
 			select {
 			case <-ticker.C:
-				v := s.collector.Cut()
-				if v > 0 {
-					instance.usage(&Usage{Events: v})
+				pushedEvents, pulledEvents := s.collector.Cut()
+				if pushedEvents > 0 || pulledEvents > 0 {
+					instance.usage(&Usage{Events: pushedEvents, PulledRows: pulledEvents})
 				}
 			case <-s.flushCh:
-				v := s.collector.Cut()
-				if v > 0 {
-					instance.usage(&Usage{Events: v})
+				pushedEvents, pulledEvents := s.collector.Cut()
+				if pushedEvents > 0 || pulledEvents > 0 {
+					instance.usage(&Usage{Events: pushedEvents, PulledRows: pulledEvents})
 				}
 			}
 		}

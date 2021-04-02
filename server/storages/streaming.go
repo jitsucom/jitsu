@@ -110,7 +110,8 @@ func (sw *StreamingWorker) start() {
 				if strings.Contains(err.Error(), "connection refused") ||
 					strings.Contains(err.Error(), "EOF") ||
 					strings.Contains(err.Error(), "write: broken pipe") ||
-					strings.Contains(err.Error(), "context deadline exceeded") {
+					strings.Contains(err.Error(), "context deadline exceeded") ||
+					strings.Contains(err.Error(), "connection reset by peer") {
 					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenID)
 				} else {
 					sw.streamingStorage.Fallback(&events.FailedEvent{

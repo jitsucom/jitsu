@@ -102,6 +102,9 @@ func readInViperConfig() error {
 		payload = &resources.ResponsePayload{Content: []byte(configSourceStr), ContentType: &jsonContentType}
 	} else if configSourceStr != "" {
 		payload, err = resources.LoadFromFile(configSourceStr, "")
+	} else {
+		//run without config from sources
+		logging.ConfigWarn = configNotFound
 	}
 
 	if err != nil {
@@ -182,7 +185,8 @@ func main() {
 		logging.Fatal(err)
 	}
 
-	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"), appconfig.Instance.SingerLogsWriter); err != nil {
+	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"),
+		viper.GetBool("singer-bridge.install_taps"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
 

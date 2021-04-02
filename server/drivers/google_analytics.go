@@ -13,11 +13,10 @@ import (
 )
 
 const (
-	dayLayout           = "2006-01-02"
-	reportsCollection   = "report"
-	gaFieldsPrefix      = "ga:"
-	googleAnalyticsType = "google_analytics"
-	eventID             = "event_id"
+	dayLayout         = "2006-01-02"
+	reportsCollection = "report"
+	gaFieldsPrefix    = "ga:"
+	eventID           = "event_id"
 
 	gaMaxAttempts = 3 // sometimes Google API returns errors for unknown reasons, this is a number of retries we make before fail to get a report
 )
@@ -73,8 +72,8 @@ type GoogleAnalytics struct {
 }
 
 func init() {
-	if err := RegisterDriverConstructor(googleAnalyticsType, NewGoogleAnalytics); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", googleAnalyticsType, err)
+	if err := RegisterDriver(GoogleAnalyticsType, NewGoogleAnalytics); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", GoogleAnalyticsType, err)
 	}
 }
 
@@ -139,7 +138,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 }
 
 func (g *GoogleAnalytics) Type() string {
-	return googleAnalyticsType
+	return GoogleAnalyticsType
 }
 
 func (g *GoogleAnalytics) Close() error {
@@ -148,6 +147,32 @@ func (g *GoogleAnalytics) Close() error {
 
 func (g *GoogleAnalytics) GetCollectionTable() string {
 	return g.collection.GetTableName()
+}
+
+func (g *GoogleAnalytics) TestConnection() error {
+	startDate := time.Now().UTC()
+	endDate := startDate.AddDate(0, 0, -1)
+	req := &ga.GetReportsRequest{
+		ReportRequests: []*ga.ReportRequest{
+			{
+				ViewId: g.config.ViewID,
+				DateRanges: []*ga.DateRange{
+					{StartDate: startDate.Format(dayLayout),
+						EndDate: endDate.Format(dayLayout)},
+				},
+				//Metrics:    gaMetrics, TODO
+				//Dimensions: gaDimensions,
+				PageToken: "",
+				PageSize:  1,
+			},
+		},
+	}
+	_, err := g.executeWithRetry(g.service.Reports.BatchGet(req))
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, dimensions []string, metrics []string) ([]map[string]interface{}, error) {
