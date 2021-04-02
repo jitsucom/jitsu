@@ -60,7 +60,9 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
             padding: {
               top: 4,
               bottom: 4
-            }
+            },
+            hideCursorInOverviewRuler: true,
+            overviewRulerLanes: 0
           }}
           onChange={handleMonacoChange(getFieldsValue, setFieldsValue)}
         />;
