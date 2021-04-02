@@ -2,7 +2,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useHistory } from 'react-router-dom';
 import { Popover, Button, Form, message, Tabs } from 'antd';
-import { capitalize } from 'lodash';
+import { capitalize, snakeCase } from 'lodash';
 // @Types
 import { FormProps as Props } from './SourceForm.types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
@@ -159,7 +159,7 @@ const SourceForm = ({
         const { form } = mutableRefObject.current.tabs.config;
         const configObjectValues = makeObjectFromFieldsValues<Partial<SourceData>>(form.getFieldsValue());
 
-        await services.backendApiClient.post('sources/test', configObjectValues);
+        await services.backendApiClient.post('sources/test', { ...configObjectValues, sourceType: snakeCase(connectorSource.id) });
 
         message.success('Successfully connected!');
       } catch(e) {
@@ -170,7 +170,7 @@ const SourceForm = ({
     } finally {
       setConnectionTestPending(false);
     }
-  }, [handleTabSubmit, services]);
+  }, [connectorSource, handleTabSubmit, services]);
 
   return (
     <>
