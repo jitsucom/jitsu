@@ -22,6 +22,7 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 import { routes } from '@page/SourcesPage/routes';
 // @Styles
 import styles from './SourceForm.module.less';
+import { makeObjectFromFieldsValues } from '@util/Form';
 
 interface Tab {
   name: string;
@@ -155,7 +156,10 @@ const SourceForm = ({
       await handleTabSubmit('config');
 
       try {
-        await services.backendApiClient.post('sources/test', {});
+        const { form } = mutableRefObject.current.tabs.config;
+        const configObjectValues = makeObjectFromFieldsValues<Partial<SourceData>>(form.getFieldsValue());
+
+        await services.backendApiClient.post('sources/test', configObjectValues.config);
 
         message.success('Successfully connected!');
       } catch(e) {
