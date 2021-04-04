@@ -118,56 +118,53 @@ func FormatPrefixSuffix(key string) string {
 	return key
 }
 
-type JSONPathArray struct {
-	array []*JSONPath
+type JSONPathes struct {
+	pathes map[string]*JSONPath
 }
 
-func NewJSONPathArray(pathes []string) *JSONPathArray {
-	array := make([]*JSONPath, len(pathes))
+func NewJSONPathes(pathes []string) *JSONPathes {
+	container := make(map[string]*JSONPath)
 
-	for i, path := range pathes {
-		array[i] = NewJSONPath(path)
+	for _, path := range pathes {
+		container[path] = NewJSONPath(path)
 	}
 
-	return &JSONPathArray{array: array}
+	return &JSONPathes{
+		pathes: container,
+	}
 }
 
-func (jpa *JSONPathArray) String() string {
+func (jpa *JSONPathes) String() string {
 	result := ""
 
-	for _, value := range jpa.array {
+	for key := range jpa.pathes {
 		if result != "" {
 			result += ", "
 		}
-		result += value.String()
+		result += key
 	}
 
 	return "[" + result + "]"
 }
 
-func (jpa *JSONPathArray) Get(object map[string]interface{}) ([]interface{}, bool) {
+func (jpa *JSONPathes) Get(object map[string]interface{}) (map[string]interface{}, bool) {
 	result := false
-	array := make([]interface{}, len(jpa.array))
+	array := make(map[string]interface{})
 
-	for i, path := range jpa.array {
+	for key, path := range jpa.pathes {
 		value, answer := path.Get(object)
-		array[i] = value
+		array[key] = value
 		result = result || answer
 	}
 
 	return array, result
 }
 
-func (jpa *JSONPathArray) Set(object map[string]interface{}, values []interface{}) error {
-	count := len(jpa.array)
-
-	if count != len(values) {
-		return fmt.Errorf("Count of properties %d should be equal %d", count, len(values))
-	}
-
-	for i := 0; i < count; i++ {
-		if values[i] != nil {
-			err := jpa.array[i].Set(object, values[i])
+func (jpa *JSONPathes) Set(object map[string]interface{}, values map[string]interface{}) error {
+	for key, path := range jpa.pathes {
+		value := values[key]
+		if value != nil {
+			err := path.Set(object, value)
 			if err != nil {
 				return err
 			}
@@ -177,10 +174,10 @@ func (jpa *JSONPathArray) Set(object map[string]interface{}, values []interface{
 	return nil
 }
 
-func (jpa *JSONPathArray) IsFullFilled(object map[string]interface{}) bool {
+func (jpa *JSONPathes) IsFullFilled(object map[string]interface{}) bool {
 	result := true
 
-	for _, path := range jpa.array {
+	for _, path := range jpa.pathes {
 		value, answer := path.Get(object)
 		result = result && answer && value != nil
 
