@@ -31,7 +31,7 @@ type RecognitionPayload struct {
 type EventIdentifiers struct {
 	AnonymousID          string
 	EventID              string
-	IdentificationValues []interface{}
+	IdentificationValues map[string]interface{}
 }
 
 // RecognitionPayloadBuilder creates and returns a new *RecognitionPayload (must be pointer).
@@ -86,7 +86,7 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		globalConfiguration: &storages.UserRecognitionConfiguration{
 			Enabled:                  configuration.Enabled,
 			AnonymousIDJSONPath:      jsonutils.NewJSONPath(configuration.AnonymousIDNode),
-			IdentificationJSONPathes: jsonutils.NewJSONPathArray(configuration.IdentificationNodes),
+			IdentificationJSONPathes: jsonutils.NewJSONPathes(configuration.IdentificationNodes),
 		},
 		queue: queue,
 	}
@@ -123,16 +123,14 @@ func (rs *RecognitionService) start() {
 			}
 
 			for destinationID, identifiers := range rp.DestinationsIdentifiers {
-				// If some property is missing - event is anonimous
 				if !identifiers.IsAllProperties() {
+					// If some property is missing - event is anonimous
 					err = rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes))
 					if err != nil {
 						logging.SystemErrorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
 					}
-				}
-
-				// Run pipeline only if all properties were recognized - it is needed to update all other anonimous events
-				if identifiers.IsAllProperties() {
+				} else {
+					// Run pipeline only if all properties were recognized - it is needed to update all other anonimous events
 					err = rs.runPipeline(destinationID, identifiers)
 					if err != nil {
 						logging.SystemErrorf("[%s] Error running recognizing pipeline: %v", destinationID, err)

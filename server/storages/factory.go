@@ -251,7 +251,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 			usersRecognitionConfiguration = &UserRecognitionConfiguration{
 				Enabled:                  destination.UsersRecognition.Enabled,
 				AnonymousIDJSONPath:      jsonutils.NewJSONPath(destination.UsersRecognition.AnonymousIDNode),
-				IdentificationJSONPathes: jsonutils.NewJSONPathArray(destination.UsersRecognition.IdentificationNodes),
+				IdentificationJSONPathes: jsonutils.NewJSONPathes(destination.UsersRecognition.IdentificationNodes),
 			}
 		}
 	} else {
