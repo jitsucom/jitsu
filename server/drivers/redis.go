@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -11,13 +12,14 @@ import (
 )
 
 const (
-	idField = "__id"
+	idField        = "__id"
+	HashCollection = "hash"
 )
 
 type RedisConfig struct {
-	Host     string `mapstructure:"host" json:"host,omitempty" yaml:"host,omitempty"`
-	Port     int    `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
-	Password string `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
+	Host     string      `mapstructure:"host" json:"host,omitempty" yaml:"host,omitempty"`
+	Port     json.Number `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
+	Password string      `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
 }
 
 func (rc *RedisConfig) Validate() error {
@@ -47,16 +49,22 @@ func NewRedis(ctx context.Context, sourceConfig *SourceConfig, collection *Colle
 	if err != nil {
 		return nil, err
 	}
-	if collection.Type != "hash" {
-		return nil, errors.New("Only [hash] collection type is supported now")
+	if collection.Type != HashCollection {
+		return nil, fmt.Errorf("Only [%s] collection type is supported now", HashCollection)
 	}
 
-	if config.Port == 0 {
-		config.Port = 6379
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", sourceConfig.Name, config.Port)
+	if config.Port.String() == "" {
+		config.Port = json.Number("5439")
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", sourceConfig.Name, config.Port.String())
 	}
+
+	intPort, err := config.Port.Int64()
+	if err != nil {
+		return nil, fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
+	}
+
 	return &Redis{collection: collection,
-		connectionPool: meta.NewRedisPool(config.Host, config.Port, config.Password)}, nil
+		connectionPool: meta.NewRedisPool(config.Host, int(intPort), config.Password)}, nil
 }
 
 func (r *Redis) GetAllAvailableIntervals() ([]*TimeInterval, error) {

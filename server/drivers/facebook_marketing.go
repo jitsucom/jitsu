@@ -36,8 +36,8 @@ var (
 )
 
 const (
-	insightsCollection = "insights"
-	adsCollection      = "ads"
+	InsightsCollection = "insights"
+	AdsCollection      = "ads"
 	fbMaxAttempts      = 2
 )
 
@@ -85,8 +85,8 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, colle
 		logging.Warnf("[%s_%s] parameters.level wasn't provided. Will be used default one: %s", sourceConfig.Name, collection.Name, reportConfig.Level)
 	}
 
-	if collection.Type != adsCollection && collection.Type != insightsCollection {
-		return nil, fmt.Errorf("Unknown collection [%s]: Only [%s] and [%s] are supported now", collection.Type, adsCollection, insightsCollection)
+	if collection.Type != AdsCollection && collection.Type != InsightsCollection {
+		return nil, fmt.Errorf("Unknown collection [%s]: Only [%s] and [%s] are supported now", collection.Type, AdsCollection, InsightsCollection)
 	}
 	return &FacebookMarketing{collection: collection, config: config, reportConfig: reportConfig}, nil
 }
@@ -99,7 +99,7 @@ func init() {
 
 //GetAllAvailableIntervals return half a year by default
 func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error) {
-	if fm.collection.Type == adsCollection {
+	if fm.collection.Type == AdsCollection {
 		return []*TimeInterval{NewTimeInterval(ALL, time.Time{})}, nil
 	}
 
@@ -120,12 +120,12 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error)
 
 func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
 	switch fm.collection.Type {
-	case adsCollection:
+	case AdsCollection:
 		return fm.syncAdsReport(interval)
-	case insightsCollection:
+	case InsightsCollection:
 		return fm.syncInsightsReport(interval)
 	default:
-		return nil, fmt.Errorf("Error syncing collection type [%s]. Only [%s] and [%s] are supported now", fm.collection.Type, adsCollection, insightsCollection)
+		return nil, fmt.Errorf("Error syncing collection type [%s]. Only [%s] and [%s] are supported now", fm.collection.Type, AdsCollection, InsightsCollection)
 	}
 }
 

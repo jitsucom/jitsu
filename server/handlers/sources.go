@@ -37,27 +37,36 @@ func testSourceConnection(config *drivers.SourceConfig) error {
 	case drivers.SingerType:
 		testCollection = &drivers.Collection{
 			Name: drivers.DefaultSingerCollection,
+			Type: drivers.DefaultSingerCollection,
 		}
 	case drivers.FbMarketingType:
 		testCollection = &drivers.Collection{
-			Name: "insights",
+			Name: drivers.InsightsCollection,
+			Type: drivers.InsightsCollection,
 		}
 	case drivers.FirebaseType:
 		testCollection = &drivers.Collection{
-			Name: "users",
+			Name: drivers.UsersCollection,
+			Type: drivers.UsersCollection,
 		}
 	case drivers.GoogleAnalyticsType:
 		testCollection = &drivers.Collection{
-			Name: "ga_visits",
-			Type: "report",
+			Name: drivers.ReportsCollection,
+			Type: drivers.ReportsCollection,
+			Parameters: map[string]interface{}{
+				"metrics":    []string{"test_metric"},
+				"dimensions": []string{"test_dimensions"},
+			},
 		}
 	case drivers.GooglePlayType:
 		testCollection = &drivers.Collection{
-			Name: "sales",
+			Name: drivers.SalesCollection,
+			Type: drivers.SalesCollection,
 		}
 	case drivers.RedisType:
 		testCollection = &drivers.Collection{
-			Name: "config",
+			Name: drivers.HashCollection,
+			Type: drivers.HashCollection,
 		}
 	default:
 		return errors.New("unsupported source type " + config.Type)

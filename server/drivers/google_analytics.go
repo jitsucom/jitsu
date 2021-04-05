@@ -14,7 +14,7 @@ import (
 
 const (
 	dayLayout         = "2006-01-02"
-	reportsCollection = "report"
+	ReportsCollection = "report"
 	gaFieldsPrefix    = "ga:"
 	eventID           = "event_id"
 
@@ -128,7 +128,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 			EndDate: interval.UpperEndpoint().Format(dayLayout)},
 	}
 
-	if g.collection.Type == reportsCollection {
+	if g.collection.Type == ReportsCollection {
 		result, err := g.loadReport(g.config.ViewID, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
 		logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(result))
 		return result, err
@@ -150,24 +150,22 @@ func (g *GoogleAnalytics) GetCollectionTable() string {
 }
 
 func (g *GoogleAnalytics) TestConnection() error {
-	startDate := time.Now().UTC()
-	endDate := startDate.AddDate(0, 0, -1)
+	now := time.Now().UTC()
+	startDate := now.AddDate(0, 0, -1)
 	req := &ga.GetReportsRequest{
 		ReportRequests: []*ga.ReportRequest{
 			{
 				ViewId: g.config.ViewID,
 				DateRanges: []*ga.DateRange{
 					{StartDate: startDate.Format(dayLayout),
-						EndDate: endDate.Format(dayLayout)},
+						EndDate: now.Format(dayLayout)},
 				},
-				//Metrics:    gaMetrics, TODO
-				//Dimensions: gaDimensions,
 				PageToken: "",
 				PageSize:  1,
 			},
 		},
 	}
-	_, err := g.executeWithRetry(g.service.Reports.BatchGet(req))
+	_, err := g.executeWithRetry(g.service.Reports.BatchGet(req), true)
 	if err != nil {
 		return err
 	}
@@ -200,7 +198,7 @@ func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, 
 				},
 			},
 		}
-		response, err := g.executeWithRetry(g.service.Reports.BatchGet(req))
+		response, err := g.executeWithRetry(g.service.Reports.BatchGet(req), false)
 		if err != nil {
 			return nil, err
 		}
@@ -244,7 +242,7 @@ func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, 
 	return result, nil
 }
 
-func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall) (*ga.GetReportsResponse, error) {
+func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall, failFast bool) (*ga.GetReportsResponse, error) {
 	attempt := 0
 	var response *ga.GetReportsResponse
 	var err error
@@ -252,6 +250,9 @@ func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall) (
 		response, err = reportCall.Do()
 		if err == nil {
 			return response, nil
+		}
+		if failFast {
+			return nil, err
 		}
 		time.Sleep(time.Duration(attempt+1) * time.Second)
 		attempt++
