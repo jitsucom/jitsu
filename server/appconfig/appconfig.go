@@ -46,6 +46,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("server.disable_skip_events_warn", false)
 	viper.SetDefault("server.cache.events.size", 100)
+	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
@@ -56,7 +57,6 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.venv_dir", "./venv")
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
-	viper.SetDefault("server.strict_auth_tokens", true)
 	if containerized {
 		viper.SetDefault("geo.maxmind_path", "/home/eventnative/data/config")
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
