@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"net"
 	"strings"
 )
@@ -27,6 +28,7 @@ func newRequestFactory(serviceName, commit, tag, buildAt string) *RequestFactory
 			Tag:         tag,
 			BuiltAt:     buildAt,
 			ServiceName: serviceName,
+			RunID:       uuid.New(),
 		},
 	}
 }

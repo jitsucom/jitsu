@@ -2,7 +2,7 @@ package entities
 
 import "github.com/jitsucom/jitsu/server/enrichment"
 
-//Destination entity is stored in main storage (Firebase)
+//Destination entity is stored in main storage (Firebase or Redis)
 type Destination struct {
 	ID               string                   `firestore:"_id" json:"_id"`
 	UID              string                   `firestore:"_uid" json:"_uid"`
@@ -15,26 +15,30 @@ type Destination struct {
 	PrimaryKeyFields []string                 `firestore:"_primary_key_fields" json:"_primary_key_fields"`
 }
 
-//Destinations entity is stored in main storage (Firebase)
+//Destinations entity is stored in main storage (Firebase or Redis)
 type Destinations struct {
 	Destinations []*Destination `json:"destinations" firestore:"destinations"`
 }
 
+//Mappings entity is stored in main storage (Firebase or Redis)
 type Mappings struct {
 	KeepFields bool      `firestore:"_keepUnmappedFields" json:"_keepUnmappedFields"`
 	Rules      []MapRule `firestore:"_mappings" json:"_mappings"`
 }
 
+//UsersRecognition entity is stored in main storage (Firebase or Redis)
 type UsersRecognition struct {
 	Enabled         bool   `firestore:"_enabled" json:"_enabled"`
 	AnonymousIDNode string `firestore:"_anonymous_id_node" json:"_anonymous_id_node"`
 	UserIDJSONNode  string `firestore:"_user_id_node" json:"_user_id_node"`
 }
 
+//IsEmpty returns true if mappings is empty
 func (m *Mappings) IsEmpty() bool {
 	return m == nil || len(m.Rules) == 0
 }
 
+//MapRule entity is stored in main storage (Firebase or Redis)
 type MapRule struct {
 	Action           string `firestore:"_action" json:"_action"`
 	SourceField      string `firestore:"_srcField" json:"_srcField"`

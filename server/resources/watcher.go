@@ -1,8 +1,6 @@
 package resources
 
 import (
-	"crypto/md5"
-	"fmt"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -65,7 +63,7 @@ func (w *Watcher) download() {
 
 	w.lastModified = payload.LastModified
 
-	newHash := GetHash(payload.Content)
+	newHash := GetBytesHash(payload.Content)
 	if w.hash != newHash {
 		w.hash = newHash
 		w.consumer(payload.Content)
@@ -76,8 +74,4 @@ func (w *Watcher) download() {
 func (w *Watcher) forceReload() {
 	w.hash = ""
 	w.lastModified = ""
-}
-
-func GetHash(payload []byte) string {
-	return fmt.Sprintf("%x", md5.Sum(payload))
 }
