@@ -150,7 +150,7 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 			}
 
 			//install tap
-			err = execCmd(path.Join(pathToTap, "/bin/pip"), singer.Instance.LogWriter, singer.Instance.LogWriter, "install", config.Tap)
+			err = execCmd(path.Join(pathToTap, "/bin/pip3"), singer.Instance.LogWriter, singer.Instance.LogWriter, "install", config.Tap)
 			if err != nil {
 				logging.Errorf("Error installing singer tap [%s]: %v", config.Tap, err)
 				return

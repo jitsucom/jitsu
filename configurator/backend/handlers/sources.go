@@ -100,5 +100,6 @@ func mapConfig(source *entities.Source, destinationIDs []string) endrivers.Sourc
 		Destinations: destinationIDs,
 		Collections:  source.Collections,
 		Config:       source.Config,
+		Schedule:     source.Schedule,
 	}
 }
