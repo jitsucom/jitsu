@@ -133,7 +133,7 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
             {fields.map((field: FormListFieldData) => {
               return (
                 <div className="custom-report__group" key={field.key}>
-                  <Row>
+                  {connectorSource.collectionTypes.length > 0 && <Row>
                     <Col span={16}>
                       <Form.Item
                         initialValue={getCollectionTypeValue(field.key)}
@@ -164,29 +164,35 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
                         onClick={handleRemoveField(operation, field.key)}
                       />
                     </Col>
-                  </Row>
+                  </Row>}
 
-                  <Row>
-                    <Col span={16}>
-                      <Form.Item
-                        initialValue={getCollectionScheduleValue(field.key)}
-                        name={[field.name, 'schedule']}
-                        className="form-field_fixed-label"
-                        label="Schedule:"
-                        labelCol={{ span: 6 }}
-                        wrapperCol={{ span: 18 }}
-                        rules={[{ required: true, message: 'You have to choose schedule' }]}
-                      >
-                        <Select>
-                          {
-                            COLLECTIONS_SCHEDULES.map((option) =>
-                              <Select.Option value={option.value} key={option.value}>{option.label}</Select.Option>
-                            )
-                          }
-                        </Select>
-                      </Form.Item>
-                    </Col>
-                  </Row>
+                  {/*
+                    ToDo: refactor this code. Either create a reused component, or change catalog connectors data to be able
+                     to control this code
+                  */}
+                  {
+                    !connectorSource.isSingerType && <Row>
+                      <Col span={16}>
+                        <Form.Item
+                          initialValue={getCollectionScheduleValue(field.key)}
+                          name={[field.name, 'schedule']}
+                          className="form-field_fixed-label"
+                          label="Schedule:"
+                          labelCol={{ span: 6 }}
+                          wrapperCol={{ span: 18 }}
+                          rules={[{ required: true, message: 'You have to choose schedule' }]}
+                        >
+                          <Select>
+                            {
+                              COLLECTIONS_SCHEDULES.map((option) =>
+                                <Select.Option value={option.value} key={option.value}>{option.label}</Select.Option>
+                              )
+                            }
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  }
 
                   <>
                     <Row>
