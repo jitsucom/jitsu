@@ -62,7 +62,7 @@ const (
 		"! Please make a custom config file, you can generated a config with https://app.jitsu.com.\n                            " +
 		"! Configuration documentation: https://docs.eventnative.org/configuration-1/configuration\n                            " +
 		"! Add config with `-cfg eventnative.yaml` parameter or put eventnative.yaml to <config_dir> and add mapping\n                            " +
-		"! -v <config_dir>/:/home/eventnative/app/res/ if you're using official Docker image"
+		"! -v <config_dir>/:/home/eventnative/data/config if you're using official Docker image"
 )
 
 var (
@@ -316,7 +316,7 @@ func main() {
 	appconfig.Instance.ScheduleClosing(cronScheduler)
 
 	//Create sources
-	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage, cronScheduler)
+	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), viper.GetString(sourcesKey), destinationsService, metaStorage, cronScheduler)
 	if err != nil {
 		logging.Fatal("Error creating sources service:", err)
 	}

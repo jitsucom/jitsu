@@ -40,9 +40,12 @@ type Service struct {
 	loggersUsageByTokenID map[string]*LoggerUsage
 
 	sync.RWMutex
+
 	consumersByTokenID      TokenizedConsumers
 	storagesByTokenID       TokenizedStorages
 	destinationsIDByTokenID TokenizedIDs
+
+	strictAuth bool
 }
 
 //only for tests
@@ -66,6 +69,8 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 		consumersByTokenID:      map[string]map[string]events.Consumer{},
 		storagesByTokenID:       map[string]map[string]storages.StorageProxy{},
 		destinationsIDByTokenID: map[string]map[string]bool{},
+
+		strictAuth: viper.GetBool("server.strict_auth_tokens"),
 	}
 
 	reloadSec := viper.GetInt("server.destinations_reload_sec")
@@ -153,7 +158,7 @@ func (s *Service) updateDestinations(payload []byte) {
 	s.init(dc)
 
 	if len(s.unitsByName) == 0 {
-		logging.Errorf("Destinations are empty")
+		logging.Error("Destinations are empty")
 	}
 }
 
@@ -190,12 +195,17 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		//map token -> id
 		if len(destinationConfig.OnlyTokens) > 0 {
 			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIDsByToken(destinationConfig.OnlyTokens)
-		} else {
+		} else if !s.strictAuth {
 			logging.Warnf("[%s] only_tokens aren't provided. All tokens will be stored.", name)
 			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIDs()
 		}
 
-		hash := getHash(name, destinationConfig)
+		hash, err := resources.GetHash(destinationConfig)
+		if err != nil {
+			logging.SystemErrorf("Error getting hash from [%s] destination: %v. Destination will be skipped!", name, err)
+			continue
+		}
+
 		unit, ok := s.unitsByName[name]
 		if ok {
 			if unit.hash == hash {
@@ -208,7 +218,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 			s.Unlock()
 		}
 
-		if len(destinationConfig.OnlyTokens) == 0 {
+		if !s.strictAuth && len(destinationConfig.OnlyTokens) == 0 {
 			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", name)
 			//authorization tokens weren't loaded => create this destination when authorization service will be reloaded
 			//and call force reload on this service
@@ -322,7 +332,7 @@ func (s *Service) remove(name string, unit *Unit) {
 	}
 
 	delete(s.unitsByName, name)
-	logging.Infof("[%s] has been removed!", name)
+	logging.Infof("[%s] destination has been removed!", name)
 }
 
 func (s *Service) Close() (multiErr error) {

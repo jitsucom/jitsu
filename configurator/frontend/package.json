@@ -35,6 +35,7 @@
     "web-vitals": "^1.0.1"
   },
   "scripts": {
+    "clean": "rm -rf ./node_modules/ build dist",
     "start": "NODE_ENV=development craco start",
     "build": "CI=false NODE_ENV=production craco build",
     "test": "craco test",
