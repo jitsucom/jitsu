@@ -27,7 +27,7 @@ const (
 )
 
 type SourceConfig struct {
-	Name string //without serialization
+	Name string `json:"-"` //without serialization
 
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
@@ -38,8 +38,8 @@ type SourceConfig struct {
 }
 
 type Collection struct {
-	DaysBackToLoad int    //without serialization
-	SourceID       string //without serialization
+	DaysBackToLoad int    `json:"-"` //without serialization
+	SourceID       string `json:"-"` //without serialization
 
 	Name         string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 	Type         string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
@@ -160,8 +160,9 @@ func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 		switch collectionI.(type) {
 		case string:
 			collections = append(collections, &Collection{SourceID: sourceConfig.Name, Name: collectionI.(string), Type: collectionI.(string)})
-		case map[interface{}]interface{}:
+		case map[string]interface{}, map[interface{}]interface{}:
 			collectionObjMap := cast.ToStringMap(collectionI)
+
 			parametersI, ok := collectionObjMap[collectionParametersField]
 			if ok {
 				parametersObjMap := cast.ToStringMap(parametersI)

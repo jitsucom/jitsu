@@ -96,6 +96,10 @@ export abstract class DestinationConfig {
     return this._formData;
   }
 
+  get uid(): string{
+    return this._uid
+  }
+
   /**
    * Trims all the string fields of _formData
    */

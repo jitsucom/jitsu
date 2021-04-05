@@ -32,7 +32,7 @@ server:
       - client_secret1
       - client_secret2
   ### Authorization reloading. If 'auth' key is http or file:/// source than it will be reloaded every auth_reload_sec
-  #auth_reload_sec: 30 #Optional. Default value is 30.
+  #auth_reload_sec: 3 #Optional. Default value is 3.
 
   ### Admin endpoint authorization
   admin_token: admin_token #Optional. Token for using Admin endpoints https://docs.eventnative.org/other-features/admin-endpoints
@@ -46,7 +46,10 @@ server:
 #    rotation_min: 1440 #Optional. Default value is 1440 (24 hours)
 
   ### Destinations reloading. If 'destinations' key is http or file:/// source than it will be reloaded every destinations_reload_sec
-  #destinations_reload_sec: 40 #Optional. Default value is 40.
+  #destinations_reload_sec: 5 #Optional. Default value is 5.
+
+  ### Sources reloading. If 'sources' key is http or file:/// URL than it will be reloaded every sources_reload_sec
+  #sources_reload_sec: 7 #Optional. Default value is 7.
 
   ### Application metrics
   ### At present only Prometheus is supported. Read more about application metrics https://docs.eventnative.org/other-features/application-metrics
