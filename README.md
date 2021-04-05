@@ -29,7 +29,7 @@ Read more about [our features](https://https://jitsu.com/#features) and check ou
 ## Quick Start
 
 <p align="center">
-<a href="https://jitsu.com/docs/deployment/heroku">
+<a href="https://jitsu.com/docs/deployment/deploy-on-heroku">
     <img src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/heroku.svg" height="50" alt="Deploy Jitsu on Heroku">
 </a>
 <a href="https://jitsu.com/docs/deployment/deploy-with-docker">
@@ -40,7 +40,7 @@ Read more about [our features](https://https://jitsu.com/#features) and check ou
 
 
 The fastest way to get started is deploying Jitsu with [Docker](https://jitsu.com/docs/deployment/deploy-with-docker). Also we support:
-- [Heroku Deployment](https://jitsu.com/docs/deployment/heroku)
+- [Heroku Deployment](https://jitsu.com/docs/deployment/deploy-on-heroku)
 - [Building from sources](https://jitsu.com/docs/deployment/build-from-sources)
 - Read about all deployment methods on [Jitsu Documentation](https://jitsu.com/docs/deployment/)
 
