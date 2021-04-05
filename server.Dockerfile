@@ -10,9 +10,15 @@ ENV EVENTNATIVE_USER=eventnative
 
 RUN addgroup -S $EVENTNATIVE_USER \
     && adduser -S -G $EVENTNATIVE_USER $EVENTNATIVE_USER \
-    && mkdir -p /home/$EVENTNATIVE_USER/logs/events \
-    && mkdir -p /home/$EVENTNATIVE_USER/app/res \
+    && mkdir -p /home/$EVENTNATIVE_USER/data/logs/events \
+    && mkdir -p /home/$EVENTNATIVE_USER/data/config \
+    && mkdir -p /home/$EVENTNATIVE_USER/app \
     && chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER
+
+# Create symlink for backward compatibility
+RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res && \
+    ln -s /home/$EVENTNATIVE_USER/data/logs /home/$EVENTNATIVE_USER/logs && \
+    chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/logs
 
 #######################################
 # BUILD JS STAGE
@@ -66,7 +72,7 @@ RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/app
 
 USER $EVENTNATIVE_USER
 
-VOLUME ["/home/$EVENTNATIVE_USER/app/res", "/home/$EVENTNATIVE_USER/logs", "/home/$EVENTNATIVE_USER/logs/events"]
+VOLUME ["/home/$EVENTNATIVE_USER/data"]
 EXPOSE 8001
 
-ENTRYPOINT ./eventnative -cfg=./res/eventnative.yaml -cr=true -dhid=$DOCKER_HUB_ID
+ENTRYPOINT ["./eventnative", "-cfg=../data/config/eventnative.yaml", "-cr=true"]

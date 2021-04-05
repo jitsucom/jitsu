@@ -2,8 +2,7 @@ package destinations
 
 import (
 	"encoding/json"
-	"github.com/google/martian/log"
-	"github.com/jitsucom/jitsu/server/resources"
+
 	"github.com/jitsucom/jitsu/server/storages"
 )
 
@@ -19,14 +18,4 @@ func parseFromBytes(b []byte) (map[string]storages.DestinationConfig, error) {
 	}
 
 	return payload.Destinations, nil
-}
-
-func getHash(name string, destination storages.DestinationConfig) string {
-	b, err := json.Marshal(destination)
-	if err != nil {
-		log.Errorf("Error getting hash(marshalling) from [%s] destination: %v", name, err)
-		return ""
-	}
-
-	return resources.GetHash(b)
 }

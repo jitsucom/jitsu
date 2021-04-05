@@ -24,6 +24,7 @@ require (
 	github.com/lib/pq v1.8.0
 	github.com/mailru/easyjson v0.7.7
 	github.com/mailru/go-clickhouse v1.3.0
+	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/panjf2000/ants/v2 v2.4.3
 	github.com/prometheus/client_golang v1.5.1

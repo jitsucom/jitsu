@@ -96,6 +96,10 @@ export abstract class DestinationConfig {
     return this._formData;
   }
 
+  get uid(): string{
+    return this._uid
+  }
+
   /**
    * Trims all the string fields of _formData
    */
@@ -282,10 +286,7 @@ export class BQConfig extends DestinationConfig {
   describe(): ConnectionDescription {
     return {
       displayURL: `${this.formData['bqProjectId']}`,
-      commandLineConnect: `echo '${this.formData['bqJSONKey'].replaceAll(
-        '\n',
-        ' '
-      )}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`
+      commandLineConnect: `echo '${this.formData['bqJSONKey'].replaceAll('\n', ' ')}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`
     };
   }
 }
