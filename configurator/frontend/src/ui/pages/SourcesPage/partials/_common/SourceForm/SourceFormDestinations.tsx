@@ -24,10 +24,10 @@ const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsP
   const handleChange = useCallback((config: DestinationConfig) => (checked: boolean) => {
     let newDestinations;
 
-    if (checked && !checkedDestinations.includes(config.id)) {
-      newDestinations = [...checkedDestinations, config.id];
+    if (checked && !checkedDestinations.includes(config.uid)) {
+      newDestinations = [...checkedDestinations, config.uid];
     } else if (!checked) {
-      newDestinations = checkedDestinations.filter((destination: string) => destination !== config.id);
+      newDestinations = checkedDestinations.filter((destination: string) => destination !== config.uid);
     }
 
     setCheckedDestinations(newDestinations);
@@ -69,11 +69,11 @@ const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsP
           {destinations.map((config) => {
             const description = config.describe();
 
-            return <List.Item key={config.id}>
+            return <List.Item key={config.uid}>
               <label htmlFor={config.id} className="ant-switch-group-label">
                 <List.Item.Meta
                   avatar={<div className="ant-switch-group-label__avatar">
-                    <Switch onChange={handleChange(config)} checked={checkedDestinations.includes(config.id)} />
+                    <Switch onChange={handleChange(config)} checked={checkedDestinations.includes(config.uid)} />
                     <Avatar shape="square" src={getIconSrc(config.type)}/>
                   </div>}
                   description={<span className="destinations-list-show-connect-command">{description.displayURL}</span>}
