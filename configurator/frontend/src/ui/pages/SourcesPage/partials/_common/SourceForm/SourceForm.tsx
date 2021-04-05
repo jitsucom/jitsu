@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { useHistory } from 'react-router-dom';
+import { Prompt, useHistory } from 'react-router-dom';
 import { Popover, Button, Form, message, Tabs } from 'antd';
 import { capitalize, snakeCase } from 'lodash';
 // @Types
@@ -29,7 +29,6 @@ interface Tab {
   form: FormInstance;
   getComponent: (form: FormInstance) => JSX.Element;
   errorsCount: number;
-  isActive: boolean;
 }
 
 interface TabsMap {
@@ -67,6 +66,7 @@ const SourceForm = ({
 
   const forceUpdate = useForceUpdate();
 
+  const [changedAndUnsavedFields, setChangedAndUnsavedFields] = useState<boolean>();
   const [isVisiblePopover, switchIsVisiblePopover] = useState<boolean>(false);
   const [isVisibleTestConnectionPopover, switchIsVisibleTestConnectionPopover] = useState<boolean>(false);
   const [connectionTestPending, setConnectionTestPending] = useState<boolean>(false);
@@ -77,22 +77,19 @@ const SourceForm = ({
         name: 'Config',
         form: Form.useForm()[0],
         getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} sourceIdMustBeUnique={formMode === 'create'} />,
-        errorsCount: 0,
-        isActive: true
+        errorsCount: 0
       },
       collections: {
         name: 'Collections',
         form: Form.useForm()[0],
         getComponent: (form: FormInstance) => <SourceFormCollections reportPrefix={connectorSource.id} initialValues={initialValues} connectorSource={connectorSource} form={form} />,
-        errorsCount: 0,
-        isActive: connectorSource.collectionParameters.length > 0
+        errorsCount: 0
       },
       destinations: {
         name: 'Destinations',
         form: Form.useForm()[0],
         getComponent: (form: FormInstance) => <SourceFormDestinations initialValues={initialValues} form={form} />,
-        errorsCount: 0,
-        isActive: true
+        errorsCount: 0
       }
     },
     submitOnce: false,
@@ -127,20 +124,27 @@ const SourceForm = ({
       .all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key)))
       .then(allValues => {
         if (!allValues.some(values => !values)) {
-          handleFinish(Object.assign({}, ...allValues))
-        }
+          handleFinish(Object.assign({}, ...allValues));
 
+          setChangedAndUnsavedFields(false);
+        }
+      })
+      .finally(() => {
         forceUpdate();
       });
   }, [forceUpdate, handleTabSubmit, handleFinish]);
 
   const handleFormValuesChange = useCallback(() => {
+    if (!changedAndUnsavedFields) {
+      setChangedAndUnsavedFields(true);
+    }
+
     if (mutableRefObject.current.submitOnce) {
       Promise.all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key))).then(() => forceUpdate());
     } else if (mutableRefObject.current.connectedOnce) {
       handleTabSubmit('config').then(() => forceUpdate());
     }
-  }, [forceUpdate, handleTabSubmit]);
+  }, [changedAndUnsavedFields, forceUpdate, handleTabSubmit]);
 
   const handleCancel = useCallback(() => history.push(routes.root), [history]);
 
@@ -178,17 +182,15 @@ const SourceForm = ({
         <Tabs defaultActiveKey="config" type="card" size="middle" className={styles.sourceTabs}>
           {
             Object.keys(mutableRefObject.current.tabs).map(key => {
-              const { form, getComponent, isActive } = mutableRefObject.current.tabs[key];
+              const { form, getComponent } = mutableRefObject.current.tabs[key];
 
-              return isActive
-                ? (
-                  <React.Fragment key={key}>
-                    <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
-                      <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
-                    </Tabs.TabPane>
-                  </React.Fragment>
-                )
-                : null;
+              return (
+                <React.Fragment key={key}>
+                  <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
+                    <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
+                  </Tabs.TabPane>
+                </React.Fragment>
+              );
             })
           }
         </Tabs>
@@ -236,6 +238,12 @@ const SourceForm = ({
           onClick={handleCancel}
           danger>Cancel</Button>
       </div>
+
+      <Prompt message={() => {
+        if (changedAndUnsavedFields) {
+          return 'You have unsaved changes. Are you sure you want to leave the page?'
+        }
+      }}/>
     </>
   );
 };

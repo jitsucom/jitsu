@@ -13,8 +13,6 @@ import { DestinationConfig } from '@service/destinations';
 import { SourceFormDestinationsProps } from './SourceForm.types';
 // @Hooks
 import useLoader from '@./lib/commons/useLoader';
-// @Routes
-import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 
 const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsProps) => {
   const [error, destinations] = useLoader(async() => await loadDestinations(ApplicationServices.get()));
@@ -70,7 +68,7 @@ const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsP
             const description = config.describe();
 
             return <List.Item key={config.uid}>
-              <label htmlFor={config.id} className="ant-switch-group-label">
+              <label htmlFor={config.uid} className="ant-switch-group-label">
                 <List.Item.Meta
                   avatar={<div className="ant-switch-group-label__avatar">
                     <Switch onChange={handleChange(config)} checked={checkedDestinations.includes(config.uid)} />
