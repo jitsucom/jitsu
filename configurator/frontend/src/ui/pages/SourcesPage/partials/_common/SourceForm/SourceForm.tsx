@@ -48,20 +48,20 @@ const SourceForm = ({
       config: {
         name: 'Config',
         form: Form.useForm()[0],
-        getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} sourceIdMustBeUnique={formMode === 'create'} />,
+        getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} sourceIdMustBeUnique={formMode === 'create'}/>,
         errorsCount: 0
       },
       collections: {
         name: 'Collections',
         form: Form.useForm()[0],
-        getComponent: (form: FormInstance) => <SourceFormCollections reportPrefix={connectorSource.id} initialValues={initialValues} connectorSource={connectorSource} form={form} />,
+        getComponent: (form: FormInstance) => <SourceFormCollections reportPrefix={connectorSource.id} initialValues={initialValues} connectorSource={connectorSource} form={form}/>,
         errorsCount: 0,
         isHiddenTab: connectorSource.isSingerType
       },
       destinations: {
         name: 'Destinations',
         form: Form.useForm()[0],
-        getComponent: (form: FormInstance) => <SourceFormDestinations initialValues={initialValues} form={form} />,
+        getComponent: (form: FormInstance) => <SourceFormDestinations initialValues={initialValues} form={form}/>,
         errorsCount: 0
       }
     },
@@ -139,8 +139,14 @@ const SourceForm = ({
         await services.backendApiClient.post('sources/test', { ...configObjectValues, sourceType: sourceFormCleanFunctions.getSourceType(connectorSource) });
 
         message.success('Successfully connected!');
-      } catch(e) {
-        handleError(e, 'Service is temporary unavailable');
+      } catch (e) {
+        message.error(
+          <>
+            <b>Unable to establish connection</b> - {e.message}
+            <Button type="link" onClick={() => message.destroy()}>
+              <span className="border-b border-primary border-dashed">Close</span>
+            </Button>
+          </>, 0);
       }
     } catch (error) {
       handleError(error, 'Unable to test connection with filled data');
@@ -158,14 +164,16 @@ const SourceForm = ({
               const { form, getComponent, isHiddenTab } = mutableRefObject.current.tabs[key];
 
               return !isHiddenTab
-                ? (
+                ?
+                (
                   <React.Fragment key={key}>
                     <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
                       <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
                     </Tabs.TabPane>
                   </React.Fragment>
                 )
-                : null;
+                :
+                null;
             })
           }
         </Tabs>
@@ -174,7 +182,7 @@ const SourceForm = ({
       <div className="flex-shrink border-t pt-2">
         <Popover
           content={sourceFormCleanFunctions.getErrors(mutableRefObject.current.tabs, Object.keys(mutableRefObject.current.tabs))}
-          title={<p className={styles.popoverTitle}><span>{capitalize(formMode)} source form errors:</span> <CloseOutlined onClick={handlePopoverClose} /></p>}
+          title={<p className={styles.popoverTitle}><span>{capitalize(formMode)} source form errors:</span> <CloseOutlined onClick={handlePopoverClose}/></p>}
           trigger="click"
           visible={isVisiblePopover && sourceFormCleanFunctions.getErrorsCount(mutableRefObject.current.tabs) > 0}
         >
@@ -188,14 +196,16 @@ const SourceForm = ({
             onClick={handleFormSubmit}
           >
             {formMode === 'create'
-              ? 'Create Source'
-              : 'Save Source'}
+              ?
+              'Create Source'
+              :
+              'Save Source'}
           </Button>
         </Popover>
 
         <Popover
           content={sourceFormCleanFunctions.getErrors(mutableRefObject.current.tabs, ['config'])}
-          title={<p className={styles.popoverTitle}><span>Config form errors:</span> <CloseOutlined onClick={handleTestConnectionPopoverClose} /></p>}
+          title={<p className={styles.popoverTitle}><span>Config form errors:</span> <CloseOutlined onClick={handleTestConnectionPopoverClose}/></p>}
           trigger="click"
           visible={isVisibleTestConnectionPopover && mutableRefObject.current.tabs.config.errorsCount > 0}
         >
