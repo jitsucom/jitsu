@@ -7,11 +7,11 @@ import {Hint} from "../../../components/documentationComponents";
 # Configuration Source
 
 
-Regardless of the deployment method, **EventNative** supports local YAML or JSON file, HTTP source, and raw JSON as configuration sources. The configuration might be passed via `-cfg` flag (e.g. to [running service command from an executable binary](/docs/deployment/build-from-sources#run-eventnative)) or via `CONFIG_LOCATION` environment variable.
+Regardless of the deployment method, **Jitsu** supports local YAML or JSON file, HTTP source, and raw JSON as configuration sources. The configuration might be passed via `-cfg` flag (e.g. to [running service command from an executable binary](/docs/deployment/build-from-sources#run-eventnative)) or via `CONFIG_LOCATION` environment variable.
 
 ### Local File
 
-Pass local file path with [configuration](/docs/configuration) to **EventNative**:
+Pass local file path with [configuration](/docs/configuration) to **Jitsu**:
 
 ```bash
 ./eventnative -cfg /home/user/eventnative.yaml
@@ -23,7 +23,7 @@ Pass local file path with [configuration](/docs/configuration) to **EventNative*
 
 ### HTTP source
 
-Pass external configuration to **EventNative** with or without basic auth:
+Pass external configuration to **Jitsu** with or without basic auth:
 
 ```bash
 ./eventnative -cfg 'https://username:password@config-server.com?env=prod'
@@ -31,9 +31,8 @@ Pass external configuration to **EventNative** with or without basic auth:
 #or in docker deployments
 
 docker run -p <local_port>:8001 \
-  -v /<log_dir>/:/home/eventnative/logs/events/ \
   -e CONFIG_LOCATION='https://username:password@config-server.com?env=prod' \
-  ksense/eventnative:beta
+  jitsucom/server:beta
 ```
 
 <Hint>
@@ -42,7 +41,7 @@ docker run -p <local_port>:8001 \
 
 ### Raw JSON
 
-Pass raw JSON payload to **EventNative**:
+Pass raw JSON payload to **Jitsu**:
 
 ```json
 ./eventnative -cfg '{"server":{"name":"test_instance", "auth":"token1"}}'
@@ -50,8 +49,6 @@ Pass raw JSON payload to **EventNative**:
 #or in docker deployments
 
 docker run -p <local_port>:8001 \
-  -v /<log_dir>/:/home/eventnative/logs/events/ \
-  -e CONFIG_LOCATION='{"server":{"name":"test_instance", "auth":"token1"}}' \
-  ksense/eventnative:beta
+-e CONFIG_LOCATION='{"server":{"name":"test_instance", "auth":"token1"}}' \
+jitsucom/server:beta
 ```
-
