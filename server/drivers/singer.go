@@ -92,15 +92,6 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 		return nil, fmt.Errorf("Error creating singer venv config dir: %v", err)
 	}
 
-	pathToTap := path.Join(singer.Instance.VenvDir, config.Tap)
-
-	//create virtual env with tap ID (if doesn't exist)
-
-	err = singer.Instance.ExecCmd(singer.Instance.PythonExecPath, singer.Instance.LogWriter, singer.Instance.LogWriter, "-m", "venv", pathToTap)
-	if err != nil {
-		return nil, fmt.Errorf("Error creating singer python venv: %v", err)
-	}
-
 	//parse singer config as file path
 	configPath, err := parseJSONAsFile(path.Join(pathToConfigs, "config.json"), config.Config)
 	if err != nil {
@@ -136,7 +127,7 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 		statePath:      statePath,
 	}
 
-	singer.Instance.EnsureTap(config.Tap, pathToTap)
+	singer.Instance.EnsureTap(config.Tap)
 
 	return s, nil
 }

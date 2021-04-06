@@ -92,7 +92,7 @@ Tokens file must have the same payload as the HTTP response body above.
 
 ```yaml
 server:
-  auth: 'file:///home/eventnative/app/res/tokens.json'
+  auth: 'file:///home/eventnative/data/config/tokens.json'
   auth_reload_sec: 30
 ```
 

@@ -30,7 +30,7 @@ server:
     path: /home/eventnative/logs/
   metrics.prometheus.enabled: true    
     
-geo.maxmind_path: /home/eventnative/app/res/
+geo.maxmind_path: /home/eventnative/data/config
 
 log:
   path: /home/eventnative/logs/events
