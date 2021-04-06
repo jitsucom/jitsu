@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
-import { Button, Dropdown, List, message } from 'antd';
+import { Button, Dropdown, List, message, Modal } from 'antd';
 import { snakeCase } from 'lodash';
 // @Components
 import { ConnectorsCatalog } from '../_common/ConnectorsCatalog';
@@ -16,6 +16,7 @@ import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 import styles from './SourcesList.module.less';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
+import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 
 const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
@@ -34,12 +35,23 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
 
   const handleDeleteSource = useCallback(
     (sourceId: string) => {
-      const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
+      Modal.confirm({
+        title: 'Please confirm deletion of source',
+        icon: <ExclamationCircleOutlined/>,
+        content: 'Are you sure you want to delete ' + sourceId + ' source?',
+        okText: 'Delete',
+        cancelText: 'Cancel',
+        onOk: () => {
+          const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
 
-      services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
-        setSources({ sources: updatedSources });
+          services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
+            setSources({ sources: updatedSources });
 
-        message.success('Sources list successfully updated');
+            message.success('Sources list successfully updated');
+          });
+        },
+        onCancel: () => {
+        }
       });
     },
     [sources, setSources, services.storageService, projectId]
