@@ -16,9 +16,8 @@ import (
 )
 
 const (
-	firebaseType             = "firebase"
-	firestoreCollection      = "firestore"
-	usersCollection          = "users"
+	FirestoreCollection      = "firestore"
+	UsersCollection          = "users"
 	userIDField              = "uid"
 	firestoreDocumentIDField = "_firestore_document_id"
 )
@@ -35,7 +34,7 @@ func (fc *FirebaseConfig) Validate() error {
 	if fc.ProjectID == "" {
 		return errors.New("project_id is not set")
 	}
-	if fc.Credentials == "" || !strings.HasPrefix(fc.Credentials, "{") || !strings.HasSuffix(fc.Credentials, "}") {
+	if fc.Credentials == "" || !strings.HasPrefix(fc.Credentials, "{") {
 		return errors.New("credentials must be a valid JSON")
 	}
 	return nil
@@ -50,8 +49,8 @@ type Firebase struct {
 }
 
 func init() {
-	if err := RegisterDriverConstructor(firebaseType, NewFirebase); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", firebaseType, err)
+	if err := RegisterDriver(FirebaseType, NewFirebase); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", FirebaseType, err)
 	}
 }
 
@@ -82,8 +81,8 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 		return nil, err
 	}
 
-	if collection.Type != firestoreCollection && collection.Type != usersCollection {
-		return nil, fmt.Errorf("Unsupported collection type %s: only [%s] and [%s] collections are allowed", collection.Type, usersCollection, firestoreCollection)
+	if collection.Type != FirestoreCollection && collection.Type != UsersCollection {
+		return nil, fmt.Errorf("Unsupported collection type %s: only [%s] and [%s] collections are allowed", collection.Type, UsersCollection, FirestoreCollection)
 	}
 
 	return &Firebase{config: config, ctx: ctx, firestoreClient: firestoreClient, authClient: authClient, collection: collection}, nil
@@ -98,12 +97,23 @@ func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 }
 
 func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
-	if f.collection.Type == firestoreCollection {
+	if f.collection.Type == FirestoreCollection {
 		return f.loadCollection()
-	} else if f.collection.Type == usersCollection {
+	} else if f.collection.Type == UsersCollection {
 		return f.loadUsers()
 	}
 	return nil, fmt.Errorf("Unknown collection: %s", f.collection.Type)
+}
+
+func (f *Firebase) TestConnection() error {
+	iter := f.authClient.Users(f.ctx, "")
+
+	_, err := iter.Next()
+	if err != nil && err != iterator.Done {
+		return err
+	}
+
+	return nil
 }
 
 func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
@@ -125,7 +135,7 @@ func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 }
 
 func (f *Firebase) Type() string {
-	return firebaseType
+	return FirebaseType
 }
 
 func (f *Firebase) Close() error {

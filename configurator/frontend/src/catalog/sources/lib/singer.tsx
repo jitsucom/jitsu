@@ -78,14 +78,14 @@ export const allSingerTaps: SingerTap[] = [
     {
         pic: logos.tap_covid_19_public_data,
         displayName: "COVID-19 Public Data",
-        tap: "tap-covid-19-public-data",
+        tap: "tap-covid-19",
         stable: true,
         hasNativeEquivalent: false
     },
     {
         pic: logos.tap_campaign_manager,
         displayName: "Campaign Manager",
-        tap: "tap-campaign-manager",
+        tap: "tap-doubleclick-campaign-manager",
         stable: true,
         hasNativeEquivalent: false
     },
@@ -113,7 +113,7 @@ export const allSingerTaps: SingerTap[] = [
     {
         pic: logos.tap_close_io,
         displayName: "Close",
-        tap: "tap-close-io",
+        tap: "tap-closeio",
         stable: true,
         hasNativeEquivalent: false
     },
@@ -169,14 +169,14 @@ export const allSingerTaps: SingerTap[] = [
     {
         pic: logos.tap_exchange_rates_api,
         displayName: "Exchange Rates API",
-        tap: "tap-exchange-rates-api",
+        tap: "tap-exchangeratesapi",
         stable: true,
         hasNativeEquivalent: false
     },
     {
         pic: logos.tap_facebook_ads,
         displayName: "Facebook Ads",
-        tap: "tap-facebook-ads",
+        tap: "tap-facebook",
         stable: true,
         hasNativeEquivalent: true
     },
@@ -218,7 +218,7 @@ export const allSingerTaps: SingerTap[] = [
     {
         pic: logos.tap_google_ads,
         displayName: "Google Ads",
-        tap: "tap-google-ads",
+        tap: "tap-adwords",
         stable: true,
         hasNativeEquivalent: true
     },
@@ -232,7 +232,7 @@ export const allSingerTaps: SingerTap[] = [
     {
         pic: null,
         displayName: "Google Analytics 360",
-        tap: "tap-google-analytics-360",
+        tap: "tap-ga360",
         stable: true,
         hasNativeEquivalent: false
     },
@@ -281,7 +281,7 @@ export const allSingerTaps: SingerTap[] = [
     {
         pic: logos.tap_ibm_db2,
         displayName: "IBM Db2",
-        tap: "tap-ibm-db2",
+        tap: "tap-db2",
         stable: true,
         hasNativeEquivalent: false
     },
@@ -463,21 +463,21 @@ export const allSingerTaps: SingerTap[] = [
     {
         pic: logos.tap_platform_purple,
         displayName: "Platform Purple",
-        tap: "tap-platform-purple",
+        tap: "tap-platformpurple",
         stable: true,
         hasNativeEquivalent: false
     },
     {
         pic: logos.tap_postgresql,
         displayName: "PostgreSQL",
-        tap: "tap-postgresql",
+        tap: "tap-postgres",
         stable: true,
         hasNativeEquivalent: false
     },
     {
         pic: logos.tap_quick_base,
         displayName: "Quick Base",
-        tap: "tap-quick-base",
+        tap: "tap-quickbase",
         stable: true,
         hasNativeEquivalent: false
     },
@@ -540,7 +540,7 @@ export const allSingerTaps: SingerTap[] = [
     {
         pic: logos.tap_salesforce_marketing_cloud,
         displayName: "Salesforce Marketing Cloud",
-        tap: "tap-salesforce-marketing-cloud",
+        tap: "tap-exacttarget",
         stable: true,
         hasNativeEquivalent: false
     },
@@ -554,7 +554,7 @@ export const allSingerTaps: SingerTap[] = [
     {
         pic: logos.tap_sendgrid_core,
         displayName: "SendGrid Core",
-        tap: "tap-sendgrid-core",
+        tap: "tap-sendgrid",
         stable: true,
         hasNativeEquivalent: false
     },
@@ -719,7 +719,7 @@ export const allSingerTaps: SingerTap[] = [
     {
         pic: logos.tap_zendesk_support,
         displayName: "Zendesk Support",
-        tap: "tap-zendesk-support",
+        tap: "tap-zendesk",
         stable: true,
         hasNativeEquivalent: false
     },
