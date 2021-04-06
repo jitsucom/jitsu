@@ -16,7 +16,6 @@ type Usage struct {
 	ServerStart int    `json:"server_start,omitempty"`
 	ServerStop  int    `json:"server_stop,omitempty"`
 	Events      uint64 `json:"events,omitempty"`
-	PulledRows  uint64 `json:"pulled_rows,omitempty"`
 }
 
 //Errors is a error accounting dto
