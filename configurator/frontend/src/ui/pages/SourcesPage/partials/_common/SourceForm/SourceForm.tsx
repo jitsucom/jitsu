@@ -74,6 +74,22 @@ const SourceForm = ({
   const handleTabSubmit = useCallback(async(key: string) => {
     const currentTab = mutableRefObject.current.tabs[key];
 
+    if (key === 'destinations') {
+      const destinations = currentTab.form.getFieldsValue()?.destinations;
+
+      if (!destinations || !destinations.length) {
+        mutableRefObject.current.tabs = {
+          ...mutableRefObject.current.tabs,
+          [key]: {
+            ...mutableRefObject.current.tabs[key],
+            warningsCount: 1
+          }
+        };
+      }
+
+      forceUpdate();
+    }
+
     try {
       return await currentTab.form.validateFields();
     } catch (errors) {
@@ -86,7 +102,7 @@ const SourceForm = ({
 
       throw errors;
     }
-  }, []);
+  }, [forceUpdate]);
 
   const handleFormSubmit = useCallback(() => {
     switchIsVisiblePopover(true);
@@ -102,9 +118,7 @@ const SourceForm = ({
           setChangedAndUnsavedFields(false);
         }
       })
-      .finally(() => {
-        forceUpdate();
-      });
+      .finally(forceUpdate);
   }, [forceUpdate, handleTabSubmit, handleFinish]);
 
   const handleFormValuesChange = useCallback(() => {
@@ -113,7 +127,7 @@ const SourceForm = ({
     }
 
     if (mutableRefObject.current.submitOnce) {
-      Promise.all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key))).then(() => forceUpdate());
+      Promise.all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key))).finally(forceUpdate);
     } else if (mutableRefObject.current.connectedOnce) {
       handleTabSubmit('config').then(() => forceUpdate());
     }
@@ -164,16 +178,14 @@ const SourceForm = ({
               const { form, getComponent, isHiddenTab } = mutableRefObject.current.tabs[key];
 
               return !isHiddenTab
-                ?
-                (
+                ? (
                   <React.Fragment key={key}>
                     <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
                       <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
                     </Tabs.TabPane>
                   </React.Fragment>
                 )
-                :
-                null;
+                : null;
             })
           }
         </Tabs>
@@ -181,7 +193,7 @@ const SourceForm = ({
 
       <div className="flex-shrink border-t pt-2">
         <Popover
-          content={sourceFormCleanFunctions.getErrors(mutableRefObject.current.tabs, Object.keys(mutableRefObject.current.tabs))}
+          content={sourceFormCleanFunctions.getErrorsAndWarnings(mutableRefObject.current.tabs, Object.keys(mutableRefObject.current.tabs))}
           title={<p className={styles.popoverTitle}><span>{capitalize(formMode)} source form errors:</span> <CloseOutlined onClick={handlePopoverClose}/></p>}
           trigger="click"
           visible={isVisiblePopover && sourceFormCleanFunctions.getErrorsCount(mutableRefObject.current.tabs) > 0}
@@ -204,7 +216,7 @@ const SourceForm = ({
         </Popover>
 
         <Popover
-          content={sourceFormCleanFunctions.getErrors(mutableRefObject.current.tabs, ['config'])}
+          content={sourceFormCleanFunctions.getErrorsAndWarnings(mutableRefObject.current.tabs, ['config'])}
           title={<p className={styles.popoverTitle}><span>Config form errors:</span> <CloseOutlined onClick={handleTestConnectionPopoverClose}/></p>}
           trigger="click"
           visible={isVisibleTestConnectionPopover && mutableRefObject.current.tabs.config.errorsCount > 0}
