@@ -80,6 +80,10 @@ export abstract class DestinationConfig {
     return this._id;
   }
 
+  get uid(): string {
+    return this._uid;
+  }
+
   get type(): string {
     return this._type;
   }

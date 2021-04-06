@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
-import { Col, Form, Input, Row } from 'antd';
+import { Col, Form, Input, Row, Select } from 'antd';
 import { get, snakeCase } from 'lodash';
 // @Utils
 import { SourceFormConfigField } from './SourceFormConfigField';
@@ -10,7 +10,10 @@ import { Parameter } from '@catalog/sources/types';
 import { SourceFormConfigProps as Props } from './SourceForm.types';
 // @Helper
 import { sourceFormCleanFunctions } from './sourceFormCleanFunctions';
+// @Constants
+import { COLLECTIONS_SCHEDULES } from '@./constants/schedule';
 
+// ToDo: initialValues should contain some values, to refuse initialValue for each field
 const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMustBeUnique }: Props) => {
 
   const isUniqueSourceId = useCallback((sourceId: string) => !sources?.find((source: SourceData) => source.sourceId === sourceId), [
@@ -39,6 +42,14 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
     return sourceFormCleanFunctions.getUniqueAutoIncremented(sourcesIds, preparedBlank, '_');
   }, [sources, isUniqueSourceId, initialValues, connectorSource]);
 
+  const initialSchedule = useMemo(() => {
+    if (initialValues.schedule) {
+      return initialValues.schedule;
+    }
+
+    return COLLECTIONS_SCHEDULES[0].value;
+  }, [initialValues]);
+
   const validateUniqueSourceId = useCallback((rule: RuleObject, value: string) => sources?.find((source: SourceData) => source.sourceId === value)
     ? Promise.reject('Source ID must be unique!')
     : Promise.resolve(), [sources])
@@ -55,14 +66,16 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
     return rules;
   }, [validateUniqueSourceId, sourceIdMustBeUnique]);
 
-  const getInitialValue = useCallback((id: string, defaultValue: any) => {
+  const getInitialValue = useCallback((id: string, defaultValue: any, type: any) => {
     const initial = get(initialValues, `config.${id}`);
 
     return initial
       ? initial
-      : Object.keys(defaultValue ?? {}).length > 0
-        ? JSON.stringify(defaultValue)
-        : '';
+      : type === 'json'
+        ? Object.keys(defaultValue ?? {}).length > 0
+          ? JSON.stringify(defaultValue)
+          : ''
+        : defaultValue;
   }, [initialValues]);
 
   return (
@@ -83,6 +96,30 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
         </Col>
       </Row>
 
+      {
+        connectorSource.isSingerType && <Row>
+          <Col span={16}>
+            <Form.Item
+              initialValue={initialSchedule}
+              name="schedule"
+              className="form-field_fixed-label"
+              label="Schedule:"
+              labelCol={{ span: 6 }}
+              wrapperCol={{ span: 18 }}
+              rules={[{ required: true, message: 'You have to choose schedule' }]}
+            >
+              <Select>
+                {
+                  COLLECTIONS_SCHEDULES.map((option) =>
+                    <Select.Option value={option.value} key={option.value}>{option.label}</Select.Option>
+                  )
+                }
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+      }
+
       {connectorSource.configParameters.map(({ id, displayName, required, type, documentation, constant, defaultValue }: Parameter) => {
         return (
           <SourceFormConfigField
@@ -92,7 +129,7 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
             id={id}
             key={id}
             displayName={displayName}
-            initialValue={getInitialValue(id, defaultValue)}
+            initialValue={getInitialValue(id, defaultValue, type.typeName)}
             required={required}
             documentation={documentation}
           />
