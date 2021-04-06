@@ -3,34 +3,24 @@ import * as React from 'react';
 
 const googleAuthConfigParameters = [
   {
-    displayName: 'Account ID',
-    id: 'account_id',
+    displayName: 'View ID',
+    id: 'view_id',
     type: stringType,
-    required: true
-  },
-  {
-    displayName: 'Auth (Client ID)',
-    id: 'auth.client_id',
-    type: stringType,
-    required: true
-  },
-  {
-    displayName: 'Auth (Client Secret)',
-    id: 'auth.client_secret',
-    type: stringType,
-    required: true
-  },
-  {
-    displayName: 'Auth (Refresh Token)',
-    id: 'auth.refresh_token',
-    type: stringType,
-    required: true
+    required: true,
+    documentation:
+        <>
+          Read about <a href="https://jitsu.com/docs/sources-configuration/google-analytics#how-to-find-google-analytics-view-id">how to find Google Analytics View ID</a>
+        </>,
   },
   {
     displayName: 'Auth (Service account key JSON)',
     id: 'auth.service_account_key',
     type: jsonType,
-    required: true
+    required: true,
+    documentation:
+        <>
+          Read about <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">how to create Google Service Account</a>
+        </>,
   }
 ];
 

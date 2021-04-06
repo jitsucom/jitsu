@@ -37,7 +37,7 @@ collections:
 | `type`  | determines which data subset must be synchronized. If type absents, type equals to `name` parameter |
 | `table_name` | name of the table to keep synchronized data. If not set, equals to the name of collection |
 | `start_date` | start date string of data to download in `YYYY-MM-DD` format. Default values is `365` days ago |
-| `schedule` (available in beta)| [cron expression](https://en.wikipedia.org/wiki/Cron) automatic collection synchronization schedule. If not set - only manual collection synchronization(by HTTP API) will be available |
+| `schedule`   | [cron expression](https://en.wikipedia.org/wiki/Cron) automatic collection synchronization schedule. If not set - only manual collection synchronization(by HTTP API) will be available |
 | `parameters` | if the collection is parametrized, parameter values are set here. A value may be of any type (`string`, `number`, `boolean`, `list`, `object`) |
 
 If the collection has no parameters, it may be configured only by its name as a string argument. For example:
@@ -100,7 +100,7 @@ Common yaml properties for all sources (**all yaml properties are required**):
 
 To see how to configure some type of source, please visit documentation pages for exact source types.
 
-### Sync tasks (available at beta)
+### Sync tasks
 
 EventNative supports automatic collection synchronization as well as manual. For using automatic collection synchronization
 there must be configured `schedule` property in the `collection` section of configuration (see above).
