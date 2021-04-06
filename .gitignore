@@ -3,5 +3,6 @@ compose-data/configurator/data/logs
 compose-data/redis
 compose-data/server/data/events
 compose-data/server/data/logs
+compose-data/server/data/venv
 
 .idea/

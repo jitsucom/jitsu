@@ -28,7 +28,7 @@ const (
 )
 
 type SourceConfig struct {
-	Name string `json:"-"` //without serialization
+	Name string `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
