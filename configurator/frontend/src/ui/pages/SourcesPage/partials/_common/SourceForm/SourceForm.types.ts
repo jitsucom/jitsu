@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Dispatch, SetStateAction } from 'react';
 import { CollectionParameter, SourceConnector } from '@catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData } from 'antd/es/form/FormList';
@@ -13,6 +13,7 @@ export interface FormProps {
   sources: SourceData[];
   initialValues: any;
   formMode: FormMode;
+  setConnected: Dispatch<SetStateAction<boolean>>;
 }
 
 export interface FormWrapProps extends CommonSourcePageProps {
