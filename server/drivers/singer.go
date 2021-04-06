@@ -10,7 +10,6 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/singer"
 	"github.com/jitsucom/jitsu/server/uuid"
-	"go.uber.org/atomic"
 	"io"
 	"io/ioutil"
 	"os/exec"
@@ -61,7 +60,6 @@ type Singer struct {
 	propertiesPath string
 	statePath      string
 
-	ready  atomic.Bool
 	closed bool
 }
 
@@ -98,31 +96,31 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 
 	//create virtual env with tap ID (if doesn't exist)
 
-	err = execCmd(singer.Instance.PythonExecPath, singer.Instance.LogWriter, singer.Instance.LogWriter, "-m", "venv", pathToTap)
+	err = singer.Instance.ExecCmd(singer.Instance.PythonExecPath, singer.Instance.LogWriter, singer.Instance.LogWriter, "-m", "venv", pathToTap)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating singer python venv: %v", err)
 	}
 
 	//parse singer config as file path
-	configPath, err := parseJSONAsFile(pathToConfigs, config.Config)
+	configPath, err := parseJSONAsFile(path.Join(pathToConfigs, "config.json"), config.Config)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
 	}
 
 	//parse singer catalog as file path
-	catalogPath, err := parseJSONAsFile(pathToConfigs, config.Catalog)
+	catalogPath, err := parseJSONAsFile(path.Join(pathToConfigs, "catalog.json"), config.Catalog)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer catalog [%v]: %v", config.Catalog, err)
 	}
 
 	//parse singer properties as file path
-	propertiesPath, err := parseJSONAsFile(pathToConfigs, config.Properties)
+	propertiesPath, err := parseJSONAsFile(path.Join(pathToConfigs, "properties.json"), config.Properties)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer properties [%v]: %v", config.Properties, err)
 	}
 
 	//parse singer state as file path
-	statePath, err := parseJSONAsFile(pathToConfigs, config.InitialState)
+	statePath, err := parseJSONAsFile(path.Join(pathToConfigs, "state.json"), config.InitialState)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer initial state [%v]: %v", config.InitialState, err)
 	}
@@ -138,29 +136,7 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 		statePath:      statePath,
 	}
 
-	//async update pip and install singer tap
-	if singer.Instance.InstallTaps {
-		safego.Run(func() {
-
-			//update pip
-			err = execCmd(path.Join(pathToTap, "/bin/python3"), singer.Instance.LogWriter, singer.Instance.LogWriter, "-m", "pip", "install", "--upgrade", "pip")
-			if err != nil {
-				logging.Errorf("Error updating pip for [%s] env: %v", sourceConfig.Name, err)
-				return
-			}
-
-			//install tap
-			err = execCmd(path.Join(pathToTap, "/bin/pip3"), singer.Instance.LogWriter, singer.Instance.LogWriter, "install", config.Tap)
-			if err != nil {
-				logging.Errorf("Error installing singer tap [%s]: %v", config.Tap, err)
-				return
-			}
-
-			s.ready.Store(true)
-		})
-	} else {
-		s.ready.Store(true)
-	}
+	singer.Instance.EnsureTap(config.Tap, pathToTap)
 
 	return s, nil
 }
@@ -181,7 +157,7 @@ func (s *Singer) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}
 }
 
 func (s *Singer) Ready() (bool, error) {
-	if s.ready.Load() {
+	if singer.Instance.IsTapReady(s.tap) {
 		return true, nil
 	}
 
@@ -197,8 +173,9 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 		return errors.New("Singer has already been closed")
 	}
 
-	if !s.ready.Load() {
-		return errNotReady
+	ready, readyErr := s.Ready()
+	if !ready {
+		return readyErr
 	}
 
 	//override initial state with existing one and put it to a file
@@ -298,12 +275,13 @@ func (s *Singer) TestConnection() error {
 		return notReadyError
 	}
 
-	strWriter := logging.NewStringWriter()
+	outWriter := logging.NewStringWriter()
+	errWriter := logging.NewStringWriter()
 
 	command := path.Join(singer.Instance.VenvDir, s.tap, "bin", s.tap)
 
-	err := execCmd(command, nil, strWriter, "-c", s.configPath, "--discover")
-	errStr := strWriter.String()
+	err := singer.Instance.ExecCmd(command, outWriter, errWriter, "-c", s.configPath, "--discover")
+	errStr := errWriter.String()
 	if err != nil {
 		return fmt.Errorf("Error singer --discover: %v. %s", err, errStr)
 	}
@@ -333,45 +311,6 @@ func (s *Singer) Close() (multiErr error) {
 	s.Unlock()
 
 	return multiErr
-}
-
-func execCmd(cmd string, stdOutWriter, stdErrWriter io.Writer, args ...string) error {
-	execCmd := exec.Command(cmd, args...)
-
-	stdout, _ := execCmd.StdoutPipe()
-	stderr, _ := execCmd.StderrPipe()
-
-	err := execCmd.Start()
-	if err != nil {
-		return err
-	}
-
-	var wg sync.WaitGroup
-
-	if stdOutWriter != nil {
-		wg.Add(1)
-		safego.Run(func() {
-			defer wg.Done()
-			io.Copy(stdOutWriter, stdout)
-		})
-	}
-
-	if stdErrWriter != nil {
-		wg.Add(1)
-		safego.Run(func() {
-			defer wg.Done()
-			io.Copy(stdErrWriter, stderr)
-		})
-	}
-
-	wg.Wait()
-
-	err = execCmd.Wait()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 //parse value and write it to a json file

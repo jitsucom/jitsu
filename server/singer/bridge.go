@@ -2,8 +2,13 @@ package singer
 
 import (
 	"errors"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/safego"
 	"io"
 	"io/ioutil"
+	"os/exec"
+	"path"
+	"sync"
 )
 
 var Instance *Bridge
@@ -11,8 +16,11 @@ var Instance *Bridge
 type Bridge struct {
 	PythonExecPath string
 	VenvDir        string
-	InstallTaps    bool
+	installTaps    bool
 	LogWriter      io.Writer
+
+	installedTaps         *sync.Map
+	installInProgressTaps *sync.Map
 }
 
 func Init(pythonExecPath, venvDir string, installTaps bool, logWriter io.Writer) error {
@@ -29,10 +37,94 @@ func Init(pythonExecPath, venvDir string, installTaps bool, logWriter io.Writer)
 	}
 
 	Instance = &Bridge{
-		PythonExecPath: pythonExecPath,
-		VenvDir:        venvDir,
-		InstallTaps:    installTaps,
-		LogWriter:      logWriter,
+		PythonExecPath:        pythonExecPath,
+		VenvDir:               venvDir,
+		installTaps:           installTaps,
+		LogWriter:             logWriter,
+		installedTaps:         &sync.Map{},
+		installInProgressTaps: &sync.Map{},
+	}
+
+	return nil
+}
+
+//IsTapReady returns true if the tap is ready for using
+func (b *Bridge) IsTapReady(tap string) bool {
+	_, ready := b.installedTaps.Load(tap)
+	return ready
+}
+
+//EnsureTap runs async update pip and install singer tap
+func (b *Bridge) EnsureTap(tap, pathToTap string) {
+	//ensure tap is installed
+	if b.installTaps {
+		//tap is installed
+		_, isInstalled := b.installedTaps.Load(tap)
+		if isInstalled {
+			return
+		}
+
+		//tap is being installed
+		_, isBeingInstalled := b.installInProgressTaps.LoadOrStore(tap, 1)
+		if isBeingInstalled {
+			return
+		}
+
+		safego.Run(func() {
+			defer b.installInProgressTaps.Delete(tap)
+
+			//update pip
+			err := b.ExecCmd(path.Join(pathToTap, "/bin/python3"), b.LogWriter, b.LogWriter, "-m", "pip", "install", "--upgrade", "pip")
+			if err != nil {
+				logging.Errorf("Error updating pip for [%s] env: %v", pathToTap, err)
+				return
+			}
+
+			//install tap
+			err = b.ExecCmd(path.Join(pathToTap, "/bin/pip3"), b.LogWriter, b.LogWriter, "install", tap)
+			if err != nil {
+				logging.Errorf("Error installing singer tap [%s]: %v", tap, err)
+				return
+			}
+
+			b.installedTaps.Store(tap, 1)
+		})
+	} else {
+		b.installedTaps.Store(tap, 1)
+	}
+}
+
+//ExecCmd executes command with args and uses stdOutWriter and stdErrWriter to pipe the result
+func (b *Bridge) ExecCmd(cmd string, stdOutWriter, stdErrWriter io.Writer, args ...string) error {
+	execCmd := exec.Command(cmd, args...)
+
+	stdout, _ := execCmd.StdoutPipe()
+	stderr, _ := execCmd.StderrPipe()
+
+	err := execCmd.Start()
+	if err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	safego.Run(func() {
+		defer wg.Done()
+		io.Copy(stdOutWriter, stdout)
+	})
+
+	wg.Add(1)
+	safego.Run(func() {
+		defer wg.Done()
+		io.Copy(stdErrWriter, stderr)
+	})
+
+	wg.Wait()
+
+	err = execCmd.Wait()
+	if err != nil {
+		return err
 	}
 
 	return nil

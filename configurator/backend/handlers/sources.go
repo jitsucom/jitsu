@@ -66,7 +66,16 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 		return
 	}
 
+	userProjectID := c.GetString(middleware.ProjectIDKey)
+	if userProjectID == "" {
+		logging.SystemError(ErrProjectIDNotFoundInContext)
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: ErrProjectIDNotFoundInContext.Error(), Message: "Authorization error"})
+		return
+	}
+
 	enSourceConfig := mapConfig(sourceEntity, []string{})
+	sourceID := userProjectID + "." + sourceEntity.SourceID
+	enSourceConfig.Name = sourceID
 
 	b, err := json.Marshal(enSourceConfig)
 	if err != nil {
