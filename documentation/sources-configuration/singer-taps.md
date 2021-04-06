@@ -31,9 +31,9 @@ sources:
     destinations: [ "postgres_destination_id" ]
     config:
       tap: tap-facebook
-      config: /home/eventnative/app/res/facebook_config.json
-      properties: /home/eventnative/app/res/facebook_props.json
-      initial_state: /home/eventnative/app/res/facebook_initial_state.json
+      config: /home/eventnative/data/config/facebook_config.json
+      properties: /home/eventnative/data/config/facebook_props.json
+      initial_state: /home/eventnative/data/config/facebook_initial_state.json
   jitsu_singer_shopify:
     type: singer
     destinations: [ "clickhouse_destination_id" ]
