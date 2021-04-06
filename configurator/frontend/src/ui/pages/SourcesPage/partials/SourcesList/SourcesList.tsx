@@ -10,7 +10,7 @@ import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Types
-import { SourceConnector } from '../../../../../catalog/sources/types';
+import { SourceConnector } from '@catalog/sources/types';
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
 import styles from './SourcesList.module.less';
@@ -57,7 +57,7 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
 
           <List key="sources-list" className="sources-list" itemLayout="horizontal" split={true}>
             {sources.map((source) => {
-              const sourceProto = sourcesMap[source.sourceType];
+              const sourceProto = sourcesMap[source.sourceProtoType];
 
               return (
                 <SourcesListItem

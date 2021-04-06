@@ -36,6 +36,7 @@ const SourceFormWrap = ({
 
       const createdSourceData: SourceData = {
         sourceType: sourceFormCleanFunctions.getSourceType(connectorSource),
+        sourceProtoType: snakeCase(connectorSource.id),
         ...makeObjectFromFieldsValues<Pick<SourceData, 'config' | 'destinations' | 'sourceId'>>(rest),
         collections: [] as CollectionSource[]
       };

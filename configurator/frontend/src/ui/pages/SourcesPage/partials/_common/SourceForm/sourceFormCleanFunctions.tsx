@@ -12,6 +12,7 @@ export interface Tab {
   form: FormInstance;
   getComponent: (form: FormInstance) => JSX.Element;
   errorsCount: number;
+  isHiddenTab?: boolean;
 }
 
 export interface TabsMap {
