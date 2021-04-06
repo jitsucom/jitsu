@@ -2,7 +2,7 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Prompt, useHistory } from 'react-router-dom';
 import { Popover, Button, Form, message, Tabs } from 'antd';
-import { capitalize, snakeCase } from 'lodash';
+import { capitalize } from 'lodash';
 // @Types
 import { FormProps as Props } from './SourceForm.types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
@@ -22,37 +22,9 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 import { routes } from '@page/SourcesPage/routes';
 // @Styles
 import styles from './SourceForm.module.less';
+// @Utils
 import { makeObjectFromFieldsValues } from '@util/Form';
-
-interface Tab {
-  name: string;
-  form: FormInstance;
-  getComponent: (form: FormInstance) => JSX.Element;
-  errorsCount: number;
-}
-
-interface TabsMap {
- [key: string]: Tab;
-}
-
-const sourceFormCleanFunctions = {
-  getErrorsCount: (tabs: TabsMap) => Object.keys(tabs).reduce((result: number, key: string) => {
-    result += tabs[key].errorsCount;
-    return result;
-  }, 0),
-  getErrors: (tabs: TabsMap, tabsKeys: string[]) => (<ul>
-    {tabsKeys.reduce((result: React.ReactNode[], key: string) => {
-      if (tabs[key].errorsCount > 0) {
-        result.push(<li key={key}>{tabs[key].errorsCount} error(s) at `{tabs[key].name}` tab;</li>)
-      }
-
-      return result;
-    }, [])}
-  </ul>),
-  getTabName: (currentTab: Tab) => currentTab.errorsCount === 0
-    ? currentTab.name
-    : <span className="tab-name tab-name_error">{currentTab.name} <sup>{currentTab.errorsCount}</sup></span>
-};
+import { sourceFormCleanFunctions, TabsMap } from './sourceFormCleanFunctions';
 
 const SourceForm = ({
   connectorSource,
@@ -163,7 +135,7 @@ const SourceForm = ({
         const { form } = mutableRefObject.current.tabs.config;
         const configObjectValues = makeObjectFromFieldsValues<Partial<SourceData>>(form.getFieldsValue());
 
-        await services.backendApiClient.post('sources/test', { ...configObjectValues, sourceType: snakeCase(connectorSource.id) });
+        await services.backendApiClient.post('sources/test', { ...configObjectValues, sourceType: sourceFormCleanFunctions.getSourceType(connectorSource) });
 
         message.success('Successfully connected!');
       } catch(e) {
