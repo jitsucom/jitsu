@@ -55,7 +55,8 @@ const SourceForm = ({
         name: 'Collections',
         form: Form.useForm()[0],
         getComponent: (form: FormInstance) => <SourceFormCollections reportPrefix={connectorSource.id} initialValues={initialValues} connectorSource={connectorSource} form={form} />,
-        errorsCount: 0
+        errorsCount: 0,
+        isHiddenTab: connectorSource.isSingerType
       },
       destinations: {
         name: 'Destinations',
@@ -154,15 +155,17 @@ const SourceForm = ({
         <Tabs defaultActiveKey="config" type="card" size="middle" className={styles.sourceTabs}>
           {
             Object.keys(mutableRefObject.current.tabs).map(key => {
-              const { form, getComponent } = mutableRefObject.current.tabs[key];
+              const { form, getComponent, isHiddenTab } = mutableRefObject.current.tabs[key];
 
-              return (
-                <React.Fragment key={key}>
-                  <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
-                    <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
-                  </Tabs.TabPane>
-                </React.Fragment>
-              );
+              return !isHiddenTab
+                ? (
+                  <React.Fragment key={key}>
+                    <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
+                      <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
+                    </Tabs.TabPane>
+                  </React.Fragment>
+                )
+                : null;
             })
           }
         </Tabs>

@@ -16,4 +16,5 @@ declare interface SourceData {
   destinations: string[];
   sourceId: string;
   sourceType: string;
+  sourceProtoType: string;
 }
