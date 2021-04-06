@@ -55,7 +55,7 @@ func (b *Bridge) IsTapReady(tap string) bool {
 }
 
 //EnsureTap runs async update pip and install singer tap
-func (b *Bridge) EnsureTap(tap, pathToTap string) {
+func (b *Bridge) EnsureTap(tap string) {
 	//ensure tap is installed
 	if b.installTaps {
 		//tap is installed
@@ -73,8 +73,17 @@ func (b *Bridge) EnsureTap(tap, pathToTap string) {
 		safego.Run(func() {
 			defer b.installInProgressTaps.Delete(tap)
 
+			pathToTap := path.Join(b.VenvDir, tap)
+
+			//create virtual env
+			err := b.ExecCmd(b.PythonExecPath, b.LogWriter, b.LogWriter, "-m", "venv", pathToTap)
+			if err != nil {
+				logging.Errorf("Error creating singer python venv for [%s]: %v", pathToTap, err)
+				return
+			}
+
 			//update pip
-			err := b.ExecCmd(path.Join(pathToTap, "/bin/python3"), b.LogWriter, b.LogWriter, "-m", "pip", "install", "--upgrade", "pip")
+			err = b.ExecCmd(path.Join(pathToTap, "/bin/python3"), b.LogWriter, b.LogWriter, "-m", "pip", "install", "--upgrade", "pip")
 			if err != nil {
 				logging.Errorf("Error updating pip for [%s] env: %v", pathToTap, err)
 				return
