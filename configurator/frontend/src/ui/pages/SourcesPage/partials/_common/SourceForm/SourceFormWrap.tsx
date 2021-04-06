@@ -2,7 +2,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { message } from 'antd';
 import { NavLink, useHistory } from 'react-router-dom';
-import { set, snakeCase } from 'lodash';
+import { snakeCase } from 'lodash';
 // @Components
 import { SourceForm } from './SourceForm';
 // @Services
@@ -11,6 +11,9 @@ import ApplicationServices from '@service/ApplicationServices';
 import { routes } from '@page/SourcesPage/routes';
 // @Types
 import { FormWrapProps } from '@page/SourcesPage/partials/_common/SourceForm/SourceForm.types';
+// @Utils
+import { makeObjectFromFieldsValues } from '@util/Form';
+import { CollectionSourceData } from '@page/SourcesPage/SourcesPage.types';
 
 const SourceFormWrap = ({
   sources = [],
@@ -30,15 +33,10 @@ const SourceFormWrap = ({
     ({ collections, ...rest }: SourceData) => {
       switchPending(true);
 
-      const createdSourceData = {
+      const createdSourceData: SourceData = {
         sourceType: snakeCase(connectorSource.id),
-        ...Object.keys(rest).reduce((accumulator: any, current: any) => {
-          if (rest[current]) {
-            set(accumulator, current, rest[current]);
-          }
-
-          return accumulator;
-        }, {})
+        ...makeObjectFromFieldsValues<Pick<SourceData, 'config' | 'destinations' | 'sourceId'>>(rest),
+        collections: [] as CollectionSource[]
       };
 
       if (collections) {
@@ -55,7 +53,7 @@ const SourceFormWrap = ({
         }));
       }
 
-      const payload = {
+      const payload: CollectionSourceData = {
         sources: formMode === 'edit'
           ? sources.reduce((accumulator: SourceData[], current: SourceData) => [
             ...accumulator,

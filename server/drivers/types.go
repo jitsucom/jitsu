@@ -7,6 +7,16 @@ import (
 	"strings"
 )
 
+const (
+	FbMarketingType     = "facebook_marketing"
+	FirebaseType        = "firebase"
+	GoogleAnalyticsType = "google_analytics"
+	GooglePlayType      = "google_play"
+	RedisType           = "redis"
+
+	SingerType = "singer"
+)
+
 var errAccountKeyConfiguration = errors.New("service_account_key must be map, JSON file path or JSON content string")
 var errAuthorizationConfiguration = errors.New("authorization is not configured. You need to configure " +
 	"[service_account_key] field or [client_id, client_secret, refresh_token] set of fields")

@@ -17,4 +17,6 @@ type Driver interface {
 	Type() string
 	//GetCollectionTable returns table name
 	GetCollectionTable() string
+	//TestConnection returns error if can't do anything
+	TestConnection() error
 }

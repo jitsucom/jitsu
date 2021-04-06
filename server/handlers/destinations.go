@@ -17,11 +17,11 @@ import (
 func DestinationsHandler(c *gin.Context) {
 	destinationConfig := &storages.DestinationConfig{}
 	if err := c.BindJSON(destinationConfig); err != nil {
-		logging.Error("Error parsing destinations body: %v", err)
+		logging.Errorf("Error parsing destinations body: %v", err)
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
 		return
 	}
-	err := testConnection(destinationConfig)
+	err := testDestinationConnection(destinationConfig)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: err.Error()})
 		return
@@ -29,7 +29,7 @@ func DestinationsHandler(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-func testConnection(config *storages.DestinationConfig) error {
+func testDestinationConnection(config *storages.DestinationConfig) error {
 	switch config.Type {
 	case storages.PostgresType:
 		if err := config.DataSource.Validate(); err != nil {
