@@ -12,7 +12,9 @@ declare interface SourceData {
   config: {
     [key: string]: string;
   };
+  schedule?: string;
   destinations: string[];
   sourceId: string;
   sourceType: string;
+  sourceProtoType: string;
 }
