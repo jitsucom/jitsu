@@ -6,7 +6,7 @@ import {Hint} from "../../../components/documentationComponents";
 
 # Deploying with Docker
 
-**EventNative** provides a Docker image to simplify deployment on your IaaS or hardware of choice. We build two images:
+**Jitsu** provides a Docker image to simplify deployment on your IaaS or hardware of choice. We build two images:
 
 * `jitsucom/server:latest` — contains the latest stable production release. This image is built from [master](https://github.com/jitsucom/jitsu/tree/master) branch
 * `jitsucom/server:beta` — contains the latest beta version built from [beta](https://github.com/jitsucom/jitsu/tree/beta) branch
@@ -16,7 +16,7 @@ We recommend using beta for experiments. It's stable and well tested. It usually
 ### Getting started with Docker
 
 * Pull the image from Docker Hub with: `docker pull jitsucom/server:beta`
-* Create an `<data_dir>`. It will be used as Docker mount directory for keeping EventNative config and logs.   
+* Create an `<data_dir>`. It will be used as Docker mount directory for keeping Jitsu config and logs.
 * Create [your config file](/docs/configuration/) and save it in `<data_dir>/config/eventnative.yaml`.
 
 <Hint>
@@ -34,19 +34,18 @@ docker run -p <local_port>:8001 \
 Please, refer `<data_dir>` by its absolute path. Use `$PWD` macro if necessary. Example:
 
 ```javascript
-docker run --name eventnative-test -p 8000:8001 \
+docker run --name jitsu-test -p 8000:8001 \
   -v $PWD/data/:/home/eventnative/data/ \
   jitsucom/server:beta
 ```
 
-Also, **EventNative** supports passing config via `CONFIG_LOCATION` environment variable. The configuration might be one of the [described formats](/docs/deployment/configuration-source). For example, docker run with externalized [HTTP configuration source](/docs/deployment/configuration-source#http-source):
+Also, **Jitsu** supports passing config via `CONFIG_LOCATION` environment variable. The configuration might be one of the [described formats](/docs/deployment/configuration-source). For example, docker run with externalized [HTTP configuration source](/docs/deployment/configuration-source#http-source):
 
 ```javascript
-docker run --name eventnative-test -p 8000:8001 \n
+docker run --name jitsu-test -p 8000:8001 \n
   -e CONFIG_LOCATION='https://username:password@config-server.com?env=dev' \
   jitsucom/server:beta
 ```
 
-  
-Once you see Started banner in logs, it **EventNative** is running.
 
+Once you see Started banner in logs, it **Jitsu** is running.
