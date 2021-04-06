@@ -1,5 +1,7 @@
 <p align="center">
+  <a href="https://jitsu.com">
   <img title="Jitsu" src='https://jitsu.com/img/jitsu-light.svg' width="400px"/>
+  </a>
 </p>
 
 <br />
