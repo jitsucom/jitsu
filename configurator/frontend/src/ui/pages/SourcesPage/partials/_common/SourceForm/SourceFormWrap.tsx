@@ -28,18 +28,25 @@ const SourceFormWrap = ({
 
   const [isPending, switchPending] = useState(false);
 
+  const [isConnected, setConnected] = useState(sourceData.connected);
+
   const services = useMemo(() => ApplicationServices.get(), []);
 
   const handleFinish = useCallback(
-    ({ collections, ...rest }: SourceData) => {
+    async({ collections, ...rest }: SourceData) => {
       switchPending(true);
 
       const createdSourceData: SourceData = {
         sourceType: sourceFormCleanFunctions.getSourceType(connectorSource),
         sourceProtoType: snakeCase(connectorSource.id),
         ...makeObjectFromFieldsValues<Pick<SourceData, 'config' | 'destinations' | 'sourceId'>>(rest),
-        collections: [] as CollectionSource[]
+        collections: [] as CollectionSource[],
+        connected: isConnected
       };
+
+      if (!createdSourceData.connected) {
+        createdSourceData.connected = await sourceFormCleanFunctions.testConnection(createdSourceData.config, connectorSource);
+      }
 
       if (collections) {
         createdSourceData.collections = collections.map((collection: any) => ({
@@ -84,7 +91,7 @@ const SourceFormWrap = ({
         })
         .finally(() => switchPending(false));
     },
-    [connectorSource.collectionParameters, connectorSource.id, services.storageService, projectId, sources, history, setSources, formMode]
+    [isConnected, connectorSource, services.storageService, projectId, sources, history, setSources, formMode]
   );
 
   return (
@@ -107,6 +114,7 @@ const SourceFormWrap = ({
         isRequestPending={isPending}
         handleFinish={handleFinish}
         sources={sources}
+        setConnected={setConnected}
       />
     </div>
   );

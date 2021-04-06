@@ -6,6 +6,8 @@ import { naturalSort } from '@util/Array';
 // @Types
 import { SourceConnector } from '@catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
+import ApplicationServices from '@service/ApplicationServices';
+import { Button, message } from 'antd';
 
 export interface Tab {
   name: string;
@@ -78,7 +80,30 @@ const sourceFormCleanFunctions = {
   },
   getSourceType: (sourceConnector: SourceConnector) => sourceConnector.isSingerType
     ? 'singer'
-    : snakeCase(sourceConnector.id)
+    : snakeCase(sourceConnector.id),
+
+  testConnection: async(config: any, connectorSource: any) => {
+    return ApplicationServices
+      .get()
+      .backendApiClient
+      .post('sources/test', { ...config, sourceType: sourceFormCleanFunctions.getSourceType(connectorSource) })
+      .then(() => {
+        message.success('Successfully connected!');
+
+        return true;
+      })
+      .catch(error => {
+        message.error(
+          <>
+            <b>Unable to establish connection</b> - {error.message}
+            <Button type="link" onClick={() => message.destroy()}>
+              <span className="border-b border-primary border-dashed">Close</span>
+            </Button>
+          </>, 0);
+
+        return false;
+      })
+  }
 };
 
 export { sourceFormCleanFunctions };

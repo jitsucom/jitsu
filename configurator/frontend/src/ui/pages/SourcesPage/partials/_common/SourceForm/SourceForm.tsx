@@ -32,7 +32,8 @@ const SourceForm = ({
   handleFinish,
   sources,
   initialValues = {},
-  formMode
+  formMode,
+  setConnected
 }: Props) => {
   const history = useHistory();
 
@@ -146,28 +147,19 @@ const SourceForm = ({
     try {
       await handleTabSubmit('config');
 
-      try {
-        const { form } = mutableRefObject.current.tabs.config;
-        const configObjectValues = makeObjectFromFieldsValues<Partial<SourceData>>(form.getFieldsValue());
+      const { form } = mutableRefObject.current.tabs.config;
+      const configObjectValues = makeObjectFromFieldsValues<Partial<SourceData>>(form.getFieldsValue());
+      const connected = await sourceFormCleanFunctions.testConnection(configObjectValues, connectorSource);
 
-        await services.backendApiClient.post('sources/test', { ...configObjectValues, sourceType: sourceFormCleanFunctions.getSourceType(connectorSource) });
-
-        message.success('Successfully connected!');
-      } catch (e) {
-        message.error(
-          <>
-            <b>Unable to establish connection</b> - {e.message}
-            <Button type="link" onClick={() => message.destroy()}>
-              <span className="border-b border-primary border-dashed">Close</span>
-            </Button>
-          </>, 0);
+      if (connected) {
+        setConnected(connected);
       }
     } catch (error) {
       handleError(error, 'Unable to test connection with filled data');
     } finally {
       setConnectionTestPending(false);
     }
-  }, [connectorSource, handleTabSubmit, services]);
+  }, [setConnected, connectorSource, handleTabSubmit]);
 
   return (
     <>
