@@ -38,6 +38,14 @@ Read more about [our features](https://https://jitsu.com/#features) and check ou
 
 </p>
 
+### Preview
+```bash
+git clone https://github.com/jitsucom/jitsu.git
+cd jitsu
+docker-compose up
+```
+
+Visit `http://localhost:7000`
 
 The fastest way to get started is deploying Jitsu with [Docker](https://jitsu.com/docs/deployment/deploy-with-docker). Also we support:
 - [Heroku Deployment](https://jitsu.com/docs/deployment/deploy-on-heroku)
