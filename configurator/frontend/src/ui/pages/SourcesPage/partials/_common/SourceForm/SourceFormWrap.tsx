@@ -14,6 +14,7 @@ import { FormWrapProps } from '@page/SourcesPage/partials/_common/SourceForm/Sou
 // @Utils
 import { makeObjectFromFieldsValues } from '@util/Form';
 import { CollectionSourceData } from '@page/SourcesPage/SourcesPage.types';
+import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
 
 const SourceFormWrap = ({
   sources = [],
@@ -34,7 +35,8 @@ const SourceFormWrap = ({
       switchPending(true);
 
       const createdSourceData: SourceData = {
-        sourceType: snakeCase(connectorSource.id),
+        sourceType: sourceFormCleanFunctions.getSourceType(connectorSource),
+        sourceProtoType: snakeCase(connectorSource.id),
         ...makeObjectFromFieldsValues<Pick<SourceData, 'config' | 'destinations' | 'sourceId'>>(rest),
         collections: [] as CollectionSource[]
       };

@@ -8,6 +8,8 @@ import MonacoEditor from 'react-monaco-editor';
 import { SourceFormConfigFieldProps as Props } from './SourceForm.types';
 // @Components
 import { LabelWithTooltip } from '@./lib/components/components';
+// @Utils
+import { isValidFullIsoDate, IsValidIsoDate } from '@util/validation/date';
 
 const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, id, type, documentation, typeOptions, preselectedTypeOption }: Props) => {
   const fieldName = useMemo(() => `config.${id}`, [id]);
@@ -45,14 +47,24 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
           language="json"
           theme="own-theme"
           options={{
+            glyphMargin: false,
+            folding: false,
             lineNumbers: 'off',
+            lineDecorationsWidth: 11,
+            lineNumbersMinChars: 0,
             minimap: {
               enabled: false
             },
             scrollbar: {
               verticalScrollbarSize: 8,
               horizontalScrollbarSize: 8
-            }
+            },
+            padding: {
+              top: 4,
+              bottom: 4
+            },
+            hideCursorInOverviewRuler: true,
+            overviewRulerLanes: 0
           }}
           onChange={handleMonacoChange(getFieldsValue, setFieldsValue)}
         />;
@@ -69,6 +81,24 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
     [id, type, typeOptions, handleChange, handleMonacoChange]
   );
 
+  const validationRules = useMemo(() => {
+    const validators = [];
+
+    if (required) {
+      validators.push({ required, message: `${displayName} is required` })
+    }
+
+    if (type === 'isoUtcDate') {
+      validators.push({
+        validator: (rule, value) => isValidFullIsoDate(value)
+          ? Promise.resolve()
+          : Promise.reject('Please, fill in correct ISO 8601 date, YYYY-MM-DDThh:mm:ss[.SSS]')
+      });
+    }
+
+    return validators;
+  }, [type, required, displayName]);
+
   return (
     <Row>
       <Col span={16}>
@@ -81,9 +111,7 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
                 ? <LabelWithTooltip documentation={documentation}>{displayName}:</LabelWithTooltip>
                 : <span>{displayName}:</span>}
               name={fieldName}
-              rules={required
-                ? [{ required, message: `${displayName} is required` }]
-                : undefined}
+              rules={validationRules}
               labelCol={{ span: 6 }}
               wrapperCol={{ span: 18 }}
             >

@@ -1,8 +1,8 @@
 // @Libs
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { useHistory } from 'react-router-dom';
+import { Prompt, useHistory } from 'react-router-dom';
 import { Popover, Button, Form, message, Tabs } from 'antd';
-import { capitalize, snakeCase } from 'lodash';
+import { capitalize } from 'lodash';
 // @Types
 import { FormProps as Props } from './SourceForm.types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
@@ -22,38 +22,9 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 import { routes } from '@page/SourcesPage/routes';
 // @Styles
 import styles from './SourceForm.module.less';
+// @Utils
 import { makeObjectFromFieldsValues } from '@util/Form';
-
-interface Tab {
-  name: string;
-  form: FormInstance;
-  getComponent: (form: FormInstance) => JSX.Element;
-  errorsCount: number;
-  isActive: boolean;
-}
-
-interface TabsMap {
- [key: string]: Tab;
-}
-
-const sourceFormCleanFunctions = {
-  getErrorsCount: (tabs: TabsMap) => Object.keys(tabs).reduce((result: number, key: string) => {
-    result += tabs[key].errorsCount;
-    return result;
-  }, 0),
-  getErrors: (tabs: TabsMap, tabsKeys: string[]) => (<ul>
-    {tabsKeys.reduce((result: React.ReactNode[], key: string) => {
-      if (tabs[key].errorsCount > 0) {
-        result.push(<li key={key}>{tabs[key].errorsCount} error(s) at `{tabs[key].name}` tab;</li>)
-      }
-
-      return result;
-    }, [])}
-  </ul>),
-  getTabName: (currentTab: Tab) => currentTab.errorsCount === 0
-    ? currentTab.name
-    : <span className="tab-name tab-name_error">{currentTab.name} <sup>{currentTab.errorsCount}</sup></span>
-};
+import { sourceFormCleanFunctions, TabsMap } from './sourceFormCleanFunctions';
 
 const SourceForm = ({
   connectorSource,
@@ -67,6 +38,7 @@ const SourceForm = ({
 
   const forceUpdate = useForceUpdate();
 
+  const [changedAndUnsavedFields, setChangedAndUnsavedFields] = useState<boolean>();
   const [isVisiblePopover, switchIsVisiblePopover] = useState<boolean>(false);
   const [isVisibleTestConnectionPopover, switchIsVisibleTestConnectionPopover] = useState<boolean>(false);
   const [connectionTestPending, setConnectionTestPending] = useState<boolean>(false);
@@ -77,22 +49,20 @@ const SourceForm = ({
         name: 'Config',
         form: Form.useForm()[0],
         getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} sourceIdMustBeUnique={formMode === 'create'} />,
-        errorsCount: 0,
-        isActive: true
+        errorsCount: 0
       },
       collections: {
         name: 'Collections',
         form: Form.useForm()[0],
         getComponent: (form: FormInstance) => <SourceFormCollections reportPrefix={connectorSource.id} initialValues={initialValues} connectorSource={connectorSource} form={form} />,
         errorsCount: 0,
-        isActive: connectorSource.collectionParameters.length > 0
+        isHiddenTab: connectorSource.isSingerType
       },
       destinations: {
         name: 'Destinations',
         form: Form.useForm()[0],
         getComponent: (form: FormInstance) => <SourceFormDestinations initialValues={initialValues} form={form} />,
-        errorsCount: 0,
-        isActive: true
+        errorsCount: 0
       }
     },
     submitOnce: false,
@@ -127,20 +97,27 @@ const SourceForm = ({
       .all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key)))
       .then(allValues => {
         if (!allValues.some(values => !values)) {
-          handleFinish(Object.assign({}, ...allValues))
-        }
+          handleFinish(Object.assign({}, ...allValues));
 
+          setChangedAndUnsavedFields(false);
+        }
+      })
+      .finally(() => {
         forceUpdate();
       });
   }, [forceUpdate, handleTabSubmit, handleFinish]);
 
   const handleFormValuesChange = useCallback(() => {
+    if (!changedAndUnsavedFields) {
+      setChangedAndUnsavedFields(true);
+    }
+
     if (mutableRefObject.current.submitOnce) {
       Promise.all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key))).then(() => forceUpdate());
     } else if (mutableRefObject.current.connectedOnce) {
       handleTabSubmit('config').then(() => forceUpdate());
     }
-  }, [forceUpdate, handleTabSubmit]);
+  }, [changedAndUnsavedFields, forceUpdate, handleTabSubmit]);
 
   const handleCancel = useCallback(() => history.push(routes.root), [history]);
 
@@ -159,7 +136,7 @@ const SourceForm = ({
         const { form } = mutableRefObject.current.tabs.config;
         const configObjectValues = makeObjectFromFieldsValues<Partial<SourceData>>(form.getFieldsValue());
 
-        await services.backendApiClient.post('sources/test', { ...configObjectValues, sourceType: snakeCase(connectorSource.id) });
+        await services.backendApiClient.post('sources/test', { ...configObjectValues, sourceType: sourceFormCleanFunctions.getSourceType(connectorSource) });
 
         message.success('Successfully connected!');
       } catch(e) {
@@ -178,9 +155,9 @@ const SourceForm = ({
         <Tabs defaultActiveKey="config" type="card" size="middle" className={styles.sourceTabs}>
           {
             Object.keys(mutableRefObject.current.tabs).map(key => {
-              const { form, getComponent, isActive } = mutableRefObject.current.tabs[key];
+              const { form, getComponent, isHiddenTab } = mutableRefObject.current.tabs[key];
 
-              return isActive
+              return !isHiddenTab
                 ? (
                   <React.Fragment key={key}>
                     <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
@@ -236,6 +213,12 @@ const SourceForm = ({
           onClick={handleCancel}
           danger>Cancel</Button>
       </div>
+
+      <Prompt message={() => {
+        if (changedAndUnsavedFields) {
+          return 'You have unsaved changes. Are you sure you want to leave the page?'
+        }
+      }}/>
     </>
   );
 };

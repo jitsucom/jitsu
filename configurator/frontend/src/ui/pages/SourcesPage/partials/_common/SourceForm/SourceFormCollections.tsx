@@ -12,6 +12,7 @@ import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 import { CollectionParameter } from '@catalog/sources/types';
 import { SourceFormCollectionsProps as Props } from './SourceForm.types';
 import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
+import { COLLECTIONS_SCHEDULES } from '@./constants/schedule';
 
 const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, form }: Props) => {
   const [chosenTypes, setChosenTypes] = useState<{ [key: number]: string }>(
@@ -94,6 +95,16 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
     [initialValues, connectorSource.collectionTypes]
   );
 
+  const getCollectionScheduleValue = useCallback((index: number) => {
+    const initial = initialValues.collections?.[index]?.schedule;
+
+    if (initial) {
+      return initial;
+    }
+
+    return COLLECTIONS_SCHEDULES[0].value;
+  }, [initialValues]);
+
   const updatedInitialValues = useMemo(() => {
     if (initialValues.collections) {
       return initialValues.collections;
@@ -122,7 +133,7 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
             {fields.map((field: FormListFieldData) => {
               return (
                 <div className="custom-report__group" key={field.key}>
-                  <Row>
+                  {connectorSource.collectionTypes.length > 0 && <Row>
                     <Col span={16}>
                       <Form.Item
                         initialValue={getCollectionTypeValue(field.key)}
@@ -153,26 +164,35 @@ const SourceFormCollections = ({ initialValues, connectorSource, reportPrefix, f
                         onClick={handleRemoveField(operation, field.key)}
                       />
                     </Col>
-                  </Row>
+                  </Row>}
 
-                  <Row>
-                    <Col span={16}>
-                      <Form.Item
-                        // initialValue={getCollectionTypeValue(field.key)}
-                        name={[field.name, 'schedule']}
-                        className="form-field_fixed-label"
-                        label="Schedule:"
-                        labelCol={{ span: 6 }}
-                        wrapperCol={{ span: 18 }}
-                        rules={[{ required: true, message: 'You have to choose schedule' }]}
-                      >
-                        <Select>
-                          <Select.Option value="*/5 * * * *">5 minutes</Select.Option>
-                          <Select.Option value="@hourly">1 hour</Select.Option>
-                        </Select>
-                      </Form.Item>
-                    </Col>
-                  </Row>
+                  {/*
+                    ToDo: refactor this code. Either create a reused component, or change catalog connectors data to be able
+                     to control this code
+                  */}
+                  {
+                    !connectorSource.isSingerType && <Row>
+                      <Col span={16}>
+                        <Form.Item
+                          initialValue={getCollectionScheduleValue(field.key)}
+                          name={[field.name, 'schedule']}
+                          className="form-field_fixed-label"
+                          label="Schedule:"
+                          labelCol={{ span: 6 }}
+                          wrapperCol={{ span: 18 }}
+                          rules={[{ required: true, message: 'You have to choose schedule' }]}
+                        >
+                          <Select>
+                            {
+                              COLLECTIONS_SCHEDULES.map((option) =>
+                                <Select.Option value={option.value} key={option.value}>{option.label}</Select.Option>
+                              )
+                            }
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row>
+                  }
 
                   <>
                     <Row>
