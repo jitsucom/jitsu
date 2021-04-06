@@ -187,7 +187,9 @@ const SourceForm = ({
             loading={isRequestPending}
             onClick={handleFormSubmit}
           >
-            <span style={{ textTransform: 'capitalize' }}>{formMode}</span>&nbsp;source
+            {formMode === 'create'
+              ? 'Create Source'
+              : 'Save Source'}
           </Button>
         </Popover>
 
