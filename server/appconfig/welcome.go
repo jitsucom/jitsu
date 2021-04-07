@@ -7,9 +7,9 @@ import (
 )
 
 const banner = "\n========================================================================\n\n" +
-	"Welcome to EventNative %s!\n\n" +
-	"EventNative is a data collection platform developed by Jitsu\n\n" +
-	" 📚 Documentation: https://docs.eventnative.org/\n" +
+	"Welcome to Jitsu Server %s!\n\n" +
+	"Jitsu is an open-source data collection platform developed\n\n" +
+	" 📚 Documentation: https://jitsu.com/docs\n" +
 	" 🌎 Website: https://jitsu.com\n" +
 	" 💪 Follow us on twitter: https://twitter.com/jitsucom\n" +
 	" 💬 Join our Slack: https://jitsu.com/slack\n\n" +
