@@ -1,11 +1,11 @@
 import { Destination } from '../types';
 import { modeParameter, tableName } from './common';
-import { arrayOf, intType, stringType } from '../../sources/types';
+import { arrayOf, stringType } from '../../sources/types';
 import * as React from 'react';
 import { ReactNode } from 'react';
 
-let icon: ReactNode = <svg xmlns="http://www.w3.org/2000/svg" width="54" height="48" viewBox="0 0 9 8">
-  <style>{".o{fill:#fc0}.r{fill:red}"}</style>
+let icon: ReactNode = <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 9 8">
+  <style>{'.o{fill:#fc0}.r{fill:red}'}</style>
   <path d="M0,7 h1 v1 h-1 z" className="r"/>
   <path d="M0,0 h1 v7 h-1 z" className="o"/>
   <path d="M2,0 h1 v8 h-1 z" className="o"/>
@@ -19,8 +19,12 @@ const destination: Destination = {
   displayName: 'ClickHouse',
   ui: {
     icon,
-    title: cfg => cfg?._formData?.ch_dsns_list?.length ? cfg._formData.ch_dsns_list[0] : "Unknown",
-    connectCmd: (cfg) => (cfg?._formData?.ch_dsns_list?.length ? `echo 'SELECT 1' | curl '${cfg._formData.ch_dsns_list[0]}' --data-binary @-` : "")
+    title: cfg => cfg?._formData?.ch_dsns_list?.length
+      ? cfg._formData.ch_dsns_list[0]
+      : 'Unknown',
+    connectCmd: (cfg) => cfg?._formData?.ch_dsns_list?.length
+      ? `echo 'SELECT 1' | curl '${cfg._formData.ch_dsns_list[0]}' --data-binary @-`
+      : ''
   },
   parameters: [
     modeParameter(),

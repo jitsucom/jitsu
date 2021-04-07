@@ -1,7 +1,7 @@
+import * as React from 'react';
 import { Destination } from '../types';
 import { modeParameter, s3Credentials, tableName } from './common';
-import { arrayOf, intType, stringType, passwordType, booleanType } from '../../sources/types';
-import * as React from 'react';
+import { stringType, passwordType, booleanType } from '../../sources/types';
 
 const icon = <svg enableBackground="new 0 0 1615 1783.7" viewBox="0 0 1615 1783.7" xmlns="http://www.w3.org/2000/svg">
   <path d="m807.5 1363.8 678.3 161.5v-1270.5l-678.3 161.5z" fill="#205b97"/>
