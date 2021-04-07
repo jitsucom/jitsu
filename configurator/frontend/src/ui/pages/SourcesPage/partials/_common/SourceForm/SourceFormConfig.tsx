@@ -125,11 +125,11 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
           <SourceFormConfigField
             type={type.typeName}
             typeOptions={type.data}
-            preselectedTypeOption={constant}
+            constant={constant}
             id={id}
             key={id}
             displayName={displayName}
-            initialValue={getInitialValue(id, defaultValue, type.typeName)}
+            initialValue={getInitialValue(id, defaultValue || constant, type.typeName)}
             required={required}
             documentation={documentation}
           />

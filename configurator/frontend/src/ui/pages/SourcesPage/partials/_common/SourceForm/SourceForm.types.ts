@@ -33,7 +33,7 @@ export interface SourceFormConfigFieldProps {
     maxOptions: number;
     options: Array<{ displayName: string; id: string; }>;
   };
-  preselectedTypeOption: string;
+  constant: string;
 }
 
 export interface SourceFormConfigProps {
