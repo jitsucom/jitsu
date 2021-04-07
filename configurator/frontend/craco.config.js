@@ -5,12 +5,12 @@ const CracoAntDesignPlugin = require('craco-antd');
 const TerserPlugin = require('terser-webpack-plugin');
 const MonacoWebpackPlugin = require('monaco-editor-webpack-plugin');
 const webpack = require('webpack');
-const DEV_PORT = '9876';
-const DEV_HOST = 'localhost.jitsu.com';
+const DEV_PORT = process.env.DEV_PORT || '9876';
+const DEV_HOST = process.env.DEV_HOST || 'localhost.jitsu.com';
 
 module.exports = {
   eslint: {
-    enable: false,
+    enable: false
   },
   devServer: {
     host: DEV_HOST,
