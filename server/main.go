@@ -301,7 +301,7 @@ func main() {
 	maxColumns := viper.GetInt("server.max_columns")
 	logging.Infof("Limit server.max_columns is %d", maxColumns)
 	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, maxColumns)
-	b
+
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory)
 	if err != nil {
