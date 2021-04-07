@@ -1,5 +1,8 @@
 version: 2.1
 
+orbs:
+  slack: circleci/slack@4.3.3
+
 jobs:
   lint:
     docker:
@@ -65,6 +68,9 @@ jobs:
           key: go-mod-v1-{{ checksum "./server/go.sum" }}
           paths:
             - "/go/pkg/mod"
+      - slack/status:
+          fail_only: false
+          webhook: $webhook
   build-latest-en-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
@@ -221,6 +227,7 @@ workflows:
             branches:
               only: /.*/
       - server-test:
+          context: jitsu
           requires:
             - lint
           filters:
