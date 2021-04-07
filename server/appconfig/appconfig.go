@@ -47,6 +47,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.disable_skip_events_warn", false)
 	viper.SetDefault("server.cache.events.size", 100)
 	viper.SetDefault("server.strict_auth_tokens", false)
+	viper.SetDefault("server.max_columns", 100)
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")

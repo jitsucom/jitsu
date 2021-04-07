@@ -90,10 +90,12 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.
 		return dbSchema, nil
 	}
 
+	//check if max columns error
 	if th.maxColumns > 0 {
 		columnsCount := len(dbSchema.Columns) + len(diff.Columns)
 		if columnsCount > th.maxColumns {
-			return nil, fmt.Errorf("Count of columns %d should be less or equal 'max_columns' setting %d", columnsCount, th.maxColumns)
+			//return nil, fmt.Errorf("Count of columns %d should be less or equal 'server.max_columns' (or destination.data_layout.max_columns) setting %d", columnsCount, th.maxColumns)
+			logging.Warnf("Count of columns %d should be less or equal 'server.max_columns' (or destination.data_layout.max_columns) setting %d", columnsCount, th.maxColumns)
 		}
 	}
 
