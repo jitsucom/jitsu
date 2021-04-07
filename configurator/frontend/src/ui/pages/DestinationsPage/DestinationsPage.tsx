@@ -1,9 +1,11 @@
+// @Libs
 import React from 'react';
-import { Route, Switch, useHistory } from 'react-router-dom';
+import { Route, Switch } from 'react-router-dom';
+// @Pages
 import DestinationsList from '@page/DestinationsPage/partials/DestinationsList/DestinationsList';
-import { MappingEditor } from '@page/DestinationsPage/partials/MappingEditor/MappingEditor';
+import { DestinationEditor } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor';
+// @Routes
 import { destinationPageRoutes } from './DestinationsPage.routes';
-import DestinationEditor from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor';
 
 export const DestinationsPage = () => {
   return (
