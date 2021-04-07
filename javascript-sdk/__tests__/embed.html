@@ -1,0 +1,18 @@
+<html>
+<head>
+    <!--
+       Jitsu tracking one-liner. By default, pageview event is sent
+    -->
+    <script src="t.jitsu.com/lib.js"
+            data-jitsu-api-key="Test"
+            defer></script>
+    <script>
+      setTimeout(() => {
+        console.log("Tracking");
+        var jitsu = window.jitsu = window.jitsu || (function(){(window.jitsuQ = window.jitsuQ || []).push(arguments);})
+        jitsu('track', 'additinal_event');
+      }, 100)
+    </script>
+</head>
+
+</html>
