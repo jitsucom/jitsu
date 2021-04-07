@@ -135,6 +135,7 @@ jobs:
           key: go-mod-v1-{{ checksum "./server/go.sum" }}
           paths:
             - "/go/pkg/mod"
+
       <<: *notify
 
   build-latest-en-docker:
