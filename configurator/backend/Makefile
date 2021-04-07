@@ -17,6 +17,9 @@ backend:
 	go mod tidy
 	go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o configurator
 
+test_backend:
+	go test -failfast -v -parallel=1 ./...
+
 clean:
 	rm -f configurator
 	rm -rf ./build

@@ -1,5 +1,71 @@
 version: 2.1
 
+notify: &notify
+  - slack/notify:
+      event: pass
+      custom: |
+        {
+        	"blocks": [
+        		{
+        			"type": "section",
+        			"text": {
+        				"type": "mrkdwn",
+        				"text": "The <https://github.com/jitsucom/jitsu/tree/$CIRCLE_BRANCH|$CIRCLE_BRANCH>* @ <https://github.com/jitsucom/jitsu/|jitsucom/jitsu> build has fixed!\n\nGreat job, *$CIRCLE_USERNAME*!"
+        			},
+        			"accessory": {
+        				"type": "image",
+        				"image_url": "https://media2.giphy.com/media/WsvLlmmjx9tnmeTPNc/giphy.gif?cid=ecf05e47h9ykneri13esdla2dpsk69ljttwqwqj7a3gchkll&rid=giphy.gif",
+        				"alt_text": "Rocking cat"
+        			}
+        		},
+        		{
+        			"type": "actions",
+        			"elements": [
+        				{
+        					"type": "button",
+        					"text": {
+        						"type": "plain_text",
+        						"text": "View Details on CircleCI"
+        					},
+        					"url": "https://circleci.com/workflow-run/${CIRCLE_WORKFLOW_ID}"
+        				}
+        			]
+        		}
+        	]
+        }
+  - slack/notify:
+      event: fail
+      custom: |
+        {
+        	"blocks": [
+        		{
+        			"type": "section",
+        			"text": {
+        				"type": "mrkdwn",
+        				"text": "Oh, no! The *<https://github.com/jitsucom/jitsu/tree/$CIRCLE_BRANCH|$CIRCLE_BRANCH>* @ <https://github.com/jitsucom/jitsu/|jitsucom/jitsu> build has failed. The last commit was authored by *$CIRCLE_USERNAME*. If that's you, please take a look!"
+        			},
+        			"accessory": {
+        				"type": "image",
+        				"image_url": "https://media4.giphy.com/media/NPUqgb8UE2iw8/giphy.gif",
+        				"alt_text": "Sad cat"
+        			}
+        		},
+        		{
+        			"type": "actions",
+        			"elements": [
+        				{
+        					"type": "button",
+        					"text": {
+        						"type": "plain_text",
+        						"text": "View Details on CircleCI"
+        					},
+        					"url": "https://circleci.com/workflow-run/${CIRCLE_WORKFLOW_ID}"
+        				}
+        			]
+        		}
+        	]
+        }
+
 orbs:
   slack: circleci/slack@4.3.3
 
@@ -68,70 +134,7 @@ jobs:
           key: go-mod-v1-{{ checksum "./server/go.sum" }}
           paths:
             - "/go/pkg/mod"
-      - slack/notify:
-          event: pass
-          custom: |
-            {
-            	"blocks": [
-            		{
-            			"type": "section",
-            			"text": {
-            				"type": "mrkdwn",
-            				"text": "The <https://github.com/jitsucom/jitsu/tree/$CIRCLE_BRANCH|$CIRCLE_BRANCH>* @ <https://github.com/jitsucom/jitsu/|jitsucom/jitsu> build has fixed!\n\nGreat job, *$CIRCLE_USERNAME*!"
-            			},
-            			"accessory": {
-            				"type": "image",
-            				"image_url": "https://media2.giphy.com/media/WsvLlmmjx9tnmeTPNc/giphy.gif?cid=ecf05e47h9ykneri13esdla2dpsk69ljttwqwqj7a3gchkll&rid=giphy.gif",
-            				"alt_text": "Rocking cat"
-            			}
-            		},
-            		{
-            			"type": "actions",
-            			"elements": [
-            				{
-            					"type": "button",
-            					"text": {
-            						"type": "plain_text",
-            						"text": "View Details on CircleCI"
-            					},
-            					"url": "https://circleci.com/workflow-run/${CIRCLE_WORKFLOW_ID}"
-            				}
-            			]
-            		}
-            	]
-            }
-      - slack/notify:
-          event: fail
-          custom: |
-            {
-            	"blocks": [
-            		{
-            			"type": "section",
-            			"text": {
-            				"type": "mrkdwn",
-            				"text": "Oh, no! The *<https://github.com/jitsucom/jitsu/tree/$CIRCLE_BRANCH|$CIRCLE_BRANCH>* @ <https://github.com/jitsucom/jitsu/|jitsucom/jitsu> build has failed. The last commit was authored by *$CIRCLE_USERNAME*. If that's you, please take a look!"
-            			},
-            			"accessory": {
-            				"type": "image",
-            				"image_url": "https://media4.giphy.com/media/NPUqgb8UE2iw8/giphy.gif",
-            				"alt_text": "Sad cat"
-            			}
-            		},
-            		{
-            			"type": "actions",
-            			"elements": [
-            				{
-            					"type": "button",
-            					"text": {
-            						"type": "plain_text",
-            						"text": "View Details on CircleCI"
-            					},
-            					"url": "https://circleci.com/workflow-run/${CIRCLE_WORKFLOW_ID}"
-            				}
-            			]
-            		}
-            	]
-            }
+      <<: *notify
 
   build-latest-en-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
