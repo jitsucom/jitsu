@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Avatar, Form, List, Switch } from 'antd';
+import { Avatar, Form, List, Switch, Typography } from 'antd';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Components
@@ -61,7 +61,6 @@ const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsP
       <Form.Item
         name="destinations"
         initialValue={initialValues.destinations}
-        rules={destinations.length > 0 && [{ required: true, message: 'You have to choose at least one destination.' }]}
       >
         <List key="list" className="destinations-list" itemLayout="horizontal">
           {destinations.map((config) => {
@@ -86,6 +85,10 @@ const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsP
           })}
         </List>
       </Form.Item>
+
+      {
+        (!form.getFieldsValue()?.destinations || form.getFieldsValue()?.destinations?.length === 0) && <Typography.Text type="warning">Please, choose at least one destination.</Typography.Text>
+      }
     </>
   );
 };

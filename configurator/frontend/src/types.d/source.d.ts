@@ -17,4 +17,5 @@ declare interface SourceData {
   sourceId: string;
   sourceType: string;
   sourceProtoType: string;
+  connected: boolean;
 }

@@ -213,8 +213,9 @@ func parseSchema(schemaBytes []byte) (*StreamRepresentation, error) {
 	fields := schema.Fields{}
 	parseProperties("", sr.Schema.Properties, fields)
 
+	tableName := schema.Reformat(sr.Stream)
 	return &StreamRepresentation{
-		BatchHeader: &schema.BatchHeader{TableName: sr.Stream, Fields: fields},
+		BatchHeader: &schema.BatchHeader{TableName: tableName, Fields: fields},
 		KeyFields:   sr.KeyProperties,
 	}, nil
 }

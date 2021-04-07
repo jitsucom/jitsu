@@ -41,6 +41,16 @@ before building the app (or running it with `yarn start`)
         <td><code>{}</code></td>
         <td>Keys for external analytics systems as  JSON</td>
     </tr>
+    <tr>
+        <td><code>DEV_HOST</code></td>
+        <td><code>localhost.jitsu.com</code></td>
+        <td>Specify a host to use</td>
+    </tr>
+    <tr>
+        <td><code>DEV_PORT</code></td>
+        <td><code>9876</code></td>
+        <td>Specify a port to use</td>
+    </tr>
 </table>
 
 

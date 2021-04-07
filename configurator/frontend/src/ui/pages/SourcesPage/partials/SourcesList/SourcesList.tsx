@@ -73,6 +73,7 @@ const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) 
 
               return (
                 <SourcesListItem
+                  sourceData={source}
                   handleDeleteSource={handleDeleteSource}
                   sourceProto={sourceProto}
                   sourceId={source.sourceId}

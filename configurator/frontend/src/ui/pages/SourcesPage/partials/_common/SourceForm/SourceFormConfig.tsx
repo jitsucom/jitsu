@@ -14,7 +14,7 @@ import { sourceFormCleanFunctions } from './sourceFormCleanFunctions';
 import { COLLECTIONS_SCHEDULES } from '@./constants/schedule';
 
 // ToDo: initialValues should contain some values, to refuse initialValue for each field
-const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMustBeUnique }: Props) => {
+const SourceFormConfig = ({ sources, connectorSource, initialValues, isCreateForm }: Props) => {
 
   const isUniqueSourceId = useCallback((sourceId: string) => !sources?.find((source: SourceData) => source.sourceId === sourceId), [
     sources
@@ -57,14 +57,14 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
   const sourceIdValidators = useMemo(() => {
     const rules: Rule[] = [{ required: true, message: 'Source ID is required field' }];
 
-    if (sourceIdMustBeUnique) {
+    if (isCreateForm) {
       rules.push({
         validator: validateUniqueSourceId
       });
     }
 
     return rules;
-  }, [validateUniqueSourceId, sourceIdMustBeUnique]);
+  }, [validateUniqueSourceId, isCreateForm]);
 
   const getInitialValue = useCallback((id: string, defaultValue: any, type: any) => {
     const initial = get(initialValues, `config.${id}`);
@@ -91,7 +91,7 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
             labelCol={{ span: 6 }}
             wrapperCol={{ span: 18 }}
           >
-            <Input autoComplete="off" />
+            <Input autoComplete="off" disabled={!isCreateForm} />
           </Form.Item>
         </Col>
       </Row>
@@ -125,11 +125,11 @@ const SourceFormConfig = ({ sources, connectorSource, initialValues, sourceIdMus
           <SourceFormConfigField
             type={type.typeName}
             typeOptions={type.data}
-            preselectedTypeOption={constant}
+            constant={constant}
             id={id}
             key={id}
             displayName={displayName}
-            initialValue={getInitialValue(id, defaultValue, type.typeName)}
+            initialValue={getInitialValue(id, defaultValue || constant, type.typeName)}
             required={required}
             documentation={documentation}
           />
