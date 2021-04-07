@@ -73,7 +73,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.streamMode)
+	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.streamMode, config.maxColumns)
 
 	ar := &AwsRedshift{
 		name:                          config.name,
