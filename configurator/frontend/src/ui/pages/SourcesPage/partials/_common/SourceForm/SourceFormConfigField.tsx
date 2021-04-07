@@ -9,9 +9,9 @@ import { SourceFormConfigFieldProps as Props } from './SourceForm.types';
 // @Components
 import { LabelWithTooltip } from '@./lib/components/components';
 // @Utils
-import { isValidFullIsoDate, IsValidIsoDate } from '@util/validation/date';
+import { isValidFullIsoDate } from '@util/validation/date';
 
-const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, id, type, documentation, typeOptions, preselectedTypeOption }: Props) => {
+const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, id, type, documentation, typeOptions, constant }: Props) => {
   const fieldName = useMemo(() => `config.${id}`, [id]);
 
   const handleChange = useCallback(
@@ -105,7 +105,7 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
         <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues[fieldName] !== currentValues[fieldName]}>
           {({ getFieldsValue, setFieldsValue }: FormInstance) => (
             <Form.Item
-              initialValue={preselectedTypeOption ?? initialValue}
+              initialValue={initialValue}
               className="form-field_fixed-label"
               label={documentation
                 ? <LabelWithTooltip documentation={documentation}>{displayName}:</LabelWithTooltip>
@@ -114,6 +114,7 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
               rules={validationRules}
               labelCol={{ span: 6 }}
               wrapperCol={{ span: 18 }}
+              hidden={!!constant}
             >
               {formItemChild(getFieldsValue, setFieldsValue)}
             </Form.Item>
