@@ -33,14 +33,14 @@ export interface SourceFormConfigFieldProps {
     maxOptions: number;
     options: Array<{ displayName: string; id: string; }>;
   };
-  preselectedTypeOption: string;
+  constant: string;
 }
 
 export interface SourceFormConfigProps {
   sources: SourceData[];
   connectorSource: SourceConnector;
   initialValues: SourceData;
-  sourceIdMustBeUnique: boolean;
+  isCreateForm: boolean;
 }
 
 export interface SourceFormCollectionsProps {
