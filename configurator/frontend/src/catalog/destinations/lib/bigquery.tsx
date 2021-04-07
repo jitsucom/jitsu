@@ -1,6 +1,6 @@
 import { Destination } from '../types';
 import { googleGCSCredentials, modeParameter, tableName } from './common';
-import { intType, jsonType, stringType } from '../../sources/types';
+import { stringType } from '../../sources/types';
 
 const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.633235433328256 7.0326093303156565 131.26574682416876 114.63439066968435">
   <linearGradient id="a" gradientUnits="userSpaceOnUse" x1="64" x2="64" y1="7.034" y2="120.789">
