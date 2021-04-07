@@ -10,7 +10,7 @@ import (
 	"net/http"
 )
 
-var ErrProjectIDNotFoundInContext = fmt.Errorf("%s wasn't found in context" + middleware.ProjectIDKey)
+var ErrProjectIDNotFoundInContext = fmt.Errorf("%s wasn't found in context", middleware.ProjectIDKey)
 
 const jsonContentType = "application/json"
 
