@@ -154,10 +154,10 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 
 		if destination.DataLayout.MaxColumns > 0 {
 			maxColumns = destination.DataLayout.MaxColumns
+
+			logging.Infof("[%s] uses max_columns setting: %d", name, maxColumns)
 		}
 	}
-
-	logging.Infof("[%s] uses max_columns setting: %d", name, maxColumns)
 
 	if tableName == "" {
 		tableName = defaultTableName

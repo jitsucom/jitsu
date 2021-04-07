@@ -44,7 +44,7 @@ server:
   ### It helps to prevent generating an infinite amount of columns in databases.
   ### Zero value turns off the column count calculation.
   ### It can be overridden at the destination level only by a positive value.
-  max_columns: 100 # Optional
+  max_columns: 100 # Optional. Default value is 100.
 
   ### Application logs. If not configured - application logs will be written in std out. If configured in file and std out.
 #  log:
