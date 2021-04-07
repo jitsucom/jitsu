@@ -35,7 +35,7 @@ func TestMapTableSchema(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tableHelper := NewTableHelper(nil, nil, tt.pkFields, tt.columnTypesMapping, false)
+			tableHelper := NewTableHelper(nil, nil, tt.pkFields, tt.columnTypesMapping, false, 0)
 			actual := tableHelper.MapTableSchema(&tt.input)
 			require.Equal(t, tt.expected, *actual, "Tables aren't equal")
 		})
