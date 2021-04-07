@@ -13,10 +13,8 @@ import { SourcesListItemProps as Props } from './SourcesList.types';
 import { routes } from '@page/SourcesPage/routes';
 // @Styles
 import styles from './SourcesListItem.module.less';
-import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
 
 const SourcesListItemComponent = ({ sourceId, sourceProto, handleDeleteSource, sourceData }: Props) => {
-  console.log('sourceData: ', sourceData);
   const itemDescription = useMemo(() => <div>Source ID: {sourceId}</div>, [sourceId]);
 
   const handleDelete = useCallback(() => {

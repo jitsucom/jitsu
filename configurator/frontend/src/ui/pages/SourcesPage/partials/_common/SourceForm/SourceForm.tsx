@@ -49,7 +49,7 @@ const SourceForm = ({
       config: {
         name: 'Config',
         form: Form.useForm()[0],
-        getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} sourceIdMustBeUnique={formMode === 'create'}/>,
+        getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} isCreateForm={formMode === 'create'}/>,
         errorsCount: 0
       },
       collections: {
@@ -69,8 +69,6 @@ const SourceForm = ({
     submitOnce: false,
     connectedOnce: false
   });
-
-  const services = useMemo(() => ApplicationServices.get(), []);
 
   const handleTabSubmit = useCallback(async(key: string) => {
     const currentTab = mutableRefObject.current.tabs[key];
