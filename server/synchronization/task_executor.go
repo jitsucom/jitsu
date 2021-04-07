@@ -234,6 +234,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 	taskLogger.INFO("Intervals to sync: [%d]", len(intervalsToSync))
 
 	collectionTable := driver.GetCollectionTable()
+	reformattedTable := schema.Reformat(collectionTable)
 	for _, intervalToSync := range intervalsToSync {
 		taskLogger.INFO("Running [%s] synchronization", intervalToSync.String())
 
@@ -251,7 +252,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
 		}
 		for _, storage := range destinationStorages {
-			rowsCount, err := storage.SyncStore(&schema.BatchHeader{TableName: collectionTable}, objects, intervalToSync.String())
+			rowsCount, err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTable}, objects, intervalToSync.String())
 			if err != nil {
 				metrics.ErrorSourceEvents(task.Source, storage.Name(), rowsCount)
 				metrics.ErrorObjects(task.Source, rowsCount)

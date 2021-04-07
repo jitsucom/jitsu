@@ -165,7 +165,7 @@ func TestServiceInit(t *testing.T) {
   }
 }`
 	payload.payload = []byte(changedDestinations)
-	time.Sleep(1 * time.Second)
+	time.Sleep(2 * time.Second)
 	changedConfigAsserts(t, service)
 
 	//add new token to authorization
