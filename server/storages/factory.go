@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -12,7 +14,6 @@ import (
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
-	"strings"
 )
 
 const (
@@ -48,6 +49,7 @@ type DataLayout struct {
 	MappingType       schema.FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
 	Mapping           []string                `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
 	Mappings          *schema.Mapping         `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
+	MaxColumns        int                     `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
 	TableNameTemplate string                  `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
 	PrimaryKeyFields  []string                `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
 }
@@ -83,6 +85,7 @@ type Config struct {
 	usersRecognition *UserRecognitionConfiguration
 	processor        *schema.Processor
 	streamMode       bool
+	maxColumns       int
 	monitorKeeper    MonitorKeeper
 	eventQueue       *events.PersistentQueue
 	eventsCache      *caching.EventsCache
@@ -102,10 +105,11 @@ type FactoryImpl struct {
 	eventsCache         *caching.EventsCache
 	globalLoggerFactory *logging.Factory
 	globalConfiguration *UsersRecognition
+	maxColumns          int
 }
 
 func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
-	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition) Factory {
+	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -113,6 +117,7 @@ func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorK
 		eventsCache:         eventsCache,
 		globalLoggerFactory: globalLoggerFactory,
 		globalConfiguration: globalConfiguration,
+		maxColumns:          maxColumns,
 	}
 }
 
@@ -133,6 +138,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 	var newStyleMapping *schema.Mapping
 	pkFields := map[string]bool{}
 	mappingFieldType := schema.Default
+	maxColumns := f.maxColumns
 	if destination.DataLayout != nil {
 		mappingFieldType = destination.DataLayout.MappingType
 		oldStyleMappings = destination.DataLayout.Mapping
@@ -144,6 +150,12 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 
 		for _, field := range destination.DataLayout.PrimaryKeyFields {
 			pkFields[field] = true
+		}
+
+		if destination.DataLayout.MaxColumns > 0 {
+			maxColumns = destination.DataLayout.MaxColumns
+
+			logging.Infof("[%s] uses max_columns setting: %d", name, maxColumns)
 		}
 	}
 
@@ -282,6 +294,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		usersRecognition: usersRecognitionConfiguration,
 		processor:        processor,
 		streamMode:       destination.Mode == StreamMode,
+		maxColumns:       maxColumns,
 		monitorKeeper:    f.monitorKeeper,
 		eventQueue:       eventQueue,
 		eventsCache:      f.eventsCache,
