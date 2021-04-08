@@ -60,7 +60,7 @@ const postgresDestination: Destination = {
     },
     {
       id: '_formData.pgport',
-      displayName: 'Host',
+      displayName: 'Port',
       required: true,
       defaultValue: 5432,
       type: intType
@@ -80,13 +80,13 @@ const postgresDestination: Destination = {
     },
     {
       id: '_formData.pguser',
-      displayName: 'Schema',
+      displayName: 'Username',
       required: true,
       type: stringType
     },
     {
       id: '_formData.pgpassword',
-      displayName: 'Schema',
+      displayName: 'Password',
       required: true,
       type: passwordType
     }
