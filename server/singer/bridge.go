@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"path"
+	"strings"
 	"sync"
 )
 
@@ -36,12 +37,24 @@ func Init(pythonExecPath, venvDir string, installTaps bool, logWriter io.Writer)
 		logWriter = ioutil.Discard
 	}
 
+	installedTaps := &sync.Map{}
+
+	//load already installed taps
+	files, err := ioutil.ReadDir(venvDir)
+	if err == nil {
+		for _, f := range files {
+			if f.IsDir() && strings.HasPrefix(f.Name(), "tap-") {
+				installedTaps.Store(strings.TrimSpace(f.Name()), 1)
+			}
+		}
+	}
+
 	Instance = &Bridge{
 		PythonExecPath:        pythonExecPath,
 		VenvDir:               venvDir,
 		installTaps:           installTaps,
 		LogWriter:             logWriter,
-		installedTaps:         &sync.Map{},
+		installedTaps:         installedTaps,
 		installInProgressTaps: &sync.Map{},
 	}
 
