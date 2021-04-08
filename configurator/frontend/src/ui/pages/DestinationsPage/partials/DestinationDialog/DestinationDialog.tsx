@@ -1,11 +1,11 @@
-import { DestinationConfig } from "@./lib/services/destinations";
-import * as React from "react";
-import { ReactNode } from "react";
-import { Col, Form, Input, Radio, Row, Select } from "antd";
-import { LabelWithTooltip } from "@./lib/components/components";
-import { Option } from "antd/es/mentions";
-import EyeTwoTone from "@ant-design/icons/lib/icons/EyeTwoTone";
-import EyeInvisibleOutlined from "@ant-design/icons/lib/icons/EyeInvisibleOutlined";
+import { DestinationConfig } from '@./lib/services/destinations';
+import * as React from 'react';
+import { ReactNode } from 'react';
+import { Col, Form, Input, Radio, Row, Select } from 'antd';
+import { LabelWithTooltip } from '@atom/LabelWithTooltip';
+import { Option } from 'antd/es/mentions';
+import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
+import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
 
 export const AWS_ZONES = [
   'us-east-2',
@@ -66,7 +66,7 @@ export abstract class DestinationDialog<T extends DestinationConfig> extends Rea
       event filter{' '}
       <a
         target="_blank"
-        rel="noopener"
+        rel="noopener noreferrer"
         href={'https://docs.eventnative.org/configuration-1/configuration/table-names-and-filters'}
       >
         Read more
@@ -74,9 +74,9 @@ export abstract class DestinationDialog<T extends DestinationConfig> extends Rea
     </>;
 
     return <Form layout="horizontal"
-                 form={this.props.form}
-                 initialValues={this.state.currentValue.formData}
-                 onChange={() => this.props.onModification()}
+      form={this.props.form}
+      initialValues={this.state.currentValue.formData}
+      onChange={() => this.props.onModification()}
     >
       {!this.getDefaultMode() && <Form.Item label="Mode" name="mode" labelCol={{ span: 4 }} wrapperCol={{ span: 18 }}>
         <Radio.Group buttonStyle="solid" onChange={() => this.refreshStateFromForm()}>
@@ -86,7 +86,7 @@ export abstract class DestinationDialog<T extends DestinationConfig> extends Rea
       </Form.Item>}
 
       {this.isTableNameSupported() && <Form.Item
-        label={<LabelWithTooltip documentation={tableName}>Table Name</LabelWithTooltip>}
+        label={<LabelWithTooltip documentation={tableName} render="Table Name" />}
         name="tableName"
         labelCol={{ span: 4 }}
         wrapperCol={{ span: 12 }}
@@ -111,7 +111,9 @@ export abstract class DestinationDialog<T extends DestinationConfig> extends Rea
 }
 
 export function s3ConfigComponents(prefix: string, disabled: boolean) {
-  let className = 'destinations-list-s3config-' + (disabled ? 'disabled' : 'enabled');
+  let className = 'destinations-list-s3config-' + (disabled
+    ? 'disabled'
+    : 'enabled');
   return (
     <>
       <Row>
@@ -169,7 +171,9 @@ export function s3ConfigComponents(prefix: string, disabled: boolean) {
         <Input.Password
           type="password"
           disabled={disabled}
-          iconRender={(visible) => (visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>)}
+          iconRender={(visible) => visible
+            ? <EyeTwoTone/>
+            : <EyeInvisibleOutlined/>}
         />
       </Form.Item>
     </>
@@ -177,11 +181,13 @@ export function s3ConfigComponents(prefix: string, disabled: boolean) {
 }
 
 export function googleJsonKeyLabel() {
-  return <LabelWithTooltip documentation={<>JSON access credentials</>}>Access Key</LabelWithTooltip>;
+  return <LabelWithTooltip documentation={<>JSON access credentials</>} render="Access Key" />;
 }
 
 export function gcsConfigComponents(prefix: string, disabled: boolean) {
-  let className = 'destinations-list-s3config-' + (disabled ? 'disabled' : 'enabled');
+  let className = 'destinations-list-s3config-' + (disabled
+    ? 'disabled'
+    : 'enabled');
   return (
     <>
       <Form.Item

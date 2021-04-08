@@ -16,7 +16,6 @@ import {
   CodeInline,
   CodeSnippet,
   handleError,
-  LabelWithTooltip,
   LoadableComponent
 } from '@./lib/components/components';
 import ApplicationServices from '../../../../../lib/services/ApplicationServices';
@@ -25,6 +24,7 @@ import Icon from '@ant-design/icons';
 import { loadDestinations } from "@page/DestinationsPage/commons";
 import useLoader from "@./lib/commons/useLoader";
 import { useHistory } from "react-router-dom";
+import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 
 export function getIconSrc(destinationType: string): string {
   try {
@@ -62,7 +62,7 @@ function DestinationTitle({ config }: DestinationComponentProps) {
         </span>
     </Tooltip>;
   if (config.comment) {
-    return <LabelWithTooltip documentation={config.comment}>{configTitle}</LabelWithTooltip>;
+    return <LabelWithTooltip documentation={config.comment} render={configTitle} />;
   } else {
     return configTitle;
   }

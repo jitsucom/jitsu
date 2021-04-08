@@ -1,9 +1,10 @@
-import { ClickHouseConfig } from "@./lib/services/destinations";
-import * as React from "react";
-import { CodeInline, LabelWithTooltip } from "@./lib/components/components";
-import { Col, Form, Input, Row } from "antd";
-import { EditableList } from "@./lib/components/EditableList/EditableList";
-import { DestinationDialog } from "@page/DestinationsPage/partials/DestinationDialog/DestinationDialog";
+import { ClickHouseConfig } from '@./lib/services/destinations';
+import * as React from 'react';
+import { CodeInline } from '@./lib/components/components';
+import { Col, Form, Input, Row } from 'antd';
+import { EditableList } from '@./lib/components/EditableList/EditableList';
+import { DestinationDialog } from '@page/DestinationsPage/partials/DestinationDialog/DestinationDialog';
+import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 
 export default class ClickHouseDestinationDialog extends DestinationDialog<ClickHouseConfig> {
   isUrlValid(val) {
@@ -62,7 +63,7 @@ export default class ClickHouseDestinationDialog extends DestinationDialog<Click
         <Row>
           <Col span={16}>
             <Form.Item
-              label={<LabelWithTooltip documentation={dsnDocs}>Datasources</LabelWithTooltip>}
+              label={<LabelWithTooltip documentation={dsnDocs} render="Datasources" />}
               name="ch_dsns_list"
               rules={[
                 {
@@ -82,7 +83,7 @@ export default class ClickHouseDestinationDialog extends DestinationDialog<Click
           </Col>
         </Row>
         <Form.Item
-          label={<LabelWithTooltip documentation={clusterDoc}>Cluster</LabelWithTooltip>}
+          label={<LabelWithTooltip documentation={clusterDoc} render="Cluster" />}
           rules={[{ required: true, message: 'Cluster name is required' }]}
           name="ch_cluster"
           labelCol={{ span: 4 }}
@@ -91,7 +92,7 @@ export default class ClickHouseDestinationDialog extends DestinationDialog<Click
           <Input type="text"/>
         </Form.Item>
         <Form.Item
-          label={<LabelWithTooltip documentation={databaseDoc}>Database</LabelWithTooltip>}
+          label={<LabelWithTooltip documentation={databaseDoc} render="Database" />}
           rules={[{ required: true, message: 'DB is required' }]}
           name="ch_database"
           labelCol={{ span: 4 }}
@@ -103,11 +104,4 @@ export default class ClickHouseDestinationDialog extends DestinationDialog<Click
     );
   }
 }
-
-
-
-
-
-
-
 
