@@ -70,21 +70,6 @@ export function CenteredError({ error }) {
   return <div className="common-centered-spin">Error: {error?.message ? error.message : 'Unknown error'}</div>;
 }
 
-export function LabelWithTooltip(props: {
-  children?: React.ReactNode;
-  documentation: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <span className={'label-with-tooltip' + (props.className ? ' ' + props.className : '')}>
-      {props.children ? props.children : ''}&nbsp;
-      <Tooltip title={props.documentation}>
-        <QuestionCircleOutlined />
-      </Tooltip>
-    </span>
-  );
-}
-
 function formatPercent(num: number) {
   let res = (num * 100).toFixed(2);
   if (res.indexOf('.') >= 0) {
