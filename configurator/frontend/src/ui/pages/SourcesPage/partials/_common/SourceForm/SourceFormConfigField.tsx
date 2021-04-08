@@ -7,7 +7,7 @@ import MonacoEditor from 'react-monaco-editor';
 // @Types
 import { SourceFormConfigFieldProps as Props } from './SourceForm.types';
 // @Components
-import { LabelWithTooltip } from '@./lib/components/components';
+import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 // @Utils
 import { isValidFullIsoDate } from '@util/validation/date';
 
@@ -108,7 +108,7 @@ const SourceFormConfigFieldComponent = ({ displayName, initialValue, required, i
               initialValue={initialValue}
               className="form-field_fixed-label"
               label={documentation
-                ? <LabelWithTooltip documentation={documentation}>{displayName}:</LabelWithTooltip>
+                ? <LabelWithTooltip documentation={documentation} render={`${displayName}:`} />
                 : <span>{displayName}:</span>}
               name={fieldName}
               rules={validationRules}

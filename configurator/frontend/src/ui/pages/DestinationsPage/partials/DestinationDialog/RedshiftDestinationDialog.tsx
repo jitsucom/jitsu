@@ -1,7 +1,7 @@
 import { RedshiftConfig } from '@./lib/services/destinations';
 import * as React from 'react';
 import { Col, Divider, Form, Input, Row, Switch } from 'antd';
-import { LabelWithTooltip } from '@./lib/components/components';
+import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 import {
   DestinationDialog,
   s3ConfigComponents
@@ -17,7 +17,9 @@ export default class RedshiftDestinationDialog extends DestinationDialog<Redshif
       </>
     );
     let className =
-      'destinations-list-s3config-' + (this.state.currentValue.formData['mode'] === 'batch' ? 'enabled' : 'disabled');
+      'destinations-list-s3config-' + (this.state.currentValue.formData['mode'] === 'batch'
+        ? 'enabled'
+        : 'disabled');
     return (
       <>
         <Row>
@@ -79,14 +81,13 @@ export default class RedshiftDestinationDialog extends DestinationDialog<Redshif
                   'Use hosted S3 bucket' setting
                 </>
               }
-            >
-              S3 configuration
-            </LabelWithTooltip>
+              render="S3 configuration"
+            />
           </>
         </Divider>
         <Form.Item
           className={className}
-          label={<LabelWithTooltip documentation={s3Doc}>Use Jitsu S3 bucket</LabelWithTooltip>}
+          label={<LabelWithTooltip documentation={s3Doc} render="Use Jitsu S3 bucket"/>}
           name="redshiftUseHostedS3"
           labelCol={{ span: 4 }}
           wrapperCol={{ span: 8 }}
