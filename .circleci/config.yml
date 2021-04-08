@@ -66,6 +66,7 @@ notify_fail: &notify_fail
         }
 
 
+
 version: 2.1
 
 orbs:
@@ -137,8 +138,8 @@ jobs:
           paths:
             - "/go/pkg/mod"
 
-    <<: *notify_pass
-    <<: *notify_fail
+      <<: *notify_pass
+      <<: *notify_fail
 
   build-latest-en-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
