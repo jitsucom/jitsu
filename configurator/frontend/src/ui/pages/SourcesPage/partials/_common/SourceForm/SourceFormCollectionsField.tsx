@@ -2,7 +2,7 @@
 import React, { memo, useMemo } from 'react';
 import { Col, Form, Input, Row, Select } from 'antd';
 // @Components
-import { LabelWithTooltip } from '@./lib/components/components';
+import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 // @Types
 import { SourceFormCollectionsFieldProps as Props } from './SourceForm.types';
 import { Rule } from 'antd/lib/form';
@@ -62,7 +62,7 @@ const SourceFormCollectionsFieldComponent = ({
           initialValue={initialValue}
           className="form-field_fixed-label"
           label={documentation ?
-            <LabelWithTooltip documentation={documentation}>{collection.displayName}</LabelWithTooltip> :
+            <LabelWithTooltip documentation={documentation} render={collection.displayName} /> :
             <span>{collection.displayName}:</span>}
           key={collection.id}
           name={[field.name, collection.id]}

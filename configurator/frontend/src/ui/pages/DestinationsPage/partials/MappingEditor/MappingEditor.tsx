@@ -11,7 +11,6 @@ import MAPPING_NAMES, {
 import {
   Align, CenteredError, CenteredSpin,
   handleError,
-  LabelWithTooltip,
 } from "@./lib/components/components";
 import styles from "./MappingEditor.module.less";
 import PlayCircleFilled from "@ant-design/icons/lib/icons/PlayCircleFilled"
@@ -26,6 +25,7 @@ import { FloatingLabelInput } from "@molecule/FloatingLabelInput";
 import { DeleteOutlined } from "@ant-design/icons";
 import { validatePassword } from "@./lib/commons/passwordValidator";
 import classNames from "classnames";
+import {LabelWithTooltip} from "@atom/LabelWithTooltip";
 
 export type MappingEditorProps = {
   mappings: FieldMappings
@@ -64,7 +64,7 @@ export function MappingEditor(props: MappingEditorProps) {
           Depending on this setting, mapping engine will either keep a field intact if it's not explicitly
           mapped to other field, or remove it <a href="https://jitsu.com/docs/configuration/schema-and-mappings">Read
           more about mappings</a>
-        </>}>Unmapped field strategy: </LabelWithTooltip>
+        </>} render="Unmapped field strategy:"/>
         <Select
           className="w-48" size="small"
           defaultValue={keepUnmappedFields ? "keep" : "remove"}
