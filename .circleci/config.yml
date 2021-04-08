@@ -1,4 +1,4 @@
-notify: &notify
+notify_pass: &notify_pass
   - slack/notify:
       event: pass
       custom: |
@@ -31,6 +31,7 @@ notify: &notify
         		}
         	]
         }
+notify_fail: &notify_fail
   - slack/notify:
       event: fail
       custom: |
@@ -136,7 +137,8 @@ jobs:
           paths:
             - "/go/pkg/mod"
 
-      <<: *notify
+      <<: *notify_pass
+      <<: *notify_fail
 
   build-latest-en-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
