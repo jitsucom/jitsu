@@ -1,5 +1,4 @@
 // import cloneDeep from 'lodash/cloneDeep';
-// import styles from './DestinationEditor.module.less'
 // import { useParams, NavLink, useHistory, Prompt } from 'react-router-dom';
 // import ApplicationServices from '@./lib/services/ApplicationServices';
 // import { DestinationConfig, destinationConfigTypes, destinationsByTypeId } from '@./lib/services/destinations';
@@ -98,22 +97,6 @@
 //             }} />
 //
 //           </Tabs.TabPane>
-//           <Tabs.TabPane key="sources" tab={<ComingSoon documentation={<>
-//             Edit sources which will send data to the destination
-//           </>}>Connected sources</ComingSoon>} disabled={true}>
-//
-//           </Tabs.TabPane>
-//           <Tabs.TabPane key="settings" tab={<ComingSoon documentation={<>
-//             A predefined library of settings such as <a
-//               href="https://jitsu.com/docs/other-features/segment-compatibility">Segment-like schema</a>
-//           </>}>Settings Library</ComingSoon>} disabled={true}>
-//
-//           </Tabs.TabPane>
-//           <Tabs.TabPane key="stat" tab={<ComingSoon documentation={<>
-//             A detailed statistics on how many events have been sent to the destinations
-//           </>}>Statistics</ComingSoon>} disabled={true}>
-//
-//           </Tabs.TabPane>
 //         </Tabs>
 //       </div>
 //       <div className="flex-shrink border-t pt-2">
@@ -158,45 +141,58 @@
 // export default DestinationEditor;
 
 // @Libs
-import { useMemo, useRef } from 'react';
+import React, { useMemo, useRef } from 'react';
 import { NavLink, useParams } from 'react-router-dom';
+import cn from 'classnames';
 // @Components
+import { TabsConfigurator } from '@molecule/TabsConfigurator';
 import { ComingSoon } from '@atom/ComingSoon';
+import { DestinationEditorConfig } from './DestinationEditorConfig';
 // @CatalogDestinations
 import * as destinationsCatalog from '@catalog/destinations/lib';
 // @Types
 import { Destination } from '@catalog/destinations/types';
+import { Tab } from '@molecule/TabsConfigurator/TabsConfigurator.types';
+// @Styles
+import styles from './DestinationEditor.module.less'
 
 const DestinationEditor = () => {
   const params = useParams<{ type: string; }>();
 
   const destinationReference = useMemo<Destination>(() => destinationsCatalog[`${params.type}Destination`], [params.type]);
-  console.log('destinationReference: ', destinationReference);
 
-  const destinationsTab = useRef({
-    config: {
-      name: 'Connection Properties'
-    },
-    mappings: {
-      name: 'Mappings'
-    },
-    sources: {
-      name: <ComingSoon render="Connected sources" documentation={<>Edit sources which will send data to the destination</>} />,
-      disabled: true
-    },
-    settings: {
-      name: <ComingSoon render="Settings Library" documentation={<>A predefined library of settings such as <a href="https://jitsu.com/docs/other-features/segment-compatibility">Segment-like schema</a></>} />,
-      disabled: true
-    },
-    statistics: {
-      name: <ComingSoon render="Statistics" documentation={<>A detailed statistics on how many events have been sent to the destinations</>} />,
-      disabled: true
-    }
-  });
+  const destinationsTabs = useRef<Tab[]>([{
+    key: 'config',
+    name: 'Connection Properties',
+    component: <DestinationEditorConfig destination={destinationReference} />
+  },
+  {
+    key: 'mappings',
+    name: 'Mappings'
+  },
+  {
+    key: 'sources',
+    name: <ComingSoon render="Connected sources" documentation={<>Edit sources which will send data to the destination</>} />,
+    isDisabled: true
+  },
+  {
+    key: 'settings',
+    name: <ComingSoon render="Settings Library" documentation={<>A predefined library of settings such as <a href="https://jitsu.com/docs/other-features/segment-compatibility" target="_blank" rel="noreferrer">Segment-like schema</a></>} />,
+    isDisabled: true
+  },
+  {
+    key: 'statistics',
+    name: <ComingSoon render="Statistics" documentation={<>A detailed statistics on how many events have been sent to the destinations</>} />,
+    isDisabled: true
+  }]);
 
   return (
     <div>
-      <div className=""><h2><NavLink to="/destinations">Destinations</NavLink> / {destinationReference.ui.icon} Edit {destinationReference.displayName} connection (id: {destinationReference.id})</h2></div>
+      <div className=""><h2><NavLink to="/destinations">Destinations</NavLink> / <span style={{ display: 'inline-block', width: '32px', height: '32px' }}>{destinationReference.ui.icon}</span> Edit {destinationReference.displayName} connection (id: {destinationReference.id})</h2></div>
+
+      <div className={cn('flex-grow', styles.mainArea)}>
+        <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} />
+      </div>
     </div>
   );
 };
