@@ -59,7 +59,8 @@ const destination: Destination = {
     {
       id: '_formData.redshiftUseHostedS3',
       type: booleanType,
-      constant: false
+      isConstant: true,
+      defaultValue: false
     },
     ...s3Credentials('redshiftS3Region', 'redshiftS3Bucket', 'redshiftS3AccessKey', 'redshiftS3SecretKey', (cfg) => {
       return cfg?._formData?.mode !== 'batch';
