@@ -1,5 +1,5 @@
-import {Parameter} from "../sources/types";
-import {ReactNode} from "react";
+import { Parameter } from '../sources/types';
+import { ReactNode } from 'react';
 
 export type Destination = {
     id: string
