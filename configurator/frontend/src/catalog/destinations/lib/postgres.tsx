@@ -48,7 +48,8 @@ const postgresDestination: Destination = {
   parameters: [
     {
       id: '$type',
-      constant: 'PostgresConfig'
+      isConstant: true,
+      defaultValue: 'PostgresConfig'
     },
     modeParameter('stream'),
     tableName(),
