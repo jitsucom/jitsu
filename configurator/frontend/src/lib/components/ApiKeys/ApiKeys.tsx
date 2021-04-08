@@ -7,13 +7,22 @@ import CodeFilled from '@ant-design/icons/lib/icons/CodeFilled';
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 
 import './ApiKeys.less';
-import { ActionLink, CenteredError, CenteredSpin, CodeInline, CodeSnippet, handleError, LabelWithTooltip, LoadableComponent } from '../components';
+import {
+  ActionLink,
+  CenteredError,
+  CenteredSpin,
+  CodeInline,
+  CodeSnippet,
+  handleError,
+  LoadableComponent
+} from '../components';
 import { copyToClipboard, randomId } from '../../commons/utils';
 import TagsInput from '../TagsInput/TagsInput';
 import { getCurlDocumentation, getEmpeddedJS, getNPMDocumentation } from '../../commons/api-documentation';
 import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 import useLoader from '@./lib/commons/useLoader';
+import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 
 type Token = {
   uid: string;
@@ -107,7 +116,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
             </>
           );
         },
-        title: <LabelWithTooltip documentation={'Unique ID of the key'}>ID</LabelWithTooltip>
+        title: <LabelWithTooltip documentation={'Unique ID of the key'} render="ID" />
       },
       {
         width: '250px',
@@ -143,9 +152,8 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
                 <a href="https://jitsu.com/docs/sending-data/javascript-reference">JS client</a>.
               </>
             }
-          >
-            Client Secret
-          </LabelWithTooltip>
+            render="Client Secret"
+          />
         )
       },
       {
@@ -181,9 +189,8 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
                 Server API Key. Should be used with <a href="https://docs.eventnative.org/api">backend API calls</a>.
               </>
             }
-          >
-            Server Secret
-          </LabelWithTooltip>
+            render="Server Secret"
+          />
         )
       },
       {
@@ -214,9 +221,8 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
                 list is empty, traffic will be accepted from all domains
               </>
             }
-          >
-            Origins
-          </LabelWithTooltip>
+            render="Origins"
+          />
         )
       },
       {
@@ -338,9 +344,8 @@ function KeyDocumentation({ token }: { token: Token }) {
               <a href="https://docs.eventnative.org/javascript-reference">Read more</a>)
             </>
           }
-        >
-          Intercept GA events
-        </LabelWithTooltip>
+          render="Intercept GA events"
+        />
         <Switch size="small" checked={gaEnabled} onChange={() => setGAEnabled(!gaEnabled)} />
         <LabelWithTooltip
           documentation={
@@ -349,9 +354,8 @@ function KeyDocumentation({ token }: { token: Token }) {
               <a href="https://docs.eventnative.org/javascript-reference">Read more</a>)
             </>
           }
-        >
-          Intercept Segment events
-        </LabelWithTooltip>
+          render="Intercept Segment events"
+        />
         <Switch size="small" checked={segment} onChange={() => setSegmentEnabled(!segment)} />
       </Space>
     </div>
@@ -364,7 +368,7 @@ function KeyDocumentation({ token }: { token: Token }) {
       defaultActiveKey="1"
       tabBarExtraContent={
         <>
-          {services.features.enableCustomDomains && <><LabelWithTooltip documentation="Domain">Domain</LabelWithTooltip>:{' '}
+          {services.features.enableCustomDomains && <><LabelWithTooltip documentation="Domain" render="Domain" />:{' '}
           <Select defaultValue={domains[0]} onChange={(value) => setSelectedDomain(value)}>
             {domains.map((domain) => {
               return <Select.Option value={domain}>{domain}</Select.Option>;

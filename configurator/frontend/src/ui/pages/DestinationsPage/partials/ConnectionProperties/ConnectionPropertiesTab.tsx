@@ -1,11 +1,7 @@
+import * as React from 'react';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { DestinationConfig } from '@./lib/services/destinations';
-import * as React from 'react';
-import { Form, Input, Modal, Radio } from 'antd';
-import { LabelWithTooltip } from '@./lib/components/components';
-import { ReactNode } from 'react';
 import { dialogsByType } from '@page/DestinationsPage/partials/DestinationDialog/DestinationDialog.impl';
-import PostgresDestinationDialog from '@page/DestinationsPage/partials/DestinationDialog/PostgresDestinationDialog';
 
 export type ConnectionPropertiesTabProps = {
   form: FormInstance
@@ -23,6 +19,5 @@ export function ConnectionPropertiesTab(props: ConnectionPropertiesTabProps) {
 
   </div>
 }
-
 
 export default ConnectionPropertiesTab;
