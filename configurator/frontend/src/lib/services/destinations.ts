@@ -29,11 +29,11 @@ export class DestinationConfigFactory<T extends DestinationConfig> {
 
 export const destinationConfigTypes = [
   new DestinationConfigFactory('PostgresSQL', 'postgres', (id) => new PostgresConfig(id)),
-  new DestinationConfigFactory('ClickHouse', 'clickhouse', (id) => new ClickHouseConfig(id)),
-  new DestinationConfigFactory('BigQuery', 'bigquery', (id) => new BQConfig(id)),
+  new DestinationConfigFactory('ClickHouse', 'click-house', (id) => new ClickHouseConfig(id)),
+  new DestinationConfigFactory('BigQuery', 'big-query', (id) => new BQConfig(id)),
   new DestinationConfigFactory('Redshift', 'redshift', (id) => new RedshiftConfig(id)),
   new DestinationConfigFactory('Snowflake', 'snowflake', (id) => new SnowflakeConfig(id)),
-  new DestinationConfigFactory('GoogleAnalytics', 'google_analytics', (id) => new GoogleAnalyticsConfig(id)),
+  new DestinationConfigFactory('GoogleAnalytics', 'google-analytics', (id) => new GoogleAnalyticsConfig(id)),
   new DestinationConfigFactory('Facebook', 'facebook', (id) => new FacebookConversionConfig(id))
 ];
 
