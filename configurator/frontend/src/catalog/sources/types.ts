@@ -87,6 +87,10 @@ export const selectionType = (options: string[], maxOptions?: number): Parameter
   }
 }
 
+export const singleSelectionType = (options: string[]): ParameterType<SelectOptionCollection> => {
+  return selectionType(options, 1);
+}
+
 export type Function<P, V> = ((param: P) => V);
 
 export type ConstantOrFunction<P, V> = V | Function<P, V>;
