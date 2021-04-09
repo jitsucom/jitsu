@@ -59,8 +59,7 @@ const destination: Destination = {
     {
       id: '_formData.redshiftUseHostedS3',
       type: booleanType,
-      isConstant: true,
-      defaultValue: false
+      constant: false
     },
     ...s3Credentials(
       '_formData.redshiftS3Region',

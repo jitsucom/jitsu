@@ -35,8 +35,7 @@ const bigQueryDestination: Destination = {
   parameters: [
     {
       id: '$type',
-      isConstant: true,
-      defaultValue: 'BQConfig'
+      constant: 'BQConfig'
     },
     modeParameter(),
     tableName(),
