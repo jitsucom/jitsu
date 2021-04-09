@@ -42,7 +42,7 @@ class UserIdPersistance {
       try {
         return JSON.parse(decodeURIComponent(str));
       } catch (e) {
-        console.error('Failed to decode JSON from ' + str, e);
+        getLogger().error('Failed to decode JSON from ' + str, e);
         return undefined;
       }
     }

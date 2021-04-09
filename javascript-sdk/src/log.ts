@@ -19,7 +19,7 @@ export const LogLevels: Record<string, LogLevel> = {
   DEBUG: {name: "DEBUG", severity: 10},
   INFO: {name: "INFO", severity: 100},
   WARN: {name: "WARN", severity: 1000},
-  ERROR: {name: "ERRO", severity: 10000}
+  ERROR: {name: "ERROR", severity: 10000}
 }
 
 let rootLogger = null;

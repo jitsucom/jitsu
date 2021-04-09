@@ -12,19 +12,21 @@ function getTrackingHost(scriptSrc: string): string {
 }
 
 function getTracker(window): JitsuClient {
+
   let script = document.currentScript
     || document.querySelector('script[src*=jsFileName][data-jitsu-api-key]');
+
   if (!script) {
     getLogger().warn("Jitsu script is not properly initialized. The definition must contain data-jitsu-api-key as a parameter")
     return undefined;
   }
   let opts: JitsuOptions = {
-    tracking_host: getTrackingHost(script.getAttribute('src'));
+    tracking_host: getTrackingHost(script.getAttribute('src'))
   };
 
   jitsuProps.forEach(prop => {
-    let attr = "jitsu-" + prop.replace("_", "-");
-    if (script.getAttribute(attr) !== undefined) {
+    let attr = "data-jitsu-" + prop.replace("_", "-");
+    if (script.getAttribute(attr) !== undefined && script.getAttribute(attr) !== null) {
       opts[prop] = script.getAttribute(attr);
     }
   })
@@ -37,8 +39,9 @@ function getTracker(window): JitsuClient {
 }
 
 function processQueue(queue: any[], jitsuInstance: JitsuClient) {
+  console.log("Processing queue", queue);
   for (let i = 0; i < queue.length; i += 1) {
-    const [methodName, ...args] = (queue[i] || []);
+    const [methodName, ...args] = ([...queue[i]] || []);
     const method = (jitsuInstance as any)[methodName];
     if (typeof method === 'function') {
       method.apply(jitsuInstance, args);
