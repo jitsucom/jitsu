@@ -142,7 +142,6 @@ export type Parameter = {
    * use constant === undefined
    */
   constant?: ConstantOrFunction<any, any>
-  isConstant?: boolean;
 }
 
 export interface CollectionParameter extends Parameter {
