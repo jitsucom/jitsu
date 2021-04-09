@@ -62,9 +62,13 @@ const destination: Destination = {
       isConstant: true,
       defaultValue: false
     },
-    ...s3Credentials('redshiftS3Region', 'redshiftS3Bucket', 'redshiftS3AccessKey', 'redshiftS3SecretKey', (cfg) => {
-      return cfg?._formData?.mode !== 'batch';
-    })
+    ...s3Credentials(
+      '_formData.redshiftS3Region',
+      '_formData.redshiftS3Bucket',
+      '_formData.redshiftS3AccessKey',
+      '_formData.redshiftS3SecretKey',
+      (cfg) => cfg?._formData?.mode !== 'batch'
+    )
   ]
 }
 
