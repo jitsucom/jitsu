@@ -40,7 +40,9 @@ export default class LoginForm extends React.Component<Props, State> {
   render() {
     let title = (
       <div className="login-form-header-container">
-        <img src={logo} alt="[logo]" className="login-form-logo" />
+        <a href="https://jitsu.com">
+            <img src={logo} alt="[logo]" className="login-form-logo" />
+        </a>
         <span className="login-form-title">Welcome Back!</span>
       </div>
     );
