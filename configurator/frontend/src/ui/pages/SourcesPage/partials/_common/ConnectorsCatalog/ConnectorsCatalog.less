@@ -1,4 +1,23 @@
 @import './src/theme';
+@import './src/assets/mixins';
+
+.connectors-catalog-list-wrap {
+  background: @secondary-background;
+  width: 320px;
+  position: relative;
+
+  .connectors-catalog-list {
+    overflow: auto;
+    max-height: 480px;
+    padding: 0 20px;
+
+    .custom-scrollbar();
+  }
+}
+
+.connectors-catalog-list-filter {
+  padding: 20px;
+}
 
 .connectors-collection {
   list-style: none;
@@ -7,18 +26,18 @@
 }
 
 .connectors-catalog-list {
-  background: #1f1f1f;
   margin-top: 4px;
   border-radius: 4px;
   overflow-x: hidden;
 
   .connectors-catalog-list__item {
+
     .connectors-catalog-list__item-link {
       width: 100%;
       box-sizing: border-box;
       display: inline-flex;
       align-items: center;
-      padding: 7px 16px;
+      padding: 7px 0;
       transition: color 200ms 0ms linear, background-color 200ms 0ms linear;
 
       .connectors-catalog-list__item-link-txt {}
@@ -45,6 +64,12 @@
   }
 }
 
+.connectors-catalog-list li.connectors-catalog-list__item_not-singer {
+  border-bottom: 1px solid @splitBorder;
+  padding-bottom: 5px;
+  margin-bottom: 5px;
+}
+
 .connectors-catalog-table {
   display: flex;
   flex-wrap: wrap;
@@ -53,10 +78,13 @@
     flex: 0 0 auto;
     width: 100%;
     max-width: 320px;
+    height: 128px;
     margin: 0 20px 20px 0;
 
     .connectors-catalog-table__item-link {
       display: flex;
+      width: 100%;
+      height: 100%;
       border: 2px solid @heading-color;
       border-radius: @border-radius-base;
       padding: 20px;
@@ -74,14 +102,14 @@
         margin-top: 10px;
         color: @heading-color;
         transition: color 200ms 0ms linear;
-
-        &:hover {
-          color: @link-color;
-        }
       }
 
       &:hover {
         border-color: @link-color;
+
+        .connectors-catalog-table__item-link-txt {
+          color: @link-color;
+        }
       }
     }
   }

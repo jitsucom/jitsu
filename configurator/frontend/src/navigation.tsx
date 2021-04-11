@@ -61,16 +61,15 @@ export const PUBLIC_PAGES: Page[] = [
   new Page('Jitsu | register', ['/register'], () => <SignupForm />),
   new Page('Jitsu | reset wpassword', ['/reset_password/:resetId'], (props) => <PasswordForm {...props} />)
 ];
-
 export const PRIVATE_PAGES: Page[] = [
   new Page('Test Component', '/test', (props) => <ComponentTest {...props} />, 'Component Test'),
   new Page('Jitsu | recent events', '/events_stream', (props) => <EventsStream {...props} />, 'Recent events'),
   new Page('Jitsu | dashboard', ['/dashboard', ''], (props) => <StatusPage {...props} />, 'Dashboard'),
   new Page(
-    'Jitsu | edit destinations',
-    '/destinations',
-    (props) => <DestinationsList {...props} />,
-    'Edit destinations'
+      'Jitsu | edit destinations',
+      '/destinations',
+      (props) => <DestinationsList {...props} />,
+      'Edit destinations'
   ),
   new Page(
     'Jitsu | download config',

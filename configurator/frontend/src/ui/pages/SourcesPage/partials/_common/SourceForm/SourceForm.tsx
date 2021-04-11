@@ -1,169 +1,242 @@
 // @Libs
-import React, { useCallback, useMemo, useRef } from 'react';
-import { Button, Form, Input, Select } from 'antd';
-import { get } from 'lodash';
-// @Icons
-import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Prompt, useHistory } from 'react-router-dom';
+import { Popover, Button, Form, message, Tabs } from 'antd';
+import { capitalize } from 'lodash';
 // @Types
-import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 import { FormProps as Props } from './SourceForm.types';
-// @Hardcoded data
-import { CollectionParameter, Parameter } from '../../../../../../_temp';
+import { FormInstance } from 'antd/lib/form/hooks/useForm';
+// @Components
+import { handleError } from '@./lib/components/components';
+import { SourceFormConfig } from './SourceFormConfig';
+import { SourceFormCollections } from './SourceFormCollections';
+import { SourceFormDestinations } from './SourceFormDestinations';
+// @Icons
+import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
+import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
+// @Services
+import ApplicationServices from '@service/ApplicationServices';
+// @Hooks
+import { useForceUpdate } from '@hooks/useForceUpdate';
+// @Routes
+import { routes } from '@page/SourcesPage/routes';
+// @Styles
+import styles from './SourceForm.module.less';
+// @Utils
+import { makeObjectFromFieldsValues } from '@util/Form';
+import { sourceFormCleanFunctions, TabsMap } from './sourceFormCleanFunctions';
 
 const SourceForm = ({
   connectorSource,
   isRequestPending,
   handleFinish,
-  alreadyExistSources,
-  initialValues,
-  formMode
+  sources,
+  initialValues = {},
+  formMode,
+  setConnected
 }: Props) => {
-  const chosenTypes = useRef<{ indexes: string[] }>({
-    indexes: initialValues?.collections?.map((collection) => collection.type) ?? []
+  const history = useHistory();
+
+  const forceUpdate = useForceUpdate();
+
+  const [changedAndUnsavedFields, setChangedAndUnsavedFields] = useState<boolean>();
+  const [isVisiblePopover, switchIsVisiblePopover] = useState<boolean>(false);
+  const [isVisibleTestConnectionPopover, switchIsVisibleTestConnectionPopover] = useState<boolean>(false);
+  const [connectionTestPending, setConnectionTestPending] = useState<boolean>(false);
+
+  const mutableRefObject = useRef<{ tabs: TabsMap; submitOnce: boolean; connectedOnce: boolean; }>({
+    tabs: {
+      config: {
+        name: 'Config',
+        form: Form.useForm()[0],
+        getComponent: () => <SourceFormConfig initialValues={initialValues} connectorSource={connectorSource} sources={sources} isCreateForm={formMode === 'create'}/>,
+        errorsCount: 0
+      },
+      collections: {
+        name: 'Collections',
+        form: Form.useForm()[0],
+        getComponent: (form: FormInstance) => <SourceFormCollections reportPrefix={connectorSource.id} initialValues={initialValues} connectorSource={connectorSource} form={form}/>,
+        errorsCount: 0,
+        isHiddenTab: connectorSource.isSingerType
+      },
+      destinations: {
+        name: 'Destinations',
+        form: Form.useForm()[0],
+        getComponent: (form: FormInstance) => <SourceFormDestinations initialValues={initialValues} form={form}/>,
+        errorsCount: 0
+      }
+    },
+    submitOnce: false,
+    connectedOnce: false
   });
 
-  const formName = useMemo<string>(() => `add-source${connectorSource.id}`, [connectorSource.id]);
+  const handleTabSubmit = useCallback(async(key: string) => {
+    const currentTab = mutableRefObject.current.tabs[key];
 
-  const getCollectionParameters = useCallback(
-    (index: number) => {
-      return connectorSource.collectionParameters?.filter(
-        ({ applyOnlyTo }: CollectionParameter) => !applyOnlyTo || applyOnlyTo === chosenTypes.current.indexes[index]
-      );
-    },
-    [connectorSource.collectionParameters]
-  );
+    if (key === 'destinations') {
+      const destinations = currentTab.form.getFieldsValue()?.destinations;
 
-  const handleRemoveField = useCallback(
-    (operation: FormListOperation, index: number) => () => {
-      chosenTypes.current.indexes.splice(index, 1);
+      if (!destinations || !destinations.length) {
+        mutableRefObject.current.tabs = {
+          ...mutableRefObject.current.tabs,
+          [key]: {
+            ...mutableRefObject.current.tabs[key],
+            warningsCount: 1
+          }
+        };
+      }
 
-      operation.remove(index);
-    },
-    []
-  );
+      forceUpdate();
+    }
 
-  const handleAddField = useCallback(
-    (operation: FormListOperation, type: string) => () => {
-      chosenTypes.current = {
-        indexes: [...chosenTypes.current.indexes, type]
+    try {
+      return await currentTab.form.validateFields();
+    } catch (errors) {
+      const tabToUpdate = { ...currentTab, errorsCount: errors.errorFields.length };
+
+      mutableRefObject.current.tabs = {
+        ...mutableRefObject.current.tabs,
+        [key]: tabToUpdate
       };
 
-      operation.add({ type });
-    },
-    []
-  );
+      throw errors;
+    }
+  }, [forceUpdate]);
 
-  console.log('initialValues: ', initialValues);
+  const handleFormSubmit = useCallback(() => {
+    switchIsVisiblePopover(true);
+
+    mutableRefObject.current.submitOnce = true;
+
+    Promise
+      .all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key)))
+      .then(allValues => {
+        if (!allValues.some(values => !values)) {
+          handleFinish(Object.assign({}, ...allValues));
+
+          setChangedAndUnsavedFields(false);
+        }
+      })
+      .finally(forceUpdate);
+  }, [forceUpdate, handleTabSubmit, handleFinish]);
+
+  const handleFormValuesChange = useCallback(() => {
+    if (!changedAndUnsavedFields) {
+      setChangedAndUnsavedFields(true);
+    }
+
+    if (mutableRefObject.current.submitOnce) {
+      Promise.all(Object.keys(mutableRefObject.current.tabs).map((key: string) => handleTabSubmit(key))).finally(forceUpdate);
+    } else if (mutableRefObject.current.connectedOnce) {
+      handleTabSubmit('config').then(() => forceUpdate());
+    }
+  }, [changedAndUnsavedFields, forceUpdate, handleTabSubmit]);
+
+  const handleCancel = useCallback(() => history.push(routes.root), [history]);
+
+  const handlePopoverClose = useCallback(() => switchIsVisiblePopover(false), []);
+  const handleTestConnectionPopoverClose = useCallback(() => switchIsVisibleTestConnectionPopover(false), []);
+
+  const handleTestConnectionClick = useCallback(async() => {
+    setConnectionTestPending(true);
+
+    mutableRefObject.current.connectedOnce = true;
+
+    try {
+      await handleTabSubmit('config');
+
+      const { form } = mutableRefObject.current.tabs.config;
+      const configObjectValues = makeObjectFromFieldsValues<Partial<SourceData>>(form.getFieldsValue());
+      const connected = await sourceFormCleanFunctions.testConnection(configObjectValues, connectorSource);
+
+      if (connected) {
+        setConnected(connected);
+      }
+    } catch (error) {
+      handleError(error, 'Unable to test connection with filled data');
+    } finally {
+      setConnectionTestPending(false);
+    }
+  }, [setConnected, connectorSource, handleTabSubmit]);
 
   return (
-    <Form autoComplete="off" name={formName} onFinish={handleFinish} initialValues={initialValues}>
-      <h3>Source ID</h3>
-      <Form.Item
-        className="form-field_fixed-label"
-        label="SourceId"
-        name="sourceId"
-        rules={[
+    <>
+      <div className="flex-grow">
+        <Tabs defaultActiveKey="config" type="card" size="middle" className={styles.sourceTabs}>
           {
-            required: true,
-            message: 'Source ID is required field'
-          },
-          {
-            validator: (rule: any, value: string, cb: (error?: string) => void) => {
-              Object.keys(alreadyExistSources).find((source) => source === value)
-                ? cb('Source ID must be unique!')
-                : cb();
-            }
+            Object.keys(mutableRefObject.current.tabs).map(key => {
+              const { form, getComponent, isHiddenTab } = mutableRefObject.current.tabs[key];
+
+              return !isHiddenTab
+                ? (
+                  <React.Fragment key={key}>
+                    <Tabs.TabPane tab={sourceFormCleanFunctions.getTabName(mutableRefObject.current.tabs[key])} key={key} forceRender>
+                      <Form form={form} name={`form-${key}`} onValuesChange={handleFormValuesChange}>{getComponent(form)}</Form>
+                    </Tabs.TabPane>
+                  </React.Fragment>
+                )
+                : null;
+            })
           }
-        ]}
-      >
-        <Input />
-      </Form.Item>
-
-      <h3>Config</h3>
-      {connectorSource.configParameters.map(({ id, displayName, required }: Parameter) => (
-        <Form.Item
-          initialValue={get(initialValues, `config.${id}`)}
-          className="form-field_fixed-label"
-          label={displayName}
-          key={id}
-          name={`config.${id}`}
-          rules={required ? [{ required, message: `${displayName} id required` }] : undefined}
-        >
-          <Input />
-        </Form.Item>
-      ))}
-
-      <h3>Collections</h3>
-      <div className="fields-group">
-        <Form.List name="collections">
-          {(fields: FormListFieldData[], operation: FormListOperation) => (
-            <>
-              {fields.map((field: FormListFieldData) => (
-                <div className="fields-group" key={field.key}>
-                  <h4 className="fields-list-header">
-                    <span>
-                      {connectorSource.displayName} `{chosenTypes.current.indexes[field.key]}` collection
-                    </span>
-                    <DeleteOutlined onClick={handleRemoveField(operation, field.key)} />
-                  </h4>
-                  <Form.Item
-                    className="form-field_fixed-label"
-                    label="Destination table name"
-                    name={[field.name, 'name']}
-                    rules={[{ required: true, message: 'Field is required. You can remove this collection.' }]}
-                  >
-                    <Input />
-                  </Form.Item>
-                  {getCollectionParameters(field.key).map((collection: CollectionParameter) => {
-                    const initial = initialValues?.collections?.[field.name]?.parameters?.[collection.id];
-
-                    return (
-                      <Form.Item
-                        initialValue={initial}
-                        className="form-field_fixed-label"
-                        label={collection.displayName}
-                        key={collection.id}
-                        name={[field.name, collection.id]}
-                      >
-                        <Select allowClear mode="multiple">
-                          {collection.type.data.options.map((option: { displayName: string; id: string }) => (
-                            <Select.Option key={option.id} value={option.id}>
-                              {option.displayName}
-                            </Select.Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-                    );
-                  })}
-                </div>
-              ))}
-
-              <div className="fields-group add-fields-container">
-                <span className="add-field-prefix">Add</span>
-                {connectorSource.collectionTypes.map((type: string) => (
-                  <Button type="dashed" key={type} onClick={handleAddField(operation, type)} className="add-field-btn">
-                    {type}
-                  </Button>
-                ))}
-              </div>
-            </>
-          )}
-        </Form.List>
+        </Tabs>
       </div>
 
-      <Form.Item>
-        <Button
-          key="pwd-login-button"
-          type="primary"
-          htmlType="submit"
-          className="login-form-button"
-          loading={isRequestPending}
+      <div className="flex-shrink border-t pt-2">
+        <Popover
+          content={sourceFormCleanFunctions.getErrorsAndWarnings(mutableRefObject.current.tabs, Object.keys(mutableRefObject.current.tabs))}
+          title={<p className={styles.popoverTitle}><span>{capitalize(formMode)} source form errors:</span> <CloseOutlined onClick={handlePopoverClose}/></p>}
+          trigger="click"
+          visible={isVisiblePopover && sourceFormCleanFunctions.getErrorsCount(mutableRefObject.current.tabs) > 0}
         >
-          <span style={{ textTransform: 'capitalize' }}>{formMode}</span>&nbsp;source
-        </Button>
-      </Form.Item>
-    </Form>
+          <Button
+            key="pwd-login-button"
+            type="primary"
+            htmlType="button"
+            size="large"
+            className="mr-3"
+            loading={isRequestPending}
+            onClick={handleFormSubmit}
+          >
+            {formMode === 'create'
+              ?
+              'Create Source'
+              :
+              'Save Source'}
+          </Button>
+        </Popover>
+
+        <Popover
+          content={sourceFormCleanFunctions.getErrorsAndWarnings(mutableRefObject.current.tabs, ['config'])}
+          title={<p className={styles.popoverTitle}><span>Config form errors:</span> <CloseOutlined onClick={handleTestConnectionPopoverClose}/></p>}
+          trigger="click"
+          visible={isVisibleTestConnectionPopover && mutableRefObject.current.tabs.config.errorsCount > 0}
+        >
+          <Button
+            size="large"
+            className="mr-3"
+            type="dashed"
+            loading={connectionTestPending}
+            onClick={handleTestConnectionClick}
+            icon={<ApiOutlined/>}
+          >Test connection</Button>
+        </Popover>
+
+        <Button
+          type="default"
+          size="large"
+          onClick={handleCancel}
+          danger>Cancel</Button>
+      </div>
+
+      <Prompt message={() => {
+        if (changedAndUnsavedFields) {
+          return 'You have unsaved changes. Are you sure you want to leave the page?'
+        }
+      }}/>
+    </>
   );
 };
+
+SourceForm.displayName = 'SourceForm';
 
 export { SourceForm };

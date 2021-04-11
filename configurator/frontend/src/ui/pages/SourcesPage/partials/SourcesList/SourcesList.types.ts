@@ -1,5 +1,8 @@
+import { SourceConnector } from '@catalog/sources/types';
+
 export interface SourcesListItemProps {
+  sourceData: SourceData;
   sourceId: string;
-  sourceProto: any;
-  handleDeleteSource: (source: any) => void;
+  sourceProto: SourceConnector;
+  handleDeleteSource: (sourceId: string) => void;
 }

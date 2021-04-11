@@ -82,7 +82,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.streamMode)
+	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.streamMode, config.maxColumns)
 
 	snowflake := &Snowflake{
 		name:             config.name,

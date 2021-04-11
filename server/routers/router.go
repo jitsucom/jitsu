@@ -57,6 +57,7 @@ func SetupRouter(adminToken string, destinations *destinations.Service, sourcesS
 		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
+		apiV1.POST("/sources/test", adminTokenMiddleware.AdminAuth(handlers.SourcesHandler))
 
 		tasksRoute := apiV1.Group("/tasks")
 		{

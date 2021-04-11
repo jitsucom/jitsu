@@ -104,6 +104,10 @@ func (s *Service) TestDestination(reqB []byte) (int, []byte, error) {
 	return s.sendReq(http.MethodPost, s.balancerAPIURL+"/destinations/test", bytes.NewBuffer(reqB))
 }
 
+func (s *Service) TestSource(reqB []byte) (int, []byte, error) {
+	return s.sendReq(http.MethodPost, s.balancerAPIURL+"/sources/test", bytes.NewBuffer(reqB))
+}
+
 func (s *Service) startClusterMonitor() {
 	safego.RunWithRestart(func() {
 		for {

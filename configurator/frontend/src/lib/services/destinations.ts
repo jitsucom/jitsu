@@ -1,6 +1,7 @@
 /* eslint-disable */
 import { isNullOrUndef, randomId } from '../commons/utils';
 import { FieldMappings } from './mappings';
+import Marshal from "@./lib/commons/marshalling";
 
 export class DestinationConfigFactory<T extends DestinationConfig> {
   private readonly _name: string;
@@ -79,6 +80,10 @@ export abstract class DestinationConfig {
     return this._id;
   }
 
+  get uid(): string {
+    return this._uid;
+  }
+
   get type(): string {
     return this._type;
   }
@@ -110,7 +115,20 @@ export abstract class DestinationConfig {
   }
 
   get mappings(): FieldMappings {
+    this.fixMappings();
     return this._mappings;
+  }
+
+  /**
+   * Fix type of mapping fields. Due to previous bug that
+   * might have corrupted the data
+   */
+  private fixMappings() {
+    if (!this._mappings) {
+      this._mappings = new FieldMappings([], true);
+    } else if (this._mappings.constructor.name != 'FieldMappings') {
+      this._mappings = Marshal.newKnownInstance(FieldMappings, this._mappings)
+    }
   }
 
   set mappings(value: FieldMappings) {
@@ -268,10 +286,7 @@ export class BQConfig extends DestinationConfig {
   describe(): ConnectionDescription {
     return {
       displayURL: `${this.formData['bqProjectId']}`,
-      commandLineConnect: `echo '${this.formData['bqJSONKey'].replaceAll(
-        '\n',
-        ' '
-      )}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`
+      commandLineConnect: `echo '${this.formData['bqJSONKey'].replaceAll('\n', ' ')}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`
     };
   }
 }

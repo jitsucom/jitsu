@@ -102,6 +102,9 @@ func readInViperConfig() error {
 		payload = &resources.ResponsePayload{Content: []byte(configSourceStr), ContentType: &jsonContentType}
 	} else if configSourceStr != "" {
 		payload, err = resources.LoadFromFile(configSourceStr, "")
+	} else {
+		//run without config from sources
+		logging.ConfigWarn = configNotFound
 	}
 
 	if err != nil {
@@ -182,7 +185,8 @@ func main() {
 		logging.Fatal(err)
 	}
 
-	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"), appconfig.Instance.SingerLogsWriter); err != nil {
+	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"),
+		viper.GetBool("singer-bridge.install_taps"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
 
@@ -294,7 +298,9 @@ func main() {
 		logging.Warnf("Global users recognition isn't configured")
 	}
 
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration)
+	maxColumns := viper.GetInt("server.max_columns")
+	logging.Infof("Limit server.max_columns is %d", maxColumns)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, maxColumns)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory)
@@ -316,7 +322,7 @@ func main() {
 	appconfig.Instance.ScheduleClosing(cronScheduler)
 
 	//Create sources
-	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), destinationsService, metaStorage, cronScheduler)
+	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), viper.GetString(sourcesKey), destinationsService, metaStorage, cronScheduler)
 	if err != nil {
 		logging.Fatal("Error creating sources service:", err)
 	}
