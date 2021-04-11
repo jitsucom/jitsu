@@ -1,7 +1,11 @@
 package adapters
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
+	"strings"
+	"text/template"
 
 	"github.com/jitsucom/jitsu/server/logging"
 )
@@ -32,20 +36,65 @@ type WebHookConversion struct {
 	config      *WebHookConfig
 	httpQueue   *HttpAdapter
 	debugLogger *logging.QueryLogger
+	urlTmpl     *template.Template
+	bodyTmpl    *template.Template
 }
 
-func NewWebHookConversion(config *WebHookConfig, httpQueue *HttpAdapter, requestDebugLogger *logging.QueryLogger) *WebHookConversion {
+func NewWebHookConversion(config *WebHookConfig, requestDebugLogger *logging.QueryLogger) (*WebHookConversion, error) {
+	urlTmpl, err := template.New("url").Parse(config.URL)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing URL template %v", err)
+	}
+
+	bodyTmpl, err := template.New("body").Parse(config.Body)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing body template %v", err)
+	}
+
 	return &WebHookConversion{
 		config:      config,
-		httpQueue:   httpQueue,
+		httpQueue:   NewHttpAdapter(),
 		debugLogger: requestDebugLogger,
-	}
+		urlTmpl:     urlTmpl,
+		bodyTmpl:    bodyTmpl,
+	}, nil
 }
 
 func (wh *WebHookConversion) Send(object map[string]interface{}) error {
-	wh.httpQueue.AddRequest(&Request{})
+	url, err := wh.GetURL(object)
+	if err != nil {
+		return err
+	}
+
+	body, err := wh.GetBody(object)
+	if err != nil {
+		return err
+	}
+
+	wh.httpQueue.AddRequest(&Request{
+		URL:     url,
+		Method:  wh.config.Method,
+		Headers: wh.config.Headers,
+		Body:    body,
+	})
 
 	return nil
+}
+
+func (wh *WebHookConversion) GetURL(object map[string]interface{}) (string, error) {
+	var buf bytes.Buffer
+	if err := wh.urlTmpl.Execute(&buf, object); err != nil {
+		return "", fmt.Errorf("Error executing %s template: %v", wh.urlTmpl, err)
+	}
+	return strings.TrimSpace(buf.String()), nil
+}
+
+func (wh *WebHookConversion) GetBody(object map[string]interface{}) (string, error) {
+	var buf bytes.Buffer
+	if err := wh.bodyTmpl.Execute(&buf, object); err != nil {
+		return "", fmt.Errorf("Error executing %s template: %v", wh.bodyTmpl, err)
+	}
+	return strings.TrimSpace(buf.String()), nil
 }
 
 func (wh *WebHookConversion) GetTableSchema(tableName string) (*Table, error) {

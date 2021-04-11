@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -12,7 +14,6 @@ import (
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
-	"strings"
 )
 
 const (
@@ -91,7 +92,6 @@ type Config struct {
 	loggerFactory    *logging.Factory
 	pkFields         map[string]bool
 	sqlTypeCasts     map[string]string
-	httpQueue 		 *adapters.HttpAdapter
 }
 
 type Factory interface {
@@ -105,11 +105,10 @@ type FactoryImpl struct {
 	eventsCache         *caching.EventsCache
 	globalLoggerFactory *logging.Factory
 	globalConfiguration *UsersRecognition
-	httpQueue 			*adapters.HttpAdapter
 }
 
 func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
-	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, httpQueue *adapters.HttpAdapter) Factory {
+	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -117,7 +116,6 @@ func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorK
 		eventsCache:         eventsCache,
 		globalLoggerFactory: globalLoggerFactory,
 		globalConfiguration: globalConfiguration,
-		httpQueue: 			 httpQueue,
 	}
 }
 
@@ -293,7 +291,6 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		loggerFactory:    destinationLoggerFactory,
 		pkFields:         pkFields,
 		sqlTypeCasts:     sqlTypeCasts,
-		httpQueue: 		  f.httpQueue,
 	}
 
 	var storageProxy StorageProxy

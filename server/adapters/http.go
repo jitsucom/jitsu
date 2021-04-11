@@ -71,10 +71,6 @@ func (h *HttpAdapter) sendRequestWorker() {
 }
 
 func (h *HttpAdapter) sendRequest(r *Request) (code int, respBody []byte, err error) {
-	if r != nil {
-		return -1, nil, nil
-	}
-
 	req, err := http.NewRequest(r.Method, r.URL, bytes.NewBuffer([]byte(r.Body)))
 	if err != nil {
 		return 1, respBody, fmt.Errorf("Can't get request; %v", err)
