@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"text/template"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
 )
@@ -76,6 +77,7 @@ func (wh *WebHookConversion) Send(object map[string]interface{}) error {
 		Method:  wh.config.Method,
 		Headers: wh.config.Headers,
 		Body:    body,
+		NextDt:  time.Now(),
 	})
 
 	return nil
