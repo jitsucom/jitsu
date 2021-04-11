@@ -43,7 +43,7 @@ func NewWebHook(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(wbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion, config.streamMode)
+	tableHelper := NewTableHelper(wbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion, config.streamMode, 0)
 
 	wh := &WebHook{
 		name:           config.name,
