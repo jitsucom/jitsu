@@ -6,6 +6,7 @@ import playwrite, { ConsoleMessage } from 'playwright';
 import * as fs from 'fs';
 import { Browser, Response, Request } from 'playwright/types/types';
 import path from 'path';
+import bodyParser from 'body-parser';
 
 type Callback = (() => void) | null;
 
@@ -30,9 +31,12 @@ export class TestServer {
   private app: any = null;
   private port?: number;
   private shutdown: Callback = null;
+  private _requestLog: any[] = [];
 
   public async init() {
     this.app = express();
+    this.app.use(bodyParser.json())
+    this.app.use(bodyParser.text())
     const { port, shutdown } = await createServer(this.app, this.port)
     this.port = port;
     this.shutdown = shutdown;
@@ -46,7 +50,17 @@ export class TestServer {
       let path = `${__dirname}/../html/${req.params.name}`;
       let html = fs.readFileSync(path).toString();
       res.send(html.split('%%SERVER%%').join(`http://localhost:${this.port}`))
+      next();
     });
+
+    const eventHandler = (req, res, next) => {
+      let bodyJson = typeof req.body === 'object' ? req.body : JSON.parse(req.body);
+      this._requestLog.push(bodyJson);
+      console.log("Received payload from JS SDK", bodyJson);
+    }
+
+    this.app.post('/api/v1/event', eventHandler)
+    this.app.post('/api.*', eventHandler)
   }
 
   constructor(port?: number) {
@@ -64,6 +78,14 @@ export class TestServer {
       url = url.substring(1);
     }
     return `http://localhost:${this.port}/${url ?? ''}`;
+  }
+
+  clearRequestLog() {
+    this._requestLog = [];
+  }
+
+  get requestLog(): any[] {
+    return this._requestLog;
   }
 }
 

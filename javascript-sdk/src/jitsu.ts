@@ -1,5 +1,4 @@
 import {
-  awaitGlobalProp,
   generateId,
   generateRandom,
   getCookieDomain,
@@ -11,9 +10,9 @@ import {
   parseQuery,
   reformatDate
 } from './helpers'
-import { Event, EventCtx, EventPayload, JitsuClient, JitsuOptions, UserProps } from './interface'
+import { Event, EventCompat, EventCtx, EventPayload, EventSrc, JitsuClient, JitsuOptions, UserProps } from './interface'
 import { mapGaPayload } from './ga';
-import { getLogger } from './log';
+import { getLogger, setRootLogLevel } from './log';
 
 const VERSION_INFO = {
   env: '__buildEnv__',
@@ -50,6 +49,8 @@ class UserIdPersistance {
   }
 }
 
+const defaultCompatMode = false;
+
 export function jitsuClient(opts?: JitsuOptions): JitsuClient {
   let client = new JitsuClientImpl();
   client.init(opts);
@@ -70,10 +71,12 @@ class JitsuClientImpl implements JitsuClient {
   private initialized: boolean = false;
   private _3pCookies: Record<string, boolean> = {};
   private initialOptions?: JitsuOptions;
+  private compatMode: boolean;
 
   id(props: UserProps, doNotSendEvent?: boolean): Promise<void> {
     this.userProperties = { ...this.userProperties, ...props }
-    getLogger().debug('user identified:', props)
+    getLogger().debug('Jitsu user identified', props)
+
     if (this.userIdPersistance) {
       this.userIdPersistance.save(props);
     } else {
@@ -92,7 +95,7 @@ class JitsuClientImpl implements JitsuClient {
 
   interceptGA(ga: any) {
     if (!window) {
-      getLogger().warn('GA interception is available')
+      getLogger().warn('GA interception is not available')
     }
     ga(
       (tracker: any) => {
@@ -129,18 +132,23 @@ class JitsuClientImpl implements JitsuClient {
     return newId;
   }
 
-  makeEvent(event_type: string, src: string, payload: EventPayload): Event {
+  makeEvent(event_type: string, src: EventSrc, payload: EventPayload): Event | EventCompat {
     this.restoreId();
-    return {
+    let context = this.getCtx();
+
+    let base = {
       api_key: this.apiKey,
       src,
       event_type,
-      ...this.getCtx(),
       ...payload
-    };
+    }
+
+    return this.compatMode ?
+      { ...base, eventn_ctx: context } :
+      { ...base, ...context };
   }
 
-  _send3p(sourceType: string, object: any, type?: string): Promise<any> {
+  _send3p(sourceType: EventSrc, object: any, type?: string): Promise<any> {
     let eventType = '3rdparty'
     if (type && type !== '') {
       eventType = type
@@ -173,7 +181,7 @@ class JitsuClientImpl implements JitsuClient {
         };
         req.onload = () => {
           if (req.status !== 200) {
-            getLogger().error('Failed to send data:', json, req.statusText, req.responseText)
+            getLogger().error(`Failed to send data (#${req.status} - ${req.statusText})`, json);
             reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
           }
           resolve();
@@ -228,21 +236,30 @@ class JitsuClientImpl implements JitsuClient {
   track(type: string, payload?: EventPayload): Promise<void> {
     let data = payload || {};
     getLogger().debug('track event of type', type, data)
-    const e = this.makeEvent(type, 'eventn', payload || {});
+    const e = this.makeEvent(type, this.compatMode ?
+      'eventn' :
+      'jitsu', payload || {});
     return this.sendJson(e);
   }
 
-  init(options?: JitsuOptions) {
-    if (!options) {
-      options = {}
+  init(options: JitsuOptions) {
+    if (options.log_level) {
+      setRootLogLevel(options.log_level);
     }
     this.initialOptions = options;
     getLogger().debug('Initializing Jitsu Tracker tracker', options, JITSU_VERSION)
-    this.cookieDomain = options['cookie_domain'] || getCookieDomain();
+    if (!options.key) {
+      getLogger().error('Can\'t initialize Jitsu, key property is not set');
+      return;
+    }
+    this.compatMode = options.compat_mode === undefined ?
+      defaultCompatMode :
+      !!options.compat_mode;
+    this.cookieDomain = options.cookie_domain || getCookieDomain();
     this.trackingHost = getHostWithProtocol(options['tracking_host'] || 't.jitsu.com');
-    this.randomizeUrl = options['randomize_url'] || false;
-    this.idCookieName = options['cookie_name'] || '__eventn_id';
-    this.apiKey = options['key'] || 'NONE';
+    this.randomizeUrl = options.randomize_url || false;
+    this.idCookieName = options.cookie_name || '__eventn_id';
+    this.apiKey = options.key;
     this.userIdPersistance = new UserIdPersistance(this.cookieDomain, this.idCookieName + '_usr');
     if (options.capture_3rd_party_cookies === false) {
       this._3pCookies = {}
@@ -252,7 +269,7 @@ class JitsuClientImpl implements JitsuClient {
     }
 
     if (options.ga_hook) {
-      interceptGoogleAnalytics(this);
+      getLogger().warn("Google analytics interception is removed. It will not work")
     }
     if (options.segment_hook) {
       interceptSegmentCalls(this);
@@ -262,14 +279,10 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   interceptAnalytics(analytics: any) {
-    if (!analytics || typeof analytics.addSourceMiddleware !== 'function') {
-      getLogger().error('analytics.addSourceMiddleware is not a function', analytics)
-      return;
-    }
-
     let interceptor = (chain: any) => {
       try {
         let payload = { ...chain.payload }
+        getLogger().debug('Intercepted segment payload', payload.obj);
 
         let integration = chain.integrations['Segment.io']
         if (integration && integration.analytics) {
@@ -291,7 +304,14 @@ class JitsuClientImpl implements JitsuClient {
 
       chain.next(chain.payload);
     };
-    analytics.addSourceMiddleware(interceptor);
+    if (typeof analytics.addSourceMiddleware === 'function') {
+      //analytics is fully initialized
+      getLogger().debug("Analytics.js is initialized, calling addSourceMiddleware");
+      analytics.addSourceMiddleware(interceptor);
+    } else {
+      getLogger().debug("Analytics.js is not initialized, pushing addSourceMiddleware to callstack");
+      analytics.push(['addSourceMiddleware', interceptor])
+    }
     analytics['__en_intercepted'] = true
   }
 
@@ -305,26 +325,11 @@ class JitsuClientImpl implements JitsuClient {
   }
 }
 
-function interceptSegmentCalls(t: JitsuClient, globalPropName: string = 'analytics') {
-  awaitGlobalProp(globalPropName).then(
-    (analytics: any) => {
-      if (!analytics['__en_intercepted']) {
-        t.interceptAnalytics(analytics)
-      }
-    }
-  ).catch(e => {
-    getLogger().error("Can't get segment object", e);
-  })
-}
-
-function interceptGoogleAnalytics(t: JitsuClient, globalPropName: string = 'ga') {
-  awaitGlobalProp(globalPropName).then(
-    (ga: any) => {
-      t.interceptGA(ga)
-    }
-  ).catch((e) => {
-      getLogger().error("Failed to intercept GA", e)
-    }
-  );
+function interceptSegmentCalls(t: JitsuClient) {
+  let win = window as any;
+  if (!win.analytics) {
+    win.analytics = [];
+  }
+  t.interceptAnalytics(win.analytics)
 }
 

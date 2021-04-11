@@ -136,14 +136,3 @@ export function awaitCondition<T>(
 }
 
 
-export function awaitGlobalProp(prop: string, timeout = 500, retries = 4) {
-  return awaitCondition(
-    () => {
-      return (window as any)[prop] !== undefined
-    },
-    () => {
-      return (window as any)[prop]
-    },
-    timeout, retries
-  );
-}
