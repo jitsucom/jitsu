@@ -18,11 +18,10 @@ import (
 )
 
 const (
-	googlePlayType = "google_play"
-	bucketPrefix   = "pubsite_prod_rev_"
+	bucketPrefix = "pubsite_prod_rev_"
 
-	salesCollection    = "sales"
-	earningsCollection = "earnings"
+	SalesCollection    = "sales"
+	EarningsCollection = "earnings"
 
 	//"yyyyMM"
 	intervalLayout = "200601"
@@ -70,8 +69,8 @@ type GooglePlay struct {
 }
 
 func init() {
-	if err := RegisterDriverConstructor(googlePlayType, NewGooglePlay); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", googlePlayType, err)
+	if err := RegisterDriver(GooglePlayType, NewGooglePlay); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", GooglePlayType, err)
 	}
 }
 
@@ -118,12 +117,12 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 		nameParts := strings.Split(attrs.Name, "_")
 
 		var intervalStr string
-		if gp.collection.Type == salesCollection {
+		if gp.collection.Type == SalesCollection {
 			if len(nameParts) != 2 {
 				return nil, fmt.Errorf("GooglePlay file on gcp has wrong name: [%s]", attrs.Name)
 			}
 			intervalStr = strings.ReplaceAll(nameParts[1], ".zip", "")
-		} else if gp.collection.Type == earningsCollection {
+		} else if gp.collection.Type == EarningsCollection {
 			if len(nameParts) != 3 {
 				return nil, fmt.Errorf("GooglePlay file on gcp has wrong name: [%s]", attrs.Name)
 			}
@@ -149,10 +148,10 @@ func (gp *GooglePlay) GetObjectsFor(interval *TimeInterval) ([]map[string]interf
 
 	var objects []map[string]interface{}
 	var err error
-	if gp.collection.Type == salesCollection {
+	if gp.collection.Type == SalesCollection {
 		key := "sales/salesreport_" + interval.LowerEndpoint().Format(intervalLayout) + ".zip"
 		objects, err = gp.getFileObjects(bucket, key)
-	} else if gp.collection.Type == earningsCollection {
+	} else if gp.collection.Type == EarningsCollection {
 		prefix := "earnings/earnings_" + interval.LowerEndpoint().Format(intervalLayout)
 		objects, err = gp.getFilesObjects(bucket, prefix)
 	} else {
@@ -164,6 +163,19 @@ func (gp *GooglePlay) GetObjectsFor(interval *TimeInterval) ([]map[string]interf
 	}
 
 	return objects, nil
+}
+
+func (gp *GooglePlay) TestConnection() error {
+	bucketName := bucketPrefix + gp.config.AccountID
+	bucket := gp.client.Bucket(bucketName)
+
+	it := bucket.Objects(gp.ctx, &storage.Query{Prefix: gp.collection.Name})
+	_, err := it.Next()
+	if err != nil && err != iterator.Done {
+		return err
+	}
+
+	return nil
 }
 
 func (gp *GooglePlay) getFilesObjects(bucket *storage.BucketHandle, prefix string) ([]map[string]interface{}, error) {
@@ -193,9 +205,9 @@ func (gp *GooglePlay) getFilesObjects(bucket *storage.BucketHandle, prefix strin
 func (gp *GooglePlay) getFileObjects(bucket *storage.BucketHandle, key string) ([]map[string]interface{}, error) {
 	var objects []map[string]interface{}
 	typeCasts := map[string]func(interface{}) (interface{}, error){}
-	if gp.collection.Type == salesCollection {
+	if gp.collection.Type == SalesCollection {
 		typeCasts = salesTypeCasts
-	} else if gp.collection.Type == earningsCollection {
+	} else if gp.collection.Type == EarningsCollection {
 		typeCasts = earningsTypeCasts
 	}
 
@@ -234,7 +246,7 @@ func (gp *GooglePlay) getFileObjects(bucket *storage.BucketHandle, key string) (
 }
 
 func (gp *GooglePlay) Type() string {
-	return googlePlayType
+	return GooglePlayType
 }
 
 func (gp *GooglePlay) Close() error {

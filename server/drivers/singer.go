@@ -10,7 +10,6 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/singer"
 	"github.com/jitsucom/jitsu/server/uuid"
-	"go.uber.org/atomic"
 	"io"
 	"io/ioutil"
 	"os/exec"
@@ -20,12 +19,10 @@ import (
 )
 
 const (
-	SingerType = "singer"
-
 	stateFileName = "state.json"
 )
 
-var notReady = errors.New("Singer driver isn't ready yet. Tap is being installed..")
+var errNotReady = errors.New("Singer driver isn't ready yet. Tap is being installed..")
 
 type SingerConfig struct {
 	Tap          string      `mapstructure:"tap" json:"tap,omitempty" yaml:"tap,omitempty"`
@@ -63,12 +60,11 @@ type Singer struct {
 	propertiesPath string
 	statePath      string
 
-	ready  atomic.Bool
 	closed bool
 }
 
 func init() {
-	if err := RegisterDriverConstructor(SingerType, NewSinger); err != nil {
+	if err := RegisterDriver(SingerType, NewSinger); err != nil {
 		logging.Errorf("Failed to register driver %s: %v", SingerType, err)
 	}
 }
@@ -91,34 +87,31 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 		return nil, errors.New("singer-bridge must be configured")
 	}
 
-	pathToVenv := path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap)
-
-	//create virtual env with source ID
-	err = execCmd(singer.Instance.PythonExecPath, "-m", "venv", pathToVenv)
-	if err != nil {
-		return nil, fmt.Errorf("Error creating singer python venv: %v", err)
+	pathToConfigs := path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap)
+	if err := logging.EnsureDir(pathToConfigs); err != nil {
+		return nil, fmt.Errorf("Error creating singer venv config dir: %v", err)
 	}
 
 	//parse singer config as file path
-	configPath, err := parseJSONAsFile(pathToVenv, config.Config)
+	configPath, err := parseJSONAsFile(path.Join(pathToConfigs, "config.json"), config.Config)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
 	}
 
 	//parse singer catalog as file path
-	catalogPath, err := parseJSONAsFile(pathToVenv, config.Catalog)
+	catalogPath, err := parseJSONAsFile(path.Join(pathToConfigs, "catalog.json"), config.Catalog)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer catalog [%v]: %v", config.Catalog, err)
 	}
 
 	//parse singer properties as file path
-	propertiesPath, err := parseJSONAsFile(pathToVenv, config.Properties)
+	propertiesPath, err := parseJSONAsFile(path.Join(pathToConfigs, "properties.json"), config.Properties)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer properties [%v]: %v", config.Properties, err)
 	}
 
 	//parse singer state as file path
-	statePath, err := parseJSONAsFile(pathToVenv, config.InitialState)
+	statePath, err := parseJSONAsFile(path.Join(pathToConfigs, "state.json"), config.InitialState)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer initial state [%v]: %v", config.InitialState, err)
 	}
@@ -134,25 +127,7 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 		statePath:      statePath,
 	}
 
-	//async update pip and install singer tap
-	safego.Run(func() {
-
-		//update pip
-		err = execCmd(path.Join(pathToVenv, "/bin/python3"), "-m", "pip", "install", "--upgrade", "pip")
-		if err != nil {
-			logging.Errorf("Error updating pip for [%s] env: %v", sourceConfig.Name, err)
-			return
-		}
-
-		//install tap
-		err = execCmd(path.Join(pathToVenv, "/bin/pip"), "install", config.Tap)
-		if err != nil {
-			logging.Errorf("Error installing singer tap [%s]: %v", config.Tap, err)
-			return
-		}
-
-		s.ready.Store(true)
-	})
+	singer.Instance.EnsureTap(config.Tap)
 
 	return s, nil
 }
@@ -173,11 +148,11 @@ func (s *Singer) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}
 }
 
 func (s *Singer) Ready() (bool, error) {
-	if s.ready.Load() {
+	if singer.Instance.IsTapReady(s.tap) {
 		return true, nil
 	}
 
-	return false, notReady
+	return false, errNotReady
 }
 
 func (s *Singer) GetTap() string {
@@ -189,8 +164,9 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 		return errors.New("Singer has already been closed")
 	}
 
-	if !s.ready.Load() {
-		return notReady
+	ready, readyErr := s.Ready()
+	if !ready {
+		return readyErr
 	}
 
 	//override initial state with existing one and put it to a file
@@ -220,7 +196,7 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 		args = append(args, "--state", statePath)
 	}
 
-	command := path.Join(singer.Instance.VenvDir, s.sourceName, s.tap, "bin", s.tap)
+	command := path.Join(singer.Instance.VenvDir, s.tap, "bin", s.tap)
 
 	taskLogger.INFO("exec singer %s %s", command, strings.Join(args, " "))
 
@@ -284,6 +260,30 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 	return nil
 }
 
+func (s *Singer) TestConnection() error {
+	ready, notReadyError := s.Ready()
+	if !ready {
+		return notReadyError
+	}
+
+	outWriter := logging.NewStringWriter()
+	errWriter := logging.NewStringWriter()
+
+	command := path.Join(singer.Instance.VenvDir, s.tap, "bin", s.tap)
+
+	err := singer.Instance.ExecCmd(command, outWriter, errWriter, "-c", s.configPath, "--discover")
+	errStr := errWriter.String()
+	if err != nil {
+		return fmt.Errorf("Error singer --discover: %v. %s", err, errStr)
+	}
+
+	if errStr != "" {
+		return fmt.Errorf("Error singer --dicsover: %s", errStr)
+	}
+
+	return nil
+}
+
 func (s *Singer) Type() string {
 	return SingerType
 }
@@ -302,41 +302,6 @@ func (s *Singer) Close() (multiErr error) {
 	s.Unlock()
 
 	return multiErr
-}
-
-func execCmd(cmd string, args ...string) error {
-	execCmd := exec.Command(cmd, args...)
-
-	stdout, _ := execCmd.StdoutPipe()
-	stderr, _ := execCmd.StderrPipe()
-
-	err := execCmd.Start()
-	if err != nil {
-		return err
-	}
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	safego.Run(func() {
-		defer wg.Done()
-		io.Copy(singer.Instance.LogWriter, stdout)
-	})
-
-	wg.Add(1)
-	safego.Run(func() {
-		defer wg.Done()
-		io.Copy(singer.Instance.LogWriter, stderr)
-	})
-
-	wg.Wait()
-
-	err = execCmd.Wait()
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 //parse value and write it to a json file

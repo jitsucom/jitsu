@@ -39,12 +39,15 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.port", "8001")
 	viper.SetDefault("server.log.level", "info")
 	viper.SetDefault("server.static_files_dir", "./web")
-	viper.SetDefault("server.auth_reload_sec", 30)
-	viper.SetDefault("server.destinations_reload_sec", 40)
+	viper.SetDefault("server.auth_reload_sec", 3)
+	viper.SetDefault("server.destinations_reload_sec", 5)
+	viper.SetDefault("server.sources_reload_sec", 7)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("server.disable_skip_events_warn", false)
 	viper.SetDefault("server.cache.events.size", 100)
+	viper.SetDefault("server.strict_auth_tokens", false)
+	viper.SetDefault("server.max_columns", 100)
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
@@ -53,16 +56,18 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id")
 	viper.SetDefault("users_recognition.user_id_node", "/eventn_ctx/user/internal_id")
 	viper.SetDefault("singer-bridge.python", "python3")
-	viper.SetDefault("singer-bridge.venv_dir", "./venv")
+	viper.SetDefault("singer-bridge.install_taps", true)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 	if containerized {
 		viper.SetDefault("geo.maxmind_path", "/home/eventnative/data/config")
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
+		viper.SetDefault("singer-bridge.venv_dir", "/home/eventnative/data/venv")
 	} else {
 		viper.SetDefault("geo.maxmind_path", "./")
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
+		viper.SetDefault("singer-bridge.venv_dir", "./venv")
 	}
 }
 

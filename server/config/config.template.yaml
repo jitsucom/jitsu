@@ -32,7 +32,7 @@ server:
       - client_secret1
       - client_secret2
   ### Authorization reloading. If 'auth' key is http or file:/// source than it will be reloaded every auth_reload_sec
-  #auth_reload_sec: 30 #Optional. Default value is 30.
+  #auth_reload_sec: 3 #Optional. Default value is 3.
 
   ### Admin endpoint authorization
   admin_token: admin_token #Optional. Token for using Admin endpoints https://docs.eventnative.org/other-features/admin-endpoints
@@ -40,13 +40,22 @@ server:
   ### Public URL. It is used in welcome.html if not configured it will be taken from 'Host' http header on welcome.html requests
   #public_url: https://yourhost #Optional.
 
+  ### Limit the count of columns for any destinations.
+  ### It helps to prevent generating an infinite amount of columns in databases.
+  ### Zero value turns off the column count calculation.
+  ### It can be overridden at the destination level only by a positive value.
+  max_columns: 100 # Optional. Default value is 100.
+
   ### Application logs. If not configured - application logs will be written in std out. If configured in file and std out.
 #  log:
 #    path: /home/eventnative/logs/ #Optional.
 #    rotation_min: 1440 #Optional. Default value is 1440 (24 hours)
 
   ### Destinations reloading. If 'destinations' key is http or file:/// source than it will be reloaded every destinations_reload_sec
-  #destinations_reload_sec: 40 #Optional. Default value is 40.
+  #destinations_reload_sec: 5 #Optional. Default value is 5.
+
+  ### Sources reloading. If 'sources' key is http or file:/// URL than it will be reloaded every sources_reload_sec
+  #sources_reload_sec: 7 #Optional. Default value is 7.
 
   ### Application metrics
   ### At present only Prometheus is supported. Read more about application metrics https://docs.eventnative.org/other-features/application-metrics
@@ -111,6 +120,7 @@ destinations:
 #        - src: /key1/key3
 #          dst: /key4
 #          type: bigint #SQL type
+#      max_columns: 100 # Optional. The limit of the count of columns.
 #      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #Optional. Default value constant is 'events'. Template for extracting table name
 #
    ### BigQuery https://jitsu.com/docs/destinations-configuration/bigquery
@@ -122,6 +132,7 @@ destinations:
 #      bq_dataset: big_query_dataset # Optional. Default value is 'default'
 #      key_file: /home/eventnative/data/config/bqkey.json # or json string of key e.g. "{"service_account":...}"
 #    data_layout:
+#      max_columns: 100 # Optional. The limit of the count of columns.
 #      table_name_template: 'my_events' #Optional. Default value constant is 'events'. Template for extracting table name
 
   ### Postgres https://jitsu.com/docs/destinations-configuration/postgres
@@ -139,6 +150,7 @@ destinations:
 #        sslmode: disable
 #        connect_timeout: 300
 #    data_layout:
+#      max_columns: 100 # Optional. The limit of the count of columns.
 #      table_name_template: 'my_events' #Optional. Default value constant is 'events'. Template for extracting table name
 #      #Required for Postgres users recognition feature.
 #      primary_key_fields:
@@ -188,6 +200,7 @@ destinations:
 #      region: us-east-1
 #      endpoint: #Optional. Default value is AWS s3 endpoint. If you use DigitalOcean spaces or others - specify your endpoint
 #    data_layout:
+#      max_columns: 100 # Optional. The limit of the count of columns.
 #      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #Template will be used for file naming
 
   ### Snowflake https://jitsu.com/docs/destinations-configuration/snowflake

@@ -70,7 +70,7 @@ func (s *CronScheduler) Remove(source, collection string) error {
 	s.mutex.RUnlock()
 
 	if !exist {
-		return fmt.Errorf("Source and collection pair isn't scheduled yet")
+		return nil
 	}
 
 	s.mutex.Lock()

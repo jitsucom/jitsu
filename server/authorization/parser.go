@@ -65,7 +65,7 @@ func reformat(tokens []Token) *TokensHolder {
 	for _, tokenObj := range tokens {
 		if tokenObj.ID == "" {
 			//hash from client,server secret will be id
-			tokenObj.ID = resources.GetHash([]byte(tokenObj.ClientSecret + tokenObj.ServerSecret))
+			tokenObj.ID = resources.GetBytesHash([]byte(tokenObj.ClientSecret + tokenObj.ServerSecret))
 		}
 
 		all[tokenObj.ID] = tokenObj

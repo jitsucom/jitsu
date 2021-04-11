@@ -61,17 +61,9 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 		}
 
 		//if only tokens empty - put all tokens by project
-		keys, ok := keysByProject[projectID]
-		if !ok {
-			logging.Errorf("No API keys for project [%s], all destinations will be skipped", projectID)
-			continue
-		}
+		keys, _ := keysByProject[projectID]
 
-		if len(keys) == 0 {
-			continue
-		}
-
-		var projectTokenIDs []string
+		projectTokenIDs := []string{}
 		for _, k := range keys {
 			projectTokenIDs = append(projectTokenIDs, k.ID)
 		}

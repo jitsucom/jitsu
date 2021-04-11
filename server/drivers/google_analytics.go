@@ -13,11 +13,10 @@ import (
 )
 
 const (
-	dayLayout           = "2006-01-02"
-	reportsCollection   = "report"
-	gaFieldsPrefix      = "ga:"
-	googleAnalyticsType = "google_analytics"
-	eventID             = "event_id"
+	dayLayout         = "2006-01-02"
+	ReportsCollection = "report"
+	gaFieldsPrefix    = "ga:"
+	eventID           = "event_id"
 
 	gaMaxAttempts = 3 // sometimes Google API returns errors for unknown reasons, this is a number of retries we make before fail to get a report
 )
@@ -73,8 +72,8 @@ type GoogleAnalytics struct {
 }
 
 func init() {
-	if err := RegisterDriverConstructor(googleAnalyticsType, NewGoogleAnalytics); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", googleAnalyticsType, err)
+	if err := RegisterDriver(GoogleAnalyticsType, NewGoogleAnalytics); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", GoogleAnalyticsType, err)
 	}
 }
 
@@ -129,7 +128,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 			EndDate: interval.UpperEndpoint().Format(dayLayout)},
 	}
 
-	if g.collection.Type == reportsCollection {
+	if g.collection.Type == ReportsCollection {
 		result, err := g.loadReport(g.config.ViewID, dateRanges, g.reportFieldsConfig.Dimensions, g.reportFieldsConfig.Metrics)
 		logging.Debugf("[%s] Rows to sync: %d", interval.String(), len(result))
 		return result, err
@@ -139,7 +138,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 }
 
 func (g *GoogleAnalytics) Type() string {
-	return googleAnalyticsType
+	return GoogleAnalyticsType
 }
 
 func (g *GoogleAnalytics) Close() error {
@@ -148,6 +147,30 @@ func (g *GoogleAnalytics) Close() error {
 
 func (g *GoogleAnalytics) GetCollectionTable() string {
 	return g.collection.GetTableName()
+}
+
+func (g *GoogleAnalytics) TestConnection() error {
+	now := time.Now().UTC()
+	startDate := now.AddDate(0, 0, -1)
+	req := &ga.GetReportsRequest{
+		ReportRequests: []*ga.ReportRequest{
+			{
+				ViewId: g.config.ViewID,
+				DateRanges: []*ga.DateRange{
+					{StartDate: startDate.Format(dayLayout),
+						EndDate: now.Format(dayLayout)},
+				},
+				PageToken: "",
+				PageSize:  1,
+			},
+		},
+	}
+	_, err := g.executeWithRetry(g.service.Reports.BatchGet(req), true)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, dimensions []string, metrics []string) ([]map[string]interface{}, error) {
@@ -175,7 +198,7 @@ func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, 
 				},
 			},
 		}
-		response, err := g.executeWithRetry(g.service.Reports.BatchGet(req))
+		response, err := g.executeWithRetry(g.service.Reports.BatchGet(req), false)
 		if err != nil {
 			return nil, err
 		}
@@ -219,7 +242,7 @@ func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, 
 	return result, nil
 }
 
-func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall) (*ga.GetReportsResponse, error) {
+func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall, failFast bool) (*ga.GetReportsResponse, error) {
 	attempt := 0
 	var response *ga.GetReportsResponse
 	var err error
@@ -227,6 +250,9 @@ func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall) (
 		response, err = reportCall.Do()
 		if err == nil {
 			return response, nil
+		}
+		if failFast {
+			return nil, err
 		}
 		time.Sleep(time.Duration(attempt+1) * time.Second)
 		attempt++

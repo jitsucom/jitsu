@@ -13,8 +13,9 @@ import (
 )
 
 var (
-	errUnknownSource   = errors.New("Unknown source type")
-	driverConstructors = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+	ErrUnknownSource   = errors.New("Unknown source type")
+	DriverConstructors = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+	DriverTests        = make(map[string]func(ctx context.Context, config *SourceConfig) (Driver, error))
 )
 
 const (
@@ -27,7 +28,7 @@ const (
 )
 
 type SourceConfig struct {
-	Name string //without serialization
+	Name string `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
@@ -38,8 +39,8 @@ type SourceConfig struct {
 }
 
 type Collection struct {
-	DaysBackToLoad int    //without serialization
-	SourceID       string //without serialization
+	DaysBackToLoad int    `json:"-"` //without serialization
+	SourceID       string `json:"-"` //without serialization
 
 	Name         string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 	Type         string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
@@ -70,10 +71,12 @@ func (c *Collection) GetTableName() string {
 	return c.SourceID + "_" + c.Name
 }
 
-//RegisterDriverConstructor registers function to create new driver instance per driver type
-func RegisterDriverConstructor(driverType string,
+//RegisterDriver registers two functions per driver type:
+//function to create new driver instance
+//function to test driver
+func RegisterDriver(driverType string,
 	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) error {
-	driverConstructors[driverType] = createDriverFunc
+	DriverConstructors[driverType] = createDriverFunc
 	return nil
 }
 
@@ -114,9 +117,9 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronSc
 
 	driverPerCollection := map[string]Driver{}
 
-	createDriverFunc, ok := driverConstructors[sourceConfig.Type]
+	createDriverFunc, ok := DriverConstructors[sourceConfig.Type]
 	if !ok {
-		return nil, errUnknownSource
+		return nil, ErrUnknownSource
 	}
 
 	for _, collection := range collections {
@@ -160,8 +163,9 @@ func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 		switch collectionI.(type) {
 		case string:
 			collections = append(collections, &Collection{SourceID: sourceConfig.Name, Name: collectionI.(string), Type: collectionI.(string)})
-		case map[interface{}]interface{}:
+		case map[string]interface{}, map[interface{}]interface{}:
 			collectionObjMap := cast.ToStringMap(collectionI)
+
 			parametersI, ok := collectionObjMap[collectionParametersField]
 			if ok {
 				parametersObjMap := cast.ToStringMap(parametersI)
