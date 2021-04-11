@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	WebHookType = "WebHook"
+	WebHookType = "webhook"
 )
 
 type WebHook struct {
@@ -38,7 +38,10 @@ func NewWebHook(config *Config) (Storage, error) {
 	}
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
-	wbAdapter := adapters.NewWebHookConversion(webHookConfig, config.httpQueue, requestDebugLogger)
+	wbAdapter, err := adapters.NewWebHookConversion(webHookConfig, requestDebugLogger)
+	if err != nil {
+		return nil, err
+	}
 
 	tableHelper := NewTableHelper(wbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion, config.streamMode)
 

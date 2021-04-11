@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin/binding"
-	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -295,10 +294,7 @@ func main() {
 		logging.Warnf("Global users recognition isn't configured")
 	}
 
-	// HTTP send queue for web hook destination
-	httpQueue := adapters.NewHttpAdapter()
-
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, httpQueue)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory)
