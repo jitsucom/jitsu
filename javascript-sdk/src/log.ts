@@ -9,13 +9,15 @@ export type Logger = {
   error: (...args: any) => void
 }
 
+export type LogLevelName = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+
 export type LogLevel = {
-  name: string
+  name: LogLevelName
   severity: number
 }
 
 
-export const LogLevels: Record<string, LogLevel> = {
+export const LogLevels: Record<LogLevelName, LogLevel> = {
   DEBUG: {name: "DEBUG", severity: 10},
   INFO: {name: "INFO", severity: 100},
   WARN: {name: "WARN", severity: 1000},
@@ -34,6 +36,25 @@ export function getLogger(): Logger {
     return rootLogger = createLogger();
   }
 }
+
+export function setRootLogLevel(logLevelName: LogLevelName): Logger {
+  let logLevel = LogLevels[logLevelName.toLocaleUpperCase()];
+  if (!logLevel) {
+    console.warn(`Can't find log level with name ${logLevelName.toLocaleUpperCase()}, defaulting to INFO`);
+    logLevel = LogLevels.INFO;
+  }
+  rootLogger = createLogger(logLevel);
+  return rootLogger;
+}
+
+export function setDebugVar(name: string, val: any) {
+  let win = window as any;
+  if (!win.__jitsuDebug) {
+    win.__jitsuDebug = { };
+  }
+  win.__jitsuDebug[name] = val;
+}
+
 
 
 
@@ -59,17 +80,18 @@ export function createLogger(logLevel?: LogLevel): Logger {
       if (severity >= minLogLevel.severity && args.length > 0) {
         const message = args[0];
         const msgArgs = args.splice(1);
+        let msgFormatted = `[J-${name}] ${message}`;
         if (name === 'DEBUG' || name === 'INFO') {
-          console.log(message, ...msgArgs);
+          console.log(msgFormatted, ...msgArgs);
         } else if (name === 'WARN') {
-          console.warn(message, ...msgArgs);
+          console.warn(msgFormatted, ...msgArgs);
         } else {
-          console.error(message, ...msgArgs);
+          console.error(msgFormatted, ...msgArgs);
         }
       }
     }
   });
-  (window as any)['__eventNLogger'] = logger;
+  setDebugVar("logger", logger);
 
   return logger as any as Logger;
 }

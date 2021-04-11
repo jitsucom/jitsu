@@ -4,14 +4,15 @@
        Jitsu tracking one-liner. By default, pageview event is sent
     -->
     <script src="%%SERVER%%/lib.js"
-            data-jitsu-key="Test"
+            data-key="Test"
+            data-log-level="debug"
             defer></script>
     <script>
       setTimeout(() => {
-        console.log("Tracking");
+        console.log("Testing delayed tracking");
         var jitsu = window.jitsu = window.jitsu || (function(){(window.jitsuQ = window.jitsuQ || []).push(arguments);})
-        jitsu('track', 'additinal_event');
-      }, 100)
+        jitsu('track', 'additinal_event', {extra: 1});
+      }, 500)
     </script>
 </head>
 <body>

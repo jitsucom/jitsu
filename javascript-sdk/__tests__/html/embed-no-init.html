@@ -7,8 +7,10 @@
             Overall, two events should be sent
         -->
         <script src="%%SERVER%%/lib.js"
-                data-jitsu-api-key="Test"
-                data-jitsu-init-only="true"
+                data-key="Test2"
+                data-init-only="true"
+                data-log-level="debug"
+                data-compat-mode="true"
                 defer></script>
         <script>
             let jitsu = window.jitsu || (function(){(window.jitsuQ = window.jitsuQ || []).push(arguments);})
@@ -16,5 +18,8 @@
             jitsu('track', 'pageview');
         </script>
     </head>
+    <body>
+        <h1>Testing on %%SERVER%%</h1>
+    </body>
 
 </html>

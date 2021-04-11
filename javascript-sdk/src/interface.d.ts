@@ -10,7 +10,7 @@ export type JitsuClient = {
    * @return promise that is resolved after executed.
    *         However, if beacon API is used (see TrackerOption.use_beacon) promise will be resolved immediately
    */
-  _send3p: (typeName: string, _3pPayload: any, type?: string) => Promise<void>
+  _send3p: (typeName: EventSrc, _3pPayload: any, type?: string) => Promise<void>
   /**
    * Sends a track event to server
    * @param name event name
@@ -53,6 +53,11 @@ export type JitsuClient = {
 }
 
 /**
+ * Type of jitsu function which is exported to window.jitsu when tracker is embedded from server
+ */
+export type JitsuFunction = (action: 'track' | 'id', eventType: string, payload?: EventPayload) => void;
+
+/**
  * User identification method:
  *  - cookie (based on cookie)
  *  - ls (localstorage)
@@ -64,6 +69,14 @@ export type IdMethod = 'cookie' | 'ls' | 'cookie-less'
  * Configuration options of EventNative
  */
 export type JitsuOptions = {
+
+  /**
+   * If Jitsu should work in compatibility mode. If set to true:
+   *  - event_type will be set to 'eventn' instead of 'jitsu'
+   *  - EventCtx should be written in eventn_ctx node as opposed to to event root
+   */
+  compat_mode?: boolean
+
   /**
    * If beacon API (https://developer.mozilla.org/en-US/docs/Web/API/Beacon_API) should be used instead of
    * XMLHttpRequest.
@@ -94,7 +107,7 @@ export type JitsuOptions = {
    * API key. It's highly recommended to explicitely set it. Otherwise, the code will work
    * in some cases (where server is configured with exactly one client key)
    */
-  key?: string
+  key: string
   /**
    * If google analytics events should be intercepted. Read more about event interception
    * at https://docs.eventnative.org/sending-data/javascript-reference/events-interception
@@ -204,12 +217,34 @@ export type EventPayload = {
 }
 
 /**
- * Event object. A final object which is send to server
+ * Type of event source
  */
-export type Event = {
+export type EventSrc =
+  'jitsu'    |                     //event came directly from Jitsu
+  'eventn'   |                     //same as jitsu but for 'compat' mode, see
+  'ga'       |                     //event is intercepted from GA
+  '3rdparty' |                     //event is intercepted from 3rdparty source
+  'ajs';                           //event is intercepted from analytics.js
+
+/**
+ * Basic information about the event
+ */
+export type EventBasics = {
   source_ip?: string               //IP address. Do not set this field on a client side, it will be rewritten on the server
   anon_ip?: string                 //First 3 octets of an IP address. Same as IP - will be set on a server
   api_key: string                  //JS api key
-  src: string                      //Event source
-  event_type: string               //event type, either
-} & EventPayload & EventCtx
+  src: EventSrc                    //Event source
+  event_type: string               //event type
+}
+
+/**
+ * Event object. A final object which is send to server
+ */
+export type Event = EventBasics & EventPayload & EventCtx
+
+/**
+ * Event object, if tracker works in compatibility mode
+ */
+export type EventCompat = EventBasics & {
+  eventn_ctx: EventCtx
+} & EventPayload
