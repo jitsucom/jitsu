@@ -40,7 +40,6 @@ enum AppLifecycle {
 type AppState = {
     showOnboardingForm: boolean;
     lifecycle: AppLifecycle;
-    loginErrorMessage?: string;
     globalErrorDetails?: string;
     extraControls?: React.ReactNode;
     user?: User;
@@ -98,7 +97,6 @@ export default class App extends React.Component<AppProperties, AppState> {
                     lifecycle: loginStatus.user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
                     user: loginStatus.user,
                     showOnboardingForm: loginStatus.user && !loginStatus.user.onboarded,
-                    loginErrorMessage: loginStatus.loginErrorMessage
                 });
             })
             .catch((error) => {

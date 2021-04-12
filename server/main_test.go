@@ -198,10 +198,12 @@ func TestCors(t *testing.T) {
 				destinations.TokenizedStorages{}, destinations.TokenizedIDs{})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
-			dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
-			router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+			metaStorage := &meta.Dummy{}
+
+			dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
+			router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 				dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
+				caching.NewEventsCache(metaStorage, 100), events.NewCache(5))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -328,10 +330,12 @@ func TestAPIEvent(t *testing.T) {
 				destinations.TokenizedStorages{}, destinations.TokenizedIDs{})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
-			dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
-			router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+			metaStorage := &meta.Dummy{}
+
+			dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
+			router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 				dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-				caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
+				caching.NewEventsCache(metaStorage, 100), events.NewCache(5))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -501,10 +505,12 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	require.NoError(t, err)
 	defer destinationService.Close()
 
-	dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
-	router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+	metaStorage := &meta.Dummy{}
+
+	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
+	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-		caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
+		caching.NewEventsCache(metaStorage, 100), events.NewCache(5))
 
 	server := &http.Server{
 		Addr:              httpAuthority,
@@ -608,10 +614,12 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
 
-	dummyRecognitionService, _ := users.NewRecognitionService(&meta.Dummy{}, nil, nil, "")
-	router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+	metaStorage := &meta.Dummy{}
+
+	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
+	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-		caching.NewEventsCache(&meta.Dummy{}, 100), events.NewCache(5))
+		caching.NewEventsCache(metaStorage, 100), events.NewCache(5))
 
 	server := &http.Server{
 		Addr:              httpAuthority,

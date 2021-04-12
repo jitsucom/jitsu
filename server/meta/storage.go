@@ -7,12 +7,11 @@ import (
 )
 
 const (
-	StatusOk      = "OK"
-	StatusFailed  = "FAILED"
-	StatusLoading = "LOADING"
-
 	DummyType = "Dummy"
 	RedisType = "Redis"
+
+	DayGranularity  = "day"
+	HourGranularity = "hour"
 )
 
 type Storage interface {
@@ -28,6 +27,7 @@ type Storage interface {
 	SuccessEvents(id, namespace string, now time.Time, value int) error
 	ErrorEvents(id, namespace string, now time.Time, value int) error
 	SkipEvents(id, namespace string, now time.Time, value int) error
+	GetProjectEventsWithGranularity(projectID string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error)
 
 	//** Cache **
 	//events caching

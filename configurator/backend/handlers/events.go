@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/jitsu/configurator/eventnative"
+	"github.com/jitsucom/jitsu/configurator/jitsu"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enevents "github.com/jitsucom/jitsu/server/events"
@@ -18,10 +18,10 @@ import (
 
 type EventsHandler struct {
 	configurationsProvider *storages.ConfigurationsService
-	enService              *eventnative.Service
+	enService              *jitsu.Service
 }
 
-func NewEventsHandler(configurationsProvider *storages.ConfigurationsService, enService *eventnative.Service) *EventsHandler {
+func NewEventsHandler(configurationsProvider *storages.ConfigurationsService, enService *jitsu.Service) *EventsHandler {
 	return &EventsHandler{
 		configurationsProvider: configurationsProvider,
 		enService:              enService,

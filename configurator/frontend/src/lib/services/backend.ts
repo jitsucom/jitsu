@@ -123,23 +123,23 @@ export class BackendUserService implements UserService {
   public waitForUser(): Promise<UserLoginStatus> {
     return new Promise<UserLoginStatus>((resolve, reject) => {
       if (this.user) {
-        resolve({ user: this.user, loggedIn: true, loginErrorMessage: null });
+        resolve({ user: this.user, loggedIn: true});
         return;
       }
 
       this.restoreUser()
         .then((user) => {
           if (user) {
-            resolve({ user: user, loggedIn: true, loginErrorMessage: null });
+            resolve({ user: user, loggedIn: true});
           } else {
-            resolve({ user: null, loggedIn: false, loginErrorMessage: null });
+            resolve({ user: null, loggedIn: false});
           }
         })
         .catch((error) => {
           localStorage.removeItem(LS_ACCESS_KEY);
           localStorage.removeItem(LS_REFRESH_KEY);
 
-          resolve({ user: null, loggedIn: false, loginErrorMessage: error });
+          reject(error)
         });
     });
   }

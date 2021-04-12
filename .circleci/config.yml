@@ -108,7 +108,9 @@ jobs:
       GO111MODULE: "on"
     steps:
       - checkout
-      - setup_remote_docker
+      - setup_remote_docker:
+          version: 19.03.13
+          docker_layer_caching: true
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "./server/go.sum" }}
@@ -147,6 +149,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
+          docker_layer_caching: true
       - run:
           name: Build and Push Docker image
           command: |
@@ -164,13 +167,14 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
+          docker_layer_caching: true
       - run:
           name: Build and Push Docker image
           command: |
             docker build -t $IMAGE_NAME:latest -f server.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME
-      - <<: *notify_pass
+
       - <<: *notify_fail
   build-latest-configurator-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
@@ -182,13 +186,14 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
+          docker_layer_caching: true
       - run:
           name: Build and Push Docker image
           command: |
             docker build -t $IMAGE_NAME:latest -f configurator.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME
-      - <<: *notify_pass
+
       - <<: *notify_fail
   build-beta-en-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
@@ -200,6 +205,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
+          docker_layer_caching: true
       - run:
           name: Build and Push Docker image
           command: |
@@ -217,13 +223,14 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
+          docker_layer_caching: true
       - run:
           name: Build and Push Docker image
           command: |
             docker build -t $IMAGE_NAME:beta -f configurator.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME
-      - <<: *notify_pass
+
       - <<: *notify_fail
   build-beta-jitsu-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
@@ -235,13 +242,14 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
+          docker_layer_caching: true
       - run:
           name: Build and Push Docker image
           command: |
             docker build -t $IMAGE_NAME:beta -f server.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME
-      - <<: *notify_pass
+
       - <<: *notify_fail
   build-tagged-en-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
@@ -253,6 +261,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
+          docker_layer_caching: true
       - run:
           name: Build and Push Docker image
           command: |
@@ -269,13 +278,14 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
+          docker_layer_caching: true
       - run:
           name: Build and Push Docker image
           command: |
             docker build -t $IMAGE_NAME:${CIRCLE_TAG//v} -f server.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME:${CIRCLE_TAG//v}
-      - <<: *notify_pass
+
       - <<: *notify_fail
   build-tagged-configurator-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
@@ -287,13 +297,14 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
+          docker_layer_caching: true
       - run:
           name: Build and Push Docker image
           command: |
             docker build -t $IMAGE_NAME:${CIRCLE_TAG//v} -f configurator.Dockerfile .
             echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
             docker push $IMAGE_NAME:${CIRCLE_TAG//v}
-      - <<: *notify_pass
+
       - <<: *notify_fail
 
 workflows:
