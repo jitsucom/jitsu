@@ -21,7 +21,6 @@ import (
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/safego"
-	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
 	"math/rand"
@@ -142,18 +141,6 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(authService)
 
-	//statistics postgres
-	var pgStatisticsConfig *enstorages.DestinationConfig
-	if viper.IsSet("statistics.postgres") {
-		pgStatisticsConfig = &enstorages.DestinationConfig{}
-		if err := viper.UnmarshalKey("statistics.postgres", pgStatisticsConfig); err != nil {
-			logging.Fatal("Error unmarshalling statistics postgres config:", err)
-		}
-		if err := pgStatisticsConfig.DataSource.Validate(); err != nil {
-			logging.Fatal("Error validation statistics postgres config:", err)
-		}
-	}
-
 	//** Jitsu server configuration **
 	if !viper.IsSet("jitsu") {
 		logging.Fatal("'jitsu' is required configuration section")
@@ -211,7 +198,7 @@ func main() {
 	}
 
 	router := SetupRouter(jitsuService, configurationsStorage, configurationsService,
-		authService, s3Config, pgStatisticsConfig, sslUpdateExecutor, emailsService)
+		authService, s3Config, sslUpdateExecutor, emailsService)
 	notifications.ServerStart()
 	logging.Info("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
@@ -243,7 +230,7 @@ func readConfiguration(configFilePath string) {
 
 func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.ConfigurationsStorage,
 	configurationsService *storages.ConfigurationsService, authService *authorization.Service, defaultS3 *enadapters.S3Config,
-	pgStatisticsConfig *enstorages.DestinationConfig, sslUpdateExecutor *ssl.UpdateExecutor,
+	sslUpdateExecutor *ssl.UpdateExecutor,
 	emailService *emails.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -271,7 +258,8 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 	enConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsStorage)
 
 	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
-		//TODO
+		//write here custom decorators for certain HTTP URN paths
+		"/proxy/api/v1/events/cache": jitsu.NewEventsCacheDecorator(configurationsService).Decorate,
 	})
 	router.Any("/proxy/*path", authenticatorMiddleware.ClientProjectAuth(proxyHandler.Handler))
 
@@ -308,10 +296,6 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 		telemetryHandler := handlers.NewTelemetryHandler(configurationsStorage)
 		apiV1.GET("/telemetry", middleware.ServerAuth(telemetryHandler.GetHandler, serverToken))
-
-		eventsHandler := handlers.NewEventsHandler(configurationsService, jitsuService)
-		apiV1.GET("/events", authenticatorMiddleware.ClientProjectAuth(eventsHandler.OldGetHandler))
-		apiV1.GET("/last_events", authenticatorMiddleware.ClientProjectAuth(eventsHandler.GetHandler))
 
 		apiV1.GET("/become", authenticatorMiddleware.ClientAuth(handlers.NewBecomeUserHandler(authService).Handler))
 
