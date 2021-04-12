@@ -11,7 +11,7 @@ const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex 
         tabsList.map((tab: Tab) =>  (
           <React.Fragment key={tab.key}>
             <Tabs.TabPane key={tab.key} tab={tab.name} disabled={tab.isDisabled}>
-              {tab.component}
+              {tab.getComponent && tab.getComponent(tab.form)}
             </Tabs.TabPane>
           </React.Fragment>
         ))
