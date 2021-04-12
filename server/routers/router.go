@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/fallback"
 	"github.com/jitsucom/jitsu/server/handlers"
+	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/sources"
@@ -20,7 +21,7 @@ import (
 	"net/http/pprof"
 )
 
-func SetupRouter(adminToken string, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
+func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
 	usersRecognitionService *users.RecognitionService, fallbackService *fallback.Service, clusterManager cluster.Manager,
 	eventsCache *caching.EventsCache, inMemoryEventsCache *events.Cache) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
@@ -48,6 +49,7 @@ func SetupRouter(adminToken string, destinations *destinations.Service, sourcesS
 	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
 	dryRunHandler := handlers.NewDryRunHandler(destinations, events.NewJsPreprocessor())
+	statisticsHandler := handlers.NewStatisticsHandler(metaStorage)
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
@@ -58,6 +60,8 @@ func SetupRouter(adminToken string, destinations *destinations.Service, sourcesS
 
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
 		apiV1.POST("/sources/test", adminTokenMiddleware.AdminAuth(handlers.SourcesHandler))
+
+		apiV1.GET("/statistics", adminTokenMiddleware.AdminAuth(statisticsHandler.GetHandler))
 
 		tasksRoute := apiV1.Group("/tasks")
 		{

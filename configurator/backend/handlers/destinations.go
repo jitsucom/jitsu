@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
-	"github.com/jitsucom/jitsu/configurator/eventnative"
+	"github.com/jitsucom/jitsu/configurator/jitsu"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
@@ -18,25 +18,19 @@ import (
 	"time"
 )
 
-const (
-	defaultStatisticsPostgresDestinationID = "statistics.postgres"
-)
-
 type DestinationsHandler struct {
 	configurationsService *storages.ConfigurationsService
 	defaultS3             *enadapters.S3Config
-	statisticsPostgres    *enstorages.DestinationConfig
 
-	enService *eventnative.Service
+	jitsuService *jitsu.Service
 }
 
-func NewDestinationsHandler(configurationsService *storages.ConfigurationsService, defaultS3 *enadapters.S3Config, statisticsPostgres *enstorages.DestinationConfig,
-	enService *eventnative.Service) *DestinationsHandler {
+func NewDestinationsHandler(configurationsService *storages.ConfigurationsService, defaultS3 *enadapters.S3Config,
+	jitsuService *jitsu.Service) *DestinationsHandler {
 	return &DestinationsHandler{
 		configurationsService: configurationsService,
 		defaultS3:             defaultS3,
-		statisticsPostgres:    statisticsPostgres,
-		enService:             enService,
+		jitsuService:          jitsuService,
 	}
 }
 
@@ -84,10 +78,6 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 			idConfig[destinationID] = *enDestinationConfig
 		}
 	}
-	if dh.statisticsPostgres != nil {
-		//default statistic destination
-		idConfig[defaultStatisticsPostgresDestinationID] = *dh.statisticsPostgres
-	}
 
 	logging.Debugf("Destinations response in [%.2f] seconds", time.Now().Sub(begin).Seconds())
 	c.JSON(http.StatusOK, &endestinations.Payload{Destinations: idConfig})
@@ -113,7 +103,7 @@ func (dh *DestinationsHandler) TestHandler(c *gin.Context) {
 		return
 	}
 
-	code, content, err := dh.enService.TestDestination(b)
+	code, content, err := dh.jitsuService.TestDestination(b)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Failed to get response from eventnative", Error: err.Error()})
 		return

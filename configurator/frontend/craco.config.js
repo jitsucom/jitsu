@@ -8,6 +8,11 @@ const webpack = require('webpack');
 const DEV_PORT = process.env.DEV_PORT || '9876';
 const DEV_HOST = process.env.DEV_HOST || 'localhost.jitsu.com';
 
+const SpeedMeasurePlugin = require("speed-measure-webpack-plugin");
+
+const smp = new SpeedMeasurePlugin({ disable: !process.env.MEASURE });
+
+
 module.exports = {
   eslint: {
     enable: false
@@ -29,7 +34,7 @@ module.exports = {
     },
     contentBase: __dirname + '/public'
   },
-  webpack: {
+  webpack: smp.wrap({
     alias: {
       /**
        * Once alias added here, it should be added to tsconfig.paths.json as well
@@ -85,7 +90,7 @@ module.exports = {
         }
       };
     }
-  },
+  }),
   style: {
     postcss: {
       plugins: [require('tailwindcss'), require('autoprefixer')]

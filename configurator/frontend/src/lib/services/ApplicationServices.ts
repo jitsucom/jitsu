@@ -15,6 +15,7 @@ export class ApplicationConfiguration {
   private readonly _rawConfig: RawConfigObject;
   private readonly _firebaseConfig: any;
   private readonly _backendApiBase: string;
+  private readonly _backendApiProxyBase: string;
   /**
    * One of the following: development, production
    */
@@ -26,6 +27,7 @@ export class ApplicationConfiguration {
         let backendApiBase = this._rawConfig.env.BACKEND_API_BASE || `${window.location.protocol}//${window.location.host}`
         this._firebaseConfig = this._rawConfig.firebase;
         this._backendApiBase = concatenateURLs(backendApiBase, '/api/v1');
+        this._backendApiProxyBase = concatenateURLs(backendApiBase, '/proxy/api/v1');
         this._appEnvironment = (this._rawConfig.env.NODE_ENV || 'production').toLowerCase() as AppEnvironmentType;
         this._buildId = [
             `b=${this._rawConfig.env.BUILD_ID || 'dev'}`,
@@ -49,6 +51,10 @@ export class ApplicationConfiguration {
 
   get backendApiBase(): string {
     return this._backendApiBase;
+  }
+
+  get backendApiProxyBase(): string {
+    return this._backendApiProxyBase;
   }
 
   get rawConfig(): RawConfigObject {
@@ -113,6 +119,7 @@ export default class ApplicationServices {
     this._analyticsService = new AnalyticsService(this._applicationConfiguration);
     this._backendApiClient = new JWTBackendClient(
       this._applicationConfiguration.backendApiBase,
+      this._applicationConfiguration.backendApiProxyBase,
       () => this._userService.getUser().apiAccess,
       this._analyticsService
     );
@@ -263,7 +270,6 @@ export default class ApplicationServices {
 export type UserLoginStatus = {
   user?: User;
   loggedIn: boolean;
-  loginErrorMessage: string;
 };
 
 export interface LoginFeatures {
@@ -368,7 +374,7 @@ export interface BackendApiClient {
 
   getRaw(url): Promise<string>;
 
-  get(url): Promise<any>;
+  get(url: string, proxy?: boolean): Promise<any>;
 }
 
 class APIError extends Error {
@@ -415,11 +421,13 @@ const AS_IS_FORMAT: Transformer<string> = (response) => (response ? response.toS
 
 export class JWTBackendClient implements BackendApiClient {
   private readonly baseUrl: string;
+  private readonly proxyUrl: string;
   private readonly apiAccessAccessor: () => ApiAccess;
   private readonly analyticsService: AnalyticsService;
 
-  constructor(baseUrl: string, apiAccessAccessor: () => ApiAccess, analyticsService: AnalyticsService) {
+  constructor(baseUrl: string, proxyUrl:string, apiAccessAccessor: () => ApiAccess, analyticsService: AnalyticsService) {
     this.baseUrl = baseUrl;
+    this.proxyUrl = proxyUrl;
     this.apiAccessAccessor = apiAccessAccessor;
     this.analyticsService = analyticsService;
 
@@ -466,9 +474,13 @@ export class JWTBackendClient implements BackendApiClient {
     url: string,
     payload?: any,
     authLess?: boolean,
-    wasTokenRefresh?: boolean
+    proxy?: boolean,
   ): Promise<any> {
     let fullUrl = concatenateURLs(this.baseUrl, url);
+    if (proxy && proxy === true){
+      fullUrl = concatenateURLs(this.proxyUrl, url);
+    }
+
     let request: AxiosRequestConfig = {
       method: method,
       url: fullUrl,
@@ -483,7 +495,7 @@ export class JWTBackendClient implements BackendApiClient {
 
     if (payload !== undefined) {
       if (method.toLowerCase() === 'get') {
-        throw new Error(`GET ${fullUrl} can't have a body`);
+        throw new Error(`System UI Error: GET ${fullUrl} can't have a body`);
       }
       request.data = payload;
     }
@@ -534,8 +546,8 @@ export class JWTBackendClient implements BackendApiClient {
     });
   }
 
-  get(url: string): Promise<any> {
-    return this.exec('get', JSON_FORMAT, url);
+  get(url: string, proxy?: boolean): Promise<any> {
+    return this.exec('get', JSON_FORMAT, url, undefined, false, proxy);
   }
 
   post(url: string, data: any, authLess?: boolean): Promise<any> {
