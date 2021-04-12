@@ -44,12 +44,6 @@ export type JitsuClient = {
    * @param analytics window.analytics object
    */
   interceptAnalytics: (analytics: any) => void
-
-  /**
-   * Explicit call for setting up GA interception
-   * @param analytics window.analytics object
-   */
-  interceptGA: (ga: any) => void
 }
 
 /**
@@ -216,6 +210,8 @@ export type EventPayload = {
   [propName: string]: any          //payload is extendable, any extra properties can be added here
 }
 
+export type Transport = (url: string, jsonPayload: string) => Promise<void>
+
 /**
  * Type of event source
  */
@@ -240,11 +236,12 @@ export type EventBasics = {
 /**
  * Event object. A final object which is send to server
  */
-export type Event = EventBasics & EventPayload & EventCtx
+export type Event = EventBasics & EventPayload & EventCtx;
 
 /**
  * Event object, if tracker works in compatibility mode
  */
 export type EventCompat = EventBasics & {
   eventn_ctx: EventCtx
-} & EventPayload
+} & EventPayload;
+

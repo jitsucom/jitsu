@@ -10,8 +10,7 @@ import {
   parseQuery,
   reformatDate
 } from './helpers'
-import { Event, EventCompat, EventCtx, EventPayload, EventSrc, JitsuClient, JitsuOptions, UserProps } from './interface'
-import { mapGaPayload } from './ga';
+import { Event, EventCompat, EventCtx, EventPayload, EventSrc, JitsuClient, JitsuOptions, UserProps, Transport } from './interface'
 import { getLogger, setRootLogLevel } from './log';
 
 const VERSION_INFO = {
@@ -21,6 +20,35 @@ const VERSION_INFO = {
 }
 
 const JITSU_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
+
+
+const xmlHttpReqTransport: Transport = (url: string, json: string): Promise<void> => {
+  let req = new XMLHttpRequest();
+  return new Promise((resolve, reject) => {
+    req.onerror = (e) => {
+      getLogger().error('Failed to send', json, e);
+      reject(new Error(`Failed to send JSON. See console logs`))
+    };
+    req.onload = () => {
+      if (req.status !== 200) {
+        getLogger().error(`Failed to send data (#${req.status} - ${req.statusText})`, json);
+        reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
+      }
+      resolve();
+    }
+    req.open('POST', url);
+    req.setRequestHeader('Content-Type', 'application/json');
+    req.send(json)
+    getLogger().debug('sending json', json);
+  });
+}
+
+const beaconTransport: Transport = (url: string, json: string): Promise<void> => {
+  getLogger().debug('Sending beacon', json);
+  const blob = new Blob([json], { type: 'text/plain' });
+  navigator.sendBeacon(url, blob);
+  return Promise.resolve();
+}
 
 class UserIdPersistance {
   private cookieDomain: string;
@@ -93,33 +121,6 @@ class JitsuClientImpl implements JitsuClient {
     this.sendJson(payload);
   };
 
-  interceptGA(ga: any) {
-    if (!window) {
-      getLogger().warn('GA interception is not available')
-    }
-    ga(
-      (tracker: any) => {
-        const originalSendHitTask = tracker.get('sendHitTask');
-        tracker.set('sendHitTask', (model: any) => {
-          var payload = model.get('hitPayload');
-          if (window['dropLastGAEvent']) {
-            window['dropLastGAEvent'] = false;
-          } else {
-            originalSendHitTask(model);
-          }
-          this._send3p('ga', mapGaPayload(parseQuery(payload)));
-        });
-      }
-    );
-    window['dropLastGAEvent'] = true
-    try {
-      ga('send', 'pageview');
-    } finally {
-      window['dropLastGAEvent'] = false;
-    }
-
-  };
-
   getAnonymousId() {
     const idCookie = getCookie(this.idCookieName);
     if (idCookie) {
@@ -168,29 +169,9 @@ class JitsuClientImpl implements JitsuClient {
 
     let jsonString = JSON.stringify(json);
     if (this.initialOptions?.use_beacon_api && navigator.sendBeacon) {
-      getLogger().debug('Sending beacon', json);
-      const blob = new Blob([jsonString], { type: 'text/plain' });
-      navigator.sendBeacon(url, blob);
-      return Promise.resolve();
+      return beaconTransport(url, jsonString);
     } else {
-      let req = new XMLHttpRequest();
-      return new Promise((resolve, reject) => {
-        req.onerror = (e) => {
-          getLogger().error('Failed to send', json, e);
-          reject(new Error(`Failed to send JSON. See console logs`))
-        };
-        req.onload = () => {
-          if (req.status !== 200) {
-            getLogger().error(`Failed to send data (#${req.status} - ${req.statusText})`, json);
-            reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
-          }
-          resolve();
-        }
-        req.open('POST', url);
-        req.setRequestHeader('Content-Type', 'application/json');
-        req.send(jsonString)
-        getLogger().debug('sending json', json);
-      });
+      return xmlHttpReqTransport(url, jsonString);
     }
   }
 
@@ -269,7 +250,7 @@ class JitsuClientImpl implements JitsuClient {
     }
 
     if (options.ga_hook) {
-      getLogger().warn("Google analytics interception is removed. It will not work")
+      getLogger().warn('GA event interceptor isn\'t supported anymore')
     }
     if (options.segment_hook) {
       interceptSegmentCalls(this);
@@ -291,6 +272,9 @@ class JitsuClientImpl implements JitsuClient {
             payload.obj.userId = analyticsOriginal.user().id()
           }
         }
+        if (payload?.obj?.timestamp) {
+          payload.obj.sentAt = payload.obj.timestamp;
+        }
 
         let type = chain.payload.type();
         if (type === 'track') {
@@ -306,10 +290,10 @@ class JitsuClientImpl implements JitsuClient {
     };
     if (typeof analytics.addSourceMiddleware === 'function') {
       //analytics is fully initialized
-      getLogger().debug("Analytics.js is initialized, calling addSourceMiddleware");
+      getLogger().debug('Analytics.js is initialized, calling addSourceMiddleware');
       analytics.addSourceMiddleware(interceptor);
     } else {
-      getLogger().debug("Analytics.js is not initialized, pushing addSourceMiddleware to callstack");
+      getLogger().debug('Analytics.js is not initialized, pushing addSourceMiddleware to callstack');
       analytics.push(['addSourceMiddleware', interceptor])
     }
     analytics['__en_intercepted'] = true
@@ -330,6 +314,5 @@ function interceptSegmentCalls(t: JitsuClient) {
   if (!win.analytics) {
     win.analytics = [];
   }
-  t.interceptAnalytics(win.analytics)
+  t.interceptAnalytics(win.analytics);
 }
-
