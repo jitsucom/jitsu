@@ -1,8 +1,9 @@
 import * as React from 'react';
 import { Rule } from 'antd/lib/form';
-import {SizeType} from "antd/lib/config-provider/SizeContext";
+import { SizeType } from 'antd/lib/config-provider/SizeContext';
 
 export interface Props {
+  className?: string;
   name: string;
   formName: string;
   floatingLabelText: React.ReactNode;
