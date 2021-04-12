@@ -58,6 +58,7 @@ const destination: Destination = {
     },
     {
       id: '_formData.redshiftUseHostedS3',
+      displayName: 'Use Jitsu S3 bucket',
       type: booleanType,
       constant: false
     },
