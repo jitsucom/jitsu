@@ -7,7 +7,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	smdlwr "github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -27,8 +26,6 @@ func NewProxyHandler(jitsuService *jitsu.Service, decorators map[string]jitsu.AP
 func (ph *ProxyHandler) Handler(c *gin.Context) {
 	begin := time.Now()
 
-	logging.Info("Path", c.Param("path"))
-
 	projectID := c.Query("project_id")
 	if projectID == "" {
 		c.JSON(http.StatusBadRequest, smdlwr.ErrorResponse{Message: "[project_id] is a required query parameter"})
@@ -47,9 +44,11 @@ func (ph *ProxyHandler) Handler(c *gin.Context) {
 		return
 	}
 
-	req := ph.getJitsuRequest(c)
-
-	logging.Infof("%v", *req)
+	req, err := ph.getJitsuRequest(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, smdlwr.ErrorResponse{Message: "Failed to create proxy request to Jitsu server", Error: err.Error()})
+		return
+	}
 
 	code, payload, err := ph.jitsuService.ProxySend(req)
 	if err != nil {
@@ -68,21 +67,11 @@ func (ph *ProxyHandler) Handler(c *gin.Context) {
 	logging.Debugf("%s response in [%.2f] seconds", c.Request.URL.Path, time.Now().Sub(begin).Seconds())
 }
 
-func (ph *ProxyHandler) getJitsuRequest(c *gin.Context) *jitsu.Request {
+func (ph *ProxyHandler) getJitsuRequest(c *gin.Context) (*jitsu.Request, error) {
 	decorator, ok := ph.decorators[c.Request.URL.Path]
 	if ok {
 		return decorator(c)
 	}
 
-	urn := strings.TrimPrefix(c.Request.URL.Path, "/proxy")
-	query := c.Request.URL.Query().Encode()
-	if query != "" {
-		urn += "?" + query
-	}
-
-	return &jitsu.Request{
-		Method: c.Request.Method,
-		URN:    urn,
-		Body:   c.Request.Body,
-	}
+	return jitsu.BuildRequest(c), nil
 }
