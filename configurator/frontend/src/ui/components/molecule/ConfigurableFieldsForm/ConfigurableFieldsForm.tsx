@@ -11,6 +11,9 @@ import { Parameter, ParameterType } from '@catalog/sources/types';
 import { Props } from './ConfigurableFieldsForm.types';
 // @Utils
 import { dsnValidator } from './configurableFieldsForm.utils';
+// @Icons
+import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
+import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
 
 const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
   const handleChangeIntInput = useCallback((id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -28,7 +31,12 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
 
     switch (type?.typeName) {
     case 'password':
-      return <Input type="password" autoComplete="off" />;
+      return <Input.Password
+        autoComplete="off"
+        iconRender={visible => visible
+          ? <EyeTwoTone />
+          : <EyeInvisibleOutlined />}
+      />;
 
     case 'int':
       return <Input autoComplete="off" onChange={handleChangeIntInput(id)} />;
