@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback } from 'react';
-import { Col, Form, Input, Radio, Row, Switch } from 'antd';
+import { Col, Form, Input, Radio, Row, Select, Switch } from 'antd';
 import MonacoEditor from 'react-monaco-editor';
 import { get } from 'lodash';
 // @Components
@@ -35,10 +35,23 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
 
       // ToDo: check if it can be <select> in some cases
     case 'selection':
-      return <Radio.Group buttonStyle="solid">
-        <Radio.Button value="stream">Streaming</Radio.Button>
-        <Radio.Button value="batch">Batch</Radio.Button>
-      </Radio.Group>;
+      return type.data.options.length === 2
+        ? <Radio.Group buttonStyle="solid">
+          {
+            type.data.options.map(({ id, displayName }: Option) =>
+              <Radio.Button value={id} key={id}>{displayName}</Radio.Button>
+            )
+          }
+        </Radio.Group>
+        : <Select allowClear mode={type.data.maxOptions > 1
+          ? 'multiple'
+          : undefined}>
+          {
+            type.data.options.map(({ id, displayName }: Option) =>
+              <Select.Option value={id} key={id}>{displayName}</Select.Option>
+            )
+          }
+        </Select>;
 
     case 'array/string':
       return <EditableList newItemLabel="Add new server" validator={dsnValidator}/>;
@@ -84,7 +97,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
       {
         fieldsParamsList.map((param: Parameter) => {
           const { id, documentation, displayName, defaultValue, type, required } = param;
-          console.log(`${displayName}: `, type);
+          // console.log(`${displayName}: `, type);
 
           return (
             <Row key={id}>
