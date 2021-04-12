@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@craco/craco": "^6.1.1",
+    "@craco/craco": "^5.5.0\n",
     "@jitsu/eventnative": "^1.1.5",
+    "@testing-library/dom": "7.21.4",
     "@testing-library/jest-dom": "^5.11.4",
     "@testing-library/react": "^11.1.0",
     "@testing-library/user-event": "^12.1.10",
@@ -62,6 +63,7 @@
     "autoprefixer": "^9",
     "monaco-editor-webpack-plugin": "^3.0.1",
     "postcss": "^7",
+    "speed-measure-webpack-plugin": "^1.5.0",
     "tailwindcss": "npm:@tailwindcss/postcss7-compat",
     "terser-webpack-plugin": "^5.1.1",
     "webpack-bundle-analyzer": "^4.4.0"

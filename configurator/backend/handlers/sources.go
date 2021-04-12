@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/entities"
-	"github.com/jitsucom/jitsu/configurator/eventnative"
+	"github.com/jitsucom/jitsu/configurator/jitsu"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	endrivers "github.com/jitsucom/jitsu/server/drivers"
@@ -18,10 +18,10 @@ import (
 type SourcesHandler struct {
 	configurationsService *storages.ConfigurationsService
 
-	enService *eventnative.Service
+	enService *jitsu.Service
 }
 
-func NewSourcesHandler(configurationsService *storages.ConfigurationsService, enService *eventnative.Service) *SourcesHandler {
+func NewSourcesHandler(configurationsService *storages.ConfigurationsService, enService *jitsu.Service) *SourcesHandler {
 	return &SourcesHandler{
 		configurationsService: configurationsService,
 		enService:             enService,

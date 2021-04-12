@@ -118,7 +118,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 
-	router := routers.SetupRouter("", destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
+	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		usersRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}), eventsCache, events.NewCache(5))
 
 	server := &http.Server{
