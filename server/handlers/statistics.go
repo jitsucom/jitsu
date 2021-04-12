@@ -56,7 +56,7 @@ func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 		return
 	}
 
-	projectID := c.Query("project_id") //Optional
+	projectID := c.Query("project_id")
 
 	projectEvents, err := sh.metaStorage.GetProjectEventsWithGranularity(projectID, start, end, granularity)
 	if err != nil {

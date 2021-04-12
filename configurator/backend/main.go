@@ -157,7 +157,6 @@ func main() {
 	}
 
 	jitsuService := jitsu.NewService(jitsuConfig.BaseURL, jitsuConfig.AdminToken)
-	appconfig.Instance.ScheduleClosing(jitsuService)
 
 	//** SSL **
 	var sslUpdateExecutor *ssl.UpdateExecutor

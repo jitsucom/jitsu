@@ -23,7 +23,7 @@ import (
 
 func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
 	usersRecognitionService *users.RecognitionService, fallbackService *fallback.Service, clusterManager cluster.Manager,
-	eventsCache *caching.EventsCache, inMemoryEventsCache *events.Cache) *gin.Engine {
+	eventsCache *caching.EventsCache) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -43,8 +43,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor(), eventsCache, inMemoryEventsCache, usersRecognitionService)
-	apiEventHandler := handlers.NewEventHandler(destinations, events.NewAPIPreprocessor(), eventsCache, inMemoryEventsCache, usersRecognitionService)
+	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor(), eventsCache, usersRecognitionService)
+	apiEventHandler := handlers.NewEventHandler(destinations, events.NewAPIPreprocessor(), eventsCache, usersRecognitionService)
 
 	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
@@ -72,7 +72,6 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		}
 
 		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler))
-		apiV1.GET("/cache/events", adminTokenMiddleware.AdminAuth(jsEventHandler.OldGetHandler))
 		apiV1.GET("/events/cache", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler))
 
 		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler))
