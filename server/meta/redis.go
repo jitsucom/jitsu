@@ -803,7 +803,7 @@ func (r *Redis) incrementEventsCount(id, namespace, status string, now time.Time
 	dayKey := now.Format(timestamp.DayLayout)
 	hourlyEventsKey := "hourly_events:" + namespace + "#" + id + ":day#" + dayKey + ":" + status
 	fieldHour := strconv.Itoa(now.Hour())
-	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, 1)
+	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, value)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err

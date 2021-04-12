@@ -151,10 +151,14 @@ func (eh *EventHandler) OldGetHandler(c *gin.Context) {
 
 func (eh *EventHandler) GetHandler(c *gin.Context) {
 	var err error
-	destinationIDs := c.Query("destination_ids")
-	if destinationIDs == "" {
-		logging.Errorf("Empty destination ids in events cache handler")
+	destinationIDs, ok := c.GetQuery("destination_ids")
+	if !ok {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "destination_ids is required parameter."})
+		return
+	}
+
+	if destinationIDs == "" {
+		c.JSON(http.StatusOK, CachedEventsResponse{Events: []CachedEvent{}})
 		return
 	}
 
