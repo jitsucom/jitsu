@@ -119,30 +119,32 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
             : constant;
           const isNull = constantValue !== undefined;
 
-          return (
-            <Row key={id}>
-              <Col span={16}>
-                <Form.Item
-                  className="form-field_fixed-label"
-                  initialValue={defaultValue || constantValue}
-                  name={id}
-                  hidden={isNull}
-                  label={
-                    documentation ?
-                      <LabelWithTooltip documentation={documentation} render={displayName} /> :
-                      <span>{displayName}:</span>
-                  }
-                  labelCol={{ span: 6 }}
-                  wrapperCol={{ span: 18 }}
-                  rules={required
-                    ? [{ required, message: `${displayName} field is required.` }]
-                    : undefined}
-                >
-                  {getFieldComponent(type, id)}
-                </Form.Item>
-              </Col>
-            </Row>
-          );
+          return !isNull
+            ? (
+              <Row key={id}>
+                <Col span={16}>
+                  <Form.Item
+                    className="form-field_fixed-label"
+                    initialValue={defaultValue || constantValue}
+                    name={id}
+                    hidden={isNull}
+                    label={
+                      documentation ?
+                        <LabelWithTooltip documentation={documentation} render={displayName} /> :
+                        <span>{displayName}:</span>
+                    }
+                    labelCol={{ span: 6 }}
+                    wrapperCol={{ span: 18 }}
+                    rules={required
+                      ? [{ required, message: `${displayName} field is required.` }]
+                      : undefined}
+                  >
+                    {getFieldComponent(type, id)}
+                  </Form.Item>
+                </Col>
+              </Row>
+            )
+            : null;
         })
       }
     </>
