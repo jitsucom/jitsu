@@ -50,7 +50,7 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 				destinationIDs = append(destinationIDs, projectID+"."+destinationID)
 			}
 
-			idConfig[sourceID] = mapConfig(source, destinationIDs)
+			idConfig[sourceID] = mapSourceConfig(source, destinationIDs)
 		}
 	}
 
@@ -73,7 +73,7 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 		return
 	}
 
-	enSourceConfig := mapConfig(sourceEntity, []string{})
+	enSourceConfig := mapSourceConfig(sourceEntity, []string{})
 	sourceID := userProjectID + "." + sourceEntity.SourceID
 	enSourceConfig.Name = sourceID
 
@@ -103,7 +103,7 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 	}
 }
 
-func mapConfig(source *entities.Source, destinationIDs []string) endrivers.SourceConfig {
+func mapSourceConfig(source *entities.Source, destinationIDs []string) endrivers.SourceConfig {
 	return endrivers.SourceConfig{
 		Type:         source.SourceType,
 		Destinations: destinationIDs,
