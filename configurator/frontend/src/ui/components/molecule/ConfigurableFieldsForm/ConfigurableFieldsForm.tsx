@@ -14,8 +14,14 @@ import { dsnValidator } from './configurableFieldsForm.utils';
 // @Icons
 import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
 import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
+import { makeObjectFromFieldsValues } from '@util/Form';
+import { useForceUpdate } from '@hooks/useForceUpdate';
 
 const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
+  const forceUpdate = useForceUpdate();
+
+  const handleRadioGroupChange = useCallback(() => forceUpdate(), [forceUpdate]);
+
   const handleChangeIntInput = useCallback((id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
 
@@ -24,7 +30,9 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
 
   const handleChangeSwitch = useCallback((id: string) => (value: boolean) => {
     form.setFieldsValue({ [id]: value });
-  }, [form]);
+
+    handleRadioGroupChange();
+  }, [form, handleRadioGroupChange]);
 
   const getFieldComponent = useCallback((type: ParameterType<any>, id: string) => {
     const fieldsValue = form.getFieldsValue();
@@ -44,7 +52,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
       // ToDo: check if it can be <select> in some cases
     case 'selection':
       return type.data.options.length === 2
-        ? <Radio.Group buttonStyle="solid">
+        ? <Radio.Group buttonStyle="solid" onChange={handleRadioGroupChange}>
           {
             type.data.options.map(({ id, displayName }: Option) =>
               <Radio.Button value={id} key={id}>{displayName}</Radio.Button>
@@ -98,22 +106,27 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
     default:
       return <Input autoComplete="off" />;
     }
-  }, [form, handleChangeSwitch, handleChangeIntInput]);
+  }, [form, handleRadioGroupChange, handleChangeSwitch, handleChangeIntInput]);
 
   return (
     <>
       {
         fieldsParamsList.map((param: Parameter) => {
-          const { id, documentation, displayName, defaultValue, type, required } = param;
-          // console.log(`${displayName}: `, type);
+          const { id, documentation, displayName, defaultValue, type, required, constant } = param;
+
+          const constantValue = typeof constant === 'function'
+            ? constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {}))
+            : constant;
+          const isNull = constantValue !== undefined;
 
           return (
             <Row key={id}>
               <Col span={16}>
                 <Form.Item
                   className="form-field_fixed-label"
-                  initialValue={defaultValue}
+                  initialValue={defaultValue || constantValue}
                   name={id}
+                  hidden={isNull}
                   label={
                     documentation ?
                       <LabelWithTooltip documentation={documentation} render={displayName} /> :
