@@ -371,7 +371,7 @@ func main() {
 		appconfig.Instance.ScheduleClosing(vn)
 	}
 
-	router := routers.SetupRouter(adminToken, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
+	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
 		coordinationService, eventsCache, inMemoryEventsCache)
 
 	telemetry.ServerStart()
