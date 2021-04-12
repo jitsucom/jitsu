@@ -1,10 +1,12 @@
 import { TabsType } from 'antd/es/tabs';
+import { FormInstance } from 'antd/lib/form/hooks/useForm';
 
 export interface Tab {
   key: string;
   name: React.ReactNode;
-  component?: React.ReactNode;
+  getComponent?: (form: FormInstance<any>) => React.ReactNode;
   isDisabled?: boolean;
+  form?: FormInstance<any>;
 }
 
 export interface Props {
