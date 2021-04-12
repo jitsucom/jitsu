@@ -110,7 +110,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          docker_layer_caching: true
+          #docker_layer_caching: true it's requires upgrade plan
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "./server/go.sum" }}
@@ -149,7 +149,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          docker_layer_caching: true
+          #docker_layer_caching: true it's requires upgrade plan
       - run:
           name: Build and Push Docker image
           command: |
@@ -167,7 +167,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          docker_layer_caching: true
+          #docker_layer_caching: true it's requires upgrade plan
       - run:
           name: Build and Push Docker image
           command: |
@@ -186,7 +186,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          docker_layer_caching: true
+          #docker_layer_caching: true it's requires upgrade plan
       - run:
           name: Build and Push Docker image
           command: |
@@ -205,7 +205,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          docker_layer_caching: true
+          #docker_layer_caching: true it's requires upgrade plan
       - run:
           name: Build and Push Docker image
           command: |
@@ -223,7 +223,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          docker_layer_caching: true
+          #docker_layer_caching: true it's requires upgrade plan
       - run:
           name: Build and Push Docker image
           command: |
@@ -242,7 +242,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          docker_layer_caching: true
+          #docker_layer_caching: true it's requires upgrade plan
       - run:
           name: Build and Push Docker image
           command: |
@@ -261,7 +261,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          docker_layer_caching: true
+          #docker_layer_caching: true it's requires upgrade plan
       - run:
           name: Build and Push Docker image
           command: |
@@ -278,7 +278,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          docker_layer_caching: true
+          #docker_layer_caching: true it's requires upgrade plan
       - run:
           name: Build and Push Docker image
           command: |
@@ -297,7 +297,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          docker_layer_caching: true
+          #docker_layer_caching: true it's requires upgrade plan
       - run:
           name: Build and Push Docker image
           command: |
