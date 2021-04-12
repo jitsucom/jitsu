@@ -46,18 +46,16 @@ type EventHandler struct {
 	destinationService     *destinations.Service
 	preprocessor           events.Preprocessor
 	eventsCache            *caching.EventsCache
-	inMemoryEventsCache    *events.Cache
 	userRecognitionService *users.RecognitionService
 }
 
 //Accept all events according to token
 func NewEventHandler(destinationService *destinations.Service, preprocessor events.Preprocessor, eventsCache *caching.EventsCache,
-	inMemoryEventsCache *events.Cache, userRecognitionService *users.RecognitionService) (eventHandler *EventHandler) {
+	userRecognitionService *users.RecognitionService) (eventHandler *EventHandler) {
 	return &EventHandler{
 		destinationService:     destinationService,
 		preprocessor:           preprocessor,
 		eventsCache:            eventsCache,
-		inMemoryEventsCache:    inMemoryEventsCache,
 		userRecognitionService: userRecognitionService,
 	}
 }
@@ -83,9 +81,6 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	//** Caching **
 	//clone payload for preventing concurrent changes while serialization
 	cachingEvent := payload.Clone()
-
-	//Deprecated cache
-	eh.inMemoryEventsCache.PutAsync(token, cachingEvent)
 
 	//Persisted cache
 	eventID := events.ExtractEventID(payload)
@@ -120,33 +115,6 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, middleware.OkResponse())
-}
-
-func (eh *EventHandler) OldGetHandler(c *gin.Context) {
-	apikeys := c.Query("apikeys")
-	limitStr := c.Query("limit_per_apikey")
-	var limit int
-	var err error
-	if limitStr == "" {
-		limit = defaultLimit
-	} else {
-		limit, err = strconv.Atoi(limitStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "limit_per_apikey must be int"})
-			return
-		}
-	}
-
-	response := OldCachedEventsResponse{Events: []events.Event{}}
-	if len(apikeys) == 0 {
-		response.Events = eh.inMemoryEventsCache.GetAll(limit)
-	} else {
-		for _, key := range strings.Split(apikeys, ",") {
-			response.Events = append(response.Events, eh.inMemoryEventsCache.GetN(key, limit)...)
-		}
-	}
-
-	c.JSON(http.StatusOK, response)
 }
 
 func (eh *EventHandler) GetHandler(c *gin.Context) {

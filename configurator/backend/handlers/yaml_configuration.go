@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
+	endrivers "github.com/jitsucom/jitsu/server/drivers"
 	"github.com/jitsucom/jitsu/server/middleware"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"gopkg.in/yaml.v3"
@@ -38,6 +39,7 @@ type Server struct {
 type Config struct {
 	Server       Server                                   `json:"server" yaml:"server,omitempty"`
 	Destinations map[string]*enstorages.DestinationConfig `json:"destinations" yaml:"destinations,omitempty"`
+	Sources      map[string]*endrivers.SourceConfig       `json:"sources" yaml:"sources,omitempty"`
 }
 
 func (ch *ConfigHandler) Handler(c *gin.Context) {
@@ -51,12 +53,14 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 		return
 	}
 
+	//** API keys (auth) **
 	keys, err := ch.configurationsService.GetAPIKeysByProjectID(projectID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to get API keys"})
 		return
 	}
 
+	// ** Destinations **
 	projectDestinations, err := ch.configurationsService.GetDestinationsByProjectID(projectID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to get Destinations"})
@@ -64,19 +68,38 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 	}
 	mappedDestinations := make(map[string]*enstorages.DestinationConfig)
 	for _, destination := range projectDestinations {
-		id := destination.ID
-		config, err := destinations.MapConfig(id, destination, ch.defaultS3)
+		destinationID := projectID + "." + destination.UID
+		config, err := destinations.MapConfig(destinationID, destination, ch.defaultS3)
 
 		if err != nil {
 			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to build destinations response"})
 			return
 		}
-		mappedDestinations[id] = config
+		mappedDestinations[destinationID] = config
+	}
+
+	// ** Sources **
+	projectSources, err := ch.configurationsService.GetSourcesByProjectID(projectID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to get Sources"})
+		return
+	}
+	mappedSources := make(map[string]*endrivers.SourceConfig)
+	for _, source := range projectSources {
+		sourceID := projectID + "." + source.SourceID
+
+		var destinationIDs []string
+		for _, destinationID := range source.Destinations {
+			destinationIDs = append(destinationIDs, projectID+"."+destinationID)
+		}
+
+		mappedConfig := mapSourceConfig(source, destinationIDs)
+		mappedSources[sourceID] = &mappedConfig
 	}
 
 	// building yaml response
 	server := Server{APIKeys: keys, Name: &yaml.Node{Kind: yaml.ScalarNode, Value: random.String(5), LineComment: "rename server if another name is desired"}}
-	config := Config{Server: server, Destinations: mappedDestinations}
+	config := Config{Server: server, Destinations: mappedDestinations, Sources: mappedSources}
 
 	marshal, err := yaml.Marshal(&config)
 	configYaml := yaml.Node{}
