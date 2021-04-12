@@ -13,6 +13,8 @@ const (
 	EventIDKey = "event_id"
 
 	EventnCtxEventID = "eventn_ctx_event_id"
+
+	SrcKey = "src"
 )
 
 //EnrichWithEventID put eventID to EventnKey_EventIDKey key if it doesn't exist there or if there is an empty string

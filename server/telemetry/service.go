@@ -28,7 +28,7 @@ type Service struct {
 
 	usageOptOut *atomic.Bool
 
-	collector *Collector
+	collector *EventsCollector
 	usageCh   chan *Request
 
 	flushCh chan bool
@@ -67,7 +67,7 @@ func Init(serviceName, commit, tag, builtAt string) {
 		url:         "https://t.jitsu.com/api/v1/s2s/event?token=ttttd50c-d8f2-414c-bf3d-9902a5031fd2",
 		usageOptOut: atomic.NewBool(false),
 
-		collector: &Collector{},
+		collector: NewEventsCollector(),
 
 		usageCh: make(chan *Request, 100),
 
@@ -109,9 +109,9 @@ func ServerStop() {
 }
 
 //Event increment events collector counter
-func Event() {
+func Event(src string) {
 	if !instance.usageOptOut.Load() {
-		instance.collector.Event()
+		instance.collector.Event(src)
 	}
 }
 
@@ -141,15 +141,9 @@ func (s *Service) startUsage() {
 
 			select {
 			case <-ticker.C:
-				v := s.collector.Cut()
-				if v > 0 {
-					instance.usage(&Usage{Events: v})
-				}
+				s.enqueueUsage()
 			case <-s.flushCh:
-				v := s.collector.Cut()
-				if v > 0 {
-					instance.usage(&Usage{Events: v})
-				}
+				s.enqueueUsage()
 			}
 		}
 	})
@@ -172,6 +166,13 @@ func (s *Service) startUsage() {
 			}
 		}
 	})
+}
+
+func (s *Service) enqueueUsage() {
+	eventsPerSrc := s.collector.Cut()
+	for src, eventsCount := range eventsPerSrc {
+		instance.usage(&Usage{Events: eventsCount, EventsSrc: src})
+	}
 }
 
 //Flush sends all requests that are in a queue

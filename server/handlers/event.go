@@ -41,7 +41,7 @@ type CachedEventsResponse struct {
 	Events         []CachedEvent `json:"events"`
 }
 
-//Accept all events
+//EventHandler Accept all pushed events (JS/API)
 type EventHandler struct {
 	destinationService     *destinations.Service
 	preprocessor           events.Preprocessor
@@ -50,7 +50,7 @@ type EventHandler struct {
 	userRecognitionService *users.RecognitionService
 }
 
-//Accept all events according to token
+//NewEventHandler returns configured EventHandler instance
 func NewEventHandler(destinationService *destinations.Service, preprocessor events.Preprocessor, eventsCache *caching.EventsCache,
 	inMemoryEventsCache *events.Cache, userRecognitionService *users.RecognitionService) (eventHandler *EventHandler) {
 	return &EventHandler{
@@ -107,7 +107,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: noConsumerMessage})
 		return
 	} else {
-		telemetry.Event()
+		telemetry.Event(events.ExtractSrc(payload))
 
 		for _, consumer := range consumers {
 			consumer.Consume(payload, tokenID)

@@ -34,7 +34,7 @@ func ExtractSrc(event Event) string {
 		return ""
 	}
 
-	src, ok := event["src"]
+	src, ok := event[SrcKey]
 	if ok {
 		srcStr, ok := src.(string)
 		if ok {

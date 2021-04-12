@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"testing"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -19,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-//Test postgres adapter with primary keys and without (make sure primary keys are deleted)
+//TestPrimaryKeyRemoval checks postgres adapter with primary keys and without (make sure primary keys are deleted)
 func TestPrimaryKeyRemoval(t *testing.T) {
 	viper.Set("server.log.path", "")
 
@@ -32,6 +33,8 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 
 	err = appconfig.Init(false, "")
 	require.NoError(t, err)
+
+	telemetry.InitTest()
 
 	enrichment.InitDefault()
 	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: json.Number(fmt.Sprint(container.Port)), Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: map[string]string{"sslmode": "disable"}}
