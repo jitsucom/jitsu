@@ -24,7 +24,6 @@ import (
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/fallback"
 	"github.com/jitsucom/jitsu/server/logfiles"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -276,10 +275,6 @@ func main() {
 	eventsCache := caching.NewEventsCache(metaStorage, eventsCacheSize)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
-	//Deprecated
-	inMemoryEventsCache := events.NewCache(eventsCacheSize)
-	appconfig.Instance.ScheduleClosing(inMemoryEventsCache)
-
 	// ** Retrospective users recognition
 	var globalRecognitionConfiguration *storages.UsersRecognition
 	if viper.IsSet("users_recognition") {
@@ -372,7 +367,7 @@ func main() {
 	}
 
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
-		coordinationService, eventsCache, inMemoryEventsCache)
+		coordinationService, eventsCache)
 
 	telemetry.ServerStart()
 	notifications.ServerStart()

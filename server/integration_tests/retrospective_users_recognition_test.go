@@ -15,7 +15,6 @@ import (
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/fallback"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -119,7 +118,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 
 	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
-		usersRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}), eventsCache, events.NewCache(5))
+		usersRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}), eventsCache)
 
 	server := &http.Server{
 		Addr:              httpAuthority,

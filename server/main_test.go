@@ -18,7 +18,6 @@ import (
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/fallback"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -203,7 +202,7 @@ func TestCors(t *testing.T) {
 			dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
 			router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 				dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-				caching.NewEventsCache(metaStorage, 100), events.NewCache(5))
+				caching.NewEventsCache(metaStorage, 100))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -335,7 +334,7 @@ func TestAPIEvent(t *testing.T) {
 			dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
 			router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 				dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-				caching.NewEventsCache(metaStorage, 100), events.NewCache(5))
+				caching.NewEventsCache(metaStorage, 100))
 
 			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
@@ -510,7 +509,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
 	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-		caching.NewEventsCache(metaStorage, 100), events.NewCache(5))
+		caching.NewEventsCache(metaStorage, 100))
 
 	server := &http.Server{
 		Addr:              httpAuthority,
@@ -619,7 +618,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
 	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-		caching.NewEventsCache(metaStorage, 100), events.NewCache(5))
+		caching.NewEventsCache(metaStorage, 100))
 
 	server := &http.Server{
 		Addr:              httpAuthority,
