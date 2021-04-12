@@ -16,6 +16,7 @@ import { Tab } from '@molecule/TabsConfigurator/TabsConfigurator.types';
 import { FormInstance } from 'antd/es';
 // @Styles
 import styles from './DestinationEditor.module.less'
+import { makeObjectFromFieldsValues } from '@util/Form';
 
 const DestinationEditor = () => {
   const params = useParams<{ type: string; }>();
@@ -50,7 +51,7 @@ const DestinationEditor = () => {
 
   const handleSubmit = useCallback(() => {
     const form = destinationsTabs.current[0].form;
-    console.log('values: ', form.getFieldsValue());
+    console.log('values: ', makeObjectFromFieldsValues(form.getFieldsValue()));
   }, []);
 
   return (
