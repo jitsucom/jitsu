@@ -1,7 +1,8 @@
 // @Libs
 import React, { useCallback } from 'react';
-import { Col, Form, Input, Radio, Row } from 'antd';
+import { Col, Form, Input, Radio, Row, Switch } from 'antd';
 import MonacoEditor from 'react-monaco-editor';
+import { get } from 'lodash';
 // @Components
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 import { EditableList } from '@./lib/components/EditableList/EditableList';
@@ -18,7 +19,13 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
     form.setFieldsValue({ [id]: value });
   }, [form]);
 
+  const handleChangeSwitch = useCallback((id: string) => (value: boolean) => {
+    form.setFieldsValue({ [id]: value });
+  }, [form]);
+
   const getFieldComponent = useCallback((type: ParameterType<any>, id: string) => {
+    const fieldsValue = form.getFieldsValue();
+
     switch (type?.typeName) {
     case 'password':
       return <Input type="password" autoComplete="off" />;
@@ -63,17 +70,21 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
         }}
       />;
 
+    case 'boolean':
+      return <Switch onChange={handleChangeSwitch(id)} checked={get(fieldsValue, id)} />
+
     case 'string':
     default:
       return <Input autoComplete="off" />;
     }
-  }, [handleChangeIntInput]);
+  }, [form, handleChangeSwitch, handleChangeIntInput]);
 
   return (
     <>
       {
         fieldsParamsList.map((param: Parameter) => {
-          const { id, documentation, displayName, isConstant, defaultValue, type, required } = param;
+          const { id, documentation, displayName, defaultValue, type, required } = param;
+          console.log(`${displayName}: `, type);
 
           return (
             <Row key={id}>
@@ -81,7 +92,6 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
                 <Form.Item
                   className="form-field_fixed-label"
                   initialValue={defaultValue}
-                  hidden={isConstant}
                   name={id}
                   label={
                     documentation ?
