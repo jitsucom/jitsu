@@ -29,9 +29,9 @@ test('test embedded no init', async () => {
 
 test('test segment intercept', async () => {
   server.clearRequestLog();
-  const {allRequests} = await runUrl(browser, server.getUrl('/test-case/segment-intercept.html?gclid=1'));
-  expect(allRequests.filter(req => req.url().indexOf("https://api.segment.io/v1/") >= 0).length).toBe(3);
-  expect(server.requestLog.length).toBe(3);
+  const {allRequests} = await runUrl(browser, server.getUrl('/test-case/segment-intercept.html?gclid=1&utm_source=UTM-SOURCE'));
+  expect(allRequests.filter(req => req.url().indexOf("https://api.segment.io/v1/") >= 0).length).toBe(server.requestLog.length);
+  expect(server.requestLog.length).toBe(4);
 });
 
 

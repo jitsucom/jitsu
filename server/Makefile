@@ -2,14 +2,14 @@
 #GOBUILD_CMD=GOOS=linux GOARCH=amd64 go build
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
 export APPLICATION := eventnative
-
+export LIB_JS := ../javascript-sdk/dist/web/lib.js
 commit=`git rev-parse --short HEAD`
 built_at=`date -u +%FT%T.000000Z`
 tag=`git describe --tags`
 
 all: clean assemble
 
-assemble: backend js assemble_backend assemble_js
+assemble: backend js copy_new_jitsu_sdk assemble_backend assemble_js
 
 assemble_backend: backend
 	mkdir -p ./build/dist/web
@@ -19,6 +19,9 @@ assemble_js: js
 	mkdir -p ./build/dist/web
 	cp ./web/dist/web/* ./build/dist/web/
 	cp ./web/welcome.html ./build/dist/web/
+
+copy_new_jitsu_sdk:
+	test -e $(LIB_JS) && cp $(LIB_JS) ./build/dist/web/ || echo "\n\033[31m!!! WARNING:\033[m lib.js wasn't found at $(LIB_JS). Please build JS SDK first, or embedded tracking will not work!\n"
 
 backend:
 	echo "Using path $(PATH)"

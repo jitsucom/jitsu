@@ -41,8 +41,8 @@ export default [
       })
     ],
     output: [
-      {file: `dist/npm/jitsu.d.ts`, format: 'es'},
-      {file: `dist/npm/jitsu.d.ts`, format: 'cjs'},
+      {file: 'dist/npm/jitsu.es.js', format: 'es'},
+      {file: 'dist/npm/jitsu.cjs.js', format: 'cjs'},
     ]
   }
 ];

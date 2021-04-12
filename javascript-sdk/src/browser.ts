@@ -15,7 +15,17 @@ function getTrackingHost(scriptSrc: string): string {
   return scriptSrc.replace("/" + jsFileName, "");
 }
 
-const supressSegmentWarningAttr = "data-suppress-interception-warning";
+const supressInterceptionWarnings = "data-suppress-interception-warning";
+
+function hookWarnMsg(hookType: string) {
+  return `
+      ATTENTION! ${hookType}-hook set to true along with defer/async attribute! If ${hookType} code is inserted right after Jitsu tag,
+      first tracking call might not be intercepted! Consider one of the following:
+       - Inject jitsu tracking code without defer/async attribute
+       - If you're sure that events won't be sent to ${hookType} before Jitsu is fully initialized, set ${supressInterceptionWarnings}="true"
+       script attribute
+    `;
+}
 
 function getTracker(window): JitsuClient {
 
@@ -44,15 +54,11 @@ function getTracker(window): JitsuClient {
     }
   })
   window.jitsuClient = jitsuClient(opts)
-  if (opts.segment_hook && (script.getAttribute('defer') !== null || script.getAttribute('async') !== null) && script.getAttribute(supressSegmentWarningAttr) === null) {
-    getLogger().warn(`
-      ATTENTION! segment-hook set to true along with defer/async attribute! If segment code is inserted right after Jitsu tag,
-      first page() will not be intercepted! Consider one of the following:
-       - Inject jitsu tracking code without defer/async attribute
-       - If you're sure that events won't be sent to segment before Jitsu is fully initialized, set ${supressSegmentWarningAttr}="true"
-       script attribute
-      
-    `)
+  if (opts.segment_hook && (script.getAttribute('defer') !== null || script.getAttribute('async') !== null) && script.getAttribute(supressInterceptionWarnings) === null) {
+    getLogger().warn(hookWarnMsg("segment"))
+  }
+  if (opts.ga_hook && (script.getAttribute('defer') !== null || script.getAttribute('async') !== null) && script.getAttribute(supressInterceptionWarnings) === null) {
+    getLogger().warn(hookWarnMsg("ga"))
   }
 
   const jitsu: JitsuFunction = function() {

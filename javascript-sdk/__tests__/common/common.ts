@@ -56,7 +56,7 @@ export class TestServer {
     const eventHandler = (req, res, next) => {
       let bodyJson = typeof req.body === 'object' ? req.body : JSON.parse(req.body);
       this._requestLog.push(bodyJson);
-      console.log("Received payload from JS SDK", bodyJson);
+      console.log("Received payload from JS SDK", JSON.stringify(bodyJson, null, 2));
     }
 
     this.app.post('/api/v1/event', eventHandler)
