@@ -13,8 +13,8 @@ require (
 	github.com/gomodule/redigo v1.8.2
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/jitsucom/jitsu/server v1.28.2
-	github.com/prometheus/common v0.15.0
-	github.com/satori/go.uuid v1.1.0
+	github.com/prometheus/common v0.15.0 // indirect
+	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/viper v1.7.1
 	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897
 	google.golang.org/api v0.29.0

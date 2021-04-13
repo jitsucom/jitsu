@@ -20,6 +20,8 @@ const (
 
 	destinationIndex = "destinations_index"
 	sourceIndex      = "sources_index"
+
+	responseTimestampLayout = "2006-01-02T15:04:05+0000"
 )
 
 var ErrTaskNotFound = errors.New("Sync task wasn't found")
@@ -65,6 +67,7 @@ type Redis struct {
 //sync_tasks#taskID:logs [timestamp, log record object] - sorted set of log objects and timestamps
 //sync_tasks#taskID hash with fields [id, source, collection, priority, created_at, started_at, finished_at, status]
 
+//NewRedis returns configured Redis struct with connection pool
 func NewRedis(host string, port int, password string, anonymousEventsMinutesTTL int) (*Redis, error) {
 	if anonymousEventsMinutesTTL > 0 {
 		logging.Infof("Initializing redis [%s:%d] with anonymous events ttl: %d...", host, port, anonymousEventsMinutesTTL)
@@ -84,6 +87,7 @@ func NewRedis(host string, port int, password string, anonymousEventsMinutesTTL 
 	return r, nil
 }
 
+//NewRedisPool returns configured Redis connection pool
 func NewRedisPool(host string, port int, password string) *redis.Pool {
 	return &redis.Pool{
 		MaxIdle:     100,
@@ -111,6 +115,7 @@ func NewRedisPool(host string, port int, password string) *redis.Pool {
 	}
 }
 
+//GetSignature returns sync interval signature from Redis
 func (r *Redis) GetSignature(sourceID, collection, interval string) (string, error) {
 	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
 	field := interval
@@ -129,6 +134,7 @@ func (r *Redis) GetSignature(sourceID, collection, interval string) (string, err
 	return signature, nil
 }
 
+//SaveSignature saves sync interval signature in Redis
 func (r *Redis) SaveSignature(sourceID, collection, interval, signature string) error {
 	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
 	field := interval
@@ -143,6 +149,7 @@ func (r *Redis) SaveSignature(sourceID, collection, interval, signature string) 
 	return nil
 }
 
+//SuccessEvents ensures that id is in the index and increments success events counter
 func (r *Redis) SuccessEvents(id, namespace string, now time.Time, value int) error {
 	err := r.ensureIDInIndex(id, namespace)
 	if err != nil {
@@ -151,14 +158,18 @@ func (r *Redis) SuccessEvents(id, namespace string, now time.Time, value int) er
 	return r.incrementEventsCount(id, namespace, "success", now, value)
 }
 
+//ErrorEvents increments error events counter
 func (r *Redis) ErrorEvents(id, namespace string, now time.Time, value int) error {
 	return r.incrementEventsCount(id, namespace, "errors", now, value)
 }
 
+//SkipEvents increments skipp events counter
 func (r *Redis) SkipEvents(id, namespace string, now time.Time, value int) error {
 	return r.incrementEventsCount(id, namespace, "skip", now, value)
 }
 
+//AddEvent saves event JSON string into Redis and ensures that event ID is in index by destination ID
+//returns index length
 func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) (int, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -189,6 +200,7 @@ func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) 
 	return count, nil
 }
 
+//UpdateSucceedEvent updates event record in Redis with success field = JSON of succeed event
 func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error {
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
 
@@ -204,6 +216,7 @@ func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error
 	return nil
 }
 
+//UpdateErrorEvent updates event record in Redis with error field = error string
 func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
 
@@ -219,6 +232,7 @@ func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 	return nil
 }
 
+//RemoveLastEvent removes last event from index and delete it from Redis
 func (r *Redis) RemoveLastEvent(destinationID string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -246,6 +260,7 @@ func (r *Redis) RemoveLastEvent(destinationID string) error {
 	return nil
 }
 
+//GetEvents returns destination's last events with time criteria
 func (r *Redis) GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -281,6 +296,7 @@ func (r *Redis) GetEvents(destinationID string, start, end time.Time, n int) ([]
 	return events, nil
 }
 
+//GetTotalEvents returns total of cached events
 func (r *Redis) GetTotalEvents(destinationID string) (int, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -295,6 +311,7 @@ func (r *Redis) GetTotalEvents(destinationID string) (int, error) {
 	return count, nil
 }
 
+//SaveAnonymousEvent saves event JSON by destination ID and user anonymous ID key
 func (r *Redis) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -317,6 +334,7 @@ func (r *Redis) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload 
 	return nil
 }
 
+//GetAnonymousEvents returns events JSON per event ID map
 func (r *Redis) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -332,6 +350,7 @@ func (r *Redis) GetAnonymousEvents(destinationID, anonymousID string) (map[strin
 	return eventsMap, nil
 }
 
+//DeleteAnonymousEvent deletes event with eventID
 func (r *Redis) DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -347,6 +366,7 @@ func (r *Redis) DeleteAnonymousEvent(destinationID, anonymousID, eventID string)
 	return nil
 }
 
+//CreateTask saves task into Redis and add Task ID in index
 func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
 	err := r.UpsertTask(task)
 	if err != nil {
@@ -368,6 +388,7 @@ func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt ti
 	return nil
 }
 
+//UpsertTask overwrite task in Redis (save or update)
 func (r *Redis) UpsertTask(task *Task) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -383,13 +404,19 @@ func (r *Redis) UpsertTask(task *Task) error {
 	return nil
 }
 
-func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time) ([]Task, error) {
+//GetAllTasks returns all source's tasks by collection and time criteria
+func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	//get index
 	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
-	taskIDs, err := redis.Strings(conn.Do("ZRANGEBYSCORE", taskIndexKey, start.Unix(), end.Unix()))
+	args := []interface{}{taskIndexKey, start.Unix(), end.Unix()}
+	if limit > 0 {
+		args = append(args, "LIMIT", 0, limit)
+	}
+
+	taskIDs, err := redis.Strings(conn.Do("ZRANGEBYSCORE", args...))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return nil, err
@@ -419,6 +446,7 @@ func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time) (
 	return tasks, nil
 }
 
+//GetLastTask returns last sync task
 func (r *Redis) GetLastTask(sourceID, collection string) (*Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -447,6 +475,7 @@ func (r *Redis) GetLastTask(sourceID, collection string) (*Task, error) {
 	return task, err
 }
 
+//GetTask returns task by task ID or ErrTaskNotFound
 func (r *Redis) GetTask(taskID string) (*Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -474,6 +503,7 @@ func (r *Redis) GetTask(taskID string) (*Task, error) {
 	return task, nil
 }
 
+//AppendTaskLog appends log record into task logs sorted set
 func (r *Redis) AppendTaskLog(taskID string, now time.Time, message, level string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -494,6 +524,7 @@ func (r *Redis) AppendTaskLog(taskID string, now time.Time, message, level strin
 	return nil
 }
 
+//GetTaskLogs returns task logs with time criteria
 func (r *Redis) GetTaskLogs(taskID string, start, end time.Time) ([]TaskLogRecord, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -548,6 +579,7 @@ func (r *Redis) PollTask() (*Task, error) {
 	return task, err
 }
 
+//PushTask saves task into priority queue
 func (r *Redis) PushTask(task *Task) error {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -565,6 +597,7 @@ func (r *Redis) PushTask(task *Task) error {
 	return nil
 }
 
+//IsTaskInQueue returns task ID and true if a task is already in queue
 func (r *Redis) IsTaskInQueue(sourceID, collection string) (string, bool, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
@@ -591,6 +624,137 @@ func (r *Redis) IsTaskInQueue(sourceID, collection string) (string, bool, error)
 	}
 
 	return taskID, len(taskID) > 0, nil
+}
+
+//GetProjectEventsWithGranularity returns project's events amount with time criteria by granularity
+func (r *Redis) GetProjectEventsWithGranularity(projectID string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	//get all source IDs from index
+	key := "sources_index:project#" + projectID
+	sourceIDs, err := redis.Strings(conn.Do("SMEMBERS", key))
+	if err != nil {
+		if err == redis.ErrNil {
+			return []EventsPerTime{}, nil
+		}
+
+		return nil, err
+	}
+
+	if granularity == HOUR {
+		return r.getEventsPerHour(conn, sourceIDs, start, end)
+	} else if granularity == DAY {
+		return r.getEventsPerDay(conn, sourceIDs, start, end)
+	}
+
+	return nil, fmt.Errorf("Unknown granularity: %s", granularity.String())
+}
+
+//getEventsPerDay returns sum of sources events per hour (between start and end)
+func (r *Redis) getEventsPerHour(conn redis.Conn, sourceIDs []string, start, end time.Time) ([]EventsPerTime, error) {
+	eventsPerChunk := map[string]int{} //key = 2021-03-17T00:00:00+0000 | value = events count
+
+	days := getCoveredDays(start, end)
+
+	for _, day := range days {
+		keyTime, _ := time.Parse(timestamp.DayLayout, day)
+
+		for _, sourceID := range sourceIDs {
+			key := fmt.Sprintf("hourly_events:source#%s:day#%s:success", sourceID, day)
+
+			perHour, err := redis.IntMap(conn.Do("HGETALL", key))
+			if err != nil {
+				if err == redis.ErrNil {
+					continue
+				}
+
+				return nil, err
+			}
+
+			if perHour == nil {
+				continue
+			}
+
+			for hourStr, value := range perHour {
+				hour, _ := strconv.Atoi(hourStr)
+				eventsPerChunk[keyTime.Add(time.Duration(hour)*time.Hour).Format(responseTimestampLayout)] += value
+			}
+
+		}
+	}
+
+	//build response
+	eventsPerTime := []EventsPerTime{}
+
+	startDayHour := time.Date(start.Year(), start.Month(), start.Day(), start.Hour(), 0, 0, 0, time.UTC)
+	for startDayHour.Before(end) {
+		key := startDayHour.Format(responseTimestampLayout)
+		eventsCount, ok := eventsPerChunk[key]
+		if ok {
+			eventsPerTime = append(eventsPerTime, EventsPerTime{
+				Key:    key,
+				Events: eventsCount,
+			})
+		}
+
+		startDayHour = startDayHour.Add(time.Hour)
+	}
+
+	return eventsPerTime, nil
+}
+
+//getEventsPerDay returns sum of sources events per day (between start and end)
+func (r *Redis) getEventsPerDay(conn redis.Conn, sourceIDs []string, start, end time.Time) ([]EventsPerTime, error) {
+	eventsPerChunk := map[string]int{} //key = 2021-03-17T00:00:00+0000 | value = events count
+
+	months := getCoveredMonths(start, end)
+
+	for _, month := range months {
+		keyTime, _ := time.Parse(timestamp.MonthLayout, month)
+
+		for _, sourceID := range sourceIDs {
+			key := fmt.Sprintf("daily_events:source#%s:month#%s:success", sourceID, month)
+
+			perDay, err := redis.IntMap(conn.Do("HGETALL", key))
+			if err != nil {
+				if err == redis.ErrNil {
+					continue
+				}
+
+				return nil, err
+			}
+
+			if perDay == nil {
+				continue
+			}
+
+			for dayStr, value := range perDay {
+				day, _ := strconv.Atoi(dayStr)
+				//add (day - 1) cause month date starts from first month's day
+				eventsPerChunk[keyTime.AddDate(0, 0, day-1).Format(responseTimestampLayout)] += value
+			}
+		}
+	}
+
+	//build response
+	eventsPerTime := []EventsPerTime{}
+
+	startDay := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC)
+	for startDay.Before(end) {
+		key := startDay.Format(responseTimestampLayout)
+		eventsCount, ok := eventsPerChunk[key]
+		if ok {
+			eventsPerTime = append(eventsPerTime, EventsPerTime{
+				Key:    key,
+				Events: eventsCount,
+			})
+		}
+
+		startDay = startDay.AddDate(0, 0, 1)
+	}
+
+	return eventsPerTime, nil
 }
 
 func (r *Redis) Type() string {
@@ -644,7 +808,7 @@ func (r *Redis) incrementEventsCount(id, namespace, status string, now time.Time
 	dayKey := now.Format(timestamp.DayLayout)
 	hourlyEventsKey := "hourly_events:" + namespace + "#" + id + ":day#" + dayKey + ":" + status
 	fieldHour := strconv.Itoa(now.Hour())
-	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, 1)
+	_, err := conn.Do("HINCRBY", hourlyEventsKey, fieldHour, value)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -676,4 +840,38 @@ func noticeError(err error) {
 			logging.Error("Unknown redis error:", err)
 		}
 	}
+}
+
+//getCoveredDays return array of YYYYMMDD day strings which are covered input interval
+func getCoveredDays(start, end time.Time) []string {
+	days := []string{start.Format(timestamp.DayLayout)}
+
+	day := start.Day()
+	for start.Before(end) {
+		start = start.Add(time.Hour)
+		nextDay := start.Day()
+		if nextDay != day {
+			days = append(days, start.Format(timestamp.DayLayout))
+		}
+		day = nextDay
+	}
+
+	return days
+}
+
+//getCoveredMonths return array of YYYYMM month strings which are covered input interval
+func getCoveredMonths(start, end time.Time) []string {
+	months := []string{start.Format(timestamp.MonthLayout)}
+
+	month := start.Month()
+	for start.Before(end) {
+		start = start.Add(time.Hour * 24)
+		nextMonth := start.Month()
+		if nextMonth != month {
+			months = append(months, start.Format(timestamp.MonthLayout))
+		}
+		month = nextMonth
+	}
+
+	return months
 }

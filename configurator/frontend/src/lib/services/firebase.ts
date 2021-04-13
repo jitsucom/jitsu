@@ -106,7 +106,7 @@ export class FirebaseUserService implements UserService {
           return { user: user, loggedIn: true, loginErrorMessage: null };
         });
       } else {
-        return { user: null, loggedIn: false, loginErrorMessage: null };
+        return { user: null, loggedIn: false};
       }
     });
   }

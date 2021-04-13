@@ -97,9 +97,9 @@ export default class EventsStream extends LoadableComponent<{}, State> {
 
   protected async load(): Promise<State> {
     let events: Event[] = (
-      await this.services.backendApiClient.get(`events?project_id=${this.services.activeProject.id}&limit=100`)
+      await this.services.backendApiClient.get(`/events/cache?project_id=${this.services.activeProject.id}&limit=100`, true)
     )['events'].map((rawEvent) => {
-      return { time: moment(rawEvent['_timestamp']), data: rawEvent };
+      return { time: moment(rawEvent['original']['_timestamp']), data: rawEvent };
     });
     events.sort((e1: Event, e2: Event) => {
       if (e1.time.isAfter(e2.time)) {
