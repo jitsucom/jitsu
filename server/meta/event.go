@@ -5,3 +5,8 @@ type Event struct {
 	Success  string `json:"success,omitempty" redis:"success"`
 	Error    string `json:"error,omitempty" redis:"error"`
 }
+
+type EventsPerTime struct {
+	Key    string `json:"key"`
+	Events int    `json:"events"`
+}

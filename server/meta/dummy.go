@@ -11,6 +11,9 @@ func (d *Dummy) SaveSignature(sourceID, collection, interval, signature string) 
 func (d *Dummy) SuccessEvents(id, namespace string, now time.Time, value int) error { return nil }
 func (d *Dummy) ErrorEvents(id, namespace string, now time.Time, value int) error   { return nil }
 func (d *Dummy) SkipEvents(id, namespace string, now time.Time, value int) error    { return nil }
+func (d *Dummy) GetProjectEventsWithGranularity(projectID string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
+	return nil, nil
+}
 
 func (d *Dummy) AddEvent(destinationID, eventID, payload string, now time.Time) (int, error) {
 	return 0, nil
@@ -36,7 +39,7 @@ func (d *Dummy) CreateTask(sourceID, collection string, task *Task, createdAt ti
 	return nil
 }
 func (d *Dummy) UpsertTask(task *Task) error { return nil }
-func (d *Dummy) GetAllTasks(sourceID, collection string, from, to time.Time) ([]Task, error) {
+func (d *Dummy) GetAllTasks(sourceID, collection string, from, to time.Time, limit int) ([]Task, error) {
 	return nil, nil
 }
 func (d *Dummy) GetLastTask(sourceID, collection string) (*Task, error) { return nil, nil }
