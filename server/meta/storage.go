@@ -7,12 +7,11 @@ import (
 )
 
 const (
-	StatusOk      = "OK"
-	StatusFailed  = "FAILED"
-	StatusLoading = "LOADING"
-
 	DummyType = "Dummy"
 	RedisType = "Redis"
+
+	DayGranularity  = "day"
+	HourGranularity = "hour"
 )
 
 type Storage interface {
@@ -28,6 +27,7 @@ type Storage interface {
 	SuccessEvents(id, namespace string, now time.Time, value int) error
 	ErrorEvents(id, namespace string, now time.Time, value int) error
 	SkipEvents(id, namespace string, now time.Time, value int) error
+	GetProjectEventsWithGranularity(projectID string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error)
 
 	//** Cache **
 	//events caching
@@ -47,7 +47,7 @@ type Storage interface {
 	//sync tasks
 	CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error
 	UpsertTask(task *Task) error
-	GetAllTasks(sourceID, collection string, start, end time.Time) ([]Task, error)
+	GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error)
 	GetLastTask(sourceID, collection string) (*Task, error)
 	GetTask(taskID string) (*Task, error)
 

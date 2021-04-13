@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -115,9 +116,22 @@ func (sh *TaskHandler) GetAllHandler(c *gin.Context) {
 		collectionsFilter = append(collectionsFilter, collectionIDFilter)
 	}
 
+	limitStr := c.Query("limit")
+	var limit int
+	if limitStr == "" {
+		limit = 0
+	} else {
+		limit, err = strconv.Atoi(limitStr)
+		if err != nil {
+			logging.Errorf("Error parsing limit [%s] to int in task handler: %v", limitStr, err)
+			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "[limit] must be int"})
+			return
+		}
+	}
+
 	tasks := []synchronization.TaskDto{}
 	for _, collection := range collectionsFilter {
-		tasksPerCollection, err := sh.taskService.GetTasks(sourceID, collection, statusFilter, start, end)
+		tasksPerCollection, err := sh.taskService.GetTasks(sourceID, collection, statusFilter, start, end, limit)
 		if err != nil {
 			logging.Error(err)
 			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Task gathering failed", Error: err.Error()})

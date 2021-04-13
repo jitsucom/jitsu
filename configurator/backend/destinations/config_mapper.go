@@ -2,6 +2,7 @@ package destinations
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
@@ -154,22 +155,28 @@ func mapRedshift(destinationID string, rsDestinations *entities.Destination, def
 		return nil, fmt.Errorf("Error unmarshaling redshift form data: %v", err)
 	}
 
+	if rsFormData.UseHostedS3 && defaultS3 == nil {
+		return nil, errors.New("Jitsu default S3 bucket isn't configured")
+	}
+
 	var s3 *enadapters.S3Config
-	if rsFormData.UseHostedS3 {
-		s3 = &enadapters.S3Config{
-			AccessKeyID: defaultS3.AccessKeyID,
-			SecretKey:   defaultS3.SecretKey,
-			Bucket:      defaultS3.Bucket,
-			Region:      defaultS3.Region,
-			Folder:      destinationID,
-		}
-	} else if rsFormData.Mode == enstorages.BatchMode {
-		s3 = &enadapters.S3Config{
-			AccessKeyID: rsFormData.S3AccessKey,
-			SecretKey:   rsFormData.S3SecretKey,
-			Bucket:      rsFormData.S3Bucket,
-			Region:      rsFormData.S3Region,
-			Folder:      destinationID,
+	if rsFormData.Mode == enstorages.BatchMode {
+		if rsFormData.UseHostedS3 {
+			s3 = &enadapters.S3Config{
+				AccessKeyID: defaultS3.AccessKeyID,
+				SecretKey:   defaultS3.SecretKey,
+				Bucket:      defaultS3.Bucket,
+				Region:      defaultS3.Region,
+				Folder:      destinationID,
+			}
+		} else {
+			s3 = &enadapters.S3Config{
+				AccessKeyID: rsFormData.S3AccessKey,
+				SecretKey:   rsFormData.S3SecretKey,
+				Bucket:      rsFormData.S3Bucket,
+				Region:      rsFormData.S3Region,
+				Folder:      destinationID,
+			}
 		}
 	}
 
