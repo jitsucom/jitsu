@@ -12,7 +12,7 @@
             max-width: 750px;
             margin: auto;
         }
-        .jitsu-configurator-__JITSU_CONFIGURATOR_PRESENT__, .jitsu-configurator-false {
+        .jitsu-configurator-false {
             display: none;
         }
         pre.code {
@@ -49,8 +49,8 @@ server:
   disable_welcome_page: true
 </pre>
 
-<p class="jitsu-configurator-__JITSU_CONFIGURATOR_PRESENT__">This server is configured by Jitsu configurator at <a href="__JITSU_CONFIGURATOR_URL__">__JITSU_CONFIGURATOR_PRESENT__</a>.
-    Please, visit Jitsu Configurator page to add or remove destinations, connectors or API keys
+<p class="jitsu-configurator-{{.__JITSU_CONFIGURATOR_PRESENT__}}">This server is configured by Jitsu configurator.
+    Please, visit <a href="{{.__JITSU_CONFIGURATOR_URL__}}">Jitsu Configurator page</a> to add or remove destinations, connectors or API keys.
 </p>
 <p>
     Read more about event tracking at <a href="https://jitsu.com/docs/js-sdk">JS SDK documentation section</a>.
