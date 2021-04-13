@@ -10,19 +10,17 @@ import (
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/emails"
-	"github.com/jitsucom/jitsu/configurator/eventnative"
 	"github.com/jitsucom/jitsu/configurator/handlers"
+	"github.com/jitsucom/jitsu/configurator/jitsu"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/ssh"
 	"github.com/jitsucom/jitsu/configurator/ssl"
-	"github.com/jitsucom/jitsu/configurator/statistics"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/safego"
-	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
 	"math/rand"
@@ -143,54 +141,34 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(authService)
 
-	//** Statistics **
-	statisticsStorage, err := statistics.NewStorage(viper.Sub("statistics"), viper.GetStringMapStringSlice("old_keys"))
+	//** Jitsu server configuration **
+	if !viper.IsSet("jitsu") {
+		logging.Fatal("'jitsu' is required configuration section")
+	}
+
+	jitsuConfig := &jitsu.Config{}
+	err = viper.UnmarshalKey("jitsu", jitsuConfig)
 	if err != nil {
-		logging.Fatalf("Error initializing 'destinations.statistics': %v", err)
+		logging.Fatalf("Error parsing 'jitsu' config: %v", err)
 	}
-	appconfig.Instance.ScheduleClosing(statisticsStorage)
-
-	//statistics postgres
-	var pgStatisticsConfig *enstorages.DestinationConfig
-	if viper.IsSet("statistics.postgres") {
-		pgStatisticsConfig = &enstorages.DestinationConfig{}
-		if err := viper.UnmarshalKey("statistics.postgres", pgStatisticsConfig); err != nil {
-			logging.Fatal("Error unmarshalling statistics postgres config:", err)
-		}
-		if err := pgStatisticsConfig.DataSource.Validate(); err != nil {
-			logging.Fatal("Error validation statistics postgres config:", err)
-		}
-	}
-
-	//** EventNative configuration **
-	if !viper.IsSet("eventnative") {
-		logging.Fatal("'eventnative' is required configuration section")
-	}
-
-	enConfig := &eventnative.Config{}
-	err = viper.UnmarshalKey("eventnative", enConfig)
+	err = jitsuConfig.Validate()
 	if err != nil {
-		logging.Fatalf("Error parsing 'eventnative' config: %v", err)
-	}
-	err = enConfig.Validate()
-	if err != nil {
-		logging.Fatalf("Error validating 'eventnative' config: %v", err)
+		logging.Fatalf("Error validating 'jitsu' config: %v", err)
 	}
 
-	enService := eventnative.NewService(enConfig.BaseURL, enConfig.AdminToken)
-	appconfig.Instance.ScheduleClosing(enService)
+	jitsuService := jitsu.NewService(jitsuConfig.BaseURL, jitsuConfig.AdminToken)
 
 	//** SSL **
 	var sslUpdateExecutor *ssl.UpdateExecutor
-	if enConfig.SSL != nil {
-		sshClient, err := ssh.NewSshClient(enConfig.SSL.SSH.PrivateKeyPath, enConfig.SSL.SSH.User)
+	if jitsuConfig.SSL != nil {
+		sshClient, err := ssh.NewSshClient(jitsuConfig.SSL.SSH.PrivateKeyPath, jitsuConfig.SSL.SSH.User)
 		if err != nil {
 			logging.Fatalf("Error creating SSH client: %v", err)
 		}
 
-		customDomainProcessor, err := ssl.NewCertificateService(sshClient, enConfig.SSL.Hosts, configurationsService, enConfig.SSL.ServerConfigTemplate, enConfig.SSL.NginxConfigPath, enConfig.SSL.AcmeChallengePath)
+		customDomainProcessor, err := ssl.NewCertificateService(sshClient, jitsuConfig.SSL.Hosts, configurationsService, jitsuConfig.SSL.ServerConfigTemplate, jitsuConfig.SSL.NginxConfigPath, jitsuConfig.SSL.AcmeChallengePath)
 
-		sslUpdateExecutor = ssl.NewSSLUpdateExecutor(customDomainProcessor, enConfig.SSL.Hosts, enConfig.SSL.SSH.User, enConfig.SSL.SSH.PrivateKeyPath, enConfig.CName, enConfig.SSL.CertificatePath, enConfig.SSL.PKPath, enConfig.SSL.AcmeChallengePath)
+		sslUpdateExecutor = ssl.NewSSLUpdateExecutor(customDomainProcessor, jitsuConfig.SSL.Hosts, jitsuConfig.SSL.SSH.User, jitsuConfig.SSL.SSH.PrivateKeyPath, jitsuConfig.CName, jitsuConfig.SSL.CertificatePath, jitsuConfig.SSL.PKPath, jitsuConfig.SSL.AcmeChallengePath)
 	}
 
 	//** SMTP (email service) **
@@ -218,8 +196,8 @@ func main() {
 		logging.Fatal("'server.domain' is required configuration parameter (format: 'domain.com'). It is used in CORS filter.")
 	}
 
-	router := SetupRouter(enService, configurationsStorage, configurationsService,
-		authService, s3Config, pgStatisticsConfig, statisticsStorage, sslUpdateExecutor, emailsService)
+	router := SetupRouter(jitsuService, configurationsStorage, configurationsService,
+		authService, s3Config, sslUpdateExecutor, emailsService)
 	notifications.ServerStart()
 	logging.Info("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
@@ -249,9 +227,9 @@ func readConfiguration(configFilePath string) {
 	}
 }
 
-func SetupRouter(enService *eventnative.Service, configurationsStorage storages.ConfigurationsStorage,
+func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.ConfigurationsStorage,
 	configurationsService *storages.ConfigurationsService, authService *authorization.Service, defaultS3 *enadapters.S3Config,
-	pgStatisticsConfig *enstorages.DestinationConfig, statisticsStorage statistics.Storage, sslUpdateExecutor *ssl.UpdateExecutor,
+	sslUpdateExecutor *ssl.UpdateExecutor,
 	emailService *emails.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
@@ -274,10 +252,15 @@ func SetupRouter(enService *eventnative.Service, configurationsStorage storages.
 
 	serverToken := viper.GetString("server.auth")
 
-	statisticsHandler := handlers.NewStatisticsHandler(statisticsStorage, configurationsService)
 	apiKeysHandler := handlers.NewAPIKeysHandler(configurationsService)
 
 	enConfigurationsHandler := handlers.NewConfigurationsHandler(configurationsStorage)
+
+	proxyHandler := handlers.NewProxyHandler(jitsuService, map[string]jitsu.APIDecorator{
+		//write here custom decorators for certain HTTP URN paths
+		"/proxy/api/v1/events/cache": jitsu.NewEventsCacheDecorator(configurationsService).Decorate,
+	})
+	router.Any("/proxy/*path", authenticatorMiddleware.ClientProjectAuth(proxyHandler.Handler))
 
 	apiV1 := router.Group("/api/v1")
 	{
@@ -285,9 +268,8 @@ func SetupRouter(enService *eventnative.Service, configurationsStorage storages.
 		apiV1.POST("/apikeys/default", authenticatorMiddleware.ClientProjectAuth(apiKeysHandler.CreateDefaultAPIKeyHandler))
 
 		apiV1.GET("/apikeys", middleware.ServerAuth(middleware.IfModifiedSince(apiKeysHandler.GetHandler, configurationsService.GetAPIKeysLastUpdated), serverToken))
-		apiV1.GET("/statistics", authenticatorMiddleware.ClientProjectAuth(statisticsHandler.GetHandler))
 
-		apiV1.GET("/eventnative/configuration", authenticatorMiddleware.ClientProjectAuth(handlers.NewConfigurationHandler(configurationsService, defaultS3).Handler))
+		apiV1.GET("/jitsu/configuration", authenticatorMiddleware.ClientProjectAuth(handlers.NewConfigurationHandler(configurationsService).Handler))
 
 		if sslUpdateExecutor != nil {
 			sslGroup := apiV1.Group("/ssl")
@@ -297,14 +279,14 @@ func SetupRouter(enService *eventnative.Service, configurationsStorage storages.
 			}
 		}
 
-		destinationsHandler := handlers.NewDestinationsHandler(configurationsService, defaultS3, pgStatisticsConfig, enService)
+		destinationsHandler := handlers.NewDestinationsHandler(configurationsService, defaultS3, jitsuService)
 		destinationsRoute := apiV1.Group("/destinations")
 		{
 			destinationsRoute.GET("/", middleware.ServerAuth(middleware.IfModifiedSince(destinationsHandler.GetHandler, configurationsService.GetDestinationsLastUpdated), serverToken))
 			destinationsRoute.POST("/test", authenticatorMiddleware.ClientProjectAuth(destinationsHandler.TestHandler))
 		}
 
-		sourcesHandler := handlers.NewSourcesHandler(configurationsService, enService)
+		sourcesHandler := handlers.NewSourcesHandler(configurationsService, jitsuService)
 		sourcesRoute := apiV1.Group("/sources")
 		{
 			sourcesRoute.GET("/", middleware.ServerAuth(middleware.IfModifiedSince(sourcesHandler.GetHandler, configurationsService.GetSourcesLastUpdated), serverToken))
@@ -313,10 +295,6 @@ func SetupRouter(enService *eventnative.Service, configurationsStorage storages.
 
 		telemetryHandler := handlers.NewTelemetryHandler(configurationsStorage)
 		apiV1.GET("/telemetry", middleware.ServerAuth(telemetryHandler.GetHandler, serverToken))
-
-		eventsHandler := handlers.NewEventsHandler(configurationsService, enService)
-		apiV1.GET("/events", authenticatorMiddleware.ClientProjectAuth(eventsHandler.OldGetHandler))
-		apiV1.GET("/last_events", authenticatorMiddleware.ClientProjectAuth(eventsHandler.GetHandler))
 
 		apiV1.GET("/become", authenticatorMiddleware.ClientAuth(handlers.NewBecomeUserHandler(authService).Handler))
 

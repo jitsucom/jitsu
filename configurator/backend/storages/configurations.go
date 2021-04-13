@@ -206,7 +206,26 @@ func (cs ConfigurationsService) GetSources() (map[string]*entities.Sources, erro
 	return result, nil
 }
 
-// Generates default key per project only in case if no other API key exists
+//GetSourcesByProjectID returns sources of input project
+func (cs *ConfigurationsService) GetSourcesByProjectID(projectID string) ([]*entities.Source, error) {
+	doc, err := cs.storage.Get(sourcesCollection, projectID)
+	if err != nil {
+		if err == ErrConfigurationNotFound {
+			return make([]*entities.Source, 0), nil
+		} else {
+			return nil, fmt.Errorf("Error getting sources by projectID [%s]: %v", projectID, err)
+		}
+	}
+
+	sources := &entities.Sources{}
+	err = json.Unmarshal(doc, sources)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing sources of projectID [%s]: %v", projectID, err)
+	}
+	return sources.Sources, nil
+}
+
+//CreateDefaultAPIKey returns generated default key per project only in case if no other API key exists
 func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
 	keys, err := cs.GetAPIKeysByProjectID(projectID)
 	if err != nil {

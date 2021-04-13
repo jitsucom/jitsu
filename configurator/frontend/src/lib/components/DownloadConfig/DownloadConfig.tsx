@@ -28,7 +28,7 @@ export default class DownloadConfig extends LoadableComponent<{}, State> {
   protected async load(): Promise<State> {
     return {
       code: await this.services.backendApiClient.getRaw(
-        `/eventnative/configuration?project_id=${this.services.activeProject.id}`
+        `/jitsu/configuration?project_id=${this.services.activeProject.id}`
       )
     };
   }

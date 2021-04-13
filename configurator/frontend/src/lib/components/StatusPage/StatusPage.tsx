@@ -122,7 +122,8 @@ class StatServiceImpl implements StatService {
   async get(start: Date, end: Date, granularity: Granularity): Promise<DatePoint[]> {
     let data = (
       await this.service.backendApiClient.get(
-        `/statistics?project_id=${this.service.activeProject.id}&start=${start.toISOString()}&end=${end.toISOString()}&granularity=${granularity}`
+        `/statistics?project_id=${this.service.activeProject.id}&start=${start.toISOString()}&end=${end.toISOString()}&granularity=${granularity}`,
+          true
       )
     )['data'];
     return mergeSeries(
