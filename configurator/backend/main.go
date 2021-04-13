@@ -269,7 +269,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 		apiV1.GET("/apikeys", middleware.ServerAuth(middleware.IfModifiedSince(apiKeysHandler.GetHandler, configurationsService.GetAPIKeysLastUpdated), serverToken))
 
-		apiV1.GET("/jitsu/configuration", authenticatorMiddleware.ClientProjectAuth(handlers.NewConfigurationHandler(configurationsService, defaultS3).Handler))
+		apiV1.GET("/jitsu/configuration", authenticatorMiddleware.ClientProjectAuth(handlers.NewConfigurationHandler(configurationsService).Handler))
 
 		if sslUpdateExecutor != nil {
 			sslGroup := apiV1.Group("/ssl")

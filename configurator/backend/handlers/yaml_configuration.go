@@ -27,8 +27,15 @@ type ConfigHandler struct {
 	defaultS3             *enadapters.S3Config
 }
 
-func NewConfigurationHandler(configurationsProvider *storages.ConfigurationsService, s3 *enadapters.S3Config) *ConfigHandler {
-	return &ConfigHandler{configurationsService: configurationsProvider, defaultS3: s3}
+func NewConfigurationHandler(configurationsProvider *storages.ConfigurationsService) *ConfigHandler {
+	return &ConfigHandler{
+		configurationsService: configurationsProvider,
+		defaultS3: &enadapters.S3Config{
+			AccessKeyID: "Please fill this field with your S3 credentials",
+			SecretKey:   "Please fill this field with your S3 credentials",
+			Bucket:      "Please fill this field with your S3 bucket",
+			Region:      "Please fill this field with your S3 region",
+		}}
 }
 
 type Server struct {
