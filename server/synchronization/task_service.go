@@ -228,12 +228,12 @@ func (ts *TaskService) GetTask(id string) (*TaskDto, error) {
 }
 
 //GetTasks return all tasks with input filters
-func (ts *TaskService) GetTasks(sourceID, collectionID string, statusFilter *Status, start, end time.Time) ([]TaskDto, error) {
+func (ts *TaskService) GetTasks(sourceID, collectionID string, statusFilter *Status, start, end time.Time, limit int) ([]TaskDto, error) {
 	if ts.metaStorage == nil {
 		return nil, ErrMetaStorageRequired
 	}
 
-	tasks, err := ts.metaStorage.GetAllTasks(sourceID, collectionID, start, end)
+	tasks, err := ts.metaStorage.GetAllTasks(sourceID, collectionID, start, end, limit)
 	if err != nil {
 		return nil, err
 	}

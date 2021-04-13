@@ -190,6 +190,7 @@ Authorization admin token might be provided either as query parameter or HTTP he
 <APIParam name={"collection"} dataType="string" required={false} type="queryString" description="Collection name from 'sources' configuration section. Default value: all collections"/>
 <APIParam name={"start"} dataType="string" required={true} type="queryString" description="Start of time interval in ISO 8601 ('2006-01-02T15:04:05.000000Z') format" />
 <APIParam name={"end"} dataType="string" required={true} type="queryString" description="End of time interval in ISO 8601 ('2006-01-02T15:04:05.000000Z') format" />
+<APIParam name={"limit"} dataType="int" required={false} type="queryString" description="Limit of returned tasks in response. Default value: 0 - no limit" />
 <APIParam name={"status"} dataType="string" required={false} type="queryString" description="Task status filter. Available values: [scheduled, running, failed, success]. Default value: all statuses" />
 <APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header" description="Admin token"/>
 <APIParam name={"token"} dataType="string" required={true} type="queryString" description="Admin token"/>

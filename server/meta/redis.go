@@ -405,13 +405,18 @@ func (r *Redis) UpsertTask(task *Task) error {
 }
 
 //GetAllTasks returns all source's tasks by collection and time criteria
-func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time) ([]Task, error) {
+func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	//get index
 	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
-	taskIDs, err := redis.Strings(conn.Do("ZRANGEBYSCORE", taskIndexKey, start.Unix(), end.Unix()))
+	args := []interface{}{taskIndexKey, start.Unix(), end.Unix()}
+	if limit > 0 {
+		args = append(args, "LIMIT", 0, limit)
+	}
+
+	taskIDs, err := redis.Strings(conn.Do("ZRANGEBYSCORE", args...))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return nil, err
