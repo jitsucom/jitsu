@@ -63,7 +63,7 @@ func (s *Service) sendReq(method, url string, body io.Reader) (int, []byte, erro
 	req.Header.Add(adminTokenName, s.adminToken)
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return 0, nil, fmt.Errorf("Error getting response from EventNative: %v", err)
+		return 0, nil, fmt.Errorf("Error getting response: %v", err)
 	}
 	defer func() {
 		if resp.Body != nil {
@@ -73,7 +73,7 @@ func (s *Service) sendReq(method, url string, body io.Reader) (int, []byte, erro
 
 	respBody, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return 0, nil, fmt.Errorf("Error reading response from EventNative: %v", err)
+		return 0, nil, fmt.Errorf("Error reading response: %v", err)
 	}
 
 	return resp.StatusCode, respBody, nil

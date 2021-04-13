@@ -47,7 +47,7 @@ type Storage interface {
 	//sync tasks
 	CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error
 	UpsertTask(task *Task) error
-	GetAllTasks(sourceID, collection string, start, end time.Time) ([]Task, error)
+	GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error)
 	GetLastTask(sourceID, collection string) (*Task, error)
 	GetTask(taskID string) (*Task, error)
 

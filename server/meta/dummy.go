@@ -39,7 +39,7 @@ func (d *Dummy) CreateTask(sourceID, collection string, task *Task, createdAt ti
 	return nil
 }
 func (d *Dummy) UpsertTask(task *Task) error { return nil }
-func (d *Dummy) GetAllTasks(sourceID, collection string, from, to time.Time) ([]Task, error) {
+func (d *Dummy) GetAllTasks(sourceID, collection string, from, to time.Time, limit int) ([]Task, error) {
 	return nil, nil
 }
 func (d *Dummy) GetLastTask(sourceID, collection string) (*Task, error) { return nil, nil }
