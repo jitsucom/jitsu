@@ -82,7 +82,7 @@ func NewService(ctx context.Context, sources *viper.Viper, sourcesURL string, de
 		service.init(sc)
 
 		if len(service.sources) == 0 {
-			logging.Errorf("Sources are empty")
+			logging.Info("Sources are empty")
 		}
 	} else {
 		if strings.HasPrefix(sourcesURL, "http://") || strings.HasPrefix(sourcesURL, "https://") {
@@ -109,7 +109,7 @@ func (s *Service) updateSources(payload []byte) {
 	s.init(dc)
 
 	if len(s.sources) == 0 {
-		logging.Error("Sources are empty")
+		logging.Info("Sources are empty")
 	}
 }
 

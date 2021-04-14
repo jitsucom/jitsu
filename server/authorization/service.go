@@ -82,7 +82,7 @@ func NewService() (*Service, error) {
 		}
 
 		service.tokensHolder = reformat([]Token{generatedToken})
-		logging.Warn("Empty 'server.auth' config keys. Auto generate token:", generatedTokenSecret)
+		logging.Info("Empty 'server.auth' config keys. Auto generate token:", generatedTokenSecret)
 	}
 
 	return service, nil
