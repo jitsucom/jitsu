@@ -19,7 +19,6 @@
       "name": "Sending data2",
       "pages": [
         "sending-data/javascript-reference",
-        "sending-data/js-sdk",
         "sending-data/api"
       ]
     },

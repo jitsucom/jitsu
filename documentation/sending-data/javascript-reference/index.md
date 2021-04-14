@@ -1,6 +1,6 @@
 ---
 sort: "0001"
-title: "JS Reference (DEPRECATED)"
+title_: "JS Reference (DEPRECATED)"
 
 ---
 
@@ -8,7 +8,7 @@ import {Hint} from "../../../../components/documentationComponents";
 
 # JavaScript Reference
 
-<Hint>
+<Hint className="hidden" style={{display: 'none'}}>
     This section refers to a <a href="https://www.npmjs.com/package/@jitsu/eventnative">deprecated client library</a>. The library
     works and will work in foreseeable future (also, we will fix critical bugs). However, new features will be
     added to a <a href="https://www.npmjs.com/package/@jitsu/sdk-js">new version</a> only.
