@@ -1,5 +1,5 @@
 {
-  "name": "@jitsu/jitsu-js",
+  "name": "@jitsu/sdk-js",
   "version": "2.0.0-beta-2",
   "description": "Jitsu JavaScript SDK (more at http://jitsu.com/docs/js-sdk)",
   "main": "dist/npm/jitsu.cjs.js",
