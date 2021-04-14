@@ -49,6 +49,6 @@ Pass raw JSON payload to **Jitsu**:
 #or in docker deployments
 
 docker run -p <local_port>:8001 \
--e CONFIG_LOCATION='{"server":{"name":"test_instance", "auth":"token1"}}' \
-jitsucom/server:beta
+  -e CONFIG_LOCATION='{"server":{"name":"test_instance", "auth":"token1"}}' \
+  jitsucom/server:beta
 ```

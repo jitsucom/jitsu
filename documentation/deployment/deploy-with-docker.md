@@ -43,7 +43,7 @@ Also, **Jitsu** supports passing config via `CONFIG_LOCATION` environment variab
 
 ```javascript
 docker run --name jitsu-test -p 8000:8001 \n
--e CONFIG_LOCATION='https://username:password@config-server.com?env=dev' \
+  -e CONFIG_LOCATION='https://username:password@config-server.com?env=dev' \
   jitsucom/server:beta
 ```
 

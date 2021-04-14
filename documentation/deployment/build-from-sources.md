@@ -28,9 +28,9 @@ To install the required pre-requisites see the following guides:
 
 ```bash
 cd ~/go/
-mkdir -p src/github.com/jitsucom/eventnative
-cd src/github.com/jitsucom/eventnative
-git clone https://github.com/jitsucom/eventnative.git .
+mkdir -p src/github.com/jitsucom/jitsu
+cd src/github.com/jitsucom/jitsu
+git clone https://github.com/jitsucom/jitsu.git .
 ```
 
 Building **EventNative** is simple, just run:
