@@ -107,11 +107,10 @@ func Init(containerized bool, dockerHubID string) error {
 		logging.Infof("Using server.log.path directory: %q", globalLoggerConfig.FileDir)
 	}
 
-	logging.Info("*** Creating new AppConfig ***")
-	logging.Info("Server Name:", serverName)
+	logging.Info("Starting Jitsu Server. Server name: ", serverName)
 	publicURL := viper.GetString("server.public_url")
 	if publicURL == "" {
-		logging.Warn("Server public url: will be taken from Host header")
+		logging.Info("Server public url will be taken from Host header")
 	} else {
 		logging.Info("Server public url:", publicURL)
 	}
@@ -157,9 +156,15 @@ func Init(containerized bool, dockerHubID string) error {
 	}
 	appConfig.Authority = "0.0.0.0:" + port
 
-	geoResolver, err := geo.CreateResolver(viper.GetString("geo.maxmind_path"))
-	if err != nil {
-		logging.Warn("Run without geo resolver:", err)
+	geoPath := viper.GetString("geo.maxmind_path")
+	if (viper.IsSet("geo.maxmind_path")) {
+		geoResolver, err := geo.CreateResolver(geoPath)
+		if err != nil {
+			logging.Warn("Failed to load MaxMind DB from " + geoPath + ". Geo resolution won't be available",  err)
+		}
+		appConfig.GeoResolver = geoResolver
+	} else {
+		logging.Info("Geo resolution won't be available as geo.maxmind_path is not st")
 	}
 
 	authService, err := authorization.NewService()
@@ -168,7 +173,6 @@ func Init(containerized bool, dockerHubID string) error {
 	}
 
 	appConfig.AuthorizationService = authService
-	appConfig.GeoResolver = geoResolver
 	appConfig.UaResolver = useragent.NewResolver()
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 

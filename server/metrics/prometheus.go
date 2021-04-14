@@ -18,7 +18,7 @@ func Init(enabled bool) {
 		initUsersRecognitionQueue()
 		initStreamEventsQueue()
 	} else {
-		logging.Warnf("Metrics isn't enabled")
+		logging.Info("Prometheus metrics reporting is not enable. Read how to enable them: https://jitsu.com/docs/other-features/application-metrics")
 	}
 }
 
