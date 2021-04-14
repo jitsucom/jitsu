@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/safego"
 )
 
 type HttpAdapter struct {
@@ -41,7 +43,7 @@ func NewHttpAdapter() *HttpAdapter {
 	}
 
 	for i := 0; i < s.threadCount; i++ {
-		go s.sendRequestWorker()
+		safego.RunWithRestart(s.sendRequestWorker)
 	}
 
 	return s
