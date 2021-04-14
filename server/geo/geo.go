@@ -38,10 +38,6 @@ type MaxMindResolver struct {
 type DummyResolver struct{}
 
 func CreateResolver(geoipPath string) (Resolver, error) {
-	if geoipPath == "" {
-		return &DummyResolver{}, errors.New("Maxmind db source wasn't provided")
-	}
-
 	geoIPParser, err := createGeoIPParser(geoipPath)
 	if err != nil {
 		return &DummyResolver{}, fmt.Errorf("Error open maxmind db: %v", err)
@@ -49,7 +45,6 @@ func CreateResolver(geoipPath string) (Resolver, error) {
 
 	resolver := &MaxMindResolver{}
 	resolver.parser = geoIPParser
-	logging.Info("Loaded MaxMind db:", geoipPath)
 
 	return resolver, nil
 }
