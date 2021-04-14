@@ -11,9 +11,11 @@ const banner = "\n==============================================================
 	"Jitsu is an open-source data collection platform developed\n\n" +
 	" 📚 Documentation: https://jitsu.com/docs\n" +
 	" 🌎 Website: https://jitsu.com\n" +
+	" ⭐ Github: https://github.com/jitsucom/jitsu\n" +
 	" 💪 Follow us on twitter: https://twitter.com/jitsucom\n" +
 	" 💬 Join our Slack: https://jitsu.com/slack\n\n" +
 	"========================================================================\n"
+
 
 func logWelcomeBanner(version string) {
 	logging.Infof(banner, version)
