@@ -7,15 +7,14 @@ main [Jitsu JavaScript integration docs](https://jitsu.com/docs/jitsu.js) on the
 
 ### [Join Jitsu Slack](https://jitsu.com/slack)
 
-<hr>
 
+## Maintainers Guide
 
-## Development
-
-_**ATTENTION**_: Use `yarn` for everything except publishing
+This section is indented only for package maintainers.
 
 ### Building and local debug
 
+ * _**ATTENTION**_: Use `yarn` for everything except publishing
  * To spin off a local development server run `yarn devserver`, then open [http://localhost:8081](http://localhost:8081)
    * The server listens to all changes to src and rebuilds npm and `lib.js` automatically. Open test cases HTML files to see
      jitsu in action
@@ -31,3 +30,4 @@ npmjs account beforehand (make sure you have access to Jitsu team)
 
  * Login with your *personal* credentials with `npm login`
  * Run `yarn install && yarn build && yarn test && npm publish --access public`
+ * Update [jitsu-react-example](https://github.com/jitsucom/jitsu-react-example) with latest
