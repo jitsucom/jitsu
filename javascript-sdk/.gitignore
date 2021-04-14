@@ -1,0 +1,4 @@
+dist
+__tests__/artifacts
+package-lock.json
+node_modules/

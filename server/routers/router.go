@@ -29,15 +29,15 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	router := gin.New() //gin.Default()
 	router.Use(gin.Recovery())
 
-	router.GET("/", handlers.NewRedirectHandler("/p/welcome.html").Handler)
 	router.GET("/ping", func(c *gin.Context) {
 		c.String(http.StatusOK, "pong")
 	})
 
 	publicURL := viper.GetString("server.public_url")
+	configuratorURL := viper.GetString("server.configurator_url")
 
-	htmlHandler := handlers.NewPageHandler(viper.GetString("server.static_files_dir"), publicURL, viper.GetBool("server.disable_welcome_page"))
-	router.GET("/p/:filename", htmlHandler.Handler)
+	welcomePageHandler := handlers.NewWelcomePageHandler(viper.GetString("server.static_files_dir"), configuratorURL, viper.GetBool("server.disable_welcome_page"))
+	router.GET("/", welcomePageHandler.Handler)
 
 	staticHandler := handlers.NewStaticHandler(viper.GetString("server.static_files_dir"), publicURL)
 	router.GET("/s/:filename", staticHandler.Handler)
