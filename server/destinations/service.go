@@ -88,7 +88,7 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 		service.init(dc)
 
 		if len(service.unitsByName) == 0 {
-			logging.Errorf("Destinations are empty")
+			logging.Info("Destinations are empty")
 		}
 
 	} else if destinationsSource != "" {
@@ -158,7 +158,7 @@ func (s *Service) updateDestinations(payload []byte) {
 	s.init(dc)
 
 	if len(s.unitsByName) == 0 {
-		logging.Error("Destinations are empty")
+		logging.Info("Destinations are empty")
 	}
 }
 
