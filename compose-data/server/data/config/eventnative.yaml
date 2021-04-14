@@ -1,7 +1,7 @@
 server:
   configurator_url: 'http://localhost:7000'
   log:
-    level: debug
+    level: info
   name: demo-jitsu
   auth: 'http://configurator:7000/api/v1/apikeys?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
   admin_token: '${env.SERVER_ADMIN_TOKEN}'

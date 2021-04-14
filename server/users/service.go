@@ -54,7 +54,7 @@ type RecognitionService struct {
 //NewRecognitionService create a new RecognitionService if enabled and if metaStorage configuration exists
 func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service, configuration *storages.UsersRecognition, logEventPath string) (*RecognitionService, error) {
 	if configuration == nil || !configuration.Enabled {
-		logging.Warnf("Global Users recognition is disabled. Destinations users recognition configurations will be skipped!")
+		logging.Info("Global Users recognition is disabled. Destinations users recognition configurations will be skipped!")
 		return &RecognitionService{closed: true}, nil
 	}
 

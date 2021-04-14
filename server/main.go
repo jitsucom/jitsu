@@ -246,7 +246,7 @@ func main() {
 	//Create sources
 	sourceService, err := sources.NewService(ctx, viper.Sub(sourcesKey), viper.GetString(sourcesKey), destinationsService, metaStorage, cronScheduler)
 	if err != nil {
-		logging.Fatal("Error creating sources service: ", err)
+		logging.Fatal("Error creating sources service:", err)
 	}
 	appconfig.Instance.ScheduleClosing(sourceService)
 
@@ -264,7 +264,7 @@ func main() {
 	//Create task executor
 	taskExecutor, err := synchronization.NewTaskExecutor(poolSize, sourceService, destinationsService, metaStorage, coordinationService)
 	if err != nil {
-		logging.Fatal("Error creating sources sync task executor: ", err)
+		logging.Fatal("Error creating sources sync task executor:", err)
 	}
 	appconfig.Instance.ScheduleClosing(taskExecutor)
 

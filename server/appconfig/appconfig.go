@@ -59,12 +59,10 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.install_taps", true)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 	if containerized {
-		viper.SetDefault("geo.maxmind_path", "/home/eventnative/data/config")
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
 		viper.SetDefault("singer-bridge.venv_dir", "/home/eventnative/data/venv")
 	} else {
-		viper.SetDefault("geo.maxmind_path", "./")
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
@@ -156,17 +154,6 @@ func Init(containerized bool, dockerHubID string) error {
 	}
 	appConfig.Authority = "0.0.0.0:" + port
 
-	geoPath := viper.GetString("geo.maxmind_path")
-	if (viper.IsSet("geo.maxmind_path")) {
-		geoResolver, err := geo.CreateResolver(geoPath)
-		if err != nil {
-			logging.Warn("Failed to load MaxMind DB from " + geoPath + ". Geo resolution won't be available",  err)
-		}
-		appConfig.GeoResolver = geoResolver
-	} else {
-		logging.Info("Geo resolution won't be available as geo.maxmind_path is not st")
-	}
-
 	authService, err := authorization.NewService()
 	if err != nil {
 		return err
@@ -174,6 +161,7 @@ func Init(containerized bool, dockerHubID string) error {
 
 	appConfig.AuthorizationService = authService
 	appConfig.UaResolver = useragent.NewResolver()
+	appConfig.GeoResolver = loadGeoResolver()
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 
 	Instance = &appConfig
@@ -190,4 +178,21 @@ func (a *AppConfig) Close() {
 			logging.Error(err)
 		}
 	}
+}
+
+func loadGeoResolver() geo.Resolver {
+	geoPath := viper.GetString("geo.maxmind_path")
+	if viper.IsSet("geo.maxmind_path") {
+		geoResolver, err := geo.CreateResolver(geoPath)
+		if err != nil {
+			logging.Warnf("Failed to load MaxMind DB from %s: %v. Geo resolution won't be available", geoPath, err)
+		} else {
+			logging.Info("Loaded MaxMind db:", geoPath)
+			return geoResolver
+		}
+	} else {
+		logging.Info("Geo resolution won't be available as geo.maxmind_path is not set")
+	}
+
+	return &geo.DummyResolver{}
 }
