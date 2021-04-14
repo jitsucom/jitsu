@@ -32,12 +32,12 @@ type ConfigurationsStorage interface {
 	Close() error
 }
 
-func NewConfigurationsStorage(ctx context.Context, storageViper *viper.Viper, defaultDestination *destinations.Postgres) (ConfigurationsStorage, error) {
+func NewConfigurationsStorage(ctx context.Context, storageViper *viper.Viper) (ConfigurationsStorage, error) {
 	if storageViper.IsSet("firebase") {
 		firebaseViper := storageViper.Sub("firebase")
 		projectID := firebaseViper.GetString("project_id")
 		credentialsFile := firebaseViper.GetString("credentials_file")
-		return NewFirebase(ctx, projectID, credentialsFile, defaultDestination)
+		return NewFirebase(ctx, projectID, credentialsFile)
 	} else if storageViper.IsSet("redis") {
 		redisViper := storageViper.Sub("redis")
 		host := redisViper.GetString("host")
@@ -77,6 +77,10 @@ const (
 
 //CreateDefaultDestination Creates default destination in case no other destinations exist for the project
 func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*entities.Database, error) {
+	if cs.defaultDestination == nil {
+		return nil, errors.New("Default destination postgres isn't configured")
+	}
+
 	credentials, err := cs.storage.Get(defaultDatabaseCredentialsCollection, projectID)
 	if err != nil {
 		if err == ErrConfigurationNotFound {
@@ -289,8 +293,10 @@ func (cs *ConfigurationsService) UpdateCustomDomain(projectID string, customDoma
 }
 
 func (cs *ConfigurationsService) Close() (multiErr error) {
-	if err := cs.defaultDestination.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, err)
+	if cs.defaultDestination != nil {
+		if err := cs.defaultDestination.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, err)
+		}
 	}
 
 	if err := cs.storage.Close(); err != nil {

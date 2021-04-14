@@ -1,10 +1,9 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"flag"
-	"fmt"
+	"github.com/jitsucom/jitsu/server/config"
 	"math/rand"
 	"net/http"
 	"os"
@@ -12,7 +11,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/debug"
-	"strings"
 	"syscall"
 	"time"
 
@@ -31,7 +29,6 @@ import (
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
-	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/routers"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/scheduling"
@@ -55,13 +52,6 @@ const (
 
 	destinationsKey = "destinations"
 	sourcesKey      = "sources"
-
-	configNotFound = "! Custom eventnative.yaml wasn't provided\n                            " +
-		"! EventNative will start, however it will be mostly useless\n                            " +
-		"! Please make a custom config file, you can generated a config with https://app.jitsu.com.\n                            " +
-		"! Configuration documentation: https://docs.eventnative.org/configuration-1/configuration\n                            " +
-		"! Add config with `-cfg eventnative.yaml` parameter or put eventnative.yaml to <config_dir> and add mapping\n                            " +
-		"! -v <config_dir>/:/home/eventnative/data/config if you're using official Docker image"
 )
 
 var (
@@ -75,71 +65,6 @@ var (
 	tag     string
 	builtAt string
 )
-
-func readInViperConfig() error {
-	flag.Parse()
-	viper.AutomaticEnv()
-
-	//support OS env variables as lower case and dot divided variables e.g. SERVER_PORT as server.port
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-
-	//custom config
-	configSourceStr := *configSource
-
-	//overridden configuration from ENV
-	overriddenConfigLocation := viper.GetString("config_location")
-	if overriddenConfigLocation != "" {
-		configSourceStr = overriddenConfigLocation
-	}
-
-	var payload *resources.ResponsePayload
-	var err error
-	if strings.HasPrefix(configSourceStr, "http://") || strings.HasPrefix(configSourceStr, "https://") {
-		payload, err = resources.LoadFromHTTP(configSourceStr, "")
-	} else if strings.HasPrefix(configSourceStr, "{") && strings.HasSuffix(configSourceStr, "}") {
-		jsonContentType := resources.JSONContentType
-		payload = &resources.ResponsePayload{Content: []byte(configSourceStr), ContentType: &jsonContentType}
-	} else if configSourceStr != "" {
-		payload, err = resources.LoadFromFile(configSourceStr, "")
-	} else {
-		//run without config from sources
-		logging.ConfigWarn = configNotFound
-	}
-
-	if err != nil {
-		return handleConfigErr(err)
-	}
-
-	if payload != nil && payload.ContentType != nil {
-		viper.SetConfigType(string(*payload.ContentType))
-	} else {
-		//default content type
-		viper.SetConfigType("json")
-	}
-
-	if payload != nil {
-		err = viper.ReadConfig(bytes.NewBuffer(payload.Content))
-		if err != nil {
-			errWithContext := fmt.Errorf("Error reading/parsing config from %s: %v", configSourceStr, err)
-			return handleConfigErr(errWithContext)
-		}
-	}
-
-	return nil
-}
-
-//return err only if application can't start without config
-//otherwise log error and return nil
-func handleConfigErr(err error) error {
-	//failfast for running service from source (not containerised) and with wrong config
-	if !*containerizedRun {
-		return err
-	}
-
-	logging.ConfigErr = err.Error()
-	logging.ConfigWarn = configNotFound
-	return nil
-}
 
 func setAppWorkDir() {
 	application, err := os.Executable()
@@ -155,6 +80,8 @@ func setAppWorkDir() {
 }
 
 func main() {
+	flag.Parse()
+
 	//Setup seed for globalRand
 	rand.Seed(time.Now().Unix())
 
@@ -167,7 +94,7 @@ func main() {
 	// Setup application directory as working directory
 	setAppWorkDir()
 
-	if err := readInViperConfig(); err != nil {
+	if err := config.Read(*configSource, *containerizedRun); err != nil {
 		logging.Fatal("Error while reading application config:", err)
 	}
 
