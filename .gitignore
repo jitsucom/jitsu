@@ -6,3 +6,4 @@ compose-data/server/data/logs
 compose-data/server/data/venv
 
 .idea/
+.run/
