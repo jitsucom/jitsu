@@ -29,4 +29,5 @@ npmjs account beforehand (make sure you have access to Jitsu team)
 
 ### Publishing new version
 
-Make
+ * Login with your *personal* credentials with `npm login`
+ * Run `yarn install && yarn build && yarn test && npm publish --access public`

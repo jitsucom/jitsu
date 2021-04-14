@@ -1,6 +1,6 @@
 {
   "name": "@jitsu/jitsu-js",
-  "version": "2.0.0-beta.0",
+  "version": "2.0.0-beta-2",
   "description": "Jitsu JavaScript SDK (more at http://jitsu.com/docs/js-sdk)",
   "main": "dist/npm/jitsu.cjs.js",
   "module": "dist/npm/dist/jitsu.esm.js",
@@ -43,8 +43,5 @@
     "ts-node": "^9.1.1",
     "tslib": "^2.2.0",
     "typescript": "^4.2.3"
-  },
-  "dependencies": {
-    "rudder-sdk-js": "^1.0.16"
   }
 }
