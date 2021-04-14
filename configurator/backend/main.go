@@ -17,6 +17,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/ssl"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/notifications"
@@ -31,14 +32,13 @@ import (
 	"syscall"
 
 	"net/http"
-	"strings"
 	"time"
 )
 
 const serviceName = "Jitsu-Configurator"
 
 var (
-	configFilePath   = flag.String("cfg", "", "config file path")
+	configSource     = flag.String("cfg", "", "config file path")
 	containerizedRun = flag.Bool("cr", false, "containerised run marker")
 
 	//ldflags
@@ -62,7 +62,13 @@ func main() {
 	// Setup application directory as working directory
 	setAppWorkDir()
 
-	readConfiguration(*configFilePath)
+	if err := config.Read(*configSource, *containerizedRun); err != nil {
+		logging.Fatal("Error while reading application config:", err)
+	}
+
+	if err := appconfig.Init(*containerizedRun); err != nil {
+		logging.Fatal(err)
+	}
 
 	//listen to shutdown signal to free up all resources
 	ctx, cancel := context.WithCancel(context.Background())
@@ -119,7 +125,7 @@ func main() {
 	if !viper.IsSet("storage") {
 		logging.Fatalf("'storage' is required configuration section")
 	}
-	configurationsStorage, err := storages.NewConfigurationsStorage(ctx, viper.Sub("storage"), defaultPostgres)
+	configurationsStorage, err := storages.NewConfigurationsStorage(ctx, viper.Sub("storage"))
 	if err != nil {
 		logging.Fatalf("Error creating configurations storage: %v", err)
 	}
@@ -147,12 +153,11 @@ func main() {
 	}
 
 	jitsuConfig := &jitsu.Config{}
-	err = viper.UnmarshalKey("jitsu", jitsuConfig)
-	if err != nil {
+	if err = viper.UnmarshalKey("jitsu", jitsuConfig); err != nil {
 		logging.Fatalf("Error parsing 'jitsu' config: %v", err)
 	}
-	err = jitsuConfig.Validate()
-	if err != nil {
+
+	if err = jitsuConfig.Validate(); err != nil {
 		logging.Fatalf("Error validating 'jitsu' config: %v", err)
 	}
 
@@ -208,23 +213,6 @@ func main() {
 		IdleTimeout:       time.Second * 65,
 	}
 	logging.Fatal(server.ListenAndServe())
-}
-
-func readConfiguration(configFilePath string) {
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	if configFilePath != "" {
-		logging.Infof("Reading config from %s", configFilePath)
-	}
-	viper.SetConfigFile(configFilePath)
-	if err := viper.ReadInConfig(); err != nil {
-		if viper.ConfigFileUsed() != "" {
-			logging.Fatal("Could not read file", viper.ConfigFileUsed())
-		}
-	}
-	if err := appconfig.Init(*containerizedRun); err != nil {
-		logging.Fatal(err)
-	}
 }
 
 func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.ConfigurationsStorage,

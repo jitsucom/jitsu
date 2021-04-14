@@ -11,15 +11,15 @@ type SSHConfig struct {
 
 func (sc *SSHConfig) Validate() error {
 	if sc == nil {
-		return errors.New("eventnative.ssl.ssh is required config object")
+		return errors.New("jitsu.ssl.ssh is required config object")
 	}
 
 	if sc.User == "" {
-		return errors.New("eventnative.ssl.ssh.user is required parameter")
+		return errors.New("jitsu.ssl.ssh.user is required parameter")
 	}
 
 	if sc.PrivateKeyPath == "" {
-		return errors.New("eventnative.ssl.ssh.privateKeyPath is required parameter")
+		return errors.New("jitsu.ssl.ssh.privateKeyPath is required parameter")
 	}
 
 	return nil
@@ -47,27 +47,27 @@ func (sc *SSLConfig) Validate() error {
 	}
 
 	if len(sc.Hosts) == 0 {
-		return errors.New("eventnative.ssl.hosts is required parameter and mustn't be empty")
+		return errors.New("jitsu.ssl.hosts is required parameter and mustn't be empty")
 	}
 
 	if sc.CertificatePath == "" {
-		return errors.New("eventnative.ssl.cert_path is required parameter")
+		return errors.New("jitsu.ssl.cert_path is required parameter")
 	}
 
 	if sc.PKPath == "" {
-		return errors.New("eventnative.ssl.pk_path is required parameter")
+		return errors.New("jitsu.ssl.pk_path is required parameter")
 	}
 
 	if sc.NginxConfigPath == "" {
-		return errors.New("eventnative.ssl.nginx_conf_path is required parameter")
+		return errors.New("jitsu.ssl.nginx_conf_path is required parameter")
 	}
 
 	if sc.AcmeChallengePath == "" {
-		return errors.New("eventnative.ssl.acme_challenge_path is required parameter")
+		return errors.New("jitsu.ssl.acme_challenge_path is required parameter")
 	}
 
 	if sc.ServerConfigTemplate == "" {
-		return errors.New("eventnative.ssl.server_config_template is required parameter")
+		return errors.New("jitsu.ssl.server_config_template is required parameter")
 	}
 
 	return nil
@@ -82,11 +82,11 @@ type Config struct {
 
 func (c *Config) Validate() error {
 	if c.BaseURL == "" {
-		return errors.New("eventnative.base_url is required parameter")
+		return errors.New("jitsu.base_url is required parameter")
 	}
 
 	if c.AdminToken == "" {
-		return errors.New("eventnative.admin_token is required parameter")
+		return errors.New("jitsu.admin_token is required parameter")
 	}
 
 	err := c.SSL.Validate()

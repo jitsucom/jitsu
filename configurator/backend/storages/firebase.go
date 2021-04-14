@@ -7,7 +7,6 @@ import (
 	"errors"
 	firebase "firebase.google.com/go/v4"
 	"fmt"
-	"github.com/jitsucom/jitsu/configurator/destinations"
 	entime "github.com/jitsucom/jitsu/configurator/time"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -17,12 +16,11 @@ import (
 )
 
 type Firebase struct {
-	ctx                context.Context
-	client             *firestore.Client
-	defaultDestination *destinations.Postgres
+	ctx    context.Context
+	client *firestore.Client
 }
 
-func NewFirebase(ctx context.Context, projectID string, credentialsFile string, defaultDestination *destinations.Postgres) (ConfigurationsStorage, error) {
+func NewFirebase(ctx context.Context, projectID string, credentialsFile string) (ConfigurationsStorage, error) {
 	fbConfig := &firebase.Config{ProjectID: projectID}
 	app, err := firebase.NewApp(ctx, fbConfig, option.WithCredentialsFile(credentialsFile))
 	if err != nil {
@@ -34,7 +32,7 @@ func NewFirebase(ctx context.Context, projectID string, credentialsFile string, 
 		return nil, err
 	}
 
-	return &Firebase{ctx: ctx, client: firestoreClient, defaultDestination: defaultDestination}, nil
+	return &Firebase{ctx: ctx, client: firestoreClient}, nil
 }
 
 func (fb *Firebase) Get(collection string, documentID string) ([]byte, error) {
