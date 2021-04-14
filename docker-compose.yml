@@ -8,6 +8,9 @@ services:
     build:
       context: .
       dockerfile: configurator.Dockerfile
+    environment:
+      - SERVER_ADMIN_TOKEN=${SERVER_ADMIN_TOKEN}
+      - CONFIGURATOR_ADMIN_TOKEN=${CONFIGURATOR_ADMIN_TOKEN}
     image: jitsucom/configurator:latest
     depends_on:
       - redis
@@ -23,6 +26,9 @@ services:
     build:
       context: .
       dockerfile: server.Dockerfile
+    environment:
+      - SERVER_ADMIN_TOKEN=${SERVER_ADMIN_TOKEN}
+      - CONFIGURATOR_ADMIN_TOKEN=${CONFIGURATOR_ADMIN_TOKEN}
     image: jitsucom/server:latest
     depends_on:
       - configurator
