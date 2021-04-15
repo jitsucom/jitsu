@@ -1,10 +1,23 @@
 ---
 sort: "0001"
+title_: "JS Reference (DEPRECATED)"
+
 ---
 
 import {Hint} from "../../../../components/documentationComponents";
 
 # JavaScript Reference
+
+<Hint className="hidden" style={{display: 'none'}}>
+    This section refers to a <a href="https://www.npmjs.com/package/@jitsu/eventnative">deprecated client library</a>. The library
+    works and will work in foreseeable future (also, we will fix critical bugs). However, new features will be
+    added to a <a href="https://www.npmjs.com/package/@jitsu/sdk-js">new version</a> only.
+    <br /><br />
+    Please, read <a href="/docs/sending-data/js-sdk">JS SDK</a> section if you're starting new project. If you're migrating existing project,
+    check out <a href="/docs/sending-data/js-sdk/migration">Migration Guide</a>
+</Hint>
+
+
 
 ## Understanding event tracking
 

@@ -40,6 +40,30 @@ RUN make clean_js assemble_js &&\
     cp -r ./build/dist/* /app
 
 #######################################
+# BUILD JS SDK STAGE
+FROM golang:1.14.6-alpine3.12 as jsSdkbuilder
+
+RUN mkdir /javascript-sdk && \
+    mkdir /app
+
+# Install dependencies
+RUN apk add git make bash npm yarn
+
+WORKDIR /javascript-sdk
+
+# Install npm dependencies
+ADD javascript-sdk/package.json ./package.json
+RUN yarn install
+
+# Copy project
+ADD javascript-sdk/. .
+
+# Build
+RUN yarn build && \
+    test -e ./dist/web/lib.js && \
+    cp ./dist/web/lib.js /app/
+
+#######################################
 # BUILD BACKEND STAGE
 FROM golang:1.14.6-alpine3.12 as builder
 
@@ -68,6 +92,7 @@ WORKDIR /home/$EVENTNATIVE_USER/app
 # copy static files from build-image
 COPY --from=builder /app .
 COPY --from=jsbuilder /app .
+COPY --from=jsSdkbuilder /app/lib.js ./web/lib.js
 
 RUN chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/app
 

@@ -67,7 +67,8 @@ func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTim
 //starts EtcdService heart beat goroutine: see EtcdService.startHeartBeating()
 func NewService(ctx context.Context, serverName string, viper *viper.Viper) (Service, error) {
 	if viper == nil {
-		logging.Warn("Using in-memory coordination service so as no configuration is provided")
+		logging.Info("Coordination service isn't provided. Jitsu server is working in single-node mode. " +
+			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
 		return NewInMemoryService([]string{serverName}), nil
 	}
 

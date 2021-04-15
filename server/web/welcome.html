@@ -2,10 +2,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Welcome to EventNative</title>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans&family=Rubik:wght@500&family=Ubuntu+Mono&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.2/styles/default.min.css"/>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins&family=Rubik:wght@500&family=Ubuntu+Mono&display=swap" rel="stylesheet">
+    <title>Welcome to Jitsu</title>
     <style type="text/css">
+        body {
+            font-family: 'Poppins', sans-serif;
+        }
+        .main {
+            max-width: 750px;
+            margin: auto;
+        }
+        .jitsu-configurator-false {
+            display: none;
+        }
         pre.code {
 
             background-color: lightgray;
@@ -16,132 +25,49 @@
             border-radius: 7px;
             margin-bottom: 1px;
         }
-        #tracking_code {
-            transition: opacity 0.3s ease;
-        }
-        ._pending {
-            opacity: 0.4;
+
+        a {
+            font-weight: bold;
         }
 
-        body {
-            margin: auto;
-            min-width: 800px;
-            max-width: 50%;
-            font-family: 'IMB Plex Sans', sans-serif;
-        }
-
-        h1 {
-            font-family: 'Rubik', serif;
-        }
-        .options label {
-            margin-left: 20px;
-            margin-bottom: 3px;
-            font-family: 'Ubuntu Mono', monospace;
-        }
-        .options input {
-            margin-right: 8px;
-        }
-        .options label:after {
-            content: '';
-            display: block;
-        }
     </style>
 
-    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.1.2/highlight.min.js"></script>
     <script src="//cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            document.querySelectorAll('pre').forEach((block) => {
-                hljs.highlightBlock(block);
-            });
-        });
-
-        function generateTrackingCode() {
-            let url = "/t/inline.js?key=" + encodeURIComponent("[API_KEY]");
-            let trackingCode = $('#tracking_code');
-            trackingCode.addClass('_pending');
-            for (let attr of ['ga_hook', 'segment_hook', 'randomize_url']) {
-                if ($("#" + attr).prop('checked') === true) {
-                    url += `&${attr}=true`
-                }
-            }
-            $.ajax({
-                    type: "GET",
-                    url: url,
-                    dataType: 'text',
-                    error: () => trackingCode.text("//Failed to get snippet from server. Please, check error log"),
-                    success: (data) => {
-                        if ($("#send_data_directly").prop('checked') === true) {
-                            data += "\n\neventN.track('pageview');\n"
-                        }
-                        trackingCode.text(data).removeClass('_pending');
-                        hljs.highlightBlock(trackingCode[0]);
-                        try {
-                          Array.from(document.querySelectorAll('script')).forEach(
-                            (script) => {
-                              if (script.src.match(/track\..*js$/)) {
-                                script.parentNode.removeChild(script)
-                              }
-                            }
-                          )
-                          eval(data);
-                        } catch (e) {
-                          console.log('eval failed', e);
-                        }
-                    }
-                }
-            );
-        }
-
-        $(document).ready(() => {
-            generateTrackingCode();
-            $(".options input").change(generateTrackingCode);
-            var $code = $('#tracking_code');
-            $code.on('click', () => {
-              var selection = window.getSelection();
-              selection.removeAllRanges();
-              var range = document.createRange(),
-                  referenceNode = $code[0];
-              range.selectNodeContents(referenceNode);
-              selection.addRange(range);
-            });
-        })
-    </script>
 </head>
-<p>
-<h1 align="center">
+<div class="main">
+<p align="center">
     <img
-            src="data:image/png;base64,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"
+            src="data:image/png;base64,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"
             height="50"
     />
-
-    Welcome to EventNative!
-
-</h1>
-<b>If you see this page, the <b></b><a href="https://github.com/jitsucom/jitsu/server">EventNative</a></b> server is successfully installed and working.</p>
+</p>
+<h1 align="center">Welcome to Jitsu!</h1>
+<b>If you see this page, the <b></b><a href="https://github.com/jitsucom/jitsu/server">Jitsu</a></b> server is successfully installed and working.</b>
 <p>Add following config parameter to disable this page (blank page will be shown instead)</p>
 <pre class="code">
 server:
-  disable_welcome_page: true</pre>
-<p>Use this code to add tracking to your webapp (replace <b>API_KEY</b> with key you choose during installation). Further reading: <a href="https://docs.eventnative.org/javascript-reference">JavaScript
-    integration guide</a></p>
-<pre class="code" id="tracking_code">//Data loading...</pre>
-<p>Options:</p>
-<p class="options">
-  <label><input type="checkbox" id="ga_hook"/>Google Analytics Interceptor</label>
-  <label><input type="checkbox" id="segment_hook"/>Segment Interceptor</label>
-  <label><input type="checkbox" id="send_data_directly"/>Send Data Directly</label>
-    <label><input type="checkbox" id="randomize_url"/>Randomize url for eluding ad blockers</label>
+  disable_welcome_page: true
+</pre>
+
+<p class="jitsu-configurator-{{.__JITSU_CONFIGURATOR_PRESENT__}}">This server is configured by Jitsu configurator.
+    Please, visit <a href="{{.__JITSU_CONFIGURATOR_URL__}}">Jitsu Configurator page</a> to add or remove destinations, connectors or API keys.
+</p>
+<p>
+    Read more about event tracking at <a href="https://jitsu.com/docs/js-sdk">JS SDK documentation section</a>.
 </p>
 
-<p>Links:</p>
-<ol>
-    <li><a href="https://github.com/jitsucom/jitsu/server">GitHub</a></li>
-    <li><a href="https://docs.eventnative.org">Documentation</a></li>
-</ol>
+<h3>Other links:</h3>
+<ul style="list-style: none">
+    <li>📚 Documentation: <a href="https://jitsu.com/docs">https://jitsu.com/docs</a></li>
+    <li>🌎 Website: <a href="https://jitsu.com">https://jitsu.com</a></li>
+    <li>⭐ Github: <a href="https://github.com/jitsucom/jitsu">https://github.com/jitsucom/jitsu</a></li>
+    <li>💪 Follow us on twitter: <a href="https://twitter.com/jitsucom">https://twitter.com/jitsucom</a></li>
+    <li>💬 Join our Slack: <a href="https://jitsu.com/slack">https://jitsu.com/slack</a></li>
+</ul>
 
-<p></p><i>Thank you for using EventNative!</i></p>
 
+<p><i>Thank you for using Jitsu!</i></p>
 
+</div>
 </body>
 </html>

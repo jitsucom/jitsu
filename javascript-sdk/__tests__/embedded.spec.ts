@@ -1,0 +1,52 @@
+import { runUrl, TestServer } from './common/common';
+import { chromium } from 'playwright';
+import { Browser } from 'playwright/types/types';
+
+const server = new TestServer();
+let browser: Browser;
+
+beforeAll(async () => {
+  await server.init();
+  browser = await chromium.launch();
+});
+
+test('lib.js accessible', async () => {
+  await runUrl(browser, server.getUrl('/lib.js'));
+});
+
+test('test embedded no init', async () => {
+  server.clearRequestLog();
+  await runUrl(browser, server.getUrl('/test-case/embed-no-init.html?gclid=1'));
+  let requestLog = server.requestLog;
+  expect(requestLog.length).toBe(2);
+  expect(requestLog[0].api_key).toBe("Test2");
+  expect(requestLog[0].src).toBe("eventn");
+  expect(requestLog[0].eventn_ctx.click_id.gclid).toBe("1");
+  expect(requestLog[0].eventn_ctx.user.id).toBe("uid")
+  expect(requestLog[0].eventn_ctx.user.email).toBe("a@b.com")
+  expect(requestLog[0].eventn_ctx.user.anonymous_id).toBe(requestLog[1].eventn_ctx.user.anonymous_id)
+});
+
+test('test segment intercept', async () => {
+  server.clearRequestLog();
+  const {allRequests} = await runUrl(browser, server.getUrl('/test-case/segment-intercept.html?gclid=1&utm_source=UTM-SOURCE'));
+  expect(allRequests.filter(req => req.url().indexOf("https://api.segment.io/v1/") >= 0).length).toBe(server.requestLog.length);
+  expect(server.requestLog.length).toBe(4);
+});
+
+
+test('test embedded', async () => {
+  server.clearRequestLog();
+  await runUrl(browser, server.getUrl('/test-case/embed.html?gclid=1'));
+  let requestLog = server.requestLog;
+  expect(requestLog.length).toBe(2);
+  expect(requestLog[0].api_key).toBe("Test");
+  expect(requestLog[0].click_id.gclid).toBe("1");
+  expect(requestLog[0].user.anonymous_id).toBeDefined()
+  expect(requestLog[0].user.anonymous_id).toBe(requestLog[1].user.anonymous_id)
+});
+
+afterAll(async () => {
+  server.stop();
+  await browser.close();
+})

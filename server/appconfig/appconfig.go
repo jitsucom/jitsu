@@ -59,12 +59,10 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.install_taps", true)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 	if containerized {
-		viper.SetDefault("geo.maxmind_path", "/home/eventnative/data/config")
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
 		viper.SetDefault("singer-bridge.venv_dir", "/home/eventnative/data/venv")
 	} else {
-		viper.SetDefault("geo.maxmind_path", "./")
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
@@ -107,11 +105,10 @@ func Init(containerized bool, dockerHubID string) error {
 		logging.Infof("Using server.log.path directory: %q", globalLoggerConfig.FileDir)
 	}
 
-	logging.Info("*** Creating new AppConfig ***")
-	logging.Info("Server Name:", serverName)
+	logging.Info("Starting Jitsu Server. Server name: ", serverName)
 	publicURL := viper.GetString("server.public_url")
 	if publicURL == "" {
-		logging.Warn("Server public url: will be taken from Host header")
+		logging.Info("Server public url will be taken from Host header")
 	} else {
 		logging.Info("Server public url:", publicURL)
 	}
@@ -157,19 +154,14 @@ func Init(containerized bool, dockerHubID string) error {
 	}
 	appConfig.Authority = "0.0.0.0:" + port
 
-	geoResolver, err := geo.CreateResolver(viper.GetString("geo.maxmind_path"))
-	if err != nil {
-		logging.Warn("Run without geo resolver:", err)
-	}
-
 	authService, err := authorization.NewService()
 	if err != nil {
 		return err
 	}
 
 	appConfig.AuthorizationService = authService
-	appConfig.GeoResolver = geoResolver
 	appConfig.UaResolver = useragent.NewResolver()
+	appConfig.GeoResolver = loadGeoResolver()
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
 
 	Instance = &appConfig
@@ -186,4 +178,21 @@ func (a *AppConfig) Close() {
 			logging.Error(err)
 		}
 	}
+}
+
+func loadGeoResolver() geo.Resolver {
+	geoPath := viper.GetString("geo.maxmind_path")
+	if viper.IsSet("geo.maxmind_path") {
+		geoResolver, err := geo.CreateResolver(geoPath)
+		if err != nil {
+			logging.Warnf("Failed to load MaxMind DB from %s: %v. Geo resolution won't be available", geoPath, err)
+		} else {
+			logging.Info("Loaded MaxMind db:", geoPath)
+			return geoResolver
+		}
+	} else {
+		logging.Info("Geo resolution won't be available as geo.maxmind_path is not set")
+	}
+
+	return &geo.DummyResolver{}
 }
