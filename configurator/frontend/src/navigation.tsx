@@ -16,26 +16,19 @@ const SourcesPage = React.lazy(() => import('./ui/pages/SourcesPage'));
 const StatusPage = React.lazy(() => import('./lib/components/StatusPage/StatusPage'));
 const PasswordForm = React.lazy(() => import('./lib/components/PasswordForm/PasswordForm'));
 
+export type PageProps = {
+  onHeaderChange?: (header: ReactNode) => void,
+  [propName: string]: any
+}
+
 export class Page {
-  componentFactory: (props: any) => ReactElement;
+  componentFactory: (props: PageProps) => ReactElement;
   pageTitle: string;
   path: string[];
   pageHeader: React.ReactNode;
   doNotWrap: boolean;
 
-  public getPrefixedPath(): string[] {
-    return this.path.map((el) => (el.startsWith('/') ? el : '/' + el));
-  }
-
-  public get id() {
-    let firstPath = this.path.find((p) => p && p.length > 0);
-    if (!firstPath) {
-      firstPath = 'root';
-    }
-    return firstPath.replace('/', '');
-  }
-
-  public getComponent(props?: any): ReactNode {
+  public getComponent(props?: PageProps): ReactNode {
     return this.componentFactory(props || {});
   }
 
