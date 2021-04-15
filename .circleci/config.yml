@@ -74,6 +74,9 @@ install_buildx: &install_buildx
       curl --silent -L --output ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-amd64
       chmod a+x ~/.docker/cli-plugins/docker-buildx
       docker buildx version
+      docker context create jitsu
+      docker buildx create jitsu --use
+      docker run --privileged --rm tonistiigi/binfmt --install all
 
 build_ksense: &build_ksense
   run:
@@ -87,9 +90,7 @@ build_jitsu: &build_jitsu
   run:
     name: Build and Push jitsu Docker image
     command: |
-      DOCKER_BUILDKIT=1  docker buildx build  --platform linux/amd64,linux/arm64 -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
-      echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-      docker push $IMAGE_NAME:$IMAGE_VERSION
+      DOCKER_BUILDKIT=1 docker buildx build  --platform linux/amd64,linux/arm64 --push -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
 
 version: 2.1
 
@@ -165,7 +166,6 @@ jobs:
             - "/go/pkg/mod"
 
   build-latest-en-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: ksense/eventnative
       DOCKER_FILE: server.Dockerfile
@@ -180,13 +180,15 @@ jobs:
       - <<: *build_ksense
 
   build-latest-jitsu-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/server
       DOCKER_FILE: server.Dockerfile
       IMAGE_VERSION: latest
     docker:
       - image: cimg/go:1.14.15
+        auth:
+          username: $DOCKER_LOGIN
+          password: $DOCKER_PWD
     steps:
       - checkout
       - setup_remote_docker:
@@ -203,6 +205,9 @@ jobs:
       IMAGE_VERSION: latest
     docker:
       - image: cimg/go:1.14.15
+        auth:
+          username: $DOCKER_LOGIN
+          password: $DOCKER_PWD
     steps:
       - checkout
       - setup_remote_docker:
@@ -234,6 +239,9 @@ jobs:
       IMAGE_VERSION: beta
     docker:
       - image: cimg/go:1.14.15
+        auth:
+          username: $DOCKER_LOGIN
+          password: $DOCKER_PWD
     steps:
       - checkout
       - setup_remote_docker:
@@ -250,6 +258,9 @@ jobs:
       IMAGE_VERSION: beta
     docker:
       - image: cimg/go:1.14.15
+        auth:
+          username: $DOCKER_LOGIN
+          password: $DOCKER_PWD
     steps:
       - checkout
       - setup_remote_docker:
@@ -280,6 +291,9 @@ jobs:
       IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
       - image: cimg/go:1.14.15
+        auth:
+          username: $DOCKER_LOGIN
+          password: $DOCKER_PWD
     steps:
       - checkout
       - setup_remote_docker:
@@ -296,6 +310,9 @@ jobs:
       IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
       - image: cimg/go:1.14.15
+        auth:
+          username: $DOCKER_LOGIN
+          password: $DOCKER_PWD
     steps:
       - checkout
       - setup_remote_docker:
