@@ -70,7 +70,6 @@ install_buildx: &install_buildx
   run:
     name: install docker buildx
     command: |
-      apk add make curl
       mkdir -vp ~/.docker/cli-plugins/
       curl --silent -L --output ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-amd64
       chmod a+x ~/.docker/cli-plugins/docker-buildx
@@ -80,7 +79,7 @@ build_ksense: &build_ksense
   run:
     name: Build and Push ksense EventNative Docker image
     command: |
-      docker build --build-arg dhid=ksense -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
+      DOCKER_BUILDKIT=1 docker build --build-arg dhid=ksense -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
       echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
       docker push $IMAGE_NAME
 
@@ -88,7 +87,7 @@ build_jitsu: &build_jitsu
   run:
     name: Build and Push jitsu Docker image
     command: |
-      docker buildx build  --platform linux/amd64,linux/arm64 -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
+      DOCKER_BUILDKIT=1  docker buildx build  --platform linux/amd64,linux/arm64 -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
       echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
       docker push $IMAGE_NAME:$IMAGE_VERSION
 
@@ -172,7 +171,7 @@ jobs:
       DOCKER_FILE: server.Dockerfile
       IMAGE_VERSION: latest
     docker:
-      - image: circleci/golang:1.14-buster-node
+      - image: cimg/go:1.14.15
     steps:
       - checkout
       - setup_remote_docker:
@@ -187,7 +186,7 @@ jobs:
       DOCKER_FILE: server.Dockerfile
       IMAGE_VERSION: latest
     docker:
-      - image: circleci/golang:1.14-buster-node
+      - image: cimg/go:1.14.15
     steps:
       - checkout
       - setup_remote_docker:
@@ -203,7 +202,7 @@ jobs:
       DOCKER_FILE: configurator.Dockerfile
       IMAGE_VERSION: latest
     docker:
-      - image: circleci/golang:1.14-buster-node
+      - image: cimg/go:1.14.15
     steps:
       - checkout
       - setup_remote_docker:
@@ -219,7 +218,7 @@ jobs:
       DOCKER_FILE: server.Dockerfile
       IMAGE_VERSION: beta
     docker:
-      - image: circleci/golang:1.14-buster-node
+      - image: cimg/go:1.14.15
     steps:
       - checkout
       - setup_remote_docker:
@@ -234,7 +233,7 @@ jobs:
       DOCKER_FILE: configurator.Dockerfile
       IMAGE_VERSION: beta
     docker:
-      - image: circleci/golang:1.14-buster-node
+      - image: cimg/go:1.14.15
     steps:
       - checkout
       - setup_remote_docker:
@@ -250,7 +249,7 @@ jobs:
       DOCKER_FILE: server.Dockerfile
       IMAGE_VERSION: beta
     docker:
-      - image: circleci/golang:1.14-buster-node
+      - image: cimg/go:1.14.15
     steps:
       - checkout
       - setup_remote_docker:
@@ -266,7 +265,7 @@ jobs:
       DOCKER_FILE: server.Dockerfile
       IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
-      - image: circleci/golang:1.14-buster-node
+      - image: cimg/go:1.14.15
     steps:
       - checkout
       - setup_remote_docker:
@@ -280,7 +279,7 @@ jobs:
       DOCKER_FILE: server.Dockerfile
       IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
-      - image: circleci/golang:1.14-buster-node
+      - image: cimg/go:1.14.15
     steps:
       - checkout
       - setup_remote_docker:
@@ -296,7 +295,7 @@ jobs:
       DOCKER_FILE: configurator.Dockerfile
       IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
-      - image: circleci/golang:1.14-buster-node
+      - image: cimg/go:1.14.15
     steps:
       - checkout
       - setup_remote_docker:
