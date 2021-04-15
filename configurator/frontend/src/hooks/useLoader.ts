@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useEffect, useState } from "react";
+import { Dispatch, SetStateAction, useEffect, useState } from 'react';
 
 export type Loader<T> = () => Promise<T>;
 
@@ -37,7 +37,6 @@ function useLoader<T>(loader: Loader<T>): [Error, T, Dispatch<SetStateAction<T>>
   }, [])
   return [error, data, setData];
 }
-
 
 export default useLoader;
 export { useLoader };
