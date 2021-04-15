@@ -16,18 +16,22 @@ RUN ln -s /home/$CONFIGURATOR_USER/data/config /home/$CONFIGURATOR_USER/app/res 
     chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/logs
 
 #######################################
-# BUILD JS STAGE
-FROM golang:1.14.6-alpine3.12 as jsbuilder
+# BUILD BASE STAGE
+FROM golang:1.14.6-alpine3.12 as builder
 
 # Install dependencies
-RUN apk add git make npm yarn
+RUN apk add git make bash npm yarn
+
+#######################################
+# BUILD JS STAGE
+FROM builder as jsbuilder
 
 # Install yarn dependencies
 ADD configurator/frontend/package.json /app/package.json
 
 WORKDIR /app
 
-RUN yarn install
+RUN yarn install --network-timeout 1000000
 
 # Copy project
 ADD configurator/frontend/. ./
@@ -37,12 +41,9 @@ RUN yarn build
 
 #######################################
 # BUILD BACKEND STAGE
-FROM golang:1.14.6-alpine3.12 as builder
+FROM builder as builder
 
 ENV CONFIGURATOR_USER=configurator
-
-# Install dependencies
-RUN apk add git make bash
 
 #Copy backend
 ADD configurator/backend /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend
