@@ -14,14 +14,22 @@ import ApplicationServices from '@service/ApplicationServices';
 import { CollectionSourceData, CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
 import './SourcesPage.less';
+import { PageProps } from '@./navigation';
 
-const SourcesPage = () => {
+const SourcesPage = (props: PageProps) => {
   const [sources, setSources] = useState<CollectionSourceData>();
 
   const services = useMemo(() => ApplicationServices.get(), []);
   const getComponent = useCallback(
-    (Component: React.FC<CommonSourcePageProps>) => (currentProps: RouteProps) =>
-      <Component setSources={setSources} sources={sources?.sources} projectId={services.activeProject.id} {...currentProps} />,
+    (Component: React.FC<CommonSourcePageProps>) => (currentProps: RouteProps) =>{
+      console.log('Rendering ' + Component.displayName + ' with ' + JSON.stringify(currentProps));
+      return <Component
+        setSources={setSources}
+        sources={sources?.sources}
+        projectId={services.activeProject.id}
+        setHeader={props.setHeader}
+        {...currentProps} />
+    },
     [services.activeProject.id, sources]
   );
 
@@ -29,19 +37,17 @@ const SourcesPage = () => {
     services.storageService.get('sources', services.activeProject.id).then(({ _lastUpdated, ...response }) => setSources(response))
   }, [services, services.activeProject.id]);
 
-  return (
-    <>
-      {!sources ?
-        <CenteredSpin />
-        : (
-          <Switch>
-            <Route path={routes.root} exact render={getComponent(SourcesList)} />
-            <Route path={[routes.add, routes.addExact]} strict={false} exact render={getComponent(AddSource)} />
-            <Route path={[routes.edit, routes.editExact]} strict={false} exact component={getComponent(EditSource)} />
-          </Switch>
-        )}
-    </>
-  );
+  return <>
+    {!sources ?
+      <CenteredSpin />
+      : (
+        <Switch>
+          <Route path={routes.root} exact render={getComponent(SourcesList)} />
+          <Route path={[routes.add, routes.addExact]} strict={false} exact render={getComponent(AddSource)} />
+          <Route path={[routes.edit, routes.editExact]} strict={false} exact component={getComponent(EditSource)} />
+        </Switch>
+      )}
+  </>
 };
 
 SourcesPage.displayName = 'SourcesPage';

@@ -1,6 +1,6 @@
 /* eslint-disable */
 import * as React from 'react';
-import {ReactNode, useState} from 'react';
+import { ExoticComponent, ReactNode, useState } from 'react';
 
 import {NavLink, Redirect, Route, Switch} from 'react-router-dom';
 import {Button, Col, Dropdown, Form, Input, Layout, Menu, message, Modal, Row, Tooltip} from 'antd';
@@ -23,13 +23,13 @@ import {Align, CenteredSpin, GlobalError, handleError, Preloader} from './lib/co
 import {reloadPage} from './lib/commons/utils';
 import {Permission, User} from './lib/services/model';
 import OnboardingForm from './lib/components/OnboardingForm/OnboardingForm';
-import {Page, PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
+import { Page, PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES, usePageLocation } from './navigation';
 
 import logo from './icons/logo.svg';
 import PapercupsWrapper from './lib/commons/papercups';
 import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
 import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined";
-import { ApplicationContent, ApplicationMenu, ApplicationSidebar, PageHeader } from '@./Layout';
+import { ApplicationPageWrapper} from './Layout';
 import classNames from 'classnames';
 
 enum AppLifecycle {
@@ -107,6 +107,7 @@ export default class App extends React.Component<AppProperties, AppState> {
                 return (
                     <Switch>
                         {pages.map((route) => {
+                            let Component = route.component as ExoticComponent;
                             return (
                                 <Route
                                     key={route.getPrefixedPath().join('')}
@@ -117,7 +118,7 @@ export default class App extends React.Component<AppProperties, AppState> {
                                             pagePath: routeProps.location.key
                                         });
                                         document.title = route.pageTitle;
-                                        return route.getComponent({...routeProps});
+                                        return <Component {...(routeProps as any)} />;
                                     }}
                                 />
                             );
@@ -138,31 +139,13 @@ export default class App extends React.Component<AppProperties, AppState> {
         return <React.Suspense fallback={<CenteredSpin/>}>{this.getRenderComponent()}</React.Suspense>;
     }
 
-    public wrapInternalPage(route: Page, props: any): ReactNode {
-        const [currentTitle, setCurrentTitle] = useState<ReactNode>(route.pageTitle)
-        const pageId = use
-        let component = route.getComponent({...props, onHeaderChange: header => {
-            setCurrentTitle(header);
-            }});
-        return (
-            <>
-                <ApplicationSidebar />
-                <Layout.Content key="content" className="app-layout-content">
-                    <div className={classNames('internal-page-wrapper', 'page-' + pageId + '-wrapper')}>
-                        <PageHeader user={this.state.user} title={currentTitle} />
-                        <div className="internal-page-content-wrapper">{component}</div>
-                    </div>
-                </Layout.Content>
-            </>
-        );
-    }
 
     appLayout() {
         let routes = PRIVATE_PAGES.map((route) => {
             if (!this.state.showOnboardingForm) {
-                return (
-                    <Route
-                        key={route.id}
+                let Component = route.component as ExoticComponent;
+                return <Route
+                        key={route.pageTitle}
                         path={route.getPrefixedPath()}
                         exact={true}
                         render={(routeProps) => {
@@ -170,10 +153,11 @@ export default class App extends React.Component<AppProperties, AppState> {
                                 pagePath: routeProps.location.hash
                             });
                             document.title = route.pageTitle;
-                            return route.doNotWrap ? route.getComponent({...routeProps}) : this.wrapInternalPage(route, {});
+                            return route.doNotWrap ?
+                              <Component {...(routeProps as any)} /> :
+                              <ApplicationPageWrapper user={this.state.user} page={route} {...routeProps} />;
                         }}
-                    />
-                );
+                    />;
             } else {
                 return <CenteredSpin/>;
             }
