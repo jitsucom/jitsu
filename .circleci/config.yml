@@ -66,6 +66,32 @@ notify_fail: &notify_fail
       	]
       }
 
+install_buildx: &install_buildx
+  run:
+    name: install docker buildx
+    command: |
+      apk add make curl
+      mkdir -vp ~/.docker/cli-plugins/
+      curl --silent -L --output ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-amd64
+      chmod a+x ~/.docker/cli-plugins/docker-buildx
+      docker buildx version
+
+build_ksense: &build_ksense
+  run:
+    name: Build and Push ksense EventNative Docker image
+    command: |
+      docker build --build-arg dhid=ksense -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
+      echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+      docker push $IMAGE_NAME
+
+build_jitsu: &build_jitsu
+  run:
+    name: Build and Push jitsu Docker image
+    command: |
+      docker buildx build  --platform linux/amd64,linux/arm64 -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
+      echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
+      docker push $IMAGE_NAME:$IMAGE_VERSION
+
 version: 2.1
 
 orbs:
@@ -143,6 +169,8 @@ jobs:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: ksense/eventnative
+      DOCKER_FILE: server.Dockerfile
+      IMAGE_VERSION: latest
     docker:
       - image: circleci/golang:1.14-buster-node
     steps:
@@ -150,17 +178,14 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           #docker_layer_caching: true it's requires upgrade plan
-      - run:
-          name: Build and Push Docker image
-          command: |
-            docker build --build-arg dhid=ksense -t $IMAGE_NAME:latest -f server.Dockerfile .
-            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker push $IMAGE_NAME
+      - <<: *build_ksense
 
   build-latest-jitsu-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/server
+      DOCKER_FILE: server.Dockerfile
+      IMAGE_VERSION: latest
     docker:
       - image: circleci/golang:1.14-buster-node
     steps:
@@ -168,19 +193,15 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           #docker_layer_caching: true it's requires upgrade plan
-      - run:
-          name: Build and Push Docker image
-          command: |
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            docker buildx build  --platform linux/amd64,linux/arm64 -t $IMAGE_NAME:latest -f server.Dockerfile .
-            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker push $IMAGE_NAME
-
+      - <<: *install_buildx
+      - <<: *build_jitsu
       - <<: *notify_fail
   build-latest-configurator-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/configurator
+      DOCKER_FILE: configurator.Dockerfile
+      IMAGE_VERSION: latest
     docker:
       - image: circleci/golang:1.14-buster-node
     steps:
@@ -188,19 +209,15 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           #docker_layer_caching: true it's requires upgrade plan
-      - run:
-          name: Build and Push Docker image
-          command: |
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            docker buildx build  --platform linux/amd64,linux/arm64  -f configurator.Dockerfile .
-            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker push $IMAGE_NAME
-
+      - <<: *install_buildx
+      - <<: *build_jitsu
       - <<: *notify_fail
   build-beta-en-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: ksense/eventnative
+      DOCKER_FILE: server.Dockerfile
+      IMAGE_VERSION: beta
     docker:
       - image: circleci/golang:1.14-buster-node
     steps:
@@ -208,17 +225,14 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           #docker_layer_caching: true it's requires upgrade plan
-      - run:
-          name: Build and Push Docker image
-          command: |
-            docker build --build-arg dhid=ksense -t $IMAGE_NAME:beta -f server.Dockerfile .
-            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker push $IMAGE_NAME
+      - <<: *build_ksense
 
   build-beta-configurator-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/configurator
+      DOCKER_FILE: configurator.Dockerfile
+      IMAGE_VERSION: beta
     docker:
       - image: circleci/golang:1.14-buster-node
     steps:
@@ -226,19 +240,15 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           #docker_layer_caching: true it's requires upgrade plan
-      - run:
-          name: Build and Push Docker image
-          command: |
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            docker buildx build  --platform linux/amd64,linux/arm64  -t $IMAGE_NAME:beta -f configurator.Dockerfile .
-            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker push $IMAGE_NAME
-
+      - <<: *install_buildx
+      - <<: *build_jitsu
       - <<: *notify_fail
   build-beta-jitsu-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/server
+      DOCKER_FILE: server.Dockerfile
+      IMAGE_VERSION: beta
     docker:
       - image: circleci/golang:1.14-buster-node
     steps:
@@ -246,19 +256,15 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           #docker_layer_caching: true it's requires upgrade plan
-      - run:
-          name: Build and Push Docker image
-          command: |
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            docker buildx build  --platform linux/amd64,linux/arm64  -t $IMAGE_NAME:beta -f server.Dockerfile .
-            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker push $IMAGE_NAME
-
+      - <<: *install_buildx
+      - <<: *build_jitsu
       - <<: *notify_fail
   build-tagged-en-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: ksense/eventnative
+      DOCKER_FILE: server.Dockerfile
+      IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
       - image: circleci/golang:1.14-buster-node
     steps:
@@ -266,16 +272,13 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           #docker_layer_caching: true it's requires upgrade plan
-      - run:
-          name: Build and Push Docker image
-          command: |
-            docker build --build-arg dhid=ksense -t $IMAGE_NAME:${CIRCLE_TAG//v} -f server.Dockerfile .
-            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker push $IMAGE_NAME:${CIRCLE_TAG//v}
+      - <<: *build_ksense
   build-tagged-jitsu-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/server
+      DOCKER_FILE: server.Dockerfile
+      IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
       - image: circleci/golang:1.14-buster-node
     steps:
@@ -283,19 +286,15 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           #docker_layer_caching: true it's requires upgrade plan
-      - run:
-          name: Build and Push Docker image
-          command: |
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            docker buildx build --platform linux/amd64,linux/arm64 -t $IMAGE_NAME:${CIRCLE_TAG//v} -f server.Dockerfile .
-            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker push $IMAGE_NAME:${CIRCLE_TAG//v}
-
+      - <<: *install_buildx
+      - <<: *build_jitsu
       - <<: *notify_fail
   build-tagged-configurator-docker:
     working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/configurator
+      DOCKER_FILE: configurator.Dockerfile
+      IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
       - image: circleci/golang:1.14-buster-node
     steps:
@@ -303,14 +302,8 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           #docker_layer_caching: true it's requires upgrade plan
-      - run:
-          name: Build and Push Docker image
-          command: |
-            export DOCKER_CLI_EXPERIMENTAL=enabled
-            docker buildx build  --platform linux/amd64,linux/arm64 -t $IMAGE_NAME:${CIRCLE_TAG//v} -f configurator.Dockerfile .
-            echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-            docker push $IMAGE_NAME:${CIRCLE_TAG//v}
-
+      - <<: *install_buildx
+      - <<: *build_jitsu
       - <<: *notify_fail
 
 workflows:
