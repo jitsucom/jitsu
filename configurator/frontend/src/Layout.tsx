@@ -15,7 +15,7 @@ import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
 import { Align, handleError } from '@./lib/components/components';
 import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
 import classNames from 'classnames';
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { Permission, User } from '@service/model';
 import SlidersOutlined from '@ant-design/icons/lib/icons/SlidersOutlined';
 import UserSwitchOutlined from '@ant-design/icons/lib/icons/UserSwitchOutlined';
@@ -23,30 +23,7 @@ import LogoutOutlined from '@ant-design/icons/lib/icons/LogoutOutlined';
 import { reloadPage } from '@./lib/commons/utils';
 import { useServices } from '@hooks/useServices';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
-import { Page } from '@./navigation';
-
-type PageLocation = {
-  canonicalPath: string
-  id: string
-}
-
-function usePageLocation(): PageLocation {
-  const location = useLocation().pathname;
-
-  let canonicalPath = location === '/' || location === '' ?
-    'dashboard' :
-    location;
-
-  let id = (canonicalPath.startsWith('/')
-    ? canonicalPath.substr(1)
-    : canonicalPath).replace('/', '');
-
-  let firstPath = this.path.find((p) => p && p.length > 0);
-  if (!firstPath) {
-    firstPath = 'root';
-  }
-  return { canonicalPath, id }
-}
+import { Page, usePageLocation } from '@./navigation';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
@@ -197,5 +174,32 @@ export const DropdownMenu: React.FC<{user: User}> = ({ user }) => {
       </Menu>
     </div>
   );
+}
 
+export type ApplicationPageWrapperProps = {
+  page: Page
+  user: User
+  [propName: string]: any
+}
+
+export const ApplicationPageWrapper: React.FC<ApplicationPageWrapperProps> = ({ page, user, ...rest }) => {
+  const [header, setHeader] = useState<ReactNode>(null);
+  const pageId = usePageLocation().id;
+
+  let Component = page.component as React.ExoticComponent;
+  let props = { setHeader: (header) => {
+    setHeader(header);
+  }
+  }
+  return <>
+    <ApplicationSidebar />
+    <Layout.Content key="content" className="app-layout-content">
+      <div className={classNames('internal-page-wrapper', 'page-' + pageId + '-wrapper')}>
+        <PageHeader user={user} title={header} />
+        <div className="internal-page-content-wrapper">
+          <Component {...(props as any)} />
+        </div>
+      </div>
+    </Layout.Content>
+  </>;
 }

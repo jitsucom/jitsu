@@ -15,11 +15,13 @@ import { FormWrapProps } from '@page/SourcesPage/partials/_common/SourceForm/Sou
 import { makeObjectFromFieldsValues } from '@util/Form';
 import { CollectionSourceData } from '@page/SourcesPage/SourcesPage.types';
 import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
+import SourceFormHeader from '@page/SourcesPage/partials/_common/SourceForm/SourcesFormHeader';
 
 const SourceFormWrap = ({
   sources = [],
   connectorSource,
   projectId,
+  setHeader,
   sourceData = {} as SourceData,
   formMode = 'create',
   setSources
@@ -94,18 +96,12 @@ const SourceFormWrap = ({
     [isConnected, connectorSource, services.storageService, projectId, sources, history, setSources, formMode]
   );
 
+  const header = useMemo(() => <SourceFormHeader connectorSource={connectorSource} />, [connectorSource.id])
+
+  setHeader(header);
+
   return (
     <div className="add-source flex flex-col items-stretch">
-      <div className="add-source__head">
-        <h2 className="add-source__head-base">
-          <NavLink to={routes.root} className="add-source__head-base-link">Sources</NavLink>
-          <span>/</span>
-        </h2>
-        <div className="add-source__head-pic">{connectorSource.pic}</div>
-        <div className="add-source__head-text">
-          <h2 className="add-source__head-text-title">{connectorSource.displayName}</h2>
-        </div>
-      </div>
 
       <SourceForm
         formMode={formMode}
