@@ -1,3 +1,4 @@
+
 ---
 sort: 1
 ---
@@ -16,7 +17,7 @@ Use the following command to add it to your project:
         npm install --save @jitsu/eventnative
     </CodeTab>
     <CodeTab title="yarn" lang="javascript">
-        yarn add
+        yarn add @jitsu/eventnative
     </CodeTab>
 </CodeInTabs>
 
