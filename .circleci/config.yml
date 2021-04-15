@@ -198,7 +198,6 @@ jobs:
       - <<: *build_jitsu
       - <<: *notify_fail
   build-latest-configurator-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/configurator
       DOCKER_FILE: configurator.Dockerfile
@@ -217,7 +216,6 @@ jobs:
       - <<: *build_jitsu
       - <<: *notify_fail
   build-beta-en-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: ksense/eventnative
       DOCKER_FILE: server.Dockerfile
@@ -232,7 +230,6 @@ jobs:
       - <<: *build_ksense
 
   build-beta-configurator-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/configurator
       DOCKER_FILE: configurator.Dockerfile
@@ -251,7 +248,6 @@ jobs:
       - <<: *build_jitsu
       - <<: *notify_fail
   build-beta-jitsu-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/server
       DOCKER_FILE: server.Dockerfile
@@ -270,7 +266,6 @@ jobs:
       - <<: *build_jitsu
       - <<: *notify_fail
   build-tagged-en-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: ksense/eventnative
       DOCKER_FILE: server.Dockerfile
@@ -284,7 +279,6 @@ jobs:
           #docker_layer_caching: true it's requires upgrade plan
       - <<: *build_ksense
   build-tagged-jitsu-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/server
       DOCKER_FILE: server.Dockerfile
@@ -303,7 +297,6 @@ jobs:
       - <<: *build_jitsu
       - <<: *notify_fail
   build-tagged-configurator-docker:
-    working_directory: /go/src/github.com/jitsucom/jitsu/
     environment:
       IMAGE_NAME: jitsucom/configurator
       DOCKER_FILE: configurator.Dockerfile
