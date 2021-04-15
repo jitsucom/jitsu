@@ -29,6 +29,8 @@ import logo from './icons/logo.svg';
 import PapercupsWrapper from './lib/commons/papercups';
 import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
 import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined";
+import { ApplicationContent, ApplicationMenu, ApplicationSidebar, PageHeader } from '@./Layout';
+import classNames from 'classnames';
 
 enum AppLifecycle {
     LOADING, //Application is loading
@@ -71,6 +73,18 @@ export default class App extends React.Component<AppProperties, AppState> {
     public async componentDidMount() {
         try {
             await this.services.init();
+            const loginStatus = await this.services.userService.waitForUser();
+            setDebugInfo('user', loginStatus.user);
+            if (loginStatus.user) {
+                this.services.analyticsService.onUserKnown(loginStatus.user);
+                PapercupsWrapper.init(loginStatus.user);
+            }
+
+            this.setState({
+                lifecycle: loginStatus.user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
+                user: loginStatus.user,
+                showOnboardingForm: loginStatus.user && !loginStatus.user.onboarded,
+            });
         } catch (error) {
             console.error('Failed to initialize ApplicationServices', error);
             this.services.analyticsService.onGlobalError(error, true);
@@ -84,26 +98,6 @@ export default class App extends React.Component<AppProperties, AppState> {
                 this.setState({lifecycle: AppLifecycle.ERROR, globalErrorDetails: 'Timeout'});
             }
         }, LOGIN_TIMEOUT);
-        this.services.userService
-            .waitForUser()
-            .then((loginStatus) => {
-                setDebugInfo('user', loginStatus.user);
-                if (loginStatus.user) {
-                    this.services.analyticsService.onUserKnown(loginStatus.user);
-                    PapercupsWrapper.init(loginStatus.user);
-                }
-
-                this.setState({
-                    lifecycle: loginStatus.user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
-                    user: loginStatus.user,
-                    showOnboardingForm: loginStatus.user && !loginStatus.user.onboarded,
-                });
-            })
-            .catch((error) => {
-                console.error('Failed to get user', error);
-                this.services.analyticsService.onGlobalError(error, true);
-                this.setState({lifecycle: AppLifecycle.ERROR});
-            });
     }
 
     private getRenderComponent() {
@@ -145,49 +139,17 @@ export default class App extends React.Component<AppProperties, AppState> {
     }
 
     public wrapInternalPage(route: Page, props: any): ReactNode {
-        let component = route.getComponent({
-            ...props,
-            setExtraHeaderComponent: (node) => {
-                this.setState({extraControls: node});
-            }
-        });
+        const [currentTitle, setCurrentTitle] = useState<ReactNode>(route.pageTitle)
+        const pageId = use
+        let component = route.getComponent({...props, onHeaderChange: header => {
+            setCurrentTitle(header);
+            }});
         return (
             <>
-                <Layout.Sider key="sider" className="app-layout-side-bar">
-                    <div className="app-layout-side-bar-top">
-                        <a className="app-logo-wrapper" href="https://jitsu.com">
-                            <img className="app-logo" src={logo} alt="[logo]"/>
-                        </a>
-                        {this.leftMenu()}
-                    </div>
-                    <div className="app-layout-side-bar-bottom">
-                        <a
-                            className="app-layout-side-bar-bottom-item"
-                            onClick={() => {
-                                PapercupsWrapper.focusWidget();
-                            }}
-                        >
-                            <WechatOutlined/> Chat with us!
-                        </a>
-                    </div>
-                </Layout.Sider>
+                <ApplicationSidebar />
                 <Layout.Content key="content" className="app-layout-content">
-                    <div className={['internal-page-wrapper', 'page-' + route.id + '-wrapper'].join(' ')}>
-                        <Row className="internal-page-header-container">
-                            <Col span={12}>
-                                <h1 className="internal-page-header">{route.pageHeader}</h1>
-                            </Col>
-                            <Col span={12}>
-                                <Align horizontal="right">
-                                    {this.state.extraControls}
-                                    <Dropdown trigger={['click']} overlay={this.getUserDropDownMenu()}>
-                                        <Button className={'user-drop-down-button'} icon={<UserOutlined/>}>
-                                            {this.state.user.name}
-                                        </Button>
-                                    </Dropdown>
-                                </Align>
-                            </Col>
-                        </Row>
+                    <div className={classNames('internal-page-wrapper', 'page-' + pageId + '-wrapper')}>
+                        <PageHeader user={this.state.user} title={currentTitle} />
                         <div className="internal-page-content-wrapper">{component}</div>
                     </div>
                 </Layout.Content>
@@ -245,49 +207,7 @@ export default class App extends React.Component<AppProperties, AppState> {
         );
     }
 
-    private leftMenu() {
-        let key = this.props.location === '/' || this.props.location === '' ? 'dashboard' : this.props.location;
-        if (key.charAt(0) === '/') {
-            key = key.substr(1);
-        }
-        return (
-            <Menu mode="inline" selectedKeys={[key]} className="app-layout-sidebar-menu">
-                <Menu.Item key="dashboard" icon={<AreaChartOutlined/>}>
-                    <NavLink to="/dashboard" activeClassName="selected">
-                        Status
-                    </NavLink>
-                </Menu.Item>
-                <Menu.Item key="api_keys" icon={<UnlockOutlined/>}>
-                    <NavLink to="/api_keys" activeClassName="selected">
-                        Event API Keys
-                    </NavLink>
-                </Menu.Item>
-                <Menu.Item key="sources" icon={<ApiOutlined/>} disabled={true}>
-                    <Tooltip mouseEnterDelay={0} title={<>
-                        Pooling data from external sources is available
-                        only <a href="https://jitsu.com/docs/sources-configuration">in open-source version with YAML-file configuration</a>
-                    </>}>
-                        Sources<sup>Soon!</sup>
-                    </Tooltip>
-                </Menu.Item>
-                <Menu.Item key="destinations" icon={<NotificationOutlined/>}>
-                    <NavLink to="/destinations" activeClassName="selected">
-                        Destinations
-                    </NavLink>
-                </Menu.Item>
-                <Menu.Item key="domains" icon={<CloudOutlined/>}>
-                    <NavLink to="/domains" activeClassName="selected">
-                        Tracking Domains
-                    </NavLink>
-                </Menu.Item>
-                <Menu.Item key="cfg_download" icon={<DownloadOutlined/>}>
-                    <NavLink to="/cfg_download" activeClassName="selected">
-                        Download EN Config
-                    </NavLink>
-                </Menu.Item>
-            </Menu>
-        );
-    }
+
 
     private headerComponent() {
         return (
