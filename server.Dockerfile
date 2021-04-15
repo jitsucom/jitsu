@@ -22,13 +22,17 @@ RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res &&
     chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/logs
 
 #######################################
-# BUILD JS STAGE
-FROM golang:1.14.6-alpine3.12 as jsbuilder
-
-RUN mkdir /app
+# BUILD BASE STAGE
+FROM golang:1.14.6-alpine3.12 as builder
 
 # Install dependencies
-RUN apk add git make bash npm
+RUN apk add git make bash npm yarn build-base
+
+#######################################
+# BUILD JS STAGE
+FROM builder as jsbuilder
+
+RUN mkdir /app
 
 # Copy js
 ADD server/web /go/src/github.com/jitsucom/jitsu/server/web
@@ -41,19 +45,16 @@ RUN make clean_js assemble_js &&\
 
 #######################################
 # BUILD JS SDK STAGE
-FROM golang:1.14.6-alpine3.12 as jsSdkbuilder
+FROM builder as jsSdkbuilder
 
 RUN mkdir /javascript-sdk && \
     mkdir /app
-
-# Install dependencies
-RUN apk add git make bash npm yarn
 
 WORKDIR /javascript-sdk
 
 # Install npm dependencies
 ADD javascript-sdk/package.json ./package.json
-RUN yarn install
+RUN yarn install --network-timeout 1000000
 
 # Copy project
 ADD javascript-sdk/. .
@@ -65,12 +66,9 @@ RUN yarn build && \
 
 #######################################
 # BUILD BACKEND STAGE
-FROM golang:1.14.6-alpine3.12 as builder
+FROM builder as builder
 
 RUN mkdir /app
-
-# Install dependencies
-RUN apk add git make bash build-base
 
 #Copy backend
 ADD server /go/src/github.com/jitsucom/jitsu/server
