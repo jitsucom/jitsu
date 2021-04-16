@@ -16,12 +16,13 @@ import { makeObjectFromFieldsValues } from '@util/Form';
 import { CollectionSourceData } from '@page/SourcesPage/SourcesPage.types';
 import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
 import SourceFormHeader from '@page/SourcesPage/partials/_common/SourceForm/SourcesFormHeader';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 
 const SourceFormWrap = ({
   sources = [],
   connectorSource,
   projectId,
-  setHeader,
+  setBreadcrumbs,
   sourceData = {} as SourceData,
   formMode = 'create',
   setSources
@@ -96,9 +97,11 @@ const SourceFormWrap = ({
     [isConnected, connectorSource, services.storageService, projectId, sources, history, setSources, formMode]
   );
 
-  const header = useMemo(() => <SourceFormHeader connectorSource={connectorSource} />, [connectorSource.id])
+  const header = useMemo(() => withHome({ elements: [
+    { title: <SourceFormHeader connectorSource={connectorSource} /> }
+  ] }), [connectorSource.id]);
 
-  setHeader(header);
+  setBreadcrumbs(header);
 
   return (
     <div className="add-source flex flex-col items-stretch">

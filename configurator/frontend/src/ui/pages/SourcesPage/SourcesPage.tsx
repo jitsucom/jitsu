@@ -27,7 +27,7 @@ const SourcesPage = (props: PageProps) => {
         setSources={setSources}
         sources={sources?.sources}
         projectId={services.activeProject.id}
-        setHeader={props.setHeader}
+        setBreadcrumbs={props.setBreadcrumbs}
         {...currentProps} />
     },
     [services.activeProject.id, sources]

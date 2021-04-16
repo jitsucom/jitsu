@@ -38,7 +38,7 @@ export function usePageLocation(): PageLocation {
 }
 
 export type PageProps = {
-  setHeader?: (header: ReactNode) => void,
+  setBreadcrumbs?: (header: ReactNode) => void,
   [propName: string]: any
 }
 

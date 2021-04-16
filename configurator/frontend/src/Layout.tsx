@@ -24,6 +24,8 @@ import { reloadPage } from '@./lib/commons/utils';
 import { useServices } from '@hooks/useServices';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 import { Page, usePageLocation } from '@./navigation';
+import { BreadcrumbsProps, withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { Breadcrumbs } from '@molecule/Breadcrumbs';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
@@ -99,14 +101,15 @@ type ApplicationContentProps = {
 
 export type PageHeaderProps = {
   user: User
-  title: ReactNode
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ user, title }) => {
+export const PageHeader: React.FC<PageHeaderProps> = ({ user, children }) => {
 
   return <Row className="internal-page-header-container">
     <Col span={12}>
-      <h1 className="internal-page-header">{title}</h1>
+      <div className="h-12 flex items-center">
+        {children}
+      </div>
     </Col>
     <Col span={12}>
       <Align horizontal="right">
@@ -183,19 +186,16 @@ export type ApplicationPageWrapperProps = {
 }
 
 export const ApplicationPageWrapper: React.FC<ApplicationPageWrapperProps> = ({ page, user, ...rest }) => {
-  const [header, setHeader] = useState<ReactNode>(null);
+  const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(withHome({ elements: [{ title: page.pageHeader }] }));
   const pageId = usePageLocation().id;
 
   let Component = page.component as React.ExoticComponent;
-  let props = { setHeader: (header) => {
-    setHeader(header);
-  }
-  }
+  let props = { setBreadcrumbs }
   return <>
     <ApplicationSidebar />
     <Layout.Content key="content" className="app-layout-content">
       <div className={classNames('internal-page-wrapper', 'page-' + pageId + '-wrapper')}>
-        <PageHeader user={user} title={header} />
+        <PageHeader user={user}><Breadcrumbs {...breadcrumbs} /></PageHeader>
         <div className="internal-page-content-wrapper">
           <Component {...(props as any)} />
         </div>
