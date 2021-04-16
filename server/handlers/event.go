@@ -12,7 +12,6 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
-	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/users"
 	"net/http"
@@ -102,8 +101,6 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: noConsumerMessage})
 		return
 	} else {
-		telemetry.Event()
-
 		for _, consumer := range consumers {
 			consumer.Consume(payload, tokenID)
 		}

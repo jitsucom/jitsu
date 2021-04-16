@@ -176,6 +176,7 @@ func main() {
 		logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
 
 		coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
+		telemetry.Coordination("etcd")
 	} else {
 		coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
 	}

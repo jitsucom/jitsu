@@ -13,7 +13,7 @@ const (
 	ipKey       = "source_ip"
 )
 
-//Enrich payload with ip, user-agent, token, event id and _timestamp
+//ContextEnrichmentStep enrichs payload with ip, user-agent, token, event id and _timestamp
 func ContextEnrichmentStep(payload map[string]interface{}, token string, r *http.Request, preprocessor events.Preprocessor) {
 	//1. source IP
 	ip := extractIP(r)

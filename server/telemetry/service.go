@@ -67,7 +67,7 @@ func Init(serviceName, commit, tag, builtAt string) {
 		url:         "https://t.jitsu.com/api/v1/s2s/event?token=ttttd50c-d8f2-414c-bf3d-9902a5031fd2",
 		usageOptOut: atomic.NewBool(false),
 
-		collector: &Collector{},
+		collector: newCollector(),
 
 		usageCh: make(chan *Request, 100),
 
@@ -108,11 +108,42 @@ func ServerStop() {
 	instance.usage(&Usage{ServerStop: 1})
 }
 
-//Event increment events collector counter
-func Event() {
+//Event increments events collector counter
+func Event(sourceID, destinationID, src string, quantity int) {
 	if !instance.usageOptOut.Load() {
-		instance.collector.Event()
+		instance.collector.Event(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, uint64(quantity))
 	}
+}
+
+//Error increments errors collector counter
+func Error(sourceID, destinationID, src string, quantity int) {
+	if !instance.usageOptOut.Load() {
+		instance.collector.Error(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, uint64(quantity))
+	}
+}
+
+//Destination puts usage event with hashed destination id and type
+func Destination(destinationID, destinationType, mode string) {
+	instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
+		Destination:     resources.GetStringHash(destinationID),
+		DestinationType: destinationType,
+		DestinationMode: mode,
+	})
+}
+
+//Source puts usage event with hashed source id and type
+func Source(sourceID, sourceType string) {
+	instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
+		Source:     resources.GetStringHash(sourceID),
+		SourceType: sourceType,
+	})
+}
+
+//Coordination puts usage event with coordination service type
+func Coordination(serviceType string) {
+	instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
+		Coordination: serviceType,
+	})
 }
 
 //User puts user request into the queue
@@ -141,15 +172,9 @@ func (s *Service) startUsage() {
 
 			select {
 			case <-ticker.C:
-				v := s.collector.Cut()
-				if v > 0 {
-					instance.usage(&Usage{Events: v})
-				}
+				s.enqueueUsage()
 			case <-s.flushCh:
-				v := s.collector.Cut()
-				if v > 0 {
-					instance.usage(&Usage{Events: v})
-				}
+				s.enqueueUsage()
 			}
 		}
 	})
@@ -172,6 +197,28 @@ func (s *Service) startUsage() {
 			}
 		}
 	})
+}
+
+func (s *Service) enqueueUsage() {
+	eventsQuantity, errorsQuantity := s.collector.Cut()
+
+	for key, quantity := range eventsQuantity {
+		instance.usage(&Usage{
+			Events:      quantity,
+			EventsSrc:   key.src,
+			Source:      key.sourceID,
+			Destination: key.destinationID,
+		})
+	}
+
+	for key, quantity := range errorsQuantity {
+		instance.usage(&Usage{
+			Errors:      quantity,
+			EventsSrc:   key.src,
+			Source:      key.sourceID,
+			Destination: key.destinationID,
+		})
+	}
 }
 
 //Flush sends all requests that are in a queue
