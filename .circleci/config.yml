@@ -137,7 +137,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          #docker_layer_caching: true it's requires upgrade plan
+          docker_layer_caching: true
       - restore_cache:
           keys:
             - go-mod-v1-{{ checksum "./server/go.sum" }}
@@ -177,7 +177,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          #docker_layer_caching: true it's requires upgrade plan
+          docker_layer_caching: true
       - <<: *build_ksense
 
   build-latest-jitsu-docker:
@@ -191,7 +191,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          #docker_layer_caching: true it's requires upgrade plan
+          docker_layer_caching: true
       - <<: *install_buildx
       - <<: *build_jitsu
       - <<: *notify_fail
@@ -206,7 +206,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          #docker_layer_caching: true it's requires upgrade plan
+          docker_layer_caching: true
       - <<: *install_buildx
       - <<: *build_jitsu
       - <<: *notify_fail
@@ -221,7 +221,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          #docker_layer_caching: true it's requires upgrade plan
+          docker_layer_caching: true
       - <<: *build_ksense
 
   build-beta-configurator-docker:
@@ -235,7 +235,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          #docker_layer_caching: true it's requires upgrade plan
+          docker_layer_caching: true
       - <<: *install_buildx
       - <<: *build_jitsu
       - <<: *notify_fail
@@ -250,7 +250,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          #docker_layer_caching: true it's requires upgrade plan
+          docker_layer_caching: true
       - <<: *install_buildx
       - <<: *build_jitsu
       - <<: *notify_fail
@@ -265,7 +265,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          #docker_layer_caching: true it's requires upgrade plan
+          docker_layer_caching: true
       - <<: *build_ksense
   build-tagged-jitsu-docker:
     environment:
@@ -278,7 +278,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          #docker_layer_caching: true it's requires upgrade plan
+          docker_layer_caching: true
       - <<: *install_buildx
       - <<: *build_jitsu
       - <<: *notify_fail
@@ -293,7 +293,7 @@ jobs:
       - checkout
       - setup_remote_docker:
           version: 19.03.13
-          #docker_layer_caching: true it's requires upgrade plan
+          docker_layer_caching: true
       - <<: *install_buildx
       - <<: *build_jitsu
       - <<: *notify_fail
