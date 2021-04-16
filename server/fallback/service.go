@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logfiles"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/parsers"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"io/ioutil"
 	"os"
 	"path"
@@ -118,12 +120,24 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 		parserFunc = parsers.ParseJSON
 	}
 
-	resultPerTable, errRowsCount, err := storage.StoreWithParseFunc(fileName, b, alreadyUploadedTables, parserFunc)
-	if errRowsCount > 0 {
-		metrics.ErrorTokenEvents(fallbackIdentifier, storage.Name(), errRowsCount)
+	objects, err := parsers.ParseJSONFileWithFunc(b, parserFunc)
+	if err != nil {
+		return fmt.Errorf("[%s] Error parsing fallback file %s: %v", fileName, err)
 	}
 
+	resultPerTable, err := storage.Store(fileName, objects, alreadyUploadedTables)
+
 	if err != nil {
+		metrics.ErrorTokenEvents(fallbackIdentifier, storage.Name(), len(objects))
+
+		//extract src
+		eventsSrc := map[string]int{}
+		for _, obj := range objects {
+			eventsSrc[events.ExtractSrc(obj)]++
+		}
+
+		telemetry.ErrorsPerSrc(fallbackIdentifier, storage.Name(), eventsSrc)
+
 		return fmt.Errorf("[%s] Error storing fallback file %s in destination: %v", storage.Name(), fileName, err)
 	}
 
@@ -131,10 +145,12 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 	for tableName, result := range resultPerTable {
 		if result.Err != nil {
 			multiErr = multierror.Append(multiErr, result.Err)
-			logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.Name(), tableName, filePath, result.Err)
+			logging.Errorf("[%s] Error storing table %s from fallback file %s: %v", storage.Name(), tableName, filePath, result.Err)
 			metrics.ErrorTokenEvents(fallbackIdentifier, storage.Name(), result.RowsCount)
+			telemetry.ErrorsPerSrc(fallbackIdentifier, storage.Name(), result.EventsSrc)
 		} else {
 			metrics.SuccessTokenEvents(fallbackIdentifier, storage.Name(), result.RowsCount)
+			telemetry.EventsPerSrc(fallbackIdentifier, storage.Name(), result.EventsSrc)
 		}
 
 		s.statusManager.UpdateStatus(fileName, storage.Name(), tableName, result.Err)

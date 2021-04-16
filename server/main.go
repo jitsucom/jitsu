@@ -297,7 +297,7 @@ func main() {
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
 		coordinationService, eventsCache)
 
-	telemetry.ServerStart()
+	telemetry.ServerStart(*dockerHubID)
 	notifications.ServerStart()
 	logging.Info("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{

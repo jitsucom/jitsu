@@ -44,7 +44,7 @@ func (rsp *RetryableProxy) start() {
 			rsp.Unlock()
 
 			logging.Infof("[%s] destination has been initialized!", rsp.config.name)
-			telemetry.Destination(rsp.config.name, rsp.config.destination.Type, rsp.config.destination.Mode)
+			telemetry.Destination(rsp.config.name, rsp.config.destination.Type, rsp.config.destination.Mode, len(rsp.config.pkFields) > 0)
 
 			break
 		}

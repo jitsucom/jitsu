@@ -99,8 +99,8 @@ func reInit(payload []byte) {
 }
 
 //ServerStart puts server start event into the queue
-func ServerStart() {
-	instance.usage(&Usage{ServerStart: 1})
+func ServerStart(dockerHubID string) {
+	instance.usage(&Usage{DockerHubID: dockerHubID, ServerStart: 1})
 }
 
 //ServerStop puts server stop event into the queue
@@ -108,10 +108,28 @@ func ServerStop() {
 	instance.usage(&Usage{ServerStop: 1})
 }
 
+//EventsPerSrc increments events collector counter per Src
+func EventsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
+	if !instance.usageOptOut.Load() {
+		for src, quantity := range quantityPerSrc {
+			Event(sourceID, destinationID, src, quantity)
+		}
+	}
+}
+
 //Event increments events collector counter
 func Event(sourceID, destinationID, src string, quantity int) {
 	if !instance.usageOptOut.Load() {
 		instance.collector.Event(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, uint64(quantity))
+	}
+}
+
+//ErrorsPerSrc increments errors collector counter per Src
+func ErrorsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
+	if !instance.usageOptOut.Load() {
+		for src, quantity := range quantityPerSrc {
+			Error(sourceID, destinationID, src, quantity)
+		}
 	}
 }
 
@@ -123,11 +141,12 @@ func Error(sourceID, destinationID, src string, quantity int) {
 }
 
 //Destination puts usage event with hashed destination id and type
-func Destination(destinationID, destinationType, mode string) {
+func Destination(destinationID, destinationType, mode string, primaryKeysPresent bool) {
 	instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
-		Destination:     resources.GetStringHash(destinationID),
-		DestinationType: destinationType,
-		DestinationMode: mode,
+		Destination:       resources.GetStringHash(destinationID),
+		DestinationType:   destinationType,
+		DestinationMode:   mode,
+		DestinationPkKeys: primaryKeysPresent,
 	})
 }
 

@@ -22,9 +22,8 @@ const (
 type Storage interface {
 	io.Closer
 	DryRun(payload events.Event) ([]adapters.TableField, error)
-	Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error)
-	StoreWithParseFunc(fileName string, payload []byte, skipTables map[string]bool, parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error)
-	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error)
+	Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error)
+	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error
 	Update(object map[string]interface{}) error
 	Fallback(events ...*events.FailedEvent)
 	GetUsersRecognition() *UserRecognitionConfiguration
@@ -41,6 +40,7 @@ type StorageProxy interface {
 type StoreResult struct {
 	Err       error
 	RowsCount int
+	EventsSrc map[string]int
 }
 
 type UserRecognitionConfiguration struct {
