@@ -13,9 +13,21 @@ type InstanceInfo struct {
 
 //Usage is a usage accounting dto
 type Usage struct {
-	ServerStart int    `json:"server_start,omitempty"`
-	ServerStop  int    `json:"server_stop,omitempty"`
-	Events      uint64 `json:"events,omitempty"`
+	ServerStart int `json:"server_start,omitempty"`
+	ServerStop  int `json:"server_stop,omitempty"`
+
+	Events    uint64 `json:"events,omitempty"`
+	Errors    uint64 `json:"errors,omitempty"`
+	EventsSrc string `json:"events_src"`
+
+	Source     string `json:"hashed_source_id"`
+	SourceType string `json:"source_type"`
+
+	Destination     string `json:"hashed_destination_id"`
+	DestinationType string `json:"destination_type"`
+	DestinationMode string `json:"destination_mode"`
+
+	Coordination string `json:"coordination"`
 }
 
 //Errors is a error accounting dto

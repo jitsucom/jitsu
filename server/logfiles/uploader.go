@@ -4,9 +4,11 @@ import (
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"io/ioutil"
 	"os"
 	"path"
@@ -112,6 +114,7 @@ func (u *PeriodicUploader) Start() {
 					if errRowsCount > 0 {
 						metrics.ErrorTokenEvents(tokenID, storage.Name(), errRowsCount)
 						counters.ErrorEvents(storage.Name(), errRowsCount)
+						telemetry.Error(tokenID, storage.Name(), events.ExtractSrc(fact), errRowsCount)
 					}
 
 					if err != nil {
@@ -126,9 +129,11 @@ func (u *PeriodicUploader) Start() {
 							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.Name(), tableName, filePath, result.Err)
 							metrics.ErrorTokenEvents(tokenID, storage.Name(), result.RowsCount)
 							counters.ErrorEvents(storage.Name(), result.RowsCount)
+							telemetry.Error(tokenID, storage.Name(), events.ExtractSrc(fact), result.RowsCount)
 						} else {
 							metrics.SuccessTokenEvents(tokenID, storage.Name(), result.RowsCount)
 							counters.SuccessEvents(storage.Name(), result.RowsCount)
+							telemetry.Error(tokenID, storage.Name(), events.ExtractSrc(fact), result.RowsCount)
 						}
 
 						u.statusManager.UpdateStatus(fileName, storage.Name(), tableName, result.Err)
