@@ -11,7 +11,7 @@ import { SourceConnector } from '@catalog/sources/types';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
 
-const AddSource = ({ projectId, sources, setSources, setHeader }: CommonSourcePageProps) => {
+const AddSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const params = useParams<{ source: string }>();
 
   const connectorSource = useMemo<SourceConnector>(
@@ -43,7 +43,7 @@ const AddSource = ({ projectId, sources, setSources, setHeader }: CommonSourcePa
     <>
       <SourceFormWrap
         connectorSource={connectorSource}
-        setHeader={setHeader}
+        setBreadcrumbs={setBreadcrumbs}
         projectId={projectId}
         sources={sources}
         setSources={setSources}
