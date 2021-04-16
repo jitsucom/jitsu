@@ -10,11 +10,10 @@ import (
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-//Store files to Postgres in two modes:
+//Postgres stores files to Postgres in two modes:
 //batch: (1 file = 1 statement)
 //stream: (1 object = 1 statement)
 type Postgres struct {
@@ -86,22 +85,16 @@ func (p *Postgres) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return dryRun(payload, p.processor, p.tableHelper)
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJSON func
-func (p *Postgres) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return p.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
-}
-
-//StoreWithParseFunc file payload to Postgres with processing
-//return result per table, failed events count and err if occurred
-func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
-	flatData, failedEvents, err := p.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+//Store process events and stores with storeTable() func
+//returns store result per table, failed events (group of events which are failed to process) and err
+func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	flatData, failedEvents, err := p.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, linesCount(payload), err
+		return nil, nil, err
 	}
 
 	//update cache with failed events
-	for _, failedEvent := range failedEvents {
+	for _, failedEvent := range failedEvents.Events {
 		p.eventsCache.Error(p.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
@@ -110,7 +103,7 @@ func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, alreadyUp
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := p.storeTable(fdata, table)
-		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
 			storeFailedEvents = false
 		}
@@ -127,10 +120,10 @@ func (p *Postgres) StoreWithParseFunc(fileName string, payload []byte, alreadyUp
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		p.Fallback(failedEvents...)
+		return tableResults, failedEvents, nil
 	}
 
-	return tableResults, len(failedEvents), nil
+	return tableResults, nil, nil
 }
 
 //check table schema
@@ -162,14 +155,10 @@ func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
 //2. store recognized users events
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
-	flatData, err := p.processor.ProcessObjects(objects)
+func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+	flatData, err := p.processor.ProcessPulledEvents(timeIntervalValue, objects)
 	if err != nil {
-		return len(objects), err
-	}
-
-	for _, fdata := range flatData {
-		rowsCount += fdata.GetPayloadLen()
+		return err
 	}
 
 	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
@@ -188,13 +177,13 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 
 		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
 		if err != nil {
-			return rowsCount, err
+			return err
 		}
 		if err = p.adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
-			return rowsCount, err
+			return err
 		}
 
-		return rowsCount, nil
+		return nil
 	}
 
 	//plain flow
@@ -208,21 +197,20 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 
 		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
 		if err != nil {
-			return rowsCount, err
+			return err
 		}
 		start := time.Now()
 		if err = p.adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions); err != nil {
-			return rowsCount, err
+			return err
 		}
 		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.Name(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
 	}
 
-	return rowsCount, nil
+	return nil
 }
 
 func (p *Postgres) Update(object map[string]interface{}) error {
-	_, err := p.SyncStore(nil, []map[string]interface{}{object}, "")
-	return err
+	return p.SyncStore(nil, []map[string]interface{}{object}, "")
 }
 
 //Insert event in Postgres (1 retry if error)

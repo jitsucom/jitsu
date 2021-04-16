@@ -7,11 +7,10 @@ import (
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-//S3 Stores files to aws s3 in batch mode
+//S3 stores files to aws s3 in batch mode
 type S3 struct {
 	name           string
 	s3Adapter      *adapters.S3
@@ -58,22 +57,16 @@ func (s3 *S3) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return nil, errors.New("s3 does not support dry run functionality")
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJSON func
-func (s3 *S3) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return s3.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
-}
-
-//Store file from byte payload to s3 with processing
-//return result per table, failed events count and err if occurred
-func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
-	flatData, failedEvents, err := s3.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+//Store process events and stores with storeTable() func
+//returns store result per table, failed events (group of events which are failed to process) and err
+func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	flatData, failedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, linesCount(payload), err
+		return nil, nil, err
 	}
 
 	//update cache with failed events
-	for _, failedEvent := range failedEvents {
+	for _, failedEvent := range failedEvents.Events {
 		s3.eventsCache.Error(s3.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
@@ -99,10 +92,10 @@ func (s3 *S3) StoreWithParseFunc(fileName string, payload []byte, alreadyUploade
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		s3.Fallback(failedEvents...)
+		return tableResults, failedEvents, nil
 	}
 
-	return tableResults, len(failedEvents), nil
+	return tableResults, nil, nil
 }
 
 //Fallback log event with error to fallback logger
@@ -112,8 +105,8 @@ func (s3 *S3) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
-	return 0, errors.New("S3 doesn't support sync store")
+func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+	return errors.New("S3 doesn't support sync store")
 }
 
 func (s3 *S3) Update(object map[string]interface{}) error {

@@ -9,7 +9,6 @@ import (
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
@@ -137,22 +136,16 @@ func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (er
 	return nil
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJSON func
-func (ch *ClickHouse) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return ch.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
-}
-
-//StoreWithParseFunc store file payload to ClickHouse with processing
-//return result per table, failed events count and err if occurred
-func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
-	flatData, failedEvents, err := ch.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+//Store process events and stores with storeTable() func
+//returns store result per table, failed events (group of events which are failed to process) and err
+func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	flatData, failedEvents, err := ch.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, linesCount(payload), err
+		return nil, nil, err
 	}
 
 	//update cache with failed events
-	for _, failedEvent := range failedEvents {
+	for _, failedEvent := range failedEvents.Events {
 		ch.eventsCache.Error(ch.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
@@ -162,7 +155,7 @@ func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alread
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := ch.storeTable(adapter, tableHelper, fdata, table)
-		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
 			storeFailedEvents = false
 		}
@@ -179,10 +172,10 @@ func (ch *ClickHouse) StoreWithParseFunc(fileName string, payload []byte, alread
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		ch.Fallback(failedEvents...)
+		return tableResults, failedEvents, nil
 	}
 
-	return tableResults, len(failedEvents), nil
+	return tableResults, nil, nil
 }
 
 //check table schema
@@ -205,19 +198,15 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 //2. store recognized users events
 //return rows count and err if can't store
 //or rows count and nil if stored
-func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (rowsCount int, err error) {
-	flatData, err := ch.processor.ProcessObjects(objects)
+func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+	flatData, err := ch.processor.ProcessPulledEvents(timeIntervalValue, objects)
 	if err != nil {
-		return len(objects), err
-	}
-
-	for _, fdata := range flatData {
-		rowsCount += fdata.GetPayloadLen()
+		return err
 	}
 
 	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
 
-	//table schema overridden
+	//table schema overridden (is used by Singer sources)
 	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
 		var data []map[string]interface{}
 		//ignore table multiplexing from mapping step
@@ -233,13 +222,13 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 
 		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
 		if err != nil {
-			return rowsCount, err
+			return err
 		}
 		if err = adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
-			return rowsCount, err
+			return err
 		}
 
-		return rowsCount, nil
+		return nil
 	}
 
 	//plain flow
@@ -254,20 +243,19 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 
 		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
 		if err != nil {
-			return rowsCount, err
+			return err
 		}
 		err = adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions)
 		if err != nil {
-			return rowsCount, err
+			return err
 		}
 	}
 
-	return rowsCount, nil
+	return nil
 }
 
 func (ch *ClickHouse) Update(object map[string]interface{}) error {
-	_, err := ch.SyncStore(nil, []map[string]interface{}{object}, "")
-	return err
+	return ch.SyncStore(nil, []map[string]interface{}{object}, "")
 }
 
 func (ch *ClickHouse) GetUsersRecognition() *UserRecognitionConfiguration {

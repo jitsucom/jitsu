@@ -11,16 +11,8 @@ type ProcessedFile struct {
 	FileName    string
 	BatchHeader *BatchHeader
 
-	payload []map[string]interface{}
-	src     map[string]int
-}
-
-//NewProcessedFile return configured ProcessedFile instance
-func NewProcessedFile() *ProcessedFile {
-	return &ProcessedFile{
-		payload: []map[string]interface{}{},
-		src:     map[string]int{},
-	}
+	payload   []map[string]interface{}
+	eventsSrc map[string]int
 }
 
 //GetPayload return payload as is
@@ -72,7 +64,7 @@ func (pf *ProcessedFile) GetPayloadBytesWithHeader(marshaller Marshaller) ([]byt
 //GetEventsPerSrc returns events quantity per src
 func (pf *ProcessedFile) GetEventsPerSrc() map[string]int {
 	result := map[string]int{}
-	for k, v := range pf.src {
+	for k, v := range pf.eventsSrc {
 		result[k] = v
 	}
 

@@ -144,7 +144,7 @@ func TestProcessFilePayload(t *testing.T) {
 			fBytes, err := ioutil.ReadFile(tt.inputFilePath)
 			require.NoError(t, err)
 
-			actual, failed, err := p.ProcessFilePayload("testfile", fBytes, map[string]bool{}, tt.parseFunc)
+			actual, failed, err := p.ProcessEvents("testfile", fBytes, map[string]bool{}, tt.parseFunc)
 			require.NoError(t, err)
 
 			if len(tt.expectedFailed) > 0 {

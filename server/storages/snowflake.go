@@ -10,12 +10,11 @@ import (
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/schema"
 	sf "github.com/snowflakedb/gosnowflake"
 )
 
-//Store files to Snowflake in two modes:
+//Snowflake stores files to Snowflake in two modes:
 //batch: via aws s3 (or gcp) in batch mode (1 file = 1 transaction)
 //stream: via events queue in stream mode (1 object = 1 transaction)
 type Snowflake struct {
@@ -103,7 +102,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 	return snowflake, nil
 }
 
-//create snowflake adapter with schema
+//CreateSnowflakeAdapter creates snowflake adapter with schema
 //if schema doesn't exist - snowflake returns error. In this case connect without schema and create it
 func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, config adapters.SnowflakeConfig,
 	queryLogger *logging.QueryLogger, sqlTypeCasts map[string]string) (*adapters.Snowflake, error) {
@@ -169,22 +168,16 @@ func (s *Snowflake) Insert(table *adapters.Table, event events.Event) (err error
 	return nil
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJSON func
-func (s *Snowflake) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return s.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
-}
-
-//Store file from byte payload to stage with processing
-//return result per table, failed events count and err if occurred
-func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
-	flatData, failedEvents, err := s.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+//Store process events and stores with storeTable() func
+//returns store result per table, failed events (group of events which are failed to process) and err
+func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	flatData, failedEvents, err := s.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, linesCount(payload), err
+		return nil, nil, err
 	}
 
 	//update cache with failed events
-	for _, failedEvent := range failedEvents {
+	for _, failedEvent := range failedEvents.Events {
 		s.eventsCache.Error(s.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
@@ -210,10 +203,10 @@ func (s *Snowflake) StoreWithParseFunc(fileName string, payload []byte, alreadyU
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		s.Fallback(failedEvents...)
+		return tableResults, failedEvents, nil
 	}
 
-	return tableResults, len(failedEvents), nil
+	return tableResults, nil, nil
 }
 
 //check table schema
@@ -251,8 +244,8 @@ func (s *Snowflake) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
-	return 0, errors.New("Snowflake doesn't support sync store")
+func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+	return errors.New("Snowflake doesn't support sync store")
 }
 
 func (s *Snowflake) Update(object map[string]interface{}) error {
