@@ -186,7 +186,7 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 	for _, fdata := range flatData {
 		table := s.tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := s.storeTable(fdata, table)
-		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
 			storeFailedEvents = false
 		}

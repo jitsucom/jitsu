@@ -142,27 +142,33 @@ func Error(sourceID, destinationID, src string, quantity int) {
 
 //Destination puts usage event with hashed destination id and type
 func Destination(destinationID, destinationType, mode string, primaryKeysPresent bool) {
-	instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
-		Destination:       resources.GetStringHash(destinationID),
-		DestinationType:   destinationType,
-		DestinationMode:   mode,
-		DestinationPkKeys: primaryKeysPresent,
-	})
+	if !instance.usageOptOut.Load() {
+		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
+			Destination:       resources.GetStringHash(destinationID),
+			DestinationType:   destinationType,
+			DestinationMode:   mode,
+			DestinationPkKeys: primaryKeysPresent,
+		})
+	}
 }
 
 //Source puts usage event with hashed source id and type
 func Source(sourceID, sourceType string) {
-	instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
-		Source:     resources.GetStringHash(sourceID),
-		SourceType: sourceType,
-	})
+	if !instance.usageOptOut.Load() {
+		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
+			Source:     resources.GetStringHash(sourceID),
+			SourceType: sourceType,
+		})
+	}
 }
 
 //Coordination puts usage event with coordination service type
 func Coordination(serviceType string) {
-	instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
-		Coordination: serviceType,
-	})
+	if !instance.usageOptOut.Load() {
+		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
+			Coordination: serviceType,
+		})
+	}
 }
 
 //User puts user request into the queue

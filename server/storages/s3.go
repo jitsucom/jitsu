@@ -76,7 +76,7 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 		b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
 		err := s3.s3Adapter.UploadBytes(fileName, b)
 
-		tableResults[fdata.BatchHeader.TableName] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[fdata.BatchHeader.TableName] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
 			logging.Errorf("[%s] Error storing file %s: %v", s3.Name(), fileName, err)
 			storeFailedEvents = false

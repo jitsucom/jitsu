@@ -24,23 +24,21 @@ const (
 	defaultLimit = 100
 )
 
+//CachedEvent dto for events cache
 type CachedEvent struct {
 	Original json.RawMessage `json:"original,omitempty"`
 	Success  json.RawMessage `json:"success,omitempty"`
 	Error    string          `json:"error,omitempty"`
 }
 
-type OldCachedEventsResponse struct {
-	Events []events.Event `json:"events"`
-}
-
+//CachedEventsResponse dto for events cache response
 type CachedEventsResponse struct {
 	TotalEvents    int           `json:"total_events"`
 	ResponseEvents int           `json:"response_events"`
 	Events         []CachedEvent `json:"events"`
 }
 
-//Accept all events
+//EventHandler accepts all events
 type EventHandler struct {
 	destinationService     *destinations.Service
 	preprocessor           events.Preprocessor
@@ -48,7 +46,7 @@ type EventHandler struct {
 	userRecognitionService *users.RecognitionService
 }
 
-//Accept all events according to token
+//NewEventHandler returns configured EventHandler
 func NewEventHandler(destinationService *destinations.Service, preprocessor events.Preprocessor, eventsCache *caching.EventsCache,
 	userRecognitionService *users.RecognitionService) (eventHandler *EventHandler) {
 	return &EventHandler{
@@ -59,6 +57,7 @@ func NewEventHandler(destinationService *destinations.Service, preprocessor even
 	}
 }
 
+//PostHandler accepts all events according to token
 func (eh *EventHandler) PostHandler(c *gin.Context) {
 	payload := events.Event{}
 	if err := c.BindJSON(&payload); err != nil {

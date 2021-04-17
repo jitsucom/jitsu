@@ -112,35 +112,6 @@ func (p *Processor) process(fileName string, objects []map[string]interface{}, a
 	return filePerTable, failedEvents, nil
 }
 
-/*//ProcessObjects process source chunk payload objects
-//Return array of processed objects per table like {"table1": []objects, "table2": []objects}
-//If at least 1 error occurred - this method return it
-func (p *Processor) ProcessObjects(objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
-	unitPerTable := map[string]*ProcessedFile{}
-
-	for _, object := range objects {
-		batchHeader, processedObject, err := p.processObject(object, map[string]bool{})
-		if err != nil {
-			return nil, err
-		}
-
-		//don't process empty object
-		if !batchHeader.Exists() {
-			continue
-		}
-
-		unit, ok := unitPerTable[batchHeader.TableName]
-		if !ok {
-			unitPerTable[batchHeader.TableName] = &ProcessedFile{BatchHeader: batchHeader, payload: []map[string]interface{}{processedObject}}
-		} else {
-			unit.BatchHeader.Fields.Merge(batchHeader.Fields)
-			unit.payload = append(unit.payload, processedObject)
-		}
-	}
-
-	return unitPerTable, nil
-}*/
-
 //Check if table name in skipTables => return empty Table for skipping or
 //Return table representation of object and flatten, mapped object
 //1. extract table name
