@@ -5,8 +5,8 @@ import "time"
 //Key is a default key and format of event timestamp
 const Key = "_timestamp"
 
-//Layout is an ISO date time format
-const Layout = "2006-01-02T15:04:05.999999Z"
+//Layout is an ISO date time format. Note: for parsing use time.RFC3339Nano.
+const Layout = "2006-01-02T15:04:05.000000Z"
 
 //DayLayout is a Day format of time.Time
 const DayLayout = "20060102"
