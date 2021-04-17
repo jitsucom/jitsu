@@ -47,7 +47,7 @@ func (c Config) Validate() error {
 	return nil
 }
 
-//Initialize main logger
+//InitGlobalLogger initializes main logger
 func InitGlobalLogger(writer io.Writer, levelStr string) error {
 	dateTimeWriter := DateTimeWriterProxy{
 		writer: writer,

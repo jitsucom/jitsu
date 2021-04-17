@@ -1,17 +1,14 @@
 package schema
 
 import (
-	"bufio"
-	"bytes"
+	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
-	"io"
 )
 
 var ErrSkipObject = errors.New("Table name template return empty string. This object will be skipped.")
@@ -41,99 +38,78 @@ func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper Map
 	}, nil
 }
 
-//ProcessEvent return table representation, processed flatten object
+//ProcessEvent returns table representation, processed flatten object
 func (p *Processor) ProcessEvent(event map[string]interface{}) (*BatchHeader, events.Event, error) {
 	return p.processObject(event, map[string]bool{})
 }
 
-//ProcessFilePayload process file payload lines divided with \n. Line by line where 1 line = 1 json
-//Return array of processed objects per table like {"table1": []objects, "table2": []objects},
+//ProcessEvents processes events objects
+//returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //All failed events are moved to separate collection for sending to fallback
-func (p *Processor) ProcessFilePayload(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*ProcessedFile, []*events.FailedEvent, error) {
-	var failedFacts []*events.FailedEvent
+func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*ProcessedFile, *events.FailedEvents, error) {
+	return p.process(fileName, objects, alreadyUploadedTables, false)
+}
+
+//ProcessPulledEvents processes events objects
+//returns array of processed objects per table like {"table1": []objects, "table2": []objects},
+//or error if at least 1 was occurred
+func (p *Processor) ProcessPulledEvents(fileName string, objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
+	flatData, _, err := p.process(fileName, objects, map[string]bool{}, true)
+	return flatData, err
+}
+
+//ProcessEvents process events objects
+//returns array of processed objects per table like {"table1": []objects, "table2": []objects},
+//All failed events are moved to separate collection for sending to fallback
+func (p *Processor) process(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, breakOnErr bool) (map[string]*ProcessedFile, *events.FailedEvents, error) {
+	failedEvents := events.NewFailedEvents()
 	filePerTable := map[string]*ProcessedFile{}
 
-	input := bytes.NewBuffer(payload)
-	reader := bufio.NewReaderSize(input, 64*1024)
-	line, readErr := reader.ReadBytes('\n')
-
-	for readErr == nil {
-		object, err := parseFunc(line)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		batchHeader, processedObject, err := p.processObject(object, alreadyUploadedTables)
+	for _, event := range objects {
+		batchHeader, processedObject, err := p.processObject(event, alreadyUploadedTables)
 		if err != nil {
 			//handle skip object functionality
 			if err == ErrSkipObject {
 				if !appconfig.Instance.DisableSkipEventsWarn {
-					logging.Warnf("[%s] Event [%s]: %v", p.identifier, events.ExtractEventID(object), err)
+					logging.Warnf("[%s] Event [%s]: %v", p.identifier, events.ExtractEventID(event), err)
 				}
 
 				counters.SkipEvents(p.identifier, 1)
-			} else if p.breakOnError {
+			} else if p.breakOnError || breakOnErr {
 				return nil, nil, err
 			} else {
-				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(line), err)
+				eventBytes, _ := json.Marshal(event)
 
-				failedFacts = append(failedFacts, &events.FailedEvent{
-					//remove last byte (\n)
-					Event:   line[:len(line)-1],
+				logging.Warnf("Unable to process object %s: %v. This line will be stored in fallback.", string(eventBytes), err)
+
+				failedEvents.Events = append(failedEvents.Events, &events.FailedEvent{
+					Event:   eventBytes,
 					Error:   err.Error(),
-					EventID: events.ExtractEventID(object),
+					EventID: events.ExtractEventID(event),
 				})
+				failedEvents.Src[events.ExtractSrc(event)]++
 			}
 		}
 
-		//don't process empty and skipped object (Exists func nil-protected)
+		//don't process empty and skipped object (batchHeader.Exists() func is nil-protected)
 		if batchHeader.Exists() {
 			f, ok := filePerTable[batchHeader.TableName]
 			if !ok {
-				filePerTable[batchHeader.TableName] = &ProcessedFile{FileName: fileName, BatchHeader: batchHeader, payload: []map[string]interface{}{processedObject}}
+				filePerTable[batchHeader.TableName] = &ProcessedFile{
+					FileName:    fileName,
+					BatchHeader: batchHeader,
+					payload:     []map[string]interface{}{processedObject},
+					eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
+				}
 			} else {
 				f.BatchHeader.Fields.Merge(batchHeader.Fields)
 				f.payload = append(f.payload, processedObject)
+				f.eventsSrc[events.ExtractSrc(event)]++
 			}
 		}
-
-		line, readErr = reader.ReadBytes('\n')
-		if readErr != nil && readErr != io.EOF {
-			return nil, nil, fmt.Errorf("Error reading line in [%s] file: %v", fileName, readErr)
-		}
 	}
 
-	return filePerTable, failedFacts, nil
-}
-
-//ProcessObjects process source chunk payload objects
-//Return array of processed objects per table like {"table1": []objects, "table2": []objects}
-//If at least 1 error occurred - this method return it
-func (p *Processor) ProcessObjects(objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
-	unitPerTable := map[string]*ProcessedFile{}
-
-	for _, object := range objects {
-		batchHeader, processedObject, err := p.processObject(object, map[string]bool{})
-		if err != nil {
-			return nil, err
-		}
-
-		//don't process empty object
-		if !batchHeader.Exists() {
-			continue
-		}
-
-		unit, ok := unitPerTable[batchHeader.TableName]
-		if !ok {
-			unitPerTable[batchHeader.TableName] = &ProcessedFile{BatchHeader: batchHeader, payload: []map[string]interface{}{processedObject}}
-		} else {
-			unit.BatchHeader.Fields.Merge(batchHeader.Fields)
-			unit.payload = append(unit.payload, processedObject)
-		}
-	}
-
-	return unitPerTable, nil
+	return filePerTable, failedEvents, nil
 }
 
 //Check if table name in skipTables => return empty Table for skipping or

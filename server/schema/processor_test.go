@@ -144,16 +144,19 @@ func TestProcessFilePayload(t *testing.T) {
 			fBytes, err := ioutil.ReadFile(tt.inputFilePath)
 			require.NoError(t, err)
 
-			actual, failed, err := p.ProcessFilePayload("testfile", fBytes, map[string]bool{}, tt.parseFunc)
+			objects, err := parsers.ParseJSONFileWithFunc(fBytes, tt.parseFunc)
+			require.NoError(t, err)
+
+			actual, failed, err := p.ProcessEvents("testfile", objects, map[string]bool{})
 			require.NoError(t, err)
 
 			if len(tt.expectedFailed) > 0 {
-				require.Equal(t, len(tt.expectedFailed), len(failed), "Failed objects quantity isn't equal")
-				for i, failedObj := range failed {
+				require.Equal(t, len(tt.expectedFailed), len(failed.Events), "Failed objects quantity isn't equal")
+				for i, failedObj := range failed.Events {
 					test.ObjectsEqual(t, tt.expectedFailed[i], *failedObj)
 				}
 			} else {
-				require.Empty(t, failed)
+				require.Empty(t, failed.Events)
 			}
 
 			require.Equal(t, len(tt.expected), len(actual), "Result sizes aren't equal")

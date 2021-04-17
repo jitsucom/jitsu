@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
@@ -91,6 +92,7 @@ func NewService(ctx context.Context, serverName string, viper *viper.Viper) (Ser
 		es.startHeartBeating()
 
 		logging.Info("Using etcd as a coordination service")
+		telemetry.Coordination("etcd")
 		return es, nil
 	} else {
 		return nil, fmt.Errorf("Unknown coordination service type. Supported: etcd")

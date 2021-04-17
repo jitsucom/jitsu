@@ -1,7 +1,6 @@
 package storages
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -11,11 +10,10 @@ import (
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-//Store files to aws RedShift in two modes:
+//AwsRedshift stores files to aws RedShift in two modes:
 //batch: via aws s3 in batch mode (1 file = 1 statement)
 //stream: via events queue in stream mode (1 object = 1 statement)
 type AwsRedshift struct {
@@ -39,7 +37,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	}
 	//enrich with default parameters
 	if redshiftConfig.Port.String() == "" {
-		redshiftConfig.Port = json.Number("5439")
+		redshiftConfig.Port = "5439"
 		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.name, redshiftConfig.Port)
 	}
 	if redshiftConfig.Schema == "" {
@@ -126,22 +124,16 @@ func (ar *AwsRedshift) Insert(table *adapters.Table, event events.Event) (err er
 	return nil
 }
 
-//Store call StoreWithParseFunc with parsers.ParseJSON func
-func (ar *AwsRedshift) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return ar.StoreWithParseFunc(fileName, payload, alreadyUploadedTables, parsers.ParseJSON)
-}
-
-//StoreWithParseFunc file payload to AwsRedshift with processing
-//return result per table, failed events count and err if occurred
-func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, alreadyUploadedTables map[string]bool,
-	parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
-	flatData, failedEvents, err := ar.processor.ProcessFilePayload(fileName, payload, alreadyUploadedTables, parseFunc)
+//Store process events and stores with storeTable() func
+//returns store result per table, failed events (group of events which are failed to process) and err
+func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	flatData, failedEvents, err := ar.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, linesCount(payload), err
+		return nil, nil, err
 	}
 
 	//update cache with failed events
-	for _, failedEvent := range failedEvents {
+	for _, failedEvent := range failedEvents.Events {
 		ar.eventsCache.Error(ar.Name(), failedEvent.EventID, failedEvent.Error)
 	}
 
@@ -150,7 +142,7 @@ func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, alrea
 	for _, fdata := range flatData {
 		table := ar.tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := ar.storeTable(fdata, table)
-		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen()}
+		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
 			storeFailedEvents = false
 		}
@@ -167,10 +159,10 @@ func (ar *AwsRedshift) StoreWithParseFunc(fileName string, payload []byte, alrea
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		ar.Fallback(failedEvents...)
+		return tableResults, failedEvents, err
 	}
 
-	return tableResults, len(failedEvents), nil
+	return tableResults, nil, nil
 }
 
 //check table schema
@@ -204,10 +196,12 @@ func (ar *AwsRedshift) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
-	return 0, errors.New("RedShift doesn't support sync store")
+//SyncStore isn't supported
+func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+	return errors.New("RedShift doesn't support sync store")
 }
 
+//Update updates record in Redshift
 func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	batchHeader, processedObject, err := ar.processor.ProcessEvent(object)
 	if err != nil {
@@ -230,10 +224,12 @@ func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	return nil
 }
 
+//GetUsersRecognition returns users recognition settings
 func (ar *AwsRedshift) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ar.usersRecognitionConfiguration
 }
 
+//Name returns destination ID
 func (ar *AwsRedshift) Name() string {
 	return ar.name
 }

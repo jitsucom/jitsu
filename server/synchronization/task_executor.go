@@ -14,11 +14,14 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/panjf2000/ants/v2"
 	"time"
 )
+
+const srcSource = "source"
 
 type TaskExecutor struct {
 	workersPool        *ants.PoolWithFunc
@@ -245,22 +248,25 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 
 		for _, object := range objects {
 			//enrich with values
-			object["src"] = "source"
+			object["src"] = srcSource
 			object[timestamp.Key] = timestamp.NowUTC()
 			events.EnrichWithEventID(object, uuid.GetHash(object))
 			events.EnrichWithCollection(object, task.Collection)
 			events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
 		}
+		rowsCount := len(objects)
 		for _, storage := range destinationStorages {
-			rowsCount, err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTable}, objects, intervalToSync.String())
+			err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTable}, objects, intervalToSync.String())
 			if err != nil {
 				metrics.ErrorSourceEvents(task.Source, storage.Name(), rowsCount)
 				metrics.ErrorObjects(task.Source, rowsCount)
+				telemetry.Error(task.Source, storage.Name(), srcSource, rowsCount)
 				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.Name(), err)
 			}
 
 			metrics.SuccessSourceEvents(task.Source, storage.Name(), rowsCount)
 			metrics.SuccessObjects(task.Source, rowsCount)
+			telemetry.Event(task.Source, storage.Name(), srcSource, rowsCount)
 		}
 
 		counters.SuccessSourceEvents(task.Source, len(objects))
