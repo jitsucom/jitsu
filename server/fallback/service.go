@@ -125,7 +125,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 		return fmt.Errorf("[%s] Error parsing fallback file %s: %v", fileName, err)
 	}
 
-	resultPerTable, err := storage.Store(fileName, objects, alreadyUploadedTables)
+	resultPerTable, failedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables)
 
 	if err != nil {
 		metrics.ErrorTokenEvents(fallbackIdentifier, storage.Name(), len(objects))
@@ -139,6 +139,13 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 		telemetry.ErrorsPerSrc(fallbackIdentifier, storage.Name(), eventsSrc)
 
 		return fmt.Errorf("[%s] Error storing fallback file %s in destination: %v", storage.Name(), fileName, err)
+	}
+
+	//events which are failed to process
+	if failedEvents != nil {
+		storage.Fallback(failedEvents.Events...)
+
+		telemetry.ErrorsPerSrc(fallbackIdentifier, storage.Name(), failedEvents.Src)
 	}
 
 	var multiErr error
