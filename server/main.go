@@ -146,7 +146,7 @@ func main() {
 		appconfig.Instance.Close()
 		telemetry.Flush()
 		notifications.Close()
-		time.Sleep(3 * time.Second)
+		time.Sleep(5 * time.Second)
 		telemetry.Close()
 		os.Exit(0)
 	}()

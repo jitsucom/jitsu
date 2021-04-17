@@ -245,7 +245,7 @@ func Flush() {
 	instance.flushCh <- true
 }
 
-//Close stopes underline goroutines
+//Close stops underline goroutines
 func Close() {
 	instance.closed = true
 }

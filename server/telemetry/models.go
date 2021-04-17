@@ -19,17 +19,17 @@ type Usage struct {
 
 	Events    uint64 `json:"events,omitempty"`
 	Errors    uint64 `json:"errors,omitempty"`
-	EventsSrc string `json:"events_src"`
+	EventsSrc string `json:"events_src,omitempty"`
 
-	Source     string `json:"hashed_source_id"`
-	SourceType string `json:"source_type"`
+	Source     string `json:"hashed_source_id,omitempty"`
+	SourceType string `json:"source_type,omitempty"`
 
-	Destination       string `json:"hashed_destination_id"`
-	DestinationType   string `json:"destination_type"`
-	DestinationMode   string `json:"destination_mode"`
-	DestinationPkKeys bool   `json:"destination_primary_keys"`
+	Destination       string `json:"hashed_destination_id,omitempty"`
+	DestinationType   string `json:"destination_type,omitempty"`
+	DestinationMode   string `json:"destination_mode,omitempty"`
+	DestinationPkKeys bool   `json:"destination_primary_keys,omitempty"`
 
-	Coordination string `json:"coordination"`
+	Coordination string `json:"coordination,omitempty"`
 }
 
 //Errors is a error accounting dto
