@@ -122,7 +122,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 
 	objects, err := parsers.ParseJSONFileWithFunc(b, parserFunc)
 	if err != nil {
-		return fmt.Errorf("[%s] Error parsing fallback file %s: %v", fileName, err)
+		return fmt.Errorf("Error parsing fallback file %s: %v", fileName, err)
 	}
 
 	resultPerTable, failedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables)
@@ -142,7 +142,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 	}
 
 	//events which are failed to process
-	if failedEvents != nil {
+	if !failedEvents.IsEmpty() {
 		storage.Fallback(failedEvents.Events...)
 
 		telemetry.ErrorsPerSrc(fallbackIdentifier, storage.Name(), failedEvents.Src)

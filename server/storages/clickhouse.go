@@ -12,7 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-//Store files to ClickHouse in two modes:
+//ClickHouse stores files to ClickHouse in two modes:
 //batch: (1 file = 1 statement)
 //stream: (1 object = 1 statement)
 type ClickHouse struct {
@@ -193,11 +193,7 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 	return nil
 }
 
-//SyncStore is used in two cases:
-//1. store chunk payload to ClickHouse with processing
-//2. store recognized users events
-//return rows count and err if can't store
-//or rows count and nil if stored
+//SyncStore is used in storing chunk of pulled data to ClickHouse with processing
 func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
 	flatData, err := ch.processor.ProcessPulledEvents(timeIntervalValue, objects)
 	if err != nil {

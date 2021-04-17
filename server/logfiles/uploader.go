@@ -140,7 +140,7 @@ func (u *PeriodicUploader) Start() {
 					}
 
 					//events which are failed to process
-					if failedEvents != nil {
+					if !failedEvents.IsEmpty() {
 						storage.Fallback(failedEvents.Events...)
 
 						telemetry.ErrorsPerSrc(tokenID, storage.Name(), failedEvents.Src)
