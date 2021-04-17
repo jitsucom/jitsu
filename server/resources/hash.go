@@ -8,6 +8,10 @@ import (
 
 var hashOptions = &hashstructure.HashOptions{SlicesAsSets: true}
 
+func GetStringHash(value string) string {
+	return fmt.Sprintf("%x", md5.Sum([]byte(value)))
+}
+
 func GetBytesHash(payload []byte) string {
 	return fmt.Sprintf("%x", md5.Sum(payload))
 }

@@ -5,7 +5,7 @@ import "time"
 //Key is a default key and format of event timestamp
 const Key = "_timestamp"
 
-//Layout is an ISO date time format
+//Layout is an ISO date time format. Note: for parsing use time.RFC3339Nano.
 const Layout = "2006-01-02T15:04:05.000000Z"
 
 //DayLayout is a Day format of time.Time
@@ -17,7 +17,7 @@ const MonthLayout = "200601"
 //DashDayLayout is a Day format with dash delimiter of time.Time
 const DashDayLayout = "2006-01-02"
 
-//LogsLayout is a date time representation for log records prefixies
+//LogsLayout is a date time representation for log records prefixes
 const LogsLayout = "2006-01-02 15:04:05"
 
 //NowUTC returns ISO string representation of current UTC time

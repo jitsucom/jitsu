@@ -15,5 +15,5 @@ func NewAPIPreprocessor() Preprocessor {
 //Preprocess
 //put src = api
 func (ap *APIPreprocessor) Preprocess(event Event, r *http.Request) {
-	event["src"] = "api"
+	event[SrcKey] = "api"
 }

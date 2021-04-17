@@ -12,7 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-//Store events to Facebook Conversion API in stream mode
+//Facebook stores events to Facebook Conversion API in stream mode
 type Facebook struct {
 	name            string
 	fbAdapter       *adapters.FacebookConversionAPI
@@ -65,16 +65,12 @@ func (fb *Facebook) Insert(table *adapters.Table, event events.Event) (err error
 	return fb.fbAdapter.Send(event)
 }
 
-func (fb *Facebook) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return nil, 0, errors.New("Facebook Conversion doesn't support Store() func")
+func (fb *Facebook) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	return nil, nil, errors.New("Facebook Conversion doesn't support Store() func")
 }
 
-func (fb *Facebook) StoreWithParseFunc(fileName string, payload []byte, skipTables map[string]bool, parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
-	return nil, 0, errors.New("Facebook Conversion doesn't support StoreWithParseFunc() func")
-}
-
-func (fb *Facebook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
-	return 0, errors.New("Facebook Conversion doesn't support SyncStore() func")
+func (fb *Facebook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+	return errors.New("Facebook Conversion doesn't support SyncStore() func")
 }
 
 func (fb *Facebook) Update(object map[string]interface{}) error {

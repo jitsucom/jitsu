@@ -11,11 +11,14 @@ import (
 	"time"
 )
 
+//TableNameExtractor extracts table name from every JSON event
 type TableNameExtractor struct {
 	tableNameExtractExpression string
 	tmpl                       *template.Template
+	useTimestamp               bool
 }
 
+//NewTableNameExtractor returns configured TableNameExtractor
 func NewTableNameExtractor(tableNameExtractExpression string) (*TableNameExtractor, error) {
 	//Table naming
 	tmpl, err := template.New("table name extract").
@@ -27,9 +30,12 @@ func NewTableNameExtractor(tableNameExtractExpression string) (*TableNameExtract
 	return &TableNameExtractor{
 		tableNameExtractExpression: tableNameExtractExpression,
 		tmpl:                       tmpl,
+		useTimestamp:               strings.Contains(tableNameExtractExpression, timestamp.Key),
 	}, nil
 }
 
+//Extract returns table name string (extracts it from JSON event with text/template expression)
+//returns empty string
 func (tne *TableNameExtractor) Extract(object map[string]interface{}) (result string, err error) {
 	//panic handler
 	defer func() {
@@ -40,20 +46,23 @@ func (tne *TableNameExtractor) Extract(object map[string]interface{}) (result st
 	}()
 
 	//we need time type of _timestamp field for extracting table name with date template
-	ts, ok := object[timestamp.Key]
-	if !ok {
-		errMsg := fmt.Sprintf("Error extracting table name: %s field doesn't exist", timestamp.Key)
-		logging.SystemError(errMsg)
-		return "", errors.New(errMsg)
-	}
-	t, err := time.Parse(timestamp.Layout, ts.(string))
-	if err != nil {
-		errMsg := fmt.Sprintf("Error extracting table name: malformed %s field: %v", timestamp.Key, err)
-		logging.SystemError(errMsg)
-		return "", errors.New(errMsg)
+	if tne.useTimestamp {
+		ts, ok := object[timestamp.Key]
+		if !ok {
+			errMsg := fmt.Sprintf("Error extracting table name: %s field doesn't exist", timestamp.Key)
+			logging.SystemError(errMsg)
+			return "", errors.New(errMsg)
+		}
+		t, err := time.Parse(time.RFC3339Nano, ts.(string))
+		if err != nil {
+			errMsg := fmt.Sprintf("Error extracting table name: malformed %s field: %v", timestamp.Key, err)
+			logging.SystemError(errMsg)
+			return "", errors.New(errMsg)
+		}
+
+		object[timestamp.Key] = t
 	}
 
-	object[timestamp.Key] = t
 	var buf bytes.Buffer
 	if err := tne.tmpl.Execute(&buf, object); err != nil {
 		return "", fmt.Errorf("Error executing %s template: %v", tne.tableNameExtractExpression, err)

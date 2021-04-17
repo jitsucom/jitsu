@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/singer"
 	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"strings"
@@ -41,7 +42,7 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 
 		for _, object := range stream.Objects {
 			//enrich with system fields values
-			object["src"] = "source"
+			object["src"] = srcSource
 			object[timestamp.Key] = timestamp.NowUTC()
 
 			//calculate eventID from key fields or whole object
@@ -54,18 +55,21 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 			events.EnrichWithEventID(object, eventID)
 		}
 
+		rowsCount := len(stream.Objects)
 		//Sync stream
 		for _, storage := range rs.destinations {
-			rowsCount, err := storage.SyncStore(stream.BatchHeader, stream.Objects, "")
+			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "")
 			if err != nil {
 				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.Name(), err)
 				metrics.ErrorSourceEvents(rs.task.Source, storage.Name(), rowsCount)
 				metrics.ErrorObjects(rs.task.Source, rowsCount)
+				telemetry.Error(rs.task.Source, storage.Name(), srcSource, rowsCount)
 				return errors.New(errMsg)
 			}
 
 			metrics.SuccessSourceEvents(rs.task.Source, storage.Name(), rowsCount)
 			metrics.SuccessObjects(rs.task.Source, rowsCount)
+			telemetry.Event(rs.task.Source, storage.Name(), srcSource, rowsCount)
 		}
 
 		counters.SuccessSourceEvents(rs.task.Source, len(stream.Objects))
