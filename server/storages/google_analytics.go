@@ -12,7 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-//Store events to Google Analytics in stream mode
+//GoogleAnalytics stores events to Google Analytics in stream mode
 type GoogleAnalytics struct {
 	name            string
 	gaAdapter       *adapters.GoogleAnalytics
@@ -65,16 +65,12 @@ func (ga *GoogleAnalytics) Insert(table *adapters.Table, event events.Event) (er
 	return ga.gaAdapter.Send(event)
 }
 
-func (ga *GoogleAnalytics) Store(fileName string, payload []byte, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, int, error) {
-	return nil, 0, errors.New("GoogleAnalytics doesn't support Store() func")
+func (ga *GoogleAnalytics) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	return nil, nil, errors.New("GoogleAnalytics doesn't support Store() func")
 }
 
-func (ga *GoogleAnalytics) StoreWithParseFunc(fileName string, payload []byte, skipTables map[string]bool, parseFunc func([]byte) (map[string]interface{}, error)) (map[string]*StoreResult, int, error) {
-	return nil, 0, errors.New("GoogleAnalytics doesn't support StoreWithParseFunc() func")
-}
-
-func (ga *GoogleAnalytics) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (int, error) {
-	return 0, errors.New("GoogleAnalytics doesn't support SyncStore() func")
+func (ga *GoogleAnalytics) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+	return errors.New("GoogleAnalytics doesn't support SyncStore() func")
 }
 
 func (ga *GoogleAnalytics) Update(object map[string]interface{}) error {

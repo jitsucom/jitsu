@@ -146,7 +146,7 @@ func main() {
 		appconfig.Instance.Close()
 		telemetry.Flush()
 		notifications.Close()
-		time.Sleep(3 * time.Second)
+		time.Sleep(5 * time.Second)
 		telemetry.Close()
 		os.Exit(0)
 	}()
@@ -176,6 +176,7 @@ func main() {
 		logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
 
 		coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
+		telemetry.Coordination("etcd")
 	} else {
 		coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
 	}
@@ -296,7 +297,7 @@ func main() {
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
 		coordinationService, eventsCache)
 
-	telemetry.ServerStart()
+	telemetry.ServerStart(*dockerHubID)
 	notifications.ServerStart()
 	logging.Info("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{

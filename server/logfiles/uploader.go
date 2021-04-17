@@ -4,9 +4,12 @@ import (
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"io/ioutil"
 	"os"
 	"path"
@@ -27,6 +30,7 @@ type PeriodicUploader struct {
 	destinationService *destinations.Service
 }
 
+//NewUploader returns new configured PeriodicUploader instance
 func NewUploader(logEventPath, fileMask string, uploadEveryS int, destinationService *destinations.Service) (*PeriodicUploader, error) {
 	logIncomingEventPath := path.Join(logEventPath, logging.IncomingDir)
 	logArchiveEventPath := path.Join(logEventPath, logging.ArchiveDir)
@@ -91,6 +95,12 @@ func (u *PeriodicUploader) Start() {
 					continue
 				}
 
+				objects, err := parsers.ParseJSONFile(b)
+				if err != nil {
+					logging.SystemErrorf("Error parsing JSON file [%s] with events: %v", filePath, err)
+					continue
+				}
+
 				//flag for archiving file if all storages don't have errors while storing this file
 				archiveFile := true
 				for _, storageProxy := range storageProxies {
@@ -108,16 +118,32 @@ func (u *PeriodicUploader) Start() {
 						}
 					}
 
-					resultPerTable, errRowsCount, err := storage.Store(fileName, b, alreadyUploadedTables)
-					if errRowsCount > 0 {
-						metrics.ErrorTokenEvents(tokenID, storage.Name(), errRowsCount)
-						counters.ErrorEvents(storage.Name(), errRowsCount)
-					}
+					resultPerTable, failedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables)
 
 					if err != nil {
 						archiveFile = false
 						logging.Errorf("[%s] Error storing file %s in destination: %v", storage.Name(), filePath, err)
+
+						//extract src
+						eventsSrc := map[string]int{}
+						for _, obj := range objects {
+							eventsSrc[events.ExtractSrc(obj)]++
+						}
+
+						errRowsCount := len(objects)
+						metrics.ErrorTokenEvents(tokenID, storage.Name(), errRowsCount)
+						counters.ErrorEvents(storage.Name(), errRowsCount)
+
+						telemetry.ErrorsPerSrc(tokenID, storage.Name(), eventsSrc)
+
 						continue
+					}
+
+					//events which are failed to process
+					if !failedEvents.IsEmpty() {
+						storage.Fallback(failedEvents.Events...)
+
+						telemetry.ErrorsPerSrc(tokenID, storage.Name(), failedEvents.Src)
 					}
 
 					for tableName, result := range resultPerTable {
@@ -126,9 +152,13 @@ func (u *PeriodicUploader) Start() {
 							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.Name(), tableName, filePath, result.Err)
 							metrics.ErrorTokenEvents(tokenID, storage.Name(), result.RowsCount)
 							counters.ErrorEvents(storage.Name(), result.RowsCount)
+
+							telemetry.ErrorsPerSrc(tokenID, storage.Name(), result.EventsSrc)
 						} else {
 							metrics.SuccessTokenEvents(tokenID, storage.Name(), result.RowsCount)
 							counters.SuccessEvents(storage.Name(), result.RowsCount)
+
+							telemetry.EventsPerSrc(tokenID, storage.Name(), result.EventsSrc)
 						}
 
 						u.statusManager.UpdateStatus(fileName, storage.Name(), tableName, result.Err)

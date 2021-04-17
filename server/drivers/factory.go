@@ -15,7 +15,6 @@ import (
 var (
 	ErrUnknownSource   = errors.New("Unknown source type")
 	DriverConstructors = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
-	DriverTests        = make(map[string]func(ctx context.Context, config *SourceConfig) (Driver, error))
 )
 
 const (

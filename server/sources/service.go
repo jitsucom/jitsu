@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/scheduling"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
 	"strings"
 	"sync"
@@ -171,6 +172,7 @@ func (s *Service) init(sc map[string]drivers.SourceConfig) {
 		s.Unlock()
 
 		logging.Infof("[%s] source has been initialized!", name)
+		telemetry.Source(name, sourceConfig.Type)
 	}
 }
 

@@ -11,29 +11,30 @@ type ProcessedFile struct {
 	FileName    string
 	BatchHeader *BatchHeader
 
-	payload []map[string]interface{}
+	payload   []map[string]interface{}
+	eventsSrc map[string]int
 }
 
 //GetPayload return payload as is
-func (pf ProcessedFile) GetPayload() []map[string]interface{} {
+func (pf *ProcessedFile) GetPayload() []map[string]interface{} {
 	return pf.payload
 }
 
 //GetPayloadLen return count of rows(objects)
-func (pf ProcessedFile) GetPayloadLen() int {
+func (pf *ProcessedFile) GetPayloadLen() int {
 	return len(pf.payload)
 }
 
-//GetPayloadBytes return marshaling by marshaller func, joined with \n,  bytes
+//GetPayloadBytes returns marshaling by marshaller func, joined with \n,  bytes
 //assume that payload can't be empty
-func (pf ProcessedFile) GetPayloadBytes(marshaller Marshaller) []byte {
+func (pf *ProcessedFile) GetPayloadBytes(marshaller Marshaller) []byte {
 	b, _ := pf.GetPayloadBytesWithHeader(marshaller)
 	return b
 }
 
-//GetPayloadBytes return marshaling by marshaller func, joined with \n,  bytes
+//GetPayloadBytesWithHeader returns marshaling by marshaller func, joined with \n,  bytes
 //assume that payload can't be empty
-func (pf ProcessedFile) GetPayloadBytesWithHeader(marshaller Marshaller) ([]byte, []string) {
+func (pf *ProcessedFile) GetPayloadBytesWithHeader(marshaller Marshaller) ([]byte, []string) {
 	var buf *bytes.Buffer
 
 	var fields []string
@@ -58,4 +59,14 @@ func (pf ProcessedFile) GetPayloadBytesWithHeader(marshaller Marshaller) ([]byte
 	}
 
 	return buf.Bytes(), fields
+}
+
+//GetEventsPerSrc returns events quantity per src
+func (pf *ProcessedFile) GetEventsPerSrc() map[string]int {
+	result := map[string]int{}
+	for k, v := range pf.eventsSrc {
+		result[k] = v
+	}
+
+	return result
 }
