@@ -184,7 +184,11 @@ func main() {
 		if configuration != nil {
 			host := configuration.GetString("host")
 			port := configuration.GetInt("port")
-			coordinationService, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, host, port)
+			password := configuration.GetString("password")
+			coordinationService, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, host, port, password)
+			if err != nil {
+				logging.Fatal("Failed to initiate coordination service", err)
+			}
 		} else {
 			logging.Warn("Currently coordination service uses only redis implementation")
 		}
