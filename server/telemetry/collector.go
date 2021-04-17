@@ -1,20 +1,38 @@
 package telemetry
 
-import (
-	"sync/atomic"
-)
-
 //Collector is a thread-safe collector for events accounting
+//per source - destination pair, src,
 type Collector struct {
-	events uint64
+	events *Counter
+	errors *Counter
 }
 
-//Event increment events counter
-func (c *Collector) Event() {
-	atomic.AddUint64(&c.events, 1)
+func newCollector() *Collector {
+	return &Collector{
+		events: newCounter(),
+		errors: newCounter(),
+	}
 }
 
-//Cut return current value and set it to 0
-func (c *Collector) Cut() uint64 {
-	return atomic.SwapUint64(&c.events, 0)
+//Event increments events counter
+func (c *Collector) Event(sourceID, destinationID, src string, quantity uint64) {
+	c.events.AddValue(CriteriaKey{
+		sourceID:      sourceID,
+		destinationID: destinationID,
+		src:           src,
+	}, quantity)
+}
+
+//Error increments errors counter
+func (c *Collector) Error(sourceID, destinationID, src string, quantity uint64) {
+	c.errors.AddValue(CriteriaKey{
+		sourceID:      sourceID,
+		destinationID: destinationID,
+		src:           src,
+	}, quantity)
+}
+
+//Cut returns current counters values (events and errors)
+func (c *Collector) Cut() (map[CriteriaKey]uint64, map[CriteriaKey]uint64) {
+	return c.events.Cut(), c.errors.Cut()
 }

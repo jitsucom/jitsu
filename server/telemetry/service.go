@@ -67,7 +67,7 @@ func Init(serviceName, commit, tag, builtAt string) {
 		url:         "https://t.jitsu.com/api/v1/s2s/event?token=ttttd50c-d8f2-414c-bf3d-9902a5031fd2",
 		usageOptOut: atomic.NewBool(false),
 
-		collector: &Collector{},
+		collector: newCollector(),
 
 		usageCh: make(chan *Request, 100),
 
@@ -99,8 +99,8 @@ func reInit(payload []byte) {
 }
 
 //ServerStart puts server start event into the queue
-func ServerStart() {
-	instance.usage(&Usage{ServerStart: 1})
+func ServerStart(dockerHubID string) {
+	instance.usage(&Usage{DockerHubID: dockerHubID, ServerStart: 1})
 }
 
 //ServerStop puts server stop event into the queue
@@ -108,10 +108,66 @@ func ServerStop() {
 	instance.usage(&Usage{ServerStop: 1})
 }
 
-//Event increment events collector counter
-func Event() {
+//EventsPerSrc increments events collector counter per Src
+func EventsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
 	if !instance.usageOptOut.Load() {
-		instance.collector.Event()
+		for src, quantity := range quantityPerSrc {
+			Event(sourceID, destinationID, src, quantity)
+		}
+	}
+}
+
+//Event increments events collector counter
+func Event(sourceID, destinationID, src string, quantity int) {
+	if !instance.usageOptOut.Load() {
+		instance.collector.Event(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, uint64(quantity))
+	}
+}
+
+//ErrorsPerSrc increments errors collector counter per Src
+func ErrorsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
+	if !instance.usageOptOut.Load() {
+		for src, quantity := range quantityPerSrc {
+			Error(sourceID, destinationID, src, quantity)
+		}
+	}
+}
+
+//Error increments errors collector counter
+func Error(sourceID, destinationID, src string, quantity int) {
+	if !instance.usageOptOut.Load() {
+		instance.collector.Error(resources.GetStringHash(sourceID), resources.GetStringHash(destinationID), src, uint64(quantity))
+	}
+}
+
+//Destination puts usage event with hashed destination id and type
+func Destination(destinationID, destinationType, mode string, primaryKeysPresent bool) {
+	if !instance.usageOptOut.Load() {
+		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
+			Destination:       resources.GetStringHash(destinationID),
+			DestinationType:   destinationType,
+			DestinationMode:   mode,
+			DestinationPkKeys: primaryKeysPresent,
+		})
+	}
+}
+
+//Source puts usage event with hashed source id and type
+func Source(sourceID, sourceType string) {
+	if !instance.usageOptOut.Load() {
+		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
+			Source:     resources.GetStringHash(sourceID),
+			SourceType: sourceType,
+		})
+	}
+}
+
+//Coordination puts usage event with coordination service type
+func Coordination(serviceType string) {
+	if !instance.usageOptOut.Load() {
+		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
+			Coordination: serviceType,
+		})
 	}
 }
 
@@ -141,14 +197,16 @@ func (s *Service) startUsage() {
 
 			select {
 			case <-ticker.C:
-				v := s.collector.Cut()
-				if v > 0 {
-					instance.usage(&Usage{Events: v})
+				//sends via channel
+				usage := s.getUsage()
+				for _, u := range usage {
+					instance.usage(u)
 				}
 			case <-s.flushCh:
-				v := s.collector.Cut()
-				if v > 0 {
-					instance.usage(&Usage{Events: v})
+				//sends immediately
+				usage := s.getUsage()
+				for _, u := range usage {
+					s.send(instance.reqFactory.fromUsage(u))
 				}
 			}
 		}
@@ -167,11 +225,40 @@ func (s *Service) startUsage() {
 			}
 
 			req := <-s.usageCh
-			if b, err := json.Marshal(req); err == nil {
-				s.client.Post(s.url, "application/json", bytes.NewBuffer(b))
-			}
+			s.send(req)
 		}
 	})
+}
+
+func (s *Service) send(req *Request) {
+	if b, err := json.Marshal(req); err == nil {
+		s.client.Post(s.url, "application/json", bytes.NewBuffer(b))
+	}
+}
+
+func (s *Service) getUsage() []*Usage {
+	var usage []*Usage
+	eventsQuantity, errorsQuantity := s.collector.Cut()
+
+	for key, quantity := range eventsQuantity {
+		usage = append(usage, &Usage{
+			Events:      quantity,
+			EventsSrc:   key.src,
+			Source:      key.sourceID,
+			Destination: key.destinationID,
+		})
+	}
+
+	for key, quantity := range errorsQuantity {
+		usage = append(usage, &Usage{
+			Errors:      quantity,
+			EventsSrc:   key.src,
+			Source:      key.sourceID,
+			Destination: key.destinationID,
+		})
+	}
+
+	return usage
 }
 
 //Flush sends all requests that are in a queue
@@ -179,7 +266,7 @@ func Flush() {
 	instance.flushCh <- true
 }
 
-//Close stopes underline goroutines
+//Close stops underline goroutines
 func Close() {
 	instance.closed = true
 }

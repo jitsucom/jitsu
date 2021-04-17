@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"math/rand"
 	"strings"
 	"time"
@@ -83,8 +84,11 @@ func (sw *StreamingWorker) start() {
 				} else {
 					serialized := fact.Serialize()
 					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.Name(), serialized, err)
+
 					metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.Name())
 					counters.ErrorEvents(sw.streamingStorage.Name(), 1)
+					telemetry.Error(tokenID, sw.streamingStorage.Name(), events.ExtractSrc(fact), 1)
+
 					sw.streamingStorage.Fallback(&events.FailedEvent{
 						Event:   []byte(serialized),
 						Error:   err.Error(),
@@ -122,6 +126,8 @@ func (sw *StreamingWorker) start() {
 				}
 
 				counters.ErrorEvents(sw.streamingStorage.Name(), 1)
+				telemetry.Error(tokenID, sw.streamingStorage.Name(), events.ExtractSrc(fact), 1)
+
 				//cache
 				sw.eventsCache.Error(sw.streamingStorage.Name(), events.ExtractEventID(fact), err.Error())
 
@@ -130,6 +136,7 @@ func (sw *StreamingWorker) start() {
 			}
 
 			counters.SuccessEvents(sw.streamingStorage.Name(), 1)
+			telemetry.Event(tokenID, sw.streamingStorage.Name(), events.ExtractSrc(fact), 1)
 
 			//cache
 			sw.eventsCache.Succeed(sw.streamingStorage.Name(), events.ExtractEventID(fact), flattenObject, table)

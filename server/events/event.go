@@ -15,6 +15,19 @@ type FailedEvent struct {
 	EventID string          `json:"event_id,omitempty"`
 }
 
+type FailedEvents struct {
+	Events []*FailedEvent
+	Src    map[string]int
+}
+
+func NewFailedEvents() *FailedEvents {
+	return &FailedEvents{Src: map[string]int{}}
+}
+
+func (ff *FailedEvents) IsEmpty() bool {
+	return ff == nil || len(ff.Events) == 0
+}
+
 func (f Event) Serialize() string {
 	b, err := json.Marshal(f)
 	if err != nil {

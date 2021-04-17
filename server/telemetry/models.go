@@ -13,9 +13,23 @@ type InstanceInfo struct {
 
 //Usage is a usage accounting dto
 type Usage struct {
+	DockerHubID string `json:"docker_hub_id,omitempty"`
 	ServerStart int    `json:"server_start,omitempty"`
 	ServerStop  int    `json:"server_stop,omitempty"`
-	Events      uint64 `json:"events,omitempty"`
+
+	Events    uint64 `json:"events,omitempty"`
+	Errors    uint64 `json:"errors,omitempty"`
+	EventsSrc string `json:"events_src,omitempty"`
+
+	Source     string `json:"hashed_source_id,omitempty"`
+	SourceType string `json:"source_type,omitempty"`
+
+	Destination       string `json:"hashed_destination_id,omitempty"`
+	DestinationType   string `json:"destination_type,omitempty"`
+	DestinationMode   string `json:"destination_mode,omitempty"`
+	DestinationPkKeys bool   `json:"destination_primary_keys,omitempty"`
+
+	Coordination string `json:"coordination,omitempty"`
 }
 
 //Errors is a error accounting dto
