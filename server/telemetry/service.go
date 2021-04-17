@@ -197,9 +197,17 @@ func (s *Service) startUsage() {
 
 			select {
 			case <-ticker.C:
-				s.enqueueUsage()
+				//sends via channel
+				usage := s.getUsage()
+				for _, u := range usage {
+					instance.usage(u)
+				}
 			case <-s.flushCh:
-				s.enqueueUsage()
+				//sends immediately
+				usage := s.getUsage()
+				for _, u := range usage {
+					s.send(instance.reqFactory.fromUsage(u))
+				}
 			}
 		}
 	})
@@ -217,18 +225,23 @@ func (s *Service) startUsage() {
 			}
 
 			req := <-s.usageCh
-			if b, err := json.Marshal(req); err == nil {
-				s.client.Post(s.url, "application/json", bytes.NewBuffer(b))
-			}
+			s.send(req)
 		}
 	})
 }
 
-func (s *Service) enqueueUsage() {
+func (s *Service) send(req *Request) {
+	if b, err := json.Marshal(req); err == nil {
+		s.client.Post(s.url, "application/json", bytes.NewBuffer(b))
+	}
+}
+
+func (s *Service) getUsage() []*Usage {
+	var usage []*Usage
 	eventsQuantity, errorsQuantity := s.collector.Cut()
 
 	for key, quantity := range eventsQuantity {
-		instance.usage(&Usage{
+		usage = append(usage, &Usage{
 			Events:      quantity,
 			EventsSrc:   key.src,
 			Source:      key.sourceID,
@@ -237,13 +250,15 @@ func (s *Service) enqueueUsage() {
 	}
 
 	for key, quantity := range errorsQuantity {
-		instance.usage(&Usage{
+		usage = append(usage, &Usage{
 			Errors:      quantity,
 			EventsSrc:   key.src,
 			Source:      key.sourceID,
 			Destination: key.destinationID,
 		})
 	}
+
+	return usage
 }
 
 //Flush sends all requests that are in a queue
