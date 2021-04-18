@@ -2,12 +2,12 @@ import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 import { NavLink } from 'react-router-dom';
 import { routes } from '@page/SourcesPage/routes';
 
-function join<T>(array: T[], separator: T): T[] {
+function join<T>(array: T[], separatorFactory: (id: number) => T): T[] {
   let res = [];
   for (let i = 0; i < array.length; i++) {
     res.push(array[i]);
     if (i !== array.length - 1) {
-      res.push(separator)
+      res.push(separatorFactory(i))
     }
   }
   return res;
@@ -15,13 +15,13 @@ function join<T>(array: T[], separator: T): T[] {
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ elements }) => {
   return <div className="flex flex-row items-center text-base space-x-3">
-    {join(elements.map(bc =>
-      <div className="">
+    {join(elements.map((bc, index) =>
+      <div className="" key={`element-${index}`}>
         {bc.link ?
           <NavLink to={bc.link} className="text-heading">{bc.title}</NavLink> :
           bc.title
         }
       </div>
-    ), <div className="text-heading">/</div>)}
+    ), (num) => <div key={`sep-${num}`} className="text-heading">/</div>)}
   </div>
 }
