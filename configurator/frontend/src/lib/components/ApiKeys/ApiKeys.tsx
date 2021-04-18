@@ -28,6 +28,7 @@ import {
 import { FlexContainer, FlexItem } from '../flex';
 import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
+import useLoader from '@./lib/commons/useLoader';
 
 type Token = {
   uid: string;
@@ -330,28 +331,21 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
 function KeyDocumentation({ token }: { token: Token }) {
   const [gaEnabled, setGAEnabled] = useState(false);
   const [segment, setSegmentEnabled] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [domains, setDomains] = useState([]);
   const [selectedDomain, setSelectedDomain] = useState(null);
   const services = ApplicationServices.get();
 
-  useEffect(() => {
-    services.storageService
-      .get('custom_domains', services.activeProject.id)
-      .then((result) => {
-        let customDomains = result && result.domains ? result.domains.map((domain) => domain.name) : [];
-        let newDomains = [...customDomains, EVENTNATIVE_HOST];
-        setDomains(newDomains);
-        setSelectedDomain(newDomains[0]);
-      })
-      .catch((e) => setError(e))
-      .finally(() => setLoading(false));
-  });
+  const [error, domains, setDomains] = useLoader(async () => {
+    let result = await services.storageService.get('custom_domains', services.activeProject.id);
+    let customDomains = result && result.domains ? result.domains.map((domain) => domain.name) : [];
+    let newDomains = [...customDomains, EVENTNATIVE_HOST];
+    setSelectedDomain(newDomains[0]);
+    return newDomains;
+  })
+
   if (error) {
     handleError(error, 'Failed to load data from server');
     return <CenteredError error={error} />;
-  } else if (loading) {
+  } else if (!domains) {
     return <CenteredSpin />;
   }
 
