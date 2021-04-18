@@ -38,6 +38,7 @@ func (mp *MutexProxy) Unlock(context.Context) error {
 }
 
 func NewRedisService(ctx context.Context, serverName string, host string, port int, password string) (Service, error) {
+	logging.Info("Initializing coordination service...")
 	service := RedisService{
 		closed:      false,
 		context:     ctx,
