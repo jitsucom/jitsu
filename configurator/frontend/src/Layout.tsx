@@ -15,7 +15,7 @@ import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
 import { Align, handleError } from '@./lib/components/components';
 import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
 import classNames from 'classnames';
-import { ReactNode, useState } from 'react';
+import { memo, ReactNode, useState } from 'react';
 import { Permission, User } from '@service/model';
 import SlidersOutlined from '@ant-design/icons/lib/icons/SlidersOutlined';
 import UserSwitchOutlined from '@ant-design/icons/lib/icons/UserSwitchOutlined';
@@ -48,13 +48,18 @@ export const ApplicationMenu: React.FC<{}> = () => {
         Event API Keys
       </NavLink>
     </Menu.Item>
-    <Menu.Item key="sources" icon={<ApiOutlined/>} disabled={true}>
-      <Tooltip mouseEnterDelay={0} title={<>
-        Pooling data from external sources is available
-        only <a href="https://jitsu.com/docs/sources-configuration">in open-source version with YAML-file configuration</a>
-      </>}>
-        Sources<sup>Soon!</sup>
-      </Tooltip>
+    {/*<Menu.Item key="sources" icon={<ApiOutlined/>} disabled={true}>*/}
+    {/*  <Tooltip mouseEnterDelay={0} title={<>*/}
+    {/*    Pooling data from external sources is available*/}
+    {/*    only <a href="https://jitsu.com/docs/sources-configuration">in open-source version with YAML-file configuration</a>*/}
+    {/*  </>}>*/}
+    {/*    Sources<sup>Soon!</sup>*/}
+    {/*  </Tooltip>*/}
+    {/*</Menu.Item>*/}
+    <Menu.Item key="sources" icon={<ApiOutlined/>}>
+      <NavLink to="/sources" activeClassName="selected">
+        Connectors
+      </NavLink>
     </Menu.Item>
     <Menu.Item key="destinations" icon={<NotificationOutlined/>}>
       <NavLink to="/destinations" activeClassName="selected">
@@ -90,13 +95,6 @@ export const ApplicationSidebar: React.FC<{}> = () => {
       </a>
     </div>
   </Layout.Sider>
-}
-
-type ApplicationContentProps = {
-  children: ReactNode
-  user: User
-  page: Page
-
 }
 
 export type PageHeaderProps = {

@@ -1,7 +1,7 @@
 // @Libs
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { message } from 'antd';
-import { NavLink, useHistory } from 'react-router-dom';
+import { useHistory } from 'react-router-dom';
 import { snakeCase } from 'lodash';
 // @Components
 import { SourceForm } from './SourceForm';
@@ -22,7 +22,6 @@ const SourceFormWrap = ({
   sources = [],
   connectorSource,
   projectId,
-  setBreadcrumbs,
   sourceData = {} as SourceData,
   formMode = 'create',
   setSources
@@ -96,12 +95,6 @@ const SourceFormWrap = ({
     },
     [isConnected, connectorSource, services.storageService, projectId, sources, history, setSources, formMode]
   );
-
-  const header = useMemo(() => withHome({ elements: [
-    { title: <SourceFormHeader connectorSource={connectorSource} /> }
-  ] }), [connectorSource.id]);
-
-  setBreadcrumbs(header);
 
   return (
     <div className="add-source flex flex-col items-stretch">

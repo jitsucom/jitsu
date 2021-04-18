@@ -22,7 +22,6 @@ const SourcesPage = (props: PageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
   const getComponent = useCallback(
     (Component: React.FC<CommonSourcePageProps>) => (currentProps: RouteProps) =>{
-      console.log('Rendering ' + Component.displayName + ' with ' + JSON.stringify(currentProps));
       return <Component
         setSources={setSources}
         sources={sources?.sources}
@@ -30,12 +29,14 @@ const SourcesPage = (props: PageProps) => {
         setBreadcrumbs={props.setBreadcrumbs}
         {...currentProps} />
     },
-    [services.activeProject.id, sources]
+    [props.setBreadcrumbs, services.activeProject.id, sources?.sources]
   );
 
   useEffect(() => {
-    services.storageService.get('sources', services.activeProject.id).then(({ _lastUpdated, ...response }) => setSources(response))
-  }, [services, services.activeProject.id]);
+    services.storageService.get('sources', services.activeProject.id).then(({ _lastUpdated, ...response }) => {
+      setSources(response);
+    });
+  }, [setSources, services, services.activeProject.id]);
 
   return <>
     {!sources ?
@@ -44,7 +45,7 @@ const SourcesPage = (props: PageProps) => {
         <Switch>
           <Route path={routes.root} exact render={getComponent(SourcesList)} />
           <Route path={[routes.add, routes.addExact]} strict={false} exact render={getComponent(AddSource)} />
-          <Route path={[routes.edit, routes.editExact]} strict={false} exact component={getComponent(EditSource)} />
+          <Route path={[routes.edit, routes.editExact]} strict={false} exact render={getComponent(EditSource)} />
         </Switch>
       )}
   </>

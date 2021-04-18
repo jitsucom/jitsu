@@ -64,4 +64,5 @@ export interface SourceFormDestinationsProps {
 
 export interface SourcesFormHeaderProps {
   connectorSource: SourceConnector;
+  mode: 'add' | 'edit'
 }
