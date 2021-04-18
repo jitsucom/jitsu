@@ -175,19 +175,32 @@ func main() {
 	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
 
+	// Meta storage
+	metaStorageConfiguration := viper.Sub("meta.storage")
+	metaStorage, err := meta.NewStorage(metaStorageConfiguration)
+	if err != nil {
+		logging.Fatalf("Error initializing meta storage: %v", err)
+	}
+	// Close after all for saving last task statuses
+	defer metaStorage.Close()
+
 	//TODO remove deprecated someday
 	//coordination service
 	var coordinationService coordination.Service
-	var err error
 	if viper.IsSet("coordination") {
-		configuration := viper.Sub("coordination.redis")
-		if configuration != nil {
-			host := configuration.GetString("host")
-			port := configuration.GetInt("port")
-			password := configuration.GetString("password")
-			coordinationService, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, host, port, password)
-			if err != nil {
-				logging.Fatal("Failed to initiate coordination service", err)
+		coordinationType := viper.GetString("coordination.type")
+		if coordinationType == "redis" {
+			configuration := metaStorageConfiguration.Sub("redis")
+			if configuration != nil {
+				host := configuration.GetString("host")
+				port := configuration.GetInt("port")
+				password := configuration.GetString("password")
+				coordinationService, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, host, port, password)
+				if err != nil {
+					logging.Fatal("Failed to initiate coordination service", err)
+				}
+			} else {
+				logging.Warn("Expected 'redis' section in 'meta.storage' section")
 			}
 		} else {
 			logging.Warn("Currently coordination service uses only redis implementation")
@@ -203,21 +216,13 @@ func main() {
 		} else {
 			coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
 		}
-	}
 
-	if err != nil {
-		logging.Fatal("Failed to initiate coordination service", err)
+		if err != nil {
+			logging.Fatal("Failed to initiate coordination service", err)
+		}
 	}
 
 	// ** Destinations **
-
-	//meta storage
-	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
-	if err != nil {
-		logging.Fatalf("Error initializing meta storage: %v", err)
-	}
-	//close after all for saving last task statuses
-	defer metaStorage.Close()
 
 	//events counters
 	counters.InitEvents(metaStorage)
