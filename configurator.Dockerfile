@@ -31,13 +31,16 @@ ADD configurator/frontend/package.json /app/package.json
 
 WORKDIR /app
 
-RUN yarn install --network-timeout 1000000
+# We need to make sure empty 'build' directory exists if SKIP_UI_BUILD==true and yarn won't make it
+RUN mkdir build
+
+RUN if [ $SKIP_UI_BUILD != "true" ]; then yarn install --network-timeout 1000000; fi
 
 # Copy project
 ADD configurator/frontend/. ./
 
 # Build
-RUN yarn build
+
 
 #######################################
 # BUILD BACKEND STAGE
@@ -63,6 +66,7 @@ ENV TZ=UTC
 
 # copy static files from build-image
 COPY --from=builder /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend/build/dist /home/$CONFIGURATOR_USER/app
+
 COPY --from=jsbuilder /app/build /home/$CONFIGURATOR_USER/app/web
 
 RUN chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/app
