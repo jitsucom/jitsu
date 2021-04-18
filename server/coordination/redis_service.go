@@ -16,10 +16,11 @@ import (
 )
 
 type RedisService struct {
-	closed    bool
-	context   context.Context
-	selfmutex sync.RWMutex
-	unlockMe  map[string]*storages.RetryableLock
+	closed      bool
+	context     context.Context
+	selfmutex   sync.RWMutex
+	serverNames []string
+	unlockMe    map[string]*storages.RetryableLock
 
 	client  *redis.Client
 	pool    *redislib.Pool
@@ -31,20 +32,21 @@ type MutexProxy struct {
 }
 
 func (mp *MutexProxy) Unlock(context.Context) error {
-	logging.Debugf("Unlock Mutex: %v", mp.mutex.Name())
+	logging.Debugf("Unlock mutex: %v", mp.mutex.Name())
 	_, err := mp.mutex.Unlock()
 	return err
 }
 
-func NewRedisService(ctx context.Context, serverName, host string, port int, password string) (Service, error) {
+func NewRedisService(ctx context.Context, serverName string, host string, port int, password string) (Service, error) {
 	service := RedisService{
-		closed:    false,
-		context:   ctx,
-		selfmutex: sync.RWMutex{},
-		unlockMe:  map[string]*storages.RetryableLock{},
-		client:    nil,
-		pool:      nil,
-		redsync:   nil,
+		closed:      false,
+		context:     ctx,
+		selfmutex:   sync.RWMutex{},
+		serverNames: []string{serverName},
+		unlockMe:    map[string]*storages.RetryableLock{},
+		client:      nil,
+		pool:        nil,
+		redsync:     nil,
 	}
 
 	service.client = redis.NewClient(&redis.Options{
@@ -84,7 +86,11 @@ func (rs *RedisService) Close() error {
 }
 
 func (rs *RedisService) GetInstances() ([]string, error) {
-	return nil, fmt.Errorf("GetInstances should be implemented")
+	return rs.serverNames, nil
+}
+
+func (rs *RedisService) getMutexName(system string, collection string) string {
+	return "mutex:" + system + "_" + collection
 }
 
 func (rs *RedisService) GetVersion(system string, collection string) (int64, error) {
@@ -96,10 +102,12 @@ func (rs *RedisService) GetVersion(system string, collection string) (int64, err
 	} else if err != nil {
 		return -1, err
 	}
+
 	version, err := response.Int64()
 	if err != nil {
 		return -1, err
 	}
+
 	return version, nil
 }
 
@@ -115,14 +123,20 @@ func (rs *RedisService) IncrementVersion(system string, collection string) (int6
 }
 
 func (rs *RedisService) IsLocked(system string, collection string) (bool, error) {
-	return false, fmt.Errorf("IsLocked should be implemented")
+	lock, err := rs.Lock(system, collection)
+	if err != nil {
+		return true, err
+	}
+
+	defer lock.Unlock()
+	return false, nil
 }
 
 func (rs *RedisService) Lock(system string, collection string) (storages.Lock, error) {
 	_, cancel := context.WithDeadline(rs.context, time.Now().Add(2*time.Minute))
 
-	identifier := "mutex:" + system + "_" + collection
-	logging.Debugf("Lock Mutex: %v", identifier)
+	identifier := rs.getMutexName(system, collection)
+	logging.Debugf("Lock mutex: %v", identifier)
 	mutex := rs.redsync.NewMutex(identifier)
 	if err := mutex.Lock(); err != nil {
 		cancel()
@@ -140,24 +154,7 @@ func (rs *RedisService) Lock(system string, collection string) (storages.Lock, e
 }
 
 func (rs *RedisService) TryLock(system string, collection string) (storages.Lock, error) {
-	_, cancel := context.WithDeadline(rs.context, time.Now().Add(2*time.Minute))
-
-	identifier := "mutex:" + system + "_" + collection
-	mutex := rs.redsync.NewMutex(identifier)
-
-	if err := mutex.Lock(); err != nil {
-		cancel()
-		return nil, err
-	}
-
-	proxy := &MutexProxy{mutex: mutex}
-	lock := storages.NewRetryableLock(identifier, proxy, nil, cancel, 5)
-
-	rs.selfmutex.Lock()
-	rs.unlockMe[identifier] = lock
-	rs.selfmutex.Unlock()
-
-	return lock, nil
+	return rs.Lock(system, collection)
 }
 
 func (rs *RedisService) Unlock(lock storages.Lock) error {
