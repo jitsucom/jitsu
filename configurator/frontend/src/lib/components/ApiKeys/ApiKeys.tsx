@@ -27,6 +27,7 @@ import {
 } from '../../commons/api-documentation';
 import { FlexContainer, FlexItem } from '../flex';
 import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
+import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 
 type Token = {
   uid: string;
@@ -41,6 +42,18 @@ type State = {
   loading: LoadingEntity; //what's displayed as loading? number - index of key, "NEW" - new button, null - nothing
   tokens: Token[];
 };
+
+function generateNewKeyWithConfirmation(onConfirm: () => void) {
+  Modal.confirm({
+    title: 'Please confirm deletion of destination',
+    icon: <ExclamationCircleOutlined/>,
+    content: 'Are you sure you want to delete generate new key? Previously generated key will be lost and you\'ll need to reconfigure ALL clients',
+    okText: 'Generate new key',
+    cancelText: 'Cancel',
+    onOk: onConfirm,
+    onCancel: () => { }
+  });
+}
 
 export default class ApiKeys extends LoadableComponent<{}, State> {
   private readonly services: ApplicationServices;
@@ -105,9 +118,11 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
                 <ActionLink onClick={() => this.copyToClipboard(text)}>Copy To Clipboard</ActionLink>
                 <ActionLink
                   onClick={() => {
-                    this.state.tokens[index].jsAuth = this.newToken('js');
-                    this.saveTokens(this.state.tokens, index);
-                    message.info('New key has been generated and saved');
+                    generateNewKeyWithConfirmation(() => {
+                      this.state.tokens[index].jsAuth = this.newToken('js');
+                      this.saveTokens(this.state.tokens, index);
+                      message.info('New key has been generated and saved');
+                    })
                   }}
                 >
                   Generate New Key
@@ -142,9 +157,11 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
                 <ActionLink onClick={() => this.copyToClipboard(text)}>Copy To Clipboard</ActionLink>
                 <ActionLink
                   onClick={() => {
-                    this.state.tokens[index].serverAuth = this.newToken('s2s');
-                    this.saveTokens(this.state.tokens, index);
-                    message.info('New key has been generated and saved');
+                    generateNewKeyWithConfirmation(() => {
+                      this.state.tokens[index].serverAuth = this.newToken('s2s');
+                      this.saveTokens(this.state.tokens, index);
+                      message.info('New key has been generated and saved');
+                    })
                   }}
                 >
                   Generate New Key
