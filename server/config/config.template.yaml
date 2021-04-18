@@ -329,10 +329,7 @@ destinations:
 
 ### Coordination in EventNative cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
 # coordination: # Optional. This section is required in cluster deployments.
-#   redis: # Now EventNative supports redis
-#     host: localhost
-#     port: 6379
-#     password: secret_password
+#   type: redis # Now EventNative supports redis
 #   etcd: # Now etcd support is deprecated
 #     endpoint: http://your_etcd_host
 #     connection_timeout_seconds: 60 # Optional. Default value is 60
@@ -387,8 +384,9 @@ destinations:
 
 ### Meta storage. It is required for using sources (see below).
 ### It is required for using events caching and counting https://docs.eventnative.org/other-features/events-cache
-### Also it is required if sources are used https://docs.eventnative.org/configuration-1/sources-configuration or
+### Also it is required if sources are used https://docs.eventnative.org/configuration-1/sources-configuration
 ### or Retrospective users recognition https://docs.eventnative.org/other-features/retrospective-user-recognition
+### or Coordination in cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
 #meta:
 #  storage:
 #    redis: #Currently EventNative supports only Redis
