@@ -26,8 +26,6 @@ RUN apk add git make bash npm yarn
 # BUILD JS STAGE
 FROM builder as jsbuilder
 
-ARG SKIP_UI_BUILD
-ENV SKIP_UI $SKIP_UI_BUILD
 
 # Install yarn dependencies
 ADD configurator/frontend/package.json /app/package.json
@@ -37,13 +35,13 @@ WORKDIR /app
 # We need to make sure empty 'build' directory exists if SKIP_UI_BUILD==true and yarn won't make it
 RUN mkdir build
 
-RUN if [ $SKIP_UI != true ]; then yarn install --network-timeout 1000000; fi
+RUN if [ $SKIP_UI_BUILD != true ]; then yarn install --network-timeout 1000000; fi
 
 # Copy project
 ADD configurator/frontend/. ./
 
 # Build
-RUN if [ $SKIP_UI != true ]; then yarn build --network-timeout 1000000; fi
+RUN if [ $SKIP_UI_BUILD != true ]; then yarn build --network-timeout 1000000; fi
 
 #######################################
 # BUILD BACKEND STAGE
