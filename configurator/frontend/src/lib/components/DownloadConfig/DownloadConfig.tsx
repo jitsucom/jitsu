@@ -25,6 +25,10 @@ function download(filename, text) {
 export default class DownloadConfig extends LoadableComponent<{}, State> {
   private readonly services: ApplicationServices = ApplicationServices.get();
 
+  constructor(props: Readonly<any>, context) {
+    super(props, context);
+  }
+
   protected async load(): Promise<State> {
     return {
       code: await this.services.backendApiClient.getRaw(

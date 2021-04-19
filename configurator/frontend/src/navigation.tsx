@@ -1,7 +1,7 @@
 /* eslint-disable */
 import React, { ExoticComponent, ReactElement, ReactNode } from 'react';
 import ComponentTest from './lib/components/componentTest';
-import DownloadConfig from './lib/components/DownloadConfig/DownloadConfig';
+// import DownloadConfig from './lib/components/DownloadConfig/DownloadConfig';
 
 import { routes as sourcesPageRoutes } from '@page/SourcesPage/routes';
 import { useLocation } from 'react-router-dom';
@@ -17,6 +17,8 @@ const SignupForm = React.lazy(() => import('./lib/components/SignupForm/SignupFo
 import SourcesPage from './ui/pages/SourcesPage';
 const StatusPage = React.lazy(() => import('./lib/components/StatusPage/StatusPage'));
 const PasswordForm = React.lazy(() => import('./lib/components/PasswordForm/PasswordForm'));
+
+const DownloadConfig = React.lazy(() => import('./lib/components/DownloadConfig/DownloadConfig'));
 
 export type PageLocation = {
   canonicalPath: string
@@ -93,7 +95,7 @@ export const PRIVATE_PAGES: Page[] = [
   new Page(
     'Jitsu | download config',
     '/cfg_download',
-    DestinationsList,
+    DownloadConfig,
     'Download Jitsu Server configuration'
   ),
   new Page('Jitsu | edit API keys', '/api_keys', ApiKeys, 'API Keys'),
