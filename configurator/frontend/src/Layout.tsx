@@ -126,7 +126,7 @@ export const DropdownMenu: React.FC<{user: User}> = ({ user }) => {
   return (
     <div>
       <div className="user-dropdown-info-panel">{user.email}</div>
-      <Menu>
+      <Menu selectable={false}>
         <Menu.Item key="profile" icon={<SlidersOutlined/>} onClick={() => {
           Modal.confirm({
             title: 'Password reset',
@@ -146,32 +146,26 @@ export const DropdownMenu: React.FC<{user: User}> = ({ user }) => {
             onCancel: () => {
             }
           });
-
         }}>
           Reset Password
         </Menu.Item>
-        {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER)
-          ? <Menu.Item key="become" icon={<UserSwitchOutlined/>} onClick={async() => {
-            let email = prompt('Please enter e-mail of the user', '');
-            if (!email) {
-              return;
-            }
-            try {
-              await services.userService.becomeUser(email);
-            } catch (e) {
-              handleError(e, "Can't login as other user");
-            }
-          }}>
-            Become User
-          </Menu.Item>
-          : ''
+        {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) && <Menu.Item key="become" icon={<UserSwitchOutlined/>} onClick={async() => {
+          let email = prompt('Please enter e-mail of the user', '');
+          if (!email) {
+            return;
+          }
+          try {
+            await services.userService.becomeUser(email);
+          } catch (e) {
+            handleError(e, "Can't login as other user");
+          }
+        }}>Become User</Menu.Item>
         }
         <Menu.Item
           key="logout"
           icon={<LogoutOutlined/>}
-          onClick={() => services.userService.removeAuth(reloadPage)}>
-          Logout
-        </Menu.Item>
+          onClick={() => services.userService.removeAuth(reloadPage)
+          }>Logout</Menu.Item>
       </Menu>
     </div>
   );
