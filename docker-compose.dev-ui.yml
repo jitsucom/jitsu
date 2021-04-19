@@ -20,20 +20,20 @@ services:
     environment:
       - SERVER_AUTH=8b64e097c08a43c7ab656b7b02997859
       - SERVER_NAME=devconf
+      - SERVER_DOMAIN=localhost
       - STORAGE_REDIS_HOST=redis
-      - STORAGE_REDIS_PORT=6379
       - AUTH_REDIS_HOST=redis
-      - AUTH_REDIS_PORT=6379
       - AUTH_REDIS_REFRESH_SECRET=0bf8478623224f6ea8354703b2e8c31f
-      - AUTH_REDIS_REFRESH_SECRET=3bd3e114f4ba4872b1d8b067de634097
-      - CONFIGURATOR_ADMIN_TOKEN=8b64e097c08a43c7ab656b7b02997859
+      - AUTH_REDIS_ACCESS_SECRET=3bd3e114f4ba4872b1d8b067de634097a
+      - JITSU_BASE_URL=localhost
+      - JITSU_ADMIN_TOKEN=8o1nb1obfadf9asf14k
     depends_on:
       - redis
     volumes:
       - ./ui-dev-compose/configurator/data:/home/configurator/data/
     restart: always
     ports:
-      - "7000:9875"
+      - "9875:7000"
     networks:
       - main
   redis:
