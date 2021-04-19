@@ -29,11 +29,11 @@ export class DestinationConfigFactory<T extends DestinationConfig> {
 
 export const destinationConfigTypes = [
   new DestinationConfigFactory('PostgresSQL', 'postgres', (id) => new PostgresConfig(id)),
-  new DestinationConfigFactory('ClickHouse', 'click-house', (id) => new ClickHouseConfig(id)),
-  new DestinationConfigFactory('BigQuery', 'big-query', (id) => new BQConfig(id)),
+  new DestinationConfigFactory('ClickHouse', 'clickhouse', (id) => new ClickHouseConfig(id)),
+  new DestinationConfigFactory('BigQuery', 'bigquery', (id) => new BQConfig(id)),
   new DestinationConfigFactory('Redshift', 'redshift', (id) => new RedshiftConfig(id)),
   new DestinationConfigFactory('Snowflake', 'snowflake', (id) => new SnowflakeConfig(id)),
-  new DestinationConfigFactory('GoogleAnalytics', 'google-analytics', (id) => new GoogleAnalyticsConfig(id)),
+  new DestinationConfigFactory('GoogleAnalytics', 'google_analytics', (id) => new GoogleAnalyticsConfig(id)),
   new DestinationConfigFactory('Facebook', 'facebook', (id) => new FacebookConversionConfig(id))
 ];
 
@@ -52,13 +52,14 @@ export type ConnectionDescription = {
 
 export abstract class DestinationConfig {
   private _mappings: FieldMappings = new FieldMappings([], true);
+  private _description: ConnectionDescription;
   protected readonly _uid = randomId();
   protected readonly _id: string;
   private _comment: string = null;
   protected readonly _type: string;
   protected readonly _onlyKeys = [];
   protected _formData: any = {};
-  private _connectionTestOk: boolean = true;
+  private _connectionTestOk: boolean = false;
   private _connectionErrorMessage: string = null;
 
   constructor(type: string, id: string) {
@@ -147,7 +148,9 @@ export abstract class DestinationConfig {
     return this.formData['mode'];
   }
 
-  abstract describe(): ConnectionDescription;
+  get description(): ConnectionDescription {
+    return this._description;
+  }
 
   protected fillInitialValues(_formData: any) {
     _formData['mode'] = 'stream';
@@ -160,13 +163,6 @@ export class PostgresConfig extends DestinationConfig {
     super('postgres', id);
   }
 
-  describe(): ConnectionDescription {
-    return {
-      displayURL: `${this.formData['pghost']}`,
-      commandLineConnect: `PGPASSWORD="${this.formData['pgpassword']}" psql -U ${this.formData['pguser']} -d ${this.formData['pgdatabase']} -h ${this.formData['pghost']} -p ${this.formData['pgport']} -c "SELECT 1"`
-    };
-  }
-
   fillInitialValues(_formData: any) {
     super.fillInitialValues(_formData);
     _formData['pgport'] = 5432;
@@ -177,15 +173,6 @@ export class PostgresConfig extends DestinationConfig {
 export class ClickHouseConfig extends DestinationConfig {
   constructor(id: string) {
     super('clickhouse', id);
-  }
-
-  describe(): ConnectionDescription {
-    this.migrateData();
-    let dsn = this.formData['ch_dsns_list'].length > 0 ? this.formData['ch_dsns_list'][0] : 'Unknown';
-    return {
-      displayURL: dsn,
-      commandLineConnect: `echo 'SELECT 1' | curl '${dsn}' --data-binary @-`
-    };
   }
 
   update(formValues: any) {
@@ -215,13 +202,6 @@ export class GoogleAnalyticsConfig extends DestinationConfig {
   update(formValues: any): void {
     super.update(formValues);
   }
-
-  describe(): ConnectionDescription {
-    return {
-      displayURL: `${this.formData['gaTrackingId']}`,
-      commandLineConnect: null
-    };
-  }
 }
 
 export class FacebookConversionConfig extends DestinationConfig {
@@ -232,13 +212,6 @@ export class FacebookConversionConfig extends DestinationConfig {
   update(formValues: any): void {
     super.update(formValues);
   }
-
-  describe(): ConnectionDescription {
-    return {
-      displayURL: `Pixel ID: ${this.formData['fbPixelId']}`,
-      commandLineConnect: null
-    };
-  }
 }
 
 export class SnowflakeConfig extends DestinationConfig {
@@ -248,13 +221,6 @@ export class SnowflakeConfig extends DestinationConfig {
 
   update(formValues: any): void {
     super.update(formValues);
-  }
-
-  describe(): ConnectionDescription {
-    return {
-      displayURL: `${this.formData['snowflakeWarehouse']} / ${this.formData['snowflakeDB']}`,
-      commandLineConnect: null
-    };
   }
 }
 
@@ -269,24 +235,10 @@ export class RedshiftConfig extends DestinationConfig {
     _formData['redshiftUseHostedS3'] = false;
     _formData['redshiftSchema'] = 'public';
   }
-
-  describe(): ConnectionDescription {
-    return {
-      displayURL: `${this.formData['redshiftHost']}`,
-      commandLineConnect: `PGPASSWORD="${this.formData['redshiftPassword']}" psql -U ${this.formData['redshiftUser']} -d ${this.formData['redshiftDB']} -h ${this.formData['redshiftHost']} -p 5439 -c "SELECT 1"`
-    };
-  }
 }
 
 export class BQConfig extends DestinationConfig {
   constructor(id: string) {
     super('bigquery', id);
-  }
-
-  describe(): ConnectionDescription {
-    return {
-      displayURL: `${this.formData['bqProjectId']}`,
-      commandLineConnect: `echo '${this.formData['bqJSONKey'].replaceAll('\n', ' ')}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`
-    };
   }
 }
