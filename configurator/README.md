@@ -1,6 +1,9 @@
-# Jitsu Configurator Debug Recipes
+# Jitsu configurator debug recipes
 
 Those recipes help to spin-off a dev environment and debug configurator ui. 
+
+## How to debug configurator UI locally
+
 Just run this command in the **[root](https://github.com/jitsucom/jitsu)** directory of the project:
 
 ```bash
@@ -14,6 +17,6 @@ Usage:
 will be persisted accross runs
    
 
-## Troubleshooting
+### Troubleshooting
  - `docker rm jitsu_configurator ; docker rmi jitsu_configurator` to clean all caches and make sure docker builds configurator from latest sources
  - `rm -rf ./ui-dev-compose/configurator/redis/data` if redis is not starting
