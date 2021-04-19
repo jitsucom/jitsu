@@ -154,20 +154,9 @@ func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
 	if !ok {
 		object["action_source"] = "website"
 	}
+
 	// * event_time
-	t, ok := object[timestamp.Key]
-	if !ok {
-		return fmt.Errorf("Object doesn't have %s system field", timestamp.Key)
-	}
-
-	eventTime, ok := t.(time.Time)
-	if !ok {
-		return fmt.Errorf("_timestamp must be time.Time struct: %T", t)
-	}
-
-	object["event_time"] = eventTime.Unix()
-
-	delete(object, timestamp.Key)
+	fc.enrichWithEventTime(object)
 
 	// * event_name
 	eventName, ok := object["event_name"]
@@ -253,6 +242,29 @@ func (fc *FacebookConversionAPI) Close() error {
 	fc.client.CloseIdleConnections()
 
 	return nil
+}
+
+func (fc *FacebookConversionAPI) enrichWithEventTime(object map[string]interface{}) {
+	eventTime := time.Now().UTC()
+	// * event_time
+	t, ok := object[timestamp.Key]
+	if ok {
+		switch t.(type) {
+		case time.Time:
+			eventTime = t.(time.Time)
+		case string:
+			eTime, err := time.Parse(time.RFC3339Nano, t.(string))
+			if err != nil {
+				logging.Errorf("Error parsing %s in facebook event: %v", timestamp.Key, err)
+			} else {
+				eventTime = eTime
+			}
+		}
+	}
+
+	object["event_time"] = eventTime.Unix()
+
+	delete(object, timestamp.Key)
 }
 
 //hashFields hash fields from 'user_data' object according to
