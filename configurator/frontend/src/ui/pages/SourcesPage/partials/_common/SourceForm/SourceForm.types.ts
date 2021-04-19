@@ -61,3 +61,8 @@ export interface SourceFormDestinationsProps {
   initialValues: SourceData;
   form: FormInstance<{ destinations: string[]; }>;
 }
+
+export interface SourcesFormHeaderProps {
+  connectorSource: SourceConnector;
+  mode: 'add' | 'edit'
+}

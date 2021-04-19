@@ -1,5 +1,5 @@
 // @Libs
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { snakeCase } from 'lodash';
 // @Components
@@ -10,9 +10,23 @@ import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 import { SourceConnector } from '@catalog/sources/types';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { routes } from '@page/SourcesPage/routes';
+import SourceFormHeader from '@page/SourcesPage/partials/_common/SourceForm/SourcesFormHeader';
 
-const AddSource = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
+const AddSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const params = useParams<{ source: string }>();
+
+  useEffect(() => {
+    setBreadcrumbs(withHome({
+      elements: [
+        { title: 'Sources', link: routes.root },
+        {
+          title: 'Test (add new)'
+        }
+      ]
+    }));
+  }, [setBreadcrumbs])
 
   const connectorSource = useMemo<SourceConnector>(
     () =>
@@ -20,6 +34,17 @@ const AddSource = ({ projectId, sources, setSources }: CommonSourcePageProps) =>
       {} as SourceConnector,
     [params.source]
   );
+
+  useEffect(() => {
+    setBreadcrumbs(withHome({
+      elements: [
+        { title: 'Sources', link: routes.root },
+        {
+          title: <SourceFormHeader connectorSource={connectorSource} mode="add" />
+        }
+      ]
+    }));
+  }, [connectorSource, setBreadcrumbs])
 
   if (!params.source) {
     return (
@@ -43,6 +68,7 @@ const AddSource = ({ projectId, sources, setSources }: CommonSourcePageProps) =>
     <>
       <SourceFormWrap
         connectorSource={connectorSource}
+        setBreadcrumbs={setBreadcrumbs}
         projectId={projectId}
         sources={sources}
         setSources={setSources}

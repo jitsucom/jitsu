@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { Button, Dropdown, List, message, Modal } from 'antd';
 import { snakeCase } from 'lodash';
 // @Components
@@ -17,9 +17,23 @@ import styles from './SourcesList.module.less';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { routes } from '@page/SourcesPage/routes';
+import SourceFormHeader from '@page/SourcesPage/partials/_common/SourceForm/SourcesFormHeader';
 
-const SourcesList = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
+const SourcesList = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
+
+  useEffect(() => {
+    setBreadcrumbs(withHome({
+      elements: [
+        { title: 'Sources', link: routes.root },
+        {
+          title: 'Sources List'
+        }
+      ]
+    }));
+  }, [setBreadcrumbs])
 
   const sourcesMap = useMemo(
     () =>

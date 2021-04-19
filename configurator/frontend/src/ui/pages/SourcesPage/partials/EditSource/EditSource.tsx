@@ -1,5 +1,5 @@
 // @Libs
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Redirect, useParams } from 'react-router-dom';
 import { snakeCase } from 'lodash';
 // @Components
@@ -11,8 +11,10 @@ import { SourceConnector } from '@catalog/sources/types';
 import { allSources } from '@catalog/sources/lib';
 // @Routes
 import { routes } from '@page/SourcesPage/routes';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import SourceFormHeader from '@page/SourcesPage/partials/_common/SourceForm/SourcesFormHeader';
 
-const EditSource = ({ projectId, sources, setSources }: CommonSourcePageProps) => {
+const EditSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const params = useParams<{ sourceId: string }>();
 
   const sourceData = useMemo(() => sources.find((source: SourceData) => source.sourceId === params.sourceId), [sources, params.sourceId]);
@@ -21,6 +23,17 @@ const EditSource = ({ projectId, sources, setSources }: CommonSourcePageProps) =
     () => allSources.find((source: SourceConnector) => snakeCase(source.id) === sourceData?.sourceProtoType) ?? {} as SourceConnector,
     [sourceData?.sourceProtoType]
   );
+
+  useEffect(() => {
+    setBreadcrumbs(withHome({
+      elements: [
+        { title: 'Sources', link: routes.root },
+        {
+          title: <SourceFormHeader connectorSource={connectorSource} mode="edit" />
+        }
+      ]
+    }));
+  }, [connectorSource, setBreadcrumbs])
 
   if (!Object.keys(connectorSource).length) {
     return <Redirect to={routes.root} />;
@@ -35,6 +48,7 @@ const EditSource = ({ projectId, sources, setSources }: CommonSourcePageProps) =
         projectId={projectId}
         sources={sources}
         setSources={setSources}
+        setBreadcrumbs={setBreadcrumbs}
       />
     </>
   );

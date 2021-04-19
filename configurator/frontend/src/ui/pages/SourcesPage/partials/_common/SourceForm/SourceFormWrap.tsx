@@ -1,7 +1,7 @@
 // @Libs
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { message } from 'antd';
-import { NavLink, useHistory } from 'react-router-dom';
+import { useHistory } from 'react-router-dom';
 import { snakeCase } from 'lodash';
 // @Components
 import { SourceForm } from './SourceForm';
@@ -15,6 +15,8 @@ import { FormWrapProps } from '@page/SourcesPage/partials/_common/SourceForm/Sou
 import { makeObjectFromFieldsValues } from '@util/Form';
 import { CollectionSourceData } from '@page/SourcesPage/SourcesPage.types';
 import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
+import SourceFormHeader from '@page/SourcesPage/partials/_common/SourceForm/SourcesFormHeader';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 
 const SourceFormWrap = ({
   sources = [],
@@ -96,16 +98,6 @@ const SourceFormWrap = ({
 
   return (
     <div className="add-source flex flex-col items-stretch">
-      <div className="add-source__head">
-        <h2 className="add-source__head-base">
-          <NavLink to={routes.root} className="add-source__head-base-link">Sources</NavLink>
-          <span>/</span>
-        </h2>
-        <div className="add-source__head-pic">{connectorSource.pic}</div>
-        <div className="add-source__head-text">
-          <h2 className="add-source__head-text-title">{connectorSource.displayName}</h2>
-        </div>
-      </div>
 
       <SourceForm
         formMode={formMode}
