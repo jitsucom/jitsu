@@ -36,7 +36,7 @@ const ListItemComponent = ({ className, icon, title, description, additional, ac
       <span className={styles.left}>
         <span className={styles.icon}>{icon}</span>
         <span className={styles.info}>
-          <strong className={styles.title}>{title}</strong>
+          <span className={styles.title}>{title}</span>
           <span className={styles.description}>{description}</span>
           {additional && <span className={styles.additional}>{additional}</span>}
         </span>
