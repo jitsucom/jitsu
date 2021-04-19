@@ -44,3 +44,15 @@ services:
     restart: always
     networks:
       - main
+  redis_insights:
+    container_name: jitsu_redis_insights
+    image: redislabs/redisinsight:latest
+    restart: always
+    networks:
+      - main
+    volumes:
+      - ./ui-dev-compose/redis-insights/db:/db
+    ports:
+      - "9874:8001"
+    depends_on:
+      - redis
