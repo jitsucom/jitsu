@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/random"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/spf13/viper"
 	"time"
 )
@@ -32,26 +33,25 @@ type ConfigurationsStorage interface {
 	Close() error
 }
 
-func NewConfigurationsStorage(ctx context.Context, storageViper *viper.Viper) (ConfigurationsStorage, error) {
-	if storageViper.IsSet("firebase") {
-		firebaseViper := storageViper.Sub("firebase")
-		projectID := firebaseViper.GetString("project_id")
-		credentialsFile := firebaseViper.GetString("credentials_file")
+func NewConfigurationsStorage(ctx context.Context, vp *viper.Viper) (ConfigurationsStorage, error) {
+	if vp.IsSet("storage.firebase.project_id") {
+		projectID := vp.GetString("storage.firebase.project_id")
+		credentialsFile := vp.GetString("storage.firebase.credentials_file")
 		return NewFirebase(ctx, projectID, credentialsFile)
-	} else if storageViper.IsSet("redis") {
-		redisViper := storageViper.Sub("redis")
-		host := redisViper.GetString("host")
+	} else if vp.IsSet("storage.redis.host") {
+		host := vp.GetString("storage.redis.host")
 		if host == "" {
 			return nil, errors.New("storage.redis.host must not be empty")
 		}
-		port := redisViper.GetInt("port")
+		port := vp.GetInt("storage.redis.port")
 		if port == 0 {
-			return nil, errors.New("storage.redis.port must be configured")
+			port = 6379
+			logging.Infof("storage.redis.port isn't configured. Will be used default: %d", port)
 		}
-		password := redisViper.GetString("password")
+		password := vp.GetString("storage.redis.password")
 		return NewRedis(host, port, password)
 	} else {
-		return nil, errors.New("Unknown storage type. Supported: firebase, redis")
+		return nil, errors.New("Unknown 'storage' section type. Supported: firebase, redis")
 	}
 }
 

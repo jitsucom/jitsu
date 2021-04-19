@@ -122,10 +122,7 @@ func main() {
 	}
 
 	//** Main Storage **
-	if !viper.IsSet("storage") {
-		logging.Fatalf("'storage' is required configuration section")
-	}
-	configurationsStorage, err := storages.NewConfigurationsStorage(ctx, viper.Sub("storage"))
+	configurationsStorage, err := storages.NewConfigurationsStorage(ctx, viper.GetViper())
 	if err != nil {
 		logging.Fatalf("Error creating configurations storage: %v", err)
 	}
@@ -136,25 +133,22 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(configurationsService)
 
-	//** Authorization service **
-	if !viper.IsSet("auth") {
-		logging.Fatal("'auth' is required configuration parameter")
-	}
-
-	authService, err := authorization.NewService(ctx, viper.Sub("auth"), configurationsStorage)
+	authService, err := authorization.NewService(ctx, viper.GetViper(), configurationsStorage)
 	if err != nil {
 		logging.Fatalf("Error creating authorization service: %v", err)
 	}
 	appconfig.Instance.ScheduleClosing(authService)
 
 	//** Jitsu server configuration **
-	if !viper.IsSet("jitsu") {
-		logging.Fatal("'jitsu' is required configuration section")
+	jitsuConfig := &jitsu.Config{
+		BaseURL:    viper.GetString("jitsu.base_url"),
+		AdminToken: viper.GetString("jitsu.admin_token"),
 	}
-
-	jitsuConfig := &jitsu.Config{}
-	if err = viper.UnmarshalKey("jitsu", jitsuConfig); err != nil {
-		logging.Fatalf("Error parsing 'jitsu' config: %v", err)
+	//if full jitsu config is present
+	if viper.IsSet("jitsu") {
+		if err = viper.UnmarshalKey("jitsu", jitsuConfig); err != nil {
+			logging.Fatalf("Error parsing 'jitsu' config: %v", err)
+		}
 	}
 
 	if err = jitsuConfig.Validate(); err != nil {
