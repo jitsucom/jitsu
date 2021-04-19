@@ -1,6 +1,6 @@
 /* eslint-disable */
 import * as React from 'react';
-import {ReactNode, useState} from 'react';
+import { ExoticComponent, ReactNode, useState } from 'react';
 
 import {NavLink, Redirect, Route, Switch} from 'react-router-dom';
 import {Button, Col, Dropdown, Form, Input, Layout, Menu, message, Modal, Row, Tooltip} from 'antd';
@@ -23,12 +23,14 @@ import {Align, CenteredSpin, GlobalError, handleError, Preloader} from './lib/co
 import {reloadPage} from './lib/commons/utils';
 import {Permission, User} from './lib/services/model';
 import OnboardingForm from './lib/components/OnboardingForm/OnboardingForm';
-import {Page, PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
+import { Page, PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES, usePageLocation } from './navigation';
 
 import logo from './icons/logo.svg';
 import PapercupsWrapper from './lib/commons/papercups';
 import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
 import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined";
+import { ApplicationPageWrapper} from './Layout';
+import classNames from 'classnames';
 
 enum AppLifecycle {
     LOADING, //Application is loading
@@ -71,6 +73,18 @@ export default class App extends React.Component<AppProperties, AppState> {
     public async componentDidMount() {
         try {
             await this.services.init();
+            const loginStatus = await this.services.userService.waitForUser();
+            setDebugInfo('user', loginStatus.user);
+            if (loginStatus.user) {
+                this.services.analyticsService.onUserKnown(loginStatus.user);
+                PapercupsWrapper.init(loginStatus.user);
+            }
+
+            this.setState({
+                lifecycle: loginStatus.user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
+                user: loginStatus.user,
+                showOnboardingForm: loginStatus.user && !loginStatus.user.onboarded,
+            });
         } catch (error) {
             console.error('Failed to initialize ApplicationServices', error);
             this.services.analyticsService.onGlobalError(error, true);
@@ -84,26 +98,6 @@ export default class App extends React.Component<AppProperties, AppState> {
                 this.setState({lifecycle: AppLifecycle.ERROR, globalErrorDetails: 'Timeout'});
             }
         }, LOGIN_TIMEOUT);
-        this.services.userService
-            .waitForUser()
-            .then((loginStatus) => {
-                setDebugInfo('user', loginStatus.user);
-                if (loginStatus.user) {
-                    this.services.analyticsService.onUserKnown(loginStatus.user);
-                    PapercupsWrapper.init(loginStatus.user);
-                }
-
-                this.setState({
-                    lifecycle: loginStatus.user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
-                    user: loginStatus.user,
-                    showOnboardingForm: loginStatus.user && !loginStatus.user.onboarded,
-                });
-            })
-            .catch((error) => {
-                console.error('Failed to get user', error);
-                this.services.analyticsService.onGlobalError(error, true);
-                this.setState({lifecycle: AppLifecycle.ERROR});
-            });
     }
 
     private getRenderComponent() {
@@ -113,6 +107,7 @@ export default class App extends React.Component<AppProperties, AppState> {
                 return (
                     <Switch>
                         {pages.map((route) => {
+                            let Component = route.component as ExoticComponent;
                             return (
                                 <Route
                                     key={route.getPrefixedPath().join('')}
@@ -123,7 +118,7 @@ export default class App extends React.Component<AppProperties, AppState> {
                                             pagePath: routeProps.location.key
                                         });
                                         document.title = route.pageTitle;
-                                        return route.getComponent({...routeProps});
+                                        return <Component {...(routeProps as any)} />;
                                     }}
                                 />
                             );
@@ -144,63 +139,13 @@ export default class App extends React.Component<AppProperties, AppState> {
         return <React.Suspense fallback={<CenteredSpin/>}>{this.getRenderComponent()}</React.Suspense>;
     }
 
-    public wrapInternalPage(route: Page, props: any): ReactNode {
-        let component = route.getComponent({
-            ...props,
-            setExtraHeaderComponent: (node) => {
-                this.setState({extraControls: node});
-            }
-        });
-        return (
-            <>
-                <Layout.Sider key="sider" className="app-layout-side-bar">
-                    <div className="app-layout-side-bar-top">
-                        <a className="app-logo-wrapper" href="https://jitsu.com">
-                            <img className="app-logo" src={logo} alt="[logo]"/>
-                        </a>
-                        {this.leftMenu()}
-                    </div>
-                    <div className="app-layout-side-bar-bottom">
-                        <a
-                            className="app-layout-side-bar-bottom-item"
-                            onClick={() => {
-                                PapercupsWrapper.focusWidget();
-                            }}
-                        >
-                            <WechatOutlined/> Chat with us!
-                        </a>
-                    </div>
-                </Layout.Sider>
-                <Layout.Content key="content" className="app-layout-content">
-                    <div className={['internal-page-wrapper', 'page-' + route.id + '-wrapper'].join(' ')}>
-                        <Row className="internal-page-header-container">
-                            <Col span={12}>
-                                <h1 className="internal-page-header">{route.pageHeader}</h1>
-                            </Col>
-                            <Col span={12}>
-                                <Align horizontal="right">
-                                    {this.state.extraControls}
-                                    <Dropdown trigger={['click']} overlay={this.getUserDropDownMenu()}>
-                                        <Button className={'user-drop-down-button'} icon={<UserOutlined/>}>
-                                            {this.state.user.name}
-                                        </Button>
-                                    </Dropdown>
-                                </Align>
-                            </Col>
-                        </Row>
-                        <div className="internal-page-content-wrapper">{component}</div>
-                    </div>
-                </Layout.Content>
-            </>
-        );
-    }
 
     appLayout() {
         let routes = PRIVATE_PAGES.map((route) => {
             if (!this.state.showOnboardingForm) {
-                return (
-                    <Route
-                        key={route.id}
+                let Component = route.component as ExoticComponent;
+                return <Route
+                        key={route.pageTitle}
                         path={route.getPrefixedPath()}
                         exact={true}
                         render={(routeProps) => {
@@ -208,10 +153,11 @@ export default class App extends React.Component<AppProperties, AppState> {
                                 pagePath: routeProps.location.hash
                             });
                             document.title = route.pageTitle;
-                            return route.doNotWrap ? route.getComponent({...routeProps}) : this.wrapInternalPage(route, {});
+                            return route.doNotWrap ?
+                              <Component {...(routeProps as any)} /> :
+                              <ApplicationPageWrapper user={this.state.user} page={route} {...routeProps} />;
                         }}
-                    />
-                );
+                    />;
             } else {
                 return <CenteredSpin/>;
             }
@@ -245,49 +191,7 @@ export default class App extends React.Component<AppProperties, AppState> {
         );
     }
 
-    private leftMenu() {
-        let key = this.props.location === '/' || this.props.location === '' ? 'dashboard' : this.props.location;
-        if (key.charAt(0) === '/') {
-            key = key.substr(1);
-        }
-        return (
-            <Menu mode="inline" selectedKeys={[key]} className="app-layout-sidebar-menu">
-                <Menu.Item key="dashboard" icon={<AreaChartOutlined/>}>
-                    <NavLink to="/dashboard" activeClassName="selected">
-                        Status
-                    </NavLink>
-                </Menu.Item>
-                <Menu.Item key="api_keys" icon={<UnlockOutlined/>}>
-                    <NavLink to="/api_keys" activeClassName="selected">
-                        Event API Keys
-                    </NavLink>
-                </Menu.Item>
-                <Menu.Item key="sources" icon={<ApiOutlined/>} disabled={true}>
-                    <Tooltip mouseEnterDelay={0} title={<>
-                        Pooling data from external sources is available
-                        only <a href="https://jitsu.com/docs/sources-configuration">in open-source version with YAML-file configuration</a>
-                    </>}>
-                        Sources<sup>Soon!</sup>
-                    </Tooltip>
-                </Menu.Item>
-                <Menu.Item key="destinations" icon={<NotificationOutlined/>}>
-                    <NavLink to="/destinations" activeClassName="selected">
-                        Destinations
-                    </NavLink>
-                </Menu.Item>
-                <Menu.Item key="domains" icon={<CloudOutlined/>}>
-                    <NavLink to="/domains" activeClassName="selected">
-                        Tracking Domains
-                    </NavLink>
-                </Menu.Item>
-                <Menu.Item key="cfg_download" icon={<DownloadOutlined/>}>
-                    <NavLink to="/cfg_download" activeClassName="selected">
-                        Download EN Config
-                    </NavLink>
-                </Menu.Item>
-            </Menu>
-        );
-    }
+
 
     private headerComponent() {
         return (
