@@ -182,7 +182,9 @@ export class FirebaseUserService implements UserService {
 
   async createUser(email: string, password: string): Promise<void> {
     let firebaseUser = await firebase.auth().createUserWithEmailAndPassword(email.trim(), password.trim());
+
     await this.refreshToken(firebaseUser.user, false);
+
     let user = new User(
       firebaseUser.user.uid,
       () => this.apiAccess,
@@ -192,6 +194,11 @@ export class FirebaseUserService implements UserService {
         _project: new Project(randomId(), null)
       }
     );
+
+    user.created = new Date();
+
+    this.user = user;
+
     await this.update(user);
   }
 
