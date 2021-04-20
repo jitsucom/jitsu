@@ -76,7 +76,7 @@ export class BackendUserService implements UserService {
     user.created = new Date();
 
     this.user = user;
-    false;
+
     await this.update(user);
   }
 
