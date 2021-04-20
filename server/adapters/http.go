@@ -6,43 +6,68 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"strings"
+	"text/template"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/safego"
 )
+
+type Request struct {
+	Event    map[string]interface{}
+	Method   string
+	URLTmpl  *template.Template
+	BodyTmpl *template.Template
+	Headers  map[string]string
+	Callback func(object map[string]interface{}, err error)
+}
+
+func (r *Request) GetURL() (string, error) {
+	var buf bytes.Buffer
+	if err := r.URLTmpl.Execute(&buf, r.Event); err != nil {
+		return "", fmt.Errorf("Error executing %s template: %v", r.URLTmpl, err)
+	}
+	return strings.TrimSpace(buf.String()), nil
+}
+
+func (r *Request) GetBody() (string, error) {
+	var buf bytes.Buffer
+	if err := r.BodyTmpl.Execute(&buf, r.Event); err != nil {
+		return "", fmt.Errorf("Error executing %s template: %v", r.BodyTmpl, err)
+	}
+	return strings.TrimSpace(buf.String()), nil
+}
 
 type HttpAdapter struct {
 	client      *http.Client
 	queue       chan *Request
 	threadCount int
 	stopedChan  chan int
+	retryCount  int
+	retryTime   time.Duration
+	closed      bool
 	io.Closer
 }
 
-type Request struct {
-	Method     string
-	URL        string
-	Body       string
-	Headers    map[string]string
-	RetryCount int
-	NextDt     time.Time
-}
-
-func NewHttpAdapter() *HttpAdapter {
+func NewHttpAdapter(timeout, retryTime time.Duration, maxIdleConns, maxIdleConnsPerHost, queueSize, threadCount, retryCount int) *HttpAdapter {
 	s := &HttpAdapter{
 		client: &http.Client{
-			Timeout: 10 * time.Second,
+			Timeout: timeout,
 			Transport: &http.Transport{
-				MaxIdleConns:        1000,
-				MaxIdleConnsPerHost: 1000,
+				MaxIdleConns:        maxIdleConns,
+				MaxIdleConnsPerHost: maxIdleConnsPerHost,
 			},
 		},
-		queue:       make(chan *Request, 1000),
+		queue:       make(chan *Request, queueSize),
 		stopedChan:  make(chan int, 1),
-		threadCount: 1,
+		threadCount: threadCount,
+		retryCount:  retryCount,
+		retryTime:   retryTime,
+		closed:      false,
 	}
 
-	for i := 0; i < s.threadCount; i++ {
+	for i := 0; i < threadCount; i++ {
 		safego.RunWithRestart(s.sendRequestWorker)
 	}
 
@@ -55,31 +80,49 @@ func (h *HttpAdapter) AddRequest(r *Request) {
 
 func (h *HttpAdapter) sendRequestWorker() {
 	for {
-		select {
-		case <-time.After(1 * time.Second):
-			request := <-h.queue
-			if request.RetryCount < 3 && request.NextDt.Before(time.Now()) {
-				code, _, _ := h.sendRequest(request)
-				if code != http.StatusOK {
-					request.RetryCount++
-					request.NextDt = time.Now().Add(1 * time.Second)
-					h.AddRequest(request)
-				}
-			}
-		case <-h.stopedChan:
-			return
+		if h.closed {
+			break
+		}
+		request := <-h.queue
+		err := h.sendRequestWithRetry(request)
+		if err != nil {
+			request.Callback(request.Event, err)
 		}
 	}
 }
 
-func (h *HttpAdapter) sendRequest(r *Request) (code int, respBody []byte, err error) {
-	req, err := http.NewRequest(r.Method, r.URL, bytes.NewBuffer([]byte(r.Body)))
+func (h *HttpAdapter) sendRequestWithRetry(r *Request) (err error) {
+	var multiErr error
+
+	url, err := r.GetURL()
+	if err != nil {
+		return err
+	}
+
+	body, err := r.GetBody()
+	if err != nil {
+		return err
+	}
+
+	for i := 0; i < h.retryCount; i++ {
+		_, _, err := h.doRequest(r.Method, url, body, r.Headers)
+		if err == nil {
+			return nil
+		}
+		multiErr = multierror.Append(multiErr, err)
+		time.Sleep(h.retryTime)
+	}
+	return multiErr
+}
+
+func (h *HttpAdapter) doRequest(method string, url string, body string, headers map[string]string) (code int, respBody []byte, err error) {
+	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(body)))
 	if err != nil {
 		return 1, respBody, fmt.Errorf("Can't get request; %v", err)
 	}
 
-	if r.Headers != nil {
-		for k, v := range r.Headers {
+	if headers != nil {
+		for k, v := range headers {
 			req.Header.Set(k, v)
 		}
 	}
@@ -95,9 +138,13 @@ func (h *HttpAdapter) sendRequest(r *Request) (code int, respBody []byte, err er
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
+		return resp.StatusCode, respBody, fmt.Errorf("Response status code: %d", resp.StatusCode)
+	}
+
 	return resp.StatusCode, respBody, nil
 }
 
 func (h *HttpAdapter) Close() {
-	close(h.stopedChan)
+	h.closed = true
 }
