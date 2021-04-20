@@ -99,9 +99,12 @@ func (h *HttpAdapter) sendRequestWithRetry(r *Request) (err error) {
 		return err
 	}
 
-	body, err := r.GetBody()
-	if err != nil {
-		return err
+	var body = ""
+	if r.BodyTmpl != nil {
+		body, err = r.GetBody()
+		if err != nil {
+			return err
+		}
 	}
 
 	for i := 0; i < h.retryCount; i++ {
