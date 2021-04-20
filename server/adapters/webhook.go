@@ -1,10 +1,8 @@
 package adapters
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
-	"strings"
 	"text/template"
 	"time"
 
@@ -34,11 +32,12 @@ func (whc *WebHookConfig) Validate() error {
 }
 
 type WebHookConversion struct {
-	config      *WebHookConfig
-	httpQueue   *HttpAdapter
-	debugLogger *logging.QueryLogger
-	urlTmpl     *template.Template
-	bodyTmpl    *template.Template
+	config              *WebHookConfig
+	httpQueue           *HttpAdapter
+	debugLogger         *logging.QueryLogger
+	urlTmpl             *template.Template
+	bodyTmpl            *template.Template
+	RequestFailCallback func(object map[string]interface{}, err error)
 }
 
 func NewWebHookConversion(config *WebHookConfig, requestDebugLogger *logging.QueryLogger) (*WebHookConversion, error) {
@@ -54,49 +53,24 @@ func NewWebHookConversion(config *WebHookConfig, requestDebugLogger *logging.Que
 
 	return &WebHookConversion{
 		config:      config,
-		httpQueue:   NewHttpAdapter(),
 		debugLogger: requestDebugLogger,
 		urlTmpl:     urlTmpl,
 		bodyTmpl:    bodyTmpl,
+		httpQueue:   NewHttpAdapter(10*time.Second, 1*time.Second, 1000, 1000, 1000, 1, 3),
 	}, nil
 }
 
 func (wh *WebHookConversion) Send(object map[string]interface{}) error {
-	url, err := wh.GetURL(object)
-	if err != nil {
-		return err
-	}
-
-	body, err := wh.GetBody(object)
-	if err != nil {
-		return err
-	}
-
 	wh.httpQueue.AddRequest(&Request{
-		URL:     url,
-		Method:  wh.config.Method,
-		Headers: wh.config.Headers,
-		Body:    body,
-		NextDt:  time.Now(),
+		Event:    object,
+		Method:   wh.config.Method,
+		URLTmpl:  wh.urlTmpl,
+		BodyTmpl: wh.bodyTmpl,
+		Headers:  wh.config.Headers,
+		Callback: wh.RequestFailCallback,
 	})
 
 	return nil
-}
-
-func (wh *WebHookConversion) GetURL(object map[string]interface{}) (string, error) {
-	var buf bytes.Buffer
-	if err := wh.urlTmpl.Execute(&buf, object); err != nil {
-		return "", fmt.Errorf("Error executing %s template: %v", wh.urlTmpl, err)
-	}
-	return strings.TrimSpace(buf.String()), nil
-}
-
-func (wh *WebHookConversion) GetBody(object map[string]interface{}) (string, error) {
-	var buf bytes.Buffer
-	if err := wh.bodyTmpl.Execute(&buf, object); err != nil {
-		return "", fmt.Errorf("Error executing %s template: %v", wh.bodyTmpl, err)
-	}
-	return strings.TrimSpace(buf.String()), nil
 }
 
 func (wh *WebHookConversion) GetTableSchema(tableName string) (*Table, error) {
@@ -118,5 +92,6 @@ func (wh *WebHookConversion) PatchTableSchema(schemaToAdd *Table) error {
 }
 
 func (wh *WebHookConversion) Close() error {
+	wh.httpQueue.Close()
 	return nil
 }

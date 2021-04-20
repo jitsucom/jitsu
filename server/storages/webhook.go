@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -56,9 +57,20 @@ func NewWebHook(config *Config) (Storage, error) {
 	}
 
 	wh.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, wh, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
+	wh.whAdapter.RequestFailCallback = wh.RequestFailedCallback
 	wh.streamingWorker.start()
 
 	return wh, nil
+}
+
+func (wh *WebHook) RequestFailedCallback(object map[string]interface{}, err error) {
+	wh.Fallback(&events.FailedEvent{
+		Event:   []byte(events.Event(object).Serialize()),
+		Error:   err.Error(),
+		EventID: events.ExtractEventID(object),
+	})
+	counters.ErrorEvents(wh.Name(), 1)
+	wh.eventsCache.Error(wh.Name(), events.ExtractEventID(object), err.Error())
 }
 
 func (wh *WebHook) Insert(table *adapters.Table, event events.Event) (err error) {
