@@ -1,9 +1,7 @@
 // @Libs
 import React, { useCallback } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
-import { Button, Dropdown, List, message, Modal, Popover, Tooltip } from 'antd';
-// @Hooks
-import useLoader from '@hooks/useLoader';
+import { Button, Dropdown, message, Modal, Popover, Tooltip } from 'antd';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import {
@@ -15,18 +13,14 @@ import {
 import {
   ActionLink,
   Align,
-  CenteredError,
-  CenteredSpin,
   CodeInline,
   CodeSnippet,
   handleError
 } from '@./lib/components/components';
-import { EmptyList } from '@molecule/EmptyList';
 import { DropDownList } from '@molecule/DropDownList';
 import { ListItem } from '@molecule/ListItem';
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 // @Icons
-import DatabaseOutlined from '@ant-design/icons/lib/icons/DatabaseOutlined';
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 // @Styles
@@ -35,29 +29,12 @@ import styles from './DestinationsList.module.less';
 import { copyToClipboard } from '@./lib/commons/utils';
 // @Routes
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
+// @Types
+import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
+import { Destination } from '@catalog/destinations/types';
 
-export function getIconSrc(destinationType: string): string {
-  try {
-    const icon = require('/src/icons/destinations/' + destinationType + '.svg');
-    return icon.default;
-  } catch (e) {
-    console.log('Icon for ' + destinationType + ' is not found');
-    return null;
-  }
-}
-
-export function getIcon(destinationType: string): any {
-  let src = getIconSrc(destinationType);
-  return src
-    ? <img src={src} className="destination-type-icon" alt="[destination]"/>
-    : <DatabaseOutlined/>;
-}
-
-const DestinationsList = () => {
+const DestinationsList = ({ destinations }: CommonDestinationPageProps) => {
   const history = useHistory();
-
-  const destinations = [];
-  const error = false;
 
   const getTitle = useCallback((dst: DestinationData) => {
     const configTitle = dst._connectionTestOk
@@ -80,22 +57,25 @@ const DestinationsList = () => {
       : configTitle;
   }, []);
 
-  const getDescription = useCallback((dst: DestinationData) => {
-    const description = dst._description ?? {} as any;
+  const getDescription = useCallback((reference: Destination, dst: DestinationData) => {
+    const { title, connectCmd } = reference.ui;
 
-    if (!description.commandLineConnect) {
-      return description.displayURL;
+    const commandLineConnect = connectCmd(dst);
+    const displayURL = title(dst);
+
+    if (!commandLineConnect) {
+      return displayURL;
     }
 
-    const codeSnippet = description.commandLineConnect.indexOf('\n') < 0
+    const codeSnippet = commandLineConnect.indexOf('\n') < 0
       ? <>
         <div>
-          <CodeInline>{description.commandLineConnect}</CodeInline>
+          <CodeInline>{commandLineConnect}</CodeInline>
         </div>
         <Align horizontal="right">
           <ActionLink
             onClick={() => {
-              copyToClipboard(description.commandLineConnect);
+              copyToClipboard(commandLineConnect);
               message.info('Command copied to clipboard', 2);
             }}>
             Copy command to clipboard
@@ -103,7 +83,7 @@ const DestinationsList = () => {
         </Align>
       </>
       : <CodeSnippet className="destinations-list-multiline-code" language="bash">
-        {description.commandLineConnect}
+        {commandLineConnect}
       </CodeSnippet>;
 
     return <Popover
@@ -115,7 +95,7 @@ const DestinationsList = () => {
         </>
       }
       trigger="click">
-      <span className={styles.description}>{description.displayURL}</span>
+      <span className={styles.description}>{displayURL}</span>
     </Popover>;
   }, []);
 
@@ -126,7 +106,7 @@ const DestinationsList = () => {
   const saveDestinations = useCallback(async(id: string) => {
     const appServices = ApplicationServices.get();
 
-    const newDestinations = destinations.filter(dest => dest.id !== id);
+    const newDestinations = destinations.filter(dest => dest._id !== id);
 
     try {
       await appServices.storageService.save('destinations', { destinations: newDestinations }, appServices.activeProject.id);
@@ -152,24 +132,6 @@ const DestinationsList = () => {
 
   const handleEditAction = useCallback((id: string) => () => history.push(generatePath(destinationPageRoutes.editDestination, { id })), [history]);
 
-  if (error) {
-    return <CenteredError error={error} />;
-  } else if (!destinations) {
-    return <CenteredSpin />;
-  } else if (destinations.length === 0) {
-    return <EmptyList
-      list={
-        <DropDownList
-          getPath={getGeneratedPath}
-          list={destinationsReferenceList}
-          filterPlaceholder="Filter by destination name"
-        />
-      }
-      title="Destinations list is still empty"
-      unit="destination"
-    />;
-  }
-
   return <>
     <div className="mb-5">
       <Dropdown
@@ -189,15 +151,15 @@ const DestinationsList = () => {
     <ul className={styles.list}>
       {
         destinations.map((dst: DestinationData) => {
-          const reference = destinationsReferenceMap[dst.type];
+          const reference = destinationsReferenceMap[dst._type];
 
           return <ListItem
-            additional={getMode(dst.mode)}
-            description={getDescription(dst)}
+            additional={getMode(dst._mode)}
+            description={getDescription(reference, dst)}
             icon={reference?.ui?.icon}
             title={getTitle(dst)}
-            id={dst.id}
-            key={dst.id}
+            id={dst._id}
+            key={dst._id}
             actions={[
               { key: 'edit', method: handleEditAction, title: 'Edit' },
               { key: 'delete', method: handleDeleteAction, title: 'Delete' }
