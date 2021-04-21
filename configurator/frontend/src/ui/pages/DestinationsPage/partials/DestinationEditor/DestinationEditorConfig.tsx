@@ -16,12 +16,13 @@ const initialValues = {
 };
 
 export interface Props {
-  destination: Destination;
+  destinationData: DestinationData;
+  destinationReference: Destination;
   form: FormInstance;
   handleTouchAnyField: (value: boolean) => void;
 }
 
-const DestinationEditorConfig = ({ destination, form, handleTouchAnyField }: Props) => {
+const DestinationEditorConfig = ({ destinationData, destinationReference, form, handleTouchAnyField }: Props) => {
   const handleSomeFieldChange = useCallback(() => handleTouchAnyField(true), [handleTouchAnyField]);
 
   return (
@@ -30,9 +31,8 @@ const DestinationEditorConfig = ({ destination, form, handleTouchAnyField }: Pro
       form={form}
       autoComplete="off"
       onChange={handleSomeFieldChange}
-      initialValues={initialValues}
     >
-      <ConfigurableFieldsForm fieldsParamsList={destination.parameters} form={form}/>
+      <ConfigurableFieldsForm initialValues={destinationData} fieldsParamsList={destinationReference.parameters} form={form}/>
     </Form>
   )
 };
