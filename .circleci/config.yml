@@ -96,8 +96,8 @@ build_jitsu: &build_jitsu
 setup_image_version: &setup_image_version
   run:
     name: Set up IMAGE_VERSION env var
-      command: |
-        echo 'export IMAGE_VERSION=${CIRCLE_TAG//v}' >> $BASH_ENV
+    command: |
+      echo 'export IMAGE_VERSION=${CIRCLE_TAG//v}' >> $BASH_ENV
 
 version: 2.1
 
