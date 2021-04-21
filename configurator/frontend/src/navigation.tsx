@@ -1,12 +1,12 @@
-/* eslint-disable */
-import React, { ExoticComponent, ReactElement, ReactNode } from 'react';
-import ComponentTest from './lib/components/componentTest';
-// import DownloadConfig from './lib/components/DownloadConfig/DownloadConfig';
-
-import { routes as sourcesPageRoutes } from '@page/SourcesPage/routes';
+// @Libs
+import React, { ExoticComponent, ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
-import { destinationPageRoutes } from "@page/DestinationsPage/DestinationsPage.routes";
-
+// @Routes
+import { routes as sourcesPageRoutes } from '@page/SourcesPage/routes';
+import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
+// @???
+import ComponentTest from './lib/components/componentTest';
+// @Components
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
 const DestinationsPage = React.lazy(() => import('@page/DestinationsPage/DestinationsPage'));
@@ -14,12 +14,9 @@ const EventsStream = React.lazy(() => import('./lib/components/EventsStream/Even
 const LoginForm = React.lazy(() => import('./lib/components/LoginForm/LoginForm'));
 const SetupForm = React.lazy(() => import('@page/SetupPage/SetupForm'));
 const SignupForm = React.lazy(() => import('./lib/components/SignupForm/SignupForm'));
-//const SourcesPage = React.lazy(() => import('./ui/pages/SourcesPage'));
-import SourcesPage from './ui/pages/SourcesPage';
-import { TaskLogsPage, taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
+const SourcesPage = React.lazy(() => import('./ui/pages/SourcesPage'));
 const StatusPage = React.lazy(() => import('./lib/components/StatusPage/StatusPage'));
 const PasswordForm = React.lazy(() => import('./lib/components/PasswordForm/PasswordForm'));
-
 const DownloadConfig = React.lazy(() => import('./lib/components/DownloadConfig/DownloadConfig'));
 
 export type PageLocation = {
@@ -47,15 +44,18 @@ export type PageProps = {
 }
 
 export class Page {
-  private _component: ExoticComponent | React.Component | React.FC;
-  pageTitle: string;
-  path: string[];
-  pageHeader: React.ReactNode;
-  doNotWrap: boolean;
+  readonly _component: ExoticComponent | React.Component | React.FC;
 
+  readonly pageTitle: string;
+
+  readonly path: string[];
+
+  readonly pageHeader: React.ReactNode;
+
+  readonly doNotWrap: boolean;
 
   public getPrefixedPath(): string[] {
-    return this.path.map((el) => (el.startsWith('/') ? el : '/' + el));
+    return this.path.map((el) => el.startsWith('/') ? el : '/' + el);
   }
 
   constructor(
@@ -89,10 +89,10 @@ export const PRIVATE_PAGES: Page[] = [
   new Page('Jitsu | recent events', '/events_stream', EventsStream, 'Recent events'),
   new Page('Jitsu | dashboard', ['/dashboard', ''], StatusPage, 'Dashboard'),
   new Page(
-      'Jitsu | edit destinations',
-    Object.values(destinationPageRoutes),
+    'Jitsu | edit destinations',
+    Object.keys(destinationPageRoutes).map((key) => destinationPageRoutes[key]),
     DestinationsPage,
-      'Edit destinations'
+    'Edit destinations'
   ),
   new Page(
     'Jitsu | download config',

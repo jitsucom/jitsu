@@ -144,7 +144,7 @@ const DestinationsList = ({ destinations }: CommonDestinationPageProps) => {
           />
         }
       >
-        <Button type="primary" icon={<PlusOutlined />}>Add source</Button>
+        <Button type="primary" icon={<PlusOutlined />}>Add destination</Button>
       </Dropdown>
     </div>
 
