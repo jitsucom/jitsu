@@ -18,14 +18,15 @@ export interface Props {
   className?: string;
   icon: React.ReactNode;
   title: React.ReactNode;
-  description: React.ReactNode;
+  description?: React.ReactNode;
   additional?: React.ReactNode;
+  prefix?: React.ReactNode;
   actions?: SomeAction[];
   id: string;
 }
 
 // ToDo: maybe components name has to be changed?
-const ListItemComponent = ({ className, icon, title, description, additional, actions, id }: Props) => {
+const ListItemComponent = ({ className, icon, title, description, additional, prefix, actions, id }: Props) => {
   const iconsMap = {
     edit: <EditOutlined/>,
     delete: <DeleteOutlined/>
@@ -34,10 +35,11 @@ const ListItemComponent = ({ className, icon, title, description, additional, ac
   return (
     <li className={cn(styles.item, className)}>
       <span className={styles.left}>
+        {prefix && <span className={styles.prefix}>{prefix}</span>}
         <span className={styles.icon}>{icon}</span>
         <span className={styles.info}>
           <span className={styles.title}>{title}</span>
-          <span className={styles.description}>{description}</span>
+          {description && <span className={styles.description}>{description}</span>}
           {additional && <span className={styles.additional}>{additional}</span>}
         </span>
       </span>
