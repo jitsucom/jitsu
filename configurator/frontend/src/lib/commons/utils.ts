@@ -55,11 +55,6 @@ export function reloadPage() {
   location.reload();
 }
 
-export function randomId(len?: number) {
-  let str = Math.random().toString(36).substring(2, len) + Math.random().toString(36).substring(2, 15);
-  return len ? str.substr(0, len) : str;
-}
-
 type INumberFormatOpts = {};
 
 type Formatter = (val: any) => string;
