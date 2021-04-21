@@ -10,7 +10,7 @@ import { ComingSoon } from '@atom/ComingSoon';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorSources } from './DestinationEditorSources';
 // @CatalogDestinations
-import { destinationsReferenceMap, loadDestinations } from '@page/DestinationsPage/commons';
+import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/es';
 import { Destination } from '@catalog/destinations/types';
@@ -21,7 +21,6 @@ import { makeObjectFromFieldsValues } from '@util/Form';
 import { useForceUpdate } from '@hooks/useForceUpdate';
 import useLoader from '@hooks/useLoader';
 import ApplicationServices from '@service/ApplicationServices';
-import { destinationsByTypeId } from '@service/destinations';
 // @Routes
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 // @Styles
@@ -31,7 +30,7 @@ import { destinationEditorUtils } from '@page/DestinationsPage/partials/Destinat
 const DestinationEditor = () => {
   const forceUpdate = useForceUpdate();
 
-  const [, destinations] = useLoader(async() => await loadDestinations(services));
+  const destinations = [];
 
   const history = useHistory();
 
@@ -72,7 +71,7 @@ const DestinationEditor = () => {
   }]);
 
   const destinationReference = useMemo<Destination>(() => destinationsReferenceMap[params.type], [params.type]);
-  const destinationConfig = useMemo(() => destinations && destinationsByTypeId[params.type].factory(getUniqueAutoIncId(params.type, destinations.map(d => d.id))), [destinations, params.type]);
+  // const DestinationData = useMemo(() => destinations && destinationsByTypeId[params.type].factory(getUniqueAutoIncId(params.type, destinations.map(d => d.id))), [destinations, params.type]);
 
   const services = useMemo(() => ApplicationServices.get(), []);
 
@@ -110,11 +109,11 @@ const DestinationEditor = () => {
     try {
       const config = await form.validateFields();
 
-      destinationConfig.update({ ...makeObjectFromFieldsValues(config) });
+      // DestinationData.update({ ...makeObjectFromFieldsValues(config) });
 
-      console.log('destinationConfig: ', destinationConfig);
+      // console.log('DestinationData: ', DestinationData);
 
-      // const dest = Object.assign(destinationConfig, { ...makeObjectFromFieldsValues(config) });
+      // const dest = Object.assign(DestinationData, { ...makeObjectFromFieldsValues(config) });
       //
       // console.log('dest: ', dest);
       //
@@ -127,7 +126,7 @@ const DestinationEditor = () => {
     } finally {
       setTestConnecting(false);
     }
-  }, [destinationConfig]);
+  }, []);
 
   const handleSubmit = useCallback(() => {
     setDestinationSaving(true);
@@ -139,7 +138,7 @@ const DestinationEditor = () => {
         // const _formData = makeObjectFromFieldsValues(allValues[0]);
 
         // const newDestinationBlank = Object.assign(
-        //   destinationConfig,
+        //   DestinationData,
         //   {
         //     ..._formData,
         //     _description: {
