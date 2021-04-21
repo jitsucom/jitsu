@@ -35,7 +35,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 
 	enrichment.InitDefault()
 	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: json.Number(fmt.Sprint(container.Port)), Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: map[string]string{"sslmode": "disable"}}
-	pg, err := adapters.NewPostgres(ctx, dsConfig, logging.NewQueryLogger("test", nil, nil), map[string]string{})
+	pg, err := adapters.NewPostgres(ctx, dsConfig, logging.NewQueryLogger("test", nil, nil), typing.SQLTypes{})
 	require.NoError(t, err)
 	require.NotNil(t, pg)
 
