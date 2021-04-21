@@ -3,16 +3,17 @@ import React, { useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { snakeCase } from 'lodash';
 // @Components
+import { PageHeader } from '@atom/PageHeader';
 import { ConnectorsCatalog } from '../_common/ConnectorsCatalog';
 import { SourceFormWrap } from '../_common/SourceForm/SourceFormWrap';
 // @Types
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage';
 import { SourceConnector } from '@catalog/sources/types';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
-import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+// @Routes
 import { routes } from '@page/SourcesPage/routes';
-import SourceFormHeader from '@page/SourcesPage/partials/_common/SourceForm/SourcesFormHeader';
 
 const AddSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const params = useParams<{ source: string }>();
@@ -40,7 +41,7 @@ const AddSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSou
       elements: [
         { title: 'Sources', link: routes.root },
         {
-          title: <SourceFormHeader connectorSource={connectorSource} mode="add" />
+          title: <PageHeader title={connectorSource.displayName} icon={connectorSource.pic} mode="add" />
         }
       ]
     }));

@@ -7,19 +7,19 @@ import { ConnectorsCatalog } from '../_common/ConnectorsCatalog';
 import { SourcesListItem } from './SourcesListItem';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
+import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Types
 import { SourceConnector } from '@catalog/sources/types';
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 // @Styles
 import styles from './SourcesList.module.less';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
-import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
-import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+// @Routes
 import { routes } from '@page/SourcesPage/routes';
-import SourceFormHeader from '@page/SourcesPage/partials/_common/SourceForm/SourcesFormHeader';
 
 const SourcesList = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
