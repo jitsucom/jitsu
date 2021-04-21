@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, Prompt, useHistory, useParams } from 'react-router-dom';
-import { Form } from 'antd';
+import { Prompt, useHistory, useParams } from 'react-router-dom';
+import { Form, message } from 'antd';
 import cn from 'classnames';
 // @Components
 import { TabsConfigurator } from '@molecule/TabsConfigurator';
@@ -18,14 +18,18 @@ import { Destination } from '@catalog/destinations/types';
 import { Tab } from '@molecule/TabsConfigurator/TabsConfigurator';
 import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
-// @Utils, @Hooks, @Services
+// @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Routes
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 // @Styles
 import styles from './DestinationEditor.module.less';
+// @Utils
+import { makeObjectFromFieldsValues } from '@util/Form';
+import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
+import { getUniqueAutoIncId, randomId } from '@util/numbers';
 
-const DestinationEditor = ({ destinations, setBreadcrumbs }: CommonDestinationPageProps) => {
+const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const params = useParams<{ type?: string; id?: string; }>();
@@ -34,15 +38,24 @@ const DestinationEditor = ({ destinations, setBreadcrumbs }: CommonDestinationPa
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
   const [destinationSaving, setDestinationSaving] = useState<boolean>(false);
 
-  const destinationData = useMemo<DestinationData>(() => destinations.find(dst => dst._id === params.id) ?? {} as DestinationData, [destinations, params.id]);
+  const destinationData = useRef<DestinationData>(
+    destinations.find(dst => dst._id === params.id) || {
+      _id: getUniqueAutoIncId(params.type, destinations.map(dst => dst._type)),
+      _uid: randomId(),
+      _type: params.type,
+      _mappings: { _keepUnmappedFields: true, _mappings: [] },
+      _comment: null,
+      _onlyKeys: []
+    } as DestinationData
+  );
 
   const destinationReference = useMemo<Destination>(() => {
     if (params.type) {
       return destinationsReferenceMap[params.type]
     }
 
-    return destinationsReferenceMap[destinationData._type];
-  }, [destinationData, params.type]);
+    return destinationsReferenceMap[destinationData.current._type];
+  }, [params.type]);
 
   const services = useMemo(() => ApplicationServices.get(), []);
 
@@ -51,7 +64,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs }: CommonDestinationPa
   const destinationsTabs = useRef<Tab[]>([{
     key: 'config',
     name: 'Connection Properties',
-    getComponent: (form: FormInstance) => <DestinationEditorConfig handleTouchAnyField={setTouchedFields} form={form} destinationReference={destinationReference} destinationData={destinationData} />,
+    getComponent: (form: FormInstance) => <DestinationEditorConfig handleTouchAnyField={setTouchedFields} form={form} destinationReference={destinationReference} destinationData={destinationData.current} />,
     form: Form.useForm()[0]
   },
   {
@@ -110,24 +123,14 @@ const DestinationEditor = ({ destinations, setBreadcrumbs }: CommonDestinationPa
     try {
       const config = await form.validateFields();
 
-      // DestinationData.update({ ...makeObjectFromFieldsValues(config) });
+      destinationData.current._formData = makeObjectFromFieldsValues<DestinationData>(config)._formData;
 
-      // console.log('DestinationData: ', DestinationData);
-
-      // const dest = Object.assign(DestinationData, { ...makeObjectFromFieldsValues(config) });
-      //
-      // console.log('dest: ', dest);
-      //
-      // destinationEditorUtils.testConnection(dest);
-      //
-      // console.log('testConnection: ', testConnection);
-    } catch (errors) {
-      // setConnectionTestResult
-      // console.log('errors: ', errors);
+      await destinationEditorUtils.testConnection(destinationData.current);
+    } catch (error) {
     } finally {
       setTestConnecting(false);
     }
-  }, []);
+  }, [destinationData]);
 
   const handleSubmit = useCallback(() => {
     setDestinationSaving(true);
@@ -135,36 +138,30 @@ const DestinationEditor = ({ destinations, setBreadcrumbs }: CommonDestinationPa
     Promise
       .all(destinationsTabs.current.filter((tab: Tab) => !!tab.form).map((tab: Tab, index: number) => validateTabForm(tab)))
       .then(async allValues => {
-        // const { connectCmd, title } = destinationReference.ui;
-        // const _formData = makeObjectFromFieldsValues(allValues[0]);
+        destinationData.current._formData = makeObjectFromFieldsValues<DestinationData>(allValues[0])._formData;
 
-        // const newDestinationBlank = Object.assign(
-        //   DestinationData,
-        //   {
-        //     ..._formData,
-        //     _description: {
-        //       displayURL: title(_formData),
-        //       commandLineConnect: connectCmd(_formData)
-        //     }
-        //   }
-        // );
-        //
-        // try {
-        //   await services.storageService.save('destinations', { destinations: [...destinations, newDestinationBlank] }, services.activeProject.id);
-        //
-        //   setTouchedFields(false);
-        //
-        //   history.push(destinationPageRoutes.root);
-        //
-        //   message.success('New destination has been added!');
-        // } catch (errors) {
-        //   console.log('errors: ', errors);
-        // } finally {
-        //   setDestinationSaving(false);
-        // }
+        try {
+          await destinationEditorUtils.testConnection(destinationData.current);
+
+          const newDestinationsList = [...destinations, destinationData.current];
+
+          await services.storageService.save('destinations', { destinations: newDestinationsList }, services.activeProject.id);
+
+          updateDestinations({ destinations: newDestinationsList });
+
+          setTouchedFields(false);
+
+          history.push(destinationPageRoutes.root);
+
+          message.success('New destination has been added!');
+        } catch (errors) {
+          console.log('errors: ', errors);
+        } finally {
+          setDestinationSaving(false);
+        }
       })
       .catch(errors => console.log(errors));
-  }, [history, services, params.type, validateTabForm, destinationReference, destinations, setTouchedFields]);
+  }, [history, services, validateTabForm, destinations, setTouchedFields, updateDestinations]);
 
   useEffect(() => {
     setBreadcrumbs(withHome({

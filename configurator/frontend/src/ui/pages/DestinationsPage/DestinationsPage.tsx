@@ -1,5 +1,5 @@
 // @Libs
-import React, { useMemo } from 'react';
+import React, { Dispatch, SetStateAction, useMemo } from 'react';
 import { Route, Switch } from 'react-router-dom';
 // @Pages
 import { DestinationsList } from './partials/DestinationsList';
@@ -28,38 +28,28 @@ export interface CollectionDestinationData {
 }
 
 export interface CommonDestinationPageProps {
-  destinations: DestinationData[];
   setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void;
+  destinations: DestinationData[];
+  updateDestinations: Dispatch<SetStateAction<any>>;
 }
 
 export const DestinationsPage = (props: PageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
 
-  const [error, destinations] = useLoader(
+  const [error, destinations, updateDestinations] = useLoader(
     async() => await services.storageService.get('destinations', services.activeProject.id)
   );
 
   const additionalProps = useMemo(() => ({
+    setBreadcrumbs: props.setBreadcrumbs,
     destinations: destinations?.destinations,
-    setBreadcrumbs: props.setBreadcrumbs
-  }), [props.setBreadcrumbs, destinations]);
+    updateDestinations
+  }), [props.setBreadcrumbs, destinations, updateDestinations]);
 
   if (error) {
     return <CenteredError error={error} />;
   } else if (!destinations) {
     return <CenteredSpin />;
-  } else if (destinations.destinations.length === 0) {
-    return <EmptyList
-      list={
-        <DropDownList
-          getPath={getGeneratedPath}
-          list={destinationsReferenceList}
-          filterPlaceholder="Filter by destination name"
-        />
-      }
-      title="Destinations list is still empty"
-      unit="destination"
-    />;
   }
 
   return (
