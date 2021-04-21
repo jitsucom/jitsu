@@ -196,7 +196,6 @@ func main() {
 				port := configuration.GetInt("port")
 				password := configuration.GetString("password")
 				coordinationService, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, host, port, password)
-				telemetry.Coordination("redis")
 				if err != nil {
 					logging.Fatal("Failed to initiate coordination service", err)
 				}
@@ -213,15 +212,19 @@ func main() {
 			logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
 
 			coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
-			telemetry.Coordination("etcd")
 		} else {
 			coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
-			telemetry.Coordination("memory")
 		}
 
 		if err != nil {
 			logging.Fatal("Failed to initiate coordination service", err)
 		}
+	}
+
+	if coordinationService == nil {
+		logging.Info("Coordination service isn't provided. Jitsu server is working in single-node mode. " +
+			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
+		coordinationService = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
 	}
 
 	// ** Destinations **
