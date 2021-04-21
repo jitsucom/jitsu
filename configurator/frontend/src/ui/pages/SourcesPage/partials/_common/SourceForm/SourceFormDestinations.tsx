@@ -12,7 +12,7 @@ import { CenteredError, CenteredSpin } from '@./lib/components/components';
 import { DestinationConfig } from '@service/destinations';
 import { SourceFormDestinationsProps } from './SourceForm.types';
 // @Hooks
-import useLoader from '@./lib/commons/useLoader';
+import useLoader from '@hooks/useLoader';
 
 const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsProps) => {
   const [error, destinations] = useLoader(async() => await loadDestinations(ApplicationServices.get()));
@@ -64,7 +64,7 @@ const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsP
       >
         <List key="list" className="destinations-list" itemLayout="horizontal">
           {destinations.map((config) => {
-            const description = config.describe();
+            const description = config.description;
 
             return <List.Item key={config.uid}>
               <label htmlFor={config.uid} className="ant-switch-group-label">

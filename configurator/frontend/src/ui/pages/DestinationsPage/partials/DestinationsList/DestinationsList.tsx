@@ -187,7 +187,7 @@ const DestinationsList = () => {
       </Dropdown>
     </div>
 
-    <List key="list" className="destinations-list" itemLayout="horizontal" split={true}>
+    <ul className={styles.list}>
       {
         destinations.map((dst: DestinationConfig) => {
           const reference = destinationsReferenceMap[dst.type];
@@ -206,7 +206,7 @@ const DestinationsList = () => {
           />
         })
       }
-    </List>
+    </ul>
   </>
 };
 

@@ -2,7 +2,7 @@
 import React from 'react';
 import { Route, Switch } from 'react-router-dom';
 // @Pages
-import DestinationsList from '@page/DestinationsPage/partials/DestinationsList/DestinationsList';
+import { DestinationsList } from './partials/DestinationsList';
 import { DestinationEditor } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor';
 // @Routes
 import { destinationPageRoutes } from './DestinationsPage.routes';
