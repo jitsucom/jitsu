@@ -3,11 +3,9 @@ declare type DestinationType = 'postgres' | 'bigquery' | 'redshift' | 'clickhous
 declare interface DestinationData {
   // private _mappings: FieldMappings = new FieldMappings([], true);
   // protected readonly _uid = randomId();
-  // private _comment: string = null;
-  // protected readonly _type: string;
   // protected readonly _onlyKeys = [];
 
-  _type: DestinationType;
+  readonly _type: DestinationType;
   _id: string;
   _uid: string;
   _comment: string;
