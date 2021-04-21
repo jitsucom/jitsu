@@ -15,7 +15,7 @@ services:
       context: .
       dockerfile: configurator.Dockerfile
       args:
-        SKIP_UI: 'true'
+        SKIP_UI_BUILD: 'true'
     entrypoint: './configurator'
     environment:
       - SERVER_AUTH=8b64e097c08a43c7ab656b7b02997859
