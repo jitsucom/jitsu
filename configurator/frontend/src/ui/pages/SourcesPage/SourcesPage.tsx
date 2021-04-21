@@ -1,6 +1,6 @@
 // @Libs
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Route, RouteProps, Switch } from 'react-router-dom';
+import React, { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
+import { Route, Switch } from 'react-router-dom';
 // @Routes
 import { routes } from './routes';
 // @Components
@@ -10,27 +10,29 @@ import { EditSource } from './partials/EditSource';
 import { CenteredSpin } from '@./lib/components/components';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
-// @Types
-import { CollectionSourceData, CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
 // @Styles
 import './SourcesPage.less';
 import { PageProps } from '@./navigation';
+// @Hocs
+import { getComponent } from '@./hocs/getComponent';
+import { BreadcrumbsProps } from '@./ui/components/molecule/Breadcrumbs/Breadcrumbs.types';
+
+export interface CollectionSourceData {
+  sources: SourceData[];
+  _lastUpdated?: string;
+}
+
+export interface CommonSourcePageProps {
+  sources: SourceData[];
+  projectId: string;
+  setSources: Dispatch<SetStateAction<CollectionSourceData>>;
+  setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void;
+}
 
 const SourcesPage = (props: PageProps) => {
   const [sources, setSources] = useState<CollectionSourceData>();
 
   const services = useMemo(() => ApplicationServices.get(), []);
-  const getComponent = useCallback(
-    (Component: React.FC<CommonSourcePageProps>) => (currentProps: RouteProps) =>{
-      return <Component
-        setSources={setSources}
-        sources={sources?.sources}
-        projectId={services.activeProject.id}
-        setBreadcrumbs={props.setBreadcrumbs}
-        {...currentProps} />
-    },
-    [props.setBreadcrumbs, services.activeProject.id, sources?.sources]
-  );
 
   useEffect(() => {
     services.storageService.get('sources', services.activeProject.id).then(({ _lastUpdated, ...response }) => {
@@ -38,14 +40,21 @@ const SourcesPage = (props: PageProps) => {
     });
   }, [setSources, services, services.activeProject.id]);
 
+  const additionalProps = useMemo(() => ({
+    projectId: services.activeProject.id,
+    sources: sources?.sources,
+    setSources,
+    setBreadcrumbs: props.setBreadcrumbs
+  }), [sources?.sources, services.activeProject.id]);
+
   return <>
     {!sources ?
       <CenteredSpin />
       : (
         <Switch>
-          <Route path={routes.root} exact render={getComponent(SourcesList)} />
-          <Route path={[routes.add, routes.addExact]} strict={false} exact render={getComponent(AddSource)} />
-          <Route path={[routes.edit, routes.editExact]} strict={false} exact render={getComponent(EditSource)} />
+          <Route path={routes.root} exact render={getComponent<CommonSourcePageProps>(SourcesList, additionalProps)} />
+          <Route path={[routes.add, routes.addExact]} strict={false} exact render={getComponent<CommonSourcePageProps>(AddSource, additionalProps)} />
+          <Route path={[routes.edit, routes.editExact]} strict={false} exact render={getComponent<CommonSourcePageProps>(EditSource, additionalProps)} />
         </Switch>
       )}
   </>

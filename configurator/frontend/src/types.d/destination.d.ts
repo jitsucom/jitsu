@@ -11,4 +11,6 @@ declare interface DestinationData {
   _formData: {
     [key: string]: any;
   };
+
+  [key: string]: any;
 }
