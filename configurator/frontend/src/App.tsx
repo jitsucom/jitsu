@@ -5,30 +5,16 @@ import { ExoticComponent, ReactNode, useState } from 'react';
 import {NavLink, Redirect, Route, Switch} from 'react-router-dom';
 import {Button, Col, Dropdown, Form, Input, Layout, Menu, message, Modal, Row, Tooltip} from 'antd';
 
-import LogoutOutlined from '@ant-design/icons/lib/icons/LogoutOutlined';
-import CloudOutlined from '@ant-design/icons/lib/icons/CloudOutlined';
-import AreaChartOutlined from '@ant-design/icons/lib/icons/AreaChartOutlined';
-import SlidersOutlined from '@ant-design/icons/lib/icons/SlidersOutlined';
-import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
-import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
-import UnlockOutlined from '@ant-design/icons/lib/icons/UnlockOutlined';
-import DownloadOutlined from '@ant-design/icons/lib/icons/DownloadOutlined';
-import NotificationOutlined from '@ant-design/icons/lib/icons/NotificationOutlined';
-import UserSwitchOutlined from '@ant-design/icons/lib/icons/UserSwitchOutlined';
-import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 
 import './App.less';
 import ApplicationServices, {setDebugInfo} from './lib/services/ApplicationServices';
 import {Align, CenteredSpin, GlobalError, handleError, Preloader} from './lib/components/components';
 import {reloadPage} from './lib/commons/utils';
-import {Permission, User} from './lib/services/model';
+import {User} from './lib/services/model';
 import OnboardingForm from './lib/components/OnboardingForm/OnboardingForm';
-import { Page, PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES, usePageLocation } from './navigation';
+import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
-import logo from './icons/logo.svg';
 import PapercupsWrapper from './lib/commons/papercups';
-import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
-import QuestionCircleOutlined from "@ant-design/icons/lib/icons/QuestionCircleOutlined";
 import { ApplicationPageWrapper} from './Layout';
 import classNames from 'classnames';
 
@@ -190,28 +176,6 @@ export default class App extends React.Component<AppProperties, AppState> {
             </>
         );
     }
-
-    private resetPassword() {
-        Modal.confirm({
-            title: 'Password reset',
-            icon: <ExclamationCircleOutlined/>,
-            content: 'Please confirm password reset. Instructions will be sent to your email',
-            okText: 'Reset password',
-            cancelText: 'Cancel',
-            onOk: async () => {
-                try {
-                    await this.services.userService.sendPasswordReset()
-                    message.info('Reset password instructions has been sent. Please, check your mailbox')
-                } catch (error) {
-                    message.error("Can't reset password: " + error.message);
-                    console.log("Can't reset password", error);
-                }
-            },
-            onCancel: () => {
-            }
-        });
-    }
-
 }
 
 function SetNewPassword({onCompleted}: { onCompleted: () => Promise<void> }) {

@@ -29,6 +29,7 @@ import { Breadcrumbs } from '@molecule/Breadcrumbs';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
+  const services = useServices();
 
   let key = location === '/' || location === '' ?
     'dashboard' :
@@ -48,14 +49,6 @@ export const ApplicationMenu: React.FC<{}> = () => {
         Event API Keys
       </NavLink>
     </Menu.Item>
-    {/*<Menu.Item key="sources" icon={<ApiOutlined/>} disabled={true}>*/}
-    {/*  <Tooltip mouseEnterDelay={0} title={<>*/}
-    {/*    Pooling data from external sources is available*/}
-    {/*    only <a href="https://jitsu.com/docs/sources-configuration">in open-source version with YAML-file configuration</a>*/}
-    {/*  </>}>*/}
-    {/*    Sources<sup>Soon!</sup>*/}
-    {/*  </Tooltip>*/}
-    {/*</Menu.Item>*/}
     <Menu.Item key="sources" icon={<ApiOutlined/>}>
       <NavLink to="/sources" activeClassName="selected">
         Connectors
@@ -66,14 +59,14 @@ export const ApplicationMenu: React.FC<{}> = () => {
         Destinations
       </NavLink>
     </Menu.Item>
-    <Menu.Item key="domains" icon={<CloudOutlined/>}>
+    {services.features.enableCustomDomains && <Menu.Item key="domains" icon={<CloudOutlined/>}>
       <NavLink to="/domains" activeClassName="selected">
         Tracking Domains
       </NavLink>
-    </Menu.Item>
+    </Menu.Item>}
     <Menu.Item key="cfg_download" icon={<DownloadOutlined/>}>
       <NavLink to="/cfg_download" activeClassName="selected">
-        Download EN Config
+        Generate Config
       </NavLink>
     </Menu.Item>
   </Menu>
