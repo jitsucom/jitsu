@@ -60,28 +60,28 @@ const DestinationsList = () => {
   const error = false;
 
   const getTitle = useCallback((dst: DestinationData) => {
-    const configTitle = dst.connectionTestOk
-      ? <>{dst.id}</> :
+    const configTitle = dst._connectionTestOk
+      ? <>{dst._id}</> :
       <Tooltip
         trigger={['click', 'hover']}
         title={
           <>
-            Last connection test failed with <b><i>'{dst.connectionErrorMessage}'</i></b>. Destination might be not
+            Last connection test failed with <b><i>'{dst._connectionErrorMessage}'</i></b>. Destination might be not
             accepting data. Please, go to editor and fix the connection settings
           </>
         }>
         <strong className={styles.errorName}>
-          <b>!</b> {dst.id}
+          <b>!</b> {dst._id}
         </strong>
       </Tooltip>;
 
-    return dst.comment
-      ? <LabelWithTooltip documentation={dst.comment} render={configTitle} />
+    return dst._comment
+      ? <LabelWithTooltip documentation={dst._comment} render={configTitle} />
       : configTitle;
   }, []);
 
   const getDescription = useCallback((dst: DestinationData) => {
-    const description = dst.description ?? {} as any;
+    const description = dst._description ?? {} as any;
 
     if (!description.commandLineConnect) {
       return description.displayURL;
