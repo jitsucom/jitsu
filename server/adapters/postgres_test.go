@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/test"
+	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/assert"
 	"math/rand"
@@ -53,7 +54,7 @@ func setupDatabase(t *testing.T, table *Table) (*test.PostgresContainer, *Postgr
 		t.Fatalf("failed to initialize container: %v", err)
 	}
 	dsConfig := &DataSourceConfig{Host: container.Host, Port: json.Number(fmt.Sprint(container.Port)), Username: container.Username, Password: container.Password, Db: container.Database, Schema: container.Schema, Parameters: map[string]string{"sslmode": "disable"}}
-	pg, err := NewPostgres(ctx, dsConfig, &logging.QueryLogger{}, map[string]string{})
+	pg, err := NewPostgres(ctx, dsConfig, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		t.Fatalf("Failed to create Postgres adapter: %v", err)
 	}
