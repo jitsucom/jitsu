@@ -24,6 +24,10 @@ type GoogleAnalytics struct {
 	staged          bool
 }
 
+func init() {
+	RegisterStorage(GoogleAnalyticsType, NewGoogleAnalytics)
+}
+
 //NewGoogleAnalytics return GoogleAnalytics instance
 //start streaming worker goroutine
 func NewGoogleAnalytics(config *Config) (Storage, error) {
@@ -36,22 +40,22 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
+	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	gaAdapter := adapters.NewGoogleAnalytics(gaConfig, requestDebugLogger)
 
 	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToGoogleAnalytics, config.streamMode, 0)
 
 	ga := &GoogleAnalytics{
-		name:           config.name,
+		name:           config.destinationID,
 		gaAdapter:      gaAdapter,
 		tableHelper:    tableHelper,
 		processor:      config.processor,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:    config.eventsCache,
 		staged:         config.destination.Staged,
 	}
 
-	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
+	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
 	ga.streamingWorker.start()
 
 	return ga, nil
@@ -88,7 +92,7 @@ func (ga *GoogleAnalytics) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (ga *GoogleAnalytics) Name() string {
+func (ga *GoogleAnalytics) ID() string {
 	return ga.name
 }
 
@@ -102,17 +106,17 @@ func (ga *GoogleAnalytics) IsStaging() bool {
 
 func (ga *GoogleAnalytics) Close() (multiErr error) {
 	if err := ga.gaAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing GoogleAnalytics client: %v", ga.Name(), err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing GoogleAnalytics client: %v", ga.ID(), err))
 	}
 
 	if ga.streamingWorker != nil {
 		if err := ga.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", ga.Name(), err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", ga.ID(), err))
 		}
 	}
 
 	if err := ga.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ga.Name(), err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ga.ID(), err))
 	}
 
 	return

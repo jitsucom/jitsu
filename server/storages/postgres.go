@@ -28,6 +28,10 @@ type Postgres struct {
 	staged                        bool
 }
 
+func init() {
+	RegisterStorage(PostgresType, NewPostgres)
+}
+
 func NewPostgres(config *Config) (Storage, error) {
 	pgConfig := config.destination.DataSource
 	if err := pgConfig.Validate(); err != nil {
@@ -36,19 +40,19 @@ func NewPostgres(config *Config) (Storage, error) {
 	//enrich with default parameters
 	if pgConfig.Port.String() == "" {
 		pgConfig.Port = json.Number("5432")
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.name, pgConfig.Port.String())
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, pgConfig.Port.String())
 	}
 	if pgConfig.Schema == "" {
 		pgConfig.Schema = "public"
-		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.name, pgConfig.Schema)
+		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.destinationID, pgConfig.Schema)
 	}
 	//default connect timeout seconds
 	if _, ok := pgConfig.Parameters["connect_timeout"]; !ok {
 		pgConfig.Parameters["connect_timeout"] = "600"
 	}
 
-	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
-	adapter, err := adapters.NewPostgres(config.ctx, pgConfig, queryLogger, config.sqlTypeCasts)
+	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
+	adapter, err := adapters.NewPostgres(config.ctx, pgConfig, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -63,18 +67,18 @@ func NewPostgres(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres, config.streamMode, config.maxColumns)
 
 	p := &Postgres{
-		name:                          config.name,
+		name:                          config.destinationID,
 		adapter:                       adapter,
 		tableHelper:                   tableHelper,
 		processor:                     config.processor,
-		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
+		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:                   config.eventsCache,
 		usersRecognitionConfiguration: config.usersRecognition,
 		staged:                        config.destination.Staged,
 	}
 
 	if config.streamMode {
-		p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
+		p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
 		p.streamingWorker.start()
 	}
 
@@ -95,7 +99,7 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		p.eventsCache.Error(p.Name(), failedEvent.EventID, failedEvent.Error)
+		p.eventsCache.Error(p.ID(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -111,9 +115,9 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				p.eventsCache.Error(p.Name(), events.ExtractEventID(object), err.Error())
+				p.eventsCache.Error(p.ID(), events.ExtractEventID(object), err.Error())
 			} else {
-				p.eventsCache.Succeed(p.Name(), events.ExtractEventID(object), object, table)
+				p.eventsCache.Succeed(p.ID(), events.ExtractEventID(object), object, table)
 			}
 		}
 	}
@@ -129,7 +133,7 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 //check table schema
 //and store data into one table
 func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
-	dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
+	dbSchema, err := p.tableHelper.EnsureTable(p.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -138,7 +142,7 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 	if err := p.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
 		return err
 	}
-	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.Name(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
+	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.ID(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
 
 	return nil
 }
@@ -171,7 +175,7 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 
 		table := p.tableHelper.MapTableSchema(overriddenDataSchema)
 
-		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
+		dbSchema, err := p.tableHelper.EnsureTable(p.ID(), table)
 		if err != nil {
 			return err
 		}
@@ -186,12 +190,12 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 	for _, fdata := range flatData {
 		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
 
-		//overridden table name
+		//overridden table destinationID
 		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
 			table.Name = overriddenDataSchema.TableName
 		}
 
-		dbSchema, err := p.tableHelper.EnsureTable(p.Name(), table)
+		dbSchema, err := p.tableHelper.EnsureTable(p.ID(), table)
 		if err != nil {
 			return err
 		}
@@ -199,7 +203,7 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 		if err = p.adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions); err != nil {
 			return err
 		}
-		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.Name(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
+		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.ID(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
 	}
 
 	return nil
@@ -211,7 +215,7 @@ func (p *Postgres) Update(object map[string]interface{}) error {
 
 //Insert event in Postgres (1 retry if error)
 func (p *Postgres) Insert(table *adapters.Table, event events.Event) (err error) {
-	dbTable, err := p.tableHelper.EnsureTable(p.Name(), table)
+	dbTable, err := p.tableHelper.EnsureTable(p.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -220,12 +224,12 @@ func (p *Postgres) Insert(table *adapters.Table, event events.Event) (err error)
 
 	//renew current db schema and retry
 	if err != nil {
-		dbTable, err := p.tableHelper.RefreshTableSchema(p.Name(), table)
+		dbTable, err := p.tableHelper.RefreshTableSchema(p.ID(), table)
 		if err != nil {
 			return err
 		}
 
-		dbTable, err = p.tableHelper.EnsureTable(p.Name(), table)
+		dbTable, err = p.tableHelper.EnsureTable(p.ID(), table)
 		if err != nil {
 			return err
 		}
@@ -243,23 +247,23 @@ func (p *Postgres) GetUsersRecognition() *UserRecognitionConfiguration {
 //Close adapters.Postgres
 func (p *Postgres) Close() (multiErr error) {
 	if err := p.adapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", p.Name(), err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", p.ID(), err))
 	}
 
 	if p.streamingWorker != nil {
 		if err := p.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", p.Name(), err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", p.ID(), err))
 		}
 	}
 
 	if err := p.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", p.Name(), err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", p.ID(), err))
 	}
 
 	return
 }
 
-func (p *Postgres) Name() string {
+func (p *Postgres) ID() string {
 	return p.name
 }
 

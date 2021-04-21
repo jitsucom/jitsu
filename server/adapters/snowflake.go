@@ -23,7 +23,7 @@ const (
                                %s`
 
 	createSFDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS %s`
-	addSFColumnTemplate                 = `ALTER TABLE %s.%s ADD COLUMN %s %s`
+	addSFColumnTemplate                 = `ALTER TABLE %s.%s ADD COLUMN %s`
 	createSFTableTemplate               = `CREATE TABLE %s.%s (%s)`
 	insertSFTemplate                    = `INSERT INTO %s.%s (%s) VALUES (%s)`
 )
@@ -80,17 +80,17 @@ func (sc *SnowflakeConfig) Validate() error {
 
 //Snowflake is adapter for creating,patching (schema or table), inserting data to snowflake
 type Snowflake struct {
-	ctx              context.Context
-	config           *SnowflakeConfig
-	s3Config         *S3Config
-	dataSource       *sql.DB
-	queryLogger      *logging.QueryLogger
-	mappingTypeCasts map[string]string
+	ctx         context.Context
+	config      *SnowflakeConfig
+	s3Config    *S3Config
+	dataSource  *sql.DB
+	queryLogger *logging.QueryLogger
+	sqlTypes    typing.SQLTypes
 }
 
-//NewSnowflake return configured Snowflake adapter instance
+//NewSnowflake returns configured Snowflake adapter instance
 func NewSnowflake(ctx context.Context, config *SnowflakeConfig, s3Config *S3Config,
-	queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*Snowflake, error) {
+	queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*Snowflake, error) {
 	cfg := &sf.Config{
 		Account:   config.Account,
 		User:      config.Username,
@@ -116,10 +116,10 @@ func NewSnowflake(ctx context.Context, config *SnowflakeConfig, s3Config *S3Conf
 		return nil, err
 	}
 
-	return &Snowflake{ctx: ctx, config: config, s3Config: s3Config, dataSource: dataSource, queryLogger: queryLogger, mappingTypeCasts: reformatMappings(mappingTypeCasts, SchemaToSnowflake)}, nil
+	return &Snowflake{ctx: ctx, config: config, s3Config: s3Config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToSnowflake)}, nil
 }
 
-func (Snowflake) Name() string {
+func (Snowflake) Type() string {
 	return "Snowflake"
 }
 
@@ -130,7 +130,7 @@ func (s *Snowflake) OpenTx() (*Transaction, error) {
 		return nil, err
 	}
 
-	return &Transaction{tx: tx, dbType: s.Name()}, nil
+	return &Transaction{tx: tx, dbType: s.Type()}, nil
 }
 
 //CreateDbSchema create database schema instance if doesn't exist
@@ -144,7 +144,7 @@ func (s *Snowflake) CreateDbSchema(dbSchemaName string) error {
 		dbSchemaName, s.queryLogger)
 }
 
-//CreateTable create database table with name,columns provided in Table representation
+//CreateTable creates database table with name,columns provided in Table representation
 func (s *Snowflake) CreateTable(tableSchema *Table) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
@@ -153,12 +153,8 @@ func (s *Snowflake) CreateTable(tableSchema *Table) error {
 
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		sqlType := column.SQLType
-		castedSQLType, ok := s.mappingTypeCasts[columnName]
-		if ok {
-			sqlType = castedSQLType
-		}
-		columnsDDL = append(columnsDDL, fmt.Sprintf(`%s %s`, reformatValue(columnName), sqlType))
+		columnDDL := s.columnDDL(columnName, column)
+		columnsDDL = append(columnsDDL, columnDDL)
 	}
 
 	//sorting columns asc
@@ -188,13 +184,10 @@ func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		sqlType := column.SQLType
-		castedSQLType, ok := s.mappingTypeCasts[columnName]
-		if ok {
-			sqlType = castedSQLType
-		}
+		columnDDL := s.columnDDL(columnName, column)
+
 		query := fmt.Sprintf(addSFColumnTemplate, s.config.Schema,
-			reformatValue(patchSchema.Name), reformatValue(columnName), sqlType)
+			reformatValue(patchSchema.Name), columnDDL)
 		s.queryLogger.LogDDL(query)
 		alterStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 		if err != nil {
@@ -277,11 +270,7 @@ func (s *Snowflake) Insert(table *Table, valuesMap map[string]interface{}) error
 	for name, value := range valuesMap {
 		header += reformatValue(name) + ","
 
-		castClause := ""
-		castType, ok := s.mappingTypeCasts[name]
-		if ok {
-			castClause = "::" + castType
-		}
+		castClause := s.getCastClause(name)
 		placeholders += "?" + castClause + ","
 		values = append(values, value)
 	}
@@ -317,6 +306,28 @@ func (s *Snowflake) Close() (multiErr error) {
 	return s.dataSource.Close()
 }
 
+//getCastClause returns ::SQL_TYPE clause or empty string
+//$1::type, $2::type, $3, etc
+func (s *Snowflake) getCastClause(name string) string {
+	castType, ok := s.sqlTypes[name]
+	if ok {
+		return "::" + castType.Type
+	}
+
+	return ""
+}
+
+//columnDDL returns column DDL (column name, mapped sql type)
+func (s *Snowflake) columnDDL(name string, column Column) string {
+	sqlColumnTypeDDL := column.SQLType
+	overriddenSQLType, ok := s.sqlTypes[name]
+	if ok {
+		sqlColumnTypeDDL = overriddenSQLType.ColumnType
+	}
+
+	return fmt.Sprintf(`%s %s`, reformatValue(name), sqlColumnTypeDDL)
+}
+
 //Snowflake has table with schema, table names and there
 //quoted identifiers = without quotes
 //unquoted identifiers = uppercased
@@ -328,7 +339,7 @@ func reformatToParam(value string) string {
 	}
 }
 
-//Snowflake accept names (identifiers) started with '_' or letter
+//Snowflake accepts names (identifiers) started with '_' or letter
 //also names can contain only '_', letters, numbers, '$'
 //otherwise double quote them
 //https://docs.snowflake.com/en/sql-reference/identifiers-syntax.html#unquoted-identifiers

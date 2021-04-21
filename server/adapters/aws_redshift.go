@@ -50,11 +50,11 @@ type AwsRedshift struct {
 	s3Config        *S3Config
 }
 
-//NewAwsRedshift return configured AwsRedshift adapter instance
+//NewAwsRedshift returns configured AwsRedshift adapter instance
 func NewAwsRedshift(ctx context.Context, dsConfig *DataSourceConfig, s3Config *S3Config,
-	queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*AwsRedshift, error) {
+	queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*AwsRedshift, error) {
 
-	postgres, err := NewPostgresUnderRedshift(ctx, dsConfig, queryLogger, reformatMappings(mappingTypeCasts, SchemaToRedshift))
+	postgres, err := NewPostgresUnderRedshift(ctx, dsConfig, queryLogger, reformatMappings(sqlTypes, SchemaToRedshift))
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func NewAwsRedshift(ctx context.Context, dsConfig *DataSourceConfig, s3Config *S
 	return &AwsRedshift{dataSourceProxy: postgres, s3Config: s3Config}, nil
 }
 
-func (AwsRedshift) Name() string {
+func (AwsRedshift) Type() string {
 	return "Redshift"
 }
 
@@ -73,7 +73,7 @@ func (ar *AwsRedshift) OpenTx() (*Transaction, error) {
 		return nil, err
 	}
 
-	return &Transaction{tx: tx, dbType: ar.Name()}, nil
+	return &Transaction{tx: tx, dbType: ar.Type()}, nil
 }
 
 //Copy transfer data from s3 to redshift by passing COPY request to redshift

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/configurator/storages"
+	"github.com/jitsucom/jitsu/server/logging"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/bcrypt"
@@ -31,36 +32,34 @@ type Service struct {
 	configurationsStorage storages.ConfigurationsStorage
 }
 
-func NewService(ctx context.Context, authViper *viper.Viper, storage storages.ConfigurationsStorage) (*Service, error) {
+func NewService(ctx context.Context, vp *viper.Viper, storage storages.ConfigurationsStorage) (*Service, error) {
 	var authProvider Provider
 	var err error
-	if authViper.IsSet("firebase") {
-		firebaseViper := authViper.Sub("firebase")
-
-		authProvider, err = NewFirebaseProvider(ctx, firebaseViper.GetString("project_id"), firebaseViper.GetString("credentials_file"), authViper.GetString("admin_domain"))
+	if vp.IsSet("auth.firebase.project_id") {
+		authProvider, err = NewFirebaseProvider(ctx, vp.GetString("auth.firebase.project_id"), vp.GetString("auth.firebase.credentials_file"), vp.GetString("auth.admin_domain"))
 		if err != nil {
 			return nil, err
 		}
-	} else if authViper.IsSet("redis") {
-		redisViper := authViper.Sub("redis")
-		host := redisViper.GetString("host")
+	} else if vp.IsSet("auth.redis.host") {
+		host := vp.GetString("auth.redis.host")
 		if host == "" {
 			return nil, errors.New("auth.redis.host is required")
 		}
 
-		port := redisViper.GetInt("port")
+		port := vp.GetInt("auth.redis.port")
 		if port == 0 {
-			return nil, errors.New("auth.redis.port is required")
+			port = 6379
+			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", port)
 		}
 
-		redisPassword := redisViper.GetString("password")
+		redisPassword := vp.GetString("auth.redis.password")
 
-		accessSecret := redisViper.GetString("access_secret")
+		accessSecret := vp.GetString("auth.redis.access_secret")
 		if accessSecret == "" {
 			return nil, errors.New("auth.redis.access_secret is required")
 		}
 
-		refreshSecret := redisViper.GetString("refresh_secret")
+		refreshSecret := vp.GetString("auth.redis.refresh_secret")
 		if refreshSecret == "" {
 			return nil, errors.New("auth.redis.refresh_secret is required")
 		}
@@ -70,7 +69,7 @@ func NewService(ctx context.Context, authViper *viper.Viper, storage storages.Co
 			return nil, err
 		}
 	} else {
-		return nil, errors.New("Unknown authorization type. Supported: firebase, redis")
+		return nil, errors.New("Unknown 'auth' section type. Supported: firebase, redis")
 	}
 
 	return &Service{authProvider: authProvider, configurationsStorage: storage}, nil

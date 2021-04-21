@@ -33,7 +33,7 @@ func (rsp *RetryableProxy) start() {
 
 			storage, err := rsp.factoryMethod(rsp.config)
 			if err != nil {
-				logging.Errorf("[%s] Error initializing destination of type %s: %v. Retry after 1 minute", rsp.config.name, rsp.config.destination.Type, err)
+				logging.Errorf("[%s] Error initializing destination of type %s: %v. Retry after 1 minute", rsp.config.destinationID, rsp.config.destination.Type, err)
 				time.Sleep(1 * time.Minute)
 				continue
 			}
@@ -43,8 +43,8 @@ func (rsp *RetryableProxy) start() {
 			rsp.ready = true
 			rsp.Unlock()
 
-			logging.Infof("[%s] destination has been initialized!", rsp.config.name)
-			telemetry.Destination(rsp.config.name, rsp.config.destination.Type, rsp.config.destination.Mode, len(rsp.config.pkFields) > 0)
+			logging.Infof("[%s] destination has been initialized!", rsp.config.destinationID)
+			telemetry.Destination(rsp.config.destinationID, rsp.config.destination.Type, rsp.config.destination.Mode, len(rsp.config.pkFields) > 0)
 
 			break
 		}

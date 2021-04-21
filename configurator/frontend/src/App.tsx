@@ -191,24 +191,6 @@ export default class App extends React.Component<AppProperties, AppState> {
         );
     }
 
-
-
-    private headerComponent() {
-        return (
-            <Layout.Header className="app-layout-header">
-                <Row>
-                    <Col className="gutter-row" span={20}>
-                        <div className="user-menu">
-                            <Dropdown trigger={['click']} overlay={this.getUserDropDownMenu()}>
-                                <Button icon={<UserOutlined/>}>{this.state.user.name}</Button>
-                            </Dropdown>
-                        </div>
-                    </Col>
-                </Row>
-            </Layout.Header>
-        );
-    }
-
     private resetPassword() {
         Modal.confirm({
             title: 'Password reset',
@@ -230,44 +212,6 @@ export default class App extends React.Component<AppProperties, AppState> {
         });
     }
 
-    private async becomeUser() {
-        let email = prompt('Please enter e-mail of the user', '');
-        if (!email) {
-            return;
-        }
-        try {
-            await this.services.userService.becomeUser(email);
-        } catch (e) {
-            handleError(e, "Can't login as other user");
-        }
-    }
-
-    private getUserDropDownMenu() {
-        return (
-            <div>
-                <div className="user-dropdown-info-panel">{this.state.user.email}</div>
-                <Menu>
-                    <Menu.Item key="profile" icon={<SlidersOutlined/>} onClick={() => this.resetPassword()}>
-                        Reset Password
-                    </Menu.Item>
-                    {this.services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) ? (
-                        <Menu.Item key="become" icon={<UserSwitchOutlined/>} onClick={() => this.becomeUser()}>
-                            Become User
-                        </Menu.Item>
-                    ) : (
-                        ''
-                    )}
-                    <Menu.Item
-                        key="logout"
-                        icon={<LogoutOutlined/>}
-                        onClick={() => this.services.userService.removeAuth(reloadPage)}
-                    >
-                        Logout
-                    </Menu.Item>
-                </Menu>
-            </div>
-        );
-    }
 }
 
 function SetNewPassword({onCompleted}: { onCompleted: () => Promise<void> }) {

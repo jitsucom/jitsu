@@ -7,12 +7,13 @@ import (
 
 type Fields map[string]Field
 
+//BatchHeader is the schema result of parsing JSON objects
 type BatchHeader struct {
 	TableName string
 	Fields    Fields
 }
 
-//Return true if there is at least one field
+//Exists returns true if there is at least one field
 func (bh *BatchHeader) Exists() bool {
 	return bh != nil && len(bh.Fields) > 0
 }
@@ -55,11 +56,13 @@ func (f Fields) Header() (header []string) {
 	return
 }
 
+//Field is a data type holder with occurrences
 type Field struct {
 	dataType       *typing.DataType
 	typeOccurrence map[typing.DataType]bool
 }
 
+//NewField return Field instance
 func NewField(t typing.DataType) Field {
 	return Field{
 		dataType:       &t,

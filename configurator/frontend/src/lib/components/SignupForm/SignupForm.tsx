@@ -140,7 +140,7 @@ export default class SignupForm extends React.Component<any, State> {
           />
           <Form.Item name="agreeToTos" className="signup-checkboxes">
             <Checkbox defaultChecked={true} checked={this.state.tosAgree} onChange={this.handleChange}>
-              I agree to <a href="https://ksense.io/tos">Terms of Services</a> and{' '}
+              <span>I agree to <a href="https://ksense.io/tos">Terms of Services</a> and{' '}</span>
               <a href="https://ksense.io/privacy">Privacy Policy</a>
             </Checkbox>
           </Form.Item>
