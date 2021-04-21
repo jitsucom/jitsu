@@ -1,11 +1,9 @@
 declare type DestinationType = 'postgres' | 'bigquery' | 'redshift' | 'clickhouse' | 'snowflake' | 'facebook' | 'google_analytics';
 
 declare interface DestinationData {
-  // private _mappings: FieldMappings = new FieldMappings([], true);
-  // protected readonly _uid = randomId();
-  // protected readonly _onlyKeys = [];
-
   readonly _type: DestinationType;
+
+  _mappings: any;
   _id: string;
   _uid: string;
   _comment: string;
@@ -15,4 +13,5 @@ declare interface DestinationData {
   _formData: {
     [key: string]: any;
   };
+  _onlyKeys: string[];
 }
