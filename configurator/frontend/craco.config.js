@@ -41,7 +41,8 @@ module.exports = {
       '@catalog': path.resolve(__dirname, './src/catalog'),
       '@service': path.resolve('./src/lib/services/'),
       '@util': path.resolve(__dirname, './src/utils'),
-      '@hooks': path.resolve(__dirname, './src/hooks')
+      '@hooks': path.resolve(__dirname, './src/hooks'),
+      '@hocs': path.resolve(__dirname, './src/hocs')
     },
     plugins: [
       new webpack.DefinePlugin({
