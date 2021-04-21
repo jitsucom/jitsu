@@ -1,3 +1,5 @@
+import {APIParam, APIMethod} from "../../../components/documentationComponents";
+
 # Sync Tasks
 
 Jitsu supports automatic collection synchronization as well as manual. For using automatic collection synchronization
