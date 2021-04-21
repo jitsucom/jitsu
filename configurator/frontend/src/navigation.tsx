@@ -2,7 +2,7 @@
 import React, { ExoticComponent, ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
+import { routes as sourcesPageRoutes } from '@page/SourcesPage/routes';
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 // @???
 import ComponentTest from './lib/components/componentTest';

@@ -23,7 +23,6 @@ import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 import useLoader from '@hooks/useLoader';
-import { randomId } from '@util/numbers';
 
 type Token = {
   uid: string;
