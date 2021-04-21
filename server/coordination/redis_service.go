@@ -13,6 +13,7 @@ import (
 	"github.com/go-redsync/redsync/v4/redis/goredis"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/telemetry"
 )
 
 type RedisService struct {
@@ -70,6 +71,7 @@ func NewRedisService(ctx context.Context, serverName string, host string, port i
 		return nil, fmt.Errorf("Wrong answer from connection to Redis: %v", pong)
 	}
 
+	telemetry.Coordination("redis")
 	return &service, nil
 }
 
