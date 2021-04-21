@@ -76,6 +76,11 @@ export type RawConfigObject = {
 
 export type FeatureSettings = {
   /**
+   * Application type (name)
+   */
+  appName: 'jitsu_cloud' | 'selfhosted';
+
+  /**
    * Authorization type
    */
   authorization: 'redis' | 'firebase';
@@ -96,6 +101,24 @@ export type FeatureSettings = {
    * If custom domains should be enabled
    */
   enableCustomDomains: boolean
+
+  /**
+   * If statistics we send to Jitsu should be anonymous
+   */
+  anonymizeUsers: boolean
+
+  /**
+   * Jitsu Domain
+   */
+  jitsuBaseUrl?: string
+
+  /**
+   * Slack - once user clicks on icon, it should be directed to slack
+   *
+   */
+  chatSupportType: 'slack' | 'chat'
+
+
 
 };
 
@@ -148,6 +171,7 @@ export default class ApplicationServices {
   async init() {
     let configuration = await this.loadBackendConfiguration();
     this._features = configuration;
+    this._analyticsService.configure(this._features);
 
     if (configuration.authorization == 'redis' || !this._applicationConfiguration.firebaseConfig) {
       this._userService = new BackendUserService(this._backendApiClient, this._storageService, configuration.smtp);
@@ -211,7 +235,11 @@ export default class ApplicationServices {
       return {
         ...(response.data),
         createDemoDatabase: !response.data.selfhosted,
-        enableCustomDomains: !response.data.selfhosted
+        users: !response.data.selfhosted || response.data.users,
+        enableCustomDomains: !response.data.selfhosted,
+        anonymizeUsers: !!response.data.selfhosted,
+        appName: response.data.selfhosted ? 'selfhosted' : 'jitsu_cloud',
+        chatSupportType: response.data.selfhosted ? 'slack' : 'chat'
       };
     } else {
       throw new APIError(response, request);
