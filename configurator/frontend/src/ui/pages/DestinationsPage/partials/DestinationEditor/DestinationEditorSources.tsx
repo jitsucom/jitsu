@@ -9,7 +9,6 @@ import ApplicationServices from '@service/ApplicationServices';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { getIconSrc } from '@page/DestinationsPage/partials/DestinationsList/DestinationsList';
 import { allSources } from '@catalog/sources/lib';
 import { ListItem } from '@molecule/ListItem';
 
