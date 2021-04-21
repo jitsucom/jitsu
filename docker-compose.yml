@@ -8,8 +8,6 @@ services:
     build:
       context: .
       dockerfile: configurator.Dockerfile
-      args:
-        SKIP_UI_BUILD: 'false'
     environment:
       - SERVER_ADMIN_TOKEN=${SERVER_ADMIN_TOKEN}
       - CONFIGURATOR_ADMIN_TOKEN=${CONFIGURATOR_ADMIN_TOKEN}
