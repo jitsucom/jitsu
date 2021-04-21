@@ -12,10 +12,11 @@ import { CenteredSpin } from '@./lib/components/components';
 import ApplicationServices from '@service/ApplicationServices';
 // @Styles
 import './SourcesPage.less';
-import { PageProps } from '@./navigation';
 // @Hocs
-import { BreadcrumbsProps } from '@./ui/components/molecule/Breadcrumbs/Breadcrumbs.types';
 import { getComponent } from '@hocs/getComponent';
+// @Types
+import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { PageProps } from '@./navigation';
 
 export interface CollectionSourceData {
   sources: SourceData[];
@@ -49,12 +50,27 @@ const SourcesPage = (props: PageProps) => {
 
   return <>
     {!sources ?
-      <CenteredSpin />
-      : (
+      <CenteredSpin/>
+      :
+      (
         <Switch>
-          <Route path={routes.root} exact render={getComponent<CommonSourcePageProps>(SourcesList, additionalProps)} />
-          <Route path={[routes.add, routes.addExact]} strict={false} exact render={getComponent<CommonSourcePageProps>(AddSource, additionalProps)} />
-          <Route path={[routes.edit, routes.editExact]} strict={false} exact render={getComponent<CommonSourcePageProps>(EditSource, additionalProps)} />
+          <Route
+            path={routes.root}
+            exact
+            render={getComponent<CommonSourcePageProps>(SourcesList, additionalProps)}
+          />
+          <Route
+            path={[routes.add, routes.addExact]}
+            strict={false}
+            exact
+            render={getComponent<CommonSourcePageProps>(AddSource, additionalProps)}
+          />
+          <Route
+            path={[routes.edit, routes.editExact]}
+            strict={false}
+            exact
+            render={getComponent<CommonSourcePageProps>(EditSource, additionalProps)}
+          />
         </Switch>
       )}
   </>
