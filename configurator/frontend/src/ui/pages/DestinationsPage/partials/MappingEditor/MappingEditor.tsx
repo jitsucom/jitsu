@@ -17,9 +17,7 @@ import PlayCircleFilled from "@ant-design/icons/lib/icons/PlayCircleFilled"
 import DeleteFilled from "@ant-design/icons/lib/icons/DeleteFilled";
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined";
 import ApplicationServices from "@./lib/services/ApplicationServices";
-import { loadDestinations } from "@page/DestinationsPage/commons";
 import { useParams, NavLink } from "react-router-dom";
-import { DestinationConfig } from "@./lib/services/destinations";
 import Marshal from "@./lib/commons/marshalling";
 import { FloatingLabelInput } from "@molecule/FloatingLabelInput";
 import { DeleteOutlined } from "@ant-design/icons";
