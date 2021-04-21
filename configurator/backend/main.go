@@ -277,7 +277,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 			sourcesRoute.POST("/test", authenticatorMiddleware.ClientProjectAuth(sourcesHandler.TestHandler))
 		}
 
-		telemetryHandler := handlers.NewTelemetryHandler(configurationsStorage)
+		telemetryHandler := handlers.NewTelemetryHandler(configurationsService)
 		apiV1.GET("/telemetry", middleware.ServerAuth(telemetryHandler.GetHandler, serverToken))
 
 		apiV1.GET("/become", authenticatorMiddleware.ClientAuth(handlers.NewBecomeUserHandler(authService).Handler))
@@ -285,7 +285,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 		apiV1.GET("/configurations/:collection", authenticatorMiddleware.ClientProjectAuth(enConfigurationsHandler.GetConfig))
 		apiV1.POST("/configurations/:collection", authenticatorMiddleware.ClientProjectAuth(enConfigurationsHandler.StoreConfig))
 
-		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, emailService.IsConfigured(), viper.GetBool("server.self_hosted")).GetHandler)
+		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted")).GetHandler)
 
 		usersAPIGroup := apiV1.Group("/users")
 		{
@@ -295,7 +295,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 		//authorization
 		if authService.GetAuthorizationType() == authorization.RedisType {
-			authHandler := handlers.NewAuthorizationHandler(authService, emailService, configurationsStorage)
+			authHandler := handlers.NewAuthorizationHandler(authService, emailService, configurationsService)
 
 			usersAPIGroup.POST("/signup", authHandler.SignUp)
 			usersAPIGroup.POST("/onboarded/signup", authHandler.OnboardedSignUp)
