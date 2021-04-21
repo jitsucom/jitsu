@@ -1,12 +1,13 @@
 // @Libs
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Prompt, useHistory, useParams } from 'react-router-dom';
-import { Form, message } from 'antd';
+import { Form } from 'antd';
 import cn from 'classnames';
 // @Components
 import { TabsConfigurator } from '@molecule/TabsConfigurator';
 import { EditorButtons } from '@molecule/EditorButtons';
 import { ComingSoon } from '@atom/ComingSoon';
+import { PageHeader } from '@atom/PageHeader';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorSources } from './DestinationEditorSources';
 // @CatalogDestinations
@@ -15,37 +16,42 @@ import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 import { FormInstance } from 'antd/es';
 import { Destination } from '@catalog/destinations/types';
 import { Tab } from '@molecule/TabsConfigurator/TabsConfigurator';
+import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 // @Utils, @Hooks, @Services
-import { getUniqueAutoIncId } from '@util/forms/getUniqueId';
-import { makeObjectFromFieldsValues } from '@util/Form';
-import { useForceUpdate } from '@hooks/useForceUpdate';
-import useLoader from '@hooks/useLoader';
 import ApplicationServices from '@service/ApplicationServices';
 // @Routes
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 // @Styles
 import styles from './DestinationEditor.module.less';
-import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 
-const DestinationEditor = () => {
-  const forceUpdate = useForceUpdate();
-
-  const destinations = [];
-
+const DestinationEditor = ({ destinations, setBreadcrumbs }: CommonDestinationPageProps) => {
   const history = useHistory();
 
-  const params = useParams<{ type: string; }>();
+  const params = useParams<{ type?: string; id?: string; }>();
 
   const [testConnecting, setTestConnecting] = useState<boolean>(false);
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
   const [destinationSaving, setDestinationSaving] = useState<boolean>(false);
+
+  const destinationData = useMemo<DestinationData>(() => destinations.find(dst => dst._id === params.id) ?? {} as DestinationData, [destinations, params.id]);
+
+  const destinationReference = useMemo<Destination>(() => {
+    if (params.type) {
+      return destinationsReferenceMap[params.type]
+    }
+
+    return destinationsReferenceMap[destinationData._type];
+  }, [destinationData, params.type]);
+
+  const services = useMemo(() => ApplicationServices.get(), []);
 
   const touchedFields = useRef<boolean>(false);
 
   const destinationsTabs = useRef<Tab[]>([{
     key: 'config',
     name: 'Connection Properties',
-    getComponent: (form: FormInstance) => <DestinationEditorConfig handleTouchAnyField={setTouchedFields} form={form} destination={destinationReference} />,
+    getComponent: (form: FormInstance) => <DestinationEditorConfig handleTouchAnyField={setTouchedFields} form={form} destinationReference={destinationReference} destinationData={destinationData} />,
     form: Form.useForm()[0]
   },
   {
@@ -69,11 +75,6 @@ const DestinationEditor = () => {
     name: <ComingSoon render="Statistics" documentation={<>A detailed statistics on how many events have been sent to the destinations</>} />,
     isDisabled: true
   }]);
-
-  const destinationReference = useMemo<Destination>(() => destinationsReferenceMap[params.type], [params.type]);
-  // const DestinationData = useMemo(() => destinations && destinationsByTypeId[params.type].factory(getUniqueAutoIncId(params.type, destinations.map(d => d.id))), [destinations, params.type]);
-
-  const services = useMemo(() => ApplicationServices.get(), []);
 
   const setTouchedFields = useCallback((value: boolean) => {
     touchedFields.current = value
@@ -165,11 +166,20 @@ const DestinationEditor = () => {
       .catch(errors => console.log(errors));
   }, [history, services, params.type, validateTabForm, destinationReference, destinations, setTouchedFields]);
 
+  useEffect(() => {
+    setBreadcrumbs(withHome({
+      elements: [
+        { title: 'Destinations', link: destinationPageRoutes.root },
+        {
+          title: <PageHeader title={destinationReference.displayName} icon={destinationReference.ui.icon} mode="edit" />
+        }
+      ]
+    }));
+  }, [destinationReference, setBreadcrumbs])
+
   return (
     <>
       <div className={cn('flex flex-col items-stretch', styles.wrapper)}>
-        <div className=""><h2><NavLink to="/destinations">Destinations</NavLink> / <span style={{ display: 'inline-block', width: '32px', height: '32px' }}>{destinationReference.ui.icon}</span> Edit {destinationReference.displayName} connection (id: {destinationReference.id})</h2></div>
-
         <div className={cn('flex-grow', styles.mainArea)}>
           <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={0} />
         </div>
