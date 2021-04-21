@@ -93,6 +93,12 @@ build_jitsu: &build_jitsu
       docker login -u $DOCKER_LOGIN -p $DOCKER_PWD
       DOCKER_BUILDKIT=1 docker buildx build  --platform linux/amd64,linux/arm64 --push -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
 
+setup_image_version: &setup_image_version
+  run:
+    name: Set up IMAGE_VERSION env var
+    command: |
+      echo 'export IMAGE_VERSION=${CIRCLE_TAG//v}' >> $BASH_ENV
+
 version: 2.1
 
 orbs:
@@ -192,6 +198,15 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           docker_layer_caching: true
+      #step for debugging circleci issue
+      - run:
+          command: |
+            while true; do
+              sleep 2
+              ssh remote-docker ps auxwwf
+              echo "======"
+            done
+          background: true
       - <<: *install_buildx
       - <<: *build_jitsu
       - <<: *notify_fail
@@ -207,6 +222,15 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           docker_layer_caching: true
+      #step for debugging circleci issue
+      - run:
+          command: |
+            while true; do
+              sleep 2
+              ssh remote-docker ps auxwwf
+              echo "======"
+            done
+          background: true
       - <<: *install_buildx
       - <<: *build_jitsu
       - <<: *notify_fail
@@ -258,7 +282,6 @@ jobs:
     environment:
       IMAGE_NAME: ksense/eventnative
       DOCKER_FILE: server.Dockerfile
-      IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
       - image: cimg/go:1.14.15
     steps:
@@ -266,12 +289,12 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           docker_layer_caching: true
+      - <<: *setup_image_version
       - <<: *build_ksense
   build-tagged-jitsu-docker:
     environment:
       IMAGE_NAME: jitsucom/server
       DOCKER_FILE: server.Dockerfile
-      IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
       - image: cimg/go:1.14.15
     steps:
@@ -280,13 +303,13 @@ jobs:
           version: 19.03.13
           docker_layer_caching: true
       - <<: *install_buildx
+      - <<: *setup_image_version
       - <<: *build_jitsu
       - <<: *notify_fail
   build-tagged-configurator-docker:
     environment:
       IMAGE_NAME: jitsucom/configurator
       DOCKER_FILE: configurator.Dockerfile
-      IMAGE_VERSION: ${CIRCLE_TAG//v}
     docker:
       - image: cimg/go:1.14.15
     steps:
@@ -295,6 +318,7 @@ jobs:
           version: 19.03.13
           docker_layer_caching: true
       - <<: *install_buildx
+      - <<: *setup_image_version
       - <<: *build_jitsu
       - <<: *notify_fail
 

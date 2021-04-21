@@ -7,6 +7,7 @@ sort: "0001"
 
 A detailed change log is [available on GitHub](https://github.com/jitsucom/eventnative/releases). Here we publish only major releases with major issues description:
 
+* [1.30.0 \(21 Apr 2021\)](/docs/changelog/1.30.0-21-apr-2021)
 * [1.29.0 \(19 Mar 2021\)](/docs/changelog/1.29.0-19-mar-2021)
 * [1.28.0 \(15 Feb 2021\)](/docs/changelog/1.28.0-15-feb-2021)
 * [1.27.0 \(14 Jan 2021\)](/docs/changelog/v1.27.0-14-jan-2021)
