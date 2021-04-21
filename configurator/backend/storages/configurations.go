@@ -10,13 +10,14 @@ import (
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
 	"time"
 )
 
 var ErrConfigurationNotFound = errors.New("Configuration wasn't found")
 
-// Collection here is used as a type of configuration - like destinations, api_keys, custom_domains, etc.
+//ConfigurationsStorage - Collection here is used as a type of configuration - like destinations, api_keys, custom_domains, etc.
 type ConfigurationsStorage interface {
 	//Get returns a single configuration from collection
 	//If configuration is not found, must return ErrConfigurationNotFound for correct response message
@@ -71,6 +72,9 @@ const (
 	apiKeysCollection                    = "api_keys"
 	customDomainsCollection              = "custom_domains"
 	lastUpdatedField                     = "_lastUpdated"
+
+	telemetryCollection = "telemetry"
+	telemetryGlobalID   = "global"
 
 	LastUpdatedLayout = "2006-01-02T15:04:05.000Z"
 )
@@ -250,6 +254,40 @@ func (cs *ConfigurationsService) CreateDefaultAPIKey(projectID string) error {
 		return fmt.Errorf("Failed to store default key for project=[%s]: %v", projectID, err)
 	}
 	return nil
+}
+
+//SaveTelemetry saves telemetry configuration
+func (cs *ConfigurationsService) SaveTelemetry(disabledConfiguration map[string]bool) error {
+	err := cs.storage.Store(telemetryCollection, telemetryGlobalID, telemetry.Configuration{Disabled: disabledConfiguration})
+	if err != nil {
+		return fmt.Errorf("Failed to store telemetry settings:: %v", err)
+	}
+	return nil
+}
+
+//GetTelemetry returns telemetry configuration bytes
+func (cs *ConfigurationsService) GetTelemetry() ([]byte, error) {
+	b, err := cs.storage.Get(telemetryCollection, telemetryGlobalID)
+	if err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+//GetParsedTelemetry returns telemetry configuration
+func (cs *ConfigurationsService) GetParsedTelemetry() (*telemetry.Configuration, error) {
+	b, err := cs.GetTelemetry()
+	if err != nil {
+		return nil, err
+	}
+
+	telemetryConfig := &telemetry.Configuration{}
+	err = json.Unmarshal(b, telemetryConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing telemetry configuration: %v", err)
+	}
+	return telemetryConfig, nil
 }
 
 func (cs *ConfigurationsService) generateDefaultAPIToken(projectID string) entities.APIKeys {

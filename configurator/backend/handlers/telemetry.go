@@ -9,21 +9,20 @@ import (
 	"net/http"
 )
 
-const telemetryCollection = "telemetry"
-const telemetryGlobalID = "global"
+const telemetryUsageKey = "usage"
 
 type TelemetryHandler struct {
-	configStorage storages.ConfigurationsStorage
+	configService *storages.ConfigurationsService
 }
 
-func NewTelemetryHandler(configStorage storages.ConfigurationsStorage) *TelemetryHandler {
+func NewTelemetryHandler(configService *storages.ConfigurationsService) *TelemetryHandler {
 	return &TelemetryHandler{
-		configStorage: configStorage,
+		configService: configService,
 	}
 }
 
 func (th *TelemetryHandler) GetHandler(c *gin.Context) {
-	config, err := th.configStorage.Get(telemetryCollection, telemetryGlobalID)
+	config, err := th.configService.GetTelemetry()
 	if err != nil {
 		if err == storages.ErrConfigurationNotFound {
 			c.JSON(http.StatusOK, map[string]interface{}{})
