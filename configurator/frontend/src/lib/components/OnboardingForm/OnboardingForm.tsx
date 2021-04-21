@@ -12,6 +12,7 @@ import * as Utils from '../../commons/utils';
 import { reloadPage } from '../../commons/utils';
 import { handleError, makeErrorHandler } from '../components';
 import './OnboardingForm.less';
+import { useServices } from '@hooks/useServices';
 
 type State = {
   loading: boolean;
@@ -23,7 +24,7 @@ type Props = {
 };
 
 export default function OnboardingForm(props: Props) {
-  let services = ApplicationServices.get();
+  let services = useServices();
   const [state, setState] = useState({
     loading: false
   });
@@ -56,12 +57,6 @@ export default function OnboardingForm(props: Props) {
       user.emailOptout = emailOptout;
 
       await services.userService.update(user);
-
-      if (!services.isSelfHosted()) {
-        //saas
-        await services.initializeDefaultDestination();
-        await services.initializeDefaultApiKey();
-      }
 
       props.onCompleted();
     } catch (e) {
