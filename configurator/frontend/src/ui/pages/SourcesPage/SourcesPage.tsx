@@ -14,8 +14,8 @@ import ApplicationServices from '@service/ApplicationServices';
 import './SourcesPage.less';
 import { PageProps } from '@./navigation';
 // @Hocs
-import { getComponent } from '@./hocs/getComponent';
 import { BreadcrumbsProps } from '@./ui/components/molecule/Breadcrumbs/Breadcrumbs.types';
+import { getComponent } from '@hocs/getComponent';
 
 export interface CollectionSourceData {
   sources: SourceData[];
