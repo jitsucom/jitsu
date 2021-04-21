@@ -4,7 +4,7 @@ import firebase from 'firebase/app';
 import 'firebase/auth';
 import 'firebase/firestore';
 import Marshal from '../commons/marshalling';
-import { randomId, reloadPage } from '../commons/utils';
+import { reloadPage } from '../commons/utils';
 import {
   BackendApiClient,
   LoginFeatures,
@@ -13,6 +13,7 @@ import {
   UserLoginStatus,
   UserService
 } from './ApplicationServices';
+import { randomId } from '@util/numbers';
 
 export class FirebaseUserService implements UserService {
   private user?: User;
