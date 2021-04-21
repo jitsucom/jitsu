@@ -198,6 +198,15 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           docker_layer_caching: true
+      #step for debugging circleci issue
+      - run:
+          command: |
+            while true; do
+              sleep 2
+              ssh remote-docker ps auxwwf
+              echo "======"
+            done
+          background: true
       - <<: *install_buildx
       - <<: *build_jitsu
       - <<: *notify_fail
@@ -213,6 +222,15 @@ jobs:
       - setup_remote_docker:
           version: 19.03.13
           docker_layer_caching: true
+      #step for debugging circleci issue
+      - run:
+          command: |
+            while true; do
+              sleep 2
+              ssh remote-docker ps auxwwf
+              echo "======"
+            done
+          background: true
       - <<: *install_buildx
       - <<: *build_jitsu
       - <<: *notify_fail
