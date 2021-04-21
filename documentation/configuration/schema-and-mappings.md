@@ -84,6 +84,13 @@ destinations:
         path field. Can be used with <b>move</b>, <b>cast</b>, and <b>constant</b> actions.</td>
     </tr>
     <tr>
+      <td><b>fields[N].column_type</b>
+      </td>
+      <td>Data Warehouse specific SQL column DDL which will be used in column creation statement. It is used with 
+     <b>fields[N].type</b> in pair. For instance Redshift column encoding might be provided here - <code inline="true">column_type: varchar(256) encode zstd</code>. Optional. Default value is <b>fields[N].type</b> value. Can be used with <b>move</b>, 
+     and <b>cast</b> actions.</td>
+    </tr>
+    <tr>
       <td><b>fields[N].value</b>
       </td>
       <td>A constant value that will be set into <b>dst </b>JSON path in result object.
