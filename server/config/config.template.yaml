@@ -119,7 +119,8 @@ destinations:
 #          action: move
 #        - src: /key1/key3
 #          dst: /key4
-#          type: bigint #SQL type
+#          type: varchar(256) #SQL type
+#          column_type: varchar(256) encode zstd
 #      max_columns: 100 # Optional. The limit of the count of columns.
 #      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #Optional. Default value constant is 'events'. Template for extracting table name
 #

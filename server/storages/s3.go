@@ -20,6 +20,10 @@ type S3 struct {
 	staged         bool
 }
 
+func init() {
+	RegisterStorage(S3Type, NewS3)
+}
+
 func NewS3(config *Config) (Storage, error) {
 	if config.streamMode {
 		if config.eventQueue != nil {
@@ -38,10 +42,10 @@ func NewS3(config *Config) (Storage, error) {
 	}
 
 	s3 := &S3{
-		name:           config.name,
+		name:           config.destinationID,
 		s3Adapter:      s3Adapter,
 		processor:      config.processor,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:    config.eventsCache,
 		staged:         config.destination.Staged,
 	}
@@ -50,7 +54,7 @@ func NewS3(config *Config) (Storage, error) {
 }
 
 func (s3 *S3) Consume(event events.Event, tokenID string) {
-	logging.Errorf("[%s] S3 storage doesn't support streaming mode", s3.Name())
+	logging.Errorf("[%s] S3 storage doesn't support streaming mode", s3.ID())
 }
 
 func (s3 *S3) DryRun(payload events.Event) ([]adapters.TableField, error) {
@@ -67,7 +71,7 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		s3.eventsCache.Error(s3.Name(), failedEvent.EventID, failedEvent.Error)
+		s3.eventsCache.Error(s3.ID(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -78,14 +82,14 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 
 		tableResults[fdata.BatchHeader.TableName] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
-			logging.Errorf("[%s] Error storing file %s: %v", s3.Name(), fileName, err)
+			logging.Errorf("[%s] Error storing file %s: %v", s3.ID(), fileName, err)
 			storeFailedEvents = false
 		}
 
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				s3.eventsCache.Error(s3.Name(), events.ExtractEventID(object), err.Error())
+				s3.eventsCache.Error(s3.ID(), events.ExtractEventID(object), err.Error())
 			}
 		}
 	}
@@ -117,7 +121,7 @@ func (s3 *S3) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
 
-func (s3 *S3) Name() string {
+func (s3 *S3) ID() string {
 	return s3.name
 }
 
@@ -131,7 +135,7 @@ func (s3 *S3) IsStaging() bool {
 
 func (s3 *S3) Close() error {
 	if err := s3.fallbackLogger.Close(); err != nil {
-		return fmt.Errorf("[%s] Error closing fallback logger: %v", s3.Name(), err)
+		return fmt.Errorf("[%s] Error closing fallback logger: %v", s3.ID(), err)
 	}
 	return nil
 }

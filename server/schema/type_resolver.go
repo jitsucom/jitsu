@@ -6,13 +6,16 @@ import (
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
+//TypeResolver resolves schema.Fields from input object
 type TypeResolver interface {
 	Resolve(map[string]interface{}) (Fields, error)
 }
 
+//DummyTypeResolver doesn't do anything
 type DummyTypeResolver struct {
 }
 
+//NewDummyTypeResolver return DummyTypeResolver
 func NewDummyTypeResolver() *DummyTypeResolver {
 	return &DummyTypeResolver{}
 }
@@ -22,9 +25,11 @@ func (dtr *DummyTypeResolver) Resolve(object map[string]interface{}) (Fields, er
 	return Fields{"dummy": NewField(typing.UNKNOWN)}, nil
 }
 
+//TypeResolverImpl resolves types based on converter.go rules
 type TypeResolverImpl struct {
 }
 
+//NewTypeResolver returns TypeResolverImpl
 func NewTypeResolver() *TypeResolverImpl {
 	return &TypeResolverImpl{}
 }

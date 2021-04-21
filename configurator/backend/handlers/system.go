@@ -33,7 +33,7 @@ func NewSystemHandler(authService *authorization.Service, smtp, selfHosted bool)
 	return &SystemHandler{authService: authService, smtp: smtp, selfHosted: selfHosted}
 }
 
-//ConfigurationHandler return JSON with current authorization type and users existence
+//GetHandler returns JSON with current authorization type and users existence
 func (sh *SystemHandler) GetHandler(c *gin.Context) {
 	exist, err := sh.authService.UsersExist()
 	if err != nil {

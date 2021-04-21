@@ -28,11 +28,12 @@ type Mapping struct {
 }
 
 type MappingField struct {
-	Src    string      `mapstructure:"src" json:"src,omitempty" yaml:"src,omitempty"`
-	Dst    string      `mapstructure:"dst" json:"dst,omitempty" yaml:"dst,omitempty"`
-	Action string      `mapstructure:"action" json:"action,omitempty" yaml:"action,omitempty"`
-	Type   string      `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	Value  interface{} `mapstructure:"value" json:"value,omitempty" yaml:"value,omitempty"`
+	Src        string      `mapstructure:"src" json:"src,omitempty" yaml:"src,omitempty"`
+	Dst        string      `mapstructure:"dst" json:"dst,omitempty" yaml:"dst,omitempty"`
+	Action     string      `mapstructure:"action" json:"action,omitempty" yaml:"action,omitempty"`
+	Type       string      `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	ColumnType string      `mapstructure:"column_type" json:"column_type,omitempty" yaml:"column_type,omitempty"`
+	Value      interface{} `mapstructure:"value" json:"value,omitempty" yaml:"value,omitempty"`
 }
 
 func (mf *MappingField) Validate() error {

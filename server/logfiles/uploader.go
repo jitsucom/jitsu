@@ -111,7 +111,7 @@ func (u *PeriodicUploader) Start() {
 					}
 
 					alreadyUploadedTables := map[string]bool{}
-					tableStatuses := u.statusManager.GetTablesStatuses(fileName, storage.Name())
+					tableStatuses := u.statusManager.GetTablesStatuses(fileName, storage.ID())
 					for tableName, status := range tableStatuses {
 						if status.Uploaded {
 							alreadyUploadedTables[tableName] = true
@@ -122,7 +122,7 @@ func (u *PeriodicUploader) Start() {
 
 					if err != nil {
 						archiveFile = false
-						logging.Errorf("[%s] Error storing file %s in destination: %v", storage.Name(), filePath, err)
+						logging.Errorf("[%s] Error storing file %s in destination: %v", storage.ID(), filePath, err)
 
 						//extract src
 						eventsSrc := map[string]int{}
@@ -131,10 +131,10 @@ func (u *PeriodicUploader) Start() {
 						}
 
 						errRowsCount := len(objects)
-						metrics.ErrorTokenEvents(tokenID, storage.Name(), errRowsCount)
-						counters.ErrorEvents(storage.Name(), errRowsCount)
+						metrics.ErrorTokenEvents(tokenID, storage.ID(), errRowsCount)
+						counters.ErrorEvents(storage.ID(), errRowsCount)
 
-						telemetry.ErrorsPerSrc(tokenID, storage.Name(), eventsSrc)
+						telemetry.ErrorsPerSrc(tokenID, storage.ID(), eventsSrc)
 
 						continue
 					}
@@ -143,25 +143,25 @@ func (u *PeriodicUploader) Start() {
 					if !failedEvents.IsEmpty() {
 						storage.Fallback(failedEvents.Events...)
 
-						telemetry.ErrorsPerSrc(tokenID, storage.Name(), failedEvents.Src)
+						telemetry.ErrorsPerSrc(tokenID, storage.ID(), failedEvents.Src)
 					}
 
 					for tableName, result := range resultPerTable {
 						if result.Err != nil {
 							archiveFile = false
-							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.Name(), tableName, filePath, result.Err)
-							metrics.ErrorTokenEvents(tokenID, storage.Name(), result.RowsCount)
-							counters.ErrorEvents(storage.Name(), result.RowsCount)
+							logging.Errorf("[%s] Error storing table %s from file %s: %v", storage.ID(), tableName, filePath, result.Err)
+							metrics.ErrorTokenEvents(tokenID, storage.ID(), result.RowsCount)
+							counters.ErrorEvents(storage.ID(), result.RowsCount)
 
-							telemetry.ErrorsPerSrc(tokenID, storage.Name(), result.EventsSrc)
+							telemetry.ErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
 						} else {
-							metrics.SuccessTokenEvents(tokenID, storage.Name(), result.RowsCount)
-							counters.SuccessEvents(storage.Name(), result.RowsCount)
+							metrics.SuccessTokenEvents(tokenID, storage.ID(), result.RowsCount)
+							counters.SuccessEvents(storage.ID(), result.RowsCount)
 
-							telemetry.EventsPerSrc(tokenID, storage.Name(), result.EventsSrc)
+							telemetry.EventsPerSrc(tokenID, storage.ID(), result.EventsSrc)
 						}
 
-						u.statusManager.UpdateStatus(fileName, storage.Name(), tableName, result.Err)
+						u.statusManager.UpdateStatus(fileName, storage.ID(), tableName, result.Err)
 					}
 				}
 

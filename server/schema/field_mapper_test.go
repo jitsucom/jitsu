@@ -2,6 +2,7 @@ package schema
 
 import (
 	"github.com/jitsucom/jitsu/server/test"
+	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/stretchr/testify/require"
 	"testing"
 )
@@ -412,6 +413,51 @@ func TestNewStyleStrictMap(t *testing.T) {
 			actualObject, _ := mapper.Map(tt.inputObject)
 			require.NoError(t, err)
 			test.ObjectsEqual(t, tt.expectedObject, actualObject, "Mapped objects aren't equal")
+		})
+	}
+}
+
+func TestTypecasts(t *testing.T) {
+	tests := []struct {
+		name     string
+		mappings []MappingField
+		expected typing.SQLTypes
+	}{
+		{
+			"Empty mappings and typecasts",
+			nil,
+			typing.SQLTypes{},
+		},
+		{
+			"Typecasts present",
+			[]MappingField{
+				{Src: "/key1", Dst: "/key10", Action: MOVE, Type: "varchar(256)"},
+				{Src: "/key1", Dst: "/key11", Action: MOVE, Type: "varchar(256)", ColumnType: "varchar(256) encode zstd"},
+				{Src: "/key1", Dst: "/key12", Action: MOVE, ColumnType: "varchar(256) encode zstd"},
+				{Src: "/key1", Dst: "/key13", Action: MOVE},
+			},
+			typing.SQLTypes{
+				"key10": typing.SQLColumn{
+					Type:       "varchar(256)",
+					ColumnType: "varchar(256)",
+				},
+				"key11": typing.SQLColumn{
+					Type:       "varchar(256)",
+					ColumnType: "varchar(256) encode zstd",
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, field := range tt.mappings {
+				require.NoError(t, field.Validate())
+			}
+			f := false
+			_, sqlTypeCasts, err := NewFieldMapper(&Mapping{KeepUnmapped: &f, Fields: tt.mappings})
+			require.NoError(t, err)
+
+			test.ObjectsEqual(t, tt.expected, sqlTypeCasts, "SQL typecasts aren't equal")
 		})
 	}
 }
