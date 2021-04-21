@@ -30,7 +30,7 @@ func NewFactory(logEventPath string, logRotationMin int64, showInServer bool, dd
 	}
 }
 
-//NewFactory return a new factory instance with overridden DDL debug logs writer
+//NewFactoryWithDDLLogsWriter returns a new factory instance with overridden DDL debug logs writer
 func (f *Factory) NewFactoryWithDDLLogsWriter(overriddenDDLLogsWriter io.Writer) *Factory {
 	return &Factory{
 		logEventPath:    f.logEventPath,
@@ -41,7 +41,7 @@ func (f *Factory) NewFactoryWithDDLLogsWriter(overriddenDDLLogsWriter io.Writer)
 	}
 }
 
-//NewFactory return a new factory instance with overridden sql query debug logs writer
+//NewFactoryWithQueryLogsWriter returns a new factory instance with overridden sql query debug logs writer
 func (f *Factory) NewFactoryWithQueryLogsWriter(overriddenQueryLogsWriter io.Writer) *Factory {
 	return &Factory{
 		logEventPath:    f.logEventPath,

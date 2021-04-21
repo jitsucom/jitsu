@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/typing"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -23,7 +24,10 @@ const (
 	StreamMode = "stream"
 )
 
-var unknownDestination = errors.New("Unknown destination type")
+var (
+	ErrUnknownDestination = errors.New("Unknown destination type")
+	StorageConstructors   = make(map[string]func(*Config) (Storage, error))
+)
 
 type DestinationConfig struct {
 	OnlyTokens       []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
@@ -46,12 +50,15 @@ type DestinationConfig struct {
 }
 
 type DataLayout struct {
-	MappingType       schema.FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
-	Mapping           []string                `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
-	Mappings          *schema.Mapping         `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
-	MaxColumns        int                     `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
-	TableNameTemplate string                  `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
-	PrimaryKeyFields  []string                `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
+	//Deprecated
+	MappingType schema.FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
+	//Deprecated
+	Mapping []string `mapstructure:"mapping" json:"mapping,omitempty" yaml:"mapping,omitempty"`
+
+	Mappings          *schema.Mapping `mapstructure:"mappings" json:"mappings,omitempty" yaml:"mappings,omitempty"`
+	MaxColumns        int             `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
+	TableNameTemplate string          `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
+	PrimaryKeyFields  []string        `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
 }
 
 type UsersRecognition struct {
@@ -80,7 +87,7 @@ func (ur *UsersRecognition) Validate() error {
 
 type Config struct {
 	ctx              context.Context
-	name             string
+	destinationID    string
 	destination      *DestinationConfig
 	usersRecognition *UserRecognitionConfiguration
 	processor        *schema.Processor
@@ -91,7 +98,13 @@ type Config struct {
 	eventsCache      *caching.EventsCache
 	loggerFactory    *logging.Factory
 	pkFields         map[string]bool
-	sqlTypeCasts     map[string]string
+	sqlTypes         typing.SQLTypes
+}
+
+//RegisterStorage registers function to create new storage(destination) instance
+func RegisterStorage(storageType string,
+	createStorageFunc func(config *Config) (Storage, error)) {
+	StorageConstructors[storageType] = createStorageFunc
 }
 
 type Factory interface {
@@ -123,15 +136,20 @@ func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorK
 
 //Create event storage proxy and event consumer (logger or event-queue)
 //Enrich incoming configs with default values if needed
-func (f *FactoryImpl) Create(name string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error) {
+func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
-		destination.Type = name
+		destination.Type = destinationID
 	}
 	if destination.Mode == "" {
 		destination.Mode = BatchMode
 	}
 
-	logging.Infof("[%s] Initializing destination of type: %s in mode: %s", name, destination.Type, destination.Mode)
+	logging.Infof("[%s] Initializing destination of type: %s in mode: %s", destinationID, destination.Type, destination.Mode)
+
+	storageConstructor, ok := StorageConstructors[destination.Type]
+	if !ok {
+		return nil, nil, ErrUnknownDestination
+	}
 
 	var tableName string
 	var oldStyleMappings []string
@@ -155,19 +173,19 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		if destination.DataLayout.MaxColumns > 0 {
 			maxColumns = destination.DataLayout.MaxColumns
 
-			logging.Infof("[%s] uses max_columns setting: %d", name, maxColumns)
+			logging.Infof("[%s] uses max_columns setting: %d", destinationID, maxColumns)
 		}
 	}
 
 	if tableName == "" {
 		tableName = defaultTableName
-		logging.Infof("[%s] uses default table name: %s", name, tableName)
+		logging.Infof("[%s] uses default table destinationID: %s", destinationID, tableName)
 	}
 
 	if len(pkFields) > 0 {
-		logging.Infof("[%s] has primary key fields: [%s]", name, strings.Join(destination.DataLayout.PrimaryKeyFields, ", "))
+		logging.Infof("[%s] has primary key fields: [%s]", destinationID, strings.Join(destination.DataLayout.PrimaryKeyFields, ", "))
 	} else {
-		logging.Infof("[%s] doesn't have primary key fields", name)
+		logging.Infof("[%s] doesn't have primary key fields", destinationID)
 	}
 
 	if destination.Mode != BatchMode && destination.Mode != StreamMode {
@@ -175,9 +193,9 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 	}
 
 	if len(destination.Enrichment) == 0 {
-		logging.Warnf("[%s] doesn't have enrichment rules", name)
+		logging.Warnf("[%s] doesn't have enrichment rules", destinationID)
 	} else {
-		logging.Infof("[%s] Configured enrichment rules:", name)
+		logging.Infof("[%s] Configured enrichment rules:", destinationID)
 	}
 
 	//default enrichment rules
@@ -188,7 +206,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 
 	// ** Enrichment rules **
 	for _, ruleConfig := range destination.Enrichment {
-		logging.Infof("[%s] %s", name, ruleConfig.String())
+		logging.Infof("[%s] %s", destinationID, ruleConfig.String())
 
 		rule, err := enrichment.NewRule(ruleConfig)
 		if err != nil {
@@ -200,15 +218,15 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 
 	// ** Mapping rules **
 	if len(oldStyleMappings) > 0 {
-		logging.Warnf("\n\t ** [%s] DEPRECATED mapping configuration. Read more about new configuration schema: https://jitsu.com/docs/configuration/schema-and-mappings **\n", name)
+		logging.Warnf("\n\t ** [%s] DEPRECATED mapping configuration. Read more about new configuration schema: https://jitsu.com/docs/configuration/schema-and-mappings **\n", destinationID)
 		var convertErr error
 		newStyleMapping, convertErr = schema.ConvertOldMappings(mappingFieldType, oldStyleMappings)
 		if convertErr != nil {
 			return nil, nil, convertErr
 		}
 	}
-	enrichAndLogMappings(name, destination.Type, newStyleMapping)
-	fieldMapper, sqlTypeCasts, err := schema.NewFieldMapper(newStyleMapping)
+	enrichAndLogMappings(destinationID, destination.Type, newStyleMapping)
+	fieldMapper, sqlTypes, err := schema.NewFieldMapper(newStyleMapping)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -222,7 +240,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 	if destination.UsersRecognition != nil {
 		err := destination.UsersRecognition.Validate()
 		if err != nil {
-			logging.Infof("[%s] invalid users recognition configuration: %v.%s", name, err, globalConfigurationLogMsg)
+			logging.Infof("[%s] invalid users recognition configuration: %v.%s", destinationID, err, globalConfigurationLogMsg)
 		} else {
 			usersRecognitionConfiguration = &UserRecognitionConfiguration{
 				Enabled:             destination.UsersRecognition.Enabled,
@@ -232,14 +250,14 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		}
 	} else {
 
-		logging.Infof("[%s] users recognition isn't configured.%s", name, globalConfigurationLogMsg)
+		logging.Infof("[%s] users recognition isn't configured.%s", destinationID, globalConfigurationLogMsg)
 	}
 
 	//duplication data error warning
 	//if global enabled or overridden enabled - check primary key fields
 	//don't process user recognition in this case
 	if (f.globalConfiguration.IsEnabled() || destination.UsersRecognition.IsEnabled()) && (destination.Type == PostgresType || destination.Type == RedshiftType) && len(pkFields) == 0 {
-		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", name)
+		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
 		usersRecognitionConfiguration = &UserRecognitionConfiguration{Enabled: false}
 	}
 
@@ -254,14 +272,14 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		typeResolver = schema.NewTypeResolver()
 	}
 
-	processor, err := schema.NewProcessor(name, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, destination.BreakOnError)
+	processor, err := schema.NewProcessor(destinationID, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, destination.BreakOnError)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var eventQueue *events.PersistentQueue
 	if destination.Mode == StreamMode {
-		eventQueue, err = events.NewPersistentQueue(name, "queue.dst="+name, f.logEventPath)
+		eventQueue, err = events.NewPersistentQueue(destinationID, "queue.dst="+destinationID, f.logEventPath)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -289,7 +307,7 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 
 	storageConfig := &Config{
 		ctx:              f.ctx,
-		name:             name,
+		destinationID:    destinationID,
 		destination:      &destination,
 		usersRecognition: usersRecognitionConfiguration,
 		processor:        processor,
@@ -300,33 +318,10 @@ func (f *FactoryImpl) Create(name string, destination DestinationConfig) (Storag
 		eventsCache:      f.eventsCache,
 		loggerFactory:    destinationLoggerFactory,
 		pkFields:         pkFields,
-		sqlTypeCasts:     sqlTypeCasts,
+		sqlTypes:         sqlTypes,
 	}
 
-	var storageProxy StorageProxy
-	switch destination.Type {
-	case RedshiftType:
-		storageProxy = newProxy(NewAwsRedshift, storageConfig)
-	case BigQueryType:
-		storageProxy = newProxy(NewBigQuery, storageConfig)
-	case PostgresType:
-		storageProxy = newProxy(NewPostgres, storageConfig)
-	case ClickHouseType:
-		storageProxy = newProxy(NewClickHouse, storageConfig)
-	case S3Type:
-		storageProxy = newProxy(NewS3, storageConfig)
-	case SnowflakeType:
-		storageProxy = newProxy(NewSnowflake, storageConfig)
-	case GoogleAnalyticsType:
-		storageProxy = newProxy(NewGoogleAnalytics, storageConfig)
-	case FacebookType:
-		storageProxy = newProxy(NewFacebook, storageConfig)
-	default:
-		if eventQueue != nil {
-			eventQueue.Close()
-		}
-		return nil, nil, unknownDestination
-	}
+	storageProxy := newProxy(storageConstructor, storageConfig)
 
 	return storageProxy, eventQueue, nil
 }

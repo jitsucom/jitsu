@@ -60,16 +60,16 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 		for _, storage := range rs.destinations {
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "")
 			if err != nil {
-				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.Name(), err)
-				metrics.ErrorSourceEvents(rs.task.Source, storage.Name(), rowsCount)
+				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
+				metrics.ErrorSourceEvents(rs.task.Source, storage.ID(), rowsCount)
 				metrics.ErrorObjects(rs.task.Source, rowsCount)
-				telemetry.Error(rs.task.Source, storage.Name(), srcSource, rowsCount)
+				telemetry.Error(rs.task.Source, storage.ID(), srcSource, rowsCount)
 				return errors.New(errMsg)
 			}
 
-			metrics.SuccessSourceEvents(rs.task.Source, storage.Name(), rowsCount)
+			metrics.SuccessSourceEvents(rs.task.Source, storage.ID(), rowsCount)
 			metrics.SuccessObjects(rs.task.Source, rowsCount)
-			telemetry.Event(rs.task.Source, storage.Name(), srcSource, rowsCount)
+			telemetry.Event(rs.task.Source, storage.ID(), srcSource, rowsCount)
 		}
 
 		counters.SuccessSourceEvents(rs.task.Source, len(stream.Objects))

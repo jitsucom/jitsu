@@ -13,6 +13,7 @@ import (
 )
 
 var (
+	//SchemaToBigQueryString is mapping between JSON types and BigQuery types
 	SchemaToBigQueryString = map[typing.DataType]string{
 		typing.STRING:    string(bigquery.StringFieldType),
 		typing.INT64:     string(bigquery.IntegerFieldType),
@@ -25,24 +26,24 @@ var (
 
 //BigQuery adapter for creating,patching (schema or table), inserting and copying data from gcs to BigQuery
 type BigQuery struct {
-	ctx              context.Context
-	client           *bigquery.Client
-	config           *GoogleConfig
-	queryLogger      *logging.QueryLogger
-	mappingTypeCasts map[string]string
+	ctx         context.Context
+	client      *bigquery.Client
+	config      *GoogleConfig
+	queryLogger *logging.QueryLogger
+	sqlTypes    typing.SQLTypes
 }
 
 //NewBigQuery return configured BigQuery adapter instance
-func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*BigQuery, error) {
+func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*BigQuery, error) {
 	client, err := bigquery.NewClient(ctx, config.Project, config.credentials)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating BigQuery client: %v", err)
 	}
 
-	return &BigQuery{ctx: ctx, client: client, config: config, queryLogger: queryLogger, mappingTypeCasts: reformatMappings(mappingTypeCasts, SchemaToBigQueryString)}, nil
+	return &BigQuery{ctx: ctx, client: client, config: config, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToBigQueryString)}, nil
 }
 
-//Transfer data from google cloud storage file to google BigQuery table as one batch
+//Copy transfers data from google cloud storage file to google BigQuery table as one batch
 func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	table := bq.client.Dataset(bq.config.Dataset).Table(tableName)
 
@@ -101,7 +102,7 @@ func (bq *BigQuery) GetTableSchema(tableName string) (*Table, error) {
 	return table, nil
 }
 
-//Create google BigQuery table from Table
+//CreateTable creates google BigQuery table from Table
 func (bq *BigQuery) CreateTable(table *Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(table.Name)
 
@@ -118,9 +119,9 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 	bqSchema := bigquery.Schema{}
 	for columnName, column := range table.Columns {
 		bigQueryType := bigquery.FieldType(strings.ToUpper(column.SQLType))
-		castedType, ok := bq.mappingTypeCasts[columnName]
+		sqlType, ok := bq.sqlTypes[columnName]
 		if ok {
-			bigQueryType = bigquery.FieldType(strings.ToUpper(castedType))
+			bigQueryType = bigquery.FieldType(strings.ToUpper(sqlType.ColumnType))
 		}
 		bqSchema = append(bqSchema, &bigquery.FieldSchema{Name: columnName, Type: bigQueryType})
 	}
@@ -132,7 +133,7 @@ func (bq *BigQuery) CreateTable(table *Table) error {
 	return nil
 }
 
-//Create google BigQuery Dataset if doesn't exist
+//CreateDataset creates google BigQuery Dataset if doesn't exist
 func (bq *BigQuery) CreateDataset(dataset string) error {
 	bqDataset := bq.client.Dataset(dataset)
 	if _, err := bqDataset.Metadata(bq.ctx); err != nil {
@@ -150,7 +151,7 @@ func (bq *BigQuery) CreateDataset(dataset string) error {
 	return nil
 }
 
-//Add Table columns to google BigQuery table
+//PatchTableSchema adds Table columns to google BigQuery table
 func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(patchSchema.Name)
 	metadata, err := bqTable.Metadata(bq.ctx)
@@ -160,9 +161,9 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 
 	for columnName, column := range patchSchema.Columns {
 		bigQueryType := bigquery.FieldType(strings.ToUpper(column.SQLType))
-		castedType, ok := bq.mappingTypeCasts[columnName]
+		sqlType, ok := bq.sqlTypes[columnName]
 		if ok {
-			bigQueryType = bigquery.FieldType(strings.ToUpper(castedType))
+			bigQueryType = bigquery.FieldType(strings.ToUpper(sqlType.ColumnType))
 		}
 		metadata.Schema = append(metadata.Schema, &bigquery.FieldSchema{Name: columnName, Type: bigQueryType})
 	}

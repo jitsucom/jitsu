@@ -258,15 +258,15 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 		for _, storage := range destinationStorages {
 			err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTable}, objects, intervalToSync.String())
 			if err != nil {
-				metrics.ErrorSourceEvents(task.Source, storage.Name(), rowsCount)
+				metrics.ErrorSourceEvents(task.Source, storage.ID(), rowsCount)
 				metrics.ErrorObjects(task.Source, rowsCount)
-				telemetry.Error(task.Source, storage.Name(), srcSource, rowsCount)
-				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.Name(), err)
+				telemetry.Error(task.Source, storage.ID(), srcSource, rowsCount)
+				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
 			}
 
-			metrics.SuccessSourceEvents(task.Source, storage.Name(), rowsCount)
+			metrics.SuccessSourceEvents(task.Source, storage.ID(), rowsCount)
 			metrics.SuccessObjects(task.Source, rowsCount)
-			telemetry.Event(task.Source, storage.Name(), srcSource, rowsCount)
+			telemetry.Event(task.Source, storage.ID(), srcSource, rowsCount)
 		}
 
 		counters.SuccessSourceEvents(task.Source, len(objects))

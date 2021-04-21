@@ -24,7 +24,8 @@ destinations:
           dst: /dst/field/path # could be just_field_name, without leading. Before inserting all / (except
           # first one) will be replaced wth '_'
           action: move | remove | cast | constant
-          type: Lowcardinality(String) # for 'move' (optional) and 'cast' (required) actions - SQL type (depend on destination)
+          type: varchar(256) # for 'move' (optional) and 'cast' (required) actions - SQL type (depend on destination)
+          column_type: varchar(256) encode zstd # Optional. SQL Column DDL on create/patch tables. Default value is 'type' variable value from this object.
           value: # Value for setting as constant to 'dst'. Required only for 'constant' action. Other actions will ignore this field.
 ```
 
