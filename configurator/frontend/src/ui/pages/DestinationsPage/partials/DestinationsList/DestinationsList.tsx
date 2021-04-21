@@ -32,8 +32,9 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 // @Types
 import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
+import { EmptyList } from '@molecule/EmptyList';
 
-const DestinationsList = ({ destinations }: CommonDestinationPageProps) => {
+const DestinationsList = ({ destinations, updateDestinations }: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const getTitle = useCallback((dst: DestinationData) => {
@@ -103,7 +104,7 @@ const DestinationsList = ({ destinations }: CommonDestinationPageProps) => {
     ? <span className={styles.mode}>mode: {mode}</span>
     : undefined, []);
 
-  const saveDestinations = useCallback(async(id: string) => {
+  const update = useCallback((id: string) => async() => {
     const appServices = ApplicationServices.get();
 
     const newDestinations = destinations.filter(dest => dest._id !== id);
@@ -111,11 +112,11 @@ const DestinationsList = ({ destinations }: CommonDestinationPageProps) => {
     try {
       await appServices.storageService.save('destinations', { destinations: newDestinations }, appServices.activeProject.id);
 
-      // updateDestinations(newDestinations);
+      updateDestinations({ destinations: newDestinations });
     } catch (errors) {
       handleError(errors, 'Unable to delete destination at this moment, please try later.')
     }
-  }, [destinations]);
+  }, [destinations, updateDestinations]);
 
   const handleDeleteAction = useCallback((id: string) => () => {
     Modal.confirm({
@@ -124,13 +125,25 @@ const DestinationsList = ({ destinations }: CommonDestinationPageProps) => {
       content: 'Are you sure you want to delete ' + id + ' destination?',
       okText: 'Delete',
       cancelText: 'Cancel',
-      onOk: () => {
-        saveDestinations(id);
-      }
+      onOk: update(id)
     });
-  }, [saveDestinations]);
+  }, [update]);
 
   const handleEditAction = useCallback((id: string) => () => history.push(generatePath(destinationPageRoutes.editDestination, { id })), [history]);
+
+  if (destinations.length === 0) {
+    return <EmptyList
+      list={
+        <DropDownList
+          getPath={getGeneratedPath}
+          list={destinationsReferenceList}
+          filterPlaceholder="Filter by destination name"
+        />
+      }
+      title="Destinations list is still empty"
+      unit="destination"
+    />;
+  }
 
   return <>
     <div className="mb-5">
