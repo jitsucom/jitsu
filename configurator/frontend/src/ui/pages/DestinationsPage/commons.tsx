@@ -1,17 +1,4 @@
 import {
-  BQConfig,
-  ClickHouseConfig,
-  DestinationConfig,
-  FacebookConversionConfig,
-  GoogleAnalyticsConfig,
-  PostgresConfig,
-  RedshiftConfig,
-  SnowflakeConfig
-} from '@./lib/services/destinations';
-import { FieldMappings, Mapping } from '@./lib/services/mappings';
-import ApplicationServices from '@./lib/services/ApplicationServices';
-import Marshal from '@./lib/commons/marshalling';
-import {
   bigQueryDestination,
   clickHouseDestination,
   facebookDestination,
@@ -22,27 +9,6 @@ import {
 } from '@catalog/destinations/lib';
 import { generatePath } from 'react-router-dom';
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
-
-export const SERIALIZABLE_CLASSES = [
-  DestinationConfig,
-  PostgresConfig,
-  ClickHouseConfig,
-  RedshiftConfig,
-  FieldMappings,
-  Mapping,
-  SnowflakeConfig,
-  BQConfig,
-  GoogleAnalyticsConfig,
-  FacebookConversionConfig
-];
-
-export async function loadDestinations(appServices: ApplicationServices): Promise<DestinationConfig[]> {
-  let destinations = await appServices.storageService.get('destinations', appServices.activeProject.id);
-
-  return destinations && destinations.destinations
-    ? Marshal.newInstance(destinations.destinations, SERIALIZABLE_CLASSES)
-    : [];
-}
 
 export const destinationsReferenceMap = {
   postgres: postgresDestination,

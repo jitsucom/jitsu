@@ -1,7 +1,6 @@
 /* eslint-disable */
 import { ApiAccess, Project, User } from './model';
 import axios, { AxiosRequestConfig, AxiosResponse, AxiosTransformer, Method } from 'axios';
-import { PostgresConfig } from './destinations';
 import * as uuid from 'uuid';
 import AnalyticsService from './analytics';
 import { firebaseInit, FirebaseUserService } from './firebase';
@@ -250,24 +249,24 @@ export default class ApplicationServices {
   }
 
   public async initializeDefaultDestination() {
-    let db = await this._backendApiClient.post('/database', { projectId: this.activeProject.id });
-    const destinationConfig = new PostgresConfig('test_destination');
-    destinationConfig.comment =
-      "We set up a test postgres database for you. It's hosted by us and has a 10,000 rows limitation. It's ok" +
-      " to try with service with it. However, don't use it in production setup. To reveal credentials, click on the 'Edit' button";
-    let data = {};
-    destinationConfig.fillInitialValues(data);
-
-    destinationConfig.update({
-      ...data,
-      pguser: db['User'],
-      pgpassword: db['Password'],
-      pghost: db['Host'],
-      pgport: db['Port'],
-      pgdatabase: db['Database'],
-      mode: 'stream'
-    });
-    await this._storageService.save('destinations', { destinations: [destinationConfig] }, this.activeProject.id);
+    // let db = await this._backendApiClient.post('/database', { projectId: this.activeProject.id });
+    // const DestinationData = new PostgresConfig('test_destination');
+    // DestinationData.comment =
+    //   "We set up a test postgres database for you. It's hosted by us and has a 10,000 rows limitation. It's ok" +
+    //   " to try with service with it. However, don't use it in production setup. To reveal credentials, click on the 'Edit' button";
+    // let data = {};
+    // DestinationData.fillInitialValues(data);
+    //
+    // DestinationData.update({
+    //   ...data,
+    //   pguser: db['User'],
+    //   pgpassword: db['Password'],
+    //   pghost: db['Host'],
+    //   pgport: db['Port'],
+    //   pgdatabase: db['Database'],
+    //   mode: 'stream'
+    // });
+    // await this._storageService.save('destinations', { destinations: [DestinationData] }, this.activeProject.id);
   }
 
 
