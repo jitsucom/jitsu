@@ -21,8 +21,8 @@ import TagsInput from '../TagsInput/TagsInput';
 import { getCurlDocumentation, getEmpeddedJS, getNPMDocumentation } from '../../commons/api-documentation';
 import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
-import useLoader from '@./lib/commons/useLoader';
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
+import useLoader from '@hooks/useLoader';
 
 type Token = {
   uid: string;
