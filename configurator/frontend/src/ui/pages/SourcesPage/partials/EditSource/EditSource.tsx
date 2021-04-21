@@ -4,15 +4,15 @@ import { Redirect, useParams } from 'react-router-dom';
 import { snakeCase } from 'lodash';
 // @Components
 import { SourceFormWrap } from '@page/SourcesPage/partials/_common/SourceForm/SourceFormWrap';
+import { PageHeader } from '@atom/PageHeader';
 // @Types
 import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage';
 import { SourceConnector } from '@catalog/sources/types';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
 // @Routes
 import { routes } from '@page/SourcesPage/routes';
-import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
-import SourceFormHeader from '@page/SourcesPage/partials/_common/SourceForm/SourcesFormHeader';
 
 const EditSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const params = useParams<{ sourceId: string }>();
@@ -29,7 +29,7 @@ const EditSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSo
       elements: [
         { title: 'Sources', link: routes.root },
         {
-          title: <SourceFormHeader connectorSource={connectorSource} mode="edit" />
+          title: <PageHeader title={connectorSource.displayName} icon={connectorSource.pic} mode="edit" />
         }
       ]
     }));
