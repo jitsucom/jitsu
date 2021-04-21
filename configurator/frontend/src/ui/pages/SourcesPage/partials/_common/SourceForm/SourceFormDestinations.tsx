@@ -6,20 +6,19 @@ import { Avatar, Form, List, Switch, Typography } from 'antd';
 import ApplicationServices from '@service/ApplicationServices';
 // @Components
 import { getIconSrc } from '@page/DestinationsPage/partials/DestinationsList/DestinationsList';
-import { loadDestinations } from '@page/DestinationsPage/commons';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Types
-import { DestinationConfig } from '@service/destinations';
 import { SourceFormDestinationsProps } from './SourceForm.types';
 // @Hooks
 import useLoader from '@hooks/useLoader';
 
 const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsProps) => {
-  const [error, destinations] = useLoader(async() => await loadDestinations(ApplicationServices.get()));
+  const error = false;
+  const destinations = [];
 
   const [checkedDestinations, setCheckedDestinations] = useState<string[]>(initialValues.destinations ?? []);
 
-  const handleChange = useCallback((config: DestinationConfig) => (checked: boolean) => {
+  const handleChange = useCallback((config: DestinationData) => (checked: boolean) => {
     let newDestinations;
 
     if (checked && !checkedDestinations.includes(config.uid)) {
