@@ -1,6 +1,11 @@
 import { naturalSort } from '@util/Array';
 
-const getUniqueAutoIncId = (base: string, exists: string[]) => {
+function randomId(len?: number) {
+  let str = Math.random().toString(36).substring(2, len) + Math.random().toString(36).substring(2, 15);
+  return len ? str.substr(0, len) : str;
+}
+
+function getUniqueAutoIncId(base: string, exists: string[]) {
   if (!exists.includes(base)) {
     return base;
   }
@@ -10,6 +15,6 @@ const getUniqueAutoIncId = (base: string, exists: string[]) => {
   let baseTail = Number(existsBase[existsBase.length - 1].replace(base, '')) + 1;
 
   return `${base}${baseTail}`;
-};
+}
 
-export { getUniqueAutoIncId };
+export { randomId, getUniqueAutoIncId };
