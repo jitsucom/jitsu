@@ -12,7 +12,6 @@ import * as Utils from '../../commons/utils';
 import { reloadPage } from '../../commons/utils';
 import { handleError, makeErrorHandler } from '../components';
 import './OnboardingForm.less';
-import { useServices } from '@hooks/useServices';
 
 type State = {
   loading: boolean;
@@ -24,7 +23,7 @@ type Props = {
 };
 
 export default function OnboardingForm(props: Props) {
-  let services = useServices();
+  let services = ApplicationServices.get();
   const [state, setState] = useState({
     loading: false
   });
@@ -46,7 +45,16 @@ export default function OnboardingForm(props: Props) {
       let user = services.userService.getUser();
 
       //send conversion
-      services.analyticsService.onSignup(user.email);
+      services.analyticsService.withJitsu((jitsu => {
+        jitsu.track('signup', {
+          app: services.features.appName,
+          eventn_ctx: {
+            user: {
+              email: user.email
+            }
+          }
+        });
+      }));
 
       user.onboarded = true;
       user.projects = [new Project(Utils.randomId(), values['projectName'])];

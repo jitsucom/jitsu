@@ -1,13 +1,14 @@
 /* eslint-disable */
-import { ApplicationConfiguration, setDebugInfo } from './ApplicationServices';
+import { ApplicationConfiguration, FeatureSettings, setDebugInfo } from './ApplicationServices';
 import { User } from './model';
 // @ts-ignore
-import { eventN } from '@jitsu/eventnative';
+import { eventN, Tracker } from '@jitsu/eventnative';
 import LogRocket from 'logrocket';
-
-const AnalyticsJS = require('./analyticsjs-wrapper.js').default;
+import murmurhash from 'murmurhash';
 import posthog from 'posthog-js';
 import { isNullOrUndef } from '../commons/utils';
+
+const AnalyticsJS = require('./analyticsjs-wrapper.js').default;
 
 type ConsoleMessageListener = (level: string, ...args) => void;
 
@@ -98,17 +99,20 @@ export default class AnalyticsService {
   private user: User;
   private logRocketInitialized: boolean = false;
   private consoleInterceptor: ConsoleLogInterceptor = new ConsoleLogInterceptor();
+  private _anonymizeUsers = false;
+  private _appName = 'saas';
 
   constructor(appConfig: ApplicationConfiguration) {
     this.appConfig = appConfig;
     this.consoleInterceptor.init();
     if (this.appConfig.rawConfig.keys.eventnative) {
-      eventN.init({
+      const cfg = {
         key: this.appConfig.rawConfig.keys.eventnative,
         tracking_host: 'https://t.jitsu.com',
         cookie_domain: 'jitsu.com',
         randomize_url: true
-      });
+      };
+      eventN.init(cfg);
     }
     this.setupGlobalErrorHandler();
     this.consoleInterceptor.addListener((level, ...args) => {
@@ -120,7 +124,7 @@ export default class AnalyticsService {
   }
 
   public ensureLogRocketInitialized() {
-    if (!this.logRocketInitialized && !this.isDev() && this.appConfig.rawConfig.keys.logrocket) {
+    if (!this.logRocketInitialized && this.appConfig.rawConfig.keys.logrocket) {
       LogRocket.init(this.appConfig.rawConfig.keys.logrocket);
       setDebugInfo('logRocket', LogRocket, false);
       this.logRocketInitialized = true;
@@ -132,15 +136,15 @@ export default class AnalyticsService {
   }
 
   public onUserKnown(user: User) {
-    if (!user || this.isDev()) {
+    if (!user) {
       return;
     }
+    this.user = user;
     if (this.appConfig.rawConfig.keys.posthog) {
       posthog.init(this.appConfig.rawConfig.keys.posthog, { api_host: this.appConfig.rawConfig.keys.posthog_host });
       posthog.people.set({ email: user.email });
       posthog.identify(user.uid);
     }
-    this.user = user;
     this.ensureLogRocketInitialized();
     LogRocket.identify(user.uid, {
       email: user.email
@@ -152,49 +156,51 @@ export default class AnalyticsService {
       });
     }
     if (this.appConfig.rawConfig.keys.eventnative) {
-      eventN.id({
-        email: user.email,
-        internal_id: user.uid
-      });
+      const payload = this.getJitsuIdPayload(user);
+      eventN.id(payload);
     }
+  }
+
+  public getJitsuIdPayload({ email, uid }) {
+    return {
+      email: this._anonymizeUsers ? undefined : email,
+      internal_id: this._anonymizeUsers ? 'hid_' + murmurhash.v3(email || uid) : uid
+    };
+  }
+
+  public withJitsu(callback: (jitsu: Tracker) => void) {
+    if (this.appConfig.rawConfig.keys.eventnative) {
+      callback(eventN);
+    }
+  }
+
+  public async withJitsuSync(callback: (jitsu: Tracker) => Promise<void>) {
+    if (this.appConfig.rawConfig.keys.eventnative) {
+      return await callback(eventN);
+    }
+    return Promise.resolve();
+  }
+
+  public configure(features: FeatureSettings) {
+    this._anonymizeUsers = features.anonymizeUsers;
+    this._appName = features.appName;
   }
 
   private isDev() {
     return this.appConfig.appEnvironment === 'development';
   }
 
-  public onSignup(email: string) {
-    if (this.isDev()) {
-      return;
-    }
-
-    if (this.appConfig.rawConfig.keys.eventnative) {
-      eventN.track('signup', {
-        app: 'hosted_ui',
-        eventn_ctx: {
-          user: {
-            email: email
-          }
-        }
-      });
-    }
-  }
-
   public onPageLoad({ pagePath }: { pagePath: string }) {
-    if (this.isDev()) {
-      return;
-    }
-
     if (this.appConfig.rawConfig.keys.eventnative) {
       eventN.track('app_page', {
         path: pagePath,
-        app: 'hosted_ui'
+        app: this._appName
       });
     }
 
     if (this.user && this.appConfig.rawConfig.keys.ajs) {
       AnalyticsJS.get().page('app_page', pagePath, {
-        app: 'hosted_ui'
+        app: this._appName
       });
     }
 

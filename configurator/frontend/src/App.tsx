@@ -15,7 +15,7 @@ import OnboardingForm from './lib/components/OnboardingForm/OnboardingForm';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import PapercupsWrapper from './lib/commons/papercups';
-import { ApplicationPageWrapper} from './Layout';
+import { ApplicationPageWrapper, SlackChatWidget } from './Layout';
 import classNames from 'classnames';
 
 enum AppLifecycle {
@@ -61,7 +61,7 @@ export default class App extends React.Component<AppProperties, AppState> {
             await this.services.init();
             const loginStatus = await this.services.userService.waitForUser();
             setDebugInfo('user', loginStatus.user);
-            if (loginStatus.user) {
+            if (loginStatus.user && this.services.features.chatSupportType === 'chat') {
                 this.services.analyticsService.onUserKnown(loginStatus.user);
                 PapercupsWrapper.init(loginStatus.user);
             }
@@ -90,7 +90,7 @@ export default class App extends React.Component<AppProperties, AppState> {
         switch (this.state.lifecycle) {
             case AppLifecycle.REQUIRES_LOGIN:
                 let pages = this.services.showSelfHostedSignUp() ? SELFHOSTED_PAGES : PUBLIC_PAGES;
-                return (
+                return <>
                     <Switch>
                         {pages.map((route) => {
                             let Component = route.component as ExoticComponent;
@@ -111,9 +111,12 @@ export default class App extends React.Component<AppProperties, AppState> {
                         })}
                         <Redirect key="rootRedirect" to="/"/>
                     </Switch>
-                );
+                </>;
             case AppLifecycle.APP:
-                return this.appLayout();
+                return <>
+                    {this.appLayout()}
+                    {this.services.features.chatSupportType === 'slack' && <SlackChatWidget />}
+                    </>;
             case AppLifecycle.ERROR:
                 return <GlobalError/>;
             case AppLifecycle.LOADING:
