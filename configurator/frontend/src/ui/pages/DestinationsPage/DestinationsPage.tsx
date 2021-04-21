@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 import { Route, Switch } from 'react-router-dom';
 // @Pages
 import { DestinationsList } from './partials/DestinationsList';
-import { DestinationEditor } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor';
+import { DestinationEditor } from './partials/DestinationEditor';
 // @Routes
 import { destinationPageRoutes } from './DestinationsPage.routes';
 // @Hooks
@@ -18,6 +18,9 @@ import { EmptyList } from '@molecule/EmptyList';
 import { DropDownList } from '@molecule/DropDownList';
 // @Utils
 import { destinationsReferenceList, getGeneratedPath } from '@page/DestinationsPage/commons';
+// @Types
+import { PageProps } from '@./navigation';
+import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 
 export interface CollectionDestinationData {
   destinations: DestinationData[];
@@ -26,18 +29,20 @@ export interface CollectionDestinationData {
 
 export interface CommonDestinationPageProps {
   destinations: DestinationData[];
+  setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void;
 }
 
-export const DestinationsPage = () => {
+export const DestinationsPage = (props: PageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
 
-  const [error, destinations, updateDestinations] = useLoader(
+  const [error, destinations] = useLoader(
     async() => await services.storageService.get('destinations', services.activeProject.id)
   );
 
   const additionalProps = useMemo(() => ({
-    destinations: destinations?.destinations
-  }), [destinations]);
+    destinations: destinations?.destinations,
+    setBreadcrumbs: props.setBreadcrumbs
+  }), [props.setBreadcrumbs, destinations]);
 
   if (error) {
     return <CenteredError error={error} />;
@@ -62,19 +67,19 @@ export const DestinationsPage = () => {
       <Route
         path={destinationPageRoutes.root}
         exact
-        component={getComponent<CommonDestinationPageProps>(DestinationsList, additionalProps)}
+        render={getComponent<CommonDestinationPageProps>(DestinationsList, additionalProps)}
       />
       <Route
         path={destinationPageRoutes.newDestination}
         strict={false}
         exact
-        component={getComponent<CommonDestinationPageProps>(DestinationEditor, additionalProps)}
+        render={getComponent<CommonDestinationPageProps>(DestinationEditor, additionalProps)}
       />
       <Route
         path={destinationPageRoutes.editDestination}
         strict={false}
         exact
-        component={getComponent<CommonDestinationPageProps>(DestinationEditor, additionalProps)}
+        render={getComponent<CommonDestinationPageProps>(DestinationEditor, additionalProps)}
       />
     </Switch>
   );
