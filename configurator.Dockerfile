@@ -38,13 +38,13 @@ WORKDIR /app
 # We need to make sure empty 'build' directory exists if SKIP_UI_BUILD==true and yarn won't make it
 RUN mkdir build
 
-RUN if [ $SKIP_UI != true ]; then yarn install --network-timeout 1000000; fi
+RUN if [ "$SKIP_UI" != "true" ]; then yarn install --network-timeout 1000000; fi
 
 # Copy project
 ADD configurator/frontend/. ./
 
 # Build
-RUN if [ $SKIP_UI != true ]; then yarn build --network-timeout 1000000; fi
+RUN if [ "$SKIP_UI" != "true" ]; then yarn build --network-timeout 1000000; fi
 
 #######################################
 # BUILD BACKEND STAGE
