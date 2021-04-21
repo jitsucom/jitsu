@@ -70,9 +70,7 @@ func (c *Collection) GetTableName() string {
 	return c.SourceID + "_" + c.Name
 }
 
-//RegisterDriver registers two functions per driver type:
-//function to create new driver instance
-//function to test driver
+//RegisterDriver registers function to create new driver instance
 func RegisterDriver(driverType string,
 	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) error {
 	DriverConstructors[driverType] = createDriverFunc

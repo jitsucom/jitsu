@@ -27,6 +27,11 @@ type ClickHouse struct {
 	staged                        bool
 }
 
+func init() {
+	RegisterStorage(ClickHouseType, NewClickHouse)
+}
+
+//NewClickHouse returns configured ClickHouse instance
 func NewClickHouse(config *Config) (Storage, error) {
 	chConfig := config.destination.ClickHouse
 	if err := chConfig.Validate(); err != nil {
@@ -45,13 +50,13 @@ func NewClickHouse(config *Config) (Storage, error) {
 		}
 	}
 
-	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
+	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 
 	var chAdapters []*adapters.ClickHouse
 	var tableHelpers []*TableHelper
 	for _, dsn := range chConfig.Dsns {
 		adapter, err := adapters.NewClickHouse(config.ctx, dsn, chConfig.Database, chConfig.Cluster, chConfig.TLS,
-			tableStatementFactory, nullableFields, queryLogger, config.sqlTypeCasts)
+			tableStatementFactory, nullableFields, queryLogger, config.sqlTypes)
 		if err != nil {
 			//close all previous created adapters
 			for _, toClose := range chAdapters {
@@ -65,12 +70,12 @@ func NewClickHouse(config *Config) (Storage, error) {
 	}
 
 	ch := &ClickHouse{
-		name:                          config.name,
+		name:                          config.destinationID,
 		adapters:                      chAdapters,
 		tableHelpers:                  tableHelpers,
 		processor:                     config.processor,
 		eventsCache:                   config.eventsCache,
-		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.name),
+		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.destinationID),
 		usersRecognitionConfiguration: config.usersRecognition,
 		staged:                        config.destination.Staged,
 	}
@@ -87,14 +92,14 @@ func NewClickHouse(config *Config) (Storage, error) {
 	}
 
 	if config.streamMode {
-		ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelpers...)
+		ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelpers...)
 		ch.streamingWorker.start()
 	}
 
 	return ch, nil
 }
 
-func (ch *ClickHouse) Name() string {
+func (ch *ClickHouse) ID() string {
 	return ch.name
 }
 
@@ -111,7 +116,7 @@ func (ch *ClickHouse) DryRun(payload events.Event) ([]adapters.TableField, error
 func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (err error) {
 	adapter, tableHelper := ch.getAdapters()
 
-	dbSchema, err := tableHelper.EnsureTable(ch.Name(), dataSchema)
+	dbSchema, err := tableHelper.EnsureTable(ch.ID(), dataSchema)
 	if err != nil {
 		return err
 	}
@@ -120,12 +125,12 @@ func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (er
 
 	//renew current db schema and retry
 	if err != nil {
-		dbSchema, err := tableHelper.RefreshTableSchema(ch.Name(), dataSchema)
+		dbSchema, err := tableHelper.RefreshTableSchema(ch.ID(), dataSchema)
 		if err != nil {
 			return err
 		}
 
-		dbSchema, err = tableHelper.EnsureTable(ch.Name(), dataSchema)
+		dbSchema, err = tableHelper.EnsureTable(ch.ID(), dataSchema)
 		if err != nil {
 			return err
 		}
@@ -146,7 +151,7 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		ch.eventsCache.Error(ch.Name(), failedEvent.EventID, failedEvent.Error)
+		ch.eventsCache.Error(ch.ID(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -163,9 +168,9 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				ch.eventsCache.Error(ch.Name(), events.ExtractEventID(object), err.Error())
+				ch.eventsCache.Error(ch.ID(), events.ExtractEventID(object), err.Error())
 			} else {
-				ch.eventsCache.Succeed(ch.Name(), events.ExtractEventID(object), object, table)
+				ch.eventsCache.Succeed(ch.ID(), events.ExtractEventID(object), object, table)
 			}
 		}
 	}
@@ -181,7 +186,7 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 //check table schema
 //and store data into one table
 func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *TableHelper, fdata *schema.ProcessedFile, table *adapters.Table) error {
-	dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
+	dbSchema, err := tableHelper.EnsureTable(ch.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -216,7 +221,7 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 
 		table := tableHelper.MapTableSchema(overriddenDataSchema)
 
-		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
+		dbSchema, err := tableHelper.EnsureTable(ch.ID(), table)
 		if err != nil {
 			return err
 		}
@@ -232,12 +237,12 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 		adapter, tableHelper := ch.getAdapters()
 		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 
-		//overridden table name
+		//overridden table destinationID
 		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
 			table.Name = overriddenDataSchema.TableName
 		}
 
-		dbSchema, err := tableHelper.EnsureTable(ch.Name(), table)
+		dbSchema, err := tableHelper.EnsureTable(ch.ID(), table)
 		if err != nil {
 			return err
 		}
@@ -273,18 +278,18 @@ func (ch *ClickHouse) IsStaging() bool {
 func (ch *ClickHouse) Close() (multiErr error) {
 	for i, adapter := range ch.adapters {
 		if err := adapter.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing clickhouse datasource[%d]: %v", ch.Name(), i, err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing clickhouse datasource[%d]: %v", ch.ID(), i, err))
 		}
 	}
 
 	if ch.streamingWorker != nil {
 		if err := ch.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", ch.Name(), err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", ch.ID(), err))
 		}
 	}
 
 	if err := ch.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ch.Name(), err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ch.ID(), err))
 	}
 
 	return

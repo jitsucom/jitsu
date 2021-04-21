@@ -35,7 +35,7 @@ type Service struct {
 	loggerFactory  *logging.Factory
 
 	//map for holding all destinations for closing
-	unitsByName map[string]*Unit
+	unitsByID map[string]*Unit
 	//map for holding all loggers for closing
 	loggersUsageByTokenID map[string]*LoggerUsage
 
@@ -48,7 +48,7 @@ type Service struct {
 	strictAuth bool
 }
 
-//only for tests
+//NewTestService returns test instance. It is used only for tests
 func NewTestService(consumersByTokenID TokenizedConsumers, storagesByTokenID TokenizedStorages, destinationsIDByTokenID TokenizedIDs) *Service {
 	return &Service{
 		consumersByTokenID:      consumersByTokenID,
@@ -57,13 +57,13 @@ func NewTestService(consumersByTokenID TokenizedConsumers, storagesByTokenID Tok
 	}
 }
 
-//NewService return loaded Service instance and call resources.Watcher() if destinations source is http url or file path
+//NewService returns loaded Service instance and call resources.Watcher() if destinations source is http url or file path
 func NewService(destinations *viper.Viper, destinationsSource string, storageFactory storages.Factory, loggerFactory *logging.Factory) (*Service, error) {
 	service := &Service{
 		storageFactory: storageFactory,
 		loggerFactory:  loggerFactory,
 
-		unitsByName:           map[string]*Unit{},
+		unitsByID:             map[string]*Unit{},
 		loggersUsageByTokenID: map[string]*LoggerUsage{},
 
 		consumersByTokenID:      map[string]map[string]events.Consumer{},
@@ -87,7 +87,7 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 
 		service.init(dc)
 
-		if len(service.unitsByName) == 0 {
+		if len(service.unitsByID) == 0 {
 			logging.Info("Destinations are empty")
 		}
 
@@ -121,7 +121,7 @@ func (s *Service) GetStorageByID(id string) (storages.StorageProxy, bool) {
 	s.RLock()
 	defer s.RUnlock()
 
-	unit, ok := s.unitsByName[id]
+	unit, ok := s.unitsByID[id]
 	if !ok {
 		return nil, false
 	}
@@ -157,7 +157,7 @@ func (s *Service) updateDestinations(payload []byte) {
 
 	s.init(dc)
 
-	if len(s.unitsByName) == 0 {
+	if len(s.unitsByID) == 0 {
 		logging.Info("Destinations are empty")
 	}
 }
@@ -169,7 +169,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 
 	//close and remove non-existent (in new config)
 	toDelete := map[string]*Unit{}
-	for name, unit := range s.unitsByName {
+	for name, unit := range s.unitsByID {
 		_, ok := dc[name]
 		if !ok {
 			toDelete[name] = unit
@@ -187,26 +187,26 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	newConsumers := TokenizedConsumers{}
 	newStorages := TokenizedStorages{}
 	newIDs := TokenizedIDs{}
-	for destinationName, d := range dc {
+	for destinationID, d := range dc {
 		//common case
 		destinationConfig := d
-		name := destinationName
+		id := destinationID
 
 		//map token -> id
 		if len(destinationConfig.OnlyTokens) > 0 {
 			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllIDsByToken(destinationConfig.OnlyTokens)
 		} else if !s.strictAuth {
-			logging.Warnf("[%s] only_tokens aren't provided. All tokens will be stored.", name)
+			logging.Warnf("[%s] only_tokens aren't provided. All tokens will be stored.", id)
 			destinationConfig.OnlyTokens = appconfig.Instance.AuthorizationService.GetAllTokenIDs()
 		}
 
 		hash, err := resources.GetHash(destinationConfig)
 		if err != nil {
-			logging.SystemErrorf("Error getting hash from [%s] destination: %v. Destination will be skipped!", name, err)
+			logging.SystemErrorf("Error getting hash from [%s] destination: %v. Destination will be skipped!", id, err)
 			continue
 		}
 
-		unit, ok := s.unitsByName[name]
+		unit, ok := s.unitsByID[id]
 		if ok {
 			if unit.hash == hash {
 				//destination wasn't changed
@@ -214,25 +214,25 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 			}
 			//remove old (for recreation)
 			s.Lock()
-			s.remove(name, unit)
+			s.remove(id, unit)
 			s.Unlock()
 		}
 
 		if !s.strictAuth && len(destinationConfig.OnlyTokens) == 0 {
-			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", name)
+			logging.Warnf("[%s] destination's authorization isn't ready. Will be created in next reloading cycle.", id)
 			//authorization tokens weren't loaded => create this destination when authorization service will be reloaded
 			//and call force reload on this service
 			continue
 		}
 
 		//create new
-		newStorageProxy, eventQueue, err := s.storageFactory.Create(name, destinationConfig)
+		newStorageProxy, eventQueue, err := s.storageFactory.Create(id, destinationConfig)
 		if err != nil {
-			logging.Errorf("[%s] Error initializing destination of type %s: %v", name, destinationConfig.Type, err)
+			logging.Errorf("[%s] Error initializing destination of type %s: %v", id, destinationConfig.Type, err)
 			continue
 		}
 
-		s.unitsByName[name] = &Unit{
+		s.unitsByID[id] = &Unit{
 			eventQueue: eventQueue,
 			storage:    newStorageProxy,
 			tokenIDs:   destinationConfig.OnlyTokens,
@@ -249,12 +249,12 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		// destinations may be used only by dry-run functionality
 		for _, tokenID := range destinationConfig.OnlyTokens {
 			if destinationConfig.Staged {
-				logging.Warnf("[%s] Skipping consumer creation for staged destination", name)
+				logging.Warnf("[%s] Skipping consumer creation for staged destination", id)
 				continue
 			}
-			newIDs.Add(tokenID, name)
+			newIDs.Add(tokenID, id)
 			if destinationConfig.Mode == storages.StreamMode {
-				newConsumers.Add(tokenID, name, eventQueue)
+				newConsumers.Add(tokenID, id, eventQueue)
 			} else {
 				//get or create new logger
 				loggerUsage, ok := s.loggersUsageByTokenID[tokenID]
@@ -271,7 +271,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 				}
 
 				//add storage only if batch mode
-				newStorages.Add(tokenID, name, newStorageProxy)
+				newStorages.Add(tokenID, id, newStorageProxy)
 			}
 		}
 	}
@@ -287,12 +287,12 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 
 //remove destination from all collections and close it
 //method must be called with locks
-func (s *Service) remove(name string, unit *Unit) {
+func (s *Service) remove(destinationID string, unit *Unit) {
 	//remove from other collections: queue or logger(if needed) + storage
 	for _, tokenID := range unit.tokenIDs {
 		oldConsumers := s.consumersByTokenID[tokenID]
 		if unit.eventQueue != nil {
-			delete(oldConsumers, name)
+			delete(oldConsumers, destinationID)
 		} else {
 			//logger
 			loggerUsage := s.loggersUsageByTokenID[tokenID]
@@ -311,7 +311,7 @@ func (s *Service) remove(name string, unit *Unit) {
 		//storage
 		oldStorages, ok := s.storagesByTokenID[tokenID]
 		if ok {
-			delete(oldStorages, name)
+			delete(oldStorages, destinationID)
 			if len(oldStorages) == 0 {
 				delete(s.storagesByTokenID, tokenID)
 			}
@@ -320,7 +320,7 @@ func (s *Service) remove(name string, unit *Unit) {
 		//id
 		ids, ok := s.destinationsIDByTokenID[tokenID]
 		if ok {
-			delete(ids, name)
+			delete(ids, destinationID)
 			if len(ids) == 0 {
 				delete(s.destinationsIDByTokenID, tokenID)
 			}
@@ -328,11 +328,11 @@ func (s *Service) remove(name string, unit *Unit) {
 	}
 
 	if err := unit.Close(); err != nil {
-		logging.Errorf("[%s] Error closing destination unit: %v", name, err)
+		logging.Errorf("[%s] Error closing destination unit: %v", destinationID, err)
 	}
 
-	delete(s.unitsByName, name)
-	logging.Infof("[%s] destination has been removed!", name)
+	delete(s.unitsByID, destinationID)
+	logging.Infof("[%s] destination has been removed!", destinationID)
 }
 
 func (s *Service) Close() (multiErr error) {
@@ -342,9 +342,9 @@ func (s *Service) Close() (multiErr error) {
 		}
 	}
 
-	for name, unit := range s.unitsByName {
+	for id, unit := range s.unitsByID {
 		if err := unit.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing destination unit: %v", name, err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing destination unit: %v", id, err))
 		}
 	}
 

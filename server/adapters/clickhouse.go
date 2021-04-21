@@ -19,7 +19,7 @@ import (
 const (
 	tableSchemaCHQuery        = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
 	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS "%s" %s`
-	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s %s`
+	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s`
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
 	deleteQueryChTemplate     = `ALTER TABLE %s.%s DELETE WHERE %s`
 	onClusterCHClauseTemplate = ` ON CLUSTER "%s" `
@@ -200,13 +200,13 @@ type ClickHouse struct {
 	tableStatementFactory *TableStatementFactory
 	nullableFields        map[string]bool
 	queryLogger           *logging.QueryLogger
-	mappingTypeCasts      map[string]string
+	sqlTypes              typing.SQLTypes
 }
 
-//NewClickHouse return configured ClickHouse adapter instance
+//NewClickHouse returns configured ClickHouse adapter instance
 func NewClickHouse(ctx context.Context, connectionString, database, cluster string, tlsConfig map[string]string,
 	tableStatementFactory *TableStatementFactory, nullableFields map[string]bool,
-	queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*ClickHouse, error) {
+	queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*ClickHouse, error) {
 	//configure tls
 	if strings.Contains(connectionString, "https://") && tlsConfig != nil {
 		for tlsName, crtPath := range tlsConfig {
@@ -249,11 +249,11 @@ func NewClickHouse(ctx context.Context, connectionString, database, cluster stri
 		tableStatementFactory: tableStatementFactory,
 		nullableFields:        nullableFields,
 		queryLogger:           queryLogger,
-		mappingTypeCasts:      reformatMappings(mappingTypeCasts, SchemaToClickhouse),
+		sqlTypes:              reformatMappings(sqlTypes, SchemaToClickhouse),
 	}, nil
 }
 
-func (ClickHouse) Name() string {
+func (ClickHouse) Type() string {
 	return "ClickHouse"
 }
 
@@ -264,7 +264,7 @@ func (ch *ClickHouse) OpenTx() (*Transaction, error) {
 		return nil, err
 	}
 
-	return &Transaction{tx: tx, dbType: ch.Name()}, nil
+	return &Transaction{tx: tx, dbType: ch.Type()}, nil
 }
 
 //CreateDB create database instance if doesn't exist
@@ -294,21 +294,8 @@ func (ch *ClickHouse) CreateDB(dbName string) error {
 func (ch *ClickHouse) CreateTable(tableSchema *Table) error {
 	var columnsDDL []string
 	for columnName, column := range tableSchema.Columns {
-		//get sql type
-		sqlType := column.SQLType
-		castedSQLType, ok := ch.mappingTypeCasts[columnName]
-		if ok {
-			sqlType = castedSQLType
-		}
-
-		//get nullable or plain
-		var addColumnDDL string
-		if _, ok := ch.nullableFields[columnName]; ok {
-			addColumnDDL = columnName + fmt.Sprintf(columnCHNullableTemplate, sqlType)
-		} else {
-			addColumnDDL = columnName + " " + sqlType
-		}
-		columnsDDL = append(columnsDDL, addColumnDDL)
+		columnTypeDDL := ch.columnDDL(columnName, column)
+		columnsDDL = append(columnsDDL, columnTypeDDL)
 	}
 
 	//sorting columns asc
@@ -362,21 +349,8 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 	}
 
 	for columnName, column := range patchSchema.Columns {
-		//get sql type
-		sqlType := column.SQLType
-		castedSQLType, ok := ch.mappingTypeCasts[columnName]
-		if ok {
-			sqlType = castedSQLType
-		}
-
-		//get nullable or plain
-		var columnTypeDDL string
-		if _, ok := ch.nullableFields[columnName]; ok {
-			columnTypeDDL = fmt.Sprintf(columnCHNullableTemplate, sqlType)
-		} else {
-			columnTypeDDL = sqlType
-		}
-		query := fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnName, columnTypeDDL)
+		columnDDL := ch.columnDDL(columnName, column)
+		query := fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnDDL)
 		ch.queryLogger.LogDDL(query)
 		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 		if err != nil {
@@ -387,7 +361,7 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 		_, err = alterStmt.ExecContext(ch.ctx)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("Error patching %s table with '%s' - %s column schema: %v", patchSchema.Name, columnName, columnTypeDDL, err)
+			return fmt.Errorf("Error patching %s table with '%s' column DDL: %v", patchSchema.Name, columnDDL, err)
 		}
 	}
 
@@ -576,10 +550,31 @@ func (ch *ClickHouse) dropDistributedTableInTransaction(wrappedTx *Transaction, 
 	}
 }
 
-func (ch *ClickHouse) getPlaceholder(columnName string) string {
-	castType, ok := ch.mappingTypeCasts[columnName]
+//columnDDL returns column DDL (column name, mapped sql type)
+func (ch *ClickHouse) columnDDL(name string, column Column) string {
+	//get sql type
+	columnSQLType := column.SQLType
+	overriddenSQLType, ok := ch.sqlTypes[name]
 	if ok {
-		return fmt.Sprintf("cast(?, '%s')", castType)
+		columnSQLType = overriddenSQLType.ColumnType
+	}
+
+	//get nullable or plain
+	var columnTypeDDL string
+	if _, ok := ch.nullableFields[name]; ok {
+		columnTypeDDL = fmt.Sprintf(columnCHNullableTemplate, columnSQLType)
+	} else {
+		columnTypeDDL = columnSQLType
+	}
+
+	return name + " " + columnTypeDDL
+}
+
+//getPlaceholder returns "?" placeholder or with typecast
+func (ch *ClickHouse) getPlaceholder(columnName string) string {
+	castType, ok := ch.sqlTypes[columnName]
+	if ok {
+		return fmt.Sprintf("cast(?, '%s')", castType.Type)
 	}
 
 	return "?"

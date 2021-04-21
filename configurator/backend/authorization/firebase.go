@@ -118,9 +118,9 @@ func (fp *FirebaseProvider) GenerateUserAccessToken(userID string) (string, erro
 	return fp.authClient.CustomToken(fp.ctx, user.UID)
 }
 
+//UsersExist returns always true
 func (fp *FirebaseProvider) UsersExist() (bool, error) {
-	uit := fp.authClient.Users(fp.ctx, "")
-	return uit.PageInfo().Remaining() > 0, nil
+	return true, nil
 }
 
 func (fp *FirebaseProvider) Type() string {

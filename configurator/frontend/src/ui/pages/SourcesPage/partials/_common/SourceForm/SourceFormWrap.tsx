@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { message } from 'antd';
 import { useHistory } from 'react-router-dom';
 import { snakeCase } from 'lodash';
@@ -15,8 +15,6 @@ import { FormWrapProps } from '@page/SourcesPage/partials/_common/SourceForm/Sou
 import { makeObjectFromFieldsValues } from '@util/Form';
 import { CollectionSourceData } from '@page/SourcesPage/SourcesPage.types';
 import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
-import SourceFormHeader from '@page/SourcesPage/partials/_common/SourceForm/SourcesFormHeader';
-import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 
 const SourceFormWrap = ({
   sources = [],
@@ -47,7 +45,8 @@ const SourceFormWrap = ({
       };
 
       if (!createdSourceData.connected) {
-        createdSourceData.connected = await sourceFormCleanFunctions.testConnection(createdSourceData.config, connectorSource);
+        const { config, sourceId } = createdSourceData;
+        createdSourceData.connected = await sourceFormCleanFunctions.testConnection({ config, sourceId }, connectorSource);
       }
 
       if (collections) {
@@ -75,23 +74,20 @@ const SourceFormWrap = ({
           : [...sources, createdSourceData]
       };
 
-      services.storageService
-        .save(
-          'sources',
-          payload,
-          projectId
-        )
-        .then((response) => {
-          setSources(payload);
+      try {
+        await services.storageService.save('sources', payload, projectId);
 
-          message.success('New source has been added!');
+        setSources(payload);
 
-          history.push(routes.root);
-        })
-        .catch((error) => {
-          message.error("Something goes wrong, source hasn't been added");
-        })
-        .finally(() => switchPending(false));
+        message.success('New source has been added!');
+
+        history.push(routes.root);
+
+      } catch(error) {
+        message.error('Something goes wrong, source hasn\'t been added');
+      } finally {
+        switchPending(false)
+      }
     },
     [isConnected, connectorSource, services.storageService, projectId, sources, history, setSources, formMode]
   );

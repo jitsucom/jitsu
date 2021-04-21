@@ -29,6 +29,10 @@ type BigQuery struct {
 	staged          bool
 }
 
+func init() {
+	RegisterStorage(BigQueryType, NewBigQuery)
+}
+
 //NewBigQuery returns BigQuery configured instance
 func NewBigQuery(config *Config) (Storage, error) {
 	gConfig := config.destination.Google
@@ -43,7 +47,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 	//enrich with default parameters
 	if gConfig.Dataset == "" {
 		gConfig.Dataset = "default"
-		logging.Warnf("[%s] dataset wasn't provided. Will be used default one: %s", config.name, gConfig.Dataset)
+		logging.Warnf("[%s] dataset wasn't provided. Will be used default one: %s", config.destinationID, gConfig.Dataset)
 	}
 
 	var gcsAdapter *adapters.GoogleCloudStorage
@@ -55,8 +59,8 @@ func NewBigQuery(config *Config) (Storage, error) {
 		}
 	}
 
-	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
-	bigQueryAdapter, err := adapters.NewBigQuery(config.ctx, gConfig, queryLogger, config.sqlTypeCasts)
+	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
+	bigQueryAdapter, err := adapters.NewBigQuery(config.ctx, gConfig, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -74,18 +78,18 @@ func NewBigQuery(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString, config.streamMode, config.maxColumns)
 
 	bq := &BigQuery{
-		name:           config.name,
+		name:           config.destinationID,
 		gcsAdapter:     gcsAdapter,
 		bqAdapter:      bigQueryAdapter,
 		tableHelper:    tableHelper,
 		processor:      config.processor,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:    config.eventsCache,
 		staged:         config.destination.Staged,
 	}
 
 	if config.streamMode {
-		bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
+		bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
 		bq.streamingWorker.start()
 	}
 
@@ -98,7 +102,7 @@ func (bq *BigQuery) DryRun(payload events.Event) ([]adapters.TableField, error) 
 
 //Insert event in BigQuery
 func (bq *BigQuery) Insert(dataSchema *adapters.Table, event events.Event) (err error) {
-	dbTable, err := bq.tableHelper.EnsureTable(bq.Name(), dataSchema)
+	dbTable, err := bq.tableHelper.EnsureTable(bq.ID(), dataSchema)
 	if err != nil {
 		return err
 	}
@@ -107,12 +111,12 @@ func (bq *BigQuery) Insert(dataSchema *adapters.Table, event events.Event) (err 
 
 	//renew current db schema and retry
 	if err != nil {
-		dbTable, err := bq.tableHelper.RefreshTableSchema(bq.Name(), dataSchema)
+		dbTable, err := bq.tableHelper.RefreshTableSchema(bq.ID(), dataSchema)
 		if err != nil {
 			return err
 		}
 
-		dbTable, err = bq.tableHelper.EnsureTable(bq.Name(), dataSchema)
+		dbTable, err = bq.tableHelper.EnsureTable(bq.ID(), dataSchema)
 		if err != nil {
 			return err
 		}
@@ -133,7 +137,7 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		bq.eventsCache.Error(bq.Name(), failedEvent.EventID, failedEvent.Error)
+		bq.eventsCache.Error(bq.ID(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -149,9 +153,9 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				bq.eventsCache.Error(bq.Name(), events.ExtractEventID(object), err.Error())
+				bq.eventsCache.Error(bq.ID(), events.ExtractEventID(object), err.Error())
 			} else {
-				bq.eventsCache.Succeed(bq.Name(), events.ExtractEventID(object), object, table)
+				bq.eventsCache.Succeed(bq.ID(), events.ExtractEventID(object), object, table)
 			}
 		}
 	}
@@ -167,7 +171,7 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 //check table schema
 //and store data into one table via google cloud storage
 func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
-	dbTable, err := bq.tableHelper.EnsureTable(bq.Name(), table)
+	dbTable, err := bq.tableHelper.EnsureTable(bq.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -182,7 +186,7 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 	}
 
 	if err := bq.gcsAdapter.DeleteObject(fdata.FileName); err != nil {
-		logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.Name(), fdata.FileName, err)
+		logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fdata.FileName, err)
 	}
 
 	return nil
@@ -207,7 +211,7 @@ func (bq *BigQuery) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (bq *BigQuery) Name() string {
+func (bq *BigQuery) ID() string {
 	return bq.name
 }
 
@@ -222,22 +226,22 @@ func (bq *BigQuery) IsStaging() bool {
 func (bq *BigQuery) Close() (multiErr error) {
 	if bq.gcsAdapter != nil {
 		if err := bq.gcsAdapter.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.Name(), err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing google cloud storage client: %v", bq.ID(), err))
 		}
 	}
 
 	if err := bq.bqAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing BigQuery client: %v", bq.Name(), err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing BigQuery client: %v", bq.ID(), err))
 	}
 
 	if bq.streamingWorker != nil {
 		if err := bq.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", bq.Name(), err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", bq.ID(), err))
 		}
 	}
 
 	if err := bq.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", bq.Name(), err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", bq.ID(), err))
 	}
 
 	return
