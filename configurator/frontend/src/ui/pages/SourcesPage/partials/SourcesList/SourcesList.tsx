@@ -11,7 +11,7 @@ import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import ApplicationServices from '@service/ApplicationServices';
 // @Types
 import { SourceConnector } from '@catalog/sources/types';
-import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
+import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage';
 // @Styles
 import styles from './SourcesList.module.less';
 // @Sources
