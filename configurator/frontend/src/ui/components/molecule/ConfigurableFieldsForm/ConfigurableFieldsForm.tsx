@@ -8,16 +8,23 @@ import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 import { EditableList } from '@./lib/components/EditableList/EditableList';
 // @Types
 import { Parameter, ParameterType } from '@catalog/sources/types';
-import { Props } from './ConfigurableFieldsForm.types';
+import { FormInstance } from 'antd/lib/form/hooks/useForm';
 // @Utils
 import { dsnValidator } from './configurableFieldsForm.utils';
+import { makeObjectFromFieldsValues } from '@util/Form';
+// @Hooks
+import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
 import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
 import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
-import { makeObjectFromFieldsValues } from '@util/Form';
-import { useForceUpdate } from '@hooks/useForceUpdate';
 
-const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
+export interface Props {
+  fieldsParamsList: Parameter[];
+  form: FormInstance;
+  initialValues: DestinationData;
+}
+
+const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues }: Props) => {
   const forceUpdate = useForceUpdate();
 
   const handleRadioGroupChange = useCallback(() => forceUpdate(), [forceUpdate]);
@@ -113,6 +120,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
       {
         fieldsParamsList.map((param: Parameter) => {
           const { id, documentation, displayName, defaultValue, type, required, constant } = param;
+          const initial = get(initialValues, id);
 
           const constantValue = typeof constant === 'function'
             ? constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {}))
@@ -125,7 +133,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form }: Props) => {
                 <Col span={16}>
                   <Form.Item
                     className="form-field_fixed-label"
-                    initialValue={defaultValue || constantValue}
+                    initialValue={initial ?? (defaultValue || constantValue)}
                     name={id}
                     hidden={isNull}
                     label={
