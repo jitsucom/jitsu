@@ -52,6 +52,13 @@ const (
 
 	destinationsKey = "destinations"
 	sourcesKey      = "sources"
+
+	configNotFound = "! Custom eventnative.yaml wasn't provided\n                            " +
+		"! Jitsu server will start, however it will be mostly useless\n                            " +
+		"! Please make a custom config file, you can generated a config with https://cloud.jitsu.com.\n                            " +
+		"! Configuration documentation: https://jitsu.com/docs/configuration\n                            " +
+		"! Add config with `-cfg eventnative.yaml` parameter or put eventnative.yaml to <config_dir> and add mapping\n                            " +
+		"! -v <config_dir>/:/home/eventnative/data/config if you're using official Docker image"
 )
 
 var (
@@ -94,7 +101,7 @@ func main() {
 	// Setup application directory as working directory
 	setAppWorkDir()
 
-	if err := config.Read(*configSource, *containerizedRun); err != nil {
+	if err := config.Read(*configSource, *containerizedRun, configNotFound); err != nil {
 		logging.Fatal("Error while reading application config:", err)
 	}
 

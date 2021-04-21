@@ -108,7 +108,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 	}
 
 	alreadyUploadedTables := map[string]bool{}
-	tableStatuses := s.statusManager.GetTablesStatuses(fileName, storage.Name())
+	tableStatuses := s.statusManager.GetTablesStatuses(fileName, storage.ID())
 	for tableName, status := range tableStatuses {
 		if status.Uploaded {
 			alreadyUploadedTables[tableName] = true
@@ -128,7 +128,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 	resultPerTable, failedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables)
 
 	if err != nil {
-		metrics.ErrorTokenEvents(fallbackIdentifier, storage.Name(), len(objects))
+		metrics.ErrorTokenEvents(fallbackIdentifier, storage.ID(), len(objects))
 
 		//extract src
 		eventsSrc := map[string]int{}
@@ -136,31 +136,31 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 			eventsSrc[events.ExtractSrc(obj)]++
 		}
 
-		telemetry.ErrorsPerSrc(fallbackIdentifier, storage.Name(), eventsSrc)
+		telemetry.ErrorsPerSrc(fallbackIdentifier, storage.ID(), eventsSrc)
 
-		return fmt.Errorf("[%s] Error storing fallback file %s in destination: %v", storage.Name(), fileName, err)
+		return fmt.Errorf("[%s] Error storing fallback file %s in destination: %v", storage.ID(), fileName, err)
 	}
 
 	//events which are failed to process
 	if !failedEvents.IsEmpty() {
 		storage.Fallback(failedEvents.Events...)
 
-		telemetry.ErrorsPerSrc(fallbackIdentifier, storage.Name(), failedEvents.Src)
+		telemetry.ErrorsPerSrc(fallbackIdentifier, storage.ID(), failedEvents.Src)
 	}
 
 	var multiErr error
 	for tableName, result := range resultPerTable {
 		if result.Err != nil {
 			multiErr = multierror.Append(multiErr, result.Err)
-			logging.Errorf("[%s] Error storing table %s from fallback file %s: %v", storage.Name(), tableName, filePath, result.Err)
-			metrics.ErrorTokenEvents(fallbackIdentifier, storage.Name(), result.RowsCount)
-			telemetry.ErrorsPerSrc(fallbackIdentifier, storage.Name(), result.EventsSrc)
+			logging.Errorf("[%s] Error storing table %s from fallback file %s: %v", storage.ID(), tableName, filePath, result.Err)
+			metrics.ErrorTokenEvents(fallbackIdentifier, storage.ID(), result.RowsCount)
+			telemetry.ErrorsPerSrc(fallbackIdentifier, storage.ID(), result.EventsSrc)
 		} else {
-			metrics.SuccessTokenEvents(fallbackIdentifier, storage.Name(), result.RowsCount)
-			telemetry.EventsPerSrc(fallbackIdentifier, storage.Name(), result.EventsSrc)
+			metrics.SuccessTokenEvents(fallbackIdentifier, storage.ID(), result.RowsCount)
+			telemetry.EventsPerSrc(fallbackIdentifier, storage.ID(), result.EventsSrc)
 		}
 
-		s.statusManager.UpdateStatus(fileName, storage.Name(), tableName, result.Err)
+		s.statusManager.UpdateStatus(fileName, storage.ID(), tableName, result.Err)
 	}
 
 	if multiErr == nil {

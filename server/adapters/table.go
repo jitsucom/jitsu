@@ -22,7 +22,7 @@ type Table struct {
 	Version        int64
 }
 
-//Return true if there is at least one column
+//Exists returns true if there is at least one column
 func (t *Table) Exists() bool {
 	if t == nil {
 		return false
@@ -31,6 +31,7 @@ func (t *Table) Exists() bool {
 	return len(t.Columns) > 0 || len(t.PKFields) > 0 || t.DeletePkFields
 }
 
+//GetPKFields returns primary keys
 func (t *Table) GetPKFields() []string {
 	var pkFields []string
 	for pkField := range t.PKFields {

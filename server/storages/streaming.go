@@ -63,7 +63,7 @@ func (sw *StreamingWorker) start() {
 				if err == events.ErrQueueClosed && sw.closed {
 					continue
 				}
-				logging.SystemErrorf("[%s] Error reading event from queue: %v", sw.streamingStorage.Name(), err)
+				logging.SystemErrorf("[%s] Error reading event from queue: %v", sw.streamingStorage.ID(), err)
 				continue
 			}
 
@@ -77,17 +77,17 @@ func (sw *StreamingWorker) start() {
 			if err != nil {
 				if err == schema.ErrSkipObject {
 					if !appconfig.Instance.DisableSkipEventsWarn {
-						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.Name(), events.ExtractEventID(fact), err)
+						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.ID(), events.ExtractEventID(fact), err)
 					}
 
-					counters.SkipEvents(sw.streamingStorage.Name(), 1)
+					counters.SkipEvents(sw.streamingStorage.ID(), 1)
 				} else {
 					serialized := fact.Serialize()
-					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.Name(), serialized, err)
+					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.ID(), serialized, err)
 
-					metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.Name())
-					counters.ErrorEvents(sw.streamingStorage.Name(), 1)
-					telemetry.Error(tokenID, sw.streamingStorage.Name(), events.ExtractSrc(fact), 1)
+					metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.ID())
+					counters.ErrorEvents(sw.streamingStorage.ID(), 1)
+					telemetry.Error(tokenID, sw.streamingStorage.ID(), events.ExtractSrc(fact), 1)
 
 					sw.streamingStorage.Fallback(&events.FailedEvent{
 						Event:   []byte(serialized),
@@ -97,7 +97,7 @@ func (sw *StreamingWorker) start() {
 				}
 
 				//cache
-				sw.eventsCache.Error(sw.streamingStorage.Name(), events.ExtractEventID(fact), err.Error())
+				sw.eventsCache.Error(sw.streamingStorage.ID(), events.ExtractEventID(fact), err.Error())
 
 				continue
 			}
@@ -110,7 +110,7 @@ func (sw *StreamingWorker) start() {
 			table := sw.getTableHelper().MapTableSchema(batchHeader)
 
 			if err := sw.streamingStorage.Insert(table, flattenObject); err != nil {
-				logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.Name(), flattenObject.Serialize(), table.Name, err)
+				logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
 				if strings.Contains(err.Error(), "connection refused") ||
 					strings.Contains(err.Error(), "EOF") ||
 					strings.Contains(err.Error(), "write: broken pipe") ||
@@ -125,23 +125,23 @@ func (sw *StreamingWorker) start() {
 					})
 				}
 
-				counters.ErrorEvents(sw.streamingStorage.Name(), 1)
-				telemetry.Error(tokenID, sw.streamingStorage.Name(), events.ExtractSrc(fact), 1)
+				counters.ErrorEvents(sw.streamingStorage.ID(), 1)
+				telemetry.Error(tokenID, sw.streamingStorage.ID(), events.ExtractSrc(fact), 1)
 
 				//cache
-				sw.eventsCache.Error(sw.streamingStorage.Name(), events.ExtractEventID(fact), err.Error())
+				sw.eventsCache.Error(sw.streamingStorage.ID(), events.ExtractEventID(fact), err.Error())
 
-				metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.Name())
+				metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.ID())
 				continue
 			}
 
-			counters.SuccessEvents(sw.streamingStorage.Name(), 1)
-			telemetry.Event(tokenID, sw.streamingStorage.Name(), events.ExtractSrc(fact), 1)
+			counters.SuccessEvents(sw.streamingStorage.ID(), 1)
+			telemetry.Event(tokenID, sw.streamingStorage.ID(), events.ExtractSrc(fact), 1)
 
 			//cache
-			sw.eventsCache.Succeed(sw.streamingStorage.Name(), events.ExtractEventID(fact), flattenObject, table)
+			sw.eventsCache.Succeed(sw.streamingStorage.ID(), events.ExtractEventID(fact), flattenObject, table)
 
-			metrics.SuccessTokenEvent(tokenID, sw.streamingStorage.Name())
+			metrics.SuccessTokenEvent(tokenID, sw.streamingStorage.ID())
 
 			//archive
 			sw.archiveLogger.Consume(fact, tokenID)

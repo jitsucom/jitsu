@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
 	"strings"
 )
 
@@ -27,13 +28,13 @@ type MappingRule struct {
 }
 
 //NewFieldMapper return FieldMapper, sql typecast and err
-func NewFieldMapper(newStyleMappings *Mapping) (Mapper, map[string]string, error) {
+func NewFieldMapper(newStyleMappings *Mapping) (Mapper, typing.SQLTypes, error) {
 	if newStyleMappings == nil || len(newStyleMappings.Fields) == 0 {
-		return &DummyMapper{}, map[string]string{}, nil
+		return &DummyMapper{}, typing.SQLTypes{}, nil
 	}
 
 	var rules []*MappingRule
-	sqlTypeCasts := map[string]string{}
+	sqlTypes := typing.SQLTypes{}
 
 	keepUnmappedFields := true
 	if newStyleMappings.KeepUnmapped != nil {
@@ -56,11 +57,17 @@ func NewFieldMapper(newStyleMappings *Mapping) (Mapper, map[string]string, error
 
 		//collect sql typecasts
 		if mapping.Type != "" {
-			sqlTypeCasts[rule.destination.FieldName()] = mapping.Type
+			if mapping.ColumnType == "" {
+				mapping.ColumnType = mapping.Type
+			}
+			sqlTypes[rule.destination.FieldName()] = typing.SQLColumn{
+				Type:       mapping.Type,
+				ColumnType: mapping.ColumnType,
+			}
 		}
 	}
 
-	return &FieldMapper{rules: rules, keepUnmappedFields: keepUnmappedFields}, sqlTypeCasts, nil
+	return &FieldMapper{rules: rules, keepUnmappedFields: keepUnmappedFields}, sqlTypes, nil
 }
 
 //Map changes input object and applies deletes and mappings

@@ -11,18 +11,11 @@ import (
 	"strings"
 )
 
-const configNotFound = "! Custom eventnative.yaml wasn't provided\n                            " +
-	"! EventNative will start, however it will be mostly useless\n                            " +
-	"! Please make a custom config file, you can generated a config with https://app.jitsu.com.\n                            " +
-	"! Configuration documentation: https://docs.eventnative.org/configuration-1/configuration\n                            " +
-	"! Add config with `-cfg eventnative.yaml` parameter or put eventnative.yaml to <config_dir> and add mapping\n                            " +
-	"! -v <config_dir>/:/home/eventnative/data/config if you're using official Docker image"
-
 //Read reads config from configSourceStr that might be (HTTP URL or path to YAML/JSON file or plain JSON string)
 //replaces all ${env.VAR} placeholders with OS variables
 //configSourceStr might be overridden by "config_location" ENV variable
 //returns err if occurred
-func Read(configSourceStr string, containerizedRun bool) error {
+func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg string) error {
 	viper.AutomaticEnv()
 
 	//support OS env variables as lower case and dot divided variables e.g. SERVER_PORT as server.port
@@ -45,11 +38,11 @@ func Read(configSourceStr string, containerizedRun bool) error {
 		payload, err = resources.LoadFromFile(configSourceStr, "")
 	} else {
 		//run without config from sources
-		logging.ConfigWarn = configNotFound
+		logging.ConfigWarn = configNotFoundErrMsg
 	}
 
 	if err != nil {
-		return handleConfigErr(err, containerizedRun)
+		return handleConfigErr(err, containerizedRun, configNotFoundErrMsg)
 	}
 
 	if payload != nil && payload.ContentType != nil {
@@ -63,7 +56,7 @@ func Read(configSourceStr string, containerizedRun bool) error {
 		err = viper.ReadConfig(bytes.NewBuffer(payload.Content))
 		if err != nil {
 			errWithContext := fmt.Errorf("Error reading/parsing config from %s: %v", configSourceStr, err)
-			return handleConfigErr(errWithContext, containerizedRun)
+			return handleConfigErr(errWithContext, containerizedRun, configNotFoundErrMsg)
 		}
 	}
 
@@ -108,13 +101,13 @@ func Read(configSourceStr string, containerizedRun bool) error {
 
 //handleConfigErr returns err only if application can't start without config
 //otherwise log error and return nil
-func handleConfigErr(err error, containerizedRun bool) error {
+func handleConfigErr(err error, containerizedRun bool, configNotFoundErrMsg string) error {
 	//failfast for running service from source (not containerised) and with wrong config
 	if !containerizedRun {
 		return err
 	}
 
 	logging.ConfigErr = err.Error()
-	logging.ConfigWarn = configNotFound
+	logging.ConfigWarn = configNotFoundErrMsg
 	return nil
 }
