@@ -6,7 +6,7 @@ import { snakeCase } from 'lodash';
 import { ConnectorsCatalog } from '../_common/ConnectorsCatalog';
 import { SourceFormWrap } from '../_common/SourceForm/SourceFormWrap';
 // @Types
-import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage.types';
+import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage';
 import { SourceConnector } from '@catalog/sources/types';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
