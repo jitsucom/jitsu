@@ -24,6 +24,10 @@ type Facebook struct {
 	staged          bool
 }
 
+func init() {
+	RegisterStorage(FacebookType, NewFacebook)
+}
+
 //NewFacebook return Facebook instance
 //start streaming worker goroutine
 func NewFacebook(config *Config) (Storage, error) {
@@ -36,22 +40,22 @@ func NewFacebook(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.name)
+	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	fbAdapter := adapters.NewFacebookConversion(fbConfig, requestDebugLogger)
 
 	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion, config.streamMode, 0)
 
 	fb := &Facebook{
-		name:           config.name,
+		name:           config.destinationID,
 		fbAdapter:      fbAdapter,
 		tableHelper:    tableHelper,
 		processor:      config.processor,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.name),
+		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:    config.eventsCache,
 		staged:         config.destination.Staged,
 	}
 
-	fb.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, fb, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.name), tableHelper)
+	fb.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, fb, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
 	fb.streamingWorker.start()
 
 	return fb, nil
@@ -88,7 +92,7 @@ func (fb *Facebook) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
-func (fb *Facebook) Name() string {
+func (fb *Facebook) ID() string {
 	return fb.name
 }
 
@@ -102,17 +106,17 @@ func (fb *Facebook) IsStaging() bool {
 
 func (fb *Facebook) Close() (multiErr error) {
 	if err := fb.fbAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing Facebook client: %v", fb.Name(), err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing Facebook client: %v", fb.ID(), err))
 	}
 
 	if fb.streamingWorker != nil {
 		if err := fb.streamingWorker.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", fb.Name(), err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", fb.ID(), err))
 		}
 	}
 
 	if err := fb.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", fb.Name(), err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", fb.ID(), err))
 	}
 
 	return

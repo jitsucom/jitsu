@@ -27,7 +27,7 @@ type Storage interface {
 	Update(object map[string]interface{}) error
 	Fallback(events ...*events.FailedEvent)
 	GetUsersRecognition() *UserRecognitionConfiguration
-	Name() string
+	ID() string
 	Type() string
 	IsStaging() bool
 }

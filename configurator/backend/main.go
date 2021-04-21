@@ -35,7 +35,9 @@ import (
 	"time"
 )
 
-const serviceName = "Jitsu-Configurator"
+const (
+	serviceName = "Jitsu-Configurator"
+)
 
 var (
 	configSource     = flag.String("cfg", "", "config file path")
@@ -62,7 +64,7 @@ func main() {
 	// Setup application directory as working directory
 	setAppWorkDir()
 
-	if err := config.Read(*configSource, *containerizedRun); err != nil {
+	if err := config.Read(*configSource, *containerizedRun, ""); err != nil {
 		logging.Fatal("Error while reading application config:", err)
 	}
 

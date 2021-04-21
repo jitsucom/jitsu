@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"errors"
+	"github.com/jitsucom/jitsu/server/typing"
 	"net/http"
 	"strings"
 
@@ -36,7 +37,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		postgres, err := adapters.NewPostgres(context.Background(), config.DataSource, nil, map[string]string{})
+		postgres, err := adapters.NewPostgres(context.Background(), config.DataSource, nil, typing.SQLTypes{})
 		if err != nil {
 			return err
 		}
@@ -51,7 +52,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		var multiErr error
 		for _, dsn := range config.ClickHouse.Dsns {
 			ch, err := adapters.NewClickHouse(context.Background(), strings.TrimSpace(dsn),
-				"", "", nil, nil, nil, nil, map[string]string{})
+				"", "", nil, nil, nil, nil, typing.SQLTypes{})
 			if err != nil {
 				multiErr = multierror.Append(multiErr, err)
 				continue
@@ -79,7 +80,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			}
 		}
 
-		redshift, err := adapters.NewAwsRedshift(context.Background(), config.DataSource, config.S3, nil, map[string]string{})
+		redshift, err := adapters.NewAwsRedshift(context.Background(), config.DataSource, config.S3, nil, typing.SQLTypes{})
 		if err != nil {
 			return err
 		}
@@ -91,7 +92,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		bq, err := adapters.NewBigQuery(context.Background(), config.Google, nil, map[string]string{})
+		bq, err := adapters.NewBigQuery(context.Background(), config.Google, nil, typing.SQLTypes{})
 		if err != nil {
 			return err
 		}
@@ -111,7 +112,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		if err := config.Snowflake.Validate(); err != nil {
 			return err
 		}
-		snowflake, err := adapters.NewSnowflake(context.Background(), config.Snowflake, nil, nil, map[string]string{})
+		snowflake, err := adapters.NewSnowflake(context.Background(), config.Snowflake, nil, nil, typing.SQLTypes{})
 		if err != nil {
 			return err
 		}

@@ -107,11 +107,11 @@ type Postgres struct {
 	dataSource  *sql.DB
 	queryLogger *logging.QueryLogger
 
-	mappingTypeCasts map[string]string
+	sqlTypes typing.SQLTypes
 }
 
-//NewPostgresUnderRedshift return configured Postgres adapter instance without mapping old types
-func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*Postgres, error) {
+//NewPostgresUnderRedshift returns configured Postgres adapter instance without mapping old types
+func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*Postgres, error) {
 	connectionString := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s ",
 		config.Host, config.Port.String(), config.Db, config.Username, config.Password)
 	//concat provided connection parameters
@@ -131,11 +131,11 @@ func NewPostgresUnderRedshift(ctx context.Context, config *DataSourceConfig, que
 	//set default value
 	dataSource.SetConnMaxLifetime(10 * time.Minute)
 
-	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, mappingTypeCasts: mappingTypeCasts}, nil
+	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: sqlTypes}, nil
 }
 
 //NewPostgres return configured Postgres adapter instance
-func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, mappingTypeCasts map[string]string) (*Postgres, error) {
+func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*Postgres, error) {
 	connectionString := fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s ",
 		config.Host, config.Port.String(), config.Db, config.Username, config.Password)
 	//concat provided connection parameters
@@ -155,24 +155,24 @@ func NewPostgres(ctx context.Context, config *DataSourceConfig, queryLogger *log
 	//set default value
 	dataSource.SetConnMaxLifetime(10 * time.Minute)
 
-	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, mappingTypeCasts: reformatMappings(mappingTypeCasts, SchemaToPostgres)}, nil
+	return &Postgres{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToPostgres)}, nil
 }
 
-func (Postgres) Name() string {
+func (Postgres) Type() string {
 	return "Postgres"
 }
 
-//OpenTx open underline sql transaction and return wrapped instance
+//OpenTx opens underline sql transaction and return wrapped instance
 func (p *Postgres) OpenTx() (*Transaction, error) {
 	tx, err := p.dataSource.BeginTx(p.ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Transaction{tx: tx, dbType: p.Name()}, nil
+	return &Transaction{tx: tx, dbType: p.Type()}, nil
 }
 
-//CreateDbSchema create database schema instance if doesn't exist
+//CreateDbSchema creates database schema instance if doesn't exist
 func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
@@ -182,7 +182,7 @@ func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 	return createDbSchemaInTransaction(p.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName, p.queryLogger)
 }
 
-//CreateTable create database table with name,columns provided in Table representation
+//CreateTable creates database table with name,columns provided in Table representation
 func (p *Postgres) CreateTable(table *Table) error {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
@@ -192,7 +192,7 @@ func (p *Postgres) CreateTable(table *Table) error {
 	return p.createTableInTransaction(wrappedTx, table)
 }
 
-//PatchTableSchema add new columns(from provided Table) to existing table
+//PatchTableSchema adds new columns(from provided Table) to existing table
 func (p *Postgres) PatchTableSchema(patchTable *Table) error {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
@@ -202,7 +202,7 @@ func (p *Postgres) PatchTableSchema(patchTable *Table) error {
 	return p.patchTableSchemaInTransaction(wrappedTx, patchTable)
 }
 
-//GetTableSchema return table (name,columns with name and types) representation wrapped in Table struct
+//GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
 func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
 	table, err := p.getTable(tableName)
 	if err != nil {
@@ -263,7 +263,7 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 
 	//sorting columns asc
 	sort.Strings(columnsDDL)
-	query := fmt.Sprintf(createTableTemplate, p.config.Schema, table.Name, strings.Join(columnsDDL, ","))
+	query := fmt.Sprintf(createTableTemplate, p.config.Schema, table.Name, strings.Join(columnsDDL, ", "))
 	p.queryLogger.LogDDL(query)
 
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
@@ -405,19 +405,10 @@ func (p *Postgres) toDeleteQuery(conditions *DeleteConditions) (string, []interf
 	var queryConditions []string
 	var values []interface{}
 	for i, condition := range conditions.Conditions {
-		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" $"+strconv.Itoa(i+1)+p.castClause(condition.Field))
+		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" $"+strconv.Itoa(i+1)+p.getCastClause(condition.Field))
 		values = append(values, condition.Value)
 	}
 	return strings.Join(queryConditions, conditions.JoinCondition), values
-}
-
-func (p *Postgres) castClause(field string) string {
-	castClause := ""
-	castType, ok := p.mappingTypeCasts[field]
-	if ok {
-		castClause = "::" + castType
-	}
-	return castClause
 }
 
 //BulkInsert insert objects into table in one transaction
@@ -474,11 +465,8 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 		for i, column := range header {
 			value, _ := row[column]
 			valueArgs = append(valueArgs, value)
-			castClause := ""
-			castType, ok := p.mappingTypeCasts[column]
-			if ok {
-				castClause = "::" + castType
-			}
+			castClause := p.getCastClause(column)
+
 			_, err = placeholdersBuilder.WriteString("$" + strconv.Itoa(placeholdersCounter) + castClause)
 			if err != nil {
 				return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
@@ -515,13 +503,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 	for name := range table.Columns {
 		header = append(header, name)
 
-		//$1::type, $2::type, $3, etc
-		castClause := ""
-		castType, ok := p.mappingTypeCasts[name]
-		if ok {
-			castClause = "::" + castType
-		}
-		placeholders += "$" + strconv.Itoa(i) + castClause + ","
+		placeholders += "$" + strconv.Itoa(i) + p.getCastClause(name) + ","
 
 		i++
 	}
@@ -588,21 +570,32 @@ func (p *Postgres) TablesList() ([]string, error) {
 	return tableNames, nil
 }
 
-//columnDDL return column DDL (column name, mapped sql type and 'not null' if pk field)
+//columnDDL returns column DDL (column name, mapped sql type and 'not null' if pk field)
 func (p *Postgres) columnDDL(name string, column Column, pkFields map[string]bool) string {
 	var notNullClause string
 	sqlType := column.SQLType
-	//casted
-	if castedSQLType, ok := p.mappingTypeCasts[name]; ok {
-		sqlType = castedSQLType
+
+	if overriddenSQLType, ok := p.sqlTypes[name]; ok {
+		sqlType = overriddenSQLType.ColumnType
 	}
 
 	//not null
 	if _, ok := pkFields[name]; ok {
-		notNullClause = "not null " + p.getDefaultValueStatement(sqlType)
+		notNullClause = " not null " + p.getDefaultValueStatement(sqlType)
 	}
 
-	return fmt.Sprintf(`%s %s %s`, name, sqlType, notNullClause)
+	return fmt.Sprintf(`%s %s%s`, name, sqlType, notNullClause)
+}
+
+//getCastClause returns ::SQL_TYPE clause or empty string
+//$1::type, $2::type, $3, etc
+func (p *Postgres) getCastClause(name string) string {
+	castType, ok := p.sqlTypes[name]
+	if ok {
+		return "::" + castType.Type
+	}
+
+	return ""
 }
 
 //return default value statement for creating column
@@ -688,7 +681,7 @@ func (p *Postgres) buildQueryPayload(valuesMap map[string]interface{}) (string, 
 	for name, value := range valuesMap {
 		header[i] = name
 		//$1::type, $2::type, $3, etc ($0 - wrong)
-		placeholders[i] = fmt.Sprintf("$%d%s", i+1, p.castClause(name))
+		placeholders[i] = fmt.Sprintf("$%d%s", i+1, p.getCastClause(name))
 		values[i] = value
 		i++
 	}
@@ -696,23 +689,36 @@ func (p *Postgres) buildQueryPayload(valuesMap map[string]interface{}) (string, 
 	return strings.Join(header, ", "), strings.Join(placeholders, ", "), values
 }
 
-//handle old (deprecated) mapping types //TODO remove someday
+//reformatMappings handles old (deprecated) mapping types //TODO remove someday
 //put sql types as is
 //if mapping type is inner => map with sql type
-func reformatMappings(mappingTypeCasts map[string]string, dbTypes map[typing.DataType]string) map[string]string {
-	formattedMappingTypeCasts := map[string]string{}
+func reformatMappings(mappingTypeCasts typing.SQLTypes, dbTypes map[typing.DataType]string) typing.SQLTypes {
+	formattedSqlTypes := typing.SQLTypes{}
 	for column, sqlType := range mappingTypeCasts {
-		innerType, err := typing.TypeFromString(sqlType)
+		var columnType, columnStatement typing.DataType
+		var err error
+
+		columnType, err = typing.TypeFromString(sqlType.Type)
 		if err != nil {
-			formattedMappingTypeCasts[column] = sqlType
+			formattedSqlTypes[column] = sqlType
 			continue
 		}
 
-		dbSQLType, _ := dbTypes[innerType]
-		formattedMappingTypeCasts[column] = dbSQLType
+		columnStatement, err = typing.TypeFromString(sqlType.ColumnType)
+		if err != nil {
+			formattedSqlTypes[column] = sqlType
+			continue
+		}
+
+		dbSQLType, _ := dbTypes[columnType]
+		dbColumnType, _ := dbTypes[columnStatement]
+		formattedSqlTypes[column] = typing.SQLColumn{
+			Type:       dbSQLType,
+			ColumnType: dbColumnType,
+		}
 	}
 
-	return formattedMappingTypeCasts
+	return formattedSqlTypes
 }
 
 func removeLastComma(str string) string {
