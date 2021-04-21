@@ -104,6 +104,7 @@ export default class App extends React.Component<AppProperties, AppState> {
         switch (this.state.lifecycle) {
             case AppLifecycle.REQUIRES_LOGIN:
                 let pages = this.services.showSelfHostedSignUp() ? SELFHOSTED_PAGES : PUBLIC_PAGES;
+
                 return (
                     <Switch>
                         {pages.map((route) => {
