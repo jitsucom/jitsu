@@ -227,6 +227,8 @@ func main() {
 		coordinationService = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
 	}
 
+	appconfig.Instance.ScheduleClosing(coordinationService)
+
 	// ** Destinations **
 
 	//events counters
