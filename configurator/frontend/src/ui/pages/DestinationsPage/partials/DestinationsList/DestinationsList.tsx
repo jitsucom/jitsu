@@ -9,10 +9,8 @@ import ApplicationServices from '@service/ApplicationServices';
 import {
   destinationsReferenceList,
   destinationsReferenceMap,
-  getGeneratedPath,
-  loadDestinations
+  getGeneratedPath
 } from '@page/DestinationsPage/commons';
-import { ConnectionDescription, DestinationConfig } from '@service/destinations';
 // @Components
 import {
   ActionLink,
@@ -58,9 +56,10 @@ export function getIcon(destinationType: string): any {
 const DestinationsList = () => {
   const history = useHistory();
 
-  const [error, destinations, updateDestinations] = useLoader(async() => await loadDestinations(ApplicationServices.get()));
+  const destinations = [];
+  const error = false;
 
-  const getTitle = useCallback((dst: DestinationConfig) => {
+  const getTitle = useCallback((dst: DestinationData) => {
     const configTitle = dst.connectionTestOk
       ? <>{dst.id}</> :
       <Tooltip
@@ -81,8 +80,8 @@ const DestinationsList = () => {
       : configTitle;
   }, []);
 
-  const getDescription = useCallback((dst: DestinationConfig) => {
-    const description = dst.description ?? {} as ConnectionDescription;
+  const getDescription = useCallback((dst: DestinationData) => {
+    const description = dst.description ?? {} as any;
 
     if (!description.commandLineConnect) {
       return description.displayURL;
@@ -132,11 +131,11 @@ const DestinationsList = () => {
     try {
       await appServices.storageService.save('destinations', { destinations: newDestinations }, appServices.activeProject.id);
 
-      updateDestinations(newDestinations);
+      // updateDestinations(newDestinations);
     } catch (errors) {
       handleError(errors, 'Unable to delete destination at this moment, please try later.')
     }
-  }, [updateDestinations, destinations]);
+  }, [destinations]);
 
   const handleDeleteAction = useCallback((id: string) => () => {
     Modal.confirm({
@@ -189,7 +188,7 @@ const DestinationsList = () => {
 
     <ul className={styles.list}>
       {
-        destinations.map((dst: DestinationConfig) => {
+        destinations.map((dst: DestinationData) => {
           const reference = destinationsReferenceMap[dst.type];
 
           return <ListItem
