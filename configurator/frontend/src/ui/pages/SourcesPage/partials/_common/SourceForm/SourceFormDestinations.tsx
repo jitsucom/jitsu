@@ -1,30 +1,34 @@
 // @Libs
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Avatar, Form, List, Switch, Typography } from 'antd';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Components
-import { getIconSrc } from '@page/DestinationsPage/partials/DestinationsList/DestinationsList';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Types
 import { SourceFormDestinationsProps } from './SourceForm.types';
 // @Hooks
 import useLoader from '@hooks/useLoader';
+import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
+import { Destination } from '@catalog/destinations/types';
 
 const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsProps) => {
-  const error = false;
-  const destinations = [];
+  const services = useMemo(() => ApplicationServices.get(), []);
+
+  const [error, destinations] = useLoader(
+    async() => await services.storageService.get('destinations', services.activeProject.id)
+  );
 
   const [checkedDestinations, setCheckedDestinations] = useState<string[]>(initialValues.destinations ?? []);
 
   const handleChange = useCallback((config: DestinationData) => (checked: boolean) => {
     let newDestinations;
 
-    if (checked && !checkedDestinations.includes(config.uid)) {
-      newDestinations = [...checkedDestinations, config.uid];
+    if (checked && !checkedDestinations.includes(config._uid)) {
+      newDestinations = [...checkedDestinations, config._uid];
     } else if (!checked) {
-      newDestinations = checkedDestinations.filter((destination: string) => destination !== config.uid);
+      newDestinations = checkedDestinations.filter((destination: string) => destination !== config._uid);
     }
 
     setCheckedDestinations(newDestinations);
@@ -49,7 +53,7 @@ const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsP
       <article className="mb-5">
         <p>Destination is a database where reports data will be aggregated. Read more about destinations in our <a href="https://jitsu.com/docs/destinations-configuration" target="_blank" rel="noreferrer">documentation</a>.</p>
         {
-          destinations.length > 0
+          destinations?.destinations?.length > 0
             ? <>
               <p>You have to choose at least one destination.</p>
             </>
@@ -62,21 +66,22 @@ const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsP
         initialValue={initialValues.destinations}
       >
         <List key="list" className="destinations-list" itemLayout="horizontal">
-          {destinations.map((config) => {
-            const description = config.description;
+          {destinations.destinations.map((d: DestinationData) => {
+            const destinationProto: Destination = destinationsReferenceMap[d._type];
+            const { title } = destinationProto.ui;
 
-            return <List.Item key={config.uid}>
-              <label htmlFor={config.uid} className="ant-switch-group-label">
+            return <List.Item key={d._uid}>
+              <label htmlFor={d._uid} className="ant-switch-group-label">
                 <List.Item.Meta
                   avatar={<div className="ant-switch-group-label__avatar">
-                    <Switch onChange={handleChange(config)} checked={checkedDestinations.includes(config.uid)} />
-                    <Avatar shape="square" src={getIconSrc(config.type)}/>
+                    <Switch onChange={handleChange(d)} checked={checkedDestinations.includes(d._uid)} />
+                    <Avatar shape="square" src={destinationProto.ui.icon}/>
                   </div>}
-                  description={<span className="destinations-list-show-connect-command">{description.displayURL}</span>}
-                  title={config.connectionTestOk
-                    ? config.id
+                  description={<span className="destinations-list-show-connect-command">{title(d)}</span>}
+                  title={d._connectionTestOk
+                    ? d._id
                     : <span className="destinations-list-failed-connection">
-                      <b>!</b> {config.id}
+                      <b>!</b> {d._id}
                     </span>}
                 />
               </label>
