@@ -6,12 +6,15 @@
 import React, { ReactNode, useState } from 'react';
 import { set } from 'lodash';
 import './components.less';
-import { Card, Col, message, Progress, Modal, Row, Spin, Tooltip } from 'antd';
+import { Card, Col, message, Progress, Modal, Row, Spin, Tooltip, Button } from 'antd';
 import CaretDownFilled from '@ant-design/icons/lib/icons/CaretDownFilled';
 import CaretRightFilled from '@ant-design/icons/lib/icons/CaretRightFilled';
 import CaretUpFilled from '@ant-design/icons/lib/icons/CaretUpFilled';
+import CloseCircleOutlined from '@ant-design/icons/lib/icons/CloseCircleOutlined';
 import CopyOutlined from '@ant-design/icons/lib/icons/CopyOutlined';
 import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
+import InfoCircleOutlined from '@ant-design/icons/lib/icons/InfoCircleOutlined';
+import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
 import plumber from '../../icons/plumber.png';
 
 import ApplicationServices from '../services/ApplicationServices';
@@ -159,13 +162,41 @@ export function makeErrorHandler(errorDescription: string) {
   return (error) => handleError(error, errorDescription);
 }
 
+export type MessageContent = string | ReactNode | ArgsProps;
+export type MessageFunc = (args: MessageContent) => MessageType;
+
+function messageFactory(type: string): MessageFunc {
+  const iconsByType = {
+    "error": <CloseCircleOutlined className="text-error" />,
+    "info":  <InfoCircleOutlined className="text-success" />,
+    "warn": <WarningOutlined className="text-warning" />
+  }
+  return (content: MessageContent) => {
+    const key = Math.random() + "";
+    const customization = {
+      icon: <span className="text-error hover:font-bold" onClick={() => message.destroy(key)}>{iconsByType[type]}</span>,
+      key,
+    };
+    return message[type](typeof content === 'object' && content['content'] ? {
+      ...(content as any),
+      ...customization
+    } : {...customization, content});
+  }
+}
+
+const closeableMessage = {
+  error: messageFactory('error'),
+  info: messageFactory('info'),
+  warn: messageFactory('warn')
+}
+
 /**
  * Default handler for error: show message and log error to console
  */
 export function handleError(error: any, errorDescription?: string) {
   if (errorDescription !== undefined) {
     if (error.message) {
-      message.error(`${errorDescription}: ${error.message}`);
+      closeableMessage.error(`${errorDescription}: ${error.message}`);
       console.error(`Error occurred - ${errorDescription} - ${error.message}`, error);
     } else {
       message.error(`${errorDescription}`);
@@ -369,6 +400,8 @@ import js from 'react-syntax-highlighter/dist/esm/languages/hljs/javascript';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
 import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
+import { ArgsProps, MessageInstance } from 'antd/es/message';
+import { MessageType } from 'antd/lib/message';
 
 SyntaxHighlighter.registerLanguage('javascript', js);
 SyntaxHighlighter.registerLanguage('json', json);
