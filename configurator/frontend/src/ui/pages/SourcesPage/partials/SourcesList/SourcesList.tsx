@@ -49,23 +49,12 @@ const SourcesList = ({ projectId, sources, setSources, setBreadcrumbs }: CommonS
 
   const handleDeleteSource = useCallback(
     (sourceId: string) => {
-      Modal.confirm({
-        title: 'Please confirm deletion of source',
-        icon: <ExclamationCircleOutlined/>,
-        content: 'Are you sure you want to delete ' + sourceId + ' source?',
-        okText: 'Delete',
-        cancelText: 'Cancel',
-        onOk: () => {
-          const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
+      const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
 
-          services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
-            setSources({ sources: updatedSources });
+      services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
+        setSources({ sources: updatedSources });
 
-            message.success('Sources list successfully updated');
-          });
-        },
-        onCancel: () => {
-        }
+        message.success('Sources list successfully updated');
       });
     },
     [sources, setSources, services.storageService, projectId]
