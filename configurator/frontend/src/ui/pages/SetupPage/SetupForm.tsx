@@ -12,9 +12,8 @@ import ApplicationServices from '../../../lib/services/ApplicationServices';
 import { Align, handleError } from '../../../lib/components/components';
 import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
 import BankOutlined from '@ant-design/icons/lib/icons/BankOutlined';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-import logo from '../../../icons/logo-square.svg';
 import fullLogo from '../../../icons/logo.svg';
 import { FloatingLabelInput } from '@molecule/FloatingLabelInput';
 import classNames from 'classnames';
@@ -56,25 +55,39 @@ export default function SetupForm() {
   const [emailOptout, setEmailOptout] = useState(false);
   const [usageOptout, setUsageOutout] = useState(false);
 
+
   const submit = async (values) => {
     setLoading(true)
     try {
-      await appService.userService.setupUser(
-        {
-          name: values['name'],
-          email: values['email'],
-          company: values['company_name'],
-          password: values['password'],
-          emailOptout, usageOptout
-        }
-      );
-      reloadPage();
+      const nonSensitiveUserData = {
+        name: values['name'],
+        email: values['email'],
+        company: values['company_name'],
+        emailOptout, usageOptout
+      };
+      if (!emailOptout) {
+        await appService.analyticsService.withJitsuSync(async (jitsu) => {
+          return await jitsu.track('selfhosted_email_subscribe', nonSensitiveUserData);
+        })
+      }
+      if (!usageOptout) {
+        await appService.analyticsService.withJitsuSync(async (jitsu) => {
+          const userData = { email: values['email'], uid: values['email'] };
+          await jitsu.id(appService.analyticsService.getJitsuIdPayload(userData))
+          return await jitsu.track('selfhosted_signup', {usageOptout: false});
+        });
+      } else {
+        await appService.analyticsService.withJitsuSync(async (jitsu) => {
+          return await jitsu.track('selfhosted_signup', {usageOptout: true});
+        });
+      }
+      await appService.userService.setupUser({...nonSensitiveUserData, password: values['password']});
+      //reloadPage();
     } catch (error) {
       handleError(error);
     } finally {
       setLoading(false)
     }
-
   };
 
   return (
@@ -84,14 +97,10 @@ export default function SetupForm() {
           {step === 0 && (
             <>
               <div className="text-center">
-                <img src={logo} className="h-24" />
+                <img src={fullLogo} className="h-16" />
               </div>
-              <h1 className="text-center text-5xl">Welcome to Jitsu</h1>
-              <div className="text-xl text-center pt-24">
-                Looks like Jitsu server is working! Now let’s get to know you, connect to your sources, and start collecting
-                your data!
-              </div>
-              <div className="text-center pt-24">
+              <h3 className="text-center mt-12 text-3xl">Welcome to Jitsu!</h3>
+              <div className="text-center pt-12">
                 <Button
                   size="large"
                   type="primary"

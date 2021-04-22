@@ -1,6 +1,6 @@
 /* eslint-disable */
 import React, { PureComponent, useState } from 'react';
-import { LoadableComponent, StatCard } from '../components';
+import { CodeInline, LoadableComponent, StatCard } from '../components';
 import ApplicationServices from '../../services/ApplicationServices';
 import { Button, Card, Col, Row } from 'antd';
 import './StatusPage.less';
@@ -10,7 +10,7 @@ import { isNullOrUndef, withDefaultVal } from '../../commons/utils';
 import { NavLink } from 'react-router-dom';
 import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
 import { BarChart, LineChart, Line, Bar, Legend, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-
+import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined'
 /**
  * Information about events per current period and prev
  * period
@@ -239,6 +239,20 @@ export default class StatusPage extends LoadableComponent<Props, State> {
   async getNumberOfDestinations() {
     let destinations = await this.services.storageService.get('destinations', this.services.activeProject.id);
     return destinations && destinations.destinations ? destinations.destinations.length : 0;
+  }
+
+  protected renderError(e: Error): React.ReactNode {
+
+    return <div className="w-2/4 mx-auto mt-3"><Card title={<><span className="text-warning"><WarningOutlined /></span> Dashboard cannot be displayed</>} bordered={false}>
+      <div>Connection to Jitsu server cannot be established. That's not a critical error, you still will be able to configure
+        Jitsu. However, statistic and monitoring for Jitsu Nodes won't be available. To fix that:
+        <ul className="mt-5">
+          <li>Make sure that <CodeInline>jitsu.base_url</CodeInline> property is set in Jitsu Configurator yaml file</li>
+          <li>If <CodeInline>jitsu.base_url</CodeInline> is set, make sure that this URL is accessible (not blocked by firewall) from Jitsu Configurator</li>
+        </ul>
+      </div>
+    </Card></div>
+
   }
 
   formatDate(d: Date) {

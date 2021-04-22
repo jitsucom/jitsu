@@ -220,7 +220,6 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
       this.setState({ ...newState, __lifecycle: ComponentLifecycle.LOADED });
     } catch (e) {
       this.setState(this.errorState(e));
-      handleError(e, 'Failed to load data from server');
     }
   }
 
@@ -231,12 +230,17 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
     return newState;
   }
 
+  protected renderError(e: Error): ReactNode {
+    handleError(e, 'Failed to load data from server');
+    return LoadableComponent.error(e);
+  }
+
   render() {
     let lifecycle = this.getLifecycle();
     if (lifecycle === ComponentLifecycle.WAITING) {
       return <CenteredSpin />;
     } else if (lifecycle === ComponentLifecycle.ERROR) {
-      return LoadableComponent.error(this.state['__errorObject']);
+      return this.renderError(this.state['__errorObject'])
     } else {
       try {
         return (
@@ -246,7 +250,7 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
         );
       } catch (e) {
         console.error('Error rendering state', e);
-        return LoadableComponent.error(e);
+        return this.renderError(e);
       }
     }
   }
