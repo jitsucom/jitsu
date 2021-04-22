@@ -6,34 +6,13 @@ import (
 )
 
 const (
+	//EventnKey is used as a prefix in system fields in Sources functionality
 	EventnKey       = "eventn_ctx"
 	collectionIDKey = "collection_id"
 	TimeChunkKey    = "time_interval"
 
-	EventIDKey = "event_id"
-
-	EventnCtxEventID = "eventn_ctx_event_id"
-
 	SrcKey = "src"
 )
-
-//EnrichWithEventID put eventID to EventnKey_EventIDKey key if it doesn't exist there or if there is an empty string
-func EnrichWithEventID(object map[string]interface{}, eventID string) {
-	eventnObject, ok := object[EventnKey]
-	if !ok {
-		eventnObject = map[string]interface{}{EventIDKey: eventID}
-		object[EventnKey] = eventnObject
-	} else {
-		if eventn, ok := eventnObject.(map[string]interface{}); ok {
-			val, ok := eventn[EventIDKey]
-			if !ok || val == "" {
-				eventn[EventIDKey] = eventID
-			}
-		} else {
-			object[EventnCtxEventID] = eventID
-		}
-	}
-}
 
 func EnrichWithCollection(object map[string]interface{}, collection string) {
 	eventnObject, ok := object[EventnKey]
