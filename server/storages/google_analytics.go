@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -14,13 +15,14 @@ import (
 
 //GoogleAnalytics stores events to Google Analytics in stream mode
 type GoogleAnalytics struct {
-	name            string
+	destinationID   string
 	gaAdapter       *adapters.GoogleAnalytics
 	tableHelper     *TableHelper
 	processor       *schema.Processor
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
+	uniqueIDField   *identifiers.UniqueID
 	staged          bool
 }
 
@@ -46,12 +48,13 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToGoogleAnalytics, config.streamMode, 0)
 
 	ga := &GoogleAnalytics{
-		name:           config.destinationID,
+		destinationID:  config.destinationID,
 		gaAdapter:      gaAdapter,
 		tableHelper:    tableHelper,
 		processor:      config.processor,
 		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:    config.eventsCache,
+		uniqueIDField:  config.uniqueIDField,
 		staged:         config.destination.Staged,
 	}
 
@@ -65,37 +68,49 @@ func (ga *GoogleAnalytics) DryRun(payload events.Event) ([]adapters.TableField, 
 	return dryRun(payload, ga.processor, ga.tableHelper)
 }
 
+//Insert sends event to Google Analytics
 func (ga *GoogleAnalytics) Insert(table *adapters.Table, event events.Event) (err error) {
 	return ga.gaAdapter.Send(event)
 }
 
+//Store isn't supported
 func (ga *GoogleAnalytics) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
 	return nil, nil, errors.New("GoogleAnalytics doesn't support Store() func")
 }
 
+//SyncStore isn't supported
 func (ga *GoogleAnalytics) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
 	return errors.New("GoogleAnalytics doesn't support SyncStore() func")
 }
 
+//Update isn't supported
 func (ga *GoogleAnalytics) Update(object map[string]interface{}) error {
 	return errors.New("GoogleAnalytics doesn't support updates")
 }
 
+//GetUsersRecognition returns users recognition configuration
 func (ga *GoogleAnalytics) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
 
-//Fallback log event with error to fallback logger
+//GetUniqueIDField returns unique ID field configuration
+func (ga *GoogleAnalytics) GetUniqueIDField() *identifiers.UniqueID {
+	return ga.uniqueIDField
+}
+
+//Fallback logs event with error to fallback logger
 func (ga *GoogleAnalytics) Fallback(failedEvents ...*events.FailedEvent) {
 	for _, failedEvent := range failedEvents {
 		ga.fallbackLogger.ConsumeAny(failedEvent)
 	}
 }
 
+//ID returns destination ID
 func (ga *GoogleAnalytics) ID() string {
-	return ga.name
+	return ga.destinationID
 }
 
+//Type returns Google Analytics type
 func (ga *GoogleAnalytics) Type() string {
 	return GoogleAnalyticsType
 }
@@ -104,6 +119,7 @@ func (ga *GoogleAnalytics) IsStaging() bool {
 	return ga.staged
 }
 
+//Close closes GoogleAnalytics adapter, fallback logger and streaming worker
 func (ga *GoogleAnalytics) Close() (multiErr error) {
 	if err := ga.gaAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing GoogleAnalytics client: %v", ga.ID(), err))

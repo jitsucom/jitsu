@@ -34,8 +34,8 @@ type EventIdentifiers struct {
 	IdentificationValues map[string]interface{}
 }
 
-// RecognitionPayloadBuilder creates and returns a new *RecognitionPayload (must be pointer).
-// This is used when we load a segment of the queue from disk.
+//RecognitionPayloadBuilder creates and returns a new *RecognitionPayload (must be pointer).
+//This is used when we load a segment of the queue from disk.
 func RecognitionPayloadBuilder() interface{} {
 	return &RecognitionPayload{}
 }
@@ -62,7 +62,7 @@ type RecognitionService struct {
 	closed bool
 }
 
-//NewRecognitionService create a new RecognitionService if enabled and if metaStorage configuration exists
+//NewRecognitionService creates a new RecognitionService if enabled and if metaStorage configuration exists
 func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service, configuration *storages.UsersRecognition, logEventPath string) (*RecognitionService, error) {
 	if configuration == nil || !configuration.Enabled {
 		logging.Info("Global Users recognition is disabled. Destinations users recognition configurations will be skipped!")
@@ -143,12 +143,12 @@ func (rs *RecognitionService) start() {
 }
 
 //Event consumes events.Event and put it to the recognition queue
-func (rs *RecognitionService) Event(event events.Event, destinationIDs []string) {
+func (rs *RecognitionService) Event(event events.Event, eventID string, destinationIDs []string) {
 	if rs.closed {
 		return
 	}
 
-	destinationIdentifiers := rs.getDestinationsForRecognition(event, destinationIDs)
+	destinationIdentifiers := rs.getDestinationsForRecognition(event, eventID, destinationIDs)
 
 	rp := &RecognitionPayload{EventBytes: []byte(event.Serialize()), DestinationsIdentifiers: destinationIdentifiers}
 	err := rs.queue.Enqueue(rp)
@@ -160,7 +160,7 @@ func (rs *RecognitionService) Event(event events.Event, destinationIDs []string)
 	metrics.EnqueuedRecognitionEvent()
 }
 
-func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, destinationIDs []string) map[string]EventIdentifiers {
+func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, eventID string, destinationIDs []string) map[string]EventIdentifiers {
 	identifiers := map[string]EventIdentifiers{}
 	for _, destinationID := range destinationIDs {
 		storageProxy, ok := rs.destinationService.GetStorageByID(destinationID)
@@ -203,7 +203,7 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 		properties, ok := configuration.IdentificationJSONPathes.Get(event)
 
 		identifiers[destinationID] = EventIdentifiers{
-			EventID:              events.ExtractEventID(event),
+			EventID:     eventID,
 			AnonymousID:          anonymousIDStr,
 			IdentificationValues: properties,
 		}
