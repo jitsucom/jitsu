@@ -200,15 +200,15 @@ export function handleError(error: any, errorDescription?: string) {
       closeableMessage.error(`${errorDescription}: ${error.message}`);
       console.error(`Error occurred - ${errorDescription} - ${error.message}`, error);
     } else {
-      message.error(`${errorDescription}`);
+      closeableMessage.error(`${errorDescription}`);
       console.error(`Error occurred - ${errorDescription}`, error);
     }
   } else {
     if (error.message) {
-      message.error(`${error.message}`);
+      closeableMessage.error(`${error.message}`);
       console.error(`Error occurred - ${error.message}`, error);
     } else {
-      message.error('Unknown error');
+      closeableMessage.error('Unknown error');
       console.error(`Error occurred`, error);
     }
   }
