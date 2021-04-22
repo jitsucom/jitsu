@@ -162,9 +162,6 @@ export function makeErrorHandler(errorDescription: string) {
   return (error) => handleError(error, errorDescription);
 }
 
-export type MessageContent = string | ReactNode | ArgsProps;
-export type MessageFunc = (args: MessageContent) => MessageType;
-
 function messageFactory(type: string): MessageFunc {
   const iconsByType = {
     "error": <CloseCircleOutlined className="text-error" />,
@@ -184,7 +181,11 @@ function messageFactory(type: string): MessageFunc {
   }
 }
 
-const closeableMessage = {
+
+export type MessageContent = string | ReactNode | ArgsProps;
+export type MessageFunc = (args: MessageContent) => MessageType;
+
+const closeableMessage: Record<'error' | 'info' | 'warn', MessageFunc> = {
   error: messageFactory('error'),
   info: messageFactory('info'),
   warn: messageFactory('warn')
