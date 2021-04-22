@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -17,7 +18,7 @@ import (
 //batch: via aws s3 in batch mode (1 file = 1 statement)
 //stream: via events queue in stream mode (1 object = 1 statement)
 type AwsRedshift struct {
-	name                          string
+	destinationID                 string
 	s3Adapter                     *adapters.S3
 	redshiftAdapter               *adapters.AwsRedshift
 	tableHelper                   *TableHelper
@@ -26,6 +27,7 @@ type AwsRedshift struct {
 	fallbackLogger                *logging.AsyncLogger
 	eventsCache                   *caching.EventsCache
 	usersRecognitionConfiguration *UserRecognitionConfiguration
+	uniqueIDField                 *identifiers.UniqueID
 	staged                        bool
 }
 
@@ -78,7 +80,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.streamMode, config.maxColumns)
 
 	ar := &AwsRedshift{
-		name:                          config.destinationID,
+		destinationID:                 config.destinationID,
 		s3Adapter:                     s3Adapter,
 		redshiftAdapter:               redshiftAdapter,
 		tableHelper:                   tableHelper,
@@ -86,6 +88,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:                   config.eventsCache,
 		usersRecognitionConfiguration: config.usersRecognition,
+		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
 	}
 
@@ -154,9 +157,9 @@ func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, 
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				ar.eventsCache.Error(ar.ID(), events.ExtractEventID(object), err.Error())
+				ar.eventsCache.Error(ar.ID(), ar.uniqueIDField.Extract(object), err.Error())
 			} else {
-				ar.eventsCache.Succeed(ar.ID(), events.ExtractEventID(object), object, table)
+				ar.eventsCache.Succeed(ar.ID(), ar.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
@@ -220,7 +223,7 @@ func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	}
 
 	start := time.Now()
-	if err = ar.redshiftAdapter.Update(dbSchema, processedObject, events.EventnCtxEventID, events.ExtractEventID(object)); err != nil {
+	if err = ar.redshiftAdapter.Update(dbSchema, processedObject, ar.uniqueIDField.GetFlatFieldName(), ar.uniqueIDField.Extract(object)); err != nil {
 		return err
 	}
 	logging.Debugf("[%s] Updated 1 row in [%.2f] seconds", ar.ID(), time.Now().Sub(start).Seconds())
@@ -228,16 +231,22 @@ func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	return nil
 }
 
-//GetUsersRecognition returns users recognition settings
+//GetUsersRecognition returns users recognition configuration
 func (ar *AwsRedshift) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ar.usersRecognitionConfiguration
 }
 
-//Name returns destination ID
-func (ar *AwsRedshift) ID() string {
-	return ar.name
+//GetUniqueIDField returns unique ID field configuration
+func (ar *AwsRedshift) GetUniqueIDField() *identifiers.UniqueID {
+	return ar.uniqueIDField
 }
 
+//ID returns destination ID
+func (ar *AwsRedshift) ID() string {
+	return ar.destinationID
+}
+
+//Type returns Redshift type
 func (ar *AwsRedshift) Type() string {
 	return RedshiftType
 }
@@ -246,6 +255,7 @@ func (ar *AwsRedshift) IsStaging() bool {
 	return ar.staged
 }
 
+//Close closes AwsRedshift adapter, fallback logger and streaming worker
 func (ar *AwsRedshift) Close() (multiErr error) {
 	if err := ar.redshiftAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing redshift datasource: %v", ar.ID(), err))

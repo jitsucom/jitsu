@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/drivers"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
@@ -18,6 +17,7 @@ import (
 	"strings"
 )
 
+//ResultSaver is a Singer result consumer
 type ResultSaver struct {
 	task         *meta.Task
 	tap          string
@@ -26,6 +26,7 @@ type ResultSaver struct {
 	metaStorage  meta.Storage
 }
 
+//NewResultSaver returns configured Singer ResultSaver instance
 func NewResultSaver(task *meta.Task, tap string, taskLogger *TaskLogger, destinations []storages.Storage, metaStorage meta.Storage) *ResultSaver {
 	return &ResultSaver{
 		task:         task,
@@ -36,9 +37,13 @@ func NewResultSaver(task *meta.Task, tap string, taskLogger *TaskLogger, destina
 	}
 }
 
+//Consume consumes result batch and writes it to destinations and saves Singer State
 func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) error {
 	for tableName, stream := range representation.Streams {
 		rs.taskLogger.INFO("Table [%s] key fields [%s] objects [%d]", tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
+
+		//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
+		uniqueIDField := rs.destinations[0].GetUniqueIDField()
 
 		for _, object := range stream.Objects {
 			//enrich with system fields values
@@ -52,7 +57,11 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 			} else {
 				eventID = uuid.GetHash(object)
 			}
-			events.EnrichWithEventID(object, eventID)
+
+			if err := uniqueIDField.Set(object, eventID); err != nil {
+				b, _ := json.Marshal(object)
+				return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
+			}
 		}
 
 		rowsCount := len(stream.Objects)

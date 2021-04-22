@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"io"
 	"os"
 
@@ -22,6 +23,8 @@ type AppConfig struct {
 	GlobalQueryLogsWriter io.Writer
 	SingerLogsWriter      io.Writer
 	DisableSkipEventsWarn bool
+
+	GlobalUniqueIDField *identifiers.UniqueID
 
 	closeMe []io.Closer
 }
@@ -48,6 +51,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.cache.events.size", 100)
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
+	viper.SetDefault("server.unique_id_field", "/eventn_ctx/event_id")
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
@@ -163,6 +167,7 @@ func Init(containerized bool, dockerHubID string) error {
 	appConfig.UaResolver = useragent.NewResolver()
 	appConfig.GeoResolver = loadGeoResolver()
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
+	appConfig.GlobalUniqueIDField = identifiers.NewUniqueID(viper.GetString("server.unique_id_field"))
 
 	Instance = &appConfig
 	return nil

@@ -3,6 +3,7 @@ package storages
 import (
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/schema"
 	"io"
@@ -27,6 +28,7 @@ type Storage interface {
 	Update(object map[string]interface{}) error
 	Fallback(events ...*events.FailedEvent)
 	GetUsersRecognition() *UserRecognitionConfiguration
+	GetUniqueIDField() *identifiers.UniqueID
 	ID() string
 	Type() string
 	IsStaging() bool
@@ -35,6 +37,8 @@ type Storage interface {
 type StorageProxy interface {
 	io.Closer
 	Get() (Storage, bool)
+	GetUniqueIDField() *identifiers.UniqueID
+	ID() string
 }
 
 type StoreResult struct {
