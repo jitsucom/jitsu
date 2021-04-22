@@ -77,7 +77,7 @@ func (sw *StreamingWorker) start() {
 			if err != nil {
 				if err == schema.ErrSkipObject {
 					if !appconfig.Instance.DisableSkipEventsWarn {
-						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.ID(), events.ExtractEventID(fact), err)
+						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err)
 					}
 
 					counters.SkipEvents(sw.streamingStorage.ID(), 1)
@@ -92,12 +92,12 @@ func (sw *StreamingWorker) start() {
 					sw.streamingStorage.Fallback(&events.FailedEvent{
 						Event:   []byte(serialized),
 						Error:   err.Error(),
-						EventID: events.ExtractEventID(fact),
+						EventID: sw.streamingStorage.GetUniqueIDField().Extract(fact),
 					})
 				}
 
 				//cache
-				sw.eventsCache.Error(sw.streamingStorage.ID(), events.ExtractEventID(fact), err.Error())
+				sw.eventsCache.Error(sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err.Error())
 
 				continue
 			}
@@ -121,7 +121,7 @@ func (sw *StreamingWorker) start() {
 					sw.streamingStorage.Fallback(&events.FailedEvent{
 						Event:   []byte(fact.Serialize()),
 						Error:   err.Error(),
-						EventID: events.ExtractEventID(flattenObject),
+						EventID: sw.streamingStorage.GetUniqueIDField().Extract(flattenObject),
 					})
 				}
 
@@ -129,7 +129,7 @@ func (sw *StreamingWorker) start() {
 				telemetry.Error(tokenID, sw.streamingStorage.ID(), events.ExtractSrc(fact), 1)
 
 				//cache
-				sw.eventsCache.Error(sw.streamingStorage.ID(), events.ExtractEventID(fact), err.Error())
+				sw.eventsCache.Error(sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err.Error())
 
 				metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.ID())
 				continue
@@ -139,7 +139,7 @@ func (sw *StreamingWorker) start() {
 			telemetry.Event(tokenID, sw.streamingStorage.ID(), events.ExtractSrc(fact), 1)
 
 			//cache
-			sw.eventsCache.Succeed(sw.streamingStorage.ID(), events.ExtractEventID(fact), flattenObject, table)
+			sw.eventsCache.Succeed(sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), flattenObject, table)
 
 			metrics.SuccessTokenEvent(tokenID, sw.streamingStorage.ID())
 

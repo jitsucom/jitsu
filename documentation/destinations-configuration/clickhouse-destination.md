@@ -21,7 +21,7 @@ destinations:
       db: mydb
       cluster: mycluster
       engine:
-        raw_statement: 'ENGINE = ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id)' #optional
+        raw_statement: 'ENGINE = ReplacingMergeTree(_timestamp) ORDER BY (event_id)' #Optional
         nullable_fields:
           - middle_name
           - event_description
@@ -33,7 +33,7 @@ destinations:
           - function: intHash32
             field: id
         primary_keys:
-          - eventn_ctx_event_id
+          - event_id #Must be equal to server.unique_id_field
       tls:
         maincert: path_to_crt_file
 ```
@@ -52,11 +52,15 @@ If **engine** wasn't provided default one \(depends on cluster configuration\) w
 
 ```yaml
 #if ClickHouse single server (dsns = 1)
-ReplacingMergeTree(_timestamp) PARTITION BY toYYYYMM(_timestamp) ORDER BY (eventn_ctx_event_id) 
+ReplacingMergeTree(_timestamp) PARTITION BY toYYYYMM(_timestamp) ORDER BY ($server.unique_id_field) 
 
 #if ClickHouse cluster (dsns > 1)
-ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/$db/$tablename', '{replica}', _timestamp) PARTITION BY toYYYYMM(_timestamp) ORDER BY (eventn_ctx_event_id) 
+ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/$db/$tablename', '{replica}', _timestamp) PARTITION BY toYYYYMM(_timestamp) ORDER BY ($server.unique_id_field)
 ```
+
+`$server.unique_id_field` - is a global configuration of events unique ID depends on type of Jitsu JS SDK.
+For JS SDK 2.0: `server.unique_id_field = event_id`
+For the oldest one: `server.unique_id_field = eventn_ctx_event_id`
 
 
 ## Engine
@@ -105,7 +109,7 @@ ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/$db/$tablename', '{repl
       <td>field object array</td>
       <td>Array of <b>field</b>  <b>objects</b> will be used in ORDER BY ($order_fields)
         statement</td>
-      <td><code inline={true}>eventn_ctx_event_id</code>
+      <td><code inline={true}>$server.unique_id_field</code>
       </td>
     </tr>
     <tr>

@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/telemetry"
@@ -8,6 +9,7 @@ import (
 	"time"
 )
 
+//RetryableProxy creates Storage with retry (if create fails e.g. because of connection issue)
 type RetryableProxy struct {
 	sync.RWMutex
 	factoryMethod func(*Config) (Storage, error)
@@ -18,12 +20,14 @@ type RetryableProxy struct {
 	closed  bool
 }
 
+//newProxy return New RetryableProxy and starts goroutine
 func newProxy(factoryMethod func(*Config) (Storage, error), config *Config) StorageProxy {
 	rsp := &RetryableProxy{factoryMethod: factoryMethod, config: config}
 	rsp.start()
 	return rsp
 }
 
+//start runs a new goroutine for calling factoryMethod 1 time per 1 minute
 func (rsp *RetryableProxy) start() {
 	safego.RunWithRestart(func() {
 		for {
@@ -51,12 +55,24 @@ func (rsp *RetryableProxy) start() {
 	}).WithRestartTimeout(1 * time.Minute)
 }
 
+//Get returns underlying destination storage and ready flag
 func (rsp *RetryableProxy) Get() (Storage, bool) {
 	rsp.RLock()
 	defer rsp.RUnlock()
 	return rsp.storage, rsp.ready
 }
 
+//GetUniqueIDField returns unique ID field configuration
+func (rsp *RetryableProxy) GetUniqueIDField() *identifiers.UniqueID {
+	return rsp.config.uniqueIDField
+}
+
+//ID returns destination ID
+func (rsp *RetryableProxy) ID() string {
+	return rsp.config.destinationID
+}
+
+//Close stops underlying goroutine and close the storage
 func (rsp *RetryableProxy) Close() error {
 	rsp.closed = true
 	if rsp.storage != nil {
