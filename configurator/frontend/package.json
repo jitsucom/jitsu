@@ -21,6 +21,7 @@
     "craco-less": "^1.17.1",
     "firebase": "^8.3.0",
     "logrocket": "^1.0.14",
+    "murmurhash": "^2.0.0",
     "posthog-js": "^1.9.1",
     "react": "^17.0.1",
     "react-codemirror2": "7.1.0",

@@ -21,7 +21,10 @@ module.exports = {
         DEFAULT: '#394e5a'
       },
       primary: {
-        DEFAULT: '#27a4fb'
+        DEFAULT: 'rgb(91, 20, 250)'
+      },
+      primaryHover: {
+        DEFAULT: 'rgb(65, 6, 212)'
       },
       link: {
         DEFAULT: 'rgb(135, 138, 252)'
