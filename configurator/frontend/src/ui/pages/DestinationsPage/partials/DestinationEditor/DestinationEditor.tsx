@@ -176,7 +176,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
 
   return (
     <>
-      <div className={cn('flex flex-col items-stretch', styles.wrapper)}>
+      <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
         <div className={cn('flex-grow', styles.mainArea)}>
           <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={0} />
         </div>
