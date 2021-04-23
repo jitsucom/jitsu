@@ -1,16 +1,18 @@
 // @Libs
 import React from 'react';
-import { Avatar, Form, List, Switch } from 'antd';
+import { Form, Switch } from 'antd';
+import { Link } from 'react-router-dom';
 // @Hooks
 import useLoader from '@hooks/useLoader';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Components
+import { ListItem } from '@molecule/ListItem';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
+// @Catalog sources
 import { allSources } from '@catalog/sources/lib';
-import { ListItem } from '@molecule/ListItem';
 
 export interface Props {
   form: FormInstance;
@@ -28,7 +30,15 @@ const DestinationEditorSources = ({ form }: Props) => {
   }
 
   return (
-    <div>
+    <>
+      <h3>Choose connectors</h3>
+      <article className="mb-5">
+        <p>Connector is a source of data from platform API or database. You can read more about connectors in our <a href="https://jitsu.com/docs/sources-configuration" target="_blank" rel="noreferrer">documentation</a>.</p>
+        {
+          sourcesData.sources?.length === 0 && <p>If you haven't added any connectors yet you can do it <Link to="/sources">here</Link>.</p>
+        }
+      </article>
+
       <Form form={form} name="connected-sources">
         <Form.Item
           name="sources"
@@ -36,9 +46,7 @@ const DestinationEditorSources = ({ form }: Props) => {
           <ul>
             {
               sourcesData.sources?.map((source: SourceData) => {
-                // console.log('source: ', source);
                 const proto = allSources.find(sourceConnector => sourceConnector.id === source.sourceProtoType);
-                // console.log('proto: ', proto);
 
                 return <ListItem
                   prefix={<Switch />}
@@ -50,30 +58,9 @@ const DestinationEditorSources = ({ form }: Props) => {
               })
             }
           </ul>
-          {/*<List key="list" className="destinations-list" itemLayout="horizontal">*/}
-          {/*  {sourcesData.sources?.map((source: SourceData) => {*/}
-          {/*    const proto = allSources.find(sourceConnector => sourceConnector.id === source.sourceProtoType);*/}
-
-          {/*    return <List.Item key={source.sourceId}>*/}
-          {/*      <label htmlFor={source.sourceId} className="ant-switch-group-label">*/}
-          {/*        <List.Item.Meta*/}
-          {/*          avatar={<div className="ant-switch-group-label__avatar">*/}
-          {/*            <Switch />*/}
-          {/*            <span>{proto.pic}</span>*/}
-          {/*          </div>}*/}
-          {/*          title={source.connected*/}
-          {/*            ? source.sourceId*/}
-          {/*            : <span className="destinations-list-failed-connection">*/}
-          {/*              <b>!</b> {source.sourceId}*/}
-          {/*            </span>}*/}
-          {/*        />*/}
-          {/*      </label>*/}
-          {/*    </List.Item>*/}
-          {/*  })}*/}
-          {/*</List>*/}
         </Form.Item>
       </Form>
-    </div>
+    </>
   );
 };
 
