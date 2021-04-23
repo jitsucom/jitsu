@@ -1,9 +1,11 @@
 // @Libs
-import React, { memo } from 'react';
+import React from 'react';
 import { Tabs } from 'antd';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { TabsType } from 'antd/es/tabs';
+// @Components
+import { TabName } from '@atom/TabName';
 
 export interface Tab {
   key: string;
@@ -12,6 +14,7 @@ export interface Tab {
   isDisabled?: boolean;
   form?: FormInstance;
   errorsCount?: number;
+  errorsLevel?: 'warning' | 'error';
 }
 
 export interface Props {
@@ -21,22 +24,25 @@ export interface Props {
   defaultTabIndex?: number;
 }
 
-const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex = 0 }: Props) => {
-  return (
-    <Tabs type={type} className={className} defaultActiveKey={tabsList[defaultTabIndex]?.key ?? tabsList[0].key}>
-      {
-        tabsList.map((tab: Tab) =>  (
-          <React.Fragment key={tab.key}>
-            <Tabs.TabPane key={tab.key} tab={tab.name} disabled={tab.isDisabled} forceRender>
-              {tab.getComponent && tab.getComponent(tab.form)}
-            </Tabs.TabPane>
-          </React.Fragment>
-        ))
-      }
-    </Tabs>
-  );
-};
+const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex = 0 }: Props) => (
+  <Tabs type={type} className={className} defaultActiveKey={tabsList[defaultTabIndex]?.key ?? tabsList[0].key}>
+    {
+      tabsList.map((tab: Tab) =>  (
+        <React.Fragment key={tab.key}>
+          <Tabs.TabPane
+            key={tab.key}
+            tab={<TabName name={tab.name} errorsCount={tab.errorsCount} errorsLevel={tab.errorsLevel} />}
+            disabled={tab.isDisabled}
+            forceRender
+          >
+            {tab.getComponent?.(tab.form)}
+          </Tabs.TabPane>
+        </React.Fragment>
+      ))
+    }
+  </Tabs>
+);
 
 TabsConfiguratorComponent.displayName = 'TabsConfigurator';
-
-export const TabsConfigurator = memo(TabsConfiguratorComponent);
+// ToDo: memo with compare?
+export const TabsConfigurator = TabsConfiguratorComponent;
