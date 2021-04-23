@@ -74,11 +74,52 @@ export type RawConfigObject = {
   };
 };
 
-export type BackendConfiguration = {
-  authorization: string;
+export type FeatureSettings = {
+  /**
+   * Application type (name)
+   */
+  appName: 'jitsu_cloud' | 'selfhosted';
+
+  /**
+   * Authorization type
+   */
+  authorization: 'redis' | 'firebase';
+  /**
+   * If is there any users in backend DB (no users means we need to run a setup flow)
+   */
   users: boolean;
+  /**
+   * If SMTP configured on a server and reset password links should work
+   */
   smtp: boolean;
-  selfhosted: boolean;
+  /**
+   * If demo database should be created
+   */
+  createDemoDatabase: boolean
+
+  /**
+   * If custom domains should be enabled
+   */
+  enableCustomDomains: boolean
+
+  /**
+   * If statistics we send to Jitsu should be anonymous
+   */
+  anonymizeUsers: boolean
+
+  /**
+   * Jitsu Domain
+   */
+  jitsuBaseUrl?: string
+
+  /**
+   * Slack - once user clicks on icon, it should be directed to slack
+   *
+   */
+  chatSupportType: 'slack' | 'chat'
+
+
+
 };
 
 function parseJson(envVar, defaultValue) {
@@ -109,7 +150,7 @@ export default class ApplicationServices {
   private readonly _storageService: ServerStorage;
 
   private _userService: UserService;
-  private _backendConfiguration: BackendConfiguration;
+  private _features: FeatureSettings;
 
   public onboardingNotCompleteErrorMessage =
     "Onboarding process hasn't been fully completed. Please, contact the support";
@@ -129,7 +170,8 @@ export default class ApplicationServices {
   //load backend configuration and create user service depend on authorization type
   async init() {
     let configuration = await this.loadBackendConfiguration();
-    this._backendConfiguration = configuration;
+    this._features = configuration;
+    this._analyticsService.configure(this._features);
 
     if (configuration.authorization == 'redis' || !this._applicationConfiguration.firebaseConfig) {
       this._userService = new BackendUserService(this._backendApiClient, this._storageService, configuration.smtp);
@@ -177,7 +219,10 @@ export default class ApplicationServices {
     return this._backendApiClient;
   }
 
-  private async loadBackendConfiguration(): Promise<BackendConfiguration> {
+  get features(): FeatureSettings {
+    return this._features;
+  }
+  private async loadBackendConfiguration(): Promise<FeatureSettings> {
     let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, '/system/configuration');
     let request: AxiosRequestConfig = {
       method: 'GET',
@@ -185,38 +230,20 @@ export default class ApplicationServices {
       transformResponse: JSON_FORMAT
     };
 
-    return new Promise<any>((resolve, reject) => {
-      axios(request)
-        .then((response: AxiosResponse<any>) => {
-          if (response.status == 200) {
-            resolve(response.data);
-          } else if (response.status == 204) {
-            resolve({});
-          } else {
-            let error = new APIError(response, request);
-            reject(error);
-          }
-        })
-        .catch((error) => {
-          if (error.response) {
-            reject(new APIError(error.response, request));
-          } else {
-            let baseMessage = 'Request at ' + fullUrl + ' failed';
-            if (error.message) {
-              baseMessage += ' with ' + error.message;
-            }
-            this.analyticsService.onFailedAPI({
-              method: request.method,
-              url: request.url,
-              requestPayload: request.data,
-              responseStatus: -1,
-              errorMessage: baseMessage
-            });
-            reject(error);
-            reject(new Error(baseMessage));
-          }
-        });
-    });
+    let response = await axios(request);
+    if (response.status == 200) {
+      return {
+        ...(response.data),
+        createDemoDatabase: !response.data.selfhosted,
+        users: !response.data.selfhosted || response.data.users,
+        enableCustomDomains: !response.data.selfhosted,
+        anonymizeUsers: !!response.data.selfhosted,
+        appName: response.data.selfhosted ? 'selfhosted' : 'jitsu_cloud',
+        chatSupportType: response.data.selfhosted ? 'slack' : 'chat'
+      };
+    } else {
+      throw new APIError(response, request);
+    }
   }
 
   public async initializeDefaultDestination() {
@@ -240,9 +267,7 @@ export default class ApplicationServices {
     await this._storageService.save('destinations', { destinations: [destinationConfig] }, this.activeProject.id);
   }
 
-  public async initializeDefaultApiKey() {
-    await this._backendApiClient.post('/apikeys/default', { projectId: this.activeProject.id });
-  }
+
 
   generateToken(): any {
     return {
@@ -258,12 +283,8 @@ export default class ApplicationServices {
     return this._applicationConfiguration;
   }
 
-  public isSelfHosted(): boolean {
-    return this._backendConfiguration.selfhosted;
-  }
-
   public showSelfHostedSignUp(): boolean {
-    return this.isSelfHosted() && !this._backendConfiguration.users;
+    return !this._features.users;
   }
 }
 
