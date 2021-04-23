@@ -45,7 +45,16 @@ export default function OnboardingForm(props: Props) {
       let user = services.userService.getUser();
 
       //send conversion
-      services.analyticsService.onSignup(user.email);
+      services.analyticsService.withJitsu((jitsu => {
+        jitsu.track('signup', {
+          app: services.features.appName,
+          eventn_ctx: {
+            user: {
+              email: user.email
+            }
+          }
+        });
+      }));
 
       user.onboarded = true;
       user.projects = [new Project(Utils.randomId(), values['projectName'])];
@@ -56,12 +65,6 @@ export default function OnboardingForm(props: Props) {
       user.emailOptout = emailOptout;
 
       await services.userService.update(user);
-
-      if (!services.isSelfHosted()) {
-        //saas
-        await services.initializeDefaultDestination();
-        await services.initializeDefaultApiKey();
-      }
 
       props.onCompleted();
     } catch (e) {

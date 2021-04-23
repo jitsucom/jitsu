@@ -87,7 +87,7 @@ const SourceFormDestinations = ({ initialValues, form }: SourceFormDestinationsP
       </Form.Item>
 
       {
-        (!form.getFieldsValue()?.destinations || form.getFieldsValue()?.destinations?.length === 0) && <Typography.Text type="warning">Please, choose at least one destination.</Typography.Text>
+        destinations.length > 0 && checkedDestinations.length === 0 && <Typography.Text type="warning">Please, choose at least one destination.</Typography.Text>
       }
     </>
   );

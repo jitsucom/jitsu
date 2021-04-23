@@ -1,5 +1,5 @@
 /* eslint-disable */
-import React, { ReactElement, useEffect, useState } from 'react';
+import React, { ReactElement, useState } from 'react';
 import { Button, Input, message, Modal, Select, Space, Switch, Table, Tabs, Tooltip } from 'antd';
 import ApplicationServices from '../../services/ApplicationServices';
 
@@ -7,25 +7,10 @@ import CodeFilled from '@ant-design/icons/lib/icons/CodeFilled';
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 
 import './ApiKeys.less';
-import {
-  ActionLink,
-  CenteredError,
-  CenteredSpin,
-  CodeInline,
-  CodeSnippet,
-  handleError,
-  LabelWithTooltip,
-  LoadableComponent
-} from '../components';
+import { ActionLink, CenteredError, CenteredSpin, CodeInline, CodeSnippet, handleError, LabelWithTooltip, LoadableComponent } from '../components';
 import { copyToClipboard, randomId } from '../../commons/utils';
 import TagsInput from '../TagsInput/TagsInput';
-import {
-  EVENTNATIVE_HOST,
-  getCurlDocumentation,
-  getEmpeddedJS,
-  getNPMDocumentation
-} from '../../commons/api-documentation';
-import { FlexContainer, FlexItem } from '../flex';
+import { getCurlDocumentation, getEmpeddedJS, getNPMDocumentation } from '../../commons/api-documentation';
 import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 import useLoader from '@./lib/commons/useLoader';
@@ -74,16 +59,34 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
   }
 
   protected renderReady() {
-    let header = (
-      <FlexContainer
-        direction="left-to-right"
-        justifyContent="space-between"
-        className="api-keys-buttons-header"
-        alignContent="flex-end"
-      >
-        <FlexItem>{this.generateButton()}</FlexItem>
-      </FlexContainer>
-    );
+    let header = <div className="flex flex-row mb-5 items-start">
+      <div>{(
+        <Button
+          type="primary"
+          size="large"
+          icon={<PlusOutlined/>}
+          loading={'NEW' === this.state.loading}
+          onClick={async() => {
+            let newToken = {
+              uid: this.newToken('', 6),
+              serverAuth: this.newToken('s2s'),
+              jsAuth: this.newToken('js'),
+              origins: []
+            };
+            let newTokens = [...this.state.tokens, newToken];
+            await this.saveTokens(newTokens, 'NEW');
+            message.info('New token has been saved!');
+          }}
+        >
+          Generate New Key
+        </Button>
+      )}</div>
+      <div className="text-secondaryText text-sm ml-4">
+        Generate API key to start sending events from your app or website. You can embed tracking code right into you website, use
+        npm package within your webapp. <br />Once key is generated, check out embedding instructions for each key
+      </div>
+    </div>
+
     const columns = [
       {
         width: '250px',
@@ -137,7 +140,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
             documentation={
               <>
                 Client API Key. Should be used with{' '}
-                <a href="https://docs.eventnative.org/javascript-reference">JS client</a>.
+                <a href="https://jitsu.com/docs/sending-data/javascript-reference">JS client</a>.
               </>
             }
           >
@@ -280,30 +283,6 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
     nodes.forEach((node, idx) => (node.key = idx));
     return nodes;
   }
-
-  generateButton() {
-    return (
-      <Button
-        type="primary"
-        icon={<PlusOutlined />}
-        loading={'NEW' === this.state.loading}
-        onClick={async () => {
-          let newToken = {
-            uid: this.newToken('', 6),
-            serverAuth: this.newToken('s2s'),
-            jsAuth: this.newToken('js'),
-            origins: []
-          };
-          let newTokens = [...this.state.tokens, newToken];
-          await this.saveTokens(newTokens, 'NEW');
-          message.info('New token has been saved!');
-        }}
-      >
-        Generate New Token
-      </Button>
-    );
-  }
-
   private async saveTokens(newTokens: Token[], loading: LoadingEntity) {
     this.setState({
       loading: loading
@@ -334,13 +313,13 @@ function KeyDocumentation({ token }: { token: Token }) {
   const [selectedDomain, setSelectedDomain] = useState(null);
   const services = ApplicationServices.get();
 
-  const [error, domains, setDomains] = useLoader(async () => {
+  const [error, domains] = services.features.enableCustomDomains ? useLoader(async () => {
     let result = await services.storageService.get('custom_domains', services.activeProject.id);
     let customDomains = result && result.domains ? result.domains.map((domain) => domain.name) : [];
-    let newDomains = [...customDomains, EVENTNATIVE_HOST];
+    let newDomains = [...customDomains, "t.jitsu.com"];
     setSelectedDomain(newDomains[0]);
     return newDomains;
-  })
+  }) : [null, []];
 
   if (error) {
     handleError(error, 'Failed to load data from server');
@@ -378,18 +357,19 @@ function KeyDocumentation({ token }: { token: Token }) {
     </div>
   );
 
+  const documentationDomain = selectedDomain || services.features.jitsuBaseUrl || "http://REPLACE_WITH_JITSU_DOMAIN";
   return (
     <Tabs
       className="api-keys-documentation-tabs"
       defaultActiveKey="1"
       tabBarExtraContent={
         <>
-          <LabelWithTooltip documentation="Domain">Domain</LabelWithTooltip>:{' '}
+          {services.features.enableCustomDomains && <><LabelWithTooltip documentation="Domain">Domain</LabelWithTooltip>:{' '}
           <Select defaultValue={domains[0]} onChange={(value) => setSelectedDomain(value)}>
             {domains.map((domain) => {
               return <Select.Option value={domain}>{domain}</Select.Option>;
             })}
-          </Select>
+          </Select></>}
         </>
       }
     >
@@ -401,7 +381,7 @@ function KeyDocumentation({ token }: { token: Token }) {
           documentation website
         </p>
         <CodeSnippet language="javascript" extra={exampleSwitches}>
-          {getEmpeddedJS(segment, gaEnabled, token.jsAuth, selectedDomain)}
+          {getEmpeddedJS(segment, gaEnabled, token.jsAuth, documentationDomain)}
         </CodeSnippet>
       </Tabs.TabPane>
       <Tabs.TabPane tab="Use NPM/YARN" key="2">
@@ -411,12 +391,12 @@ function KeyDocumentation({ token }: { token: Token }) {
           <a href="https://docs.eventnative.org/javascript-reference/direct-tracking">about configuration properties</a>{' '}
           and <a href="https://docs.eventnative.org/javascript-reference/direct-tracking">tracking api</a>
         </p>
-        <CodeSnippet language="javascript">{getNPMDocumentation(token.jsAuth, selectedDomain)}</CodeSnippet>
+        <CodeSnippet language="javascript">{getNPMDocumentation(token.jsAuth, documentationDomain)}</CodeSnippet>
       </Tabs.TabPane>
       <Tabs.TabPane tab="Server to server" key="3">
         Events can be send directly to API end-point. In that case, server secret should be used. Please, see curl
         example:
-        <CodeSnippet language="bash">{getCurlDocumentation(token.serverAuth, selectedDomain)}</CodeSnippet>
+        <CodeSnippet language="bash">{getCurlDocumentation(token.serverAuth, documentationDomain)}</CodeSnippet>
       </Tabs.TabPane>
     </Tabs>
   );
