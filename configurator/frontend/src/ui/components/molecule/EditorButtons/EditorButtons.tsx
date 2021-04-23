@@ -3,50 +3,61 @@ import React from 'react';
 import { Button, Popover } from 'antd';
 // @Components
 import { PopoverTitle } from '@atom/PopoverTitle';
+import { PopoverErrorsContent } from '@atom/PopoverErrorsContent';
 // @Icons
 import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
+// @Types
+import { Tab } from '@molecule/TabsConfigurator';
+
+interface ButtonProps {
+  isPopoverVisible: boolean;
+  isRequestPending: boolean;
+  handlePress: () => void;
+  handlePopoverClose: () => void;
+  titleText: string;
+  tabsList: Tab[];
+}
 
 export interface Props {
-  handleSubmit: () => void;
-  handleTestConnection: () => void;
-  testConnectingPopoverClose: () => void;
+  save: ButtonProps;
+  test: ButtonProps;
   handleCancel: () => void;
-  destinationSaving: boolean;
-  testConnecting: boolean;
-  isTestConnectingPopoverVisible: boolean;
 }
 
 const EditorButtons = ({
-  handleSubmit,
-  handleTestConnection,
-  testConnectingPopoverClose,
-  handleCancel,
-  destinationSaving,
-  testConnecting,
-  isTestConnectingPopoverVisible
+  test,
+  save,
+  handleCancel
 }: Props) => {
   return (
     <>
-      <Button
-        type="primary"
-        size="large"
-        className="mr-3"
-        htmlType="button"
-        loading={destinationSaving}
-        onClick={handleSubmit}>Save</Button>
+      <Popover
+        content={<PopoverErrorsContent tabsList={save.tabsList} />}
+        title={<PopoverTitle title={save.titleText} handleClose={save.handlePopoverClose}/>}
+        trigger="click"
+        visible={save.isPopoverVisible}
+      >
+        <Button
+          type="primary"
+          size="large"
+          className="mr-3"
+          htmlType="button"
+          loading={save.isRequestPending}
+          onClick={save.handlePress}>Save</Button>
+      </Popover>
 
       <Popover
-        content={<>Error</>}
-        title={<PopoverTitle title="Config form errors" handleClose={testConnectingPopoverClose}/>}
+        content={<PopoverErrorsContent tabsList={test.tabsList} />}
+        title={<PopoverTitle title={test.titleText} handleClose={test.handlePopoverClose}/>}
         trigger="click"
-        visible={isTestConnectingPopoverVisible}
+        visible={test.isPopoverVisible}
       >
         <Button
           size="large"
           className="mr-3"
           type="dashed"
-          loading={testConnecting}
-          onClick={handleTestConnection}
+          loading={test.isRequestPending}
+          onClick={test.handlePress}
           icon={<ApiOutlined/>}
         >Test connection</Button>
       </Popover>
