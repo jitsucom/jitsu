@@ -1,27 +1,38 @@
 // @Libs
-import React from 'react';
-import { Form, Switch } from 'antd';
+import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 // @Hooks
 import useLoader from '@hooks/useLoader';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Components
-import { ListItem } from '@molecule/ListItem';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
+import { Item } from '@organism/ConnectedItems/ConnectedItems';
 // @Catalog sources
 import { allSources } from '@catalog/sources/lib';
+import { ConnectedItems } from '@organism/ConnectedItems';
 
 export interface Props {
   form: FormInstance;
+  initialValues?: string[];
 }
 
-const DestinationEditorSources = ({ form }: Props) => {
+const DestinationEditorSources = ({ form, initialValues = [] }: Props) => {
   const service = ApplicationServices.get();
 
   const [error, sourcesData] = useLoader(async() => await service.storageService.get('sources', service.activeProject.id));
+
+  const sourcesList = useMemo<Item[]>(() => sourcesData?.sources?.map((source: SourceData) => {
+    const proto = allSources.find(s => s.id === source.sourceType);
+
+    return {
+      id: source.sourceId,
+      title: source.sourceId,
+      icon: proto.pic
+    };
+  }), [sourcesData?.sources]);
 
   if (error) {
     return <CenteredError error={error} />
@@ -39,27 +50,14 @@ const DestinationEditorSources = ({ form }: Props) => {
         }
       </article>
 
-      <Form form={form} name="connected-sources">
-        <Form.Item
-          name="sources"
-        >
-          <ul>
-            {
-              sourcesData.sources?.map((source: SourceData) => {
-                const proto = allSources.find(sourceConnector => sourceConnector.id === source.sourceProtoType);
-
-                return <ListItem
-                  prefix={<Switch />}
-                  icon={proto.pic}
-                  title={source.sourceId}
-                  id={source.sourceId}
-                  key={source.sourceId}
-                />
-              })
-            }
-          </ul>
-        </Form.Item>
-      </Form>
+      <ConnectedItems
+        form={form}
+        formName="connected-sources"
+        fieldName="_sources"
+        itemsList={sourcesList}
+        warningMessage={<p>Please, choose at least one source.</p>}
+        initialValues={initialValues}
+      />
     </>
   );
 };

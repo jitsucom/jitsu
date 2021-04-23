@@ -15,7 +15,7 @@ import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/es';
 import { Destination } from '@catalog/destinations/types';
-import { Tab } from '@molecule/TabsConfigurator/TabsConfigurator';
+import { Tab } from '@molecule/TabsConfigurator';
 import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 // @Services
@@ -28,14 +28,20 @@ import styles from './DestinationEditor.module.less';
 import { makeObjectFromFieldsValues } from '@util/Form';
 import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 import { getUniqueAutoIncId, randomId } from '@util/numbers';
+// @Hooks
+import { useForceUpdate } from '@hooks/useForceUpdate';
 
 const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }: CommonDestinationPageProps) => {
   const history = useHistory();
+
+  const forceUpdate = useForceUpdate();
 
   const params = useParams<{ type?: string; id?: string; }>();
 
   const [testConnecting, setTestConnecting] = useState<boolean>(false);
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
+
+  const [savePopover, switchSavePopover] = useState<boolean>(false);
   const [destinationSaving, setDestinationSaving] = useState<boolean>(false);
 
   const destinationData = useRef<DestinationData>(
@@ -69,14 +75,15 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
   },
   {
     key: 'mappings',
-    name: <ComingSoon render="Mappings"  documentation={<>Edit destination mappings</>} />,
+    name: <ComingSoon render="Mappings" documentation={<>Edit destination mappings</>} />,
     isDisabled: true
   },
   {
     key: 'sources',
     name: 'Connectors',
-    getComponent: (form: FormInstance) => <DestinationEditorSources form={form} />,
-    form: Form.useForm()[0]
+    getComponent: (form: FormInstance) => <DestinationEditorSources form={form} initialValues={destinationData.current._sources} />,
+    form: Form.useForm()[0],
+    errorsLevel: 'warning'
   },
   {
     key: 'settings',
@@ -100,45 +107,66 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
   const handleCancel = useCallback(() => history.push(destinationPageRoutes.root), [history]);
 
   const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
+  const savePopoverClose = useCallback(() => switchSavePopover(false), []);
 
   const validateTabForm = useCallback(async(tab: Tab) => {
     const form = tab.form;
 
     try {
+      if (tab.key === 'sources') {
+        const _sources = form.getFieldsValue()?._sources;
+
+        if (!_sources) {
+          tab.errorsCount = 1;
+        }
+      }
+
       return await form.validateFields();
     } catch (errors) {
       // ToDo: check errors count for fields with few validation rules
       tab.errorsCount = errors.errorFields?.length;
 
+      forceUpdate();
+
       throw errors;
     }
-  }, []);
+  }, [forceUpdate]);
 
   const handleTestConnection = useCallback(async() => {
     setTestConnecting(true);
 
     const tab = destinationsTabs.current[0];
-    const form = tab.form;
 
     try {
-      const config = await form.validateFields();
+      const config = await validateTabForm(tab);
 
       destinationData.current._formData = makeObjectFromFieldsValues<DestinationData>(config)._formData;
 
       await destinationEditorUtils.testConnection(destinationData.current);
     } catch (error) {
+      switchTestConnectingPopover(true);
     } finally {
       setTestConnecting(false);
+      forceUpdate();
     }
-  }, [destinationData]);
+  }, [validateTabForm, forceUpdate]);
 
   const handleSubmit = useCallback(() => {
     setDestinationSaving(true);
 
     Promise
-      .all(destinationsTabs.current.filter((tab: Tab) => !!tab.form).map((tab: Tab, index: number) => validateTabForm(tab)))
+      .all(destinationsTabs.current.filter((tab: Tab) => !!tab.form).map((tab: Tab) => validateTabForm(tab)))
       .then(async allValues => {
-        destinationData.current._formData = makeObjectFromFieldsValues<DestinationData>(allValues[0])._formData;
+
+        destinationData.current = {
+          ...destinationData.current,
+          ...allValues.reduce((result: any, current: any) => {
+            return {
+              ...result,
+              ...makeObjectFromFieldsValues(current)
+            };
+          }, {})
+        }
 
         try {
           await destinationEditorUtils.testConnection(destinationData.current);
@@ -154,14 +182,16 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
           history.push(destinationPageRoutes.root);
 
           message.success('New destination has been added!');
-        } catch (errors) {
-          console.log('errors: ', errors);
-        } finally {
-          setDestinationSaving(false);
-        }
+        } catch (errors) {}
       })
-      .catch(errors => console.log(errors));
-  }, [history, services, validateTabForm, destinations, setTouchedFields, updateDestinations]);
+      .catch(() => {
+        switchSavePopover(true);
+      })
+      .finally(() => {
+        setDestinationSaving(false);
+        forceUpdate();
+      });
+  }, [history, services, validateTabForm, destinations, setTouchedFields, updateDestinations, forceUpdate]);
 
   useEffect(() => {
     setBreadcrumbs(withHome({
@@ -172,24 +202,34 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
         }
       ]
     }));
-  }, [destinationReference, setBreadcrumbs])
+  }, [destinationReference, setBreadcrumbs]);
 
   return (
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
         <div className={cn('flex-grow', styles.mainArea)}>
-          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={2} />
+          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={0} />
         </div>
 
         <div className="flex-shrink border-t pt-2">
           <EditorButtons
-            handleSubmit={handleSubmit}
-            handleTestConnection={handleTestConnection}
-            testConnectingPopoverClose={testConnectingPopoverClose}
+            save={{
+              isRequestPending: destinationSaving,
+              isPopoverVisible: savePopover,
+              handlePress: handleSubmit,
+              handlePopoverClose: savePopoverClose,
+              titleText: 'Destination editor errors',
+              tabsList: destinationsTabs.current
+            }}
+            test={{
+              isRequestPending: testConnecting,
+              isPopoverVisible: testConnectingPopover && destinationsTabs.current[0].errorsCount > 0,
+              handlePress: handleTestConnection,
+              handlePopoverClose: testConnectingPopoverClose,
+              titleText: 'Connection Properties errors',
+              tabsList: [destinationsTabs.current[0]]
+            }}
             handleCancel={handleCancel}
-            destinationSaving={destinationSaving}
-            testConnecting={testConnecting}
-            isTestConnectingPopoverVisible={testConnectingPopover && destinationsTabs.current[0].errorsCount > 0}
           />
         </div>
       </div>
