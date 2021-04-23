@@ -14,4 +14,5 @@ declare interface DestinationData {
     [key: string]: any;
   };
   _onlyKeys: string[];
+  _sources: string[];
 }
