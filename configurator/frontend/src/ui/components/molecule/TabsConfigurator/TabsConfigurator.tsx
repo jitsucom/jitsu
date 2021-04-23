@@ -8,13 +8,13 @@ import { TabsType } from 'antd/es/tabs';
 import { TabName } from '@atom/TabName';
 
 export interface Tab {
-  key: string;
-  name: React.ReactNode;
-  getComponent?: (form: FormInstance) => React.ReactNode;
-  isDisabled?: boolean;
+  readonly key: string;
+  readonly name: React.ReactNode;
+  readonly getComponent?: (form: FormInstance) => React.ReactNode;
+  readonly isDisabled?: boolean;
   form?: FormInstance;
   errorsCount?: number;
-  errorsLevel?: 'warning' | 'error';
+  readonly errorsLevel?: 'warning' | 'error';
 }
 
 export interface Props {
