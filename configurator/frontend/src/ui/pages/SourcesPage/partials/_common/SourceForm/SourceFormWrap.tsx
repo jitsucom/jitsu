@@ -93,7 +93,7 @@ const SourceFormWrap = ({
   );
 
   return (
-    <div className="add-source flex flex-col items-stretch">
+    <div className="flex flex-col items-stretch flex-auto">
 
       <SourceForm
         formMode={formMode}
