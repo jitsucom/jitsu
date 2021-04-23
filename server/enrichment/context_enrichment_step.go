@@ -45,5 +45,12 @@ func extractIP(r *http.Request) string {
 			ip = addrPort[0]
 		}
 	}
+
+	//Case when Nginx concatenate remote_addr to client addr
+	if strings.Contains(ip, ",") {
+		addresses := strings.Split(ip, ",")
+		return strings.TrimSpace(addresses[0])
+	}
+
 	return ip
 }
