@@ -124,13 +124,14 @@ func (rs *RecognitionService) start() {
 
 			for destinationID, identifiers := range rp.DestinationsIdentifiers {
 				if identifiers.IsAllIdentificationValuesFilled() {
-					// Run pipeline only if all properties were recognized - it is needed to update all other anonimous events
+					// Run pipeline only if all identification values were recognized,
+					// it is needed to update all other anonimous events.
 					err = rs.runPipeline(destinationID, identifiers)
 					if err != nil {
 						logging.SystemErrorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
 					}
 				} else {
-					// If some property is missing - event is anonimous
+					// If some identification value is missing - event is still anonimous.
 					err = rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes))
 					if err != nil {
 						logging.SystemErrorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)

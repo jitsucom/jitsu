@@ -75,12 +75,12 @@ func (ur *UsersRecognition) IsEnabled() bool {
 func (ur *UsersRecognition) Validate() error {
 	if ur.IsEnabled() {
 		if ur.AnonymousIDNode == "" {
-			return errors.New("anonymous_id_node is required")
+			return errors.New("users_recognition.anonymous_id_node is required")
 		}
 
 		if len(ur.IdentificationNodes) == 0 {
 			if ur.UserIDNode == "" {
-				return errors.New("identification_nodes is required")
+				return errors.New("users_recognition.identification_nodes is required")
 			} else {
 				logging.Warn("users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead")
 				ur.IdentificationNodes = []string{ur.UserIDNode}
