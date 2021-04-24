@@ -37,6 +37,10 @@ func (jpa *JSONPathes) String() string {
 }
 
 // Get returns values from event according to configuration settings
+// Map:
+// 	  "key1/key2/key3" -> value1
+// 	  "key4/key5/key6" -> value2
+// 	  "key7/key8/key9" -> value3
 func (jpa *JSONPathes) Get(event map[string]interface{}) (map[string]interface{}, bool) {
 	result := false
 	array := make(map[string]interface{})
