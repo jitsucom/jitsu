@@ -6,13 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
-	_ "github.com/lib/pq"
+	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/typing"
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -45,6 +48,7 @@ const (
 	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT %s"
 	alterPrimaryKeyTemplate           = `ALTER TABLE "%s"."%s" ADD CONSTRAINT %s PRIMARY KEY (%s)`
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
+	deleteTableTemplate               = `DROP TABLE "%s"."%s"`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
 	mergeTemplate                     = `INSERT INTO "%s"."%s"(%s) VALUES %s ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
 	deleteQueryTemplate               = `DELETE FROM "%s"."%s" WHERE %s`
@@ -80,7 +84,7 @@ type DataSourceConfig struct {
 }
 
 //Validate required fields in DataSourceConfig
-func (dsc *DataSourceConfig) Validate() error {
+func (dsc *DataSourceConfig) Validate(strict bool) error {
 	if dsc == nil {
 		return errors.New("Datasource config is required")
 	}
@@ -89,6 +93,9 @@ func (dsc *DataSourceConfig) Validate() error {
 	}
 	if dsc.Db == "" {
 		return errors.New("Datasource db is required parameter")
+	}
+	if strict && dsc.Schema == "" {
+		return errors.New("Datasource schema was not provided")
 	}
 	if dsc.Username == "" {
 		return errors.New("Datasource username is required parameter")
@@ -203,6 +210,16 @@ func (p *Postgres) PatchTableSchema(patchTable *Table) error {
 	return p.patchTableSchemaInTransaction(wrappedTx, patchTable)
 }
 
+// DeleteTable removes database table with name provided in Table representation
+func (p *Postgres) DeleteTable(table *Table) error {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	return p.deleteTableInTransaction(wrappedTx, table)
+}
+
 //GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
 func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
 	table, err := p.getTable(tableName)
@@ -287,7 +304,9 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	query := fmt.Sprintf(createTableTemplate, p.config.Schema, table.Name, strings.Join(columnsDDL, ", "))
-	p.queryLogger.LogDDL(query)
+	if p.queryLogger != nil {
+		p.queryLogger.LogDDL(query)
+	}
 
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 
@@ -341,6 +360,22 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 	}
 
 	return wrappedTx.DirectCommit()
+}
+
+func (p *Postgres) deleteTableInTransaction(wrappedTx *Transaction, table *Table) error {
+	query := fmt.Sprintf(deleteTableTemplate, p.config.Schema, table.Name)
+	if p.queryLogger != nil {
+		p.queryLogger.LogDDL(query)
+	}
+
+	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
+
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error deleting [%s] table: %v", table.Name, err)
+	}
+
+	return wrappedTx.tx.Commit()
 }
 
 //createPrimaryKeyInTransaction create primary key constraint
@@ -691,6 +726,34 @@ func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, st
 	}
 
 	return wrappedTx.tx.Commit()
+}
+
+func (p *Postgres) ValidateWritePermission() error {
+	tableName := fmt.Sprintf("test_%v_%v", timestamp.NowUTC(), rand.Int())
+	columnName := "field"
+	table := &Table{
+		Name:    tableName,
+		Columns: Columns{columnName: Column{"text"}},
+	}
+	event := map[string]interface{}{
+		columnName: "value 42",
+	}
+
+	if err := p.CreateTable(table); err != nil {
+		return err
+	}
+
+	if err := p.Insert(table, event); err != nil {
+		return err
+	}
+
+	if err := p.DeleteTable(table); err != nil {
+		logging.Warnf("Cannot remove table %s from postgres: %v", tableName, err)
+		// Suppressing error because we need to check only write permission
+		// return err
+	}
+
+	return nil
 }
 
 //reformatMappings handles old (deprecated) mapping types //TODO remove someday

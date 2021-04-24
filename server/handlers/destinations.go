@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/typing"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
 func DestinationsHandler(c *gin.Context) {
@@ -35,7 +35,7 @@ func DestinationsHandler(c *gin.Context) {
 func testDestinationConnection(config *storages.DestinationConfig) error {
 	switch config.Type {
 	case storages.PostgresType:
-		if err := config.DataSource.Validate(); err != nil {
+		if err := config.DataSource.Validate(true); err != nil {
 			return err
 		}
 
@@ -44,8 +44,14 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		postgres.Close()
+		defer postgres.Close()
+
+		if err = postgres.ValidateWritePermission(); err != nil {
+			return err
+		}
+
 		return nil
+
 	case storages.ClickHouseType:
 		if err := config.ClickHouse.Validate(); err != nil {
 			return err
@@ -75,7 +81,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		}
 		return multiErr
 	case storages.RedshiftType:
-		if err := config.DataSource.Validate(); err != nil {
+		if err := config.DataSource.Validate(true); err != nil {
 			return err
 		}
 
