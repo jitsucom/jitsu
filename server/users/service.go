@@ -40,7 +40,7 @@ func RecognitionPayloadBuilder() interface{} {
 	return &RecognitionPayload{}
 }
 
-func (ei *EventIdentifiers) IsAllProperties() bool {
+func (ei *EventIdentifiers) IsAllIdentificationValuesFilled() bool {
 	for _, value := range ei.IdentificationValues {
 		if value == nil {
 			return false
@@ -123,17 +123,17 @@ func (rs *RecognitionService) start() {
 			}
 
 			for destinationID, identifiers := range rp.DestinationsIdentifiers {
-				if !identifiers.IsAllProperties() {
-					// If some property is missing - event is anonimous
-					err = rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes))
-					if err != nil {
-						logging.SystemErrorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
-					}
-				} else {
+				if identifiers.IsAllIdentificationValuesFilled() {
 					// Run pipeline only if all properties were recognized - it is needed to update all other anonimous events
 					err = rs.runPipeline(destinationID, identifiers)
 					if err != nil {
 						logging.SystemErrorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
+					}
+				} else {
+					// If some property is missing - event is anonimous
+					err = rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes))
+					if err != nil {
+						logging.SystemErrorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
 					}
 				}
 			}
@@ -266,18 +266,11 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 			continue
 		}
 
-		// If any property is empty event will be anonymous until filling out that last property.
-		// Removing event from storage is suitable only when all properties are filled out.
-		if configuration.IdentificationJSONPathes.IsFullFilled(event) {
-			err = rs.metaStorage.DeleteAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID)
-			if err != nil {
-				logging.SystemErrorf("[%s] Error deleting stored recognized event [%s]: %v", destinationID, storedEventID, err)
-			}
-		} else {
-			err = rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID, event.Serialize())
-			if err != nil {
-				logging.SystemErrorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
-			}
+		// Pipeline goes only when event contains full identifiers according to settings,
+		// so all saved events will be recognized and should be removed from storage.
+		err = rs.metaStorage.DeleteAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID)
+		if err != nil {
+			logging.SystemErrorf("[%s] Error deleting stored recognized event [%s]: %v", destinationID, storedEventID, err)
 		}
 	}
 

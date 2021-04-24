@@ -82,7 +82,7 @@ func (ur *UsersRecognition) Validate() error {
 			if ur.UserIDNode == "" {
 				return errors.New("identification_nodes is required")
 			} else {
-				logging.Warn("user_id_node is deprecated. Please use identification_nodes instead")
+				logging.Warn("users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead")
 				ur.IdentificationNodes = []string{ur.UserIDNode}
 			}
 		}
