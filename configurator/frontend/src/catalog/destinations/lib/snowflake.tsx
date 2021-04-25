@@ -27,12 +27,12 @@ const icon = <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/
 </svg>
 
 function isBatch(cfg) {
-  return cfg._formData.mode === 'batch';
+  return cfg._formData?.mode === 'batch';
 }
 
 function displayForBatchOnly<T>(defaultValue: T): Function<any, T> {
   return (cfg) => {
-    return cfg._formData.mode === 'batch' ?
+    return cfg._formData?.mode === 'batch' ?
       undefined :   //display the option
       defaultValue; //hide the option, display default value
   }
@@ -41,7 +41,7 @@ function displayForBatchOnly<T>(defaultValue: T): Function<any, T> {
 const destination: Destination = {
   ui: {
     icon,
-    title: (cfg) => cfg._formData.snowflakeDB,
+    title: (cfg) => cfg._formData?.snowflakeDB,
     connectCmd: (cfg: object) => null
   },
   id: 'snowflake',
@@ -102,12 +102,12 @@ const destination: Destination = {
       '_formData.snowflakeS3Bucket',
       '_formData.snowflakeS3AccessKey',
       '_formData.snowflakeS3SecretKey',
-      (cfg) => cfg._formData.mode === 'batch' && cfg._formData.snowflakeStageType === 's3'
+      (cfg) => cfg._formData?.mode === 'batch' && cfg._formData?.snowflakeStageType === 's3'
     ),
     ...googleGCSCredentials(
       '_formData.snowflakeJSONKey',
       '_formData.snowflakeGCSBucket',
-      (cfg) => cfg._formData.mode === 'batch' && cfg._formData.snowflakeStageType === 'gcs'
+      (cfg) => cfg._formData?.mode === 'batch' && cfg._formData?.snowflakeStageType === 'gcs'
     )
   ]
 };
