@@ -50,7 +50,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
       _id: getUniqueAutoIncId(params.type, destinations.map(dst => dst._type)),
       _uid: randomId(),
       _type: params.type,
-      _mappings: { _keepUnmappedFields: true, _mappings: [] },
+      _mappings: { _keepUnmappedFields: true },
       _comment: null,
       _onlyKeys: []
     } as DestinationData
