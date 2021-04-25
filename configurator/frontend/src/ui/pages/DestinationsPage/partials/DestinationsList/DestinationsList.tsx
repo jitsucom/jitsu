@@ -20,6 +20,7 @@ import {
 import { DropDownList } from '@molecule/DropDownList';
 import { ListItem } from '@molecule/ListItem';
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
+import { EmptyList } from '@molecule/EmptyList';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
@@ -32,7 +33,6 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 // @Types
 import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
-import { EmptyList } from '@molecule/EmptyList';
 
 const DestinationsList = ({ destinations, updateDestinations }: CommonDestinationPageProps) => {
   const history = useHistory();
