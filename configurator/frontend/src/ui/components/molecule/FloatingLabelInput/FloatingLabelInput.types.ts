@@ -1,10 +1,12 @@
 import * as React from 'react';
 import { Rule } from 'antd/lib/form';
 import { SizeType } from 'antd/lib/config-provider/SizeContext';
+import { NamePath } from 'rc-field-form/lib/interface';
 
 export interface Props {
   className?: string;
-  name: string;
+  wrapClassName?: string;
+  name: NamePath;
   formName: string;
   floatingLabelText: React.ReactNode;
   rules?: Rule[];
