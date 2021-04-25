@@ -1,4 +1,4 @@
-@import "../../../../../theme.less";
+@import "./src/theme.less";
 
 .wrapper {
 }
@@ -43,4 +43,70 @@
 
 .highlightNewElement {
   transition: all 2s;
+}
+
+.mapping {
+  .line {
+    display: flex;
+    align-items: center;
+
+    .mapInputWrap {
+      display: flex;
+      flex: 0 0 calc(40% - 20px);
+
+      :global {
+        .ant-row {
+          flex-grow: 1;
+        }
+      }
+
+      .mapInputLabel {
+        display: inline-flex;
+        flex-shrink: 0;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+
+      .mapInput {
+        border-top: none;
+        border-left: none;
+        border-right: none;
+        border-radius: 0;
+        outline: none;
+        box-shadow: none;
+      }
+    }
+
+    .mapAction {
+      flex: 0 0 20%;
+      padding: 0 20px;
+
+      .mapSelect {
+        :global {
+          .ant-select-selector {
+            border-top: none;
+            border-left: none;
+            border-right: none;
+            border-radius: 0;
+            outline: none;
+            box-shadow: none;
+
+            .ant-select-selection-item {
+              text-align: center;
+            }
+          }
+        }
+      }
+    }
+
+    .mapBtn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 24px;
+      width: 24px;
+      flex-shrink: 0;
+      margin: 0 0 24px 16px;
+    }
+  }
 }
