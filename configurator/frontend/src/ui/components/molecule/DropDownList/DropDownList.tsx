@@ -11,9 +11,10 @@ export interface Props {
   filterPlaceholder: string;
   list: any;
   getPath: (param: string) => string;
+  hideFilter?: boolean;
 }
 
-const DropDownListComponent = ({ filterPlaceholder, className, list, getPath }: Props) => {
+const DropDownListComponent = ({ filterPlaceholder, className, list, getPath, hideFilter = false }: Props) => {
   const [filteredParam, setFilteredParam] = useState<string>();
 
   const handleChange = debounce(
@@ -29,9 +30,11 @@ const DropDownListComponent = ({ filterPlaceholder, className, list, getPath }: 
 
   return (
     <div className={styles.dropdown}>
-      <div className={styles.filter}>
-        <Input onChange={handleChange} placeholder={filterPlaceholder} />
-      </div>
+      {
+        !hideFilter && <div className={styles.filter}>
+          <Input onChange={handleChange} placeholder={filterPlaceholder} />
+        </div>
+      }
 
       <ul className={styles.list}>
         {filteredList.map((item: any) => (
