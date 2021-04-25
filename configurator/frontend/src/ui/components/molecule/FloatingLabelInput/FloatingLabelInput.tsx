@@ -2,17 +2,18 @@
 import * as React from 'react';
 import { Form, Input } from 'antd';
 import cn from 'classnames';
+import { get } from 'lodash';
 // @Components
 import { FloatingLabel } from '@atom/FloatingLabel';
 // @Types
 import { Props } from './FloatingLabelInput.types';
 
-const FloatingLabelInputComponent = ({ formName, name, rules, floatingLabelText, prefix, inputType = 'text', size, className }: Props) => {
+const FloatingLabelInputComponent = ({ formName, name, rules, floatingLabelText, prefix, inputType = 'text', size, className, wrapClassName }: Props) => {
   return (
-    <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues[name] !== currentValues[name]}>
+    <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => get(prevValues, name) !== get(currentValues, name)}>
       {/* ToDo: getInternalHooks what is it??? */}
       {({ getFieldValue }) => (
-        <Form.Item name={name} rules={rules}>
+        <Form.Item name={name} rules={rules} className={cn(wrapClassName)}>
           <Input
             className={cn('with-floating-label', className)}
             prefix={prefix}

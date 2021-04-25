@@ -10,6 +10,7 @@ import { ComingSoon } from '@atom/ComingSoon';
 import { PageHeader } from '@atom/PageHeader';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorSources } from './DestinationEditorSources';
+import { DestinationEditorMappings } from './DestinationEditorMappings';
 // @CatalogDestinations
 import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
@@ -75,8 +76,9 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
   },
   {
     key: 'mappings',
-    name: <ComingSoon render="Mappings" documentation={<>Edit destination mappings</>} />,
-    isDisabled: true
+    name: 'Mappings',
+    getComponent: (form: FormInstance) => <DestinationEditorMappings form={form} />,
+    form: Form.useForm()[0]
   },
   {
     key: 'sources',
@@ -158,6 +160,9 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
       .all(destinationsTabs.current.filter((tab: Tab) => !!tab.form).map((tab: Tab) => validateTabForm(tab)))
       .then(async allValues => {
 
+        console.log('allValues: ', allValues);
+        return;
+
         destinationData.current = {
           ...destinationData.current,
           ...allValues.reduce((result: any, current: any) => {
@@ -208,7 +213,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
         <div className={cn('flex-grow', styles.mainArea)}>
-          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={0} />
+          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={1} />
         </div>
 
         <div className="flex-shrink border-t pt-2">
