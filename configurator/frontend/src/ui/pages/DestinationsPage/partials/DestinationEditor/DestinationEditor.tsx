@@ -159,10 +159,6 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
     Promise
       .all(destinationsTabs.current.filter((tab: Tab) => !!tab.form).map((tab: Tab) => validateTabForm(tab)))
       .then(async allValues => {
-
-        console.log('allValues: ', allValues);
-        return;
-
         destinationData.current = {
           ...destinationData.current,
           ...allValues.reduce((result: any, current: any) => {
