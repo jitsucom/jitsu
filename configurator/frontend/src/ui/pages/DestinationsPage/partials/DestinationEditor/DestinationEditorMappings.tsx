@@ -12,7 +12,9 @@ import { MAPPING_NAMES } from '@./constants/mapping';
 import { DESTINATION_EDITOR_MAPPING } from '@./embeddedDocs/mappings';
 // @Styles
 import styles from './DestinationEditor.module.less';
-import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
+import { ComingSoon } from '@atom/ComingSoon';
+import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
+import PlayCircleFilled from '@ant-design/icons/lib/icons/PlayCircleFilled';
 
 export interface Props {
   form: FormInstance;
@@ -46,6 +48,7 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
 
   return (
     <>
+      <h3>Edit field mappings</h3>
       <article>{DESTINATION_EDITOR_MAPPING}</article>
 
       <Form form={form} onFinish={values => console.log(values)}>
@@ -110,9 +113,15 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                   }
                 </>
 
-                <Button type="ghost" onClick={handleAddField(add)} className="add-field-btn" icon={<PlusOutlined />}>
-                  Add new Field Mapping
-                </Button>
+                <div className={styles.btnsLine}>
+                  <Button type="ghost" onClick={handleAddField(add)} className={styles.btn} icon={<PlusOutlined />}>
+                    Add new Field Mapping
+                  </Button>
+
+                  <Button className={styles.btn} icon={<PlayCircleFilled/>} disabled={true}>
+                    <ComingSoon render="Test Mapping" documentation="Try created mapping" />
+                  </Button>
+                </div>
               </div>
             )
           }
