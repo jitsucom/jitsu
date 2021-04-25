@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Button, Form, Input, Radio, Select } from 'antd';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
@@ -12,13 +12,21 @@ import { MAPPING_NAMES } from '@./constants/mapping';
 import { DESTINATION_EDITOR_MAPPING } from '@./embeddedDocs/mappings';
 // @Styles
 import styles from './DestinationEditor.module.less';
+import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 
 export interface Props {
   form: FormInstance;
-  initialValues: DestinationData['_mappings'];
+  initialValues: Mapping;
 }
 
 const DestinationEditorMappings = ({ form, initialValues }: Props) => {
+  const [mappingActions, setMappingActions] = useState<{ [key: number]: string }>(
+    initialValues?._mapping?.reduce((accumulator: { [key: number]: string }, current: MappingRow, index: number) => ({
+      ...accumulator,
+      [index]: current._action
+    }), {})
+  );
+
   const handleAddField = useCallback(
     (add: FormListOperation['add']) => () => add({ _srcField: '', _dstField: '', _action: '' }),
     []
@@ -28,6 +36,13 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
     (remove: FormListOperation['remove'], index: number) => () => remove(index),
     []
   );
+
+  const handleActionChange = useCallback((index: number) => (value: string) => {
+    setMappingActions({
+      ...mappingActions,
+      [index]: value
+    });
+  }, [mappingActions]);
 
   return (
     <>
@@ -53,12 +68,16 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                           <div className={styles.mapInputWrap}>
                             <label className={styles.mapInputLabel} htmlFor={`src-field-${field.name}`}>From: </label>
                             <Form.Item name={[field.name, '_srcField']}>
-                              <Input className={styles.mapInput} autoComplete="off" id={`src-field-${field.name}`} />
+                              <Input
+                                autoComplete="off"
+                                className={styles.mapInput}
+                                id={`src-field-${field.name}`}
+                              />
                             </Form.Item>
                           </div>
 
                           <Form.Item className={styles.mapAction} name={[field.name, '_action']}>
-                            <Select className={styles.mapSelect}>
+                            <Select className={styles.mapSelect} onChange={handleActionChange(field.name)}>
                               {
                                 Object.keys(MAPPING_NAMES).map(key =>
                                   <Select.Option key={key} value={key}>{MAPPING_NAMES[key]}</Select.Option>
@@ -68,10 +87,20 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                           </Form.Item>
 
                           <div className={styles.mapInputWrap}>
-                            <label className={styles.mapInputLabel} htmlFor={`dst-field-${field.name}`}>To: </label>
-                            <Form.Item name={[field.name, '_dstField']}>
-                              <Input className={styles.mapInput} autoComplete="off" id={`dst-field-${field.name}`} />
-                            </Form.Item>
+                            {
+                              mappingActions[field.name] !== 'erase' && (
+                                <>
+                                  <label className={styles.mapInputLabel} htmlFor={`dst-field-${field.name}`}>To: </label>
+                                  <Form.Item name={[field.name, '_dstField']}>
+                                    <Input
+                                      autoComplete="off"
+                                      className={styles.mapInput}
+                                      id={`dst-field-${field.name}`}
+                                    />
+                                  </Form.Item>
+                                </>
+                              )
+                            }
                           </div>
 
                           <DeleteOutlined className={styles.mapBtn} onClick={handleDeleteField(remove, field.key)} />
