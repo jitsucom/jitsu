@@ -8,7 +8,7 @@ const destinationEditorUtils = {
       await ApplicationServices.get().backendApiClient.post('/destinations/test', Marshal.toPureJson(dst));
 
       dst._connectionTestOk = true;
-    } catch(error) {
+    } catch (error) {
       dst._connectionTestOk = false;
       dst._connectionErrorMessage = error;
 
