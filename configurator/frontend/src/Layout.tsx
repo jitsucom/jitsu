@@ -26,6 +26,8 @@ import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCi
 import { Page, usePageLocation } from '@./navigation';
 import { BreadcrumbsProps, withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 import { Breadcrumbs } from '@molecule/Breadcrumbs';
+import { CurrentPlan } from '@molecule/CurrentPlan/CurrentPlan';
+import { PaymentPlan, PaymentPlanStatus } from '@service/billing';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
@@ -97,9 +99,14 @@ export const ApplicationSidebar: React.FC<{}> = () => {
 
 export type PageHeaderProps = {
   user: User
+  plan: PaymentPlanStatus
 }
 
-export const PageHeader: React.FC<PageHeaderProps> = ({ user, children }) => {
+function abbr(user: User) {
+  return user.name.split(' ').filter(part => part.length > 0).map(part => part[0]).join('').toUpperCase();
+}
+
+export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) => {
 
   return <Row className="internal-page-header-container">
     <Col span={12}>
@@ -109,9 +116,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ user, children }) => {
     </Col>
     <Col span={12}>
       <Align horizontal="right">
-        <Dropdown trigger={['click']} overlay={<DropdownMenu user={user} />}>
-          <Button className={'user-drop-down-button'} icon={<UserOutlined/>}>
-            {user.name}
+        <Dropdown trigger={['click']} overlay={<DropdownMenu user={user} plan={plan} />}>
+          <Button className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text" size="large" shape="circle">
+            {abbr(user)}
           </Button>
         </Dropdown>
       </Align>
@@ -119,52 +126,66 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ user, children }) => {
   </Row>
 }
 
-export const DropdownMenu: React.FC<{user: User}> = ({ user }) => {
+export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus}> = ({ plan, user }) => {
   const services = useServices();
-  return (
-    <div>
-      <div className="user-dropdown-info-panel">{user.email}</div>
-      <Menu selectable={false}>
-        <Menu.Item key="profile" icon={<SlidersOutlined/>} onClick={() => {
-          Modal.confirm({
-            title: 'Password reset',
-            icon: <ExclamationCircleOutlined/>,
-            content: 'Please confirm password reset. Instructions will be sent to your email',
-            okText: 'Reset password',
-            cancelText: 'Cancel',
-            onOk: async() => {
-              try {
-                await services.userService.sendPasswordReset()
-                message.info('Reset password instructions has been sent. Please, check your mailbox')
-              } catch (error) {
-                message.error("Can't reset password: " + error.message);
-                console.log("Can't reset password", error);
-              }
-            },
-            onCancel: () => {
-            }
-          });
-        }}>
-          Reset Password
-        </Menu.Item>
-        {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) && <Menu.Item key="become" icon={<UserSwitchOutlined/>} onClick={async() => {
-          let email = prompt('Please enter e-mail of the user', '');
-          if (!email) {
-            return;
-          }
-          try {
-            await services.userService.becomeUser(email);
-          } catch (e) {
-            handleError(e, "Can't login as other user");
-          }
-        }}>Become User</Menu.Item>
+
+  const passwordReset = () => {
+    Modal.confirm({
+      title: 'Password reset',
+      icon: <ExclamationCircleOutlined/>,
+      content: 'Please confirm password reset. Instructions will be sent to your email',
+      okText: 'Reset password',
+      cancelText: 'Cancel',
+      onOk: async() => {
+        try {
+          await services.userService.sendPasswordReset()
+          message.info('Reset password instructions has been sent. Please, check your mailbox')
+        } catch (error) {
+          message.error("Can't reset password: " + error.message);
+          console.log("Can't reset password", error);
         }
-        <Menu.Item
+      },
+      onCancel: () => {
+      }
+    });
+  };
+
+  const becomeUser = async() => {
+    let email = prompt('Please enter e-mail of the user', '');
+    if (!email) {
+      return;
+    }
+    try {
+      await services.userService.becomeUser(email);
+    } catch (e) {
+      handleError(e, "Can't login as other user");
+    }
+  };
+
+  return (
+    <div className="bg-bgSecondary border rounded-xl mr-2">
+      <div className="py-5 border-b border-main px-5 flex flex-col items-center">
+        <div className="text-center text-text text-lg">{user.name}</div>
+        <div className="text-secondaryText text-xs underline">{user.email}</div>
+      </div>
+      <div className="py-2 border-b border-main px-5 flex flex-col items-start">
+        <div>Project: <b>{services.activeProject.name || 'Unspecified'}</b></div>
+      </div>
+      {services.features.billingEnabled &&<div className="py-5 border-b border-main px-5 flex flex-col items-start">
+        <CurrentPlan limit={plan.eventsThisMonth} usage={plan.currentPlan.events_limit} planTitle={plan.currentPlan.name} />
+      </div>}
+      <div className="p-2 flex flex-col items-stretch">
+        <Button type="text" className="text-left" key="profile" icon={<SlidersOutlined/>} onClick={passwordReset}>Reset Password</Button>
+        {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) &&
+        <Button className="text-left" type="text" key="become" icon={<UserSwitchOutlined/>} onClick={becomeUser}>Become User</Button>}
+        <Button
+          className="text-left"
+          type="text"
           key="logout"
           icon={<LogoutOutlined/>}
           onClick={() => services.userService.removeAuth(reloadPage)
-          }>Logout</Menu.Item>
-      </Menu>
+          }>Logout</Button>
+      </div>
     </div>
   );
 }
@@ -172,10 +193,11 @@ export const DropdownMenu: React.FC<{user: User}> = ({ user }) => {
 export type ApplicationPageWrapperProps = {
   page: Page
   user: User
+  plan: PaymentPlanStatus
   [propName: string]: any
 }
 
-export const ApplicationPageWrapper: React.FC<ApplicationPageWrapperProps> = ({ page, user, ...rest }) => {
+export const ApplicationPageWrapper: React.FC<ApplicationPageWrapperProps> = ({ plan, page, user, ...rest }) => {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(withHome({ elements: [{ title: page.pageHeader }] }));
   const pageId = usePageLocation().id;
 
@@ -185,7 +207,7 @@ export const ApplicationPageWrapper: React.FC<ApplicationPageWrapperProps> = ({ 
     <ApplicationSidebar />
     <Layout.Content key="content" className="app-layout-content">
       <div className={classNames('internal-page-wrapper', 'page-' + pageId + '-wrapper')}>
-        <PageHeader user={user}><Breadcrumbs {...breadcrumbs} /></PageHeader>
+        <PageHeader user={user} plan={plan}><Breadcrumbs {...breadcrumbs} /></PageHeader>
         <div className="internal-page-content-wrapper">
           <Component {...(props as any)} />
         </div>

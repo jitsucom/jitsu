@@ -17,6 +17,7 @@ import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 import PapercupsWrapper from './lib/commons/papercups';
 import { ApplicationPageWrapper, SlackChatWidget } from './Layout';
 import classNames from 'classnames';
+import { PaymentPlanStatus } from '@service/billing';
 
 enum AppLifecycle {
     LOADING, //Application is loading
@@ -31,6 +32,7 @@ type AppState = {
     globalErrorDetails?: string;
     extraControls?: React.ReactNode;
     user?: User;
+    paymentPlanStatus?: PaymentPlanStatus;
 };
 
 type AppProperties = {
@@ -66,10 +68,17 @@ export default class App extends React.Component<AppProperties, AppState> {
                 PapercupsWrapper.init(loginStatus.user);
             }
 
+            let paymentPlanStatus: PaymentPlanStatus;
+            if (loginStatus.user) {
+                paymentPlanStatus = new PaymentPlanStatus();
+                await paymentPlanStatus.init(this.services.activeProject, this.services.backendApiClient)
+            }
+
             this.setState({
                 lifecycle: loginStatus.user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
                 user: loginStatus.user,
                 showOnboardingForm: loginStatus.user && !loginStatus.user.onboarded,
+                paymentPlanStatus: paymentPlanStatus
             });
         } catch (error) {
             console.error('Failed to initialize ApplicationServices', error);
@@ -144,7 +153,7 @@ export default class App extends React.Component<AppProperties, AppState> {
                             document.title = route.pageTitle;
                             return route.doNotWrap ?
                               <Component {...(routeProps as any)} /> :
-                              <ApplicationPageWrapper user={this.state.user} page={route} {...routeProps} />;
+                              <ApplicationPageWrapper user={this.state.user} plan={this.state.paymentPlanStatus} page={route} {...routeProps} />;
                         }}
                     />;
             } else {
