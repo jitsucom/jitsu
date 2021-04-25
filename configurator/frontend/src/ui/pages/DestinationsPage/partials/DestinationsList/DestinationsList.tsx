@@ -135,6 +135,7 @@ const DestinationsList = ({ destinations, updateDestinations }: CommonDestinatio
     return <EmptyList
       list={
         <DropDownList
+          hideFilter
           getPath={getGeneratedPath}
           list={destinationsReferenceList}
           filterPlaceholder="Filter by destination name"
@@ -151,6 +152,7 @@ const DestinationsList = ({ destinations, updateDestinations }: CommonDestinatio
         trigger={['click']}
         overlay={
           <DropDownList
+            hideFilter
             getPath={getGeneratedPath}
             list={destinationsReferenceList}
             filterPlaceholder="Filter by destination name"
