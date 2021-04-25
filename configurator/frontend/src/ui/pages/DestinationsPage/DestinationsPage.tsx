@@ -14,10 +14,6 @@ import ApplicationServices from '@service/ApplicationServices';
 import { getComponent } from '@hocs/getComponent';
 // @Components
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
-import { EmptyList } from '@molecule/EmptyList';
-import { DropDownList } from '@molecule/DropDownList';
-// @Utils
-import { destinationsReferenceList, getGeneratedPath } from '@page/DestinationsPage/commons';
 // @Types
 import { PageProps } from '@./navigation';
 import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';

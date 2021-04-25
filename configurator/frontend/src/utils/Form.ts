@@ -1,7 +1,7 @@
 import { set } from 'lodash';
 
 const makeObjectFromFieldsValues = <F = object>(fields: any): F => Object.keys(fields).reduce((accumulator: F, current: string) => {
-  if (fields[current]) {
+  if (typeof fields[current] !== undefined) {
     set(accumulator, current, fields[current]);
   }
 
