@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback } from 'react';
-import { Button, Form, Input, Select } from 'antd';
+import { Button, Form, Input, Radio, Select } from 'antd';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
@@ -11,6 +11,7 @@ import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
 import { MAPPING_NAMES } from '@./constants/mapping';
 // @Styles
 import styles from './DestinationEditor.module.less';
+import { RadioChangeEvent } from 'antd/lib/radio/interface';
 
 export interface Props {
   form: FormInstance;
@@ -27,10 +28,21 @@ const DestinationEditorMappings = ({ form }: Props) => {
     []
   );
 
+  const handleChangeKeepFields = useCallback((e: RadioChangeEvent) => {
+    console.log('e: ', e);
+  }, []);
+
   return (
     <>
       <Form form={form} onFinish={values => console.log(values)}>
-        <Form.List name="_mapping" initialValue={[{ _srcField: '', _dstField: '', _action: '' }]}>
+        <Form.Item name="_mappings._keepUnmappedFields">
+          <Radio.Group buttonStyle="solid" onChange={handleChangeKeepFields}>
+            <Radio.Button value={true}>Keep unmapped fields</Radio.Button>
+            <Radio.Button value={false}>Remove unmapped fields</Radio.Button>
+          </Radio.Group>
+        </Form.Item>
+
+        <Form.List name="_mappings._mapping" initialValue={[{ _srcField: '', _dstField: '', _action: '' }]}>
           {
             (fields: FormListFieldData[], { add, remove }: FormListOperation) => (
               <div className={styles.mapping}>
@@ -77,8 +89,6 @@ const DestinationEditorMappings = ({ form }: Props) => {
             )
           }
         </Form.List>
-
-        <Button htmlType="submit">Submit</Button>
       </Form>
     </>
   );
