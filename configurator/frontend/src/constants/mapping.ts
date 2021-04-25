@@ -6,4 +6,10 @@ const MAPPING_NAMES: Record<MappingAction, string> = {
   move: 'Move field'
 };
 
-export { MAPPING_NAMES };
+const MAPPINGS_REFERENCE_MAP = {
+  facebook: 'facebookPixel',
+  google_analytics: 'googleAnalytics',
+  segment: 'segment'
+};
+
+export { MAPPING_NAMES, MAPPINGS_REFERENCE_MAP };
