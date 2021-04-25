@@ -21,7 +21,7 @@ export interface Props {
 }
 
 const ConnectedItems = ({ form, formName, fieldName, itemsList = [], initialValues = [], warningMessage }: Props) => {
-  const [selectedItems, setSelectedItems] = useState<string[]>(initialValues);
+  const [selectedItems, setSelectedItems] = useState<string[]>(initialValues ?? []);
 
   const handleChange = useCallback((id: string) => (checked: boolean) => {
     const newItemsIds = [...selectedItems];
@@ -46,13 +46,13 @@ const ConnectedItems = ({ form, formName, fieldName, itemsList = [], initialValu
   }, [selectedItems, form, fieldName]);
 
   return (
-    <Form form={form} name={formName} onFinish={values => console.log(values)}>
+    <Form form={form} name={formName}>
       <Form.Item name={fieldName}>
         <ul>
           {
             itemsList?.map(({ id, title, icon }: Item) => (
               <ListItem
-                prefix={<Switch onChange={handleChange(id)} checked={selectedItems.includes(id)} />}
+                prefix={<Switch onChange={handleChange(id)} checked={selectedItems?.includes(id)} />}
                 icon={icon}
                 title={title}
                 id={id}
@@ -64,7 +64,7 @@ const ConnectedItems = ({ form, formName, fieldName, itemsList = [], initialValu
       </Form.Item>
 
       {
-        itemsList.length > 0 && selectedItems.length === 0 && <Typography.Text type="warning">{warningMessage}</Typography.Text>
+        itemsList?.length > 0 && selectedItems.length === 0 && <Typography.Text type="warning">{warningMessage}</Typography.Text>
       }
     </Form>
   );
