@@ -7,13 +7,16 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
-	"github.com/mailru/go-clickhouse"
 	"io/ioutil"
+	"math/rand"
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/mailru/go-clickhouse"
 )
 
 const (
@@ -27,11 +30,14 @@ const (
 
 	createTableCHTemplate            = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
 	createDistributedTableCHTemplate = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
+	dropTableCHTemplate              = `DROP TABLE "%s"."%s"`
 	dropDistributedTableCHTemplate   = `DROP TABLE "%s"."dist_%s" %s`
 
 	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
 	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
 	defaultPrimaryKey = ``
+
+	defaultOrderByColumn = `eventn_ctx_event_id`
 )
 
 var (
@@ -93,7 +99,7 @@ func (chc *ClickHouseConfig) Validate() error {
 	}
 
 	if len(chc.Dsns) == 0 {
-		return errors.New("dsn is required parameter")
+		return errors.New("dsns is required parameter")
 	}
 
 	for _, dsn := range chc.Dsns {
@@ -189,6 +195,11 @@ func (tsf TableStatementFactory) CreateTableStatement(tableName, columnsClause s
 	}
 	return fmt.Sprintf(createTableCHTemplate, tsf.database, tableName, tsf.onClusterClause, columnsClause, engineStatement,
 		tsf.partitionClause, tsf.orderByClause, tsf.primaryKeyClause)
+}
+
+//DeleteTableStatement return clickhouse DDL for removing table statement
+func (tsf TableStatementFactory) DeleteTableStatement(tableName string) string {
+	return fmt.Sprintf(dropTableCHTemplate, tsf.database, tableName)
 }
 
 //ClickHouse is adapter for creating,patching (schema or table), inserting data to clickhouse
@@ -302,7 +313,9 @@ func (ch *ClickHouse) CreateTable(tableSchema *Table) error {
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	statementStr := ch.tableStatementFactory.CreateTableStatement(tableSchema.Name, strings.Join(columnsDDL, ","))
-	ch.queryLogger.LogDDL(statementStr)
+	if ch.queryLogger != nil {
+		ch.queryLogger.LogDDL(statementStr)
+	}
 
 	_, err := ch.dataSource.ExecContext(ch.ctx, statementStr)
 	if err != nil {
@@ -312,6 +325,31 @@ func (ch *ClickHouse) CreateTable(tableSchema *Table) error {
 	//create distributed table if ReplicatedMergeTree engine
 	if ch.cluster != "" {
 		ch.createDistributedTableInTransaction(tableSchema.Name)
+	}
+
+	return nil
+}
+
+//DeleteTable removes database table with name provided in Table representation
+func (ch *ClickHouse) DeleteTable(tableSchema *Table) error {
+	wrappedTx, err := ch.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	statementStr := ch.tableStatementFactory.DeleteTableStatement(tableSchema.Name)
+	if ch.queryLogger != nil {
+		ch.queryLogger.LogDDL(statementStr)
+	}
+
+	_, err = ch.dataSource.ExecContext(ch.ctx, statementStr)
+	if err != nil {
+		return fmt.Errorf("Error removing table [%s] statement [%s]: %v", tableSchema.Name, statementStr, err)
+	}
+
+	// Remove distributed table if ReplicatedMergeTree engine
+	if ch.cluster != "" {
+		ch.dropDistributedTableInTransaction(wrappedTx, tableSchema.Name)
 	}
 
 	return nil
@@ -610,6 +648,37 @@ func (ch *ClickHouse) reformatValue(v interface{}) interface{} {
 	}
 
 	return v
+}
+
+func (ch *ClickHouse) ValidateWritePermission() error {
+	tableName := fmt.Sprintf("test_%v_%v", timestamp.NowUTC(), rand.Int())
+	columnName := defaultOrderByColumn
+	table := &Table{
+		Name: tableName,
+		Columns: Columns{
+			"_timestamp": Column{"DateTime"},
+			columnName:   Column{"Int64"},
+		},
+	}
+	event := map[string]interface{}{
+		columnName: 42,
+	}
+
+	if err := ch.CreateTable(table); err != nil {
+		return err
+	}
+
+	if err := ch.Insert(table, event); err != nil {
+		return err
+	}
+
+	if err := ch.DeleteTable(table); err != nil {
+		logging.Warnf("Cannot remove table %s from clickhouse: %v", tableName, err)
+		// Suppressing error because we need to check only write permission
+		// return err
+	}
+
+	return nil
 }
 
 func extractStatement(fieldConfigs []FieldConfig) string {

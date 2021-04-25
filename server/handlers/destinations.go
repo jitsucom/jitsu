@@ -57,6 +57,11 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
+		factory, err := adapters.NewTableStatementFactory(config.ClickHouse)
+		if err != nil {
+			return err
+		}
+
 		var multiErr error
 		for _, dsn := range config.ClickHouse.Dsns {
 			dsnURL, err := url.Parse(strings.TrimSpace(dsn))
@@ -71,15 +76,21 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			dsnURL.RawQuery = dsnQuery.Encode()
 
 			ch, err := adapters.NewClickHouse(context.Background(), dsnURL.String(),
-				"", "", nil, nil, nil, nil, typing.SQLTypes{})
+				config.ClickHouse.Database, "", nil, factory, nil, nil, typing.SQLTypes{})
 			if err != nil {
 				multiErr = multierror.Append(multiErr, err)
 				continue
-			} else {
-				ch.Close()
+			}
+
+			defer ch.Close()
+
+			if err := ch.ValidateWritePermission(); err != nil {
+				multiErr = multierror.Append(multiErr, err)
 			}
 		}
+
 		return multiErr
+
 	case storages.RedshiftType:
 		if err := config.DataSource.Validate(true); err != nil {
 			return err
