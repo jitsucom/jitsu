@@ -9,15 +9,16 @@ import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
 // @Constants
 import { MAPPING_NAMES } from '@./constants/mapping';
+import { DESTINATION_EDITOR_MAPPING } from '@./embeddedDocs/mappings';
 // @Styles
 import styles from './DestinationEditor.module.less';
-import { RadioChangeEvent } from 'antd/lib/radio/interface';
 
 export interface Props {
   form: FormInstance;
+  initialValues: DestinationData['_mappings'];
 }
 
-const DestinationEditorMappings = ({ form }: Props) => {
+const DestinationEditorMappings = ({ form, initialValues }: Props) => {
   const handleAddField = useCallback(
     (add: FormListOperation['add']) => () => add({ _srcField: '', _dstField: '', _action: '' }),
     []
@@ -28,21 +29,19 @@ const DestinationEditorMappings = ({ form }: Props) => {
     []
   );
 
-  const handleChangeKeepFields = useCallback((e: RadioChangeEvent) => {
-    console.log('e: ', e);
-  }, []);
-
   return (
     <>
+      <article>{DESTINATION_EDITOR_MAPPING}</article>
+
       <Form form={form} onFinish={values => console.log(values)}>
-        <Form.Item name="_mappings._keepUnmappedFields">
-          <Radio.Group buttonStyle="solid" onChange={handleChangeKeepFields}>
+        <Form.Item name="_mappings._keepUnmappedFields" initialValue={initialValues?._keepUnmappedFields}>
+          <Radio.Group buttonStyle="solid">
             <Radio.Button value={true}>Keep unmapped fields</Radio.Button>
             <Radio.Button value={false}>Remove unmapped fields</Radio.Button>
           </Radio.Group>
         </Form.Item>
 
-        <Form.List name="_mappings._mapping" initialValue={[{ _srcField: '', _dstField: '', _action: '' }]}>
+        <Form.List name="_mappings._mapping" initialValue={initialValues?._mapping ?? []}>
           {
             (fields: FormListFieldData[], { add, remove }: FormListOperation) => (
               <div className={styles.mapping}>

@@ -77,7 +77,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
   {
     key: 'mappings',
     name: 'Mappings',
-    getComponent: (form: FormInstance) => <DestinationEditorMappings form={form} />,
+    getComponent: (form: FormInstance) => <DestinationEditorMappings form={form} initialValues={destinationData.current?._mappings} />,
     form: Form.useForm()[0]
   },
   {
