@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
 import { Button, Dropdown, message, Modal, Popover, Tooltip } from 'antd';
 // @Services
@@ -33,8 +33,9 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 // @Types
 import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 
-const DestinationsList = ({ destinations, updateDestinations }: CommonDestinationPageProps) => {
+const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const getTitle = useCallback((dst: DestinationData) => {
@@ -130,6 +131,17 @@ const DestinationsList = ({ destinations, updateDestinations }: CommonDestinatio
   }, [update]);
 
   const handleEditAction = useCallback((id: string) => () => history.push(generatePath(destinationPageRoutes.editDestination, { id })), [history]);
+
+  useEffect(() => {
+    setBreadcrumbs(withHome({
+      elements: [
+        { title: 'Destinations', link: destinationPageRoutes.root },
+        {
+          title: 'Destinations List'
+        }
+      ]
+    }));
+  }, [setBreadcrumbs])
 
   if (destinations.length === 0) {
     return <EmptyList
