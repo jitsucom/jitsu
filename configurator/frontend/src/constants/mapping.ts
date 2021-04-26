@@ -3,7 +3,8 @@ const MAPPING_NAMES: Record<MappingAction, string> = {
   'cast/int': 'Cast to INT',
   'cast/double': 'Cast to DOUBLE',
   'cast/date': 'Cast to DATE',
-  move: 'Move field'
+  move: 'Move field',
+  constant: 'Constant field'
 };
 
 const MAPPINGS_REFERENCE_MAP = {

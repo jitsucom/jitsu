@@ -1,6 +1,7 @@
 // @Libs
 import React, { useCallback, useMemo, useState } from 'react';
 import { Button, Form, Input, Radio, Select } from 'antd';
+import cn from 'classnames';
 // @Components
 import { ComingSoon } from '@atom/ComingSoon';
 // @Types
@@ -94,28 +95,41 @@ const DestinationEditorMappings = ({ form, initialValues, destinationType }: Pro
                     fields.map((field: FormListFieldData) => {
                       return (
                         <div key={`mapping-${field.name}`} className={styles.line}>
-                          <div className={styles.mapInputWrap}>
-                            <label className={styles.mapInputLabel} htmlFor={`src-field-${field.name}`}>From: </label>
-                            <Form.Item name={[field.name, '_srcField']}>
-                              <Input
-                                autoComplete="off"
-                                className={styles.mapInput}
-                                id={`src-field-${field.name}`}
-                              />
+                          <div className={cn(styles.mapInputWrap, styles.fieldWrap)}>
+                            {
+                              mappingActions?.[field.name] !== 'constant' && (
+                                <>
+                                  <label className={styles.mapInputLabel} htmlFor={`src-field-${field.name}`}>From: </label>
+                                  <Form.Item name={[field.name, '_srcField']}>
+                                    <Input
+                                      autoComplete="off"
+                                      className={styles.mapInput}
+                                      id={`src-field-${field.name}`}
+                                    />
+                                  </Form.Item>
+                                </>
+                              )
+                            }
+                          </div>
+
+                          <div className={cn(styles.mapAction, styles.fieldWrap)}>
+                            <label className={styles.mapInputLabel} htmlFor={`action-field-${field.name}`}>Action: </label>
+                            <Form.Item name={[field.name, '_action']}>
+                              <Select
+                                className={styles.mapSelect}
+                                onChange={handleActionChange(field.name)}
+                                id={`action-field-${field.name}`}
+                              >
+                                {
+                                  Object.keys(MAPPING_NAMES).map(key =>
+                                    <Select.Option key={key} value={key}>{MAPPING_NAMES[key]}</Select.Option>
+                                  )
+                                }
+                              </Select>
                             </Form.Item>
                           </div>
 
-                          <Form.Item className={styles.mapAction} name={[field.name, '_action']}>
-                            <Select className={styles.mapSelect} onChange={handleActionChange(field.name)}>
-                              {
-                                Object.keys(MAPPING_NAMES).map(key =>
-                                  <Select.Option key={key} value={key}>{MAPPING_NAMES[key]}</Select.Option>
-                                )
-                              }
-                            </Select>
-                          </Form.Item>
-
-                          <div className={styles.mapInputWrap}>
+                          <div className={cn(styles.mapInputWrap, styles.fieldWrap)}>
                             {
                               mappingActions?.[field.name] !== 'erase' && (
                                 <>
