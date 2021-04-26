@@ -324,9 +324,12 @@ func TestAPIEvent(t *testing.T) {
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
+			mockStorageFactory := storages.NewMockFactory()
+			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
+
 			inmemWriter := logging.InitInMemoryWriter()
 			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
-				destinations.TokenizedStorages{}, destinations.TokenizedIDs{})
+				destinations.TokenizedStorages{"id1": map[string]storages.StorageProxy{"dest1": mockStorage}}, destinations.TokenizedIDs{})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
 			metaStorage := &meta.Dummy{}

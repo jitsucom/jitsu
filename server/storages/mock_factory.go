@@ -1,6 +1,7 @@
 package storages
 
 import (
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 )
@@ -12,7 +13,9 @@ type testProxyMock struct{}
 func (tpm *testProxyMock) Get() (Storage, bool) { return nil, false }
 
 //GetUniqueIDField is a mock func
-func (tpm *testProxyMock) GetUniqueIDField() *identifiers.UniqueID { return nil }
+func (tpm *testProxyMock) GetUniqueIDField() *identifiers.UniqueID {
+	return appconfig.Instance.GlobalUniqueIDField
+}
 
 //ID is a mock func
 func (tpm *testProxyMock) ID() string { return "" }
