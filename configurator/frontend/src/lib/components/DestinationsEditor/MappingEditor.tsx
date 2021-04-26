@@ -37,7 +37,7 @@ export function MappingEditor({ entity, onChange, closeDialog }: IMappingEditorP
               <a
                 target="_blank"
                 rel="noopener"
-                href="https://docs.eventnative.org/configuration/schema-and-mappings#step-3-mapping"
+                href="https://jitsu.com/docs/configuration/schema-and-mappings#step-3-mapping"
               >
                 Read more about mappings
               </a>
@@ -111,7 +111,7 @@ export function MappingEditor({ entity, onChange, closeDialog }: IMappingEditorP
               <a
                 target="_blank"
                 rel="noopener"
-                href="https://docs.eventnative.org/configuration/schema-and-mappings#step-3-mapping"
+                href="https://jitsu.com/docs/configuration/schema-and-mappings#step-3-mapping"
               >
                 Read more about mappings
               </a>
