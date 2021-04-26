@@ -107,7 +107,7 @@ function abbr(user: User) {
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) => {
-
+  const [dropdownVisible, setDropdownVisible] = useState(false);
   return <Row className="internal-page-header-container">
     <Col span={12}>
       <div className="h-12 flex items-center">
@@ -116,7 +116,11 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
     </Col>
     <Col span={12}>
       <Align horizontal="right">
-        <Dropdown trigger={['click']} overlay={<DropdownMenu user={user} plan={plan} />}>
+        <Dropdown
+          trigger={['click']}
+          onVisibleChange={(vis) => setDropdownVisible(vis)}
+          visible={dropdownVisible}
+          overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}>
           <Button className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text" size="large" shape="circle">
             {abbr(user)}
           </Button>
@@ -126,7 +130,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
   </Row>
 }
 
-export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus}> = ({ plan, user }) => {
+export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMenu: () => void}> = ({ plan, user , hideMenu }) => {
   const services = useServices();
 
   const passwordReset = () => {
@@ -138,8 +142,8 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus}> = ({ 
       cancelText: 'Cancel',
       onOk: async() => {
         try {
-          await services.userService.sendPasswordReset()
-          message.info('Reset password instructions has been sent. Please, check your mailbox')
+          await services.userService.sendPasswordReset();
+          message.info('Reset password instructions has been sent. Please, check your mailbox');
         } catch (error) {
           message.error("Can't reset password: " + error.message);
           console.log("Can't reset password", error);
@@ -172,7 +176,13 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus}> = ({ 
         <div>Project: <b>{services.activeProject.name || 'Unspecified'}</b></div>
       </div>
       {services.features.billingEnabled &&<div className="py-5 border-b border-main px-5 flex flex-col items-start">
-        <CurrentPlan limit={plan.eventsThisMonth} usage={plan.currentPlan.events_limit} planTitle={plan.currentPlan.name} />
+        <CurrentPlan
+          limit={plan.currentPlan.events_limit}
+          usage={plan.eventsThisMonth}
+          planTitle={plan.currentPlan.name}
+          onPlanChangeModalOpen={hideMenu}
+          planId={plan.currentPlan.id}
+        />
       </div>}
       <div className="p-2 flex flex-col items-stretch">
         <Button type="text" className="text-left" key="profile" icon={<SlidersOutlined/>} onClick={passwordReset}>Reset Password</Button>

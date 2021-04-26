@@ -2,20 +2,20 @@ import { Project } from '@service/model';
 import { BackendApiClient } from '@service/ApplicationServices';
 import { StatService, StatServiceImpl } from '@service/stat';
 
+export type PlanId = 'free' | 'growth' | 'premium' | 'enterprise';
+
 export type PaymentPlan = {
   name: string,
-  id: string,
+  id: PlanId,
   events_limit: number
 }
 
-export const paymentPlans: Record<string, PaymentPlan> = {
+export const paymentPlans: Record<PlanId , PaymentPlan> = {
   free: { name: 'Startup (free)', id: 'free', events_limit: 250_000 },
   growth: { name: 'Growth', id: 'growth', events_limit: 1_000_000 },
   premium: { name: 'Premium', id: 'premium', events_limit: 10_000_000 },
   enterprise: { name: 'Enterprise', id: 'enterprise', events_limit: null }
 }
-
-
 
 /**
  * Status of current payment plan
@@ -38,9 +38,9 @@ export class PaymentPlanStatus {
     }
     this._stat = new StatServiceImpl(backendApiClient, project, true);
     var date = new Date();
-    const stat = await this._stat.get(new Date(date.getFullYear(), date. getMonth(), 1), new Date(date.getFullYear(), date. getMonth() + 1, 0), 'day');
+    const stat = await this._stat.get(new Date(date.getFullYear(), date.getMonth(), 1), new Date(date.getFullYear(), date.getMonth() + 1, 0), 'day');
     this._eventsThisMonth = stat.reduce((res, item) => {
-      res += item['data'];
+      res += item.events;
       return res;
     }, 0);
   }
