@@ -15,7 +15,7 @@ import { allSources } from '@catalog/sources/lib';
 // @Routes
 import { routes } from '@page/SourcesPage/routes';
 
-const AddSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSourcePageProps) => {
+const AddSource = ({ projectId, sources, updateSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const params = useParams<{ source: string }>();
 
   useEffect(() => {
@@ -72,7 +72,7 @@ const AddSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSou
         setBreadcrumbs={setBreadcrumbs}
         projectId={projectId}
         sources={sources}
-        setSources={setSources}
+        updateSources={updateSources}
       />
     </>
   );
