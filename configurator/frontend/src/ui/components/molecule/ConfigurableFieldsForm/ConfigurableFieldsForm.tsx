@@ -58,23 +58,11 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues }: Props
 
       // ToDo: check if it can be <select> in some cases
     case 'selection':
-      return type.data.options.length === 2
-        ? <Radio.Group buttonStyle="solid" onChange={handleRadioGroupChange}>
-          {
-            type.data.options.map(({ id, displayName }: Option) =>
-              <Radio.Button value={id} key={id}>{displayName}</Radio.Button>
-            )
-          }
-        </Radio.Group>
-        : <Select allowClear mode={type.data.maxOptions > 1
-          ? 'multiple'
-          : undefined}>
-          {
-            type.data.options.map(({ id, displayName }: Option) =>
-              <Select.Option value={id} key={id}>{displayName}</Select.Option>
-            )
-          }
-        </Select>;
+      return <Select allowClear mode={type.data.maxOptions > 1 ? 'multiple' : undefined}>
+        {type.data.options.map(({ id, displayName }: Option) =>
+          <Select.Option value={id} key={id}>{displayName}</Select.Option>
+        )}
+      </Select>;
 
     case 'array/string':
       return <EditableList newItemLabel="Add new server" validator={dsnValidator}/>;
