@@ -22,7 +22,7 @@ const SourceFormWrap = ({
   projectId,
   sourceData = {} as SourceData,
   formMode = 'create',
-  setSources
+  updateSources
 }: FormWrapProps) => {
   const history = useHistory();
 
@@ -77,7 +77,7 @@ const SourceFormWrap = ({
       try {
         await services.storageService.save('sources', payload, projectId);
 
-        setSources(payload);
+        updateSources(payload);
 
         message.success('New source has been added!');
 
@@ -89,7 +89,7 @@ const SourceFormWrap = ({
         switchPending(false)
       }
     },
-    [isConnected, connectorSource, services.storageService, projectId, sources, history, setSources, formMode]
+    [isConnected, connectorSource, services.storageService, projectId, sources, history, updateSources, formMode]
   );
 
   return (
