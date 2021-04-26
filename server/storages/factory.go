@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/typing"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -15,6 +14,7 @@ import (
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
 const (
@@ -62,9 +62,10 @@ type DataLayout struct {
 }
 
 type UsersRecognition struct {
-	Enabled         bool   `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
-	AnonymousIDNode string `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
-	UserIDNode      string `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
+	Enabled             bool     `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
+	AnonymousIDNode     string   `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
+	IdentificationNodes []string `mapstructure:"identification_nodes" json:"identification_nodes,omitempty" yaml:"identification_nodes,omitempty"`
+	UserIDNode          string   `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
 }
 
 func (ur *UsersRecognition) IsEnabled() bool {
@@ -74,11 +75,16 @@ func (ur *UsersRecognition) IsEnabled() bool {
 func (ur *UsersRecognition) Validate() error {
 	if ur.IsEnabled() {
 		if ur.AnonymousIDNode == "" {
-			return errors.New("anonymous_id_node is required")
+			return errors.New("users_recognition.anonymous_id_node is required")
 		}
 
-		if ur.UserIDNode == "" {
-			return errors.New("user_id_node is required")
+		if len(ur.IdentificationNodes) == 0 {
+			if ur.UserIDNode == "" {
+				return errors.New("users_recognition.identification_nodes is required")
+			} else {
+				logging.Warn("users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead")
+				ur.IdentificationNodes = []string{ur.UserIDNode}
+			}
 		}
 	}
 
@@ -243,9 +249,9 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 			logging.Infof("[%s] invalid users recognition configuration: %v.%s", destinationID, err, globalConfigurationLogMsg)
 		} else {
 			usersRecognitionConfiguration = &UserRecognitionConfiguration{
-				Enabled:             destination.UsersRecognition.Enabled,
-				AnonymousIDJSONPath: jsonutils.NewJSONPath(destination.UsersRecognition.AnonymousIDNode),
-				UserIDJSONPath:      jsonutils.NewJSONPath(destination.UsersRecognition.UserIDNode),
+				Enabled:                  destination.UsersRecognition.Enabled,
+				AnonymousIDJSONPath:      jsonutils.NewJSONPath(destination.UsersRecognition.AnonymousIDNode),
+				IdentificationJSONPathes: jsonutils.NewJSONPathes(destination.UsersRecognition.IdentificationNodes),
 			}
 		}
 	} else {
