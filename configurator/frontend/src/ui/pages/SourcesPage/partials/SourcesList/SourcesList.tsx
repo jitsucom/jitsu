@@ -21,7 +21,7 @@ import { allSources } from '@catalog/sources/lib';
 // @Routes
 import { routes } from '@page/SourcesPage/routes';
 
-const SourcesList = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSourcePageProps) => {
+const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
 
   useEffect(() => {
@@ -52,12 +52,12 @@ const SourcesList = ({ projectId, sources, setSources, setBreadcrumbs }: CommonS
       const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
 
       services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
-        setSources({ sources: updatedSources });
+        updateSources({ sources: updatedSources });
 
         message.success('Sources list successfully updated');
       });
     },
-    [sources, setSources, services.storageService, projectId]
+    [sources, updateSources, services.storageService, projectId]
   );
 
   return (
