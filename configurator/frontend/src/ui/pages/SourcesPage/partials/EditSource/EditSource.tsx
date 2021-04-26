@@ -14,7 +14,7 @@ import { allSources } from '@catalog/sources/lib';
 // @Routes
 import { routes } from '@page/SourcesPage/routes';
 
-const EditSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSourcePageProps) => {
+const EditSource = ({ projectId, sources, updateSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const params = useParams<{ sourceId: string }>();
 
   const sourceData = useMemo(() => sources.find((source: SourceData) => source.sourceId === params.sourceId), [sources, params.sourceId]);
@@ -47,7 +47,7 @@ const EditSource = ({ projectId, sources, setSources, setBreadcrumbs }: CommonSo
         connectorSource={connectorSource}
         projectId={projectId}
         sources={sources}
-        setSources={setSources}
+        updateSources={updateSources}
         setBreadcrumbs={setBreadcrumbs}
       />
     </>
