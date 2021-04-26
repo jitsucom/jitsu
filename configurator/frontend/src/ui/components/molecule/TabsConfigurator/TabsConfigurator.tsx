@@ -19,7 +19,7 @@ export interface Tab {
 
 export interface Props {
   tabsList: Tab[];
-  className: string;
+  className?: string;
   type: TabsType;
   defaultTabIndex?: number;
 }
