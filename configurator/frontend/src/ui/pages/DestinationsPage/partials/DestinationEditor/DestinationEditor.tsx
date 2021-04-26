@@ -82,7 +82,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
   },
   {
     key: 'sources',
-    name: 'Connectors',
+    name: 'Connected sources',
     getComponent: (form: FormInstance) => <DestinationEditorSources form={form} initialValues={destinationData.current._sources} />,
     form: Form.useForm()[0],
     errorsLevel: 'warning'
@@ -209,7 +209,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
         <div className={cn('flex-grow', styles.mainArea)}>
-          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={1} />
+          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={0} />
         </div>
 
         <div className="flex-shrink border-t pt-2">
