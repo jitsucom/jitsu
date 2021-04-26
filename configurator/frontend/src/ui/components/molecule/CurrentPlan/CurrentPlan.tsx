@@ -1,7 +1,7 @@
 import { CurrentPlanProps } from './CurrentPlan.types';
 import styles from './CurrentPlan.module.less';
 import { Button, Modal, Progress } from 'antd';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Icon from '@ant-design/icons';
 import * as React from 'react';
 import cn from 'classnames';
@@ -46,6 +46,10 @@ export const PlanUpgradeDialog: React.FC<{visible: boolean, hide: () => void, cu
     }
   }
 
+  useEffect(() => {
+    services.analyticsService.withJitsu(jitsu => jitsu.track('upgrade_plan_requested'));
+  })
+
   return <Modal
     destroyOnClose={true}
     title="Change Plan"
@@ -87,12 +91,15 @@ export const PlanUpgradeDialog: React.FC<{visible: boolean, hide: () => void, cu
         onClick={async() => {
           setLoading(true);
           try {
-            await services.backendApiClient.post('/notify',
-              {
-                event: 'upgrade_plan',
-                plan: 'selectedPlan',
-                user: services.userService.getUser().email
-              });
+            await services.analyticsService.withJitsuSync(async(j) => {
+              return await j.track('upgrade_plan', { plan: selectedPlan });
+            })
+            // await services.backendApiClient.post('/notify',
+            //   {
+            //     event: 'upgrade_plan',
+            //     plan: selectedPlan,
+            //     user: services.userService.getUser().email
+            //   });
             setDataSent(true)
           } catch (e) {
             handleError(e);
