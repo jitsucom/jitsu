@@ -48,26 +48,22 @@
 .mapping {
   .line {
     width: 100%;
-    max-width: 1000px;
+    max-width: 1200px;
     display: flex;
     align-items: center;
 
-    .mapInputWrap {
+    .fieldWrap {
       display: flex;
-      flex: 0 0 calc(40% - 20px);
 
       :global {
         .ant-row {
           flex-grow: 1;
         }
       }
+    }
 
-      .mapInputLabel {
-        display: inline-flex;
-        flex-shrink: 0;
-        align-items: center;
-        margin: 0 5px 24px 0;
-      }
+    .mapInputWrap {
+      flex: 0 0 calc(40% - 20px);
 
       .mapInput {
         border-top: none;
@@ -99,6 +95,13 @@
           }
         }
       }
+    }
+
+    .mapInputLabel {
+      display: inline-flex;
+      flex-shrink: 0;
+      align-items: center;
+      margin: 0 5px 24px 0;
     }
 
     .mapBtn {
