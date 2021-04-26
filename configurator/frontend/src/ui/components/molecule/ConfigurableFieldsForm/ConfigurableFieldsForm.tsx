@@ -21,7 +21,7 @@ import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlin
 export interface Props {
   fieldsParamsList: Parameter[];
   form: FormInstance;
-  initialValues: DestinationData;
+  initialValues: any;
 }
 
 const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues }: Props) => {
