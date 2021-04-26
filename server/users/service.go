@@ -3,6 +3,7 @@ package users
 import (
 	"encoding/json"
 	"fmt"
+
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
@@ -28,15 +29,25 @@ type RecognitionPayload struct {
 
 //EventIdentifiers is used for holding event identifiers
 type EventIdentifiers struct {
-	AnonymousID string
-	EventID     string
-	UserID      string
+	AnonymousID          string
+	EventID              string
+	IdentificationValues map[string]interface{}
 }
 
 // RecognitionPayloadBuilder creates and returns a new *RecognitionPayload (must be pointer).
 // This is used when we load a segment of the queue from disk.
 func RecognitionPayloadBuilder() interface{} {
 	return &RecognitionPayload{}
+}
+
+func (ei *EventIdentifiers) IsAllIdentificationValuesFilled() bool {
+	for _, value := range ei.IdentificationValues {
+		if value == nil {
+			return false
+		}
+	}
+
+	return true
 }
 
 //RecognitionService has a thread pool under the hood
@@ -73,9 +84,9 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 		destinationService: destinationService,
 		metaStorage:        metaStorage,
 		globalConfiguration: &storages.UserRecognitionConfiguration{
-			Enabled:             configuration.Enabled,
-			AnonymousIDJSONPath: jsonutils.NewJSONPath(configuration.AnonymousIDNode),
-			UserIDJSONPath:      jsonutils.NewJSONPath(configuration.UserIDNode),
+			Enabled:                  configuration.Enabled,
+			AnonymousIDJSONPath:      jsonutils.NewJSONPath(configuration.AnonymousIDNode),
+			IdentificationJSONPathes: jsonutils.NewJSONPathes(configuration.IdentificationNodes),
 		},
 		queue: queue,
 	}
@@ -112,15 +123,16 @@ func (rs *RecognitionService) start() {
 			}
 
 			for destinationID, identifiers := range rp.DestinationsIdentifiers {
-				//recognized
-				if identifiers.UserID != "" {
-					err := rs.runPipeline(destinationID, identifiers)
+				if identifiers.IsAllIdentificationValuesFilled() {
+					// Run pipeline only if all identification values were recognized,
+					// it is needed to update all other anonymous events
+					err = rs.runPipeline(destinationID, identifiers)
 					if err != nil {
 						logging.SystemErrorf("[%s] Error running recognizing pipeline: %v", destinationID, err)
 					}
 				} else {
-					//still anonymous
-					err := rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes))
+					// If some identification value is missing - event is still anonymous
+					err = rs.metaStorage.SaveAnonymousEvent(destinationID, identifiers.AnonymousID, identifiers.EventID, string(rp.EventBytes))
 					if err != nil {
 						logging.SystemErrorf("[%s] Error saving event with anonymous id %s: %v", destinationID, identifiers.AnonymousID, err)
 					}
@@ -188,16 +200,12 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 
 		anonymousIDStr := fmt.Sprint(anonymousID)
 
-		var userIDStr string
-		userID, ok := configuration.UserIDJSONPath.Get(event)
-		if ok {
-			userIDStr = fmt.Sprint(userID)
-		}
+		properties, ok := configuration.IdentificationJSONPathes.Get(event)
 
 		identifiers[destinationID] = EventIdentifiers{
-			EventID:     events.ExtractEventID(event),
-			AnonymousID: anonymousIDStr,
-			UserID:      userIDStr,
+			EventID:              events.ExtractEventID(event),
+			AnonymousID:          anonymousIDStr,
+			IdentificationValues: properties,
 		}
 	}
 
@@ -211,7 +219,7 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 	}
 
 	for storedEventID, storedSerializedEvent := range eventsMap {
-		event := map[string]interface{}{}
+		event := events.Event{}
 		err := json.Unmarshal([]byte(storedSerializedEvent), &event)
 		if err != nil {
 			logging.SystemErrorf("[%s] Error unmarshalling anonymous event [%s] from meta storage with [%s] anonymous id: %v", destinationID, storedEventID, identifiers.AnonymousID, err)
@@ -242,9 +250,10 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 			continue
 		}
 
-		err = configuration.UserIDJSONPath.Set(event, identifiers.UserID)
+		err = configuration.IdentificationJSONPathes.Set(event, identifiers.IdentificationValues)
 		if err != nil {
-			logging.Errorf("[%s] Error setting recognized user id into event: %s with json path rule [%s]: %v", destinationID, storedSerializedEvent, configuration.UserIDJSONPath.String(), err)
+			logging.Errorf("[%s] Error setting recognized user id into event: %s with json path rule [%s]: %v",
+				destinationID, storedSerializedEvent, configuration.IdentificationJSONPathes.String(), err)
 			continue
 		}
 
@@ -254,10 +263,11 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 			continue
 		}
 
+		// Pipeline goes only when event contains full identifiers according to settings,
+		// so all saved events will be recognized and should be removed from storage.
 		err = rs.metaStorage.DeleteAnonymousEvent(destinationID, identifiers.AnonymousID, storedEventID)
 		if err != nil {
 			logging.SystemErrorf("[%s] Error deleting stored recognized event [%s]: %v", destinationID, storedEventID, err)
-			continue
 		}
 	}
 

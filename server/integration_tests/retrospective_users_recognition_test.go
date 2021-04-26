@@ -101,9 +101,10 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	var recognitionConfiguration *storages.UsersRecognition
 	if viper.IsSet("users_recognition") {
 		recognitionConfiguration = &storages.UsersRecognition{
-			Enabled:         viper.GetBool("users_recognition.enabled"),
-			AnonymousIDNode: viper.GetString("users_recognition.anonymous_id_node"),
-			UserIDNode:      viper.GetString("users_recognition.user_id_node"),
+			Enabled:             viper.GetBool("users_recognition.enabled"),
+			AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
+			IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
+			UserIDNode:          viper.GetString("users_recognition.user_id_node"),
 		}
 	}
 
