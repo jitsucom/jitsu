@@ -5,6 +5,7 @@ import (
 	"strings"
 )
 
+//JSONPath is a struct for extracting and setting value by JSON path
 type JSONPath struct {
 	//[key1, key2, key3]
 	parts []string
@@ -12,7 +13,7 @@ type JSONPath struct {
 
 //NewJSONPath return JSONPath
 func NewJSONPath(path string) *JSONPath {
-	parts := strings.Split(FormatPrefixSuffix(path), "/")
+	parts := strings.Split(formatPrefixSuffix(path), "/")
 	if len(parts) == 1 && parts[0] == "" {
 		//empty json path
 		parts = []string{}
@@ -20,16 +21,17 @@ func NewJSONPath(path string) *JSONPath {
 	return &JSONPath{parts: parts}
 }
 
+//IsEmpty returns true if path is empty
 func (jp *JSONPath) IsEmpty() bool {
 	return len(jp.parts) == 0
 }
 
-//Get return value of json path
+//Get returns value of json path
 func (jp *JSONPath) Get(obj map[string]interface{}) (interface{}, bool) {
 	return jp.getAndRemove(obj, false)
 }
 
-//Get return value of json path and remove it from origin json
+//GetAndRemove returns value of json path and remove it from origin json
 func (jp *JSONPath) GetAndRemove(obj map[string]interface{}) (interface{}, bool) {
 	return jp.getAndRemove(obj, true)
 }
@@ -100,15 +102,17 @@ func (jp *JSONPath) Set(obj map[string]interface{}, value interface{}) error {
 	return nil
 }
 
+//String returns string representation of JSON path (/key1/key2)
 func (jp *JSONPath) String() string {
 	return "/" + strings.Join(jp.parts, "/")
 }
 
+//FieldName returns string representation of flat field (key1_key2)
 func (jp *JSONPath) FieldName() string {
 	return strings.Join(jp.parts, "_")
 }
 
-func FormatPrefixSuffix(key string) string {
+func formatPrefixSuffix(key string) string {
 	if strings.HasPrefix(key, "/") {
 		key = key[1:]
 	}

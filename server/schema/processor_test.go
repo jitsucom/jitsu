@@ -1,6 +1,7 @@
 package schema
 
 import (
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/spf13/viper"
 	"io/ioutil"
 	"testing"
@@ -137,7 +138,7 @@ func TestProcessFilePayload(t *testing.T) {
 			[]events.FailedEvent{},
 		},
 	}
-	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false)
+	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"))
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -277,7 +278,7 @@ func TestProcessFact(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false)
+	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"))
 
 	require.NoError(t, err)
 	for _, tt := range tests {

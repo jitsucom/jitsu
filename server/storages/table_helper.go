@@ -71,14 +71,14 @@ func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters
 //if table doesn't exist - create a new one and increment version
 //if exists - calculate diff, patch existing one with diff and increment version
 //return actual db table schema (with actual db types)
-func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
+func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
 	var dbSchema *adapters.Table
 	var err error
 
 	if th.streamMode {
-		dbSchema, err = th.getSavedTableSchema(destinationName, dataSchema)
+		dbSchema, err = th.getSavedTableSchema(destinationID, dataSchema)
 	} else {
-		dbSchema, err = th.getOrCreate(destinationName, dataSchema)
+		dbSchema, err = th.getOrCreate(destinationID, dataSchema)
 	}
 	if err != nil {
 		return nil, err
@@ -95,13 +95,13 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.
 		columnsCount := len(dbSchema.Columns) + len(diff.Columns)
 		if columnsCount > th.maxColumns {
 			//return nil, fmt.Errorf("Count of columns %d should be less or equal 'server.max_columns' (or destination.data_layout.max_columns) setting %d", columnsCount, th.maxColumns)
-			logging.Warnf("Count of columns %d should be less or equal 'server.max_columns' (or destination.data_layout.max_columns) setting %d", columnsCount, th.maxColumns)
+			logging.Warnf("[%s] Count of columns %d should be less or equal 'server.max_columns' (or destination.data_layout.max_columns) setting %d", destinationID, columnsCount, th.maxColumns)
 		}
 	}
 
 	//** Diff exists **
 	//patch schema
-	lock, err := th.monitorKeeper.Lock(destinationName, dbSchema.Name)
+	lock, err := th.monitorKeeper.Lock(destinationID, dbSchema.Name)
 	if err != nil {
 		msg := fmt.Sprintf("System error: Unable to lock table %s: %v", dbSchema.Name, err)
 		notifications.SystemError(msg)
@@ -116,7 +116,7 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.
 	}
 
 	//handle schema remote changes (in multi-cluster setup)
-	ver, err := th.monitorKeeper.GetVersion(destinationName, dbSchema.Name)
+	ver, err := th.monitorKeeper.GetVersion(destinationID, dbSchema.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting table %s version: %v", dataSchema.Name, err)
 	}
@@ -142,7 +142,7 @@ func (th *TableHelper) EnsureTable(destinationName string, dataSchema *adapters.
 		return nil, err
 	}
 
-	newVersion, err := th.monitorKeeper.IncrementVersion(destinationName, diff.Name)
+	newVersion, err := th.monitorKeeper.IncrementVersion(destinationID, diff.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Error incrementing table %s version: %v", diff.Name, err)
 	}

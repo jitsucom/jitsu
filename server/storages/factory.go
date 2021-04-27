@@ -11,6 +11,7 @@ import (
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -59,6 +60,7 @@ type DataLayout struct {
 	MaxColumns        int             `mapstructure:"max_columns" json:"max_columns,omitempty" yaml:"max_columns,omitempty"`
 	TableNameTemplate string          `mapstructure:"table_name_template" json:"table_name_template,omitempty" yaml:"table_name_template,omitempty"`
 	PrimaryKeyFields  []string        `mapstructure:"primary_key_fields" json:"primary_key_fields,omitempty" yaml:"primary_key_fields,omitempty"`
+	UniqueIDField     string          `mapstructure:"unique_id_field" json:"unique_id_field,omitempty" yaml:"unique_id_field,omitempty"`
 }
 
 type UsersRecognition struct {
@@ -105,6 +107,7 @@ type Config struct {
 	loggerFactory    *logging.Factory
 	pkFields         map[string]bool
 	sqlTypes         typing.SQLTypes
+	uniqueIDField    *identifiers.UniqueID
 }
 
 //RegisterStorage registers function to create new storage(destination) instance
@@ -163,6 +166,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	pkFields := map[string]bool{}
 	mappingFieldType := schema.Default
 	maxColumns := f.maxColumns
+	uniqueIDField := appconfig.Instance.GlobalUniqueIDField
 	if destination.DataLayout != nil {
 		mappingFieldType = destination.DataLayout.MappingType
 		oldStyleMappings = destination.DataLayout.Mapping
@@ -180,6 +184,10 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 			maxColumns = destination.DataLayout.MaxColumns
 
 			logging.Infof("[%s] uses max_columns setting: %d", destinationID, maxColumns)
+		}
+
+		if destination.DataLayout.UniqueIDField != "" {
+			uniqueIDField = identifiers.NewUniqueID(destination.DataLayout.UniqueIDField)
 		}
 	}
 
@@ -231,7 +239,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 			return nil, nil, convertErr
 		}
 	}
-	enrichAndLogMappings(destinationID, destination.Type, newStyleMapping)
+	enrichAndLogMappings(destinationID, destination.Type, uniqueIDField, newStyleMapping)
 	fieldMapper, sqlTypes, err := schema.NewFieldMapper(newStyleMapping)
 	if err != nil {
 		return nil, nil, err
@@ -278,7 +286,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		typeResolver = schema.NewTypeResolver()
 	}
 
-	processor, err := schema.NewProcessor(destinationID, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, destination.BreakOnError)
+	processor, err := schema.NewProcessor(destinationID, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, destination.BreakOnError, uniqueIDField)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -325,6 +333,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		loggerFactory:    destinationLoggerFactory,
 		pkFields:         pkFields,
 		sqlTypes:         sqlTypes,
+		uniqueIDField:    uniqueIDField,
 	}
 
 	storageProxy := newProxy(storageConstructor, storageConfig)
@@ -334,7 +343,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 
 //Add system fields as default mappings
 //write current mapping configuration to logs
-func enrichAndLogMappings(destinationID, destinationType string, mapping *schema.Mapping) {
+func enrichAndLogMappings(destinationID, destinationType string, uniqueIDField *identifiers.UniqueID, mapping *schema.Mapping) {
 	if mapping == nil || len(mapping.Fields) == 0 {
 		logging.Warnf("[%s] doesn't have mapping rules", destinationID)
 		return
@@ -345,12 +354,15 @@ func enrichAndLogMappings(destinationID, destinationType string, mapping *schema
 		keepUnmapped = *mapping.KeepUnmapped
 	}
 
+	uniqueIDFieldName := uniqueIDField.GetFieldName()
+	uniqueIDFieldFlatName := uniqueIDField.GetFlatFieldName()
+
 	//check system fields and add default mappings
 	//if destination is SQL and not keep unmapped
 	if isSQLType(destinationType) && !keepUnmapped {
 		var configuredEventId, configuredTimestamp bool
 		for _, f := range mapping.Fields {
-			if f.Src == "/eventn_ctx/event_id" && (f.Dst == "/eventn_ctx/event_id" || f.Dst == "/eventn_ctx_event_id") {
+			if f.Src == uniqueIDFieldName && (f.Dst == uniqueIDFieldName || f.Dst == uniqueIDFieldFlatName) {
 				configuredEventId = true
 			}
 
@@ -360,7 +372,7 @@ func enrichAndLogMappings(destinationID, destinationType string, mapping *schema
 		}
 
 		if !configuredEventId {
-			eventIdMapping := schema.MappingField{Src: "/eventn_ctx/event_id", Dst: "/eventn_ctx/event_id", Action: schema.MOVE}
+			eventIdMapping := schema.MappingField{Src: uniqueIDFieldName, Dst: uniqueIDFieldName, Action: schema.MOVE}
 			mapping.Fields = append(mapping.Fields, eventIdMapping)
 			logging.Warnf("[%s] Added default system field mapping: %s", destinationID, eventIdMapping.String())
 		}

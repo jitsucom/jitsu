@@ -3,6 +3,7 @@ package storages
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -17,7 +18,7 @@ import (
 //batch: (1 file = 1 statement)
 //stream: (1 object = 1 statement)
 type Postgres struct {
-	name                          string
+	destinationID                 string
 	adapter                       *adapters.Postgres
 	tableHelper                   *TableHelper
 	processor                     *schema.Processor
@@ -25,6 +26,7 @@ type Postgres struct {
 	fallbackLogger                *logging.AsyncLogger
 	eventsCache                   *caching.EventsCache
 	usersRecognitionConfiguration *UserRecognitionConfiguration
+	uniqueIDField                 *identifiers.UniqueID
 	staged                        bool
 }
 
@@ -32,6 +34,7 @@ func init() {
 	RegisterStorage(PostgresType, NewPostgres)
 }
 
+//NewPostgres returns configured Postgres Destination
 func NewPostgres(config *Config) (Storage, error) {
 	pgConfig := config.destination.DataSource
 	if err := pgConfig.Validate(); err != nil {
@@ -67,13 +70,14 @@ func NewPostgres(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres, config.streamMode, config.maxColumns)
 
 	p := &Postgres{
-		name:                          config.destinationID,
+		destinationID:                 config.destinationID,
 		adapter:                       adapter,
 		tableHelper:                   tableHelper,
 		processor:                     config.processor,
 		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:                   config.eventsCache,
 		usersRecognitionConfiguration: config.usersRecognition,
+		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
 	}
 
@@ -115,9 +119,9 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				p.eventsCache.Error(p.ID(), events.ExtractEventID(object), err.Error())
+				p.eventsCache.Error(p.ID(), p.uniqueIDField.Extract(object), err.Error())
 			} else {
-				p.eventsCache.Succeed(p.ID(), events.ExtractEventID(object), object, table)
+				p.eventsCache.Succeed(p.ID(), p.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
@@ -147,7 +151,7 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 	return nil
 }
 
-//Fallback log event with error to fallback logger
+//Fallback logs event with error to fallback logger
 func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
 	for _, failedEvent := range failedEvents {
 		p.fallbackLogger.ConsumeAny(failedEvent)
@@ -209,6 +213,7 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 	return nil
 }
 
+//Update uses SyncStore under the hood
 func (p *Postgres) Update(object map[string]interface{}) error {
 	return p.SyncStore(nil, []map[string]interface{}{object}, "")
 }
@@ -240,11 +245,17 @@ func (p *Postgres) Insert(table *adapters.Table, event events.Event) (err error)
 	return nil
 }
 
+//GetUsersRecognition returns users recognition configuration
 func (p *Postgres) GetUsersRecognition() *UserRecognitionConfiguration {
 	return p.usersRecognitionConfiguration
 }
 
-//Close adapters.Postgres
+//GetUniqueIDField returns unique ID field configuration
+func (p *Postgres) GetUniqueIDField() *identifiers.UniqueID {
+	return p.uniqueIDField
+}
+
+//Close closes Postgres adapter, fallback logger and streaming worker
 func (p *Postgres) Close() (multiErr error) {
 	if err := p.adapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", p.ID(), err))
@@ -263,10 +274,12 @@ func (p *Postgres) Close() (multiErr error) {
 	return
 }
 
+//ID returns destination ID
 func (p *Postgres) ID() string {
-	return p.name
+	return p.destinationID
 }
 
+//Type returns Facebook type
 func (p *Postgres) Type() string {
 	return PostgresType
 }

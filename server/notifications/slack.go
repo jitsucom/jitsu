@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/safego"
 	"io/ioutil"
@@ -55,6 +56,25 @@ const (
 )
 
 var instance *SlackNotifier
+
+type SlackMessage struct {
+	Text        string       `json:"text,omitempty"`
+	Attachments []Attachment `json:"attachments,omitempty"`
+}
+
+type Attachment struct {
+	Blocks []Block `json:"blocks,omitempty"`
+}
+
+type Block struct {
+	Type string `json:"type,omitempty"`
+	Text *Text  `json:"text,omitempty"`
+}
+
+type Text struct {
+	Type string `json:"type,omitempty"`
+	Text string `json:"text,omitempty"`
+}
 
 type SlackNotifier struct {
 	client           *http.Client
@@ -115,6 +135,31 @@ func Init(serviceName, url, serverName string, errorLoggingFunc func(format stri
 		messagesCh:       make(chan string, 1000),
 	}
 	instance.start()
+}
+
+func Custom(payload string) {
+	if instance != nil {
+		sm := &SlackMessage{
+			Text: "Custom Notification",
+			Attachments: []Attachment{
+				{
+					Blocks: []Block{
+						{
+							Type: "divider",
+						},
+						{
+							Type: "section",
+							Text: &Text{
+								Type: "mrkdwn",
+								Text: "```" + payload + "```",
+							},
+						},
+					},
+				},
+			}}
+		b, _ := json.Marshal(sm)
+		instance.messagesCh <- string(b)
+	}
 }
 
 func ServerStart() {
