@@ -27,6 +27,7 @@ export interface CommonDestinationPageProps {
   setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void;
   destinations: DestinationData[];
   updateDestinations: Dispatch<SetStateAction<any>>;
+  editorMode?: 'edit' | 'add';
 }
 
 export const DestinationsPage = (props: PageProps) => {
@@ -59,13 +60,13 @@ export const DestinationsPage = (props: PageProps) => {
         path={destinationPageRoutes.newDestination}
         strict={false}
         exact
-        render={getComponent<CommonDestinationPageProps>(DestinationEditor, additionalProps)}
+        render={getComponent<CommonDestinationPageProps>(DestinationEditor, { ...additionalProps, editorMode: 'add' })}
       />
       <Route
         path={destinationPageRoutes.editDestination}
         strict={false}
         exact
-        render={getComponent<CommonDestinationPageProps>(DestinationEditor, additionalProps)}
+        render={getComponent<CommonDestinationPageProps>(DestinationEditor, { ...additionalProps, editorMode: 'edit' })}
       />
     </Switch>
   );

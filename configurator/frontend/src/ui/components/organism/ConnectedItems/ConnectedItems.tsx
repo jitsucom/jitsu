@@ -8,19 +8,18 @@ import { ListItem } from '@molecule/ListItem';
 export interface Item {
   id: string;
   title: React.ReactNode;
-  icon: React.ReactNode;
+  icon?: React.ReactNode;
 }
 
 export interface Props {
   form: FormInstance;
-  formName: string;
   fieldName: string;
   itemsList: Item[];
   initialValues?: string[];
   warningMessage: React.ReactNode;
 }
 
-const ConnectedItems = ({ form, formName, fieldName, itemsList = [], initialValues = [], warningMessage }: Props) => {
+const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], warningMessage }: Props) => {
   const [selectedItems, setSelectedItems] = useState<string[]>(initialValues ?? []);
 
   const handleChange = useCallback((id: string) => (checked: boolean) => {
@@ -46,7 +45,7 @@ const ConnectedItems = ({ form, formName, fieldName, itemsList = [], initialValu
   }, [selectedItems, form, fieldName]);
 
   return (
-    <Form form={form} name={formName}>
+    <>
       <Form.Item name={fieldName}>
         <ul>
           {
@@ -66,7 +65,7 @@ const ConnectedItems = ({ form, formName, fieldName, itemsList = [], initialValu
       {
         itemsList?.length > 0 && selectedItems.length === 0 && <Typography.Text type="warning">{warningMessage}</Typography.Text>
       }
-    </Form>
+    </>
   );
 };
 
