@@ -49,7 +49,7 @@ export default class CustomDomains extends LoadableComponent<any, State> {
       estimatedMs: 30_000,
       callback: async () => {
         await this.services.backendApiClient.post(
-          `/ssl?projectId=${this.services.activeProject.id}&async=${false}`,
+          `/ssl?project_id=${this.services.activeProject.id}&async=${false}`,
           {}
         );
         await this.reload();
