@@ -139,7 +139,7 @@ export type JitsuOptions = {
   /**
    * Log level. 'WARN' if not set
    */
-  log_level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+  log_level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'NONE';
 
   //NOTE: If any property is added here, please make sure it's added to browset.ts jitsuProps as well
 };
