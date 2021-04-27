@@ -23,9 +23,11 @@ export interface Props {
   form: FormInstance;
   initialValues: SourceData;
   connectorSource: SourceConnector;
+  handleTouchAnyField: VoidFunc;
 }
 
-const SourceEditorCollections = ({ form, initialValues, connectorSource }: Props) => {
+const SourceEditorCollections = ({ form, initialValues, connectorSource, handleTouchAnyField }: Props) => {
+
   const [chosenTypes, setChosenTypes] = useState<{ [key: number]: string }>(
     initialValues.collections?.reduce((accumulator: any, value: CollectionSource, index: number) => {
       return { ...accumulator, [index]: value.type };
@@ -55,8 +57,10 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource }: Props
         ...chosenTypes,
         [index]: value
       });
+
+      handleTouchAnyField();
     },
-    [chosenTypes, form, connectorSource.id]
+    [chosenTypes, form, connectorSource.id, handleTouchAnyField]
   );
 
   const handleRemoveField = useCallback(
@@ -135,6 +139,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource }: Props
         name="source-collections"
         form={form}
         autoComplete="off"
+        onChange={handleTouchAnyField}
       >
         <Form.List name="collections" initialValue={updatedInitialValues}>
           {
@@ -196,7 +201,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource }: Props
                               wrapperCol={{ span: 18 }}
                               rules={[{ required: true, message: 'You have to choose schedule' }]}
                             >
-                              <Select>
+                              <Select onChange={handleTouchAnyField}>
                                 {
                                   COLLECTIONS_SCHEDULES.map((option) =>
                                     <Select.Option value={option.value} key={option.value}>{option.label}</Select.Option>
