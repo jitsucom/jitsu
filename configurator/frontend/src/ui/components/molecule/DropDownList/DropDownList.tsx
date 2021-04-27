@@ -46,7 +46,7 @@ const DropDownListComponent = ({ filterPlaceholder, list, hideFilter = false, ge
 
       <ul className={styles.list}>
         {filteredList.map((item: DropDownListItem, index: number) => (
-          <li key={`${item.id}-${item.title}`} className={cn(styles.item, getClassName(filteredList, item, index))}>
+          <li key={`${item.id}-${item.title}`} className={cn(styles.item, getClassName && getClassName(filteredList, item, index))}>
             <NavLink to={item.link} className={styles.link}>
               <span className={styles.icon}>{item.icon}</span>
               <span className={styles.name}>{item.title}</span>
