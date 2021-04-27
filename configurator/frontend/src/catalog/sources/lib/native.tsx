@@ -4,13 +4,13 @@ import * as React from 'react';
 const googleAuthConfigParameters = [
   {
     displayName: 'Auth (Service account key JSON)',
-    id: 'auth.service_account_key',
+    id: 'config.auth.service_account_key',
     type: jsonType,
     required: true,
     documentation:
         <>
           Read about <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">how to create Google Service Account</a>
-        </>,
+        </>
   }
 ];
 
@@ -58,7 +58,7 @@ export const facebook: SourceConnector = {
   configParameters: [
     {
       displayName: 'Account ID',
-      id: 'account_id',
+      id: 'config.account_id',
       type: stringType,
       required: true,
       documentation: <>
@@ -67,7 +67,7 @@ export const facebook: SourceConnector = {
     },
     {
       displayName: 'Access Token',
-      id: 'access_token',
+      id: 'config.access_token',
       type: stringType,
       required: true,
       documentation: <>
@@ -211,13 +211,13 @@ export const googleAnalytics: SourceConnector = {
   configParameters: [
     {
       displayName: 'View ID',
-      id: 'view_id',
+      id: 'config.view_id',
       type: stringType,
       required: true,
       documentation:
           <>
             Read about <a href="https://jitsu.com/docs/sources-configuration/google-analytics#how-to-find-google-analytics-view-id">how to find Google Analytics View ID</a>
-          </>,
+          </>
     },
     ...googleAuthConfigParameters
   ]
@@ -237,13 +237,13 @@ export const googlePlay: SourceConnector = {
   configParameters: [
     {
       displayName: 'Account ID',
-      id: 'account_id',
+      id: 'config.account_id',
       type: stringType,
       required: true,
       documentation:
           <>
             Identifier of Google Play account
-          </>,
+          </>
     },
     ...googleAuthConfigParameters
   ]
@@ -271,13 +271,13 @@ export const firebase: SourceConnector = {
   configParameters: [
     {
       displayName: 'Project ID',
-      id: 'project_id',
+      id: 'config.project_id',
       type: stringType,
       required: true
     },
     {
       displayName: 'Service Account Key',
-      id: 'key',
+      id: 'config.key',
       type: jsonType,
       required: true
     }
@@ -313,20 +313,20 @@ export const redis: SourceConnector = {
   configParameters: [
     {
       displayName: 'Redis Host',
-      id: 'host',
+      id: 'config.host',
       type: stringType,
       required: true
     },
     {
       displayName: 'Redis Port',
-      id: 'port',
+      id: 'config.port',
       type: intType,
       defaultValue: 6379,
       required: true
     },
     {
       displayName: 'Redis Password',
-      id: 'password',
+      id: 'config.password',
       type: stringType
     }
   ]
