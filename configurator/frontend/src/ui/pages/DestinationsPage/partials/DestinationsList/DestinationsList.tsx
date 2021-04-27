@@ -1,14 +1,10 @@
 // @Libs
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
 import { Button, Dropdown, message, Modal, Popover, Tooltip } from 'antd';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
-import {
-  destinationsReferenceList,
-  destinationsReferenceMap,
-  getGeneratedPath
-} from '@page/DestinationsPage/commons';
+import { destinationsReferenceList, destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Components
 import {
   ActionLink,
@@ -132,6 +128,17 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
 
   const handleEditAction = useCallback((id: string) => () => history.push(generatePath(destinationPageRoutes.editDestination, { id })), [history]);
 
+  const dropDownList = useMemo(() => <DropDownList
+    hideFilter
+    list={destinationsReferenceList.map((dst: Destination) => ({
+      title: dst.displayName,
+      id: dst.id,
+      icon: dst.ui.icon,
+      link: generatePath(destinationPageRoutes.newDestination, { type: dst.id })
+    }))}
+    filterPlaceholder="Filter by destination name or id"
+  />, []);
+
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
@@ -145,14 +152,7 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
 
   if (destinations.length === 0) {
     return <EmptyList
-      list={
-        <DropDownList
-          hideFilter
-          getPath={getGeneratedPath}
-          list={destinationsReferenceList}
-          filterPlaceholder="Filter by destination name"
-        />
-      }
+      list={dropDownList}
       title="Destinations list is still empty"
       unit="destination"
     />;
@@ -162,14 +162,7 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
     <div className="mb-5">
       <Dropdown
         trigger={['click']}
-        overlay={
-          <DropDownList
-            hideFilter
-            getPath={getGeneratedPath}
-            list={destinationsReferenceList}
-            filterPlaceholder="Filter by destination name"
-          />
-        }
+        overlay={dropDownList}
       >
         <Button type="primary" icon={<PlusOutlined />}>Add destination</Button>
       </Dropdown>

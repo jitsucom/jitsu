@@ -7,8 +7,6 @@ import {
   redshiftDestination,
   snowflakeDestination
 } from '@catalog/destinations/lib';
-import { generatePath } from 'react-router-dom';
-import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 
 export const destinationsReferenceMap = {
   postgres: postgresDestination,
@@ -21,5 +19,3 @@ export const destinationsReferenceMap = {
 };
 
 export const destinationsReferenceList = Object.keys(destinationsReferenceMap).map(key => destinationsReferenceMap[key]);
-
-export const getGeneratedPath = (id: string) => generatePath(destinationPageRoutes.newDestination, { type: id });
