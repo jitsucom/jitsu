@@ -9,7 +9,7 @@ import { EditorButtons } from '@molecule/EditorButtons';
 import { ComingSoon } from '@atom/ComingSoon';
 import { PageHeader } from '@atom/PageHeader';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
-import { DestinationEditorSources } from './DestinationEditorSources';
+import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
 // @CatalogDestinations
 import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
@@ -32,7 +32,7 @@ import { getUniqueAutoIncId, randomId } from '@util/numbers';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
 
-const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }: CommonDestinationPageProps) => {
+const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, editorMode }: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const forceUpdate = useForceUpdate();
@@ -83,7 +83,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
   {
     key: 'sources',
     name: 'Connected sources',
-    getComponent: (form: FormInstance) => <DestinationEditorSources form={form} initialValues={destinationData.current._sources} />,
+    getComponent: (form: FormInstance) => <DestinationEditorConnectors form={form} initialValues={destinationData.current} />,
     form: Form.useForm()[0],
     errorsLevel: 'warning'
   },
@@ -167,16 +167,25 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
               ...makeObjectFromFieldsValues(current)
             };
           }, {})
-        }
+        };
 
         try {
           await destinationEditorUtils.testConnection(destinationData.current);
 
-          const newDestinationsList = [...destinations, destinationData.current];
+          const payload = {
+            destinations: editorMode === 'add'
+              ? [...destinations, destinationData.current]
+              : destinations.reduce((accumulator: DestinationData[], current: DestinationData) => [
+                ...accumulator,
+                current._uid !== destinationData.current._uid
+                  ? current
+                  : destinationData.current
+              ], [])
+          };
 
-          await services.storageService.save('destinations', { destinations: newDestinationsList }, services.activeProject.id);
+          await services.storageService.save('destinations', payload, services.activeProject.id);
 
-          updateDestinations({ destinations: newDestinationsList });
+          updateDestinations(payload);
 
           setTouchedFields(false);
 
@@ -209,7 +218,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations }:
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
         <div className={cn('flex-grow', styles.mainArea)}>
-          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={0} />
+          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={2} />
         </div>
 
         <div className="flex-shrink border-t pt-2">
