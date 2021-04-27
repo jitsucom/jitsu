@@ -11,7 +11,7 @@ import { Parameter, ParameterType } from '@catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 // @Utils
 import { dsnValidator } from './configurableFieldsForm.utils';
-import { makeObjectFromFieldsValues } from '@util/Form';
+import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
