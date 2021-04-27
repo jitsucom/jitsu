@@ -1,5 +1,6 @@
 // @Libs
-import { useMemo } from 'react';
+import React, { useMemo } from 'react';
+import { Form } from 'antd';
 // @Constants
 import { SOURCE_CONNECTED_DESTINATION } from '@./embeddedDocs/connectedDestinations';
 // @Components
@@ -44,14 +45,15 @@ const SourceEditorDestinations = ({ form, initialValues, projectId }: Props) => 
         {SOURCE_CONNECTED_DESTINATION}
       </article>
 
-      <ConnectedItems
-        form={form}
-        formName="connected-destinations"
-        fieldName="destinations"
-        itemsList={destinationsList}
-        warningMessage={<p>Please, choose at least one source.</p>}
-        initialValues={preparedInitialValue}
-      />
+      <Form form={form} name="connected-destinations">
+        <ConnectedItems
+          form={form}
+          fieldName="destinations"
+          itemsList={destinationsList}
+          warningMessage={<p>Please, choose at least one source.</p>}
+          initialValues={preparedInitialValue}
+        />
+      </Form>
     </>
   );
 };
