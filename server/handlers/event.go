@@ -75,7 +75,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	token := iface.(string)
 
 	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
-	destinationStorages := eh.destinationService.GetStorages(tokenID)
+	destinationStorages := eh.destinationService.GetDestinations(tokenID)
 	if len(destinationStorages) == 0 {
 		noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
 		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())

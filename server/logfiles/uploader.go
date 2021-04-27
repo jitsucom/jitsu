@@ -89,7 +89,7 @@ func (u *PeriodicUploader) Start() {
 				}
 
 				tokenID := regexResult[1]
-				storageProxies := u.destinationService.GetStorages(tokenID)
+				storageProxies := u.destinationService.GetBatchStorages(tokenID)
 				if len(storageProxies) == 0 {
 					logging.Warnf("Destination storages weren't found for file [%s] and token [%s]", filePath, tokenID)
 					continue
