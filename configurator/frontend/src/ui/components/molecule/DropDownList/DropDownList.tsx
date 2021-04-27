@@ -3,18 +3,26 @@ import React, { memo, useCallback, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Input } from 'antd';
 import { debounce } from 'lodash';
+import cn from 'classnames';
 // @Styles
 import styles from './DropDownList.module.less';
 
-export interface Props {
-  className?: string;
-  filterPlaceholder: string;
-  list: any;
-  getPath: (param: string) => string;
-  hideFilter?: boolean;
+export interface DropDownListItem {
+  id: string;
+  title: string;
+  icon: React.ReactNode;
+  link: string;
+  isSingerType?: boolean;
 }
 
-const DropDownListComponent = ({ filterPlaceholder, className, list, getPath, hideFilter = false }: Props) => {
+export interface Props {
+  filterPlaceholder?: string;
+  list: DropDownListItem[];
+  hideFilter?: boolean;
+  getClassName?: (list: DropDownListItem[], item: DropDownListItem, index: number) => string;
+}
+
+const DropDownListComponent = ({ filterPlaceholder, list, hideFilter = false, getClassName }: Props) => {
   const [filteredParam, setFilteredParam] = useState<string>();
 
   const handleChange = debounce(
@@ -25,7 +33,7 @@ const DropDownListComponent = ({ filterPlaceholder, className, list, getPath, hi
   );
 
   const filteredList = useMemo(() => filteredParam
-    ? list.filter(item => item.displayName.includes(filteredParam))
+    ? list.filter(item => item.title.includes(filteredParam) || item.id.includes(filteredParam))
     : list, [list, filteredParam]);
 
   return (
@@ -37,11 +45,11 @@ const DropDownListComponent = ({ filterPlaceholder, className, list, getPath, hi
       }
 
       <ul className={styles.list}>
-        {filteredList.map((item: any) => (
-          <li key={`${item.id}-${item.displayName}`} className={styles.item}>
-            <NavLink to={getPath(item.id)} className={styles.link}>
-              <span className={styles.icon}>{item.ui.icon}</span>
-              <span className={styles.name}>{item.displayName}</span>
+        {filteredList.map((item: DropDownListItem, index: number) => (
+          <li key={`${item.id}-${item.title}`} className={cn(styles.item, getClassName(filteredList, item, index))}>
+            <NavLink to={item.link} className={styles.link}>
+              <span className={styles.icon}>{item.icon}</span>
+              <span className={styles.name}>{item.title}</span>
             </NavLink>
           </li>
         ))}
