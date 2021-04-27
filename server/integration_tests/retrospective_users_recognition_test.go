@@ -137,21 +137,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
 
-	//test
-	tokenID := appconfig.Instance.AuthorizationService.GetTokenID("c2stoken")
-	logging.Infof("1 token ID: %s", tokenID)
-	logging.Infof("service: %v", destinationService)
-	destinationStorages := destinationService.GetStorages(tokenID)
-	logging.Infof("1 Storages : %v", destinationStorages)
-
-	time.Sleep(1 * time.Second)
-
-	//test
-	tokenID = appconfig.Instance.AuthorizationService.GetTokenID("c2stoken")
-	logging.Infof("2 token ID: %s", tokenID)
-	logging.Infof("service: %v", destinationService)
-	destinationStorages = destinationService.GetStorages(tokenID)
-	logging.Infof("2 Storages : %v", destinationStorages)
+	time.Sleep(100 * time.Millisecond)
 
 	//** Requests **
 	//1. anonymous[anonym1] pageview

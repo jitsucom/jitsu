@@ -41,8 +41,9 @@ type Service struct {
 
 	sync.RWMutex
 
-	consumersByTokenID      TokenizedConsumers
-	storagesByTokenID       TokenizedStorages
+	consumersByTokenID TokenizedConsumers
+	//batchStoragesByTokenID - only batch mode destinations by TokenID
+	batchStoragesByTokenID  TokenizedStorages
 	destinationsIDByTokenID TokenizedIDs
 
 	strictAuth bool
@@ -52,7 +53,7 @@ type Service struct {
 func NewTestService(consumersByTokenID TokenizedConsumers, storagesByTokenID TokenizedStorages, destinationsIDByTokenID TokenizedIDs) *Service {
 	return &Service{
 		consumersByTokenID:      consumersByTokenID,
-		storagesByTokenID:       storagesByTokenID,
+		batchStoragesByTokenID:  storagesByTokenID,
 		destinationsIDByTokenID: destinationsIDByTokenID,
 	}
 }
@@ -67,7 +68,7 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 		loggersUsageByTokenID: map[string]*LoggerUsage{},
 
 		consumersByTokenID:      map[string]map[string]events.Consumer{},
-		storagesByTokenID:       map[string]map[string]storages.StorageProxy{},
+		batchStoragesByTokenID:  map[string]map[string]storages.StorageProxy{},
 		destinationsIDByTokenID: map[string]map[string]bool{},
 
 		strictAuth: viper.GetBool("server.strict_auth_tokens"),
@@ -129,11 +130,24 @@ func (s *Service) GetStorageByID(id string) (storages.StorageProxy, bool) {
 	return unit.storage, true
 }
 
-func (s *Service) GetStorages(tokenID string) (storages []storages.StorageProxy) {
-	logging.Infof("GetStorages: %s - %v", tokenID, s.storagesByTokenID)
+func (s *Service) GetDestinations(tokenID string) (storages []storages.StorageProxy) {
 	s.RLock()
 	defer s.RUnlock()
-	for _, s := range s.storagesByTokenID[tokenID] {
+
+	for destinationID, _ := range s.destinationsIDByTokenID[tokenID] {
+		unit, ok := s.unitsByID[destinationID]
+		if ok {
+			storages = append(storages, unit.storage)
+		}
+	}
+
+	return storages
+}
+
+func (s *Service) GetBatchStorages(tokenID string) (storages []storages.StorageProxy) {
+	s.RLock()
+	defer s.RUnlock()
+	for _, s := range s.batchStoragesByTokenID[tokenID] {
 		storages = append(storages, s)
 	}
 	return
@@ -279,7 +293,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 
 	s.Lock()
 	s.consumersByTokenID.AddAll(newConsumers)
-	s.storagesByTokenID.AddAll(newStorages)
+	s.batchStoragesByTokenID.AddAll(newStorages)
 	s.destinationsIDByTokenID.AddAll(newIDs)
 	s.Unlock()
 
@@ -310,11 +324,11 @@ func (s *Service) remove(destinationID string, unit *Unit) {
 		}
 
 		//storage
-		oldStorages, ok := s.storagesByTokenID[tokenID]
+		oldStorages, ok := s.batchStoragesByTokenID[tokenID]
 		if ok {
 			delete(oldStorages, destinationID)
 			if len(oldStorages) == 0 {
-				delete(s.storagesByTokenID, tokenID)
+				delete(s.batchStoragesByTokenID, tokenID)
 			}
 		}
 
