@@ -98,9 +98,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     isDisabled: true
   }]);
 
-  const setTouchedFields = useCallback((value: boolean) => {
-    touchedFields.current = value
-  }, []);
+  const setTouchedFields = useCallback(() => touchedFields.current = true, []);
 
   const getPromptMessage = useCallback(() => touchedFields.current
     ? 'You have unsaved changes. Are you sure you want to leave the page?'
@@ -187,7 +185,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
           updateDestinations(payload);
 
-          setTouchedFields(false);
+          touchedFields.current = false;
 
           history.push(destinationPageRoutes.root);
 
@@ -201,7 +199,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
         setDestinationSaving(false);
         forceUpdate();
       });
-  }, [history, services, validateTabForm, destinations, setTouchedFields, updateDestinations, forceUpdate]);
+  }, [history, services, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode]);
 
   useEffect(() => {
     setBreadcrumbs(withHome({
