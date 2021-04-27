@@ -248,6 +248,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 	apiV1 := router.Group("/api/v1")
 	{
+		apiV1.POST("/notify", authenticatorMiddleware.ClientProjectAuth(handlers.NotifyHandler))
 		apiV1.POST("/database", authenticatorMiddleware.ClientProjectAuth(handlers.NewDatabaseHandler(configurationsService).PostHandler))
 		apiV1.POST("/apikeys/default", authenticatorMiddleware.ClientProjectAuth(apiKeysHandler.CreateDefaultAPIKeyHandler))
 
