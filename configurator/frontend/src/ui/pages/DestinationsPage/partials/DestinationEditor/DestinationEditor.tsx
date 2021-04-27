@@ -26,7 +26,7 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 // @Styles
 import styles from './DestinationEditor.module.less';
 // @Utils
-import { makeObjectFromFieldsValues } from '@util/Form';
+import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 import { getUniqueAutoIncId, randomId } from '@util/numbers';
 // @Hooks
