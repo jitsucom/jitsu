@@ -3,8 +3,10 @@ package handlers
 import (
 	"context"
 	"errors"
+	"fmt"
 	"github.com/jitsucom/jitsu/server/typing"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -51,7 +53,18 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 		var multiErr error
 		for _, dsn := range config.ClickHouse.Dsns {
-			ch, err := adapters.NewClickHouse(context.Background(), strings.TrimSpace(dsn),
+			dsnURL, err := url.Parse(strings.TrimSpace(dsn))
+			if err != nil {
+				multiErr = multierror.Append(multiErr, fmt.Errorf("Error parsing ClickHouse DSN %s: %v", dsn, err))
+				continue
+			}
+
+			dsnQuery := dsnURL.Query()
+			//add custom timeout
+			dsnQuery.Set("timeout", "6s")
+			dsnURL.RawQuery = dsnQuery.Encode()
+
+			ch, err := adapters.NewClickHouse(context.Background(), dsnURL.String(),
 				"", "", nil, nil, nil, nil, typing.SQLTypes{})
 			if err != nil {
 				multiErr = multierror.Append(multiErr, err)
