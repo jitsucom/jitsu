@@ -1,5 +1,5 @@
 // @Libs
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from 'antd';
 import cn from 'classnames';
@@ -24,7 +24,7 @@ export interface Props {
   prefix?: React.ReactNode;
   actions?: SomeAction[];
   id: string;
-  link: string;
+  link?: string;
 }
 
 // ToDo: maybe components name has to be changed?
@@ -34,13 +34,18 @@ const ListItemComponent = ({ className, icon, title, description, additional, pr
     delete: <DeleteOutlined/>
   };
 
+  const itemTitle = useMemo(
+    () => link ? <Link to={link} className={cn(styles.title, styles.titleLink)}>{title}</Link> : <span className={styles.title}>{title}</span>,
+    [link, title]
+  );
+
   return (
     <li className={cn(styles.item, className)}>
       <span className={styles.left}>
         {prefix && <span className={styles.prefix}>{prefix}</span>}
         <span className={styles.icon}>{icon}</span>
         <span className={styles.info}>
-          <Link to={link} className={styles.title}>{title}</Link>
+          {itemTitle}
           {description && <span className={styles.description}>{description}</span>}
           {additional && <span className={styles.additional}>{additional}</span>}
         </span>
