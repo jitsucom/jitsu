@@ -103,7 +103,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues }: Props
     default:
       return <Input autoComplete="off" />;
     }
-  }, [form, handleRadioGroupChange, handleChangeSwitch, handleChangeIntInput]);
+  }, [form, handleChangeSwitch, handleChangeIntInput]);
 
   return (
     <>
