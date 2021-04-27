@@ -192,9 +192,12 @@ func TestCors(t *testing.T) {
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
+			mockStorageFactory := storages.NewMockFactory()
+			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
+
 			inmemWriter := logging.InitInMemoryWriter()
-			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
-				destinations.TokenizedStorages{}, destinations.TokenizedIDs{})
+			destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)}, destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
+				destinations.TokenizedStorages{}, destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
 			metaStorage := &meta.Dummy{}
@@ -328,8 +331,8 @@ func TestAPIEvent(t *testing.T) {
 			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
 
 			inmemWriter := logging.InitInMemoryWriter()
-			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
-				destinations.TokenizedStorages{"id1": map[string]storages.StorageProxy{"dest1": mockStorage}}, destinations.TokenizedIDs{})
+			destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)}, destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
+				destinations.TokenizedStorages{}, destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
 			metaStorage := &meta.Dummy{}

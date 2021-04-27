@@ -50,8 +50,9 @@ type Service struct {
 }
 
 //NewTestService returns test instance. It is used only for tests
-func NewTestService(consumersByTokenID TokenizedConsumers, storagesByTokenID TokenizedStorages, destinationsIDByTokenID TokenizedIDs) *Service {
+func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedConsumers, storagesByTokenID TokenizedStorages, destinationsIDByTokenID TokenizedIDs) *Service {
 	return &Service{
+		unitsByID:               unitsByID,
 		consumersByTokenID:      consumersByTokenID,
 		batchStoragesByTokenID:  storagesByTokenID,
 		destinationsIDByTokenID: destinationsIDByTokenID,
