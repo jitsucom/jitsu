@@ -133,7 +133,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
       sourceData.current = {
         ...sourceData.current,
-        config: makeObjectFromFieldsValues(config),
+        ...makeObjectFromFieldsValues(config),
         connected: await sourcePageUtils.testConnection(sourceData.current)
       };
     } catch(error) {
