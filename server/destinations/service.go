@@ -130,6 +130,7 @@ func (s *Service) GetStorageByID(id string) (storages.StorageProxy, bool) {
 }
 
 func (s *Service) GetStorages(tokenID string) (storages []storages.StorageProxy) {
+	logging.Infof("GetStorages: %s - %v", tokenID, s.storagesByTokenID)
 	s.RLock()
 	defer s.RUnlock()
 	for _, s := range s.storagesByTokenID[tokenID] {
