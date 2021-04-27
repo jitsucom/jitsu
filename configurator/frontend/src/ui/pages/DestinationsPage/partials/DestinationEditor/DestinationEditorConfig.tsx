@@ -11,18 +11,16 @@ export interface Props {
   destinationData: DestinationData;
   destinationReference: Destination;
   form: FormInstance;
-  handleTouchAnyField: (value: boolean) => void;
+  handleTouchAnyField: VoidFunc;
 }
 
 const DestinationEditorConfig = ({ destinationData, destinationReference, form, handleTouchAnyField }: Props) => {
-  const handleSomeFieldChange = useCallback(() => handleTouchAnyField(true), [handleTouchAnyField]);
-
   return (
     <Form
       name="destination-config"
       form={form}
       autoComplete="off"
-      onChange={handleSomeFieldChange}
+      onChange={handleTouchAnyField}
     >
       <ConfigurableFieldsForm fieldsParamsList={destinationReference.parameters} form={form} initialValues={destinationData} />
     </Form>
