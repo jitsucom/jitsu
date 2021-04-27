@@ -114,6 +114,12 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
 
+	//test
+	tokenID := appconfig.Instance.AuthorizationService.GetTokenID("c2stoken")
+	logging.Info("token ID: %s", tokenID)
+	destinationStorages := destinationService.GetStorages(tokenID)
+	logging.Info("Storages : %v", destinationStorages)
+
 	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationService, recognitionConfiguration, "/tmp")
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
