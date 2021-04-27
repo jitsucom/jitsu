@@ -6,6 +6,7 @@ import { Button, Dropdown, message, Modal, Popover, Tooltip } from 'antd';
 import ApplicationServices from '@service/ApplicationServices';
 import { destinationsReferenceList, destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Components
+import { ListItemDescription } from '@atom/ListItemDescription';
 import {
   ActionLink,
   Align,
@@ -62,7 +63,7 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
     const displayURL = typeof title === 'function' ? title(dst) : undefined;
 
     if (!commandLineConnect) {
-      return displayURL;
+      return <ListItemDescription render={displayURL} />;
     }
 
     const codeSnippet = commandLineConnect.indexOf('\n') < 0
@@ -180,7 +181,6 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
             title={getTitle(dst)}
             id={dst._id}
             key={dst._id}
-            link={generatePath(destinationPageRoutes.editDestination, { id: dst._id })}
             actions={[
               { key: 'edit', method: handleEditAction, title: 'Edit' },
               { key: 'delete', method: handleDeleteAction, title: 'Delete' }

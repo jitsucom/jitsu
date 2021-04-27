@@ -30,8 +30,6 @@ export interface Props {
 const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePrefix }: Props) => {
   const forceUpdate = useForceUpdate();
 
-  const handleRadioGroupChange = useCallback(() => forceUpdate(), [forceUpdate]);
-
   const handleChangeIntInput = useCallback((id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
 
@@ -41,10 +39,10 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
   const handleChangeSwitch = useCallback((id: string) => (value: boolean) => {
     form.setFieldsValue({ [id]: value });
 
-    handleRadioGroupChange();
-  }, [form, handleRadioGroupChange]);
+    forceUpdate();
+  }, [form, forceUpdate]);
 
-  const getFieldComponent = useCallback((type: ParameterType<any>, id: string) => {
+  const getFieldComponent = useCallback((type: ParameterType<any>, id: string, additionalProps?: AnyObject) => {
     const fieldsValue = form.getFieldsValue();
 
     switch (type?.typeName) {
@@ -61,14 +59,14 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
 
       // ToDo: check if it can be <select> in some cases
     case 'selection':
-      return <Select allowClear mode={type.data.maxOptions > 1 ? 'multiple' : undefined}>
+      return <Select allowClear mode={type.data.maxOptions > 1 ? 'multiple' : undefined} onChange={forceUpdate}>
         {type.data.options.map(({ id, displayName }: Option) =>
           <Select.Option value={id} key={id}>{displayName}</Select.Option>
         )}
       </Select>;
 
     case 'array/string':
-      return <EditableList newItemLabel="Add new server" validator={dsnValidator} />;
+      return <EditableList {...additionalProps} />;
 
     case 'json':
       return <MonacoEditor
@@ -104,7 +102,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
     default:
       return <Input autoComplete="off" />;
     }
-  }, [form, handleChangeSwitch, handleChangeIntInput]);
+  }, [form, handleChangeSwitch, handleChangeIntInput, forceUpdate]);
 
   const getInitialValue = useCallback((id: string, defaultValue: any, constantValue: any, type: string) => {
     const initial = get(initialValues, id);
@@ -119,7 +117,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
       ? Object.keys(calcValue).length > 0
         ? JSON.stringify(calcValue)
         : ''
-      : (defaultValue || constantValue) ?? '';
+      : defaultValue || constantValue;
   }, [initialValues]);
 
   return (
@@ -132,6 +130,12 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
             ? constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {}))
             : constant;
           const isNull = constantValue !== undefined;
+
+          const additionalProps: AnyObject = {};
+
+          if (id === '_formData.ch_dsns_list') {
+            additionalProps.validator = dsnValidator;
+          }
 
           return !isNull
             ? (
@@ -156,7 +160,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
                       )
                     }
                   >
-                    {getFieldComponent(type, id)}
+                    {getFieldComponent(type, id, additionalProps)}
                   </Form.Item>
                 </Col>
               </Row>
