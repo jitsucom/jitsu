@@ -30,7 +30,7 @@ const (
 	dropDistributedTableCHTemplate   = `DROP TABLE "%s"."dist_%s" %s`
 
 	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
-	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
+	defaultOrderBy    = `ORDER BY (%s)` //uniqueIDField is used here
 	defaultPrimaryKey = ``
 )
 
@@ -126,7 +126,7 @@ type TableStatementFactory struct {
 	engineStatementFormat bool
 }
 
-func NewTableStatementFactory(config *ClickHouseConfig) (*TableStatementFactory, error) {
+func NewTableStatementFactory(config *ClickHouseConfig, uniqueIDField string) (*TableStatementFactory, error) {
 	if config == nil {
 		return nil, errors.New("Clickhouse config can't be nil")
 	}
@@ -136,7 +136,7 @@ func NewTableStatementFactory(config *ClickHouseConfig) (*TableStatementFactory,
 	}
 
 	partitionClause := defaultPartition
-	orderByClause := defaultOrderBy
+	orderByClause := fmt.Sprintf(defaultOrderBy, uniqueIDField)
 	primaryKeyClause := defaultPrimaryKey
 	if config.Engine != nil {
 		//raw statement overrides all provided config parameters

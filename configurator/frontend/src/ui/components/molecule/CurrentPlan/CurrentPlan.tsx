@@ -94,12 +94,11 @@ export const PlanUpgradeDialog: React.FC<{visible: boolean, hide: () => void, cu
             await services.analyticsService.withJitsuSync(async(j) => {
               return await j.track('upgrade_plan', { plan: selectedPlan });
             })
-            // await services.backendApiClient.post('/notify',
-            //   {
-            //     event: 'upgrade_plan',
-            //     plan: selectedPlan,
-            //     user: services.userService.getUser().email
-            //   });
+            await services.backendApiClient.post('/notify', {
+              event: 'upgrade_plan',
+              plan: selectedPlan,
+              user: services.userService.getUser().email
+            });
             setDataSent(true)
           } catch (e) {
             handleError(e);

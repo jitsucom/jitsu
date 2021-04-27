@@ -246,11 +246,16 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			return fmt.Errorf("Error [%s] synchronization: %v", intervalToSync.String(), err)
 		}
 
+		//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
+		uniqueIDField := destinationStorages[0].GetUniqueIDField()
 		for _, object := range objects {
 			//enrich with values
 			object["src"] = srcSource
 			object[timestamp.Key] = timestamp.NowUTC()
-			events.EnrichWithEventID(object, uuid.GetHash(object))
+			if err := uniqueIDField.Set(object, uuid.GetHash(object)); err != nil {
+				b, _ := json.Marshal(object)
+				return fmt.Errorf("Error setting unique ID field into %s: %v", string(b), err)
+			}
 			events.EnrichWithCollection(object, task.Collection)
 			events.EnrichWithTimeInterval(object, intervalToSync.String(), intervalToSync.LowerEndpoint(), intervalToSync.UpperEndpoint())
 		}

@@ -96,11 +96,11 @@ type RefreshRequest struct {
 type AuthorizationHandler struct {
 	emailService  *emails.Service
 	authService   *authorization.Service
-	configStorage storages.ConfigurationsStorage
+	configService *storages.ConfigurationsService
 }
 
-func NewAuthorizationHandler(authService *authorization.Service, emailService *emails.Service, configStorage storages.ConfigurationsStorage) *AuthorizationHandler {
-	return &AuthorizationHandler{emailService: emailService, authService: authService, configStorage: configStorage}
+func NewAuthorizationHandler(authService *authorization.Service, emailService *emails.Service, configService *storages.ConfigurationsService) *AuthorizationHandler {
+	return &AuthorizationHandler{emailService: emailService, authService: authService, configService: configService}
 }
 
 func (ah *AuthorizationHandler) SignIn(c *gin.Context) {
@@ -161,7 +161,7 @@ func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 	}
 
 	//store telemetry settings
-	err = ah.configStorage.Store(telemetryCollection, telemetryGlobalID, map[string]interface{}{"disabled": map[string]bool{"usage": req.UsageOptout}})
+	err = ah.configService.SaveTelemetry(map[string]bool{telemetryUsageKey: req.UsageOptout})
 	if err != nil {
 		logging.Errorf("Error saving telemetry configuration [%v] to storage: %v", req.UsageOptout, err)
 	}

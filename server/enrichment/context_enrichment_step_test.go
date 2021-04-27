@@ -3,6 +3,7 @@ package enrichment
 import (
 	"bou.ke/monkey"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/stretchr/testify/require"
 	"net/http"
@@ -29,9 +30,9 @@ func TestWithJsPreprocess(t *testing.T) {
 			map[string]string{},
 		},
 		{
-			"eventnKey is not an object",
+			"eventnKey is not an object (unique event id won't be set)",
 			map[string]interface{}{"eventn_ctx": "abc"},
-			map[string]interface{}{"_timestamp": "2020-06-16T23:00:00.000000Z", "api_key": "token", "eventn_ctx": "abc", "eventn_ctx_event_id": "mockeduuid"},
+			map[string]interface{}{"_timestamp": "2020-06-16T23:00:00.000000Z", "api_key": "token", "eventn_ctx": "abc"},
 			map[string]string{},
 		},
 		{
@@ -58,7 +59,7 @@ func TestWithJsPreprocess(t *testing.T) {
 				r.Header.Add(k, v)
 			}
 
-			ContextEnrichmentStep(tt.input, "token", r, jsPreprocessor)
+			ContextEnrichmentStep(tt.input, "token", r, jsPreprocessor, identifiers.NewUniqueID("/eventn_ctx/event_id"))
 
 			require.Equal(t, tt.expected, tt.input, "Processed events aren't equal")
 		})
@@ -84,9 +85,9 @@ func TestWithAPIPreprocess(t *testing.T) {
 			map[string]string{},
 		},
 		{
-			"eventnKey is not an object",
+			"eventnKey is not an object (unique event id won't be set)",
 			map[string]interface{}{"eventn_ctx": "abc"},
-			map[string]interface{}{"_timestamp": "2020-06-16T23:00:00.000000Z", "api_key": "token", "eventn_ctx": "abc", "eventn_ctx_event_id": "mockeduuid", "src": "api"},
+			map[string]interface{}{"_timestamp": "2020-06-16T23:00:00.000000Z", "api_key": "token", "eventn_ctx": "abc", "src": "api"},
 			map[string]string{},
 		},
 		{
@@ -114,7 +115,7 @@ func TestWithAPIPreprocess(t *testing.T) {
 				r.Header.Add(k, v)
 			}
 
-			ContextEnrichmentStep(tt.input, "token", r, jsPreprocessor)
+			ContextEnrichmentStep(tt.input, "token", r, jsPreprocessor, identifiers.NewUniqueID("/eventn_ctx/event_id"))
 
 			require.Equal(t, tt.expected, tt.input, "Processed events aren't equal")
 		})

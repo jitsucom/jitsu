@@ -8,13 +8,21 @@ tag=`git describe --tags`
 
 all: clean assemble
 
-assemble: backend
+docker_assemble: clean build_backend assemble_backend
+
+assemble: backend assemble_backend
+
+assemble_backend:
 	mkdir -p ./build/dist/
 	mv configurator ./build/dist/
 
-backend:
+backend: deps_backend build_backend
+
+deps_backend:
 	echo "Using path $(PATH)"
 	go mod tidy
+
+build_backend:
 	go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o configurator
 
 test_backend:
