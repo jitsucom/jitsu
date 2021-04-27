@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"fmt"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"io"
 	"os"
@@ -163,11 +164,16 @@ func Init(containerized bool, dockerHubID string) error {
 		return err
 	}
 
+	uniqueIDField := viper.GetString("server.unique_id_field")
+	if uniqueIDField == "" {
+		return fmt.Errorf("server.unique_id_field can't be empty")
+	}
+
 	appConfig.AuthorizationService = authService
 	appConfig.UaResolver = useragent.NewResolver()
 	appConfig.GeoResolver = loadGeoResolver()
 	appConfig.DisableSkipEventsWarn = viper.GetBool("server.disable_skip_events_warn")
-	appConfig.GlobalUniqueIDField = identifiers.NewUniqueID(viper.GetString("server.unique_id_field"))
+	appConfig.GlobalUniqueIDField = identifiers.NewUniqueID(uniqueIDField)
 
 	Instance = &appConfig
 	return nil
