@@ -115,8 +115,14 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		redshift.Close()
+		defer redshift.Close()
+
+		if err := redshift.ValidateWritePermission(); err != nil {
+			return err
+		}
+
 		return nil
+
 	case storages.BigQueryType:
 		if err := config.Google.Validate(config.Mode != storages.BatchMode); err != nil {
 			return err

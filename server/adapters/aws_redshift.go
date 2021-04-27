@@ -3,11 +3,14 @@ package adapters
 import (
 	"context"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
-	_ "github.com/lib/pq"
+	"math/rand"
 	"strconv"
 	"strings"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/typing"
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -200,6 +203,16 @@ func (ar *AwsRedshift) CreateTable(tableSchema *Table) error {
 	return ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
 }
 
+// DeleteTable removes database table with name provided in Table representation
+func (ar *AwsRedshift) DeleteTable(table *Table) error {
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	return ar.dataSourceProxy.deleteTableInTransaction(wrappedTx, table)
+}
+
 //Update one record in Redshift
 func (ar *AwsRedshift) Update(table *Table, object map[string]interface{}, whereKey string, whereValue interface{}) error {
 	columns := make([]string, len(object), len(object))
@@ -301,4 +314,32 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 //Close underlying sql.DB
 func (ar *AwsRedshift) Close() error {
 	return ar.dataSourceProxy.Close()
+}
+
+func (ar *AwsRedshift) ValidateWritePermission() error {
+	tableName := fmt.Sprintf("test_%v_%v", timestamp.NowUTC(), rand.Int())
+	columnName := "field"
+	table := &Table{
+		Name:    tableName,
+		Columns: Columns{columnName: Column{"text"}},
+	}
+	event := map[string]interface{}{
+		columnName: "value 42",
+	}
+
+	if err := ar.CreateTable(table); err != nil {
+		return err
+	}
+
+	if err := ar.Insert(table, event); err != nil {
+		return err
+	}
+
+	if err := ar.DeleteTable(table); err != nil {
+		logging.Warnf("Cannot remove table %s from redshift: %v", tableName, err)
+		// Suppressing error because we need to check only write permission
+		// return err
+	}
+
+	return nil
 }
