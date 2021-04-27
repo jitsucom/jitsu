@@ -139,17 +139,19 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 
 	//test
 	tokenID := appconfig.Instance.AuthorizationService.GetTokenID("c2stoken")
-	logging.Info("1 token ID: %s", tokenID)
+	logging.Infof("1 token ID: %s", tokenID)
+	logging.Infof("service: %v", destinationService)
 	destinationStorages := destinationService.GetStorages(tokenID)
-	logging.Info("1 Storages : %v", destinationStorages)
+	logging.Infof("1 Storages : %v", destinationStorages)
 
 	time.Sleep(1 * time.Second)
 
 	//test
 	tokenID = appconfig.Instance.AuthorizationService.GetTokenID("c2stoken")
-	logging.Info("2 token ID: %s", tokenID)
+	logging.Infof("2 token ID: %s", tokenID)
+	logging.Infof("service: %v", destinationService)
 	destinationStorages = destinationService.GetStorages(tokenID)
-	logging.Info("2 Storages : %v", destinationStorages)
+	logging.Infof("2 Storages : %v", destinationStorages)
 
 	//** Requests **
 	//1. anonymous[anonym1] pageview
