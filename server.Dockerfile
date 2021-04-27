@@ -40,7 +40,7 @@ ADD server/Makefile /go/src/github.com/jitsucom/jitsu/server/Makefile
 
 WORKDIR /go/src/github.com/jitsucom/jitsu/server
 # Build js (for caching) and copy builded files
-RUN make clean_js assemble_js &&\
+RUN make clean_js js assemble_js &&\
     cp -r ./build/dist/* /app
 
 #######################################
@@ -70,13 +70,22 @@ FROM builder as builder
 
 RUN mkdir /app
 
-#Copy backend
-ADD server /go/src/github.com/jitsucom/jitsu/server
-ADD .git /go/src/github.com/jitsucom/jitsu/.git
+RUN mkdir -p /go/src/github.com/jitsucom/jitsu/jitsu/server
 
-WORKDIR /go/src/github.com/jitsucom/jitsu/server
+WORKDIR /go/src/github.com/jitsucom/jitsu/jitsu/server
+
+#Caching dependencies
+ADD server/go.mod server/go.sum ./
+RUN go mod download
+
+#######
+
+#Copy backend
+ADD server/. ./.
+ADD .git ./.git
+
 # Build backend and copy builded files
-RUN make clean_backend assemble_backend &&\
+RUN make docker_assemble &&\
     cp -r ./build/dist/* /app
 
 #######################################

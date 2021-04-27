@@ -10,6 +10,7 @@ import (
 	"time"
 )
 
+//EventsCache is an event cache based on meta.Storage(Redis)
 type EventsCache struct {
 	storage                meta.Storage
 	originalCh             chan *originalEvent
@@ -20,7 +21,7 @@ type EventsCache struct {
 	closed bool
 }
 
-//return EventsCache and start goroutine for async operations
+//NewEventsCache returns EventsCache and start goroutine for async operations
 func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCache {
 	c := &EventsCache{
 		storage:                storage,
@@ -69,7 +70,7 @@ func (ec *EventsCache) start() {
 	})
 }
 
-//Put put value into channel which will be read and written to storage
+//Put puts value into channel which will be read and written to storage
 func (ec *EventsCache) Put(destinationID, eventID string, value events.Event) {
 	select {
 	case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
@@ -77,7 +78,7 @@ func (ec *EventsCache) Put(destinationID, eventID string, value events.Event) {
 	}
 }
 
-//Succeed put value into channel which will be read and updated in storage
+//Succeed puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Succeed(destinationID, eventID string, processed events.Event, table *adapters.Table) {
 	select {
 	case ec.succeedCh <- &succeedEvent{destinationID: destinationID, eventID: eventID, processed: processed, table: table}:
@@ -85,7 +86,7 @@ func (ec *EventsCache) Succeed(destinationID, eventID string, processed events.E
 	}
 }
 
-//Error put value into channel which will be read and updated in storage
+//Error puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Error(destinationID, eventID string, errMsg string) {
 	select {
 	case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
@@ -93,10 +94,10 @@ func (ec *EventsCache) Error(destinationID, eventID string, errMsg string) {
 	}
 }
 
-//put create new event in storage
+//put creates new event in storage
 func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
 	if eventID == "" {
-		logging.SystemErrorf("[EventsCache] Put(): Event id can't be empty. Destination [%s] Event: %s", destinationID, value.Serialize())
+		logging.SystemErrorf("[%s] Event id can't be empty. Event: %s", destinationID, value.Serialize())
 		return
 	}
 
@@ -128,7 +129,7 @@ func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
 	}
 }
 
-//succeed serialize and update processed event in storage
+//succeed serializes and update processed event in storage
 func (ec *EventsCache) succeed(destinationID, eventID string, processed events.Event, table *adapters.Table) {
 	if eventID == "" {
 		logging.SystemErrorf("[EventsCache] Succeed(): Event id can't be empty. Destination [%s] event %s", destinationID, processed.Serialize())
@@ -172,7 +173,7 @@ func (ec *EventsCache) succeed(destinationID, eventID string, processed events.E
 	}
 }
 
-//error write error into event field in storage
+//error writes error into event field in storage
 func (ec *EventsCache) error(destinationID, eventID string, errMsg string) {
 	if eventID == "" {
 		logging.SystemErrorf("[EventsCache] Error(): Event id can't be empty. Destination [%s]", destinationID)
@@ -186,7 +187,7 @@ func (ec *EventsCache) error(destinationID, eventID string, errMsg string) {
 	}
 }
 
-//GetN return at most n facts by key
+//GetN returns at most n facts by key
 func (ec *EventsCache) GetN(destinationID string, start, end time.Time, n int) []meta.Event {
 	facts, err := ec.storage.GetEvents(destinationID, start, end, n)
 	if err != nil {
@@ -197,7 +198,7 @@ func (ec *EventsCache) GetN(destinationID string, start, end time.Time, n int) [
 	return facts
 }
 
-//GetTotal return total amount of destination events in storage
+//GetTotal returns total amount of destination events in storage
 func (ec *EventsCache) GetTotal(destinationID string) int {
 	total, err := ec.storage.GetTotalEvents(destinationID)
 	if err != nil {
@@ -208,6 +209,7 @@ func (ec *EventsCache) GetTotal(destinationID string) int {
 	return total
 }
 
+//Close stops all underlying goroutines
 func (ec *EventsCache) Close() error {
 	ec.closed = true
 	return nil

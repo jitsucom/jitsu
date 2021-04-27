@@ -52,15 +52,23 @@ FROM builder as builder
 
 ENV CONFIGURATOR_USER=configurator
 
-#Copy backend
-ADD configurator/backend /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend
-ADD server /go/src/github.com/jitsucom/jitsu/server
-ADD .git /go/src/github.com/jitsucom/jitsu/.git
+RUN mkdir -p /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend && \
+    mkdir -p /go/src/github.com/jitsucom/jitsu/server
 
 WORKDIR /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend
 
+#Caching dependencies
+ADD configurator/backend/go.mod configurator/backend/go.sum ./
+ADD server/go.mod server/go.sum /go/src/github.com/jitsucom/jitsu/server/
+RUN go mod download
+
+#Copy backend
+ADD configurator/backend/. ./.
+ADD server /go/src/github.com/jitsucom/jitsu/server
+ADD .git /go/src/github.com/jitsucom/jitsu/.git
+
 # Build
-RUN make
+RUN make docker_assemble
 
 #######################################
 # FINAL STAGE

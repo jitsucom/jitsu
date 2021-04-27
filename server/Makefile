@@ -9,13 +9,15 @@ tag=`git describe --tags`
 
 all: clean assemble
 
-assemble: backend js copy_new_jitsu_sdk assemble_backend assemble_js
+docker_assemble: clean build_backend assemble_backend
 
-assemble_backend: backend
+assemble: backend assemble_backend js copy_new_jitsu_sdk assemble_js
+
+assemble_backend:
 	mkdir -p ./build/dist/web
 	mv $(APPLICATION) ./build/dist/
 
-assemble_js: js
+assemble_js:
 	mkdir -p ./build/dist/web
 	cp ./web/dist/web/* ./build/dist/web/
 	cp ./web/welcome.html ./build/dist/web/
@@ -23,13 +25,17 @@ assemble_js: js
 copy_new_jitsu_sdk:
 	test -e $(LIB_JS) && cp $(LIB_JS) ./build/dist/web/ || echo "\n\033[31m!!! WARNING:\033[m lib.js wasn't found at $(LIB_JS). Please build JS SDK first, or embedded tracking will not work!\n"
 
-backend:
-	echo "Using path $(PATH)"
-	go mod tidy
-	go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o $(APPLICATION)
-
 js:
 	npm i --prefix ./web && npm run build --prefix ./web
+
+backend: deps_backend build_backend
+
+deps_backend:
+	echo "Using path $(PATH)"
+	go mod tidy
+
+build_backend:
+	go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o $(APPLICATION)
 
 test_backend:
 	go test -failfast -v -parallel=1 ./...

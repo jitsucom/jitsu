@@ -57,6 +57,10 @@ server:
   ### Sources reloading. If 'sources' key is http or file:/// URL than it will be reloaded every sources_reload_sec
   #sources_reload_sec: 7 #Optional. Default value is 7.
 
+  ### Unique ID field. Is used for accepting new JS SDK 2.0 event format or the oldest one.
+  ### Use 'event_id' for JS SDK 2.0 or 'eventn_ctx_event_id' for keeping old event format (old event format = fields with eventn_ctx* prefix)
+  #unique_id_field: event_id #Optional. Default value is eventn_ctx_event_id
+
   ### Application metrics
   ### At present only Prometheus is supported. Read more about application metrics https://docs.eventnative.org/other-features/application-metrics
 #  metrics:
@@ -155,7 +159,7 @@ destinations:
 #      table_name_template: 'my_events' #Optional. Default value constant is 'events'. Template for extracting table name
 #      #Required for Postgres users recognition feature.
 #      primary_key_fields:
-#        - eventn_ctx_event_id
+#        - eventn_ctx_event_id #field should be equal to server.unique_id_field
 #    users_recognition: #Optional
 #      enabled: true #set false for disabling
 #      anonymous_id_node: /user/anonymous_id #Required if enabled
@@ -173,8 +177,8 @@ destinations:
 #        - "https://username:password@host2:8443/mydb?read_timeout=5m&timeout=5m&enable_http_compression=1&tls_config=maincert"
 #      db: mydb
 #      cluster: clustername #Required if dsns count > 1 or if Replicated* engines are used in raw_statement
-#      engine: #Optional. Default value is 'ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id) PARTITION BY toYYYYMM(_timestamp)' or Replicated* one if cluster is provided
-#        raw_statement: 'ENGINE = ReplacingMergeTree(_timestamp) ORDER BY (eventn_ctx_event_id)' #optional. String will be used in 'CREATE TABLE ... $RAW_ENGINE' statement
+#      engine: #Optional. Default value is 'ReplacingMergeTree(_timestamp) ORDER BY ($unique_id_field) PARTITION BY toYYYYMM(_timestamp)' or Replicated* one if cluster is provided
+#        raw_statement: 'ENGINE = ReplacingMergeTree(_timestamp) ORDER BY ($server.unique_id_field)' #optional. String will be used in 'CREATE TABLE ... $RAW_ENGINE' statement
 #        nullable_fields: #Optional. Fields will have Nullable(DataType) column data type.
 #          - middle_name
 #          - salary
@@ -187,7 +191,7 @@ destinations:
 #          - function: intHash32 #optional. It is used in 'ORDER BY intHash32(id)'
 #            field: id
 #        primary_keys: #Optional. If provided - it overrides PRIMARY KEY in CREATE TABLE statement with provided fields
-#          - eventn_ctx_event_id
+#          - eventn_ctx_event_id #field should be equal to server.unique_id_field
 #      tls: #Optional
 #        maincert: /home/eventnative/data/config/rootCa.crt
 
@@ -374,11 +378,16 @@ destinations:
 
 ### Retrospective users recognition global configuration https://docs.eventnative.org/other-features/retrospective-user-recognition
 ### It is applied to all destinations, but you could override this configuration on the destination level
-### Note: only Postgres and Clickhouse support this feature
+### Note: only Postgres, Clickhouse and Redshift support this feature
 #users_recognition:
+### Optional. Default value is true
 #  enabled: true
-#  anonymous_id_node: /eventn_ctx/user/anonymous_id #Optional. Json path to user anonymous id. Default value is  /eventn_ctx/user/anonymous_id
-#  identification_nodes: # Optional. Json path to identification user properties. Default value is /eventn_ctx/user/internal_id
+### Optional. Json path to user anonymous id. Default value is /eventn_ctx/user/anonymous_id.
+### Note: Set value to /user/anonymous_id while using JS SDK 2.0
+#  anonymous_id_node: /eventn_ctx/user/anonymous_id
+### Optional. Json path to identification user properties. Default value is /eventn_ctx/user/internal_id
+### Note: Set value to /user/internal_id while using JS SDK 2.0
+#  identification_nodes:
 #    - /eventn_ctx/user/internal_id
 #    - /eventn_ctx/user/email
 

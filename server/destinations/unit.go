@@ -29,3 +29,8 @@ func (u *Unit) Close() (multiErr error) {
 	}
 	return
 }
+
+//NewTestUnit returns test unit with test storage. Only for tests
+func NewTestUnit(storage storages.StorageProxy) *Unit {
+	return &Unit{storage: storage}
+}

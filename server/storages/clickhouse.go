@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"math/rand"
 
 	"github.com/hashicorp/go-multierror"
@@ -16,7 +17,7 @@ import (
 //batch: (1 file = 1 statement)
 //stream: (1 object = 1 statement)
 type ClickHouse struct {
-	name                          string
+	destinationID                 string
 	adapters                      []*adapters.ClickHouse
 	tableHelpers                  []*TableHelper
 	processor                     *schema.Processor
@@ -24,6 +25,7 @@ type ClickHouse struct {
 	fallbackLogger                *logging.AsyncLogger
 	eventsCache                   *caching.EventsCache
 	usersRecognitionConfiguration *UserRecognitionConfiguration
+	uniqueIDField                 *identifiers.UniqueID
 	staged                        bool
 }
 
@@ -38,7 +40,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableStatementFactory, err := adapters.NewTableStatementFactory(chConfig)
+	tableStatementFactory, err := adapters.NewTableStatementFactory(chConfig, config.uniqueIDField.GetFlatFieldName())
 	if err != nil {
 		return nil, err
 	}
@@ -70,13 +72,14 @@ func NewClickHouse(config *Config) (Storage, error) {
 	}
 
 	ch := &ClickHouse{
-		name:                          config.destinationID,
+		destinationID:                 config.destinationID,
 		adapters:                      chAdapters,
 		tableHelpers:                  tableHelpers,
 		processor:                     config.processor,
 		eventsCache:                   config.eventsCache,
 		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.destinationID),
 		usersRecognitionConfiguration: config.usersRecognition,
+		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
 	}
 
@@ -99,10 +102,12 @@ func NewClickHouse(config *Config) (Storage, error) {
 	return ch, nil
 }
 
+//ID returns destination ID
 func (ch *ClickHouse) ID() string {
-	return ch.name
+	return ch.destinationID
 }
 
+//Type returns ClickHouse type
 func (ch *ClickHouse) Type() string {
 	return ClickHouseType
 }
@@ -112,7 +117,7 @@ func (ch *ClickHouse) DryRun(payload events.Event) ([]adapters.TableField, error
 	return dryRun(payload, ch.processor, tableHelper)
 }
 
-//Insert event in ClickHouse (1 retry if err)
+//Insert inserts event in ClickHouse (1 retry if err)
 func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (err error) {
 	adapter, tableHelper := ch.getAdapters()
 
@@ -168,9 +173,9 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				ch.eventsCache.Error(ch.ID(), events.ExtractEventID(object), err.Error())
+				ch.eventsCache.Error(ch.ID(), ch.uniqueIDField.Extract(object), err.Error())
 			} else {
-				ch.eventsCache.Succeed(ch.ID(), events.ExtractEventID(object), object, table)
+				ch.eventsCache.Succeed(ch.ID(), ch.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
@@ -255,12 +260,19 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 	return nil
 }
 
+//Update uses SyncStore under the hood
 func (ch *ClickHouse) Update(object map[string]interface{}) error {
 	return ch.SyncStore(nil, []map[string]interface{}{object}, "")
 }
 
+//GetUsersRecognition returns users recognition configuration
 func (ch *ClickHouse) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ch.usersRecognitionConfiguration
+}
+
+//GetUniqueIDField returns unique ID field configuration
+func (ch *ClickHouse) GetUniqueIDField() *identifiers.UniqueID {
+	return ch.uniqueIDField
 }
 
 //Fallback log event with error to fallback logger
@@ -274,7 +286,7 @@ func (ch *ClickHouse) IsStaging() bool {
 	return ch.staged
 }
 
-//Close adapters.ClickHouse
+//Close closes ClickHouse adapters, fallback logger and streaming worker
 func (ch *ClickHouse) Close() (multiErr error) {
 	for i, adapter := range ch.adapters {
 		if err := adapter.Close(); err != nil {

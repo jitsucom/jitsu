@@ -27,6 +27,7 @@ const (
 
 var destinationIDExtractRegexp = regexp.MustCompile("failed.dst=(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
+//Service stores and processes fallback files
 type Service struct {
 	fallbackDir        string
 	fileMask           string
@@ -37,11 +38,12 @@ type Service struct {
 	locks sync.Map
 }
 
-//only for tests
+//NewTestService returns test instance - only for tests
 func NewTestService() *Service {
 	return &Service{}
 }
 
+//NewService returns configured Service
 func NewService(logEventsPath string, destinationService *destinations.Service) (*Service, error) {
 	fallbackPath := path.Join(logEventsPath, logging.FailedDir)
 	logArchiveEventPath := path.Join(logEventsPath, logging.ArchiveDir)
@@ -58,6 +60,7 @@ func NewService(logEventsPath string, destinationService *destinations.Service) 
 	}, nil
 }
 
+//Replay processes fallback file (or plain file) and store it in the destination
 func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 	if fileName == "" {
 		return errors.New("File name can't be empty")
@@ -177,6 +180,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 	}
 }
 
+//GetFileStatuses returns all fallback files with their statuses
 func (s *Service) GetFileStatuses(destinationsFilter map[string]bool) []*FileStatus {
 	files, err := filepath.Glob(s.fileMask)
 	if err != nil {
