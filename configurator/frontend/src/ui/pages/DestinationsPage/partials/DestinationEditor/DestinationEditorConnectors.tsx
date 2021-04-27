@@ -34,9 +34,6 @@ const DestinationEditorConnectors = ({ form, initialValues }: Props) => {
     () => sourcesData?.sources
       ? sourcesData.sources?.map((source: SourceData) => {
         const proto = allSources.find(s => s.id === source.sourceType);
-        console.log('proto: ', proto);
-        console.log('source: ', source);
-        console.log('----------------------------------------');
 
         return {
           itemKey: source.sourceId,
@@ -54,7 +51,6 @@ const DestinationEditorConnectors = ({ form, initialValues }: Props) => {
   const apiKeysList = useMemo<ConnectedItem[]>(
     () => APIKeysData?.keys
       ? APIKeysData.keys.map((key: APIKey) => ({
-        itemKey: true,
         title: key.uid,
         id: key.uid,
         link: '/api_keys'
