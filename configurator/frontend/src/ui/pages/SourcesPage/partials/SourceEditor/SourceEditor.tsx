@@ -86,7 +86,13 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   {
     key: 'collections',
     name: 'Collections',
-    getComponent: (form: FormInstance) => <SourceEditorCollections form={form} />,
+    getComponent: (form: FormInstance) => (
+      <SourceEditorCollections
+        form={form}
+        initialValues={sourceData.current}
+        connectorSource={connectorSource}
+      />
+    ),
     form: Form.useForm()[0]
   },
   {
