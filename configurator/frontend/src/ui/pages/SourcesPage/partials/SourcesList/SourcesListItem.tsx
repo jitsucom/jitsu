@@ -10,7 +10,7 @@ import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCi
 // @Types
 import { SourcesListItemProps as Props } from './SourcesList.types';
 // @Routes
-import { routes } from '@page/SourcesPage/routes';
+import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 // @Styles
 import styles from './SourcesListItem.module.less';
 
@@ -52,7 +52,7 @@ const SourcesListItemComponent = ({ sourceId, sourceProto, handleDeleteSource, s
       className={styles.sourcesListItem}
       actions={[
         <NavLink
-          to={generatePath(routes.editExact, { sourceId })}
+          to={generatePath(sourcesPageRoutes.editExact, { sourceId })}
           className={cn('ant-btn', 'ant-btn-round', styles.editButton)}
           key="edit"><EditOutlined /> Edit</NavLink>,
         <Button icon={<DeleteOutlined />} key="delete" shape="round" onClick={handleDelete}>

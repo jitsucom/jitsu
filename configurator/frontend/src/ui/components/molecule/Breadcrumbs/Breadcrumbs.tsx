@@ -1,6 +1,6 @@
 import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 import { NavLink } from 'react-router-dom';
-import { routes } from '@page/SourcesPage/routes';
+import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 
 function join<T>(array: T[], separatorFactory: (id: number) => T): T[] {
   let res = [];
