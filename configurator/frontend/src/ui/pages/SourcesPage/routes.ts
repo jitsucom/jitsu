@@ -1,4 +1,4 @@
-export const routes = {
+export const sourcesPageRoutes = {
   root: '/sources',
   add: '/sources/add',
   addExact: '/sources/add/:source',
