@@ -58,7 +58,7 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
         </Col>
       </Row>
 
-      <ConfigurableFieldsForm initialValues={undefined} fieldsParamsList={sourceReference.configParameters} form={form}/>
+      <ConfigurableFieldsForm initialValues={initialValues?.config} fieldsParamsList={sourceReference.configParameters} form={form}/>
     </Form>
   );
 };
