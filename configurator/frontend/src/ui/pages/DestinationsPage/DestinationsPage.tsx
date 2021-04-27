@@ -39,7 +39,7 @@ export const DestinationsPage = (props: PageProps) => {
 
   const additionalProps = useMemo(() => ({
     setBreadcrumbs: props.setBreadcrumbs,
-    destinations: destinations?.destinations,
+    destinations: destinations?.destinations ?? [],
     updateDestinations
   }), [props.setBreadcrumbs, destinations, updateDestinations]);
 
