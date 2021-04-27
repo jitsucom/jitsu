@@ -79,6 +79,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         isCreateForm={editorMode === 'add'}
         initialValues={sourceData.current}
         sources={sources}
+        handleTouchAnyField={setTouchedFields}
       />
     ),
     form: Form.useForm()[0]
@@ -91,6 +92,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         form={form}
         initialValues={sourceData.current}
         connectorSource={connectorSource}
+        handleTouchAnyField={setTouchedFields}
       />
     ),
     form: Form.useForm()[0]
@@ -110,6 +112,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   }]);
 
   const touchedFields = useRef<boolean>(false);
+
+  const setTouchedFields = useCallback(() => touchedFields.current = true, []);
 
   const savePopoverClose = useCallback(() => switchSavePopover(false), []);
   const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
@@ -178,6 +182,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
           await services.storageService.save('sources', payload, projectId);
 
           updateSources(payload);
+
+          touchedFields.current = false;
 
           history.push(sourcesPageRoutes.root);
 
