@@ -26,9 +26,9 @@ To initialize **EventNative**, please use:
 ```javascript
 const { eventN } = require('@jitsu/eventnative');
 eventN.init({
-    key: "[API_KEY]",
-    ...params
-});
+  key: '[API_KEY]',
+  ...params
+}, this.services.backendApiClient);
 ```
 <Hint>
     <a href="/docs/sending-data/javascript-reference/initialization-parameters">Please see the full list of parameters</a>, a <b>key</b> parameter value is required.
@@ -40,12 +40,12 @@ To intercept Segment event it's recommended to initialize interception explicitl
 
 ```javascript
 
-    eventN.init({...});
+eventN.init({ ... }, this.services.backendApiClient);
 
-    //Create analytics via npm module
-    const analytics = new Analytics();
-    //initialize interception explicitely
-    eventN.interceptAnalytics(analytics);
+//Create analytics via npm module
+const analytics = new Analytics();
+//initialize interception explicitely
+eventN.interceptAnalytics(analytics);
 
 ```
 

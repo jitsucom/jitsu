@@ -19,7 +19,7 @@ func NewCustomDomainHandler(executor *ssl.UpdateExecutor) *CustomDomainHandler {
 }
 
 func (h *CustomDomainHandler) PerProjectHandler(c *gin.Context) {
-	projectID := c.Query("projectID")
+	projectID := c.Query("project_id")
 	if !hasAccessToProject(c, projectID) {
 		c.JSON(http.StatusUnauthorized, middleware.ErrorResponse{Message: "You are not authorized to request data for project " + projectID})
 		return

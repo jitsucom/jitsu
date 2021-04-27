@@ -1,5 +1,5 @@
 /* eslint-disable */
-import React, { PureComponent, useState } from 'react';
+import React from 'react';
 import { CodeInline, LoadableComponent, StatCard } from '../components';
 import ApplicationServices from '../../services/ApplicationServices';
 import { Button, Card, Col, Row } from 'antd';
@@ -11,30 +11,9 @@ import { NavLink } from 'react-router-dom';
 import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
 import { BarChart, LineChart, Line, Bar, Legend, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined'
-/**
- * Information about events per current period and prev
- * period
- */
-class EventsComparison {
-  current: number;
-  currentExtrapolated: number; //if current isn't representing a full period (example, we're in the middle
-  //of the hour), this value will contain extrapolated value. Currently not calculated, reserver for future use
-  previous: number;
-  lastPeriod: Moment;
+import { addSeconds, DatePoint, EventsComparison, StatService, StatServiceImpl } from '@service/stat';
 
-  constructor(series: DatePoint[], granularity: Granularity) {
-    if (series == null || series.length == 0) {
-      this.current = this.previous = 0;
-      this.lastPeriod = null;
-    } else {
-      this.current = series[series.length - 1].events;
-      this.lastPeriod = series[series.length - 1].date;
-      this.previous = series.length > 1 ? series[series.length - 2].events : null;
-    }
-  }
-}
 
-type Granularity = 'day' | 'hour' | 'total';
 
 type State = {
   designationsCount?: number;
@@ -48,92 +27,7 @@ interface Props {
   timeInUTC?: boolean;
 }
 
-type DatePoint = {
-  date: Moment;
-  events: number;
-};
 
-interface StatService {
-  get(start: Date, end: Date, granularity: Granularity): Promise<DatePoint[]>;
-}
-
-function addSeconds(date: Date, seconds: number): Date {
-  let res = new Date(date.getTime());
-  res.setSeconds(res.getSeconds() + seconds);
-  return res;
-}
-
-function roundDown(date: Date, granularity: Granularity): Date {
-  let res = new Date(date);
-  res.setMinutes(0, 0, 0);
-  if (granularity == 'day') {
-    res.setHours(0);
-  }
-  return res;
-}
-
-function emptySeries(from: Moment, to: Moment, granularity: Granularity): DatePoint[] {
-  let res: DatePoint[] = [];
-  let end = moment(to)
-    .utc()
-    .startOf(granularity as unitOfTime.StartOf);
-  let start = moment(from)
-    .utc()
-    .startOf(granularity as unitOfTime.StartOf);
-  while (end.isSameOrAfter(start)) {
-    res.push({ date: moment(end), events: 0 });
-    end = end.subtract(1, granularity as unitOfTime.DurationConstructor);
-  }
-  return res;
-}
-
-function mergeSeries(lowPriority: DatePoint[], highPriority: DatePoint[]): DatePoint[] {
-  return Object.entries({ ...index(lowPriority), ...index(highPriority) })
-    .map(([key, val]) => {
-      return { date: moment(key).utc(), events: val };
-    })
-    .sort((e1, e2) => {
-      if (e1.date > e2.date) {
-        return 1;
-      } else if (e1.date < e2.date) {
-        return -1;
-      }
-      return 0;
-    });
-}
-
-function index(series: DatePoint[]): Record<string, number> {
-  let res = {};
-  series.forEach((point) => {
-    res[point.date.toISOString()] = point.events;
-  });
-  return res;
-}
-
-class StatServiceImpl implements StatService {
-  private readonly service: ApplicationServices;
-  private readonly timeInUTC: boolean;
-
-  constructor(service: ApplicationServices, timeInUTC: boolean) {
-    this.service = service;
-    this.timeInUTC = timeInUTC;
-  }
-
-  async get(start: Date, end: Date, granularity: Granularity): Promise<DatePoint[]> {
-    let data = (
-      await this.service.backendApiClient.get(
-        `/statistics?project_id=${this.service.activeProject.id}&start=${start.toISOString()}&end=${end.toISOString()}&granularity=${granularity}`,
-          true
-      )
-    )['data'];
-    return mergeSeries(
-      emptySeries(moment(start).utc(), moment(end).utc(), granularity),
-      data.map((el) => {
-        return { date: this.timeInUTC ? moment(el.key).utc() : moment(el.key), events: el.events };
-      })
-    );
-  }
-}
 
 export default class StatusPage extends LoadableComponent<Props, State> {
   private readonly services: ApplicationServices;
@@ -144,7 +38,7 @@ export default class StatusPage extends LoadableComponent<Props, State> {
     super(props, context);
     this.timeInUTC = withDefaultVal(this.props.timeInUTC, true);
     this.services = ApplicationServices.get();
-    this.stats = new StatServiceImpl(this.services, this.timeInUTC);
+    this.stats = new StatServiceImpl(this.services.backendApiClient, this.services.activeProject, this.timeInUTC);
     this.state = {};
   }
 
