@@ -19,7 +19,7 @@ import { FormInstance } from 'antd/es';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 // @Routes
 import { routes } from '@page/SourcesPage/routes';
-// @CCatalog sources
+// @Catalog sources
 import { allSources } from '@catalog/sources/lib';
 // @Utils
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
@@ -146,10 +146,15 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       .then(async allValues => {
         sourceData.current = {
           ...sourceData.current,
-          config: makeObjectFromFieldsValues(allValues[0]),
           connected: !sourceData.current.connected
             ? await sourcePageUtils.testConnection(sourceData.current)
-            : sourceData.current.connected
+            : sourceData.current.connected,
+          ...allValues.reduce((result: any, current: any) => {
+            return {
+              ...result,
+              ...makeObjectFromFieldsValues(current)
+            };
+          }, {})
         };
 
         try {
