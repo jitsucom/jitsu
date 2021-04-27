@@ -31,7 +31,7 @@ const xmlHttpReqTransport: Transport = (url: string, json: string): Promise<void
     };
     req.onload = () => {
       if (req.status !== 200) {
-        getLogger().error(`Failed to send data (#${req.status} - ${req.statusText})`, json);
+        getLogger().warn(`Failed to send data (#${req.status} - ${req.statusText})`, json);
         reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
       }
       resolve();
