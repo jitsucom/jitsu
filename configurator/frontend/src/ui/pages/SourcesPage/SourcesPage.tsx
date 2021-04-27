@@ -41,7 +41,7 @@ const SourcesPage = (props: PageProps) => {
 
   const additionalProps = useMemo(() => ({
     projectId: services.activeProject.id,
-    sources: sources?.sources,
+    sources: sources?.sources ?? [],
     updateSources,
     setBreadcrumbs: props.setBreadcrumbs
   }), [props.setBreadcrumbs, sources?.sources, services.activeProject.id, updateSources]);

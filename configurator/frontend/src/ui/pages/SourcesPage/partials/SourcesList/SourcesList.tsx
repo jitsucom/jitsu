@@ -79,7 +79,7 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
 
   return (
     <>
-      {sources?.length > 0
+      {sources.length > 0
         ? <>
           <div className="mb-5">
             <Dropdown trigger={['click']} overlay={dropDownList}>

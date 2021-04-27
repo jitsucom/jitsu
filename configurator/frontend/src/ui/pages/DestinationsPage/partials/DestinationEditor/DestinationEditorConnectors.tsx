@@ -39,9 +39,9 @@ const DestinationEditorConnectors = ({ form, initialValues }: Props) => {
           itemKey: source.sourceId,
           id: source.sourceId,
           title: source.sourceId,
-          icon: proto.pic,
+          icon: proto?.pic,
           link: generatePath(sourcesPageRoutes.editExact, { sourceId: source.sourceId }),
-          description: proto.displayName
+          description: proto?.displayName
         };
       })
       : [],
@@ -51,6 +51,7 @@ const DestinationEditorConnectors = ({ form, initialValues }: Props) => {
   const apiKeysList = useMemo<ConnectedItem[]>(
     () => APIKeysData?.keys
       ? APIKeysData.keys.map((key: APIKey) => ({
+        itemKey: key.uid,
         title: key.uid,
         id: key.uid,
         link: '/api_keys'
