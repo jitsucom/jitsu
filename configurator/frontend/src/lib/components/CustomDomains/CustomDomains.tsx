@@ -217,7 +217,7 @@ export default class CustomDomains extends LoadableComponent<any, State> {
                   this.services.activeProject.id
                 );
                 await this.services.backendApiClient.post(
-                  `/ssl?projectId=${this.services.activeProject.id}&async=${true}`,
+                  `/ssl?project_id=${this.services.activeProject.id}&async=${true}`,
                   {}
                 );
                 message.success('New domain added!');
