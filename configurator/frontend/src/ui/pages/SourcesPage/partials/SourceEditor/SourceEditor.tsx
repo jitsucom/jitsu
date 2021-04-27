@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, useHistory, useParams } from 'react-router-dom';
-import { Form } from 'antd';
+import { Form, message } from 'antd';
 import cn from 'classnames';
 import { snakeCase } from 'lodash';
 // @Page
@@ -11,8 +11,9 @@ import { SourceEditorDestinations } from './SourceEditorDestinations';
 // @Components
 import { Tab, TabsConfigurator } from '@molecule/TabsConfigurator';
 import { PageHeader } from '@atom/PageHeader';
+import { EditorButtons } from '@molecule/EditorButtons';
 // @Types
-import { CommonSourcePageProps } from '@page/SourcesPage';
+import { CollectionSourceData, CommonSourcePageProps } from '@page/SourcesPage';
 import { SourceConnector } from '@catalog/sources/types';
 import { FormInstance } from 'antd/es';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
@@ -20,26 +21,52 @@ import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 import { routes } from '@page/SourcesPage/routes';
 // @CCatalog sources
 import { allSources } from '@catalog/sources/lib';
-import { EditorButtons } from '@molecule/EditorButtons';
+// @Utils
+import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
+import { validateTabForm } from '@util/forms/validateTabForm';
+import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
+// @Hooks
+import { useForceUpdate } from '@hooks/useForceUpdate';
+// @Services
+import ApplicationServices from '@service/ApplicationServices';
+import { handleError } from '@./lib/components/components';
 
 const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
+  const services = ApplicationServices.get();
+
   const history = useHistory();
+
+  const forceUpdate = useForceUpdate();
 
   const params = useParams<{ source?: string; sourceId?: string; }>();
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false);
-  const [savePopover, setSavePopover] = useState<boolean>(false);
+  const [savePopover, switchSavePopover] = useState<boolean>(false);
   const [testConnecting, setTestConnecting] = useState<boolean>(false);
-  const [testConnectingPopover, setTestConnectingPopover] = useState<boolean>(false);
-
-  // const sourceData = useMemo<SourceData>(() => sources.find((source: SourceData) => source.sourceId === params.sourceId), [sources, params.sourceId]);
-  const sourceData = useRef<SourceData>(sources.find(source => source.sourceId === params.sourceId));
+  const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
 
   const connectorSource = useMemo<SourceConnector>(
-    () => sourceData.current?.sourceProtoType
-      ? allSources.find((source: SourceConnector) => snakeCase(source.id) === sourceData.current?.sourceProtoType)
-      : allSources.find((source: SourceConnector) => snakeCase(source.id) === snakeCase(params.source)) ?? {} as SourceConnector,
-    [sourceData.current?.sourceProtoType, params.source]
+    () => {
+      let sourceType = params.source
+        ? params.source
+        : params.sourceId
+          ? sources.find(src => src.sourceId === params.sourceId)?.sourceProtoType
+          : undefined;
+
+      return sourceType
+        ? allSources.find((source: SourceConnector) => snakeCase(source.id) === snakeCase(sourceType))
+        : {} as SourceConnector;
+    },
+    [params.source, params.sourceId, sources]
+  );
+
+  const sourceData = useRef<SourceData>(
+    sources.find(src => src.sourceId === params.sourceId) ?? {
+      sourceId: sourcePageUtils.getSourceId(params.source, sources.map(src => src.sourceId)),
+      connected: false,
+      sourceType: 'sourcePageUtils',
+      sourceProtoType: snakeCase(params.source)
+    } as SourceData
   );
 
   const sourcesTabs = useRef<Tab[]>([{
@@ -76,6 +103,87 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     errorsLevel: 'warning'
   }]);
 
+  const touchedFields = useRef<boolean>(false);
+
+  const savePopoverClose = useCallback(() => switchSavePopover(false), []);
+  const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
+
+  const handleCancel = useCallback(() => history.push(routes.root), [history]);
+
+  const getPromptMessage = useCallback(
+    () => touchedFields.current ? 'You have unsaved changes. Are you sure you want to leave the page?': undefined,
+    []
+  );
+
+  const handleTestConnection = useCallback(async() => {
+    setTestConnecting(true);
+
+    const tab = sourcesTabs.current[0];
+
+    try {
+      const errorCb = (errors) => tab.errorsCount = errors.errorFields?.length;
+
+      const config = await validateTabForm(tab, { forceUpdate, errorCb });
+
+      sourceData.current = {
+        ...sourceData.current,
+        config: makeObjectFromFieldsValues(config),
+        connected: await sourcePageUtils.testConnection(sourceData.current)
+      };
+    } catch(error) {
+      switchTestConnectingPopover(true);
+    } finally {
+      setTestConnecting(false);
+      forceUpdate();
+    }
+  }, [forceUpdate]);
+
+  const handleSubmit = useCallback(() => {
+    setSourceSaving(true);
+
+    Promise
+      .all(sourcesTabs.current.map(tab => validateTabForm(tab, { forceUpdate, errorCb: errors => tab.errorsCount = errors.errorFields?.length })))
+      .then(async allValues => {
+        sourceData.current = {
+          ...sourceData.current,
+          config: makeObjectFromFieldsValues(allValues[0]),
+          connected: !sourceData.current.connected
+            ? await sourcePageUtils.testConnection(sourceData.current)
+            : sourceData.current.connected
+        };
+
+        try {
+          const payload: CollectionSourceData = {
+            sources: editorMode === 'edit'
+              ? sources.reduce((accumulator: SourceData[], current: SourceData) => [
+                ...accumulator,
+                current.sourceId !== sourceData.current.sourceId
+                  ? current
+                  : sourceData.current
+              ], [])
+              : [...sources, sourceData.current]
+          };
+
+          await services.storageService.save('sources', payload, projectId);
+
+          updateSources(payload);
+
+          history.push(routes.root);
+
+          message.success('New destination has been added!');
+        } catch(error) {
+          handleError(error, 'Something goes wrong, source hasn\'t been added');
+        }
+      })
+      .catch(() => {
+        switchSavePopover(true);
+      })
+      .finally(() => {
+        setSourceSaving(false);
+        forceUpdate();
+      });
+  }, [forceUpdate, editorMode, projectId, history, services.storageService, sources, updateSources]);
+
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
@@ -86,22 +194,6 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       ]
     }));
   }, [connectorSource, setBreadcrumbs]);
-
-  const savePopoverClose = useCallback(() => setSavePopover(false), []);
-  const testConnectingPopoverClose = useCallback(() => setTestConnectingPopover(false), []);
-
-  const handleCancel = useCallback(() => history.push(routes.root), [history]);
-
-  const touchedFields = useRef<boolean>(false);
-
-  const getPromptMessage = useCallback(
-    () => touchedFields.current ? 'You have unsaved changes. Are you sure you want to leave the page?': undefined,
-    []
-  );
-
-  const handleSubmit = useCallback(() => {}, []);
-
-  const handleTestConnection = useCallback(() => {}, []);
 
   return (
     <>

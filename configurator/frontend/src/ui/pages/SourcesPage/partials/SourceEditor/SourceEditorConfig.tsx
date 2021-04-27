@@ -1,15 +1,12 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
 import { Col, Form, Input, Row } from 'antd';
-import { snakeCase } from 'lodash';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { SourceConnector } from '@catalog/sources/types';
 import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 // @Components
 import { ConfigurableFieldsForm } from '@molecule/ConfigurableFieldsForm';
-// @Utils
-import { getUniqueAutoIncId } from '@util/numbers';
 
 export interface Props {
   form: FormInstance;
@@ -26,32 +23,6 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
       : Promise.resolve(),
     [sources]
   );
-
-  const isUniqueSourceId = useCallback((sourceId: string) => !sources?.find((source: SourceData) => source.sourceId === sourceId), [
-    sources
-  ]);
-
-  const initialSourceId = useMemo(() => {
-    if (initialValues.sourceId) {
-      return initialValues.sourceId;
-    }
-
-    const preparedBlank = snakeCase(sourceReference.displayName);
-
-    if (isUniqueSourceId(preparedBlank)) {
-      return preparedBlank;
-    }
-
-    const sourcesIds = sources?.reduce((accumulator: string[], current: SourceData) => {
-      if (current.sourceId.includes(preparedBlank)) {
-        accumulator.push(current.sourceId)
-      }
-
-      return accumulator;
-    }, []);
-
-    return getUniqueAutoIncId(preparedBlank, sourcesIds);
-  }, [sources, isUniqueSourceId, initialValues, sourceReference]);
 
   const sourceIdValidators = useMemo(() => {
     const rules: Rule[] = [{ required: true, message: 'Source ID is required field' }];
@@ -74,7 +45,7 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
       <Row>
         <Col span={16}>
           <Form.Item
-            initialValue={initialSourceId}
+            initialValue={initialValues.sourceId}
             className="form-field_fixed-label"
             label={<span>SourceId:</span>}
             name="sourceId"
@@ -86,6 +57,7 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
           </Form.Item>
         </Col>
       </Row>
+
       <ConfigurableFieldsForm initialValues={undefined} fieldsParamsList={sourceReference.configParameters} form={form}/>
     </Form>
   );
