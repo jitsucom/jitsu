@@ -9,7 +9,7 @@ export type Logger = {
   error: (...args: any) => void
 }
 
-export type LogLevelName = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+export type LogLevelName = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'NONE';
 
 export type LogLevel = {
   name: LogLevelName
@@ -21,7 +21,8 @@ export const LogLevels: Record<LogLevelName, LogLevel> = {
   DEBUG: {name: "DEBUG", severity: 10},
   INFO: {name: "INFO", severity: 100},
   WARN: {name: "WARN", severity: 1000},
-  ERROR: {name: "ERROR", severity: 10000}
+  ERROR: {name: "ERROR", severity: 10000},
+  NONE: {name: "NONE", severity: 10000}
 }
 
 let rootLogger = null;
