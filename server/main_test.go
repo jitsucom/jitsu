@@ -530,6 +530,8 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
+
+	time.Sleep(500 * time.Millisecond)
 	requestValue := []byte(`{"email": "test@domain.com"}`)
 	for i := 0; i < sendEventsCount; i++ {
 		apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+endpoint, bytes.NewBuffer(requestValue))
