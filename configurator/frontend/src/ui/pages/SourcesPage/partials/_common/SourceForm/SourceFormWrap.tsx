@@ -12,7 +12,7 @@ import { routes } from '@page/SourcesPage/routes';
 // @Types
 import { FormWrapProps } from '@page/SourcesPage/partials/_common/SourceForm/SourceForm.types';
 // @Utils
-import { makeObjectFromFieldsValues } from '@util/Form';
+import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { CollectionSourceData } from '@page/SourcesPage/SourcesPage';
 import { sourceFormCleanFunctions } from '@page/SourcesPage/partials/_common/SourceForm/sourceFormCleanFunctions';
 

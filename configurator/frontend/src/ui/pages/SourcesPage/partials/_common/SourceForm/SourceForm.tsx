@@ -23,7 +23,7 @@ import { routes } from '@page/SourcesPage/routes';
 // @Styles
 import styles from './SourceForm.module.less';
 // @Utils
-import { makeObjectFromFieldsValues } from '@util/Form';
+import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { sourceFormCleanFunctions, TabsMap } from './sourceFormCleanFunctions';
 
 const SourceForm = ({
