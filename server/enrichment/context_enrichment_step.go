@@ -28,8 +28,11 @@ func ContextEnrichmentStep(payload events.Event, token string, r *http.Request, 
 	preprocessor.Preprocess(payload, r)
 
 	//3. unique ID field
-	if err := uniqueIDField.Set(payload, uuid.New()); err != nil {
-		logging.SystemError("Error setting unique ID into the object %s: %v", payload.Serialize(), err)
+	//set only if doesn't exist
+	if uniqueIDField.Extract(payload) == "" {
+		if err := uniqueIDField.Set(payload, uuid.New()); err != nil {
+			logging.SystemError("Error setting unique ID into the object %s: %v", payload.Serialize(), err)
+		}
 	}
 
 	//4. timestamp & api key
