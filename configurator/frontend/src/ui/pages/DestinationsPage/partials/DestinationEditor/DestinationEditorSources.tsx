@@ -23,16 +23,20 @@ const DestinationEditorSources = ({ form, initialValues = [] }: Props) => {
   const service = ApplicationServices.get();
 
   const [error, sourcesData] = useLoader(async() => await service.storageService.get('sources', service.activeProject.id));
+  const sourcesList = useMemo<Item[]>(
+    () => sourcesData?.sources
+      ? sourcesData?.sources.map((source: SourceData) => {
+        const proto = allSources.find(s => s.id === source.sourceType);
 
-  const sourcesList = useMemo<Item[]>(() => sourcesData?.sources?.map((source: SourceData) => {
-    const proto = allSources.find(s => s.id === source.sourceType);
-
-    return {
-      id: source.sourceId,
-      title: source.sourceId,
-      icon: proto.pic
-    };
-  }), [sourcesData?.sources]);
+        return {
+          id: source.sourceId,
+          title: source.sourceId,
+          icon: proto.pic
+        };
+      })
+      : [],
+    [sourcesData?.sources]
+  );
 
   if (error) {
     return <CenteredError error={error} />
