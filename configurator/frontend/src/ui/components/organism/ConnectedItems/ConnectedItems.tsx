@@ -1,20 +1,24 @@
 // @Libs
 import React, { useCallback, useState } from 'react';
 import { Form, Switch, Typography } from 'antd';
-import { FormInstance } from 'antd/es';
 // @Components
 import { ListItem } from '@molecule/ListItem';
+// @Types
+import { FormInstance } from 'antd/es';
 
-export interface Item {
+export interface ConnectedItem {
   id: string;
   title: React.ReactNode;
   icon?: React.ReactNode;
+  itemKey: string;
+  link: string;
+  description: React.ReactNode;
 }
 
 export interface Props {
   form: FormInstance;
   fieldName: string;
-  itemsList: Item[];
+  itemsList: ConnectedItem[];
   initialValues?: string[];
   warningMessage: React.ReactNode;
 }
@@ -46,16 +50,18 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
 
   return (
     <>
-      <Form.Item name={fieldName}>
+      <Form.Item className="mb-1" name={fieldName}>
         <ul>
           {
-            itemsList?.map(({ id, title, icon }: Item) => (
+            itemsList?.map(({ id, title, icon, itemKey, link, description }: ConnectedItem) => (
               <ListItem
                 prefix={<Switch onChange={handleChange(id)} checked={selectedItems?.includes(id)} />}
                 icon={icon}
                 title={title}
                 id={id}
-                key={id}
+                key={itemKey}
+                link={link}
+                description={description}
               />
             ))
           }
