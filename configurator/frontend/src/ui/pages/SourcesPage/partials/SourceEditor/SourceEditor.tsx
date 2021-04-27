@@ -18,7 +18,7 @@ import { SourceConnector } from '@catalog/sources/types';
 import { FormInstance } from 'antd/es';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 // @Routes
-import { routes } from '@page/SourcesPage/routes';
+import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 // @Catalog sources
 import { allSources } from '@catalog/sources/lib';
 // @Utils
@@ -114,7 +114,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   const savePopoverClose = useCallback(() => switchSavePopover(false), []);
   const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
 
-  const handleCancel = useCallback(() => history.push(routes.root), [history]);
+  const handleCancel = useCallback(() => history.push(sourcesPageRoutes.root), [history]);
 
   const getPromptMessage = useCallback(
     () => touchedFields.current ? 'You have unsaved changes. Are you sure you want to leave the page?': undefined,
@@ -179,7 +179,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
           updateSources(payload);
 
-          history.push(routes.root);
+          history.push(sourcesPageRoutes.root);
 
           message.success('New destination has been added!');
         } catch(error) {
@@ -198,7 +198,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
-        { title: 'Sources', link: routes.root },
+        { title: 'Sources', link: sourcesPageRoutes.root },
         {
           title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />
         }

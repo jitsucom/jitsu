@@ -1,8 +1,8 @@
 // @Libs
-import React, { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
+import React, { Dispatch, SetStateAction, useMemo } from 'react';
 import { Route, Switch } from 'react-router-dom';
 // @Routes
-import { routes } from './routes';
+import { sourcesPageRoutes } from './routes';
 // @Components
 import { SourcesList } from './partials/SourcesList';
 import { SourceEditor } from './partials/SourceEditor';
@@ -16,6 +16,7 @@ import { getComponent } from '@hocs/getComponent';
 // @Types
 import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 import { PageProps } from '@./navigation';
+// @Hooks
 import useLoader from '@hooks/useLoader';
 
 export interface CollectionSourceData {
@@ -54,18 +55,18 @@ const SourcesPage = (props: PageProps) => {
   return (
     <Switch>
       <Route
-        path={routes.root}
+        path={sourcesPageRoutes.root}
         exact
         render={getComponent<CommonSourcePageProps>(SourcesList, additionalProps)}
       />
       <Route
-        path={[routes.add, routes.addExact]}
+        path={[sourcesPageRoutes.add, sourcesPageRoutes.addExact]}
         strict={false}
         exact
         render={getComponent<CommonSourcePageProps>(SourceEditor, { ...additionalProps, editorMode: 'add' })}
       />
       <Route
-        path={[routes.edit, routes.editExact]}
+        path={[sourcesPageRoutes.edit, sourcesPageRoutes.editExact]}
         strict={false}
         exact
         render={getComponent<CommonSourcePageProps>(SourceEditor, { ...additionalProps, editorMode: 'edit' })}
