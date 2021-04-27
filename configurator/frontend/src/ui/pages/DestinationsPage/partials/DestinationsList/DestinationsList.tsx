@@ -62,8 +62,8 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
   const getDescription = useCallback((reference: Destination, dst: DestinationData) => {
     const { title, connectCmd } = reference.ui;
 
-    const commandLineConnect = connectCmd(dst);
-    const displayURL = title(dst);
+    const commandLineConnect = typeof connectCmd === 'function' ? connectCmd(dst) : undefined;
+    const displayURL = typeof title === 'function' ? title(dst) : undefined;
 
     if (!commandLineConnect) {
       return displayURL;
