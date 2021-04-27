@@ -114,12 +114,6 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
 
-	//test
-	tokenID := appconfig.Instance.AuthorizationService.GetTokenID("c2stoken")
-	logging.Info("token ID: %s", tokenID)
-	destinationStorages := destinationService.GetStorages(tokenID)
-	logging.Info("Storages : %v", destinationStorages)
-
 	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationService, recognitionConfiguration, "/tmp")
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
@@ -143,7 +137,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	//** Requests **
 	//1. anonymous[anonym1] pageview
