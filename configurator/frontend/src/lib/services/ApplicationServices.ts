@@ -118,8 +118,10 @@ export type FeatureSettings = {
    */
   chatSupportType: 'slack' | 'chat'
 
-
-
+  /**
+   * If billing is enabled
+   */
+  billingEnabled: boolean
 };
 
 function parseJson(envVar, defaultValue) {
@@ -239,7 +241,8 @@ export default class ApplicationServices {
         enableCustomDomains: !response.data.selfhosted,
         anonymizeUsers: !!response.data.selfhosted,
         appName: response.data.selfhosted ? 'selfhosted' : 'jitsu_cloud',
-        chatSupportType: response.data.selfhosted ? 'slack' : 'chat'
+        chatSupportType: response.data.selfhosted ? 'slack' : 'chat',
+        billingEnabled: !response.data.selfhosted
       };
     } else {
       throw new APIError(response, request);
