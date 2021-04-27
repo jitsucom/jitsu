@@ -133,6 +133,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
 
           const additionalProps: AnyObject = {};
 
+          // ToDo: bad code, think about exceptions
           if (id === '_formData.ch_dsns_list') {
             additionalProps.validator = dsnValidator;
           }
