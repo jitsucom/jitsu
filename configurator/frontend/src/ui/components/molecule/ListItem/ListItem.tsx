@@ -1,5 +1,6 @@
 // @Libs
 import React, { memo } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from 'antd';
 import cn from 'classnames';
 // @Styles
@@ -23,10 +24,11 @@ export interface Props {
   prefix?: React.ReactNode;
   actions?: SomeAction[];
   id: string;
+  link: string;
 }
 
 // ToDo: maybe components name has to be changed?
-const ListItemComponent = ({ className, icon, title, description, additional, prefix, actions, id }: Props) => {
+const ListItemComponent = ({ className, icon, title, description, additional, prefix, actions, id, link }: Props) => {
   const iconsMap = {
     edit: <EditOutlined/>,
     delete: <DeleteOutlined/>
@@ -38,7 +40,7 @@ const ListItemComponent = ({ className, icon, title, description, additional, pr
         {prefix && <span className={styles.prefix}>{prefix}</span>}
         <span className={styles.icon}>{icon}</span>
         <span className={styles.info}>
-          <span className={styles.title}>{title}</span>
+          <Link to={link} className={styles.title}>{title}</Link>
           {description && <span className={styles.description}>{description}</span>}
           {additional && <span className={styles.additional}>{additional}</span>}
         </span>
