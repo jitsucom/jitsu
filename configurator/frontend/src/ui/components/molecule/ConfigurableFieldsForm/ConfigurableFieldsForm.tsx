@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback } from 'react';
-import { Col, Form, Input, Radio, Row, Select, Switch } from 'antd';
+import { Col, Form, Input, Row, Select, Switch } from 'antd';
 import MonacoEditor from 'react-monaco-editor';
 import { get } from 'lodash';
 // @Components
@@ -21,7 +21,9 @@ import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlin
 export interface Props {
   fieldsParamsList: Parameter[];
   form: FormInstance;
-  initialValues: any;
+  initialValues: {
+    [key: string]: string;
+  };
 }
 
 const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues }: Props) => {

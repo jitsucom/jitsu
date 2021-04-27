@@ -64,7 +64,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     sources.find(src => src.sourceId === params.sourceId) ?? {
       sourceId: sourcePageUtils.getSourceId(params.source, sources.map(src => src.sourceId)),
       connected: false,
-      sourceType: 'sourcePageUtils',
+      sourceType: sourcePageUtils.getSourceType(connectorSource),
       sourceProtoType: snakeCase(params.source)
     } as SourceData
   );
