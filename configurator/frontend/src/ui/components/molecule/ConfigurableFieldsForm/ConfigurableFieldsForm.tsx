@@ -12,6 +12,8 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 // @Utils
 import { dsnValidator } from './configurableFieldsForm.utils';
 import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
+import { validationChain } from '@util/validation/validationChain';
+import { isoDateValidator, requiredValidator } from '@util/validation/validators';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
@@ -66,7 +68,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
       </Select>;
 
     case 'array/string':
-      return <EditableList newItemLabel="Add new server" validator={dsnValidator}/>;
+      return <EditableList newItemLabel="Add new server" validator={dsnValidator} />;
 
     case 'json':
       return <MonacoEditor
@@ -147,9 +149,12 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
                     }
                     labelCol={{ span: 6 }}
                     wrapperCol={{ span: 18 }}
-                    rules={required
-                      ? [{ required, message: `${displayName} field is required.` }]
-                      : undefined}
+                    rules={
+                      validationChain(
+                        requiredValidator(required, displayName),
+                        type.typeName === 'isoUtcDate' && isoDateValidator()
+                      )
+                    }
                   >
                     {getFieldComponent(type, id)}
                   </Form.Item>
