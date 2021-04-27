@@ -10,4 +10,9 @@ const dsnValidator = (value: string) => {
   return null;
 };
 
+export interface ValidationRulesProps {
+  required?: boolean;
+  displayName
+}
+
 export { dsnValidator };
