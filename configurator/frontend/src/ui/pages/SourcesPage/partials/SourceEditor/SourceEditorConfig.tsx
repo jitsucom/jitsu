@@ -14,9 +14,10 @@ export interface Props {
   isCreateForm: boolean;
   sources: SourceData[];
   initialValues: SourceData;
+  handleTouchAnyField: VoidFunc;
 }
 
-const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, initialValues = {} as SourceData }: Props) => {
+const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, initialValues = {} as SourceData, handleTouchAnyField }: Props) => {
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) => sources?.find((source: SourceData) => source.sourceId === value)
       ? Promise.reject('Source ID must be unique!')
@@ -41,6 +42,7 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
       name="source-config"
       form={form}
       autoComplete="off"
+      onChange={handleTouchAnyField}
     >
       <Row>
         <Col span={16}>
