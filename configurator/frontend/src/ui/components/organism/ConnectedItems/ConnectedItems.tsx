@@ -50,23 +50,27 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
 
   return (
     <>
-      <Form.Item className="mb-1" name={fieldName}>
-        <ul>
-          {
-            itemsList?.map(({ id, title, icon, itemKey, link, description }: ConnectedItem) => (
-              <ListItem
-                prefix={<Switch onChange={handleChange(id)} checked={selectedItems?.includes(id)} />}
-                icon={icon}
-                title={title}
-                id={id}
-                key={itemKey}
-                link={link}
-                description={description}
-              />
-            ))
-          }
-        </ul>
-      </Form.Item>
+      {
+        itemsList?.length > 0 && (
+          <Form.Item className="mb-1" name={fieldName}>
+            <ul>
+              {
+                itemsList?.map(({ id, title, icon, itemKey, link, description }: ConnectedItem) => (
+                  <ListItem
+                    prefix={<Switch onChange={handleChange(id)} checked={selectedItems?.includes(id)} />}
+                    icon={icon}
+                    title={title}
+                    id={id}
+                    key={itemKey}
+                    link={link}
+                    description={description}
+                  />
+                ))
+              }
+            </ul>
+          </Form.Item>
+        )
+      }
 
       {
         itemsList?.length > 0 && selectedItems.length === 0 && <Typography.Text type="warning">{warningMessage}</Typography.Text>
