@@ -1,5 +1,6 @@
 // @Libs
 import React, { useMemo } from 'react';
+import { generatePath } from 'react-router-dom';
 import { Form } from 'antd';
 // @Constants
 import { SOURCE_CONNECTED_DESTINATION } from '@./embeddedDocs/connectedDestinations';
@@ -10,9 +11,11 @@ import ApplicationServices from '@service/ApplicationServices';
 import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { Item } from '@organism/ConnectedItems/ConnectedItems';
+import { ConnectedItem } from '@organism/ConnectedItems';
 // @Hooks
 import useLoader from '@hooks/useLoader';
+// @Routes
+import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 
 export interface Props {
   form: FormInstance;
@@ -27,12 +30,14 @@ const SourceEditorDestinations = ({ form, initialValues, projectId }: Props) => 
     async() => await services.storageService.get('destinations', projectId)
   );
 
-  const destinationsList = useMemo<Item[]>(() => destinations?.destinations?.map((dst: DestinationData) => {
+  const destinationsList = useMemo<ConnectedItem[]>(() => destinations?.destinations?.map((dst: DestinationData) => {
     const reference = destinationsReferenceMap[dst._type]
     return {
+      itemKey: dst._uid,
       id: reference.id,
       title: reference.displayName,
-      icon: reference.ui.icon
+      icon: reference.ui.icon,
+      link: generatePath(destinationPageRoutes.editDestination, { id: dst._id })
     };
   }) ?? [], [destinations?.destinations]);
 

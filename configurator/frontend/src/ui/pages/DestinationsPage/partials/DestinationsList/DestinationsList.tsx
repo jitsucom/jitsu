@@ -180,6 +180,7 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
             title={getTitle(dst)}
             id={dst._id}
             key={dst._id}
+            link={generatePath(destinationPageRoutes.editDestination, { id: dst._id })}
             actions={[
               { key: 'edit', method: handleEditAction, title: 'Edit' },
               { key: 'delete', method: handleDeleteAction, title: 'Delete' }
