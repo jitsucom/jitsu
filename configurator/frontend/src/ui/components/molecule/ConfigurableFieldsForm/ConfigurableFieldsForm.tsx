@@ -21,12 +21,11 @@ import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlin
 export interface Props {
   fieldsParamsList: Parameter[];
   form: FormInstance;
-  initialValues: {
-    [key: string]: string;
-  };
+  initialValues: any;
+  namePrefix?: string;
 }
 
-const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues }: Props) => {
+const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePrefix }: Props) => {
   const forceUpdate = useForceUpdate();
 
   const handleRadioGroupChange = useCallback(() => forceUpdate(), [forceUpdate]);
@@ -105,12 +104,27 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues }: Props
     }
   }, [form, handleChangeSwitch, handleChangeIntInput]);
 
+  const getInitialValue = useCallback((id: string, defaultValue: any, constantValue: any, type: string) => {
+    const initial = get(initialValues, id);
+
+    if (initial) {
+      return initial;
+    }
+
+    const calcValue = (defaultValue || constantValue) ?? {};
+
+    return type === 'json'
+      ? Object.keys(calcValue).length > 0
+        ? JSON.stringify(calcValue)
+        : ''
+      : (defaultValue || constantValue) ?? '';
+  }, [initialValues]);
+
   return (
     <>
       {
         fieldsParamsList.map((param: Parameter) => {
-          const { id, documentation, displayName, defaultValue, type, required, constant } = param;
-          const initial = get(initialValues, id);
+          const { id, documentation, displayName, type, defaultValue, required, constant } = param;
 
           const constantValue = typeof constant === 'function'
             ? constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {}))
@@ -123,7 +137,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues }: Props
                 <Col span={16}>
                   <Form.Item
                     className="form-field_fixed-label"
-                    initialValue={initial ?? (defaultValue || constantValue)}
+                    initialValue={getInitialValue(id, defaultValue, constantValue, type.typeName)}
                     name={id}
                     hidden={isNull}
                     label={
