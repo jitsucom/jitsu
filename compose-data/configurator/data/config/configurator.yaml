@@ -2,7 +2,7 @@ server:
   log:
     level: info
   domain: localhost
-  name: demo-eventnative
+  name: demo-jitsu
   auth: '${env.CONFIGURATOR_ADMIN_TOKEN}'
 
 storage:

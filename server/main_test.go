@@ -192,9 +192,12 @@ func TestCors(t *testing.T) {
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
+			mockStorageFactory := storages.NewMockFactory()
+			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
+
 			inmemWriter := logging.InitInMemoryWriter()
-			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
-				destinations.TokenizedStorages{}, destinations.TokenizedIDs{})
+			destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)}, destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
+				destinations.TokenizedStorages{}, destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
 			metaStorage := &meta.Dummy{}
@@ -324,9 +327,12 @@ func TestAPIEvent(t *testing.T) {
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
 
+			mockStorageFactory := storages.NewMockFactory()
+			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
+
 			inmemWriter := logging.InitInMemoryWriter()
-			destinationService := destinations.NewTestService(destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
-				destinations.TokenizedStorages{}, destinations.TokenizedIDs{})
+			destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)}, destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
+				destinations.TokenizedStorages{}, destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
 			metaStorage := &meta.Dummy{}
@@ -527,6 +533,8 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 
 	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
 	require.NoError(t, err)
+
+	time.Sleep(500 * time.Millisecond)
 	requestValue := []byte(`{"email": "test@domain.com"}`)
 	for i := 0; i < sendEventsCount; i++ {
 		apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+endpoint, bytes.NewBuffer(requestValue))

@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -14,13 +15,14 @@ import (
 
 //Facebook stores events to Facebook Conversion API in stream mode
 type Facebook struct {
-	name            string
+	destinationID   string
 	fbAdapter       *adapters.FacebookConversionAPI
 	tableHelper     *TableHelper
 	processor       *schema.Processor
 	streamingWorker *StreamingWorker
 	fallbackLogger  *logging.AsyncLogger
 	eventsCache     *caching.EventsCache
+	uniqueIDField   *identifiers.UniqueID
 	staged          bool
 }
 
@@ -28,7 +30,7 @@ func init() {
 	RegisterStorage(FacebookType, NewFacebook)
 }
 
-//NewFacebook return Facebook instance
+//NewFacebook returns configured Facebook instance
 //start streaming worker goroutine
 func NewFacebook(config *Config) (Storage, error) {
 	if !config.streamMode {
@@ -46,12 +48,13 @@ func NewFacebook(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion, config.streamMode, 0)
 
 	fb := &Facebook{
-		name:           config.destinationID,
+		destinationID:  config.destinationID,
 		fbAdapter:      fbAdapter,
 		tableHelper:    tableHelper,
 		processor:      config.processor,
 		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:    config.eventsCache,
+		uniqueIDField:  config.uniqueIDField,
 		staged:         config.destination.Staged,
 	}
 
@@ -65,24 +68,34 @@ func (fb *Facebook) DryRun(payload events.Event) ([]adapters.TableField, error) 
 	return dryRun(payload, fb.processor, fb.tableHelper)
 }
 
+//Insert sends event to Facebook Conversion API
 func (fb *Facebook) Insert(table *adapters.Table, event events.Event) (err error) {
 	return fb.fbAdapter.Send(event)
 }
 
+//Store isn't supported
 func (fb *Facebook) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
 	return nil, nil, errors.New("Facebook Conversion doesn't support Store() func")
 }
 
+//SyncStore isn't supported
 func (fb *Facebook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
 	return errors.New("Facebook Conversion doesn't support SyncStore() func")
 }
 
+//Update isn't supported
 func (fb *Facebook) Update(object map[string]interface{}) error {
 	return errors.New("Facebook doesn't support updates")
 }
 
+//GetUsersRecognition returns users recognition configuration
 func (fb *Facebook) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
+}
+
+//GetUniqueIDField returns unique ID field configuration
+func (fb *Facebook) GetUniqueIDField() *identifiers.UniqueID {
+	return fb.uniqueIDField
 }
 
 //Fallback log event with error to fallback logger
@@ -92,10 +105,12 @@ func (fb *Facebook) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
+//ID returns destination ID
 func (fb *Facebook) ID() string {
-	return fb.name
+	return fb.destinationID
 }
 
+//Type returns Facebook type
 func (fb *Facebook) Type() string {
 	return FacebookType
 }
@@ -104,6 +119,7 @@ func (fb *Facebook) IsStaging() bool {
 	return fb.staged
 }
 
+//Close closes Facebook adapter, fallback logger and streaming worker
 func (fb *Facebook) Close() (multiErr error) {
 	if err := fb.fbAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing Facebook client: %v", fb.ID(), err))

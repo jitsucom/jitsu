@@ -34,7 +34,7 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: emptyDestinationIDMessage})
 		return
 	}
-	enrichment.ContextEnrichmentStep(payload, c.GetString(middleware.TokenName), c.Request, drh.preprocessor)
+
 	storageProxy, ok := drh.destinationService.GetStorageByID(destinationID)
 	if !ok {
 		destinationNotFoundErrorMessage := fmt.Sprintf("Error: destination with id=[%s] does not exist", destinationID)
@@ -48,6 +48,10 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: fmt.Sprintf("Failed to get storage from proxy for id=%s", destinationID)})
 		return
 	}
+
+	//** Context enrichment **
+	enrichment.ContextEnrichmentStep(payload, c.GetString(middleware.TokenName), c.Request, drh.preprocessor, storage.GetUniqueIDField())
+
 	dataSchema, err := storage.DryRun(payload)
 	if err != nil {
 		dryRunError := fmt.Sprintf("Error getting dry run response for destination with id=[%s], %v", destinationID, err)
@@ -55,5 +59,6 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: dryRunError, Error: err.Error()})
 		return
 	}
+
 	c.JSON(http.StatusOK, dataSchema)
 }

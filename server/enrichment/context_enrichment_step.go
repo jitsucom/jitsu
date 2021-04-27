@@ -2,6 +2,8 @@ package enrichment
 
 import (
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"net/http"
@@ -13,8 +15,9 @@ const (
 	ipKey       = "source_ip"
 )
 
-//ContextEnrichmentStep enrichs payload with ip, user-agent, token, event id and _timestamp
-func ContextEnrichmentStep(payload map[string]interface{}, token string, r *http.Request, preprocessor events.Preprocessor) {
+//ContextEnrichmentStep enriches payload with ip, user-agent, token, unique ID field (event_id) and _timestamp
+func ContextEnrichmentStep(payload events.Event, token string, r *http.Request, preprocessor events.Preprocessor,
+	uniqueIDField *identifiers.UniqueID) {
 	//1. source IP
 	ip := extractIP(r)
 	if ip != "" {
@@ -24,9 +27,13 @@ func ContextEnrichmentStep(payload map[string]interface{}, token string, r *http
 	//2. preprocess
 	preprocessor.Preprocess(payload, r)
 
-	//3. identifier
-	//put and get eventn_ctx_event_id if not set (e.g. It is used for ClickHouse)
-	events.EnrichWithEventID(payload, uuid.New())
+	//3. unique ID field
+	//set only if doesn't exist
+	if uniqueIDField.Extract(payload) == "" {
+		if err := uniqueIDField.Set(payload, uuid.New()); err != nil {
+			logging.SystemError("Error setting unique ID into the object %s: %v", payload.Serialize(), err)
+		}
+	}
 
 	//4. timestamp & api key
 	payload[apiTokenKey] = token

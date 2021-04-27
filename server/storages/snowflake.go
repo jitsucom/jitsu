@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/typing"
 
 	"github.com/hashicorp/go-multierror"
@@ -27,6 +28,7 @@ type Snowflake struct {
 	streamingWorker  *StreamingWorker
 	fallbackLogger   *logging.AsyncLogger
 	eventsCache      *caching.EventsCache
+	uniqueIDField    *identifiers.UniqueID
 	staged           bool
 }
 
@@ -96,6 +98,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 		processor:        config.processor,
 		fallbackLogger:   config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:      config.eventsCache,
+		uniqueIDField:    config.uniqueIDField,
 		staged:           config.destination.Staged,
 	}
 
@@ -146,7 +149,7 @@ func (s *Snowflake) DryRun(payload events.Event) ([]adapters.TableField, error) 
 	return dryRun(payload, s.processor, s.tableHelper)
 }
 
-//Insert event in Snowflake (1 retry if err)
+//Insert inserts event in Snowflake (1 retry if err)
 func (s *Snowflake) Insert(table *adapters.Table, event events.Event) (err error) {
 	dbTable, err := s.tableHelper.EnsureTable(s.ID(), table)
 	if err != nil {
@@ -199,9 +202,9 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				s.eventsCache.Error(s.ID(), events.ExtractEventID(object), err.Error())
+				s.eventsCache.Error(s.ID(), s.uniqueIDField.Extract(object), err.Error())
 			} else {
-				s.eventsCache.Succeed(s.ID(), events.ExtractEventID(object), object, table)
+				s.eventsCache.Succeed(s.ID(), s.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
@@ -238,8 +241,14 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 	return nil
 }
 
+//GetUsersRecognition returns users recognition configuration
 func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
+}
+
+//GetUniqueIDField returns unique ID field configuration
+func (s *Snowflake) GetUniqueIDField() *identifiers.UniqueID {
+	return s.uniqueIDField
 }
 
 //Fallback log event with error to fallback logger
@@ -249,18 +258,22 @@ func (s *Snowflake) Fallback(failedEvents ...*events.FailedEvent) {
 	}
 }
 
+//SyncStore isn't supported
 func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
 	return errors.New("Snowflake doesn't support sync store")
 }
 
+//Update isn't supported
 func (s *Snowflake) Update(object map[string]interface{}) error {
 	return errors.New("Snowflake doesn't support updates")
 }
 
+//ID returns destination ID
 func (s *Snowflake) ID() string {
 	return s.name
 }
 
+//Type returns Snowflake type
 func (s *Snowflake) Type() string {
 	return SnowflakeType
 }
@@ -269,6 +282,7 @@ func (s *Snowflake) IsStaging() bool {
 	return s.staged
 }
 
+//Close closes Snowflake adapter, stage adapter, fallback logger and streaming worker
 func (s *Snowflake) Close() (multiErr error) {
 	if err := s.snowflakeAdapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing snowflake datasource: %v", s.ID(), err))

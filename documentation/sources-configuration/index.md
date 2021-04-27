@@ -138,7 +138,7 @@ Data may be synchronized by time chunks (if data source supports data loading by
 The result of synchronization is a replica of data from the data source with some enriched fields. 
 
 * `eventn_ctx_collection_id` contains the type of collection (see documentation on collections [below](/docs/sources-configuration#collections))
-* `eventn_ctx_event_id` a hash of the synchronized object
+* `$server.unique_id_field` column name depends on `server.unique_id_field` configuration. (`eventn_ctx_event_id` by default) - a hash of the synchronized object
 * `eventn_ctx_time_interval` field stores information about what synchronization interval
 * `eventn_ctx_interval_start` field stores information about start of synchronization interval
 * `eventn_ctx_interval_end` field stores information about the end of synchronization interval

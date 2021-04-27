@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 )
@@ -17,6 +18,7 @@ type S3 struct {
 	processor      *schema.Processor
 	fallbackLogger *logging.AsyncLogger
 	eventsCache    *caching.EventsCache
+	uniqueIDField  *identifiers.UniqueID
 	staged         bool
 }
 
@@ -47,14 +49,11 @@ func NewS3(config *Config) (Storage, error) {
 		processor:      config.processor,
 		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
 		eventsCache:    config.eventsCache,
+		uniqueIDField:  config.uniqueIDField,
 		staged:         config.destination.Staged,
 	}
 
 	return s3, nil
-}
-
-func (s3 *S3) Consume(event events.Event, tokenID string) {
-	logging.Errorf("[%s] S3 storage doesn't support streaming mode", s3.ID())
 }
 
 func (s3 *S3) DryRun(payload events.Event) ([]adapters.TableField, error) {
@@ -89,7 +88,7 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				s3.eventsCache.Error(s3.ID(), events.ExtractEventID(object), err.Error())
+				s3.eventsCache.Error(s3.ID(), s3.uniqueIDField.Extract(object), err.Error())
 			}
 		}
 	}
@@ -102,29 +101,39 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 	return tableResults, nil, nil
 }
 
-//Fallback log event with error to fallback logger
+//Fallback logs event with error to fallback logger
 func (s3 *S3) Fallback(failedEvents ...*events.FailedEvent) {
 	for _, failedEvent := range failedEvents {
 		s3.fallbackLogger.ConsumeAny(failedEvent)
 	}
 }
 
+//SyncStore isn't supported
 func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
 	return errors.New("S3 doesn't support sync store")
 }
 
+//Update isn't suported
 func (s3 *S3) Update(object map[string]interface{}) error {
 	return errors.New("S3 doesn't support updates")
 }
 
+//GetUsersRecognition returns disabled users recognition configuration
 func (s3 *S3) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
 
+//GetUniqueIDField returns unique ID field configuration
+func (s3 *S3) GetUniqueIDField() *identifiers.UniqueID {
+	return s3.uniqueIDField
+}
+
+//ID returns destination ID
 func (s3 *S3) ID() string {
 	return s3.name
 }
 
+//Type returns S3 type
 func (s3 *S3) Type() string {
 	return S3Type
 }
@@ -133,6 +142,7 @@ func (s3 *S3) IsStaging() bool {
 	return s3.staged
 }
 
+//Close closes fallback logger
 func (s3 *S3) Close() error {
 	if err := s3.fallbackLogger.Close(); err != nil {
 		return fmt.Errorf("[%s] Error closing fallback logger: %v", s3.ID(), err)

@@ -21,7 +21,8 @@ import (
 )
 
 const (
-	defaultLimit = 100
+	defaultLimit              = 100
+	noDestinationsErrTemplate = "No destination is configured for token [%s] (or only staged ones)"
 )
 
 //CachedEvent dto for events cache
@@ -68,47 +69,57 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 
 	iface, ok := c.Get(middleware.TokenName)
 	if !ok {
-		logging.SystemError("Token wasn't found in context")
+		logging.SystemError("Token wasn't found in the context")
 		return
 	}
 	token := iface.(string)
 
+	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
+	destinationStorages := eh.destinationService.GetDestinations(tokenID)
+	if len(destinationStorages) == 0 {
+		noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
+		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
+		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: noConsumerMessage})
+		return
+	}
+
 	//** Context enrichment **
-	enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.preprocessor)
+	//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
+	enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.preprocessor, destinationStorages[0].GetUniqueIDField())
 
 	//** Caching **
 	//clone payload for preventing concurrent changes while serialization
 	cachingEvent := payload.Clone()
 
 	//Persisted cache
-	eventID := events.ExtractEventID(payload)
+	//extract unique identifier
+	eventID := destinationStorages[0].GetUniqueIDField().Extract(payload)
 	if eventID == "" {
-		logging.SystemErrorf("Empty extracted eventn_ctx_event_id in: %s", payload.Serialize())
+		logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.Serialize())
 	}
-	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
 	var destinationIDs []string
-	for destinationID := range eh.destinationService.GetDestinationIDs(tokenID) {
-		destinationIDs = append(destinationIDs, destinationID)
-		eh.eventsCache.Put(destinationID, eventID, cachingEvent)
+	for _, destinationProxy := range destinationStorages {
+		destinationIDs = append(destinationIDs, destinationProxy.ID())
+		eh.eventsCache.Put(destinationProxy.ID(), eventID, cachingEvent)
 	}
 
 	//** Multiplexing **
 	consumers := eh.destinationService.GetConsumers(tokenID)
 	if len(consumers) == 0 {
-		noConsumerMessage := fmt.Sprintf("No destination is configured for token [%s] (or only staged ones)", token)
+		noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
 		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
 		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: noConsumerMessage})
 		return
-	} else {
-		for _, consumer := range consumers {
-			consumer.Consume(payload, tokenID)
-		}
-
-		//Retrospective users recognition
-		eh.userRecognitionService.Event(payload, destinationIDs)
-
-		counters.SuccessSourceEvents(tokenID, 1)
 	}
+
+	for _, consumer := range consumers {
+		consumer.Consume(payload, tokenID)
+	}
+
+	//Retrospective users recognition
+	eh.userRecognitionService.Event(payload, eventID, destinationIDs)
+
+	counters.SuccessSourceEvents(tokenID, 1)
 
 	c.JSON(http.StatusOK, middleware.OkResponse())
 }

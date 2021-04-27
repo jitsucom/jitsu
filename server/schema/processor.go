@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
 )
@@ -19,10 +20,11 @@ type Processor struct {
 	lookupEnrichmentStep *enrichment.LookupEnrichmentStep
 	mappingStep          *MappingStep
 	breakOnError         bool
+	uniqueIDField        *identifiers.UniqueID
 }
 
 func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper Mapper, enrichmentRules []enrichment.Rule,
-	flattener Flattener, typeResolver TypeResolver, breakOnError bool) (*Processor, error) {
+	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID) (*Processor, error) {
 	mappingStep := NewMappingStep(fieldMapper, flattener, typeResolver)
 	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression)
 	if err != nil {
@@ -35,6 +37,7 @@ func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper Map
 		lookupEnrichmentStep: enrichment.NewLookupEnrichmentStep(enrichmentRules),
 		mappingStep:          mappingStep,
 		breakOnError:         breakOnError,
+		uniqueIDField:        uniqueIDField,
 	}, nil
 }
 
@@ -71,7 +74,7 @@ func (p *Processor) process(fileName string, objects []map[string]interface{}, a
 			//handle skip object functionality
 			if err == ErrSkipObject {
 				if !appconfig.Instance.DisableSkipEventsWarn {
-					logging.Warnf("[%s] Event [%s]: %v", p.identifier, events.ExtractEventID(event), err)
+					logging.Warnf("[%s] Event [%s]: %v", p.identifier, p.uniqueIDField.Extract(event), err)
 				}
 
 				counters.SkipEvents(p.identifier, 1)
@@ -85,7 +88,7 @@ func (p *Processor) process(fileName string, objects []map[string]interface{}, a
 				failedEvents.Events = append(failedEvents.Events, &events.FailedEvent{
 					Event:   eventBytes,
 					Error:   err.Error(),
-					EventID: events.ExtractEventID(event),
+					EventID: p.uniqueIDField.Extract(event),
 				})
 				failedEvents.Src[events.ExtractSrc(event)]++
 			}
