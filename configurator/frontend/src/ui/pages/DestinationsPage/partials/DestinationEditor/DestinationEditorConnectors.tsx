@@ -16,7 +16,10 @@ import { ConnectedItem } from '@organism/ConnectedItems';
 // @Catalog sources
 import { allSources } from '@catalog/sources/lib';
 // @Constants
-import { DESTINATIONS_CONNECTED_SOURCES } from '@./embeddedDocs/connectedSources';
+import {
+  DESTINATIONS_CONNECTED_API_KEYS,
+  DESTINATIONS_CONNECTED_SOURCES
+} from '@./embeddedDocs/destinationsConnectedItems';
 // @Routes
 import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
@@ -95,7 +98,7 @@ const DestinationEditorConnectors = ({ form, initialValues }: Props) => {
 
         <div>
           <h3>Choose API keys</h3>
-
+          {DESTINATIONS_CONNECTED_API_KEYS}
           {
             APIKeysError
               ? <CenteredError error={APIKeysError} />
