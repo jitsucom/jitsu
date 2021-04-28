@@ -25,7 +25,6 @@ import {
 // @Routes
 import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
-import Error from '../../../../../../../../calendso/pages/auth/error';
 import Icon from '@ant-design/icons';
 import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
 
