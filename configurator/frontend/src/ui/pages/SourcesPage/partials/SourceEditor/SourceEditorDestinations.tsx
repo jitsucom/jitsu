@@ -19,11 +19,22 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 // @Utils
 import { destinationsUtils } from '@page/DestinationsPage/DestinationsPage.utils';
 import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
+import { Destination } from '@catalog/destinations/types';
 
 export interface Props {
   form: FormInstance;
   initialValues: SourceData;
   projectId: string;
+}
+
+function getDescription(reference: Destination) {
+  if (reference.syncFromSourcesStatus === 'supported') {
+    return null;
+  } else if (reference.syncFromSourcesStatus === 'coming_soon') {
+    return `${reference.displayName} synchronization is coming soon! At the moment, it's not available`;
+  } else {
+    return `${reference.displayName} synchronization is not supported`;
+  }
 }
 
 const SourceEditorDestinations = ({ form, initialValues, projectId }: Props) => {
@@ -41,7 +52,9 @@ const SourceEditorDestinations = ({ form, initialValues, projectId }: Props) => 
     const reference = destinationsReferenceMap[dst._type]
     return {
       id: dst._uid,
+      disabled: reference.syncFromSourcesStatus === 'coming_soon' || reference.syncFromSourcesStatus === 'not_supported',
       title: <NameWithPicture icon={reference.ui.icon}><b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}</NameWithPicture>,
+      description: <i className="text-xs">{getDescription(reference)}</i>
     };
   }) ?? [], [destinations?.destinations, handleEditAction]);
 
