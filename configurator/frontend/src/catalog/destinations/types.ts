@@ -1,11 +1,12 @@
-import {Parameter} from "../sources/types";
-import {ReactNode} from "react";
+import { Parameter } from '../sources/types';
+import { ReactNode } from 'react';
 
 export type Destination = {
     id: string
     displayName: string
     ui?: DestinationUI
-    parameters: Parameter[]
+    parameters: Parameter[],
+    syncFromSourcesStatus: 'supported' | 'coming_soon' | 'not_supported'
 }
 
 /**
