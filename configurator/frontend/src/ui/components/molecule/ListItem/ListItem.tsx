@@ -9,7 +9,7 @@ import styles from './ListItem.module.less';
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
 import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 
-interface SomeAction {
+export interface SomeAction {
   key: 'edit' | 'delete';
   method: (id: string) => () => void;
   title: string;
@@ -24,20 +24,14 @@ export interface Props {
   prefix?: React.ReactNode;
   actions?: SomeAction[];
   id: string;
-  link?: string;
 }
 
 // ToDo: maybe components name has to be changed?
-const ListItemComponent = ({ className, icon, title, description, additional, prefix, actions, id, link }: Props) => {
+const ListItemComponent = ({ className, icon, title, description, additional, prefix, actions, id }: Props) => {
   const iconsMap = {
     edit: <EditOutlined/>,
     delete: <DeleteOutlined/>
   };
-
-  const itemTitle = useMemo(
-    () => link ? <Link to={link} className={cn(styles.title, styles.titleLink)}>{title}</Link> : <span className={styles.title}>{title}</span>,
-    [link, title]
-  );
 
   return (
     <li className={cn(styles.item, className)}>
@@ -45,7 +39,7 @@ const ListItemComponent = ({ className, icon, title, description, additional, pr
         {prefix && <span className={styles.prefix}>{prefix}</span>}
         {icon && <span className={styles.icon}>{icon}</span>}
         <span className={styles.info}>
-          {itemTitle}
+          <span className={styles.title}>{title}</span>
           {description && <span className={styles.description}>{description}</span>}
           {additional && <span className={styles.additional}>{additional}</span>}
         </span>
