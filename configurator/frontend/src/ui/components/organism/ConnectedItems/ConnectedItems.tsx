@@ -2,18 +2,18 @@
 import React, { useCallback, useState } from 'react';
 import { Form, Switch, Typography } from 'antd';
 // @Components
-import { ListItem } from '@molecule/ListItem';
+import { ListItem, SomeAction } from '@molecule/ListItem';
 // @Types
 import { FormInstance } from 'antd/es';
 
 export interface ConnectedItem {
   itemKey: string;
   id: string;
-  link: string;
   title: React.ReactNode;
   icon?: React.ReactNode;
   description?: React.ReactNode;
   additional?: React.ReactNode;
+  actions?: SomeAction[]
 }
 
 export interface Props {
@@ -56,16 +56,16 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
           <Form.Item className="mb-1" name={fieldName}>
             <ul>
               {
-                itemsList?.map(({ id, title, icon, itemKey, link, description, additional }: ConnectedItem) => (
+                itemsList?.map(({ id, title, icon, itemKey, description, additional, actions }: ConnectedItem) => (
                   <ListItem
                     prefix={<Switch onChange={handleChange(id)} checked={selectedItems?.includes(id)} />}
                     icon={icon}
                     title={title}
                     id={id}
                     key={itemKey}
-                    link={link}
                     description={description}
                     additional={additional}
+                    actions={actions}
                   />
                 ))
               }
