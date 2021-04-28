@@ -29,24 +29,35 @@ export interface Props {
 const SourceEditorCollections = ({ form, initialValues, connectorSource, handleTouchAnyField }: Props) => {
 
   const [chosenTypes, setChosenTypes] = useState<{ [key: number]: string }>(
-    initialValues.collections?.reduce((accumulator: any, value: CollectionSource, index: number) => {
-      return { ...accumulator, [index]: value.type };
-    }, {}) ?? {}
+    initialValues.collections
+      ? initialValues.collections?.reduce((accumulator: any, value: CollectionSource, index: number) => {
+        return { ...accumulator, [index]: value.type };
+      }, {})
+      : connectorSource.collectionTypes.length === 1
+        ? { 0: connectorSource.collectionTypes[0] }
+        : {}
   );
+
+  const generateReportName = useCallback((index: number) => {
+    const formValues = form.getFieldsValue();
+    const collections = formValues?.collections;
+    const blankName = `${connectorSource.id}_${collections ? collections[index].type : connectorSource.collectionTypes[0]}`;
+    const reportNames = collections?.reduce((accumulator: string[], current: CollectionSource) => {
+      if (current?.name?.includes(blankName)) {
+        accumulator.push(current.name);
+      }
+      return accumulator;
+    }, []) || [];
+
+    return getUniqueAutoIncId(blankName, reportNames);
+  }, [form, connectorSource.id, connectorSource.collectionTypes]);
 
   const handleReportTypeChange = useCallback(
     (index: number) => (value: string) => {
       const formValues = form.getFieldsValue();
       const collections = formValues.collections;
-      const blankName = `${connectorSource.id}_${collections[index].type}`;
-      const reportNames = collections?.reduce((accumulator: string[], current: CollectionSource) => {
-        if (current?.name?.includes(blankName)) {
-          accumulator.push(current.name);
-        }
-        return accumulator;
-      }, []);
 
-      collections[index].name = getUniqueAutoIncId(blankName, reportNames);
+      collections[index].name = generateReportName(index);
 
       form.setFieldsValue({
         ...formValues,
@@ -60,7 +71,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
 
       handleTouchAnyField();
     },
-    [chosenTypes, form, connectorSource.id, handleTouchAnyField]
+    [form, generateReportName, handleTouchAnyField, chosenTypes]
   );
 
   const handleRemoveField = useCallback(
@@ -217,6 +228,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
                         <Row>
                           <Col span={16}>
                             <Form.Item
+                              initialValue={generateReportName(0)}
                               className="form-field_fixed-label"
                               label={<span>Report name:</span>}
                               name={[field.name, 'name']}
