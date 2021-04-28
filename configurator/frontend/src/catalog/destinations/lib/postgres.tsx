@@ -34,6 +34,7 @@ const icon = <svg viewBox="0 0 25.6 25.6" xmlns="http://www.w3.org/2000/svg">
 </svg>;
 
 const postgresDestination: Destination = {
+  syncFromSourcesStatus: 'supported',
   id: 'postgres',
   displayName: 'Postgres SQL',
   ui: {
