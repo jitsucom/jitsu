@@ -8,7 +8,10 @@ import { handleError } from '@./lib/components/components';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import Marshal from '@./lib/commons/marshalling';
-import { message } from 'antd';
+import { message, Tooltip } from 'antd';
+import { ListItemTitle } from '@atom/ListItemTitle';
+import { LabelWithTooltip } from '@atom/LabelWithTooltip';
+import { ListItemDescription } from '@atom/ListItemDescription';
 
 const sourcePageUtils = {
   getSourceType: (sourceConnector: SourceConnector) => sourceConnector.isSingerType
@@ -34,6 +37,12 @@ const sourcePageUtils = {
       handleError(error, 'Unable to test connection with filled data');
       return false;
     }
+  },
+  getTitle: (src: SourceData) => {
+    const connected = src.connected;
+    const render = connected ? src.sourceId : <><b>!</b> {src.sourceId}</>;
+
+    return <ListItemTitle render={render} error={!connected} />
   }
 };
 
