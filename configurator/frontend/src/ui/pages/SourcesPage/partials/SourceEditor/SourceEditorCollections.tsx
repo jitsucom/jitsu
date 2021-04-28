@@ -116,9 +116,9 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
         return initial;
       }
 
-      return connectorSource.collectionTypes.length > 1
-        ? undefined
-        : connectorSource.collectionTypes[0];
+      return connectorSource.collectionTypes.length > 0
+        ? connectorSource.collectionTypes[0]
+        : undefined;
     },
     [initialValues, connectorSource.collectionTypes]
   );
