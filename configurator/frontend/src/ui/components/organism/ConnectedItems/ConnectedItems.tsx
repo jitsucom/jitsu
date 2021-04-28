@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useState } from 'react';
+import React, { ReactNode, useCallback, useState } from 'react';
 import { Form, Switch, Typography } from 'antd';
 // @Components
 import { ListItem, SomeAction } from '@molecule/ListItem';
@@ -7,13 +7,9 @@ import { ListItem, SomeAction } from '@molecule/ListItem';
 import { FormInstance } from 'antd/es';
 
 export interface ConnectedItem {
-  itemKey: string;
   id: string;
   title: React.ReactNode;
-  icon?: React.ReactNode;
   description?: React.ReactNode;
-  additional?: React.ReactNode;
-  actions?: SomeAction[]
 }
 
 export interface Props {
@@ -22,6 +18,13 @@ export interface Props {
   itemsList: ConnectedItem[];
   initialValues?: string[];
   warningMessage: React.ReactNode;
+}
+
+export const NameWithPicture: React.FC<{ icon: ReactNode, children: ReactNode }> = ({ icon, children }) => {
+  return <span>
+    <span className="w-6 inline-block align-middle"><span className="flex items-center justify-center pr-1">{icon}</span></span>
+    <span className="inline-block align-middle">{children}</span>
+  </span>
 }
 
 const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], warningMessage }: Props) => {
@@ -56,17 +59,14 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
           <Form.Item className="mb-1" name={fieldName}>
             <ul>
               {
-                itemsList?.map(({ id, title, icon, itemKey, description, additional, actions }: ConnectedItem) => (
-                  <ListItem
-                    prefix={<Switch onChange={handleChange(id)} checked={selectedItems?.includes(id)} />}
-                    icon={icon}
-                    title={title}
-                    id={id}
-                    key={itemKey}
-                    description={description}
-                    additional={additional}
-                    actions={actions}
-                  />
+                itemsList?.map(({ id, title, description }: ConnectedItem) => (
+                  <div className="flex flex-row flex-nowrap h-12" key={id}>
+                    <div className="flex-shrink pr-4"><Switch onChange={handleChange(id)} checked={selectedItems?.includes(id)} /></div>
+                    <div className="flex flex-col justify-start">
+                      <div key="title">{title}</div>
+                      <div key="description" className="text-sm text-secondaryText">{description}</div>
+                    </div>
+                  </div>
                 ))
               }
             </ul>
@@ -74,9 +74,6 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
         )
       }
 
-      {
-        itemsList?.length > 0 && selectedItems.length === 0 && <Typography.Text type="warning">{warningMessage}</Typography.Text>
-      }
     </>
   );
 };
