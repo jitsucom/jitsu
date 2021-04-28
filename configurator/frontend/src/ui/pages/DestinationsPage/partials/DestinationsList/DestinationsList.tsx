@@ -1,22 +1,14 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
-import { Button, Dropdown, message, Modal, Popover, Tooltip } from 'antd';
+import { Button, Dropdown, Modal } from 'antd';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import { destinationsReferenceList, destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Components
-import { ListItemDescription } from '@atom/ListItemDescription';
-import {
-  ActionLink,
-  Align,
-  CodeInline,
-  CodeSnippet,
-  handleError
-} from '@./lib/components/components';
+import { handleError } from '@./lib/components/components';
 import { DropDownList } from '@molecule/DropDownList';
 import { ListItem } from '@molecule/ListItem';
-import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 import { EmptyList } from '@molecule/EmptyList';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
@@ -24,82 +16,16 @@ import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCi
 // @Styles
 import styles from './DestinationsList.module.less';
 // @Utils
-import { copyToClipboard } from '@./lib/commons/utils';
+import { destinationsUtils } from '@page/DestinationsPage/DestinationsPage.utils';
 // @Routes
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 // @Types
-import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
+import { CommonDestinationPageProps } from '@page/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
-import { ListItemTitle } from '@atom/ListItemTitle';
 
 const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: CommonDestinationPageProps) => {
   const history = useHistory();
-
-  const getTitle = useCallback((dst: DestinationData) => {
-    const configTitle = dst._connectionTestOk
-      ? <ListItemTitle render={dst._id} /> :
-      <Tooltip
-        trigger={['click', 'hover']}
-        title={
-          <>
-            Last connection test failed with <b><i>'{dst._connectionErrorMessage}'</i></b>. Destination might be not
-            accepting data. Please, go to editor and fix the connection settings
-          </>
-        }>
-        <ListItemTitle error render={<><b>!</b> {dst._id}</>} />
-      </Tooltip>;
-
-    return dst._comment
-      ? <LabelWithTooltip documentation={dst._comment} render={configTitle} />
-      : configTitle;
-  }, []);
-
-  const getDescription = useCallback((reference: Destination, dst: DestinationData) => {
-    const { title, connectCmd } = reference.ui;
-
-    const commandLineConnect = typeof connectCmd === 'function' ? connectCmd(dst) : undefined;
-    const displayURL = typeof title === 'function' ? title(dst) : undefined;
-
-    if (!commandLineConnect) {
-      return <ListItemDescription render={displayURL} />;
-    }
-
-    const codeSnippet = commandLineConnect.indexOf('\n') < 0
-      ? <>
-        <div>
-          <CodeInline>{commandLineConnect}</CodeInline>
-        </div>
-        <Align horizontal="right">
-          <ActionLink
-            onClick={() => {
-              copyToClipboard(commandLineConnect);
-              message.info('Command copied to clipboard', 2);
-            }}>
-            Copy command to clipboard
-          </ActionLink>
-        </Align>
-      </>
-      : <CodeSnippet className="destinations-list-multiline-code" language="bash">
-        {commandLineConnect}
-      </CodeSnippet>;
-
-    return <Popover
-      placement="topLeft"
-      content={
-        <>
-          <h4><b>Use following command to connect to DB and run a test query:</b></h4>
-          {codeSnippet}
-        </>
-      }
-      trigger="click">
-      <ListItemDescription render={displayURL} dotted />
-    </Popover>;
-  }, []);
-
-  const getMode = useCallback((mode: string) => mode
-    ? <ListItemDescription render={<>mode: {mode}</>} />
-    : undefined, []);
 
   const update = useCallback((id: string) => async() => {
     const appServices = ApplicationServices.get();
@@ -174,10 +100,10 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
           const reference = destinationsReferenceMap[dst._type];
 
           return <ListItem
-            additional={getMode(dst._mode)}
-            description={getDescription(reference, dst)}
+            additional={destinationsUtils.getMode(dst._mode)}
+            description={destinationsUtils.getDescription(reference, dst)}
+            title={destinationsUtils.getTitle(dst)}
             icon={reference?.ui?.icon}
-            title={getTitle(dst)}
             id={dst._id}
             key={dst._id}
             actions={[

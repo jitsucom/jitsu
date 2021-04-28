@@ -9,7 +9,7 @@ import ComponentTest from './lib/components/componentTest';
 // @Components
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
-const DestinationsPage = React.lazy(() => import('@page/DestinationsPage/DestinationsPage'));
+const DestinationsPage = React.lazy(() => import('@page/DestinationsPage'));
 const EventsStream = React.lazy(() => import('./lib/components/EventsStream/EventsStream'));
 const LoginForm = React.lazy(() => import('./lib/components/LoginForm/LoginForm'));
 const SetupForm = React.lazy(() => import('@page/SetupPage/SetupForm'));
