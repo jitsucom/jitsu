@@ -82,7 +82,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   },
   {
     key: 'sources',
-    name: 'Connected sources',
+    name: 'Linked Connectors & API Keys',
     getComponent: (form: FormInstance) => <DestinationEditorConnectors form={form} initialValues={destinationData.current} />,
     form: Form.useForm()[0],
     errorsLevel: 'warning'

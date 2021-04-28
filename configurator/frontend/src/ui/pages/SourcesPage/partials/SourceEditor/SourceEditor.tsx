@@ -99,7 +99,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   },
   {
     key: 'destinations',
-    name: 'Connected Destinations',
+    name: 'Linked Destinations',
     getComponent: (form: FormInstance) => (
       <SourceEditorDestinations
         form={form}
