@@ -43,7 +43,7 @@ const ListItemComponent = ({ className, icon, title, description, additional, pr
     <li className={cn(styles.item, className)}>
       <span className={styles.left}>
         {prefix && <span className={styles.prefix}>{prefix}</span>}
-        <span className={styles.icon}>{icon}</span>
+        {icon && <span className={styles.icon}>{icon}</span>}
         <span className={styles.info}>
           {itemTitle}
           {description && <span className={styles.description}>{description}</span>}

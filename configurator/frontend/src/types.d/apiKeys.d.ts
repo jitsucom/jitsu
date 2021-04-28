@@ -1,6 +1,6 @@
 declare interface APIKey {
   jsAuth: string;
-  origins: any[];
+  origins: string[];
   serverAuth: string;
   uid: string;
 }
