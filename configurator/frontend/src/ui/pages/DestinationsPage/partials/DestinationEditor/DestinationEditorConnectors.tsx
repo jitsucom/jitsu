@@ -1,6 +1,6 @@
 // @Libs
-import React, { useMemo } from 'react';
-import { generatePath, Link } from 'react-router-dom';
+import React, { useCallback, useMemo } from 'react';
+import { generatePath, Link, useHistory } from 'react-router-dom';
 import { Form } from 'antd';
 // @Hooks
 import useLoader from '@hooks/useLoader';
@@ -19,6 +19,7 @@ import { allSources } from '@catalog/sources/lib';
 import { DESTINATIONS_CONNECTED_SOURCES } from '@./embeddedDocs/connectedSources';
 // @Routes
 import { sourcesPageRoutes } from '@page/SourcesPage/routes';
+import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
 
 export interface Props {
   form: FormInstance;
@@ -26,27 +27,31 @@ export interface Props {
 }
 
 const DestinationEditorConnectors = ({ form, initialValues }: Props) => {
+  const history = useHistory();
+
   const service = ApplicationServices.get();
 
   const [sourcesError, sourcesData] = useLoader(async() => await service.storageService.get('sources', service.activeProject.id));
   const [APIKeysError, APIKeysData] = useLoader(async() => await service.storageService.get('api_keys', service.activeProject.id));
 
+  const handleEditAction = useCallback((id: string) => () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: id })), [history]);
+
   const sourcesList = useMemo<ConnectedItem[]>(
     () => sourcesData?.sources
-      ? sourcesData.sources?.map((source: SourceData) => {
-        const proto = allSources.find(s => s.id === source.sourceType);
+      ? sourcesData.sources?.map((src: SourceData) => {
+        const proto = allSources.find(s => s.id === src.sourceType);
 
         return {
-          itemKey: source.sourceId,
-          id: source.sourceId,
-          title: source.sourceId,
+          itemKey: src.sourceId,
+          id: src.sourceId,
+          title: sourcePageUtils.getTitle(src),
           icon: proto?.pic,
-          link: generatePath(sourcesPageRoutes.editExact, { sourceId: source.sourceId }),
-          description: proto?.displayName
+          description: proto?.displayName,
+          actions: [{ key: 'edit', method: handleEditAction, title: 'Edit' }]
         };
       })
       : [],
-    [sourcesData?.sources]
+    [handleEditAction, sourcesData?.sources]
   );
 
   const apiKeysList = useMemo<ConnectedItem[]>(
