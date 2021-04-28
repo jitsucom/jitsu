@@ -1,6 +1,6 @@
 import { Project } from '@service/model';
 import { BackendApiClient } from '@service/ApplicationServices';
-import { StatService, StatServiceImpl } from '@service/stat';
+import { DatePoint, StatService, StatServiceImpl } from '@service/stat';
 
 export type PlanId = 'free' | 'growth' | 'premium' | 'enterprise';
 
@@ -38,7 +38,15 @@ export class PaymentPlanStatus {
     }
     this._stat = new StatServiceImpl(backendApiClient, project, true);
     var date = new Date();
-    const stat = await this._stat.get(new Date(date.getFullYear(), date.getMonth(), 1), new Date(date.getFullYear(), date.getMonth() + 1, 0), 'day');
+
+    let stat: DatePoint[];
+    try {
+      stat = await this._stat.get(new Date(date.getFullYear(), date.getMonth(), 1), new Date(date.getFullYear(), date.getMonth() + 1, 0), 'day');
+    } catch (e) {
+      console.info("Failed to obtain stat, it could happen if Jitsu configurator isn't connected to jitsu server", e);
+      stat = []
+    }
+
     this._eventsThisMonth = stat.reduce((res, item) => {
       res += item.events;
       return res;
