@@ -18,6 +18,7 @@ import useLoader from '@hooks/useLoader';
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 // @Utils
 import { destinationsUtils } from '@page/DestinationsPage/DestinationsPage.utils';
+import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
 
 export interface Props {
   form: FormInstance;
@@ -39,13 +40,8 @@ const SourceEditorDestinations = ({ form, initialValues, projectId }: Props) => 
   const destinationsList = useMemo<ConnectedItem[]>(() => destinations?.destinations?.map((dst: DestinationData) => {
     const reference = destinationsReferenceMap[dst._type]
     return {
-      itemKey: dst._uid,
       id: dst._uid,
-      additional: destinationsUtils.getMode(dst._mode),
-      description: destinationsUtils.getDescription(reference, dst),
-      title: destinationsUtils.getTitle(dst),
-      icon: reference.ui.icon,
-      actions: [{ key: 'edit', method: handleEditAction, title: 'Edit' }]
+      title: <NameWithPicture icon={reference.ui.icon}><b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}</NameWithPicture>,
     };
   }) ?? [], [destinations?.destinations, handleEditAction]);
 
@@ -53,8 +49,7 @@ const SourceEditorDestinations = ({ form, initialValues, projectId }: Props) => 
 
   return (
     <>
-      <h3>Choose connectors</h3>
-      <article className="mb-5">
+      <article className="mb-5 text-sm text-secondaryText">
         {SOURCE_CONNECTED_DESTINATION}
       </article>
 
