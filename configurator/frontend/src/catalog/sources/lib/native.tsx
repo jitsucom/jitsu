@@ -1,4 +1,4 @@
-import { intType, jsonType, selectionType, SourceConnector, stringType } from '@catalog/sources/types';
+import { intType, jsonType, passwordType, selectionType, SourceConnector, stringType } from '@catalog/sources/types';
 import * as React from 'react';
 
 const googleAuthConfigParameters = [
@@ -327,7 +327,7 @@ export const redis: SourceConnector = {
     {
       displayName: 'Redis Password',
       id: 'config.password',
-      type: stringType
+      type: passwordType
     }
   ]
 }
