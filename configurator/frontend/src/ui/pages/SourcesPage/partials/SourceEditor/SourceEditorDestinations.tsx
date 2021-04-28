@@ -1,6 +1,6 @@
 // @Libs
-import React, { useMemo } from 'react';
-import { generatePath } from 'react-router-dom';
+import React, { useCallback, useMemo } from 'react';
+import { generatePath, useHistory } from 'react-router-dom';
 import { Form } from 'antd';
 // @Constants
 import { SOURCE_CONNECTED_DESTINATION } from '@./embeddedDocs/connectedDestinations';
@@ -16,6 +16,8 @@ import { ConnectedItem } from '@organism/ConnectedItems';
 import useLoader from '@hooks/useLoader';
 // @Routes
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
+// @Utils
+import { destinationsUtils } from '@page/DestinationsPage/DestinationsPage.utils';
 
 export interface Props {
   form: FormInstance;
@@ -24,22 +26,28 @@ export interface Props {
 }
 
 const SourceEditorDestinations = ({ form, initialValues, projectId }: Props) => {
+  const history = useHistory();
+
   const services = useMemo(() => ApplicationServices.get(), []);
 
   const [, destinations] = useLoader(
     async() => await services.storageService.get('destinations', projectId)
   );
 
+  const handleEditAction = useCallback((id: string) => () => history.push(generatePath(destinationPageRoutes.editDestination, { id })), [history]);
+
   const destinationsList = useMemo<ConnectedItem[]>(() => destinations?.destinations?.map((dst: DestinationData) => {
     const reference = destinationsReferenceMap[dst._type]
     return {
       itemKey: dst._uid,
-      id: reference.id,
-      title: reference.displayName,
+      id: dst._uid,
+      additional: destinationsUtils.getMode(dst._mode),
+      description: destinationsUtils.getDescription(reference, dst),
+      title: destinationsUtils.getTitle(dst),
       icon: reference.ui.icon,
-      link: generatePath(destinationPageRoutes.editDestination, { id: dst._id })
+      actions: [{ key: 'edit', method: handleEditAction, title: 'Edit' }]
     };
-  }) ?? [], [destinations?.destinations]);
+  }) ?? [], [destinations?.destinations, handleEditAction]);
 
   const preparedInitialValue = useMemo(() => initialValues?.destinations ?? [], [initialValues]);
 

@@ -17,7 +17,7 @@ import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 import { FormInstance } from 'antd/es';
 import { Destination } from '@catalog/destinations/types';
 import { Tab } from '@molecule/TabsConfigurator';
-import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
+import { CommonDestinationPageProps } from '@page/DestinationsPage';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
@@ -216,7 +216,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
         <div className={cn('flex-grow', styles.mainArea)}>
-          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={0} />
+          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={2} />
         </div>
 
         <div className="flex-shrink border-t pt-2">
