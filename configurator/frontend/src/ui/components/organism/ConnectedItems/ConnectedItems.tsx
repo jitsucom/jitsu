@@ -8,6 +8,7 @@ import { FormInstance } from 'antd/es';
 
 export interface ConnectedItem {
   id: string;
+  disabled?: boolean,
   title: React.ReactNode;
   description?: React.ReactNode;
 }
@@ -59,15 +60,16 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
           <Form.Item className="mb-1" name={fieldName}>
             <ul>
               {
-                itemsList?.map(({ id, title, description }: ConnectedItem) => (
-                  <div className="flex flex-row flex-nowrap h-12" key={id}>
-                    <div className="flex-shrink pr-4"><Switch onChange={handleChange(id)} checked={selectedItems?.includes(id)} /></div>
-                    <div className="flex flex-col justify-start">
-                      <div key="title">{title}</div>
-                      <div key="description" className="text-sm text-secondaryText">{description}</div>
+                itemsList.sort()
+                  .map(({ id, title, description, disabled }: ConnectedItem) => (
+                    <div className="flex flex-row flex-nowrap h-16" key={id}>
+                      <div className="flex-shrink pr-4"><Switch disabled={disabled} onChange={handleChange(id)} checked={selectedItems?.includes(id)} /></div>
+                      <div className="flex flex-col justify-start">
+                        <div key="title">{title}</div>
+                        <div key="description" className="text-xs text-secondaryText">{description}</div>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  ))
               }
             </ul>
           </Form.Item>
