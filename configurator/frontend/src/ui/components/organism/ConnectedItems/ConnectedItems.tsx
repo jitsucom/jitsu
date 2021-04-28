@@ -7,12 +7,13 @@ import { ListItem } from '@molecule/ListItem';
 import { FormInstance } from 'antd/es';
 
 export interface ConnectedItem {
+  itemKey: string;
   id: string;
+  link: string;
   title: React.ReactNode;
   icon?: React.ReactNode;
-  itemKey: string;
-  link: string;
-  description: React.ReactNode;
+  description?: React.ReactNode;
+  additional?: React.ReactNode;
 }
 
 export interface Props {
@@ -55,7 +56,7 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
           <Form.Item className="mb-1" name={fieldName}>
             <ul>
               {
-                itemsList?.map(({ id, title, icon, itemKey, link, description }: ConnectedItem) => (
+                itemsList?.map(({ id, title, icon, itemKey, link, description, additional }: ConnectedItem) => (
                   <ListItem
                     prefix={<Switch onChange={handleChange(id)} checked={selectedItems?.includes(id)} />}
                     icon={icon}
@@ -64,6 +65,7 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
                     key={itemKey}
                     link={link}
                     description={description}
+                    additional={additional}
                   />
                 ))
               }

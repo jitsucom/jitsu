@@ -8,6 +8,7 @@ import useLoader from '@hooks/useLoader';
 import ApplicationServices from '@service/ApplicationServices';
 // @Components
 import { ConnectedItems } from '@organism/ConnectedItems';
+import { ListItemDescription } from '@atom/ListItemDescription';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
@@ -54,7 +55,8 @@ const DestinationEditorConnectors = ({ form, initialValues }: Props) => {
         itemKey: key.uid,
         title: key.uid,
         id: key.uid,
-        link: '/api_keys'
+        additional: key.origins?.length ? <ListItemDescription render={<>Origins: {key.origins.join(', ')}</>} /> : undefined,
+        description: <ListItemDescription render={<>Server secret: {key.serverAuth}<br />Client secret: {key.jsAuth}</>} />
       }))
       : [],
     [APIKeysData?.keys]
@@ -68,7 +70,7 @@ const DestinationEditorConnectors = ({ form, initialValues }: Props) => {
           <article className="mb-5">
             {DESTINATIONS_CONNECTED_SOURCES}
             {
-              sourcesData?.sources?.length === 0 && <p>If you haven't added any connectors yet you can do it <Link to="/sources">here</Link>.</p>
+              sourcesData && !sourcesData?.sources?.length && <p>If you haven't added any connectors yet you can do it <Link to="/sources">here</Link>.</p>
             }
           </article>
           {
