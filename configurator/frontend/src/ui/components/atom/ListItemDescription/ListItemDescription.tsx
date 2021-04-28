@@ -7,10 +7,11 @@ import styles from './ListItemDescription.module.less';
 export interface Props {
   className?: string;
   render: React.ReactNode;
+  dotted?: boolean;
 }
 
-const ListItemDescriptionComponent = ({ className, render }: Props) => {
-  return <span className={cn(className, styles.item)}>{render}</span>
+const ListItemDescriptionComponent = ({ className, render, dotted }: Props) => {
+  return <span className={cn(className, styles.item, dotted && styles.dotted)}>{render}</span>
 };
 
 ListItemDescriptionComponent.displayName = 'ListItemDescription';

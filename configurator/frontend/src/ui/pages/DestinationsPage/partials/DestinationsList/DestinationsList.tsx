@@ -31,13 +31,14 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { ListItemTitle } from '@atom/ListItemTitle';
 
 const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const getTitle = useCallback((dst: DestinationData) => {
     const configTitle = dst._connectionTestOk
-      ? <>{dst._id}</> :
+      ? <ListItemTitle render={dst._id} /> :
       <Tooltip
         trigger={['click', 'hover']}
         title={
@@ -46,9 +47,7 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
             accepting data. Please, go to editor and fix the connection settings
           </>
         }>
-        <strong className={styles.errorName}>
-          <b>!</b> {dst._id}
-        </strong>
+        <ListItemTitle error render={<><b>!</b> {dst._id}</>} />
       </Tooltip>;
 
     return dst._comment
@@ -94,12 +93,12 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
         </>
       }
       trigger="click">
-      <span className={styles.description}>{displayURL}</span>
+      <ListItemDescription render={displayURL} dotted />
     </Popover>;
   }, []);
 
   const getMode = useCallback((mode: string) => mode
-    ? <span className={styles.mode}>mode: {mode}</span>
+    ? <ListItemDescription render={<>mode: {mode}</>} />
     : undefined, []);
 
   const update = useCallback((id: string) => async() => {
