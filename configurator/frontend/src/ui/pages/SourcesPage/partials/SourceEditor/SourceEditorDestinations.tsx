@@ -3,7 +3,7 @@ import React, { useCallback, useMemo } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
 import { Form } from 'antd';
 // @Constants
-import { SOURCE_CONNECTED_DESTINATION } from '@./embeddedDocs/connectedDestinations';
+import { SOURCE_CONNECTED_DESTINATION } from '@./embeddedDocs/sourcesConnectedItems';
 // @Components
 import { ConnectedItems } from '@organism/ConnectedItems';
 // @Services
