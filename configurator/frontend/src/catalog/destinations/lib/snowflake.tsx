@@ -39,6 +39,7 @@ function displayForBatchOnly<T>(defaultValue: T): Function<any, T> {
 }
 
 const destination: Destination = {
+  syncFromSourcesStatus: 'coming_soon',
   ui: {
     icon,
     title: (cfg) => cfg._formData?.snowflakeDB,

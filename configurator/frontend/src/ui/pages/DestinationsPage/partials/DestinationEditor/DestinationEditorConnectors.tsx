@@ -27,14 +27,15 @@ import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
 import Icon from '@ant-design/icons';
 import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
+import { Destination } from '@catalog/destinations/types';
 
 export interface Props {
   form: FormInstance;
+  destination: Destination,
   initialValues: DestinationData;
 }
 
-
-const DestinationEditorConnectors = ({ form, initialValues }: Props) => {
+const DestinationEditorConnectors = ({ form, initialValues, destination }: Props) => {
   const history = useHistory();
 
   const service = ApplicationServices.get();
@@ -105,16 +106,23 @@ const DestinationEditorConnectors = ({ form, initialValues }: Props) => {
           <Collapse.Panel header={<b>Linked Connectors (<NavLink to="/api_keys">edit connectors</NavLink>)</b>} key="connectors">
             <div className="pl-6">
               {
-                sourcesData && !sourcesData?.sources?.length &&
+                destination.syncFromSourcesStatus === 'supported' && sourcesData && !sourcesData?.sources?.length &&
                 <p className="text-sm text-secondaryText">You don't have any connectors you can link to the destination. You can add them <Link to="/sources">here</Link>.</p>
               }
-              <ConnectedItems
+              {destination.syncFromSourcesStatus === 'supported' && <ConnectedItems
                 form={form}
                 fieldName="_sources"
                 itemsList={sourcesList}
                 warningMessage={<p>Please, choose at least one source.</p>}
                 initialValues={initialValues?._sources}
-              />
+              />}
+              {destination.syncFromSourcesStatus === 'coming_soon' && <div className="text-secondaryText">
+                <b>{destination.displayName}</b> support is <i>coming soon!</i>. At the moment, Jitsu can't send data from connectors to {destination.displayName}.
+                However, you can event streaming is available!
+              </div>}
+              {destination.syncFromSourcesStatus === 'not_supported' && <div className="text-secondaryText">
+                Jitsu can't send data from connectors  to <b>{destination.displayName}</b> due to limitations of the API
+              </div>}
             </div>
           </Collapse.Panel>
         </Collapse>
