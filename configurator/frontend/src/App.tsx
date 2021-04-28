@@ -69,7 +69,7 @@ export default class App extends React.Component<AppProperties, AppState> {
             }
 
             let paymentPlanStatus: PaymentPlanStatus;
-            if (loginStatus.user) {
+            if (loginStatus.user && this.services.features.billingEnabled) {
                 paymentPlanStatus = new PaymentPlanStatus();
                 await paymentPlanStatus.init(this.services.activeProject, this.services.backendApiClient)
             }
