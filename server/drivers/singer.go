@@ -53,7 +53,7 @@ type Singer struct {
 	commands map[string]*exec.Cmd
 
 	ctx            context.Context
-	sourceName     string
+	sourceID       string
 	tap            string
 	configPath     string
 	catalogPath    string
@@ -87,7 +87,7 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 		return nil, errors.New("singer-bridge must be configured")
 	}
 
-	pathToConfigs := path.Join(singer.Instance.VenvDir, sourceConfig.Name, config.Tap)
+	pathToConfigs := path.Join(singer.Instance.VenvDir, sourceConfig.SourceID, config.Tap)
 	if err := logging.EnsureDir(pathToConfigs); err != nil {
 		return nil, fmt.Errorf("Error creating singer venv config dir: %v", err)
 	}
@@ -119,7 +119,7 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 	s := &Singer{
 		ctx:            ctx,
 		commands:       map[string]*exec.Cmd{},
-		sourceName:     sourceConfig.Name,
+		sourceID:       sourceConfig.SourceID,
 		tap:            config.Tap,
 		configPath:     configPath,
 		catalogPath:    catalogPath,
@@ -173,7 +173,7 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 	var statePath string
 	var err error
 	if state != "" {
-		statePath, err = parseJSONAsFile(path.Join(singer.Instance.VenvDir, s.sourceName, s.tap, stateFileName), state)
+		statePath, err = parseJSONAsFile(path.Join(singer.Instance.VenvDir, s.sourceID, s.tap, stateFileName), state)
 		if err != nil {
 			return fmt.Errorf("Error parsing singer state %s: %v", state, err)
 		}
@@ -233,12 +233,12 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 		parsingErr = singer.StreamParseOutput(stdout, portionConsumer, taskLogger)
 		if parsingErr != nil {
 			taskLogger.ERROR("Parse output error: %v. Process will be killed", parsingErr)
-			logging.Errorf("[%s_%s] parse output error: %v. Process will be killed", s.sourceName, s.tap, parsingErr)
+			logging.Errorf("[%s_%s] parse output error: %v. Process will be killed", s.sourceID, s.tap, parsingErr)
 
 			killErr := syncCmd.Process.Kill()
 			if killErr != nil {
 				taskLogger.ERROR("Error killing process: %v", killErr)
-				logging.Errorf("[%s_%s] error killing process: %v", s.sourceName, s.tap, killErr)
+				logging.Errorf("[%s_%s] error killing process: %v", s.sourceID, s.tap, killErr)
 			}
 		}
 	})
@@ -293,9 +293,9 @@ func (s *Singer) Close() (multiErr error) {
 
 	s.Lock()
 	for _, command := range s.commands {
-		logging.Infof("[%s] killing process: %s", s.sourceName, command.String())
+		logging.Infof("[%s] killing process: %s", s.sourceID, command.String())
 		if err := command.Process.Kill(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error killing singer sync command: %v", s.sourceName, err))
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error killing singer sync command: %v", s.sourceID, err))
 		}
 	}
 

@@ -13,7 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
-var disabledRecognitionConfiguration = &UserRecognitionConfiguration{Enabled: false}
+var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: false}
 
 //BigQuery stores files to google BigQuery in two modes:
 //batch: via google cloud storage in batch mode (1 file = 1 operation)

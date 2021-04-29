@@ -96,7 +96,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 		destinationID = regexResult[1]
 	}
 
-	storageProxy, ok := s.destinationService.GetStorageByID(destinationID)
+	storageProxy, ok := s.destinationService.GetDestinationByID(destinationID)
 	if !ok {
 		return fmt.Errorf("Destination [%s] wasn't found", destinationID)
 	}

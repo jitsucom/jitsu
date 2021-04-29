@@ -11,13 +11,13 @@ import (
 const UserAgentParse = "user_agent_parse"
 
 type UserAgentParseRule struct {
-	source                  *jsonutils.JSONPath
-	destination             *jsonutils.JSONPath
+	source                  jsonutils.JSONPath
+	destination             jsonutils.JSONPath
 	uaResolver              useragent.Resolver
 	enrichmentConditionFunc func(map[string]interface{}) bool
 }
 
-func NewUserAgentParseRule(source, destination *jsonutils.JSONPath) (*UserAgentParseRule, error) {
+func NewUserAgentParseRule(source, destination jsonutils.JSONPath) (*UserAgentParseRule, error) {
 	return &UserAgentParseRule{
 		source:      source,
 		destination: destination,

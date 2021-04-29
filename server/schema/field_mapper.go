@@ -21,8 +21,8 @@ type FieldMapper struct {
 type DummyMapper struct{}
 
 type MappingRule struct {
-	source      *jsonutils.JSONPath
-	destination *jsonutils.JSONPath
+	source      jsonutils.JSONPath
+	destination jsonutils.JSONPath
 	action      string
 	value       interface{}
 }
@@ -85,13 +85,13 @@ func (fm *FieldMapper) Map(object map[string]interface{}) (map[string]interface{
 	return mappedObject, nil
 }
 
-//Return object as is
+//Map returns object as is
 func (DummyMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
 	return object, nil
 }
 
 func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*MappingRule) error {
-	var fieldsToRemove []*jsonutils.JSONPath
+	var fieldsToRemove []jsonutils.JSONPath
 	for _, rule := range rules {
 		switch rule.action {
 		case REMOVE:
