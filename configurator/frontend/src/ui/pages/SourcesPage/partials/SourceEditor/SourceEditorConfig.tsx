@@ -1,12 +1,13 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
-import { Col, Form, Input, Row } from 'antd';
+import { Col, Form, Input, Row, Select } from 'antd';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { SourceConnector } from '@catalog/sources/types';
 import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 // @Components
 import { ConfigurableFieldsForm } from '@molecule/ConfigurableFieldsForm';
+import { COLLECTIONS_SCHEDULES } from '@./constants/schedule';
 
 export interface Props {
   form: FormInstance;
@@ -37,6 +38,14 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
     return rules;
   }, [validateUniqueSourceId, isCreateForm]);
 
+  const initialSchedule = useMemo(() => {
+    if (initialValues.schedule) {
+      return initialValues.schedule;
+    }
+
+    return COLLECTIONS_SCHEDULES[0].value;
+  }, [initialValues]);
+
   return (
     <Form
       name="source-config"
@@ -59,6 +68,30 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
           </Form.Item>
         </Col>
       </Row>
+
+      {
+        sourceReference.isSingerType && <Row>
+          <Col span={16}>
+            <Form.Item
+              initialValue={initialSchedule}
+              name="schedule"
+              className="form-field_fixed-label"
+              label="Schedule:"
+              labelCol={{ span: 6 }}
+              wrapperCol={{ span: 18 }}
+              rules={[{ required: true, message: 'You have to choose schedule' }]}
+            >
+              <Select>
+                {
+                  COLLECTIONS_SCHEDULES.map((option) =>
+                    <Select.Option value={option.value} key={option.value}>{option.label}</Select.Option>
+                  )
+                }
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
+      }
 
       <ConfigurableFieldsForm initialValues={initialValues} fieldsParamsList={sourceReference.configParameters} form={form}/>
     </Form>
