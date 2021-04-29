@@ -86,7 +86,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronSc
 
 	sourceConfig.Name = name
 
-	collections, err := parseCollections(sourceConfig)
+	collections, err := ParseCollections(sourceConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -148,9 +148,9 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronSc
 	return driverPerCollection, nil
 }
 
-//parseCollections return serialized Collection objects slice
+//ParseCollections return serialized Collection objects slice
 //or return one default collection with 'schedule' if singer type
-func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
+func ParseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 	if sourceConfig.Type == SingerType {
 		return []*Collection{{SourceID: sourceConfig.Name, Name: DefaultSingerCollection, Schedule: sourceConfig.Schedule}}, nil
 	}

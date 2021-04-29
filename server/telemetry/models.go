@@ -28,6 +28,7 @@ type Usage struct {
 	DestinationType   string `json:"destination_type,omitempty"`
 	DestinationMode   string `json:"destination_mode,omitempty"`
 	DestinationPkKeys bool   `json:"destination_primary_keys,omitempty"`
+	UsersRecognition  bool   `json:"users_recognition,omitempty"`
 
 	Coordination string `json:"coordination,omitempty"`
 }

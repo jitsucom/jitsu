@@ -353,7 +353,7 @@ func (f *FactoryImpl) initializeRetrospectiveUsersRecognition(destinationID stri
 
 	//check deprecated node
 	if destination.UsersRecognition.UserIDNode != "" {
-		logging.Warn("[%s] users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead", destinationID)
+		logging.Warnf("[%s] users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead. Read more about configuration: https://jitsu.com/docs/other-features/retrospective-user-recognition", destinationID)
 		destination.UsersRecognition.IdentificationNodes = []string{destination.UsersRecognition.UserIDNode}
 	}
 
