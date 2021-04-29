@@ -17,14 +17,14 @@ import styles from './DestinationEditor.module.less';
 import { validationChain } from '@util/validation/validationChain';
 import { requiredValidator } from '@util/validation/validators';
 import { jsonPointerValidator } from '@util/validation/jsonPointer';
+import { RadioButtonsGroup } from '@atom/RadioButtonsGroup';
 
 export interface Props {
   form: FormInstance;
   initialValues: Mapping;
-  destinationType: string;
 }
 
-const DestinationEditorMappings = ({ form, initialValues, destinationType }: Props) => {
+const DestinationEditorMappings = ({ form, initialValues }: Props) => {
   const [actions, setActions] = useState<MappingAction[]>([]);
 
   const handleActionChange = useCallback((index: number) => (value: MappingAction) => {
@@ -56,12 +56,29 @@ const DestinationEditorMappings = ({ form, initialValues, destinationType }: Pro
     });
   }, [form]);
 
+  const handleKeepUnnamedChange = useCallback((value: boolean) => {
+    form.setFieldsValue({
+      '_mappings._keepUnmappedFields': value
+    });
+  }, [form]);
+
   return (
     <>
       <article className="text-xs italic text-secondaryText mb-5">{DESTINATION_EDITOR_MAPPING}</article>
 
-      <Form form={form} name="form-mapping" onFinish={values => console.log(values)}>
-        <Form.List name="_mappings._mapping" initialValue={[{}]}>
+      <Form form={form} name="form-mapping">
+        <Form.Item name="_mappings._keepUnmappedFields" initialValue={initialValues?._keepUnmappedFields}>
+          <RadioButtonsGroup<boolean>
+            initialValue={initialValues?._keepUnmappedFields}
+            list={[
+              { value: true, label: 'Keep unnamed fields' },
+              { value: false, label: 'Remove unmapped fields' }
+            ]}
+            onChange={handleKeepUnnamedChange}
+          />
+        </Form.Item>
+
+        <Form.List name="_mappings._mapping" initialValue={initialValues?._mapping ?? []}>
           {
             (fields: FormListFieldData[], { add, remove }: FormListOperation) => (
               <div className={styles.mappings}>
@@ -119,7 +136,7 @@ const DestinationEditorMappings = ({ form, initialValues, destinationType }: Pro
                                       labelAlign="left"
                                       rules={actions[field.key] === 'cast' ? [requiredValidator(true, 'This')] : undefined}
                                     >
-                                      <Input onChange={handleTypeChange(field.key)} />
+                                      <Input onChange={handleTypeChange(field.key)} autoComplete="off" />
                                     </Form.Item>
                                   </Col>
                                   <Col className={styles.secondaryLabel} span={9}>
@@ -151,7 +168,7 @@ const DestinationEditorMappings = ({ form, initialValues, destinationType }: Pro
                                       jsonPointerValidator()
                                     )}
                                   >
-                                    <Input />
+                                    <Input autoComplete="off" />
                                   </Form.Item>
                                 </Col>
                               )
@@ -170,7 +187,7 @@ const DestinationEditorMappings = ({ form, initialValues, destinationType }: Pro
                                       jsonPointerValidator()
                                     )}
                                   >
-                                    <Input />
+                                    <Input autoComplete="off" />
                                   </Form.Item>
                                 </Col>
                               )
