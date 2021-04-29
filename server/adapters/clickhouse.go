@@ -207,6 +207,7 @@ type ClickHouse struct {
 func NewClickHouse(ctx context.Context, connectionString, database, cluster string, tlsConfig map[string]string,
 	tableStatementFactory *TableStatementFactory, nullableFields map[string]bool,
 	queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*ClickHouse, error) {
+	connectionString = strings.TrimSpace(connectionString)
 	//configure tls
 	if strings.Contains(connectionString, "https://") && tlsConfig != nil {
 		for tlsName, crtPath := range tlsConfig {
