@@ -3,7 +3,7 @@ import React, { useCallback, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select } from 'antd';
 import cn from 'classnames';
 // @Components
-import { RadioButtonsGroup } from '@atom/RadioButtonsGroup';
+import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
@@ -62,28 +62,25 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
     });
   }, [form]);
 
-  const handleKeepUnnamedChange = useCallback((value: boolean) => {
-    form.setFieldsValue({
-      '_mappings._keepUnmappedFields': value
-    });
-  }, [form]);
-
   return (
     <>
       <article className="text-xs italic text-secondaryText mb-5">{DESTINATION_EDITOR_MAPPING}</article>
 
       <Form form={form} name="form-mapping">
-        <Form.Item name="_mappings._keepUnmappedFields" initialValue={initialValues?._keepUnmappedFields}>
-          <RadioButtonsGroup<boolean>
-            label="Unnamed fields mapping mode: "
-            initialValue={initialValues?._keepUnmappedFields}
-            list={[
-              { value: true, label: 'Keep unnamed fields' },
-              { value: false, label: 'Remove unmapped fields' }
-            ]}
-            onChange={handleKeepUnnamedChange}
-          />
-        </Form.Item>
+        <Row>
+          <Col span={12}>
+            <Form.Item
+              name="_mappings._keepUnmappedFields"
+              initialValue={Number(initialValues?._keepUnmappedFields)}
+              label={<LabelWithTooltip render="Unnamed fields mapping mode" documentation="If the field doesn't have mapping: Keep - keep field as is, Remove - remove field from original JSON" />}
+            >
+              <Select>
+                <Select.Option value={1}>Keep unnamed fields</Select.Option>
+                <Select.Option value={0}>Remove unmapped fields</Select.Option>
+              </Select>
+            </Form.Item>
+          </Col>
+        </Row>
 
         <Form.List name="_mappings._mapping" initialValue={initialValues?._mapping ?? []}>
           {
