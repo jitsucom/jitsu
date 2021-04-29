@@ -87,7 +87,7 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 	}
 
 	sourceID := userProjectID + "." + sourceEntity.SourceID
-	enSourceConfig.Name = sourceID
+	enSourceConfig.SourceID = sourceID
 
 	b, err := json.Marshal(enSourceConfig)
 	if err != nil {
