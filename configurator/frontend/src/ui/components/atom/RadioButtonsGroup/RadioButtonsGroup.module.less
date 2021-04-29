@@ -3,13 +3,24 @@
 
 .group {
   display: inline-flex;
+  align-items: center;
+  @apply mb-1;
 
-  .radio {
-    @apply text-lg border border-text py-1 px-4 rounded-xl mb-2 mr-4 cursor-pointer;
-    .default-transition(background-color);
+  .label {
+    display: block;
+    @apply mr-4;
   }
 
-  .checked {
-    @apply bg-primary;
+  .options {
+    display: flex;
+
+    .radio {
+      @apply text-base border border-text py-1 px-4 rounded-xl mr-3 cursor-pointer;
+      .default-transition(background-color);
+    }
+
+    .checked {
+      @apply bg-primary;
+    }
   }
 }
