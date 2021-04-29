@@ -8,5 +8,5 @@ declare interface MappingRow {
 
 declare interface Mapping {
   _mapping: MappingRow[];
-  _keepUnmappedFields: boolean;
+  _keepUnmappedFields: boolean | number;
 }

@@ -167,6 +167,10 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
           }, {})
         };
 
+        if (destinationData.current._mappings?._keepUnmappedFields) {
+          destinationData.current._mappings._keepUnmappedFields = Boolean(destinationData.current._mappings._keepUnmappedFields);
+        }
+
         try {
           await destinationEditorUtils.testConnection(destinationData.current);
 
@@ -216,7 +220,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
         <div className={cn('flex-grow', styles.mainArea)}>
-          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={0} />
+          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={1} />
         </div>
 
         <div className="flex-shrink border-t pt-2">
