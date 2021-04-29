@@ -2,6 +2,8 @@
 import React, { useCallback, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select } from 'antd';
 import cn from 'classnames';
+// @Components
+import { RadioButtonsGroup } from '@atom/RadioButtonsGroup';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
@@ -17,7 +19,6 @@ import styles from './DestinationEditor.module.less';
 import { validationChain } from '@util/validation/validationChain';
 import { requiredValidator } from '@util/validation/validators';
 import { jsonPointerValidator } from '@util/validation/jsonPointer';
-import { RadioButtonsGroup } from '@atom/RadioButtonsGroup';
 
 export interface Props {
   form: FormInstance;
@@ -69,6 +70,7 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
       <Form form={form} name="form-mapping">
         <Form.Item name="_mappings._keepUnmappedFields" initialValue={initialValues?._keepUnmappedFields}>
           <RadioButtonsGroup<boolean>
+            label="Unnamed fields mapping mode: "
             initialValue={initialValues?._keepUnmappedFields}
             list={[
               { value: true, label: 'Keep unnamed fields' },
