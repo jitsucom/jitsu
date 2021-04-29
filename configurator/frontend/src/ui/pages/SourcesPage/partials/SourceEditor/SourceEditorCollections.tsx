@@ -158,13 +158,13 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
               <>
                 {
                   fields.map((field: FormListFieldData) => (
-                    <div className={styles.item} key={field.key}>
+                    <div className={styles.item} key={field.name}>
                       {
                         connectorSource.collectionTypes.length > 0 && (
                           <Row>
                             <Col span={16}>
                               <Form.Item
-                                initialValue={getCollectionTypeValue(field.key)}
+                                initialValue={getCollectionTypeValue(field.name)}
                                 name={[field.name, 'type']}
                                 className="form-field_fixed-label"
                                 label="Report type:"
@@ -176,7 +176,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
                               >
                                 <Select
                                   disabled={connectorSource.collectionTypes.length === 1}
-                                  onChange={handleReportTypeChange(field.key)}
+                                  onChange={handleReportTypeChange(field.name)}
                                 >
                                   {connectorSource.collectionTypes.map((type: string) => (
                                     <Select.Option key={type} value={type}>
@@ -189,7 +189,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
                             <Col span={1}>
                               <DeleteOutlined
                                 className={styles.delete}
-                                onClick={handleRemoveField(operation, field.key)}
+                                onClick={handleRemoveField(operation, field.name)}
                               />
                             </Col>
                           </Row>
@@ -204,7 +204,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
                         !connectorSource.isSingerType && <Row>
                           <Col span={16}>
                             <Form.Item
-                              initialValue={getCollectionScheduleValue(field.key)}
+                              initialValue={getCollectionScheduleValue(field.name)}
                               name={[field.name, 'schedule']}
                               className="form-field_fixed-label"
                               label="Schedule:"
@@ -238,7 +238,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
                                   validator: (rule: any, value: string) => {
                                     const formValues = form.getFieldsValue();
                                     const isError = formValues.collections
-                                      .map((collection, index) => index !== field.key && collection.name)
+                                      .map((collection, index) => index !== field.name && collection.name)
                                       .includes(value);
 
                                     return isError
@@ -255,7 +255,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
                           </Col>
                         </Row>
 
-                        {getCollectionParameters(field.key).map((collection: CollectionParameter) => (
+                        {getCollectionParameters(field.name).map((collection: CollectionParameter) => (
                           <SourceFormCollectionsField
                             field={field}
                             key={collection.id}
