@@ -13,10 +13,10 @@ import (
 
 type DryRunHandler struct {
 	destinationService *destinations.Service
-	preprocessor       events.Preprocessor
+	preprocessor       events.Processor
 }
 
-func NewDryRunHandler(destinationService *destinations.Service, preprocessor events.Preprocessor) *DryRunHandler {
+func NewDryRunHandler(destinationService *destinations.Service, preprocessor events.Processor) *DryRunHandler {
 	return &DryRunHandler{destinationService: destinationService, preprocessor: preprocessor}
 }
 
@@ -35,7 +35,7 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	storageProxy, ok := drh.destinationService.GetStorageByID(destinationID)
+	storageProxy, ok := drh.destinationService.GetDestinationByID(destinationID)
 	if !ok {
 		destinationNotFoundErrorMessage := fmt.Sprintf("Error: destination with id=[%s] does not exist", destinationID)
 		logging.Error(destinationNotFoundErrorMessage)

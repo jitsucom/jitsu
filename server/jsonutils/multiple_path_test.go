@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestGet(t *testing.T) {
+func TestMultipleGet(t *testing.T) {
 	tests := []struct {
 		name              string
 		path              string
@@ -30,19 +30,19 @@ func TestGet(t *testing.T) {
 		},
 		{
 			"key doesn't exist",
-			"/key0",
+			"/key0||/key2",
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": 123,
 				},
-				"key2": "value",
+				"key3": "value",
 			},
 			nil,
 			false,
 		},
 		{
-			"Key exists object",
-			"/key1/subkey1",
+			"First Key exists",
+			"/key1/subkey1||/key1/key2",
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": map[string]interface{}{
@@ -58,8 +58,25 @@ func TestGet(t *testing.T) {
 			true,
 		},
 		{
-			"Key exists not object",
-			"key1/subkey1/subsubkey1/",
+			"Second Key exists",
+			"/key1/subkey1||/key1/key2",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"key2": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+			map[string]interface{}{
+				"subsubkey1": 123,
+				"subsubkey2": 123,
+			},
+			true,
+		},
+		{
+			"Both Keys exist",
+			"key1/subkey1||key2",
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": map[string]interface{}{
@@ -67,8 +84,12 @@ func TestGet(t *testing.T) {
 						"subsubkey2": 123,
 					},
 				},
+				"key2": []string{"aaa"},
 			},
-			123,
+			map[string]interface{}{
+				"subsubkey1": 123,
+				"subsubkey2": 123,
+			},
 			true,
 		},
 	}
@@ -84,7 +105,7 @@ func TestGet(t *testing.T) {
 	}
 }
 
-func TestGetAndRemove(t *testing.T) {
+func TestMultipleGetAndRemove(t *testing.T) {
 	tests := []struct {
 		name                       string
 		path                       string
@@ -111,7 +132,7 @@ func TestGetAndRemove(t *testing.T) {
 		},
 		{
 			"key doesn't exist",
-			"/key0",
+			"/key0||/key3",
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": 123,
@@ -128,8 +149,8 @@ func TestGetAndRemove(t *testing.T) {
 			},
 		},
 		{
-			"Key exists object",
-			"/key1/subkey1",
+			"First key exists",
+			"/key1/subkey1||/key2",
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": map[string]interface{}{
@@ -148,8 +169,8 @@ func TestGetAndRemove(t *testing.T) {
 			},
 		},
 		{
-			"Key exists not object",
-			"/key1/subkey1/subsubkey1",
+			"Second Key exists",
+			"/key2||/key1/subkey1/subsubkey1",
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": map[string]interface{}{
@@ -168,6 +189,29 @@ func TestGetAndRemove(t *testing.T) {
 				},
 			},
 		},
+		{
+			"Both Keys exist",
+			"/key1/subkey1/subsubkey1||/key2",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+				"key2": 1234,
+			},
+			123,
+			true,
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey2": 123,
+					},
+				},
+				"key2": 1234,
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -182,12 +226,13 @@ func TestGetAndRemove(t *testing.T) {
 	}
 }
 
-func TestSet(t *testing.T) {
+func TestMultipleSet(t *testing.T) {
 	tests := []struct {
 		name           string
 		path           string
 		inputObject    map[string]interface{}
 		inputValue     interface{}
+		innerCreation  bool
 		expectedObject map[string]interface{}
 		expectedErr    string
 	}{
@@ -196,6 +241,7 @@ func TestSet(t *testing.T) {
 			"abc",
 			nil,
 			nil,
+			false,
 			nil,
 			"",
 		},
@@ -204,12 +250,13 @@ func TestSet(t *testing.T) {
 			"",
 			map[string]interface{}{},
 			1,
+			false,
 			map[string]interface{}{},
 			"",
 		},
 		{
 			"set object",
-			"/key0",
+			"/key0||/key10",
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": 123,
@@ -220,6 +267,7 @@ func TestSet(t *testing.T) {
 					"subkey1": 123,
 				},
 			},
+			false,
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": 123,
@@ -234,7 +282,7 @@ func TestSet(t *testing.T) {
 		},
 		{
 			"set overwrites value",
-			"/key1/subkey1",
+			"/key1/subkey1||/key2",
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": map[string]interface{}{
@@ -244,6 +292,7 @@ func TestSet(t *testing.T) {
 				},
 			},
 			124,
+			false,
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": 124,
@@ -252,16 +301,56 @@ func TestSet(t *testing.T) {
 			"",
 		},
 		{
-			"set wasn't ok",
-			"/key1/subkey1",
+			"First set not ok : second ok",
+			"/key1/subkey1||/key2",
 			map[string]interface{}{
 				"key1": "value",
+			},
+			500,
+			false,
+			map[string]interface{}{
+				"key1": "value",
+				"key2": 124,
+			},
+			"Value 500 wasn't set into /key1/subkey1: key1 node isn't an object",
+		},
+		{
+			"First set not ok : second ok",
+			"/key1/subkey1/subkey3||/key2",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey2": map[string]interface{}{},
+				},
 			},
 			124,
+			false,
 			map[string]interface{}{
-				"key1": "value",
+				"key1": map[string]interface{}{
+					"subkey2": map[string]interface{}{},
+				},
+				"key2": 124,
 			},
-			"Value 124 wasn't set into /key1/subkey1: key1 node isn't an object",
+			"",
+		},
+		{
+			"both exist: first ok",
+			"/key1/subkey2||/key2/key3",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": 123,
+				},
+				"key2": map[string]interface{}{},
+			},
+			1,
+			false,
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": 123,
+					"subkey2": 1,
+				},
+				"key2": map[string]interface{}{},
+			},
+			"",
 		},
 	}
 	for _, tt := range tests {

@@ -6,32 +6,23 @@ import (
 )
 
 const (
-	//EventnKey is used as a prefix in system fields in Sources functionality
-	EventnKey       = "eventn_ctx"
-	collectionIDKey = "collection_id"
-	TimeChunkKey    = "time_interval"
-
+	//SrcKey is a system field
 	SrcKey = "src"
+	//TimeChunkKey is a system field
+	TimeChunkKey      = "_time_interval"
+	timeIntervalStart = "_interval_start"
+	timeIntervalEnd   = "_interval_end"
+	collectionIDKey   = "_collection_id"
 )
 
+//EnrichWithCollection puts collection string to object
 func EnrichWithCollection(object map[string]interface{}, collection string) {
-	eventnObject, ok := object[EventnKey]
-	if !ok {
-		eventnObject = map[string]interface{}{collectionIDKey: collection}
-		object[EventnKey] = eventnObject
-	} else {
-		if eventn, ok := eventnObject.(map[string]interface{}); ok {
-			if _, ok := eventn[collectionIDKey]; !ok {
-				eventn[collectionIDKey] = collection
-			}
-		} else {
-			object[EventnKey+"_"+collectionIDKey] = collection
-		}
-	}
+	object[collectionIDKey] = collection
 }
 
+//EnrichWithTimeInterval puts interval representation to object
 func EnrichWithTimeInterval(object map[string]interface{}, interval string, lower, upper time.Time) {
-	object[EventnKey+"_"+TimeChunkKey] = interval
-	object[EventnKey+"_interval_start"] = timestamp.ToISOFormat(lower)
-	object[EventnKey+"_interval_end"] = timestamp.ToISOFormat(upper)
+	object[TimeChunkKey] = interval
+	object[timeIntervalStart] = timestamp.ToISOFormat(lower)
+	object[timeIntervalEnd] = timestamp.ToISOFormat(upper)
 }

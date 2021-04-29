@@ -8,25 +8,25 @@ import (
 
 func TestNewPathes(t *testing.T) {
 	var configuration []string = nil
-	value := NewJSONPathes(configuration)
+	value := NewJSONPaths(configuration)
 	require.NotNil(t, value)
-	require.Empty(t, value.pathes)
+	require.Empty(t, value.paths)
 
 	configuration = []string{"key/subkey"}
-	value = NewJSONPathes(configuration)
+	value = NewJSONPaths(configuration)
 	require.NotNil(t, value)
-	require.NotEmpty(t, value.pathes)
-	require.Contains(t, value.pathes, "key/subkey")
-	require.Len(t, value.pathes, 1)
+	require.NotEmpty(t, value.paths)
+	require.Contains(t, value.paths, "key/subkey")
+	require.Len(t, value.paths, 1)
 
 	configuration = []string{"key1", "key2", "key3", "key2", "key1"}
-	value = NewJSONPathes(configuration)
+	value = NewJSONPaths(configuration)
 	require.NotNil(t, value)
-	require.NotEmpty(t, value.pathes)
-	require.Contains(t, value.pathes, "key1")
-	require.Contains(t, value.pathes, "key2")
-	require.Contains(t, value.pathes, "key3")
-	require.Len(t, value.pathes, 3)
+	require.NotEmpty(t, value.paths)
+	require.Contains(t, value.paths, "key1")
+	require.Contains(t, value.paths, "key2")
+	require.Contains(t, value.paths, "key3")
+	require.Len(t, value.paths, 3)
 }
 
 func TestGetPathes(t *testing.T) {
@@ -38,13 +38,13 @@ func TestGetPathes(t *testing.T) {
 		"key3": "value",
 	}
 
-	pathes := NewJSONPathes(configuration)
+	pathes := NewJSONPaths(configuration)
 	object, result := pathes.Get(event)
 	require.False(t, result)
 	require.NotNil(t, object)
 
 	configuration = []string{"key/subkey"}
-	pathes = NewJSONPathes(configuration)
+	pathes = NewJSONPaths(configuration)
 	object, result = pathes.Get(event)
 	require.False(t, result)
 	require.NotNil(t, object)
@@ -53,7 +53,7 @@ func TestGetPathes(t *testing.T) {
 	require.Nil(t, object["key1/subkey"])
 
 	configuration = []string{"key1", "key2", "key3"}
-	pathes = NewJSONPathes(configuration)
+	pathes = NewJSONPaths(configuration)
 	object, result = pathes.Get(event)
 	require.True(t, result)
 	require.NotNil(t, object)
@@ -79,7 +79,7 @@ func TestSetPathes(t *testing.T) {
 		"key3": true,
 	}
 
-	pathes := NewJSONPathes(configuration)
+	pathes := NewJSONPaths(configuration)
 	err := pathes.Set(event, values)
 	require.Nil(t, err)
 	require.Equal(t, 7, event["key1"])
@@ -87,7 +87,7 @@ func TestSetPathes(t *testing.T) {
 	require.Equal(t, nil, event["key3"])
 
 	configuration = []string{"key/subkey"}
-	pathes = NewJSONPathes(configuration)
+	pathes = NewJSONPaths(configuration)
 	err = pathes.Set(event, values)
 	require.Nil(t, err)
 	require.Equal(t, 7, event["key1"])
@@ -95,7 +95,7 @@ func TestSetPathes(t *testing.T) {
 	require.Equal(t, nil, event["key3"])
 
 	configuration = []string{"key1", "key2", "key3"}
-	pathes = NewJSONPathes(configuration)
+	pathes = NewJSONPaths(configuration)
 	err = pathes.Set(event, values)
 	require.Nil(t, err)
 	require.Equal(t, 42, event["key1"])

@@ -7,7 +7,7 @@ import (
 
 //UniqueID is a struct for extracting unique ID from objects
 type UniqueID struct {
-	jsonPath *jsonutils.JSONPath
+	jsonPath jsonutils.JSONPath
 }
 
 //NewUniqueID returns new UniqueID instance
@@ -26,8 +26,28 @@ func (uid *UniqueID) Extract(obj map[string]interface{}) string {
 		return fmt.Sprint(value)
 	}
 
-	value, ok = obj[uid.jsonPath.FieldName()]
+	value, ok = obj[uid.GetFlatFieldName()]
 	if ok {
+		return fmt.Sprint(value)
+	}
+
+	return ""
+}
+
+//ExtractAndRemove returns extracted global unique ID from input object and remove it from the objects
+func (uid *UniqueID) ExtractAndRemove(obj map[string]interface{}) string {
+	if obj == nil {
+		return ""
+	}
+
+	value, ok := uid.jsonPath.GetAndRemove(obj)
+	if ok {
+		return fmt.Sprint(value)
+	}
+
+	value, ok = obj[uid.GetFlatFieldName()]
+	if ok {
+		delete(obj, uid.GetFlatFieldName())
 		return fmt.Sprint(value)
 	}
 

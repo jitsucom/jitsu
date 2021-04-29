@@ -1,32 +1,32 @@
 package jsonutils
 
-// It is a map of configuration settings
+//JSONPaths supports several JSON paths
 // Map:
 // 	  "key1/key2/key3" -> JSONPath: [key1, key2, key3]
 // 	  "key4/key5/key6" -> JSONPath: [key4, key5, key6]
 // 	  "key7/key8/key9" -> JSONPath: [key7, key8, key9]
-type JSONPathes struct {
-	pathes map[string]*JSONPath
+type JSONPaths struct {
+	paths map[string]*SingleJSONPath
 }
 
-// NewJSONPathes parses configuration settings
+// NewJSONPaths parses configuration settings
 // and returns map of parsed recognition nodes
-func NewJSONPathes(pathes []string) *JSONPathes {
-	container := make(map[string]*JSONPath)
+func NewJSONPaths(pathes []string) *JSONPaths {
+	container := make(map[string]*SingleJSONPath)
 
 	for _, path := range pathes {
-		container[path] = NewJSONPath(path)
+		container[path] = NewSingleJSONPath(path)
 	}
 
-	return &JSONPathes{
-		pathes: container,
+	return &JSONPaths{
+		paths: container,
 	}
 }
 
-func (jpa *JSONPathes) String() string {
+func (jpa *JSONPaths) String() string {
 	result := ""
 
-	for key := range jpa.pathes {
+	for key := range jpa.paths {
 		if result != "" {
 			result += ", "
 		}
@@ -41,11 +41,11 @@ func (jpa *JSONPathes) String() string {
 // 	  "key1/key2/key3" -> value1
 // 	  "key4/key5/key6" -> value2
 // 	  "key7/key8/key9" -> value3
-func (jpa *JSONPathes) Get(event map[string]interface{}) (map[string]interface{}, bool) {
+func (jpa *JSONPaths) Get(event map[string]interface{}) (map[string]interface{}, bool) {
 	result := false
 	array := make(map[string]interface{})
 
-	for key, path := range jpa.pathes {
+	for key, path := range jpa.paths {
 		value, answer := path.Get(event)
 		array[key] = value
 		result = result || answer
@@ -55,8 +55,8 @@ func (jpa *JSONPathes) Get(event map[string]interface{}) (map[string]interface{}
 }
 
 // Set puts values into event according to configuration settings
-func (jpa *JSONPathes) Set(event map[string]interface{}, values map[string]interface{}) error {
-	for key, path := range jpa.pathes {
+func (jpa *JSONPaths) Set(event map[string]interface{}, values map[string]interface{}) error {
+	for key, path := range jpa.paths {
 		value := values[key]
 		if value != nil {
 			err := path.Set(event, value)
