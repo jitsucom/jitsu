@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/drivers"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
@@ -47,7 +48,7 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 
 		for _, object := range stream.Objects {
 			//enrich with system fields values
-			object["src"] = srcSource
+			object[events.SrcKey] = srcSource
 			object[timestamp.Key] = timestamp.NowUTC()
 
 			//calculate eventID from key fields or whole object

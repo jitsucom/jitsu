@@ -168,7 +168,7 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 
 	//make sure all destinations exist and ready
 	for _, destinationID := range sourceUnit.DestinationIDs {
-		storageProxy, ok := ts.destinationService.GetStorageByID(destinationID)
+		storageProxy, ok := ts.destinationService.GetDestinationByID(destinationID)
 		if !ok {
 			return "", fmt.Errorf("Destination [%s] doesn't exist", destinationID)
 		}

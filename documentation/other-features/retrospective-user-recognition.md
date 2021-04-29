@@ -2,7 +2,7 @@ import {Hint} from "../../../components/documentationComponents";
 
 # Retrospective User Recognition
 
-**EventNative** supports storing all events from anonymous users and updates them in DWH with user id after user identification. At present this functionality is supported only for [Postgres](/docs/destinations-configuration/postgres), [Redshift](/docs/destinations-configuration/redshift), and [ClickHouse](/docs/destinations-configuration/clickhouse-destination).
+**Jitsu** supports storing all events from anonymous users and updates them in DWH with user id after user identification. At present this functionality is supported only for [Postgres](/docs/destinations-configuration/postgres), [Redshift](/docs/destinations-configuration/redshift), and [ClickHouse](/docs/destinations-configuration/clickhouse-destination).
 
 ### Example
 
@@ -28,10 +28,10 @@ Right after **event3** **EventNative** amends **event1** and **event2** and adds
 
 ### Configuration
 
-For enabling this feature, a global `users_recognition` must present in the configuration. The global configuration is applied to all destinations. It means that all events which are supposed to be stored into destinations of Postgres and ClickHouse types will be sent through the users recognition pipeline and all anonymous events will be stored into meta storage. Configuration per destination overrides the global one.
+For enabling this feature, a global `users_recognition` must present in the configuration. The global configuration is applied to all destinations. It means that all events which are supposed to be stored into destinations of Postgres, Redshift and ClickHouse types will be sent through the users recognition pipeline and all anonymous events will be stored into meta storage. Configuration per destination overrides the global one.
 
 <Hint>
-    This feature requires: meta.storage and primary_key_fields configuration in Postgres destination.
+    This feature requires: meta.storage and primary_key_fields configuration in Postgres or Redshift destination.
     Read more about those settings on <a href="/docs/configuration/">General Configuration</a>
 </Hint>
 
@@ -56,7 +56,9 @@ destinations:
     users_recognition: #Optional
       enabled: true #set false for disabling
       anonymous_id_node: /user/anonymous_id #Required if enabled
-      user_id_node: /user/id #Required if enabled
+      identification_nodes: #Required if enabled 
+        - /user/internal_id
+        - /user/email
       
 meta:
   storage:
@@ -70,7 +72,9 @@ meta:
 users_recognition:
   enabled: true      
   anonymous_id_node: /user/anonymous_id #Optional. Default value: /eventn_ctx/user/anonymous_id
-  user_id_node: /user/id #Optional. Default value: /eventn_ctx/user/internal_id
+  identification_nodes: #Optional. Default value: /eventn_ctx/user/internal_id 
+    - /user/internal_id
+    - /user/email
 ```
 
 <table>
@@ -101,15 +105,15 @@ users_recognition:
     </tr>
     <tr>
       <td>
-        <b>user_id_node</b>
+        <b>identification_nodes</b>
           <br />
         <em>(required)</em>
       </td>
-      <td>string</td>
-      <td>JSON path to user id. If exists the recognition pipeline will be started.
-        If doesn&apos;t exist - an event will be stored in the Meta storage as
-        anonymous. Optional in global configuration, but required in destination
-        configuration</td>
+      <td>strings array</td>
+      <td>JSON paths to identification nodes (e.g. user id and user email). If <b>ALL</b> identification values present in an input event - recognition pipeline will be started.
+        If not - this event will be stored in the Meta storage as
+        anonymous.
+      </td>
     </tr>
   </tbody>
 </table>
