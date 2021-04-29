@@ -2,9 +2,11 @@ package enrichment
 
 import (
 	"bou.ke/monkey"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"net/http"
 	"testing"
@@ -16,6 +18,9 @@ func TestWithJsPreprocess(t *testing.T) {
 	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
 	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
 	defer patch.Unpatch()
+
+	require.NoError(t, appconfig.Init(false, ""))
+	defer appconfig.Instance.Close()
 
 	tests := []struct {
 		name     string
@@ -52,7 +57,7 @@ func TestWithJsPreprocess(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jsPreprocessor := events.NewJsPreprocessor()
+			jsPreprocessor := events.NewJsProcessor(&events.DummyRecognition{}, viper.GetString("server.fields_configuration.user_agent_path"))
 
 			r := &http.Request{Header: map[string][]string{}}
 			for k, v := range tt.headers {
@@ -108,7 +113,7 @@ func TestWithAPIPreprocess(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jsPreprocessor := events.NewAPIPreprocessor()
+			jsPreprocessor := events.NewAPIProcessor()
 
 			r := &http.Request{Header: map[string][]string{}}
 			for k, v := range tt.headers {

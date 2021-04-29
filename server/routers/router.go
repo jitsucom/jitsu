@@ -43,12 +43,12 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsPreprocessor(), eventsCache, usersRecognitionService)
-	apiEventHandler := handlers.NewEventHandler(destinations, events.NewAPIPreprocessor(), eventsCache, usersRecognitionService)
+	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path")), eventsCache)
+	apiEventHandler := handlers.NewEventHandler(destinations, events.NewAPIProcessor(), eventsCache)
 
 	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
-	dryRunHandler := handlers.NewDryRunHandler(destinations, events.NewJsPreprocessor())
+	dryRunHandler := handlers.NewDryRunHandler(destinations, events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path")))
 	statisticsHandler := handlers.NewStatisticsHandler(metaStorage)
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}

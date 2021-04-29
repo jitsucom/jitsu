@@ -257,7 +257,7 @@ func TestAPIEvent(t *testing.T) {
 		{
 			"Unauthorized c2s endpoint",
 			"/api/v1/event?token=wrongtoken",
-			"test_data/event_input.json",
+			"test_data/event_input_1.0.json",
 			"",
 			"",
 			http.StatusUnauthorized,
@@ -266,7 +266,7 @@ func TestAPIEvent(t *testing.T) {
 		{
 			"Unauthorized s2s endpoint",
 			"/api/v1/s2s/event?token=c2stoken",
-			"test_data/api_event_input.json",
+			"test_data/api_event_input_1.0.json",
 			"",
 			"",
 			http.StatusUnauthorized,
@@ -275,7 +275,7 @@ func TestAPIEvent(t *testing.T) {
 		{
 			"Unauthorized c2s endpoint with s2s token",
 			"/api/v1/event?token=s2stoken",
-			"test_data/event_input.json",
+			"test_data/event_input_1.0.json",
 			"",
 			"",
 			http.StatusUnauthorized,
@@ -284,8 +284,8 @@ func TestAPIEvent(t *testing.T) {
 		{
 			"C2S event consuming test",
 			"/api/v1/event?token=c2stoken",
-			"test_data/event_input.json",
-			"test_data/fact_output.json",
+			"test_data/event_input_1.0.json",
+			"test_data/fact_output_1.0.json",
 			"",
 			http.StatusOK,
 			"",
@@ -293,8 +293,8 @@ func TestAPIEvent(t *testing.T) {
 		{
 			"S2S API event consuming test",
 			"/api/v1/s2s/event",
-			"test_data/api_event_input.json",
-			"test_data/api_fact_output.json",
+			"test_data/api_event_input_1.0.json",
+			"test_data/api_fact_output_1.0.json",
 			"s2stoken",
 			http.StatusOK,
 			"",
@@ -311,8 +311,8 @@ func TestAPIEvent(t *testing.T) {
 		{
 			"Randomized c2s endpoint",
 			"/api.dhb31?p_neoq231=c2stoken",
-			"test_data/event_input.json",
-			"test_data/fact_output.json",
+			"test_data/event_input_1.0.json",
+			"test_data/fact_output_1.0.json",
 			"",
 			http.StatusOK,
 			"",
@@ -501,16 +501,22 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
-	enrichment.InitDefault()
+	enrichment.InitDefault(
+		viper.GetString("server.fields_configuration.src_source_ip"),
+		viper.GetString("server.fields_configuration.dst_source_ip"),
+		viper.GetString("server.fields_configuration.src_ua"),
+		viper.GetString("server.fields_configuration.dst_ua"),
+	)
+
+	metaStorage := &meta.Dummy{}
+
 	monitor := coordination.NewInMemoryService([]string{})
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, 0)
+	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, metaStorage, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
 	require.NoError(t, err)
 	defer destinationService.Close()
-
-	metaStorage := &meta.Dummy{}
 
 	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
 	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
@@ -613,15 +619,15 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
+	metaStorage := &meta.Dummy{}
+
 	monitor := coordination.NewInMemoryService([]string{})
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, 0)
+	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, metaStorage, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
-
-	metaStorage := &meta.Dummy{}
 
 	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
 	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),

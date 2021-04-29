@@ -28,6 +28,6 @@ func DeleteByTimeChunkCondition(timeIntervalValue string) *DeleteConditions {
 
 	return &DeleteConditions{
 		JoinCondition: "AND",
-		Conditions:    []DeleteCondition{{Field: events.EventnKey + "_" + events.TimeChunkKey, Clause: "=", Value: timeIntervalValue}},
+		Conditions:    []DeleteCondition{{Field: events.TimeChunkKey, Clause: "=", Value: timeIntervalValue}},
 	}
 }

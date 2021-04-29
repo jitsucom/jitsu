@@ -89,7 +89,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
-	enrichment.InitDefault()
+	enrichment.InitDefault("", "", "", "")
 	monitor := coordination.NewInMemoryService([]string{})
 
 	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
@@ -109,7 +109,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	}
 
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, recognitionConfiguration, 0)
+	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, recognitionConfiguration, metaStorage, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)

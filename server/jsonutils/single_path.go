@@ -1,42 +1,46 @@
 package jsonutils
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
 
-//JSONPath is a struct for extracting and setting value by JSON path
-type JSONPath struct {
+var ErrNodeNotExist = errors.New("Inner node doesn't exist")
+
+//SingleJSONPath is a struct for extracting and setting value by JSON path
+type SingleJSONPath struct {
 	//[key1, key2, key3]
 	parts []string
 }
 
-//NewJSONPath return JSONPath
-func NewJSONPath(path string) *JSONPath {
-	parts := strings.Split(formatPrefixSuffix(path), "/")
+//NewSingleJSONPath return Single JSONPath (Single or Multiple)
+func NewSingleJSONPath(path string) *SingleJSONPath {
+	formatted := strings.ReplaceAll(formatPrefixSuffix(path), " ", "")
+	parts := strings.Split(formatted, "/")
 	if len(parts) == 1 && parts[0] == "" {
 		//empty json path
 		parts = []string{}
 	}
-	return &JSONPath{parts: parts}
+	return &SingleJSONPath{parts: parts}
 }
 
 //IsEmpty returns true if path is empty
-func (jp *JSONPath) IsEmpty() bool {
+func (jp *SingleJSONPath) IsEmpty() bool {
 	return len(jp.parts) == 0
 }
 
 //Get returns value of json path
-func (jp *JSONPath) Get(obj map[string]interface{}) (interface{}, bool) {
+func (jp *SingleJSONPath) Get(obj map[string]interface{}) (interface{}, bool) {
 	return jp.getAndRemove(obj, false)
 }
 
 //GetAndRemove returns value of json path and remove it from origin json
-func (jp *JSONPath) GetAndRemove(obj map[string]interface{}) (interface{}, bool) {
+func (jp *SingleJSONPath) GetAndRemove(obj map[string]interface{}) (interface{}, bool) {
 	return jp.getAndRemove(obj, true)
 }
 
-func (jp *JSONPath) getAndRemove(obj map[string]interface{}, remove bool) (interface{}, bool) {
+func (jp *SingleJSONPath) getAndRemove(obj map[string]interface{}, remove bool) (interface{}, bool) {
 	//dive into obj and return last key
 	for i := 0; i < len(jp.parts); i++ {
 		key := jp.parts[i]
@@ -68,10 +72,16 @@ func (jp *JSONPath) getAndRemove(obj map[string]interface{}, remove bool) (inter
 	return nil, false
 }
 
-//Set put value to json path
+//Set put value to json path with creating inner objects
 //assume that obj can't be nil
-//return true if value was set
-func (jp *JSONPath) Set(obj map[string]interface{}, value interface{}) error {
+//return err if value wasn't set
+func (jp *SingleJSONPath) Set(obj map[string]interface{}, value interface{}) error {
+	return jp.setWithInnerCreation(obj, value, true)
+}
+
+//setWithInnerCreation puts value to json path (can create intermediate objects layers)
+//returns err if value wasn't set
+func (jp *SingleJSONPath) setWithInnerCreation(obj map[string]interface{}, value interface{}, createInnerObjects bool) error {
 	if obj == nil {
 		return nil
 	}
@@ -92,10 +102,12 @@ func (jp *JSONPath) Set(obj map[string]interface{}, value interface{}) error {
 				//node isn't object node
 				return fmt.Errorf("Value %d wasn't set into %s: %s node isn't an object", value, jp.String(), key)
 			}
-		} else {
+		} else if createInnerObjects {
 			subMap := map[string]interface{}{}
 			obj[key] = subMap
 			obj = subMap
+		} else {
+			return ErrNodeNotExist
 		}
 	}
 
@@ -103,21 +115,11 @@ func (jp *JSONPath) Set(obj map[string]interface{}, value interface{}) error {
 }
 
 //String returns string representation of JSON path (/key1/key2)
-func (jp *JSONPath) String() string {
+func (jp *SingleJSONPath) String() string {
 	return "/" + strings.Join(jp.parts, "/")
 }
 
 //FieldName returns string representation of flat field (key1_key2)
-func (jp *JSONPath) FieldName() string {
+func (jp *SingleJSONPath) FieldName() string {
 	return strings.Join(jp.parts, "_")
-}
-
-func formatPrefixSuffix(key string) string {
-	if strings.HasPrefix(key, "/") {
-		key = key[1:]
-	}
-	if strings.HasSuffix(key, "/") {
-		key = key[:len(key)-1]
-	}
-	return key
 }

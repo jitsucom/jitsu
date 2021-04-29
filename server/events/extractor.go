@@ -1,5 +1,7 @@
 package events
 
+import "fmt"
+
 func ExtractSrc(event Event) string {
 	if event == nil {
 		return ""
@@ -7,10 +9,7 @@ func ExtractSrc(event Event) string {
 
 	src, ok := event[SrcKey]
 	if ok {
-		srcStr, ok := src.(string)
-		if ok {
-			return srcStr
-		}
+		return fmt.Sprint(src)
 	}
 
 	return ""

@@ -11,13 +11,13 @@ import (
 const IPLookup = "ip_lookup"
 
 type IPLookupRule struct {
-	source                  *jsonutils.JSONPath
-	destination             *jsonutils.JSONPath
+	source                  jsonutils.JSONPath
+	destination             jsonutils.JSONPath
 	geoResolver             geo.Resolver
 	enrichmentConditionFunc func(map[string]interface{}) bool
 }
 
-func NewIPLookupRule(source, destination *jsonutils.JSONPath) (*IPLookupRule, error) {
+func NewIPLookupRule(source, destination jsonutils.JSONPath) (*IPLookupRule, error) {
 	return &IPLookupRule{
 		source:      source,
 		destination: destination,
