@@ -103,7 +103,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination }: Props
                 initialValues={initialValues?._onlyKeys}/>
             </div>
           </Collapse.Panel>
-          <Collapse.Panel header={<b>Linked Connectors (<NavLink to="/api_keys">edit connectors</NavLink>)</b>} key="connectors">
+          <Collapse.Panel header={<b>Linked Connectors (<NavLink to="/sources">edit connectors</NavLink>)</b>} key="connectors">
             <div className="pl-6">
               {
                 destination.syncFromSourcesStatus === 'supported' && sourcesData && !sourcesData?.sources?.length &&
