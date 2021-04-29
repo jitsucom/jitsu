@@ -13,9 +13,10 @@ interface Props<V = any> {
   list: RadioListItem<V>[];
   onChange: (value: V) => void;
   initialValue: V;
+  label?: React.ReactNode;
 }
 
-const RadioButtonsGroup = <V, >({ list, onChange, initialValue }: Props<V>) => {
+const RadioButtonsGroup = <V, >({ list, onChange, initialValue, label }: Props<V>) => {
   const [checkedIndex, setCheckedIndex] = useState<number>(
     list.findIndex((i: RadioListItem<V>) => i.value === initialValue)
   );
@@ -28,17 +29,20 @@ const RadioButtonsGroup = <V, >({ list, onChange, initialValue }: Props<V>) => {
 
   return (
     <div className={styles.group}>
-      {
-        list.map(({ value, label }: RadioListItem<V>, index: number) =>
-          <div
-            className={cn(styles.radio, checkedIndex === index && styles.checked)}
-            key={String(value)}
-            onClick={handleClick(value, index)}
-          >
-            {label}
-          </div>
-        )
-      }
+      {label && <span className={styles.label}>{label}</span>}
+      <div className={styles.options}>
+        {
+          list.map(({ value, label }: RadioListItem<V>, index: number) =>
+            <div
+              className={cn(styles.radio, checkedIndex === index && styles.checked)}
+              key={String(value)}
+              onClick={handleClick(value, index)}
+            >
+              {label}
+            </div>
+          )
+        }
+      </div>
     </div>
   );
 };
