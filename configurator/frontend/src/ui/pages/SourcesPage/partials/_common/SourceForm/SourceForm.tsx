@@ -36,6 +36,7 @@ const SourceForm = ({
   setConnected
 }: Props) => {
   const history = useHistory();
+  const params = useParams<{ tabName: string, sourceId: string }>();
 
   const forceUpdate = useForceUpdate();
 
@@ -159,12 +160,13 @@ const SourceForm = ({
     }
   }, [setConnected, connectorSource, handleTabSubmit]);
 
-  const params = useParams<{ tabName: string, sourceId: string }>();
-
   return (
     <>
       <div className="flex-grow">
         <Tabs defaultActiveKey={params.tabName || 'config'} type="card" size="middle" className={styles.sourceTabs}
+          tabBarExtraContent={
+            params.sourceId && <Button onClick={() => history.push(`/sources/logs/${params.sourceId}`)}>View Task Logs</Button>
+          }
           onChange={(tab) => {
             if (params.sourceId) {
               history.replace(`/sources/edit/${params.sourceId}/${tab}`)

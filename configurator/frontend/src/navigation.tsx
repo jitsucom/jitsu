@@ -15,6 +15,7 @@ const SetupForm = React.lazy(() => import('@page/SetupPage/SetupForm'));
 const SignupForm = React.lazy(() => import('./lib/components/SignupForm/SignupForm'));
 //const SourcesPage = React.lazy(() => import('./ui/pages/SourcesPage'));
 import SourcesPage from './ui/pages/SourcesPage';
+import { TaskLogsPage, taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
 const StatusPage = React.lazy(() => import('./lib/components/StatusPage/StatusPage'));
 const PasswordForm = React.lazy(() => import('./lib/components/PasswordForm/PasswordForm'));
 
@@ -111,5 +112,12 @@ export const PRIVATE_PAGES: Page[] = [
     Object.keys(sourcesPageRoutes).map((key) => sourcesPageRoutes[key]),
     SourcesPage,
     'Sources'
+  ),
+  new Page(
+    'Jitsu | Task Logs',
+    taskLogsPageRoute,
+    TaskLogsPage,
+    'Sources'
   )
+
 ];
