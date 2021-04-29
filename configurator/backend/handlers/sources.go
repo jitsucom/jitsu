@@ -119,6 +119,7 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 //puts table names if not set
 func mapSourceConfig(source *entities.Source, destinationIDs []string) (endrivers.SourceConfig, error) {
 	enSource := endrivers.SourceConfig{
+		SourceID:     source.SourceID,
 		Type:         source.SourceType,
 		Destinations: destinationIDs,
 		Collections:  source.Collections,
