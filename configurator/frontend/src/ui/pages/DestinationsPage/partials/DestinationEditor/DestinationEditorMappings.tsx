@@ -90,7 +90,7 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                       return (
                         <div key={`mapping-${field.name}`} className={cn(styles.mappingsItem, 'bg-bgSecondary border rounded-xl')}>
                           <div className={styles.delete}>
-                            <DeleteFilled className={styles.deleteIcon}  onClick={handleDelete(remove, field.key)} />
+                            <span className={styles.deleteLink} onClick={handleDelete(remove, field.key)}>Delete</span>
                           </div>
 
                           <Row>
