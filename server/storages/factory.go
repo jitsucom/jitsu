@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/jsonutils"
+	"github.com/jitsucom/jitsu/server/meta"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -12,7 +14,6 @@ import (
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
-	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/typing"
@@ -81,11 +82,9 @@ func (ur *UsersRecognition) Validate() error {
 		}
 
 		if len(ur.IdentificationNodes) == 0 {
+			//DEPRECATED node check (backward compatibility)
 			if ur.UserIDNode == "" {
 				return errors.New("users_recognition.identification_nodes is required")
-			} else {
-				logging.Warn("users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead")
-				ur.IdentificationNodes = []string{ur.UserIDNode}
 			}
 		}
 	}
@@ -127,11 +126,12 @@ type FactoryImpl struct {
 	eventsCache         *caching.EventsCache
 	globalLoggerFactory *logging.Factory
 	globalConfiguration *UsersRecognition
+	metaStorage         meta.Storage
 	maxColumns          int
 }
 
 func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
-	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, maxColumns int) Factory {
+	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, metaStorage meta.Storage, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,
 		logEventPath:        logEventPath,
@@ -139,6 +139,7 @@ func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorK
 		eventsCache:         eventsCache,
 		globalLoggerFactory: globalLoggerFactory,
 		globalConfiguration: globalConfiguration,
+		metaStorage:         metaStorage,
 		maxColumns:          maxColumns,
 	}
 }
@@ -245,34 +246,10 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		return nil, nil, err
 	}
 
-	//retrospective users recognition
-	var usersRecognitionConfiguration *UserRecognitionConfiguration
-	var globalConfigurationLogMsg string
-	if f.globalConfiguration.IsEnabled() {
-		globalConfigurationLogMsg = " Global configuration will be used"
-	}
-	if destination.UsersRecognition != nil {
-		err := destination.UsersRecognition.Validate()
-		if err != nil {
-			logging.Infof("[%s] invalid users recognition configuration: %v.%s", destinationID, err, globalConfigurationLogMsg)
-		} else {
-			usersRecognitionConfiguration = &UserRecognitionConfiguration{
-				Enabled:                  destination.UsersRecognition.Enabled,
-				AnonymousIDJSONPath:      jsonutils.NewJSONPath(destination.UsersRecognition.AnonymousIDNode),
-				IdentificationJSONPathes: jsonutils.NewJSONPathes(destination.UsersRecognition.IdentificationNodes),
-			}
-		}
-	} else {
-
-		logging.Infof("[%s] users recognition isn't configured.%s", destinationID, globalConfigurationLogMsg)
-	}
-
-	//duplication data error warning
-	//if global enabled or overridden enabled - check primary key fields
-	//don't process user recognition in this case
-	if (f.globalConfiguration.IsEnabled() || destination.UsersRecognition.IsEnabled()) && (destination.Type == PostgresType || destination.Type == RedshiftType) && len(pkFields) == 0 {
-		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
-		usersRecognitionConfiguration = &UserRecognitionConfiguration{Enabled: false}
+	//** Retrospective users recognition **
+	usersRecognition, err := f.initializeRetrospectiveUsersRecognition(destinationID, &destination, pkFields)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
@@ -323,7 +300,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		ctx:              f.ctx,
 		destinationID:    destinationID,
 		destination:      &destination,
-		usersRecognition: usersRecognitionConfiguration,
+		usersRecognition: usersRecognition,
 		processor:        processor,
 		streamMode:       destination.Mode == StreamMode,
 		maxColumns:       maxColumns,
@@ -339,6 +316,52 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	storageProxy := newProxy(storageConstructor, storageConfig)
 
 	return storageProxy, eventQueue, nil
+}
+
+//initializeRetrospectiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)
+//skip initialization if dummy meta storage
+//disable destination configuration if Postgres or Redshift without primary keys
+func (f *FactoryImpl) initializeRetrospectiveUsersRecognition(destinationID string, destination *DestinationConfig, pkFields map[string]bool) (*UserRecognitionConfiguration, error) {
+	if f.metaStorage.Type() == meta.DummyType {
+		if destination.UsersRecognition != nil {
+			logging.Errorf("[%s] Users recognition requires 'meta.storage' configuration", destinationID)
+		}
+		return &UserRecognitionConfiguration{enabled: false}, nil
+	}
+
+	//validates or overrides with the global one
+	if destination.UsersRecognition != nil {
+		if err := destination.UsersRecognition.Validate(); err != nil {
+			return nil, fmt.Errorf("Error validation destination users_recognition configuration: %v", err)
+		}
+	} else {
+		destination.UsersRecognition = f.globalConfiguration
+	}
+
+	//disabled
+	if !destination.UsersRecognition.IsEnabled() {
+		return &UserRecognitionConfiguration{enabled: false}, nil
+	}
+
+	//check primary fields
+	if (destination.Type == PostgresType || destination.Type == RedshiftType) && len(pkFields) == 0 {
+		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
+		return &UserRecognitionConfiguration{enabled: false}, nil
+	}
+
+	logging.Infof("[%s] configured retrospective users recognition", destinationID)
+
+	//check deprecated node
+	if destination.UsersRecognition.UserIDNode != "" {
+		logging.Warnf("[%s] users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead. Read more about configuration: https://jitsu.com/docs/other-features/retrospective-user-recognition", destinationID)
+		destination.UsersRecognition.IdentificationNodes = []string{destination.UsersRecognition.UserIDNode}
+	}
+
+	return &UserRecognitionConfiguration{
+		enabled:                  destination.UsersRecognition.IsEnabled(),
+		AnonymousIDJSONPath:      jsonutils.NewJSONPath(destination.UsersRecognition.AnonymousIDNode),
+		IdentificationJSONPathes: jsonutils.NewJSONPaths(destination.UsersRecognition.IdentificationNodes),
+	}, nil
 }
 
 //Add system fields as default mappings

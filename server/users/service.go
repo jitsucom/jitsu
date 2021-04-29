@@ -6,7 +6,6 @@ import (
 
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
@@ -51,27 +50,22 @@ func (ei *EventIdentifiers) IsAllIdentificationValuesFilled() bool {
 }
 
 //RecognitionService has a thread pool under the hood
-//save anonymous events in meta storage
-//rewrite recognized events
+//saves anonymous events in meta storage
+//rewrites recognized events
 type RecognitionService struct {
-	metaStorage         meta.Storage
-	destinationService  *destinations.Service
-	globalConfiguration *storages.UserRecognitionConfiguration
+	metaStorage        meta.Storage
+	destinationService *destinations.Service
 
 	queue  *dque.DQue
 	closed bool
 }
 
-//NewRecognitionService creates a new RecognitionService if enabled and if metaStorage configuration exists
+//NewRecognitionService creates a new RecognitionService if metaStorage configuration exists
 func NewRecognitionService(metaStorage meta.Storage, destinationService *destinations.Service, configuration *storages.UsersRecognition, logEventPath string) (*RecognitionService, error) {
-	if configuration == nil || !configuration.Enabled {
-		logging.Info("Global Users recognition is disabled. Destinations users recognition configurations will be skipped!")
-		return &RecognitionService{closed: true}, nil
-	}
-
 	if metaStorage.Type() == meta.DummyType {
-		logging.Warnf("Users recognition requires 'meta.storage' configuration")
-
+		if configuration.IsEnabled() {
+			logging.Errorf("Users recognition requires 'meta.storage' configuration")
+		}
 		return &RecognitionService{closed: true}, nil
 	}
 
@@ -83,12 +77,7 @@ func NewRecognitionService(metaStorage meta.Storage, destinationService *destina
 	rs := &RecognitionService{
 		destinationService: destinationService,
 		metaStorage:        metaStorage,
-		globalConfiguration: &storages.UserRecognitionConfiguration{
-			Enabled:                  configuration.Enabled,
-			AnonymousIDJSONPath:      jsonutils.NewJSONPath(configuration.AnonymousIDNode),
-			IdentificationJSONPathes: jsonutils.NewJSONPathes(configuration.IdentificationNodes),
-		},
-		queue: queue,
+		queue:              queue,
 	}
 
 	metrics.InitialUsersRecognitionQueueSize(queue.Size())
@@ -163,7 +152,7 @@ func (rs *RecognitionService) Event(event events.Event, eventID string, destinat
 func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, eventID string, destinationIDs []string) map[string]EventIdentifiers {
 	identifiers := map[string]EventIdentifiers{}
 	for _, destinationID := range destinationIDs {
-		storageProxy, ok := rs.destinationService.GetStorageByID(destinationID)
+		storageProxy, ok := rs.destinationService.GetDestinationByID(destinationID)
 		if !ok {
 			logging.Errorf("Error recognizing user: Destination [%s] wasn't found", destinationID)
 			continue
@@ -182,13 +171,8 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 
 		configuration := storage.GetUsersRecognition()
 
-		//override destination recognition configuration with global one
-		if configuration == nil {
-			configuration = rs.globalConfiguration
-		}
-
-		//recognition disabled manually or wrong pk fields configuration
-		if !configuration.Enabled {
+		//recognition disabled or wrong pk fields configuration
+		if !configuration.IsEnabled() {
 			continue
 		}
 
@@ -203,7 +187,7 @@ func (rs *RecognitionService) getDestinationsForRecognition(event events.Event, 
 		properties, ok := configuration.IdentificationJSONPathes.Get(event)
 
 		identifiers[destinationID] = EventIdentifiers{
-			EventID:     eventID,
+			EventID:              eventID,
 			AnonymousID:          anonymousIDStr,
 			IdentificationValues: properties,
 		}
@@ -226,7 +210,7 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 			continue
 		}
 
-		storageProxy, ok := rs.destinationService.GetStorageByID(destinationID)
+		storageProxy, ok := rs.destinationService.GetDestinationByID(destinationID)
 		if !ok {
 			logging.Errorf("Error running recognizing user pipeline: Destination [%s] wasn't found", destinationID)
 			continue
@@ -240,13 +224,8 @@ func (rs *RecognitionService) runPipeline(destinationID string, identifiers Even
 
 		configuration := storage.GetUsersRecognition()
 
-		//override destination recognition configuration with global one
-		if configuration == nil {
-			configuration = rs.globalConfiguration
-		}
-
-		//recognition disabled
-		if !configuration.Enabled {
+		//recognition disabled or wrong pk fields configuration
+		if !configuration.IsEnabled() {
 			continue
 		}
 

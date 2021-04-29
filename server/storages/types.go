@@ -21,6 +21,7 @@ const (
 	FacebookType        = "facebook"
 )
 
+//Storage is a destination representation
 type Storage interface {
 	io.Closer
 	DryRun(payload events.Event) ([]adapters.TableField, error)
@@ -35,6 +36,7 @@ type Storage interface {
 	IsStaging() bool
 }
 
+//StorageProxy is a storage proxy
 type StorageProxy interface {
 	io.Closer
 	Get() (Storage, bool)
@@ -42,14 +44,22 @@ type StorageProxy interface {
 	ID() string
 }
 
+//StoreResult is used as a Batch storing result
 type StoreResult struct {
 	Err       error
 	RowsCount int
 	EventsSrc map[string]int
 }
 
+//UserRecognitionConfiguration recognition configuration
 type UserRecognitionConfiguration struct {
-	Enabled                  bool
-	AnonymousIDJSONPath      *jsonutils.JSONPath
-	IdentificationJSONPathes *jsonutils.JSONPathes
+	AnonymousIDJSONPath      jsonutils.JSONPath
+	IdentificationJSONPathes *jsonutils.JSONPaths
+
+	enabled bool
+}
+
+//IsEnabled returns true if not nil and enabled
+func (urc *UserRecognitionConfiguration) IsEnabled() bool {
+	return urc != nil && urc.enabled
 }

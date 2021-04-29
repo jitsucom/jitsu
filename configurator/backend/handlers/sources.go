@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/jitsu"
@@ -50,7 +51,13 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 				destinationIDs = append(destinationIDs, projectID+"."+destinationID)
 			}
 
-			idConfig[sourceID] = mapSourceConfig(source, destinationIDs)
+			mappedSourceConfig, err := mapSourceConfig(source, destinationIDs)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: fmt.Sprintf("Failed to map source [%s] config", sourceID), Error: err.Error()})
+				return
+			}
+
+			idConfig[sourceID] = mappedSourceConfig
 		}
 	}
 
@@ -73,9 +80,14 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 		return
 	}
 
-	enSourceConfig := mapSourceConfig(sourceEntity, []string{})
+	enSourceConfig, err := mapSourceConfig(sourceEntity, []string{})
+	if err != nil {
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: fmt.Sprintf("Failed to map source [%s.%s] config", userProjectID, sourceEntity.SourceID), Error: err.Error()})
+		return
+	}
+
 	sourceID := userProjectID + "." + sourceEntity.SourceID
-	enSourceConfig.Name = sourceID
+	enSourceConfig.SourceID = sourceID
 
 	b, err := json.Marshal(enSourceConfig)
 	if err != nil {
@@ -103,12 +115,34 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 	}
 }
 
-func mapSourceConfig(source *entities.Source, destinationIDs []string) endrivers.SourceConfig {
-	return endrivers.SourceConfig{
+//mapSourceConfig mapped configurator source into server format
+//puts table names if not set
+func mapSourceConfig(source *entities.Source, destinationIDs []string) (endrivers.SourceConfig, error) {
+	enSource := endrivers.SourceConfig{
+		SourceID:     source.SourceID,
 		Type:         source.SourceType,
 		Destinations: destinationIDs,
 		Collections:  source.Collections,
 		Config:       source.Config,
 		Schedule:     source.Schedule,
 	}
+
+	collections, err := endrivers.ParseCollections(&enSource)
+	if err != nil {
+		return endrivers.SourceConfig{}, err
+	}
+
+	for _, col := range collections {
+		if col.TableName == "" {
+			col.TableName = source.SourceID + "_" + col.Name
+		}
+	}
+
+	var collectionsInterface []interface{}
+	for _, col := range collections {
+		collectionsInterface = append(collectionsInterface, col)
+	}
+	enSource.Collections = collectionsInterface
+
+	return enSource, nil
 }

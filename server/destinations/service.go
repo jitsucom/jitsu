@@ -119,7 +119,7 @@ func (s *Service) GetConsumers(tokenID string) (consumers []events.Consumer) {
 	return
 }
 
-func (s *Service) GetStorageByID(id string) (storages.StorageProxy, bool) {
+func (s *Service) GetDestinationByID(id string) (storages.StorageProxy, bool) {
 	s.RLock()
 	defer s.RUnlock()
 

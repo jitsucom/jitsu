@@ -27,7 +27,7 @@ const (
 )
 
 type SourceConfig struct {
-	Name string `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
+	SourceID string `json:"-" yaml:"-"`
 
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
@@ -38,8 +38,8 @@ type SourceConfig struct {
 }
 
 type Collection struct {
-	DaysBackToLoad int    `json:"-"` //without serialization
-	SourceID       string `json:"-"` //without serialization
+	DaysBackToLoad int    `json:"-" yaml:"-"` //without serialization
+	SourceID       string `json:"-" yaml:"-"` //without serialization
 
 	Name         string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
 	Type         string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
@@ -79,19 +79,19 @@ func RegisterDriver(driverType string,
 
 //Create source drivers per collection
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronScheduler *scheduling.CronScheduler) (map[string]Driver, error) {
+func Create(ctx context.Context, sourceID string, sourceConfig *SourceConfig, cronScheduler *scheduling.CronScheduler) (map[string]Driver, error) {
 	if sourceConfig.Type == "" {
-		sourceConfig.Type = name
+		sourceConfig.Type = sourceID
 	}
 
-	sourceConfig.Name = name
+	sourceConfig.SourceID = sourceID
 
-	collections, err := parseCollections(sourceConfig)
+	collections, err := ParseCollections(sourceConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	logging.Infof("[%s] Initializing source of type: %s", name, sourceConfig.Type)
+	logging.Infof("[%s] Initializing source of type: %s", sourceID, sourceConfig.Type)
 	if len(collections) == 0 {
 		return nil, errors.New("collections are empty. Please specify at least one collection")
 	}
@@ -108,7 +108,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronSc
 
 			date := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
 			collection.DaysBackToLoad = getDaysBackToLoad(&date)
-			logging.Infof("[%s_%s] Using start date: %s", name, collection.Name, date)
+			logging.Infof("[%s_%s] Using start date: %s", sourceID, collection.Name, date)
 		}
 	}
 
@@ -127,7 +127,7 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronSc
 
 		//schedule collection sync
 		if collection.Schedule != "" {
-			if err := cronScheduler.Schedule(name, collection.Name, collection.Schedule); err != nil {
+			if err := cronScheduler.Schedule(sourceID, collection.Name, collection.Schedule); err != nil {
 				//close all previous drivers
 				for _, alreadyCreatedDriver := range driverPerCollection {
 					if closingErr := alreadyCreatedDriver.Close(); closingErr != nil {
@@ -138,9 +138,9 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronSc
 				return nil, fmt.Errorf("error scheduling sync collection [%s]: %v", collection.Name, err)
 			}
 
-			logging.Infof("[%s_%s] Using automatic scheduling: %s", name, collection.Name, collection.Schedule)
+			logging.Infof("[%s_%s] Using automatic scheduling: %s", sourceID, collection.Name, collection.Schedule)
 		} else {
-			logging.Warnf("[%s_%s] doesn't have schedule cron expression (automatic scheduling disabled)", name, collection.Name)
+			logging.Warnf("[%s_%s] doesn't have schedule cron expression (automatic scheduling disabled)", sourceID, collection.Name)
 		}
 
 		driverPerCollection[collection.Name] = driver
@@ -148,18 +148,18 @@ func Create(ctx context.Context, name string, sourceConfig *SourceConfig, cronSc
 	return driverPerCollection, nil
 }
 
-//parseCollections return serialized Collection objects slice
+//ParseCollections return serialized Collection objects slice
 //or return one default collection with 'schedule' if singer type
-func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
+func ParseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 	if sourceConfig.Type == SingerType {
-		return []*Collection{{SourceID: sourceConfig.Name, Name: DefaultSingerCollection, Schedule: sourceConfig.Schedule}}, nil
+		return []*Collection{{SourceID: sourceConfig.SourceID, Name: DefaultSingerCollection, Schedule: sourceConfig.Schedule}}, nil
 	}
 
 	var collections []*Collection
 	for _, collectionI := range sourceConfig.Collections {
 		switch collectionI.(type) {
 		case string:
-			collections = append(collections, &Collection{SourceID: sourceConfig.Name, Name: collectionI.(string), Type: collectionI.(string)})
+			collections = append(collections, &Collection{SourceID: sourceConfig.SourceID, Name: collectionI.(string), Type: collectionI.(string)})
 		case map[string]interface{}, map[interface{}]interface{}:
 			collectionObjMap := cast.ToStringMap(collectionI)
 
@@ -174,7 +174,7 @@ func parseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 				return nil, fmt.Errorf("error parsing collections: %v", err)
 			}
 
-			collectionObj.SourceID = sourceConfig.Name
+			collectionObj.SourceID = sourceConfig.SourceID
 
 			if err := collectionObj.Validate(); err != nil {
 				return nil, err

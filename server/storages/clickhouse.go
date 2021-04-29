@@ -40,7 +40,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableStatementFactory, err := adapters.NewTableStatementFactory(chConfig, config.uniqueIDField.GetFlatFieldName())
+	tableStatementFactory, err := adapters.NewTableStatementFactory(chConfig)
 	if err != nil {
 		return nil, err
 	}

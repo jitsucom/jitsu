@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/viper"
 )
 
+//AppConfig is a main Application Global Configuration
 type AppConfig struct {
 	ServerName string
 	Authority  string
@@ -52,14 +53,22 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.cache.events.size", 100)
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
-	viper.SetDefault("server.unique_id_field", "/eventn_ctx/event_id")
+	//unique IDs
+	viper.SetDefault("server.fields_configuration.unique_id_field", "/eventn_ctx/event_id||/eventn_ctx_event_id||/event_id")
+	viper.SetDefault("server.fields_configuration.user_agent_path", "/eventn_ctx/user_agent||/user_agent")
+	//default enrichment rules
+	viper.SetDefault("server.fields_configuration.src_source_ip", "/source_ip")
+	viper.SetDefault("server.fields_configuration.dst_source_ip", "/eventn_ctx/location||/location")
+	viper.SetDefault("server.fields_configuration.src_ua", "/eventn_ctx/user_agent||/user_agent")
+	viper.SetDefault("server.fields_configuration.dst_ua", "/eventn_ctx/parsed_ua||/parsed_ua")
+
 	viper.SetDefault("log.show_in_server", false)
 	viper.SetDefault("log.rotation_min", 5)
 	viper.SetDefault("sql_debug_log.queries.rotation_min", "1440")
 	viper.SetDefault("sql_debug_log.ddl.rotation_min", "1440")
 	viper.SetDefault("users_recognition.enabled", false)
-	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id")
-	viper.SetDefault("users_recognition.identification_nodes", "/eventn_ctx/user/internal_id")
+	viper.SetDefault("users_recognition.anonymous_id_node", "/eventn_ctx/user/anonymous_id||/user/anonymous_id")
+	viper.SetDefault("users_recognition.identification_nodes", []string{"/eventn_ctx/user/internal_id||/user/internal_id"})
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
@@ -164,9 +173,9 @@ func Init(containerized bool, dockerHubID string) error {
 		return err
 	}
 
-	uniqueIDField := viper.GetString("server.unique_id_field")
+	uniqueIDField := viper.GetString("server.fields_configuration.unique_id_field")
 	if uniqueIDField == "" {
-		return fmt.Errorf("server.unique_id_field can't be empty")
+		return fmt.Errorf("server.fields_configuration.unique_id_field is required parameter")
 	}
 
 	appConfig.AuthorizationService = authService

@@ -89,7 +89,13 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
 
-	enrichment.InitDefault()
+	enrichment.InitDefault(
+		viper.GetString("server.fields_configuration.src_source_ip"),
+		viper.GetString("server.fields_configuration.dst_source_ip"),
+		viper.GetString("server.fields_configuration.src_ua"),
+		viper.GetString("server.fields_configuration.dst_ua"),
+	)
+
 	monitor := coordination.NewInMemoryService([]string{})
 
 	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
@@ -98,23 +104,24 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	eventsCache := caching.NewEventsCache(metaStorage, 100)
 
 	// ** Retrospective users recognition
-	var recognitionConfiguration *storages.UsersRecognition
-	if viper.IsSet("users_recognition") {
-		recognitionConfiguration = &storages.UsersRecognition{
-			Enabled:             viper.GetBool("users_recognition.enabled"),
-			AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
-			IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
-			UserIDNode:          viper.GetString("users_recognition.user_id_node"),
-		}
+	globalRecognitionConfiguration := &storages.UsersRecognition{
+		Enabled:             viper.GetBool("users_recognition.enabled"),
+		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
+		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
+		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
+	}
+
+	if err := globalRecognitionConfiguration.Validate(); err != nil {
+		logging.Fatalf("Invalid global users recognition configuration: %v", err)
 	}
 
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, recognitionConfiguration, 0)
+	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
 
-	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationService, recognitionConfiguration, "/tmp")
+	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationService, globalRecognitionConfiguration, "/tmp")
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 
