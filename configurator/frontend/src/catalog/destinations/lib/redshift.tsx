@@ -13,6 +13,7 @@ const icon = <svg enableBackground="new 0 0 1615 1783.7" viewBox="0 0 1615 1783.
 </svg>
 
 const destination: Destination = {
+  syncFromSourcesStatus: 'coming_soon',
   id: 'redshift',
   displayName: 'Redshift',
   ui: {
@@ -58,6 +59,7 @@ const destination: Destination = {
     },
     {
       id: '_formData.redshiftUseHostedS3',
+      displayName: 'Use Jitsu S3 bucket',
       type: booleanType,
       constant: false
     },

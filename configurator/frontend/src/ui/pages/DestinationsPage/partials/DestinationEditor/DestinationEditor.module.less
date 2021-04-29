@@ -1,7 +1,7 @@
-@import "../../../../../theme.less";
+@import './src/theme';
+@import './src/assets/mixins';
 
 .wrapper {
-  //height: calc(100vh - 170px);
 }
 
 .mainArea {
@@ -12,34 +12,46 @@
 }
 
 .tabCard :global .ant-tabs-content {
-  @apply px-6;
   overflow: auto;
   height: 98%;
 
-  &::-webkit-scrollbar {
-    width: 8px;
-  }
-
-  /* Track */
-  &::-webkit-scrollbar-track {
-    background: @splitBorder;
-    -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
-    -webkit-border-radius: 10px;
-    border-radius: 10px;
-  }
-
-  /* Handle */
-  &::-webkit-scrollbar-thumb {
-    -webkit-border-radius: 10px;
-    border-radius: 10px;
-    background: @secondaryText;
-    -webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.5);
-  }
-  &::-webkit-scrollbar-thumb:window-inactive {
-    background: @text;
-  }
+  .custom-scrollbar();
 }
 
 .highlightNewElement {
   transition: all 2s;
+}
+
+.mappings {
+  min-width: 1140px;
+
+  .mappingsItem {
+    padding: 20px 20px 0;
+    margin-bottom: 20px;
+
+    .delete {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      margin-bottom: 20px;
+
+      .deleteIcon {
+        cursor: pointer;
+
+        :global {
+          svg {
+            fill: @link-color;
+          }
+        }
+      }
+    }
+
+    .secondaryLabel {
+      :global {
+        .ant-form-item-label-left {
+          padding-left: 20px;
+        }
+      }
+    }
+  }
 }

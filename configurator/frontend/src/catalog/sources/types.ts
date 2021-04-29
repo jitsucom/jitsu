@@ -107,30 +107,30 @@ export type Parameter = {
   /**
    * Display name (for UI)
    */
-  displayName?: string
+  displayName?: string;
   /**
    * Id (corresponds to key in yaml config)
    */
-  id: string
+  id: string;
   /**
    * Type of parameter
    */
-  type?: ParameterType<any>
+  type?: ParameterType<any>;
 
   /**
    * Default value (should be displayed by default)
    */
-  defaultValue?: any
+  defaultValue?: any;
 
   /**
    *  Flag describes required/optional nature of the field. IF empty - field is optional
    */
-  required?: boolean
+  required?: boolean;
 
   /**
    * Documentation
    */
-  documentation?: ReactNode
+  documentation?: ReactNode;
 
   /**
    * Either constant or function of current config (to be able to hide fields based on rules)
@@ -141,7 +141,7 @@ export type Parameter = {
    * WARNING: value could be  "" or null which is a valid defined value. Do not check it with if (constant),
    * use constant === undefined
    */
-  constant?: ConstantOrFunction<any, any>
+  constant?: ConstantOrFunction<any, any>;
 }
 
 export interface CollectionParameter extends Parameter {

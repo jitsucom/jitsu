@@ -3,13 +3,13 @@ import { googleGCSCredentials, modeParameter, tableName } from './common';
 import { stringType } from '../../sources/types';
 
 const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.633235433328256 7.0326093303156565 131.26574682416876 114.63439066968435">
-  <linearGradient id="a" gradientUnits="userSpaceOnUse" x1="64" x2="64" y1="7.034" y2="120.789">
+  <linearGradient id="bgq" gradientUnits="userSpaceOnUse" x1="64" x2="64" y1="7.034" y2="120.789">
     <stop offset="0" stopColor="#4387fd"/>
     <stop offset="1" stopColor="#4683ea"/>
   </linearGradient>
   <path
     d="M27.79 115.217L1.54 69.749a11.499 11.499 0 0 1 0-11.499l26.25-45.467a11.5 11.5 0 0 1 9.96-5.75h52.5a11.5 11.5 0 0 1 9.959 5.75l26.25 45.467a11.499 11.499 0 0 1 0 11.5l-26.25 45.467a11.5 11.5 0 0 1-9.959 5.749h-52.5a11.499 11.499 0 0 1-9.96-5.75z"
-    fill="url(#a)"/>
+    fill="url(#bgq)"/>
   <path clipPath="url(#b)" d="M119.229 86.48L80.625 47.874 64 43.425l-14.933 5.55L43.3 64l4.637 16.729 40.938 40.938 8.687-.386z" opacity=".07"/>
   <g fill="#fff">
     <path
@@ -21,6 +21,7 @@ const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.633235433328256
 ;
 
 const bigQueryDestination: Destination = {
+  syncFromSourcesStatus: 'coming_soon',
   id: 'bigquery',
   displayName: 'BigQuery',
   ui: {

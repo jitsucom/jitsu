@@ -1,157 +1,252 @@
-import cloneDeep from 'lodash/cloneDeep';
-import styles from './DestinationEditor.module.less'
-import { useParams, NavLink, useHistory, Prompt } from 'react-router-dom';
-import ApplicationServices from '@./lib/services/ApplicationServices';
-import { DestinationConfig, destinationConfigTypes, destinationsByTypeId } from '@./lib/services/destinations';
-import { loadDestinations } from '@page/DestinationsPage/commons';
-import { CenteredError, CenteredSpin, handleError } from '@./lib/components/components';
-import { Button, Form, message, Tabs, Tooltip } from 'antd';
-import useLoader from '@./lib/commons/useLoader';
-import * as React from 'react';
-import DestinationsList, { getIconSrc } from '@page/DestinationsPage/partials/DestinationsList/DestinationsList';
-import ConnectionPropertiesTab from '@page/DestinationsPage/partials/ConnectionProperties/ConnectionPropertiesTab';
-import classNames from 'classnames';
-import { ReactNode, useState } from 'react';
-import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
-import Marshal from '@./lib/commons/marshalling';
-import { MappingEditor } from '@page/DestinationsPage/partials/MappingEditor/MappingEditor';
+// @Libs
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Prompt, useHistory, useParams } from 'react-router-dom';
+import { Form, message } from 'antd';
+import cn from 'classnames';
+// @Components
+import { TabsConfigurator } from '@molecule/TabsConfigurator';
+import { EditorButtons } from '@molecule/EditorButtons';
+import { ComingSoon } from '@atom/ComingSoon';
+import { PageHeader } from '@atom/PageHeader';
+import { DestinationEditorConfig } from './DestinationEditorConfig';
+import { DestinationEditorConnectors } from './DestinationEditorConnectors';
+import { DestinationEditorMappings } from './DestinationEditorMappings';
+// @CatalogDestinations
+import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
+// @Types
+import { FormInstance } from 'antd/es';
+import { Destination } from '@catalog/destinations/types';
+import { Tab } from '@molecule/TabsConfigurator';
+import { CommonDestinationPageProps } from '@page/DestinationsPage';
+import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+// @Services
+import ApplicationServices from '@service/ApplicationServices';
+// @Routes
+import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
+// @Styles
+import styles from './DestinationEditor.module.less';
+// @Utils
+import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
+import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
+import { getUniqueAutoIncId, randomId } from '@util/numbers';
+// @Hooks
+import { useForceUpdate } from '@hooks/useForceUpdate';
 
-export type Callback<T> = (p: T) => void
-
-function pickId(type: string, destinations: DestinationConfig[]) {
-  let id = type;
-  let baseId = type;
-  let counter = 1;
-  while (destinations.find((el) => el.id == id) !== undefined) {
-    id = baseId + counter;
-    counter++;
-  }
-  return id;
-}
-
-export function ComingSoon({ children, documentation }: { children: ReactNode, documentation: ReactNode }) {
-  return <>
-    <Tooltip title={documentation}>
-      {children}
-      <sup>
-        <i>Coming Soon!</i>
-      </sup>
-    </Tooltip>
-  </>
-}
-
-function DestinationEditor() {
-  const params = useParams<{ id?: string, type?: string }>();
-  const destinationId = params.id;
+const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, editorMode }: CommonDestinationPageProps) => {
   const history = useHistory();
-  const [activeTabKey, setActiveTabKey] = useState('config')
-  let [modCount, setModCount] = useState(0);
-  let [connectionTesting, setTestingConnection] = useState(false);
-  let [form] = Form.useForm();
-  const [sourcesError, sources, updateSources] = useLoader<DestinationConfig>(async() => {
-    return await ApplicationServices.get().storageService.get('sources', ApplicationServices.get().activeProject.id)
-  });
 
-  const [destinationError, destination, updateDestination] = useLoader<DestinationConfig>(async() => {
-    let destinations = await loadDestinations(ApplicationServices.get());
-    let destination: DestinationConfig;
+  const forceUpdate = useForceUpdate();
 
-    if (params.id) {
-      destination = destinations.find(dest => dest.id === params.id);
-      if (!destination) {
-        new Error(`Unknown destination id: ${destinationId}. All destinations: ${JSON.stringify(destinations, null, 2)}`)
-      }
-    } else if (params.type) {
-      destination = destinationsByTypeId[params.type].factory(pickId(params.type, destinations))
-    } else {
-      throw new Error(':type of :id should present')
-    }
-    return destination;
-  }
+  const params = useParams<{ type?: string; id?: string; }>();
+
+  const [testConnecting, setTestConnecting] = useState<boolean>(false);
+  const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
+
+  const [savePopover, switchSavePopover] = useState<boolean>(false);
+  const [destinationSaving, setDestinationSaving] = useState<boolean>(false);
+
+  const destinationData = useRef<DestinationData>(
+    destinations.find(dst => dst._id === params.id) || {
+      _id: getUniqueAutoIncId(params.type, destinations.map(dst => dst._type)),
+      _uid: randomId(),
+      _type: params.type,
+      _mappings: { _keepUnmappedFields: true },
+      _comment: null,
+      _onlyKeys: []
+    } as DestinationData
   );
 
-  if (sourcesError || destinationError) {
-    return <CenteredError error={sourcesError || destinationError}/>
-  } else if (!destination || !sources) {
-    return <CenteredSpin/>
-  } else {
-    let type = destinationsByTypeId[destination.type];
+  const destinationReference = useMemo<Destination>(() => {
+    if (params.type) {
+      return destinationsReferenceMap[params.type]
+    }
 
-    let img = <img
-      src={getIconSrc(type.type)} className="h-6 align-baseline ml-2" alt="[destination]"
-    />;
-    return <div className={classNames('flex flex-col items-stretch', styles.wrapper)}>
-      <div className=""><h2><NavLink to="/destinations">Destinations</NavLink> / {img} Edit {type.name} connection
-        (id: {destination.id})</h2></div>
-      <div className={classNames('flex-grow', styles.mainArea)}>
-        <Tabs type="card" className={styles.tabCard} activeKey={activeTabKey} onChange={(key) => setActiveTabKey(key)}>
-          <Tabs.TabPane key="config" tab="Connection Properties">
-            <ConnectionPropertiesTab form={form} destination={destination}
-              onModification={() => setModCount(modCount + 1)}/>
-          </Tabs.TabPane>
-          <Tabs.TabPane key="mappings" tab="Mappings">
-            <MappingEditor mappings={destination.mappings} onChange={(mappings) => {
-              destination.mappings = mappings;
-              updateDestination(destination);
-              setModCount(modCount + 1);
-            }} />
+    return destinationsReferenceMap[destinationData.current._type];
+  }, [params.type]);
 
-          </Tabs.TabPane>
-          <Tabs.TabPane key="sources" tab={<ComingSoon documentation={<>
-            Edit sources which will send data to the destination
-          </>}>Connected sources</ComingSoon>} disabled={true}>
+  const services = useMemo(() => ApplicationServices.get(), []);
 
-          </Tabs.TabPane>
-          <Tabs.TabPane key="settings" tab={<ComingSoon documentation={<>
-            A predefined library of settings such as <a
-              href="https://jitsu.com/docs/other-features/segment-compatibility">Segment-like schema</a>
-          </>}>Settings Library</ComingSoon>} disabled={true}>
+  const touchedFields = useRef<boolean>(false);
 
-          </Tabs.TabPane>
-          <Tabs.TabPane key="stat" tab={<ComingSoon documentation={<>
-            A detailed statistics on how many events have been sent to the destinations
-          </>}>Statistics</ComingSoon>} disabled={true}>
+  const destinationsTabs = useRef<Tab[]>([{
+    key: 'config',
+    name: 'Connection Properties',
+    getComponent: (form: FormInstance) => <DestinationEditorConfig handleTouchAnyField={setTouchedFields} form={form} destinationReference={destinationReference} destinationData={destinationData.current} />,
+    form: Form.useForm()[0]
+  },
+  {
+    key: 'mappings',
+    name: 'Mappings',
+    getComponent: (form: FormInstance) => <DestinationEditorMappings form={form} initialValues={destinationData.current?._mappings} />,
+    form: Form.useForm()[0]
+  },
+  {
+    key: 'sources',
+    name: 'Linked Connectors & API Keys',
+    getComponent: (form: FormInstance) => <DestinationEditorConnectors form={form} initialValues={destinationData.current} destination={destinationReference} />,
+    form: Form.useForm()[0],
+    errorsLevel: 'warning'
+  },
+  {
+    key: 'settings',
+    name: <ComingSoon render="Settings Library" documentation={<>A predefined library of settings such as <a href="https://jitsu.com/docs/other-features/segment-compatibility" target="_blank" rel="noreferrer">Segment-like schema</a></>} />,
+    isDisabled: true
+  },
+  {
+    key: 'statistics',
+    name: <ComingSoon render="Statistics" documentation={<>A detailed statistics on how many events have been sent to the destinations</>} />,
+    isDisabled: true
+  }]);
 
-          </Tabs.TabPane>
-        </Tabs>
-      </div>
-      <div className="flex-shrink border-t pt-2">
-        <Button type="primary" size="large" className="mr-3">Save</Button>
-        <Button type="default" onClick={async() => {
-          setTestingConnection(true);
-          let values;
-          try {
-            values = await form.validateFields();
-          } catch (e) {
-            setTestingConnection(false);
-            setActiveTabKey('config')
-            return;
-          }
-          try {
-            destination.update(values);
-            await ApplicationServices.get().backendApiClient.post(
-              '/destinations/test',
-              Marshal.toPureJson(destination)
-            );
-            message.success('Successfully connected!');
-            updateDestination(destination);
-            setTestingConnection(false);
-          } catch (e) {
-            handleError(e, 'Failed to validate connection');
-            setTestingConnection(false);
-          }
-        }} size="large"  className="mr-3" loading={connectionTesting}>Test Connection</Button>
-        <Button type="default" size="large" onClick={() => {
-          history.push('/destinations')
-        }} danger>Cancel</Button>
-      </div>
-      <Prompt message={() => {
-        if (modCount > 0) {
-          return 'You have unsaved changes. Are you sure you want to leave the page?'
+  const setTouchedFields = useCallback(() => touchedFields.current = true, []);
+
+  const getPromptMessage = useCallback(() => touchedFields.current
+    ? 'You have unsaved changes. Are you sure you want to leave the page?'
+    : undefined, []);
+
+  const handleCancel = useCallback(() => history.push(destinationPageRoutes.root), [history]);
+
+  const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
+  const savePopoverClose = useCallback(() => switchSavePopover(false), []);
+
+  const validateTabForm = useCallback(async(tab: Tab) => {
+    const form = tab.form;
+
+    try {
+      if (tab.key === 'sources') {
+        const _sources = form.getFieldsValue()?._sources;
+
+        if (!_sources) {
+          tab.errorsCount = 1;
         }
-      }}/>
-    </div>
-  }
-}
+      }
 
-export default DestinationEditor;
+      return await form.validateFields();
+    } catch (errors) {
+      // ToDo: check errors count for fields with few validation rules
+      tab.errorsCount = errors.errorFields?.length;
+
+      forceUpdate();
+
+      throw errors;
+    }
+  }, [forceUpdate]);
+
+  const handleTestConnection = useCallback(async() => {
+    setTestConnecting(true);
+
+    const tab = destinationsTabs.current[0];
+
+    try {
+      const config = await validateTabForm(tab);
+
+      destinationData.current._formData = makeObjectFromFieldsValues<DestinationData>(config)._formData;
+
+      await destinationEditorUtils.testConnection(destinationData.current);
+    } catch (error) {
+      switchTestConnectingPopover(true);
+    } finally {
+      setTestConnecting(false);
+      forceUpdate();
+    }
+  }, [validateTabForm, forceUpdate]);
+
+  const handleSubmit = useCallback(() => {
+    setDestinationSaving(true);
+
+    Promise
+      .all(destinationsTabs.current.filter((tab: Tab) => !!tab.form).map((tab: Tab) => validateTabForm(tab)))
+      .then(async allValues => {
+        destinationData.current = {
+          ...destinationData.current,
+          ...allValues.reduce((result: any, current: any) => {
+            return {
+              ...result,
+              ...makeObjectFromFieldsValues(current)
+            };
+          }, {})
+        };
+
+        try {
+          await destinationEditorUtils.testConnection(destinationData.current);
+
+          const payload = {
+            destinations: editorMode === 'add'
+              ? [...destinations, destinationData.current]
+              : destinations.reduce((accumulator: DestinationData[], current: DestinationData) => [
+                ...accumulator,
+                current._uid !== destinationData.current._uid
+                  ? current
+                  : destinationData.current
+              ], [])
+          };
+
+          await services.storageService.save('destinations', payload, services.activeProject.id);
+
+          updateDestinations(payload);
+
+          touchedFields.current = false;
+
+          history.push(destinationPageRoutes.root);
+
+          message.success('New destination has been added!');
+        } catch (errors) {}
+      })
+      .catch(() => {
+        switchSavePopover(true);
+      })
+      .finally(() => {
+        setDestinationSaving(false);
+        forceUpdate();
+      });
+  }, [history, services, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode]);
+
+  useEffect(() => {
+    setBreadcrumbs(withHome({
+      elements: [
+        { title: 'Destinations', link: destinationPageRoutes.root },
+        {
+          title: <PageHeader title={destinationReference.displayName} icon={destinationReference.ui.icon} mode="edit" />
+        }
+      ]
+    }));
+  }, [destinationReference, setBreadcrumbs]);
+
+  return (
+    <>
+      <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
+        <div className={cn('flex-grow', styles.mainArea)}>
+          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={1} />
+        </div>
+
+        <div className="flex-shrink border-t pt-2">
+          <EditorButtons
+            save={{
+              isRequestPending: destinationSaving,
+              isPopoverVisible: savePopover,
+              handlePress: handleSubmit,
+              handlePopoverClose: savePopoverClose,
+              titleText: 'Destination editor errors',
+              tabsList: destinationsTabs.current
+            }}
+            test={{
+              isRequestPending: testConnecting,
+              isPopoverVisible: testConnectingPopover && destinationsTabs.current[0].errorsCount > 0,
+              handlePress: handleTestConnection,
+              handlePopoverClose: testConnectingPopoverClose,
+              titleText: 'Connection Properties errors',
+              tabsList: [destinationsTabs.current[0]]
+            }}
+            handleCancel={handleCancel}
+          />
+        </div>
+      </div>
+
+      <Prompt message={getPromptMessage}/>
+    </>
+  );
+};
+
+DestinationEditor.displayName = 'DestinationEditor';
+
+export { DestinationEditor }
