@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Prompt, useHistory } from 'react-router-dom';
+import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Popover, Button, Form, message, Tabs } from 'antd';
 import { capitalize } from 'lodash';
 // @Types
@@ -159,10 +159,17 @@ const SourceForm = ({
     }
   }, [setConnected, connectorSource, handleTabSubmit]);
 
+  const params = useParams<{ tabName: string, sourceId: string }>();
+
   return (
     <>
       <div className="flex-grow">
-        <Tabs defaultActiveKey="config" type="card" size="middle" className={styles.sourceTabs}>
+        <Tabs defaultActiveKey={params.tabName || 'config'} type="card" size="middle" className={styles.sourceTabs}
+          onChange={(tab) => {
+            if (params.sourceId) {
+              history.replace(`/sources/edit/${params.sourceId}/${tab}`)
+            }
+          }}>
           {
             Object.keys(mutableRefObject.current.tabs).map(key => {
               const { form, getComponent, isHiddenTab } = mutableRefObject.current.tabs[key];
