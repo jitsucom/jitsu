@@ -157,9 +157,6 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       .then(async allValues => {
         sourceData.current = {
           ...sourceData.current,
-          connected: !sourceData.current.connected
-            ? await sourcePageUtils.testConnection(sourceData.current)
-            : sourceData.current.connected,
           ...allValues.reduce((result: any, current: any) => {
             return {
               ...result,
@@ -167,6 +164,10 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
             };
           }, {})
         };
+
+        sourceData.current.connected = !sourceData.current.connected
+          ? await sourcePageUtils.testConnection(sourceData.current)
+          : sourceData.current.connected;
 
         try {
           const payload: CollectionSourceData = {
