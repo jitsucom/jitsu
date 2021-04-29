@@ -28,7 +28,7 @@ const S3_REGIONS = [
 export const modeParameter = (constValue?: string): Parameter => {
   return {
     id: '_formData.mode',
-    displayName: '',
+    displayName: 'Mode',
     documentation: <>
       In steam mode the data will be send to destination instantly.
     </>,

@@ -3,8 +3,8 @@ import { ApiAccess, Project, User } from './model';
 import 'firebase/auth';
 import 'firebase/firestore';
 import Marshal from '../commons/marshalling';
-import { randomId } from '../commons/utils';
 import { BackendApiClient, LoginFeatures, ServerStorage, UserLoginStatus, UserService } from './ApplicationServices';
+import { randomId } from '@util/numbers';
 
 const LS_ACCESS_KEY = 'en_access';
 const LS_REFRESH_KEY = 'en_refresh';

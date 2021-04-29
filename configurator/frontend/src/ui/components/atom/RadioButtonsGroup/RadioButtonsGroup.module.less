@@ -1,0 +1,15 @@
+@import './src/theme';
+@import './src/assets/transition';
+
+.group {
+  display: inline-flex;
+
+  .radio {
+    @apply text-lg border border-text py-1 px-4 rounded-xl mb-2 mr-4 cursor-pointer;
+    .default-transition(background-color);
+  }
+
+  .checked {
+    @apply bg-primary;
+  }
+}
