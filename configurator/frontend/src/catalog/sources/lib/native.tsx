@@ -3,7 +3,7 @@ import * as React from 'react';
 
 const googleAuthConfigParameters = [
   {
-    displayName: 'Auth (Service account key JSON)',
+    displayName: 'Auth (Service key JSON)',
     id: 'config.auth.service_account_key',
     type: jsonType,
     required: true,
