@@ -96,8 +96,9 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                           <Row>
                             <Col span={['move', 'cast'].includes(actions[field.key]) ? 8 : 12}>
                               <Form.Item
+                                className="form-field_fixed-label"
                                 name={[field.name, '_action']}
-                                label="Action"
+                                label={<span>Action: </span>}
                                 labelCol={{
                                   span: ['move', 'cast'].includes(actions[field.key]) ? 6 : 4
                                 }}
@@ -132,8 +133,9 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                                 <>
                                   <Col className={styles.secondaryLabel} span={7}>
                                     <Form.Item
+                                      className="form-field_fixed-label"
                                       name={[field.name, '_type']}
-                                      label="Type"
+                                      label={<span>Type: </span>}
                                       labelCol={{ span: 5 }}
                                       labelAlign="left"
                                       rules={actions[field.key] === 'cast' ? [requiredValidator(true, 'This')] : undefined}
@@ -144,7 +146,7 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                                   <Col className={styles.secondaryLabel} span={9}>
                                     <Form.Item
                                       name={[field.name, '_columnType']}
-                                      label="Column type"
+                                      label={<span>Column type: </span>}
                                       labelCol={{ span: 7 }}
                                       labelAlign="left"
                                     >
@@ -161,8 +163,9 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                               !['constant', 'cast'].includes(actions[field.key]) && (
                                 <Col span={12}>
                                   <Form.Item
+                                    className="form-field_fixed-label"
                                     name={[field.name, '_srcField']}
-                                    label="From"
+                                    label={<span>From: </span>}
                                     labelCol={{ span: 4 }}
                                     labelAlign="left"
                                     rules={validationChain(
@@ -180,8 +183,9 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                               actions[field.key] !== 'remove' && (
                                 <Col span={12} className={cn(!['constant', 'cast'].includes(actions[field.key]) && styles.secondaryLabel)}>
                                   <Form.Item
+                                    className="form-field_fixed-label"
                                     name={[field.name, '_dstField']}
-                                    label="To"
+                                    label={<span>To: </span>}
                                     labelCol={{ span: 4 }}
                                     labelAlign="left"
                                     rules={validationChain(
@@ -210,8 +214,6 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
             )
           }
         </Form.List>
-
-        <Button htmlType="submit">Submit</Button>
       </Form>
     </>
   );
