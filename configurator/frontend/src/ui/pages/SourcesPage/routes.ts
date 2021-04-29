@@ -3,5 +3,5 @@ export const routes = {
   add: '/sources/add',
   addExact: '/sources/add/:source',
   edit: '/sources/edit',
-  editExact: '/sources/edit/:sourceId'
+  editExact: '/sources/edit/:sourceId/:tabName?'
 };
