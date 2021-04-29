@@ -1,0 +1,13 @@
+{
+  "custom_data": {
+    "key1": "key2"
+  },
+  "event_id": "123456",
+  "user_agent": "UA API TEST 2.0",
+  "page_title": "Jitsu Demo",
+  "referer": "",
+  "url": "http://track-demo.jitsu",
+  "user": {
+    "id": 123
+  }
+}
