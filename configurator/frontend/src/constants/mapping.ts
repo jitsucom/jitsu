@@ -1,8 +1,6 @@
 const MAPPING_NAMES: Record<MappingAction, string> = {
-  erase: 'Remove field',
-  'cast/int': 'Cast to INT',
-  'cast/double': 'Cast to DOUBLE',
-  'cast/date': 'Cast to DATE',
+  remove: 'Remove field',
+  cast: 'Cast field',
   move: 'Move field',
   constant: 'Constant field'
 };
