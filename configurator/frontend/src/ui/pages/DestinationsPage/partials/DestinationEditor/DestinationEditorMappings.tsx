@@ -123,9 +123,10 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                               actions[field.key] === 'constant' && (
                                 <Col className={styles.secondaryLabel} span={12}>
                                   <Form.Item
+                                    className="form-field_fixed-label"
                                     name={[field.name, '_value']}
-                                    label="Value"
-                                    labelCol={{ span: 3 }}
+                                    label={<span style={{ whiteSpace: 'nowrap' }}>Value: <sup>optional</sup></span>}
+                                    labelCol={{ span: 5 }}
                                     labelAlign="left"
                                   >
                                     <Input />
@@ -140,8 +141,8 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                                     <Form.Item
                                       className="form-field_fixed-label"
                                       name={[field.name, '_type']}
-                                      label={<span>Type: </span>}
-                                      labelCol={{ span: 5 }}
+                                      label={actions[field.key] === 'cast' ? <span>Type: </span> : <span>Type: <sup>optional</sup></span>}
+                                      labelCol={{ span: 9 }}
                                       labelAlign="left"
                                       rules={actions[field.key] === 'cast' ? [requiredValidator(true, 'This')] : undefined}
                                     >
@@ -150,9 +151,10 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
                                   </Col>
                                   <Col className={styles.secondaryLabel} span={9}>
                                     <Form.Item
+                                      className="form-field_fixed-label"
                                       name={[field.name, '_columnType']}
-                                      label={<span>Column type: </span>}
-                                      labelCol={{ span: 7 }}
+                                      label={<span>Column type: <sup>optional</sup></span>}
+                                      labelCol={{ span: 10 }}
                                       labelAlign="left"
                                     >
                                       <Input />
