@@ -1,24 +1,22 @@
 // @Libs
-import React, { useCallback, useMemo, useState } from 'react';
-import { Button, Form, Input, Radio, Select } from 'antd';
+import React, { useCallback, useState } from 'react';
+import { Button, Col, Form, Input, Row, Select } from 'antd';
 import cn from 'classnames';
-// @Components
-import { ComingSoon } from '@atom/ComingSoon';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
-import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
-import PlayCircleFilled from '@ant-design/icons/lib/icons/PlayCircleFilled';
-import FileTextOutlined from '@ant-design/icons/lib/icons/FileTextOutlined';
+import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 // @Constants
-import { MAPPINGS_REFERENCE_MAP, MAPPING_NAMES } from '@./constants/mapping';
+import { MAPPING_NAMES } from '@./constants/mapping';
 import { DESTINATION_EDITOR_MAPPING } from '@./embeddedDocs/mappings';
 // @Styles
 import styles from './DestinationEditor.module.less';
-// @Catalog mappings
-import mappings from '@./catalog/mappings/lib';
+// @Utils
+import { validationChain } from '@util/validation/validationChain';
+import { requiredValidator } from '@util/validation/validators';
+import { jsonPointerValidator } from '@util/validation/jsonPointer';
 
 export interface Props {
   form: FormInstance;
@@ -27,153 +25,174 @@ export interface Props {
 }
 
 const DestinationEditorMappings = ({ form, initialValues, destinationType }: Props) => {
-  const [mappingActions, setMappingActions] = useState<{ [key: number]: string }>(
-    initialValues?._mapping?.reduce((accumulator: { [key: number]: string }, current: MappingRow, index: number) => ({
-      ...accumulator,
-      [index]: current._action
-    }), {})
-  );
+  const [actions, setActions] = useState<MappingAction[]>([]);
 
-  const defaultMappingLibrary = useMemo(() => mappings?.[MAPPINGS_REFERENCE_MAP[destinationType]], [destinationType]);
+  const handleActionChange = useCallback((index: number) => (value: MappingAction) => {
+    const array = [...actions];
+    array[index] = value;
+    setActions(array);
+  }, [actions]);
 
-  const handleAddField = useCallback(
-    (add: FormListOperation['add']) => () => add({ _srcField: '', _dstField: '', _action: '' }),
-    []
-  );
+  const handleDelete = useCallback((remove: FormListOperation['remove'], index: number) => () => {
+    const array = [...actions].splice(index, 1);
 
-  const handleDeleteField = useCallback(
-    (remove: FormListOperation['remove'], index: number) => () => remove(index),
-    []
-  );
+    remove(index);
 
-  const handleActionChange = useCallback((index: number) => (value: string) => {
-    setMappingActions({
-      ...mappingActions,
-      [index]: value
+    setActions(array);
+  }, [actions]);
+
+  const handleAdd = useCallback((add: FormListOperation['add']) => () => {
+    add({});
+  }, []);
+
+  const handleTypeChange = useCallback((index: number) => (event: React.ChangeEvent<HTMLInputElement>) => {
+    const formValues = form.getFieldsValue();
+    const mappings = formValues['_mappings._mapping'];
+
+    mappings[index]['_columnType'] = event.target.value;
+
+    form.setFieldsValue({
+      '_mappings._mapping': mappings
     });
-  }, [mappingActions]);
-
-  const handleUseTemplate = useCallback(() => {
-    const mappings = {
-      '_mappings._keepUnmappedFields': defaultMappingLibrary.keepUnmappedFields,
-      '_mappings._mapping': defaultMappingLibrary.mappings.map(row => ({
-        _srcField: row.src,
-        _dstField: row.dst,
-        _action: row.action
-      }))
-    };
-
-    form.setFieldsValue({ ...mappings });
-
-    const actions = defaultMappingLibrary.mappings.reduce((accumulator: { [key: number]: string }, current: any, index: number) => ({
-      ...accumulator,
-      [index]: current.action
-    }), {});
-
-    setMappingActions(actions);
-  }, [defaultMappingLibrary, form]);
+  }, [form]);
 
   return (
     <>
-      <h3>Edit field mappings</h3>
-      <article>{DESTINATION_EDITOR_MAPPING}</article>
+      <article className="text-xs italic text-secondaryText mb-5">{DESTINATION_EDITOR_MAPPING}</article>
 
-      <Form form={form}>
-        <Form.Item name="_mappings._keepUnmappedFields" initialValue={initialValues?._keepUnmappedFields}>
-          <Radio.Group buttonStyle="solid">
-            <Radio.Button value={true}>Keep unmapped fields</Radio.Button>
-            <Radio.Button value={false}>Remove unmapped fields</Radio.Button>
-          </Radio.Group>
-        </Form.Item>
-
-        <Form.List name="_mappings._mapping" initialValue={initialValues?._mapping ?? []}>
+      <Form form={form} name="form-mapping" onFinish={values => console.log(values)}>
+        <Form.List name="_mappings._mapping" initialValue={[{}]}>
           {
             (fields: FormListFieldData[], { add, remove }: FormListOperation) => (
-              <div className={styles.mapping}>
+              <div className={styles.mappings}>
                 <>
                   {
                     fields.map((field: FormListFieldData) => {
                       return (
-                        <div key={`mapping-${field.name}`} className={styles.line}>
-                          <div className={cn(styles.mapInputWrap, styles.fieldWrap)}>
-                            {
-                              mappingActions?.[field.name] !== 'constant' && (
-                                <>
-                                  <label className={styles.mapInputLabel} htmlFor={`src-field-${field.name}`}>From: </label>
-                                  <Form.Item name={[field.name, '_srcField']}>
-                                    <Input
-                                      autoComplete="off"
-                                      className={styles.mapInput}
-                                      id={`src-field-${field.name}`}
-                                    />
-                                  </Form.Item>
-                                </>
-                              )
-                            }
+                        <div key={`mapping-${field.name}`} className={cn(styles.mappingsItem, 'bg-bgSecondary border rounded-xl')}>
+                          <div className={styles.delete}>
+                            <DeleteFilled className={styles.deleteIcon}  onClick={handleDelete(remove, field.key)} />
                           </div>
 
-                          <div className={cn(styles.mapAction, styles.fieldWrap)}>
-                            <label className={styles.mapInputLabel} htmlFor={`action-field-${field.name}`}>Action: </label>
-                            <Form.Item name={[field.name, '_action']}>
-                              <Select
-                                className={styles.mapSelect}
-                                onChange={handleActionChange(field.name)}
-                                id={`action-field-${field.name}`}
+                          <Row>
+                            <Col span={['move', 'cast'].includes(actions[field.key]) ? 8 : 12}>
+                              <Form.Item
+                                name={[field.name, '_action']}
+                                label="Action"
+                                labelCol={{
+                                  span: ['move', 'cast'].includes(actions[field.key]) ? 6 : 4
+                                }}
+                                labelAlign="left"
+                                rules={[requiredValidator(true, 'This')]}
                               >
-                                {
-                                  Object.keys(MAPPING_NAMES).map(key =>
-                                    <Select.Option key={key} value={key}>{MAPPING_NAMES[key]}</Select.Option>
-                                  )
-                                }
-                              </Select>
-                            </Form.Item>
-                          </div>
-
-                          <div className={cn(styles.mapInputWrap, styles.fieldWrap)}>
+                                <Select onChange={handleActionChange(field.key)}>
+                                  {
+                                    Object.keys(MAPPING_NAMES).map((key: MappingAction) =>
+                                      <Select.Option key={key} value={key}>{MAPPING_NAMES[key]}</Select.Option>
+                                    )
+                                  }
+                                </Select>
+                              </Form.Item>
+                            </Col>
                             {
-                              mappingActions?.[field.name] !== 'erase' && (
-                                <>
-                                  <label className={styles.mapInputLabel} htmlFor={`dst-field-${field.name}`}>To: </label>
-                                  <Form.Item name={[field.name, '_dstField']}>
-                                    <Input
-                                      autoComplete="off"
-                                      className={styles.mapInput}
-                                      id={`dst-field-${field.name}`}
-                                    />
+                              actions[field.key] === 'constant' && (
+                                <Col className={styles.secondaryLabel} span={12}>
+                                  <Form.Item
+                                    name={[field.name, '_value']}
+                                    label="Value"
+                                    labelCol={{ span: 3 }}
+                                    labelAlign="left"
+                                  >
+                                    <Input />
                                   </Form.Item>
+                                </Col>
+                              )
+                            }
+                            {
+                              ['move', 'cast'].includes(actions[field.key]) && (
+                                <>
+                                  <Col className={styles.secondaryLabel} span={7}>
+                                    <Form.Item
+                                      name={[field.name, '_type']}
+                                      label="Type"
+                                      labelCol={{ span: 5 }}
+                                      labelAlign="left"
+                                      rules={actions[field.key] === 'cast' ? [requiredValidator(true, 'This')] : undefined}
+                                    >
+                                      <Input onChange={handleTypeChange(field.key)} />
+                                    </Form.Item>
+                                  </Col>
+                                  <Col className={styles.secondaryLabel} span={9}>
+                                    <Form.Item
+                                      name={[field.name, '_columnType']}
+                                      label="Column type"
+                                      labelCol={{ span: 7 }}
+                                      labelAlign="left"
+                                    >
+                                      <Input />
+                                    </Form.Item>
+                                  </Col>
                                 </>
                               )
                             }
-                          </div>
+                          </Row>
 
-                          <DeleteOutlined className={styles.mapBtn} onClick={handleDeleteField(remove, field.key)} />
+                          <Row>
+                            {
+                              !['constant', 'cast'].includes(actions[field.key]) && (
+                                <Col span={12}>
+                                  <Form.Item
+                                    name={[field.name, '_srcField']}
+                                    label="From"
+                                    labelCol={{ span: 4 }}
+                                    labelAlign="left"
+                                    rules={validationChain(
+                                      requiredValidator(true, 'This'),
+                                      jsonPointerValidator()
+                                    )}
+                                  >
+                                    <Input />
+                                  </Form.Item>
+                                </Col>
+                              )
+                            }
+
+                            {
+                              actions[field.key] !== 'remove' && (
+                                <Col span={12} className={cn(!['constant', 'cast'].includes(actions[field.key]) && styles.secondaryLabel)}>
+                                  <Form.Item
+                                    name={[field.name, '_dstField']}
+                                    label="To"
+                                    labelCol={{ span: 4 }}
+                                    labelAlign="left"
+                                    rules={validationChain(
+                                      requiredValidator(true, 'This'),
+                                      jsonPointerValidator()
+                                    )}
+                                  >
+                                    <Input />
+                                  </Form.Item>
+                                </Col>
+                              )
+                            }
+                          </Row>
                         </div>
                       );
                     })
                   }
                 </>
 
-                <div className={styles.btnsLine}>
-                  <Button type="ghost" onClick={handleAddField(add)} className={styles.btn} icon={<PlusOutlined />}>
+                <div>
+                  <Button type="ghost" icon={<PlusOutlined />} onClick={handleAdd(add)}>
                     Add new Field Mapping
                   </Button>
-
-                  <Button className={styles.btn} icon={<PlayCircleFilled />} disabled={true}>
-                    <ComingSoon render="Test Mapping" documentation="Try created mapping" />
-                  </Button>
-
-                  {
-                    defaultMappingLibrary && (
-                      <Button className={styles.btn} icon={<FileTextOutlined />} onClick={handleUseTemplate}>
-                        Use mappings template
-                      </Button>
-                    )
-                  }
                 </div>
               </div>
             )
           }
         </Form.List>
+
+        <Button htmlType="submit">Submit</Button>
       </Form>
     </>
   );

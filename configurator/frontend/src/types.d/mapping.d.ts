@@ -1,4 +1,4 @@
-declare type MappingAction = 'erase' | 'cast/int' | 'cast/double' | 'cast/date' | 'move' | 'constant';
+declare type MappingAction = 'remove' | 'cast' | 'move' | 'constant';
 
 declare interface MappingRow {
   _srcField: string;
