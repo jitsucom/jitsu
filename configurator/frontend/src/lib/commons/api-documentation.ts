@@ -34,33 +34,29 @@ function findIndent(str: string) {
   return ident.join('');
 }
 
-export function getEmpeddedJS(segment: boolean, ga: boolean, key: string, host: string) {
+export function getEmbeddedHtml(segment: boolean,  key: string, host: string) {
   return formatCode(`
-    !function(t){try{var e,n=t.tracking_host,r=(t.script_path||"/")+"s/track.js",i=window.eventN||(window.eventN={});i.eventsQ=e=i.eventsQ||(i.eventsQ=[]);var a=function(t){i[t]=function(){for(var n=arguments.length,r=new Array(n),i=0;i<n;i++)r[i]=arguments[i];return e.push([t].concat(r))}};a("track"),a("id"),a("init"),i.init(t);var c=document.createElement("script");c.type="text/javascript",c.async=!0,c.src=(n.startsWith("https://")||n.startsWith("http://")?n:location.protocol+"//"+n)+r;var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(c,s)}catch(t){console.log("EventNative init failed",t)}}({
-        "key": "${key}",
-        "tracking_host": "https://${host}",
-        "ga_hook": ${ga},
-        "segment_hook": ${segment}
-    });
-    eventN.track('pageview');
-`);
+    <script src="https://${host}/lib.js"
+            data-key="${key}"${segment ? '\n            data-segment-hook="true"' : ''}
+            data-init-only="true"${!segment ? '\n            defer' : ''}></script>
+    `);
 }
 
 export function getNPMDocumentation(key: string, host: string) {
   return formatCode(`
-    const { eventN } = require('@ksense/eventnative');
+    import { jitsuClient } from '@jitsu/sdk-js'
     //init
-    eventN.init({
+    const jitsu = jitsuClient({
         key: "${key}",
         tracking_host: "https://${host}"
     });
     //identify user
-    eventN.id({
+    jitsu.id({
         "email": getEmail(),
         "internal_id": getId()
     });
     //track page views
-    eventN.track('app_page');
+    jitsu.track('app_page');
     `);
 }
 
