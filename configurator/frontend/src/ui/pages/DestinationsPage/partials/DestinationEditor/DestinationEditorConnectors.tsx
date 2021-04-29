@@ -36,14 +36,10 @@ export interface Props {
 }
 
 const DestinationEditorConnectors = ({ form, initialValues, destination }: Props) => {
-  const history = useHistory();
-
   const service = ApplicationServices.get();
 
   const [sourcesError, sourcesData] = useLoader(async() => await service.storageService.get('sources', service.activeProject.id));
   const [apiKeysError, apiKeysData] = useLoader(async() => await service.storageService.get('api_keys', service.activeProject.id));
-
-  const handleEditAction = useCallback((id: string) => () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: id })), [history]);
 
   const sourcesList = useMemo<ConnectedItem[]>(
     () => sourcesData?.sources
@@ -59,7 +55,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination }: Props
       })
       :
       [],
-    [handleEditAction, sourcesData?.sources]
+    [sourcesData?.sources]
   );
 
   const apiKeysList = useMemo<ConnectedItem[]>(
