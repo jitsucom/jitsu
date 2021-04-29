@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/entities"
@@ -100,7 +101,12 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 			destinationIDs = append(destinationIDs, projectID+"."+destinationID)
 		}
 
-		mappedConfig := mapSourceConfig(source, destinationIDs)
+		mappedConfig, err := mapSourceConfig(source, destinationIDs)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: fmt.Sprintf("Failed to map source [%s] config", sourceID), Error: err.Error()})
+			return
+		}
+
 		mappedSources[sourceID] = &mappedConfig
 	}
 
