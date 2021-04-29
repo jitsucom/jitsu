@@ -223,8 +223,18 @@ ol, ul {
 .form-field_fixed-label {
   .ant-form-item-label {
     label {
+      align-items: unset;
+      padding-right: 10px;
+
+      span {
+        white-space: normal;
+      }
+
       &::after {
         content: '';
+        display: inline-block;
+        position: static;
+        margin: 0 0 0 2px;
       }
     }
   }
