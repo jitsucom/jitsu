@@ -12,6 +12,7 @@ export interface Tab {
   readonly name: React.ReactNode;
   readonly getComponent?: (form: FormInstance) => React.ReactNode;
   readonly isDisabled?: boolean;
+  readonly isHidden?: boolean;
   form?: FormInstance;
   errorsCount?: number;
   readonly errorsLevel?: 'warning' | 'error';
@@ -27,7 +28,7 @@ export interface Props {
 const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex = 0 }: Props) => (
   <Tabs type={type} className={className} defaultActiveKey={tabsList[defaultTabIndex]?.key ?? tabsList[0].key}>
     {
-      tabsList.map((tab: Tab) =>  (
+      tabsList.map((tab: Tab) => !tab.isHidden ? (
         <React.Fragment key={tab.key}>
           <Tabs.TabPane
             key={tab.key}
@@ -38,7 +39,7 @@ const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex 
             {tab.getComponent?.(tab.form)}
           </Tabs.TabPane>
         </React.Fragment>
-      ))
+      ) : null)
     }
   </Tabs>
 );

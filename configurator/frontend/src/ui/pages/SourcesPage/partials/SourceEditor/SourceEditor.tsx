@@ -95,7 +95,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         handleTouchAnyField={setTouchedFields}
       />
     ),
-    form: Form.useForm()[0]
+    form: Form.useForm()[0],
+    isHidden: connectorSource.isSingerType
   },
   {
     key: 'destinations',
