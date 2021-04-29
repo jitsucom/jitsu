@@ -6,16 +6,16 @@ package jsonutils
 // 	  "key4/key5/key6" -> JSONPath: [key4, key5, key6]
 // 	  "key7/key8/key9" -> JSONPath: [key7, key8, key9]
 type JSONPaths struct {
-	paths map[string]*SingleJSONPath
+	paths map[string]JSONPath
 }
 
 // NewJSONPaths parses configuration settings
 // and returns map of parsed recognition nodes
 func NewJSONPaths(pathes []string) *JSONPaths {
-	container := make(map[string]*SingleJSONPath)
+	container := make(map[string]JSONPath)
 
 	for _, path := range pathes {
-		container[path] = NewSingleJSONPath(path)
+		container[path] = NewJSONPath(path)
 	}
 
 	return &JSONPaths{
@@ -23,6 +23,7 @@ func NewJSONPaths(pathes []string) *JSONPaths {
 	}
 }
 
+//String returns string representation of JSONPaths
 func (jpa *JSONPaths) String() string {
 	result := ""
 
