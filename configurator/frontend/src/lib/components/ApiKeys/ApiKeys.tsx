@@ -10,7 +10,7 @@ import './ApiKeys.less';
 import { ActionLink, CenteredError, CenteredSpin, CodeInline, CodeSnippet, handleError, LabelWithTooltip, LoadableComponent } from '../components';
 import { copyToClipboard, randomId } from '../../commons/utils';
 import TagsInput from '../TagsInput/TagsInput';
-import { getCurlDocumentation, getEmpeddedJS, getNPMDocumentation } from '../../commons/api-documentation';
+import { getCurlDocumentation, getEmbeddedHtml, getNPMDocumentation } from '../../commons/api-documentation';
 import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 import useLoader from '@./lib/commons/useLoader';
@@ -308,7 +308,6 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
 }
 
 function KeyDocumentation({ token }: { token: Token }) {
-  const [gaEnabled, setGAEnabled] = useState(false);
   const [segment, setSegmentEnabled] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState(null);
   const services = ApplicationServices.get();
@@ -334,19 +333,8 @@ function KeyDocumentation({ token }: { token: Token }) {
         <LabelWithTooltip
           documentation={
             <>
-              Check if you want to intercept events from Google Analytics (
-              <a href="https://docs.eventnative.org/javascript-reference">Read more</a>)
-            </>
-          }
-        >
-          Intercept GA events
-        </LabelWithTooltip>
-        <Switch size="small" checked={gaEnabled} onChange={() => setGAEnabled(!gaEnabled)} />
-        <LabelWithTooltip
-          documentation={
-            <>
               Check if you want to intercept events from Segment (
-              <a href="https://docs.eventnative.org/javascript-reference">Read more</a>)
+              <a href="https://jitsu.com/docs/sending-data/js-sdk/snippet#intercepting-segment-events">Read more</a>)
             </>
           }
         >
@@ -377,19 +365,18 @@ function KeyDocumentation({ token }: { token: Token }) {
         <p className="api-keys-documentation-tab-description">
           Easiest way to start tracking events within your web app is to add following snippet to{' '}
           <CodeInline>&lt;head&gt;</CodeInline> section of your html file.{' '}
-          <a href="https://docs.eventnative.org/javascript-reference">Read more</a> about JavaScript integration on our
+          <a href="https://jitsu.com/docs/sending-data/js-sdk/">Read more</a> about JavaScript integration on our
           documentation website
         </p>
-        <CodeSnippet language="javascript" extra={exampleSwitches}>
-          {getEmpeddedJS(segment, gaEnabled, token.jsAuth, documentationDomain)}
+        <CodeSnippet language="html" extra={exampleSwitches}>
+          {getEmbeddedHtml(segment, token.jsAuth, documentationDomain)}
         </CodeSnippet>
       </Tabs.TabPane>
       <Tabs.TabPane tab="Use NPM/YARN" key="2">
         <p className="api-keys-documentation-tab-description">
-          Use <CodeInline>npm install --save @ksense/eventnative</CodeInline> or{' '}
-          <CodeInline>yarn add @ksense/eventnative</CodeInline>. Read more{' '}
-          <a href="https://docs.eventnative.org/javascript-reference/direct-tracking">about configuration properties</a>{' '}
-          and <a href="https://docs.eventnative.org/javascript-reference/direct-tracking">tracking api</a>
+          Use <CodeInline>npm install --save @jitsu/sdk-js</CodeInline> or{' '}
+          <CodeInline>yarn add @jitsu/sdk-js</CodeInline>. Read more{' '}
+          <a href="https://jitsu.com/docs/sending-data/js-sdk/package">about configuration properties</a>
         </p>
         <CodeSnippet language="javascript">{getNPMDocumentation(token.jsAuth, documentationDomain)}</CodeSnippet>
       </Tabs.TabPane>

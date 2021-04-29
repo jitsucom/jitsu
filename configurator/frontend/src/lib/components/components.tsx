@@ -401,6 +401,7 @@ import js from 'react-syntax-highlighter/dist/esm/languages/hljs/javascript';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 import yaml from 'react-syntax-highlighter/dist/esm/languages/hljs/yaml';
 import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
+import html from 'react-syntax-highlighter/dist/esm/languages/hljs/xml'
 import { ArgsProps, MessageInstance } from 'antd/es/message';
 import { MessageType } from 'antd/lib/message';
 
@@ -408,12 +409,13 @@ SyntaxHighlighter.registerLanguage('javascript', js);
 SyntaxHighlighter.registerLanguage('json', json);
 SyntaxHighlighter.registerLanguage('yaml', yaml);
 SyntaxHighlighter.registerLanguage('bash', bash);
+SyntaxHighlighter.registerLanguage('html', html);
 
 const SyntaxHighlighterAsync = SyntaxHighlighter; //lazyComponent(() => import('react-syntax-highlighter'));
 
 type ICodeSnippetProps = {
   children: ReactNode;
-  language: 'javascript' | 'bash' | 'yaml' | 'json';
+  language: 'javascript' | 'bash' | 'yaml' | 'json' | 'html';
   className?: string;
   extra?: ReactNode;
   size?: 'large' | 'small';
