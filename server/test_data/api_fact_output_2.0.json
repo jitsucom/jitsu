@@ -1,0 +1,17 @@
+{
+  "_timestamp":"2020-06-16T23:00:00.000000Z",
+  "api_key":"s2stoken",
+  "custom_data": {
+    "key1": "key2"
+  },
+  "eventn_ctx_event_id": "123456",
+  "user_agent": "UA API TEST 2.0",
+  "page_title": "Jitsu Demo",
+  "referer": "",
+  "url": "http://track-demo.jitsu",
+  "user": {
+    "id": 123
+  },
+  "source_ip":"95.82.232.185",
+  "src":"api"
+}

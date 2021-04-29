@@ -40,14 +40,14 @@ func TestProcessFilePayload(t *testing.T) {
 		{
 			"Empty input file",
 			parsers.ParseJSON,
-			"../test_data/fact_input_empty.log",
+			"../test_data/fact_input_empty_1.0.log",
 			map[string]*ProcessedFile{},
 			[]events.FailedEvent{},
 		},
 		{
 			"Input file with some errors and one skipped line",
 			parsers.ParseJSON,
-			"../test_data/fact_input_with_error_lines.log",
+			"../test_data/fact_input_with_error_lines_1.0.log",
 			map[string]*ProcessedFile{
 				"user_2020_07": {FileName: "testfile", payload: []map[string]interface{}{
 					{"_geo_data_region": "NY", "_timestamp": testTime1, "event_type": "user", "key1": 120.0, "key3": "privvvv"},

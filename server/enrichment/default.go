@@ -11,20 +11,20 @@ var (
 	DefaultJsUaRule = &UserAgentParseRule{}
 )
 
-//initializing default lookup enrichment rules.
+//InitDefault initializes default lookup enrichment rules
 //must be called after appconfig.Init()
-func InitDefault() {
+func InitDefault(srcIP, dstIP, srcUA, dstUA string) {
 	DefaultJsIPRule = &IPLookupRule{
-		source:      jsonutils.NewJSONPath("/source_ip"),
-		destination: jsonutils.NewJSONPath("/eventn_ctx/location"),
+		source:      jsonutils.NewJSONPath(srcIP),
+		destination: jsonutils.NewJSONPath(dstIP),
 		geoResolver: appconfig.Instance.GeoResolver,
 		enrichmentConditionFunc: func(m map[string]interface{}) bool {
 			src := events.ExtractSrc(m)
 			return src != "api"
 		}}
 	DefaultJsUaRule = &UserAgentParseRule{
-		source:      jsonutils.NewJSONPath("/eventn_ctx/user_agent"),
-		destination: jsonutils.NewJSONPath("/eventn_ctx/parsed_ua"),
+		source:      jsonutils.NewJSONPath(srcUA),
+		destination: jsonutils.NewJSONPath(dstUA),
 		uaResolver:  appconfig.Instance.UaResolver,
 		enrichmentConditionFunc: func(m map[string]interface{}) bool {
 			src := events.ExtractSrc(m)

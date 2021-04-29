@@ -13,7 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"github.com/jitsucom/jitsu/server/users"
 	"net/http"
 	"strconv"
 	"strings"
@@ -41,20 +40,17 @@ type CachedEventsResponse struct {
 
 //EventHandler accepts all events
 type EventHandler struct {
-	destinationService     *destinations.Service
-	preprocessor           events.Preprocessor
-	eventsCache            *caching.EventsCache
-	userRecognitionService *users.RecognitionService
+	destinationService *destinations.Service
+	processor          events.Processor
+	eventsCache        *caching.EventsCache
 }
 
 //NewEventHandler returns configured EventHandler
-func NewEventHandler(destinationService *destinations.Service, preprocessor events.Preprocessor, eventsCache *caching.EventsCache,
-	userRecognitionService *users.RecognitionService) (eventHandler *EventHandler) {
+func NewEventHandler(destinationService *destinations.Service, processor events.Processor, eventsCache *caching.EventsCache) (eventHandler *EventHandler) {
 	return &EventHandler{
-		destinationService:     destinationService,
-		preprocessor:           preprocessor,
-		eventsCache:            eventsCache,
-		userRecognitionService: userRecognitionService,
+		destinationService: destinationService,
+		processor:          processor,
+		eventsCache:        eventsCache,
 	}
 }
 
@@ -85,7 +81,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 
 	//** Context enrichment **
 	//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
-	enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.preprocessor, destinationStorages[0].GetUniqueIDField())
+	enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.processor, destinationStorages[0].GetUniqueIDField())
 
 	//** Caching **
 	//clone payload for preventing concurrent changes while serialization
@@ -117,7 +113,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	}
 
 	//Retrospective users recognition
-	eh.userRecognitionService.Event(payload, eventID, destinationIDs)
+	eh.processor.Postprocess(payload, eventID, destinationIDs)
 
 	counters.SuccessSourceEvents(tokenID, 1)
 

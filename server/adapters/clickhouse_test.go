@@ -150,7 +150,7 @@ func TestTableStatementFactory(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			factory, err := NewTableStatementFactory(tt.inputConfig, "eventn_ctx_event_id")
+			factory, err := NewTableStatementFactory(tt.inputConfig)
 			if tt.expectedTableStatement == "" {
 				require.Error(t, err, "Clickhouse config can't be nil")
 				return

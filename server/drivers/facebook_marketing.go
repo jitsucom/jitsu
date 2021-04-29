@@ -82,7 +82,7 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, colle
 	if reportConfig.Level == "" {
 		reportConfig.Level = "ad"
 
-		logging.Warnf("[%s_%s] parameters.level wasn't provided. Will be used default one: %s", sourceConfig.Name, collection.Name, reportConfig.Level)
+		logging.Warnf("[%s_%s] parameters.level wasn't provided. Will be used default one: %s", sourceConfig.SourceID, collection.Name, reportConfig.Level)
 	}
 
 	if collection.Type != AdsCollection && collection.Type != InsightsCollection {

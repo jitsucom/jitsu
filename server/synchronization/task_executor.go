@@ -138,7 +138,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	//get destinations
 	var destinationStorages []storages.Storage
 	for _, destinationID := range sourceUnit.DestinationIDs {
-		storageProxy, ok := te.destinationService.GetStorageByID(destinationID)
+		storageProxy, ok := te.destinationService.GetDestinationByID(destinationID)
 		if ok {
 			storage, ok := storageProxy.Get()
 			if ok {
@@ -250,7 +250,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 		uniqueIDField := destinationStorages[0].GetUniqueIDField()
 		for _, object := range objects {
 			//enrich with values
-			object["src"] = srcSource
+			object[events.SrcKey] = srcSource
 			object[timestamp.Key] = timestamp.NowUTC()
 			if err := uniqueIDField.Set(object, uuid.GetHash(object)); err != nil {
 				b, _ := json.Marshal(object)

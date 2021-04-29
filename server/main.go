@@ -123,7 +123,12 @@ func main() {
 		logging.Fatal(err)
 	}
 
-	enrichment.InitDefault()
+	enrichment.InitDefault(
+		viper.GetString("server.fields_configuration.src_source_ip"),
+		viper.GetString("server.fields_configuration.dst_source_ip"),
+		viper.GetString("server.fields_configuration.src_ua"),
+		viper.GetString("server.fields_configuration.dst_ua"),
+	)
 
 	safego.GlobalRecoverHandler = func(value interface{}) {
 		logging.Error("panic")
@@ -211,27 +216,20 @@ func main() {
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
 	// ** Retrospective users recognition
-	var globalRecognitionConfiguration *storages.UsersRecognition
-	if viper.IsSet("users_recognition") {
-		globalRecognitionConfiguration = &storages.UsersRecognition{
-			Enabled:             viper.GetBool("users_recognition.enabled"),
-			AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
-			IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
-			UserIDNode:          viper.GetString("users_recognition.user_id_node"),
-		}
+	globalRecognitionConfiguration := &storages.UsersRecognition{
+		Enabled:             viper.GetBool("users_recognition.enabled"),
+		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
+		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
+		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
+	}
 
-		err := globalRecognitionConfiguration.Validate()
-		if err != nil {
-			logging.Fatalf("Invalid global users recognition configuration: %v", err)
-		}
-
-	} else {
-		logging.Info("Global users recognition isn't configured")
+	if err := globalRecognitionConfiguration.Validate(); err != nil {
+		logging.Fatalf("Invalid global users recognition configuration: %v", err)
 	}
 
 	maxColumns := viper.GetInt("server.max_columns")
 	logging.Infof("Limit server.max_columns is %d", maxColumns)
-	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, maxColumns)
+	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns)
 
 	//Create event destinations
 	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory)
