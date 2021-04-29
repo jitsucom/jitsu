@@ -9,7 +9,6 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
-import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 // @Constants
 import { MAPPING_NAMES } from '@./constants/mapping';
 import { DESTINATION_EDITOR_MAPPING } from '@./embeddedDocs/mappings';
@@ -35,7 +34,9 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
   }, [actions]);
 
   const handleDelete = useCallback((remove: FormListOperation['remove'], index: number) => () => {
-    const array = [...actions].splice(index, 1);
+    const array = [...actions];
+
+    array.splice(index, 1);
 
     remove(index);
 
@@ -44,8 +45,12 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
 
   const handleAdd = useCallback((add: FormListOperation['add']) => () => {
     add({});
-  }, []);
 
+    setActions([
+      ...actions,
+      '' as MappingAction
+    ]);
+  }, [actions]);
   const handleTypeChange = useCallback((index: number) => (event: React.ChangeEvent<HTMLInputElement>) => {
     const formValues = form.getFieldsValue();
     const mappings = formValues['_mappings._mapping'];
