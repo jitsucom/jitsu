@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select } from 'antd';
 import cn from 'classnames';
 // @Components
@@ -50,7 +50,12 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
       ...actions,
       '' as MappingAction
     ]);
+
+    const tabScrollingEl = document.querySelector('#dst-editor-tabs')?.querySelector('.ant-tabs-content');
+
+    setTimeout(() => tabScrollingEl.scrollTo(0, tabScrollingEl.scrollHeight), 0);
   }, [actions]);
+
   const handleTypeChange = useCallback((index: number) => (event: React.ChangeEvent<HTMLInputElement>) => {
     const formValues = form.getFieldsValue();
     const mappings = formValues['_mappings._mapping'];
@@ -88,124 +93,122 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
               <div className={styles.mappings}>
                 <>
                   {
-                    fields.map((field: FormListFieldData) => {
-                      return (
-                        <div key={`mapping-${field.name}`} className={cn(styles.mappingsItem, 'bg-bgSecondary border rounded-xl')}>
-                          <div className={styles.delete}>
-                            <span className={styles.deleteLink} onClick={handleDelete(remove, field.key)}>Delete</span>
-                          </div>
+                    fields.map((field: FormListFieldData) => (
+                      <div key={`mapping-${field.name}`} className={cn(styles.mappingsItem, 'bg-bgSecondary border rounded-xl')}>
+                        <div className={styles.delete}>
+                          <span className={styles.deleteLink} onClick={handleDelete(remove, field.name)}>Delete</span>
+                        </div>
 
-                          <Row>
-                            <Col span={['move', 'cast'].includes(actions[field.key]) ? 8 : 12}>
-                              <Form.Item
-                                className="form-field_fixed-label"
-                                name={[field.name, '_action']}
-                                label={<span>Action: </span>}
-                                labelCol={{
-                                  span: ['move', 'cast'].includes(actions[field.key]) ? 6 : 4
-                                }}
-                                labelAlign="left"
-                                rules={[requiredValidator(true, 'This')]}
-                              >
-                                <Select onChange={handleActionChange(field.key)}>
-                                  {
-                                    Object.keys(MAPPING_NAMES).map((key: MappingAction) =>
-                                      <Select.Option key={key} value={key}>{MAPPING_NAMES[key]}</Select.Option>
-                                    )
-                                  }
-                                </Select>
-                              </Form.Item>
-                            </Col>
-                            {
-                              actions[field.key] === 'constant' && (
-                                <Col className={styles.secondaryLabel} span={12}>
+                        <Row>
+                          <Col span={['move', 'cast'].includes(actions[field.name]) ? 8 : 12}>
+                            <Form.Item
+                              className="form-field_fixed-label"
+                              name={[field.name, '_action']}
+                              label={<span>Action: </span>}
+                              labelCol={{
+                                span: ['move', 'cast'].includes(actions[field.name]) ? 6 : 4
+                              }}
+                              labelAlign="left"
+                              rules={[requiredValidator(true, 'This')]}
+                            >
+                              <Select onChange={handleActionChange(field.name)}>
+                                {
+                                  Object.keys(MAPPING_NAMES).map((key: MappingAction) =>
+                                    <Select.Option key={key} value={key}>{MAPPING_NAMES[key]}</Select.Option>
+                                  )
+                                }
+                              </Select>
+                            </Form.Item>
+                          </Col>
+                          {
+                            actions[field.name] === 'constant' && (
+                              <Col className={styles.secondaryLabel} span={12}>
+                                <Form.Item
+                                  className="form-field_fixed-label"
+                                  name={[field.name, '_value']}
+                                  label={<span style={{ whiteSpace: 'nowrap' }}>Value: <sup>optional</sup></span>}
+                                  labelCol={{ span: 5 }}
+                                  labelAlign="left"
+                                >
+                                  <Input />
+                                </Form.Item>
+                              </Col>
+                            )
+                          }
+                          {
+                            ['move', 'cast'].includes(actions[field.name]) && (
+                              <>
+                                <Col className={styles.secondaryLabel} span={7}>
                                   <Form.Item
                                     className="form-field_fixed-label"
-                                    name={[field.name, '_value']}
-                                    label={<span style={{ whiteSpace: 'nowrap' }}>Value: <sup>optional</sup></span>}
-                                    labelCol={{ span: 5 }}
+                                    name={[field.name, '_type']}
+                                    label={actions[field.name] === 'cast' ? <span>Type: </span> : <span>Type: <sup>optional</sup></span>}
+                                    labelCol={{ span: 9 }}
+                                    labelAlign="left"
+                                    rules={actions[field.name] === 'cast' ? [requiredValidator(true, 'This')] : undefined}
+                                  >
+                                    <Input onChange={handleTypeChange(field.name)} autoComplete="off" />
+                                  </Form.Item>
+                                </Col>
+                                <Col className={styles.secondaryLabel} span={9}>
+                                  <Form.Item
+                                    className="form-field_fixed-label"
+                                    name={[field.name, '_columnType']}
+                                    label={<span>Column type: <sup>optional</sup></span>}
+                                    labelCol={{ span: 10 }}
                                     labelAlign="left"
                                   >
                                     <Input />
                                   </Form.Item>
                                 </Col>
-                              )
-                            }
-                            {
-                              ['move', 'cast'].includes(actions[field.key]) && (
-                                <>
-                                  <Col className={styles.secondaryLabel} span={7}>
-                                    <Form.Item
-                                      className="form-field_fixed-label"
-                                      name={[field.name, '_type']}
-                                      label={actions[field.key] === 'cast' ? <span>Type: </span> : <span>Type: <sup>optional</sup></span>}
-                                      labelCol={{ span: 9 }}
-                                      labelAlign="left"
-                                      rules={actions[field.key] === 'cast' ? [requiredValidator(true, 'This')] : undefined}
-                                    >
-                                      <Input onChange={handleTypeChange(field.key)} autoComplete="off" />
-                                    </Form.Item>
-                                  </Col>
-                                  <Col className={styles.secondaryLabel} span={9}>
-                                    <Form.Item
-                                      className="form-field_fixed-label"
-                                      name={[field.name, '_columnType']}
-                                      label={<span>Column type: <sup>optional</sup></span>}
-                                      labelCol={{ span: 10 }}
-                                      labelAlign="left"
-                                    >
-                                      <Input />
-                                    </Form.Item>
-                                  </Col>
-                                </>
-                              )
-                            }
-                          </Row>
+                              </>
+                            )
+                          }
+                        </Row>
 
-                          <Row>
-                            {
-                              !['constant', 'cast'].includes(actions[field.key]) && (
-                                <Col span={12}>
-                                  <Form.Item
-                                    className="form-field_fixed-label"
-                                    name={[field.name, '_srcField']}
-                                    label={<span>From: </span>}
-                                    labelCol={{ span: 4 }}
-                                    labelAlign="left"
-                                    rules={validationChain(
-                                      requiredValidator(true, 'This'),
-                                      jsonPointerValidator()
-                                    )}
-                                  >
-                                    <Input autoComplete="off" />
-                                  </Form.Item>
-                                </Col>
-                              )
-                            }
+                        <Row>
+                          {
+                            !['constant', 'cast'].includes(actions[field.name]) && (
+                              <Col span={12}>
+                                <Form.Item
+                                  className="form-field_fixed-label"
+                                  name={[field.name, '_srcField']}
+                                  label={<span>From: </span>}
+                                  labelCol={{ span: 4 }}
+                                  labelAlign="left"
+                                  rules={validationChain(
+                                    requiredValidator(true, 'This'),
+                                    jsonPointerValidator()
+                                  )}
+                                >
+                                  <Input autoComplete="off" />
+                                </Form.Item>
+                              </Col>
+                            )
+                          }
 
-                            {
-                              actions[field.key] !== 'remove' && (
-                                <Col span={12} className={cn(!['constant', 'cast'].includes(actions[field.key]) && styles.secondaryLabel)}>
-                                  <Form.Item
-                                    className="form-field_fixed-label"
-                                    name={[field.name, '_dstField']}
-                                    label={<span>To: </span>}
-                                    labelCol={{ span: 4 }}
-                                    labelAlign="left"
-                                    rules={validationChain(
-                                      requiredValidator(true, 'This'),
-                                      jsonPointerValidator()
-                                    )}
-                                  >
-                                    <Input autoComplete="off" />
-                                  </Form.Item>
-                                </Col>
-                              )
-                            }
-                          </Row>
-                        </div>
-                      );
-                    })
+                          {
+                            actions[field.name] !== 'remove' && (
+                              <Col span={12} className={cn(!['constant', 'cast'].includes(actions[field.name]) && styles.secondaryLabel)}>
+                                <Form.Item
+                                  className="form-field_fixed-label"
+                                  name={[field.name, '_dstField']}
+                                  label={<span>To: </span>}
+                                  labelCol={{ span: 4 }}
+                                  labelAlign="left"
+                                  rules={validationChain(
+                                    requiredValidator(true, 'This'),
+                                    jsonPointerValidator()
+                                  )}
+                                >
+                                  <Input autoComplete="off" />
+                                </Form.Item>
+                              </Col>
+                            )
+                          }
+                        </Row>
+                      </div>
+                    ))
                   }
                 </>
 
