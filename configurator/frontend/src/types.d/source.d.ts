@@ -18,4 +18,5 @@ declare interface SourceData {
   sourceType: string;
   sourceProtoType: string;
   connected: boolean;
+  connectedErrorMessage?: React.ReactNode;
 }

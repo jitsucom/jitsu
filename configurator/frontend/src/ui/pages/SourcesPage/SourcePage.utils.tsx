@@ -32,10 +32,16 @@ const sourcePageUtils = {
 
       message.success('Successfully connected!');
 
-      return true;
+      return {
+        connected: true
+      };
     } catch(error) {
       handleError(error, 'Unable to test connection with filled data');
-      return false;
+
+      return {
+        connected: false,
+        connectedErrorMessage: error
+      };
     }
   },
   getTitle: (src: SourceData) => {
