@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { generatePath, Prompt, useHistory, useParams } from 'react-router-dom';
+import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Form, message } from 'antd';
 import cn from 'classnames';
 // @Components
@@ -29,6 +29,7 @@ import styles from './DestinationEditor.module.less';
 import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 import { getUniqueAutoIncId, randomId } from '@util/numbers';
+import { firstToLower } from '@./lib/commons/utils';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
 
@@ -172,7 +173,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
         }
 
         try {
-          await destinationEditorUtils.testConnection(destinationData.current);
+          await destinationEditorUtils.testConnection(destinationData.current, true);
 
           const payload = {
             destinations: editorMode === 'add'
@@ -191,9 +192,18 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
           touchedFields.current = false;
 
-          history.push(destinationPageRoutes.root);
+          if (destinationData.current._connectionTestOk) {
+            message.success('New destination has been added!');
+          } else {
+            message.warn(
+              `Destination has been saved, but test has failed with '${firstToLower(
+                destinationData.current._connectionErrorMessage
+              )}'. Data will not be piped to this destination`,
+              10
+            );
+          }
 
-          message.success('New destination has been added!');
+          history.push(destinationPageRoutes.root);
         } catch (errors) {}
       })
       .catch(() => {
