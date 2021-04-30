@@ -23,10 +23,16 @@ export interface Props {
   className?: string;
   type: TabsType;
   defaultTabIndex?: number;
+  onTabChange: (tabName: any) => void;
 }
 
-const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex = 0 }: Props) => (
-  <Tabs type={type} className={className} defaultActiveKey={tabsList[defaultTabIndex]?.key ?? tabsList[0].key}>
+const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex = 0, onTabChange }: Props) => (
+  <Tabs
+    type={type}
+    className={className}
+    defaultActiveKey={tabsList[defaultTabIndex]?.key ?? tabsList[0].key}
+    onChange={onTabChange}
+  >
     {
       tabsList.map((tab: Tab) => !tab.isHidden ? (
         <React.Fragment key={tab.key}>
