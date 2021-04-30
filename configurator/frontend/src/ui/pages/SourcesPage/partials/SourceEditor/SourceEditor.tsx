@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Prompt, useHistory, useParams } from 'react-router-dom';
+import { generatePath, Prompt, useHistory, useParams } from 'react-router-dom';
 import { Form, message } from 'antd';
 import cn from 'classnames';
 import { snakeCase } from 'lodash';
@@ -38,7 +38,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
   const forceUpdate = useForceUpdate();
 
-  const params = useParams<{ source?: string; sourceId?: string; }>();
+  const params = useParams<{ source?: string; sourceId?: string; tabName?: string; }>();
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false);
   const [savePopover, switchSavePopover] = useState<boolean>(false);
@@ -204,6 +204,14 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       });
   }, [forceUpdate, editorMode, projectId, history, services.storageService, sources, updateSources]);
 
+  const handleTabChange = useCallback((tabName: string) => {
+    const path = editorMode === 'add'
+      ? generatePath(sourcesPageRoutes.addExact, { source: params.source, tabName })
+      : generatePath(sourcesPageRoutes.editExact, { sourceId: params.sourceId, tabName })
+
+    history.replace(path);
+  }, [history, editorMode, params]);
+
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
@@ -219,7 +227,12 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     <>
       <div className={cn('flex flex-col items-stretch flex-auto')}>
         <div className={cn('flex-grow')}>
-          <TabsConfigurator type="card" tabsList={sourcesTabs.current} defaultTabIndex={0} />
+          <TabsConfigurator
+            type="card"
+            tabsList={sourcesTabs.current}
+            defaultTabIndex={sourcesTabs.current.findIndex(tab => tab.key === params.tabName) ?? 0}
+            onTabChange={handleTabChange}
+          />
         </div>
 
         <div className="flex-shrink border-t pt-2">
