@@ -20,7 +20,7 @@ import styles from './SourcesList.module.less';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
+import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 import { DropDownListItem } from '@molecule/DropDownList';
 // @Utils
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
