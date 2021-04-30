@@ -4,7 +4,6 @@ import { Col, Form, Input, Row, Select } from 'antd';
 // @Components
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 // @Types
-import { SourceFormCollectionsFieldProps as Props } from '../_common/SourceForm/SourceForm.types';
 import { Rule } from 'antd/lib/form';
 import { CollectionParameter } from '@catalog/sources/types';
 import { FormListFieldData } from 'antd/es/form/FormList';
