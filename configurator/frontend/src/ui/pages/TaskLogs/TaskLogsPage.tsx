@@ -1,10 +1,9 @@
 import { PageProps } from '@./navigation';
 import { useParams } from 'react-router-dom';
-import useLoader from '@./lib/commons/useLoader';
-import { DestinationConfig } from '@service/destinations';
 import ApplicationServices from '@service/ApplicationServices';
 import { useMemo } from 'react';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
+import useLoader from '@hooks/useLoader';
 
 export const taskLogsPageRoute = '/sources/logs/:sourceId/:taskId?'
 
