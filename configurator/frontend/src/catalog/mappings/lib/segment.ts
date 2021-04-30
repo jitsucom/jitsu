@@ -131,12 +131,27 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/url",
+            "dst": "/url",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/user/internal_id",
             "dst": "/user_id",
             "action": "move"
         },
         {
+            "src": "/user/internal_id",
+            "dst": "/user_id",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/user_agent",
+            "dst": "/context_user_agent",
+            "action": "move"
+        },
+        {
+            "src": "/user_agent",
             "dst": "/context_user_agent",
             "action": "move"
         },
@@ -147,7 +162,18 @@ const mapping: Mapping = {
             "type": "timestamp"
         },
         {
+            "src": "/utc_time",
+            "dst": "/sent_at",
+            "action": "move",
+            "type": "timestamp"
+        },
+        {
             "src": "/eventn_ctx/user_language",
+            "dst": "/context_locale",
+            "action": "move"
+        },
+        {
+            "src": "/user_language",
             "dst": "/context_locale",
             "action": "move"
         },
@@ -157,7 +183,17 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/doc_path",
+            "dst": "/path",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/page_title",
+            "dst": "/title",
+            "action": "move"
+        },
+        {
+            "src": "/page_title",
             "dst": "/title",
             "action": "move"
         },
@@ -167,7 +203,17 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/user/anonymous_id",
+            "dst": "/anonymous_id",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/referer",
+            "dst": "/referrer",
+            "action": "move"
+        },
+        {
+            "src": "/referer",
             "dst": "/referrer",
             "action": "move"
         },
@@ -177,12 +223,27 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/user/email",
+            "dst": "/email",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/doc_search",
             "dst": "/search",
             "action": "move"
         },
         {
+            "src": "/doc_search",
+            "dst": "/search",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/utm/source",
+            "dst": "/context_utm_source",
+            "action": "move"
+        },
+        {
+            "src": "/utm/source",
             "dst": "/context_utm_source",
             "action": "move"
         }

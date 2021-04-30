@@ -26,12 +26,27 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/user/anonymous_id",
+            "dst": "/cid",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/user/id",
             "dst": "/uid",
             "action": "move"
         },
         {
+            "src": "/user/id",
+            "dst": "/uid",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/user_agent",
+            "dst": "/ua",
+            "action": "move"
+        },
+        {
+            "src": "/user_agent",
             "dst": "/ua",
             "action": "move"
         },
@@ -46,7 +61,17 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/referer",
+            "dst": "/dr",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/utm/campaign",
+            "dst": "/cn",
+            "action": "move"
+        },
+        {
+            "src": "/utm/campaign",
             "dst": "/cn",
             "action": "move"
         },
@@ -56,7 +81,17 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/utm/source",
+            "dst": "/cs",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/utm/medium",
+            "dst": "/cm",
+            "action": "move"
+        },
+        {
+            "src": "/utm/medium",
             "dst": "/cm",
             "action": "move"
         },
@@ -66,7 +101,17 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/utm/term",
+            "dst": "/ck",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/utm/content",
+            "dst": "/cc",
+            "action": "move"
+        },
+        {
+            "src": "/utm/content",
             "dst": "/cc",
             "action": "move"
         },
@@ -76,7 +121,17 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/click_id/gclid",
+            "dst": "/gclid",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/click_id/dclid",
+            "dst": "/dclid",
+            "action": "move"
+        },
+        {
+            "src": "/click_id/dclid",
             "dst": "/dclid",
             "action": "move"
         },
@@ -86,7 +141,17 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/screen_resolution",
+            "dst": "/sr",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/vp_size",
+            "dst": "/vp",
+            "action": "move"
+        },
+        {
+            "src": "/vp_size",
             "dst": "/vp",
             "action": "move"
         },
@@ -96,7 +161,17 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/doc_encoding",
+            "dst": "/de",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/url",
+            "dst": "/dl",
+            "action": "move"
+        },
+        {
+            "src": "/url",
             "dst": "/dl",
             "action": "move"
         },
@@ -106,7 +181,17 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/doc_host",
+            "dst": "/dh",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/doc_path",
+            "dst": "/dp",
+            "action": "move"
+        },
+        {
+            "src": "/doc_path",
             "dst": "/dp",
             "action": "move"
         },
@@ -116,7 +201,17 @@ const mapping: Mapping = {
             "action": "move"
         },
         {
+            "src": "/page_title",
+            "dst": "/dt",
+            "action": "move"
+        },
+        {
             "src": "/eventn_ctx/user_language",
+            "dst": "/ul",
+            "action": "move"
+        },
+        {
+            "src": "/user_language",
             "dst": "/ul",
             "action": "move"
         },
