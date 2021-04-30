@@ -13,7 +13,7 @@ const destinationEditorUtils = {
       message.success('Successfully connected!');
     } catch (error) {
       dst._connectionTestOk = false;
-      dst._connectionErrorMessage = error;
+      dst._connectionErrorMessage = error.message ?? 'Failed to connect';
 
       handleError(error, 'Unable to test connection with filled data');
     }
