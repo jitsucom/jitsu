@@ -1,5 +1,6 @@
 // @Libs
 import { snakeCase } from 'lodash';
+import { message } from 'antd';
 // @Types
 import { SourceConnector } from '@catalog/sources/types';
 // @Utils
@@ -8,10 +9,8 @@ import { handleError } from '@./lib/components/components';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import Marshal from '@./lib/commons/marshalling';
-import { message, Tooltip } from 'antd';
+// @Components
 import { ListItemTitle } from '@atom/ListItemTitle';
-import { LabelWithTooltip } from '@atom/LabelWithTooltip';
-import { ListItemDescription } from '@atom/ListItemDescription';
 
 const sourcePageUtils = {
   getSourceType: (sourceConnector: SourceConnector) => sourceConnector.isSingerType
@@ -26,17 +25,21 @@ const sourcePageUtils = {
 
     return getUniqueAutoIncId(sourceProtoType, sourcesIds);
   },
-  testConnection: async(src: SourceData) => {
+  testConnection: async(src: SourceData, hideMessage?: boolean) => {
     try {
       await ApplicationServices.get().backendApiClient.post('/sources/test', Marshal.toPureJson(src));
 
-      message.success('Successfully connected!');
+      if (!hideMessage) {
+        message.success('Successfully connected!');
+      }
 
       return {
         connected: true
       };
     } catch(error) {
-      handleError(error, 'Unable to test connection with filled data');
+      if (!hideMessage) {
+        handleError(error, 'Unable to test connection with filled data');
+      }
 
       return {
         connected: false,

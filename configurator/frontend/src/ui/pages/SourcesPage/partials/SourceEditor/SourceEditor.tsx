@@ -171,7 +171,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
           }, {})
         };
 
-        const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current);
+        const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current, true);
 
         sourceData.current = {
           ...sourceData.current,
@@ -198,7 +198,11 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
           history.push(sourcesPageRoutes.root);
 
-          message.success('New destination has been added!');
+          if (sourceData.current.connected) {
+            message.success('New destination has been added!');
+          } else {
+
+          }
         } catch(error) {
           handleError(error, 'Something goes wrong, source hasn\'t been added');
         }
