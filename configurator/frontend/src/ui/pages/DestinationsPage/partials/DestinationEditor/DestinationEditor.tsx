@@ -120,12 +120,6 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     isDisabled: true,
     touched: false
   }]);
-
-  const setTouchedFields = useCallback(
-    (index: number) => (value: boolean) => destinationsTabs.current[index].touched = value === undefined ? true : value,
-    []
-  );
-
   const getPromptMessage = useCallback(() => destinationsTabs.current.some(tab => tab.touched)
     ? 'You have unsaved changes. Are you sure you want to leave the page?'
     : undefined, []);
@@ -147,16 +141,27 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
         }
       }
 
+      tab.errorsCount = 0;
+
       return await form.validateFields();
     } catch (errors) {
       // ToDo: check errors count for fields with few validation rules
       tab.errorsCount = errors.errorFields?.length;
 
-      forceUpdate();
-
       throw errors;
+    } finally {
+      forceUpdate();
     }
   }, [forceUpdate]);
+
+  const setTouchedFields = useCallback(
+    (index: number) => (value: boolean) => {
+      destinationsTabs.current[index].touched = value === undefined ? true : value;
+
+      validateTabForm(destinationsTabs.current[index]);
+    },
+    [validateTabForm]
+  );
 
   const handleTestConnection = useCallback(async() => {
     setTestConnecting(true);

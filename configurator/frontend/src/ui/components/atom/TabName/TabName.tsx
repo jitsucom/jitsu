@@ -22,4 +22,4 @@ const TabNameComponent = ({ name, errorsCount, errorsLevel = 'error' }: Props) =
 
 TabNameComponent.displayName = 'TabName';
 
-export const TabName = memo(TabNameComponent);
+export const TabName = TabNameComponent;

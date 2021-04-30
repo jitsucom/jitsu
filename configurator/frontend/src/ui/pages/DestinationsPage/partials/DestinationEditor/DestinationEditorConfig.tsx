@@ -1,6 +1,7 @@
 // @Libs
 import React from 'react';
 import { Form } from 'antd';
+import { debounce } from 'lodash';
 // @Components
 import { ConfigurableFieldsForm } from '@molecule/ConfigurableFieldsForm';
 // @Types
@@ -15,12 +16,13 @@ export interface Props {
 }
 
 const DestinationEditorConfig = ({ destinationData, destinationReference, form, handleTouchAnyField }: Props) => {
+  const handleChange = debounce(handleTouchAnyField, 500);
   return (
     <Form
       name="destination-config"
       form={form}
       autoComplete="off"
-      onChange={handleTouchAnyField}
+      onChange={handleChange}
     >
       <ConfigurableFieldsForm fieldsParamsList={destinationReference.parameters} form={form} initialValues={destinationData} />
     </Form>

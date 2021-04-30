@@ -118,8 +118,14 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   }]);
 
   const setTouchedFields = useCallback(
-    (index: number) => (value: boolean) => sourcesTabs.current[index].touched = value === undefined ? true : value,
-    []
+    (index: number) => (value: boolean) => {
+      const tab = sourcesTabs.current[index];
+
+      tab.touched = value === undefined ? true : value
+
+      validateTabForm(tab, { forceUpdate, beforeValidate: () => tab.errorsCount = 0, errorCb: errors => tab.errorsCount = errors.errorFields?.length });
+    },
+    [forceUpdate]
   );
 
   const savePopoverClose = useCallback(() => switchSavePopover(false), []);
@@ -138,9 +144,11 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     const tab = sourcesTabs.current[0];
 
     try {
+      const beforeValidate = () => tab.errorsCount = 0;
+
       const errorCb = (errors) => tab.errorsCount = errors.errorFields?.length;
 
-      const config = await validateTabForm(tab, { forceUpdate, errorCb });
+      const config = await validateTabForm(tab, { forceUpdate, errorCb, beforeValidate });
 
       sourceData.current = {
         ...sourceData.current,
@@ -165,7 +173,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     setSourceSaving(true);
 
     Promise
-      .all(sourcesTabs.current.map(tab => validateTabForm(tab, { forceUpdate, errorCb: errors => tab.errorsCount = errors.errorFields?.length })))
+      .all(sourcesTabs.current.map(tab => validateTabForm(tab, { forceUpdate, beforeValidate: () => tab.errorsCount = 0, errorCb: errors => tab.errorsCount = errors.errorFields?.length })))
       .then(async allValues => {
         sourceData.current = {
           ...sourceData.current,
