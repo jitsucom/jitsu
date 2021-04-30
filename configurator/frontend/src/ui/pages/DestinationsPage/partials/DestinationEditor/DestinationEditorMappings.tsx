@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select } from 'antd';
 import cn from 'classnames';
 // @Components
@@ -22,26 +22,39 @@ import { jsonPointerValidator } from '@util/validation/jsonPointer';
 export interface Props {
   form: FormInstance;
   initialValues: Mapping;
+  handleTouchAnyField: VoidFunc;
 }
 
-const DestinationEditorMappings = ({ form, initialValues }: Props) => {
-  const [actions, setActions] = useState<MappingAction[]>([]);
+const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }: Props) => {
+  const [actions, setActions] = useState<MappingAction[]>(
+    initialValues?._mappings?.map((row: MappingRow) => row._action) ?? []
+  );
+
+  const handleFieldsChange = useCallback(() => {
+    const formFields = form.getFieldsValue();
+    const mappings = formFields?.['_mappings._mappings'];
+    const keep = Boolean(formFields?.['_mappings._keepUnmappedFields']);
+
+    const notBeenTouched = JSON.stringify(initialValues?._mappings) === JSON.stringify(mappings) && keep === initialValues?._keepUnmappedFields;
+
+    handleTouchAnyField(!notBeenTouched);
+  }, [handleTouchAnyField, initialValues, form]);
 
   const handleActionChange = useCallback((index: number) => (value: MappingAction) => {
     const array = [...actions];
     array[index] = value;
     setActions(array);
-  }, [actions]);
+    handleFieldsChange();
+  }, [actions, handleFieldsChange]);
 
-  const handleDelete = useCallback((remove: FormListOperation['remove'], index: number) => () => {
+  const handleDelete = useCallback((remove: FormListOperation['remove'], index: number) => async() => {
     const array = [...actions];
-
     array.splice(index, 1);
 
-    remove(index);
-
+    await remove(index);
     setActions(array);
-  }, [actions]);
+    handleFieldsChange();
+  }, [actions, handleFieldsChange]);
 
   const handleAdd = useCallback((add: FormListOperation['add']) => () => {
     add({});
@@ -51,10 +64,12 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
       '' as MappingAction
     ]);
 
+    handleFieldsChange();
+
     const tabScrollingEl = document.querySelector('#dst-editor-tabs')?.querySelector('.ant-tabs-content');
 
     setTimeout(() => tabScrollingEl.scrollTo(0, tabScrollingEl.scrollHeight), 0);
-  }, [actions]);
+  }, [actions, handleFieldsChange]);
 
   const handleTypeChange = useCallback((index: number) => (event: React.ChangeEvent<HTMLInputElement>) => {
     const formValues = form.getFieldsValue();
@@ -65,13 +80,15 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
     form.setFieldsValue({
       '_mappings._mappings': mappings
     });
-  }, [form]);
+
+    handleFieldsChange();
+  }, [form, handleFieldsChange]);
 
   return (
     <>
       <article className="text-xs italic text-secondaryText mb-5">{DESTINATION_EDITOR_MAPPING}</article>
 
-      <Form form={form} name="form-mapping">
+      <Form form={form} name="form-mapping" onChange={handleFieldsChange}>
         <Row>
           <Col span={12}>
             <Form.Item

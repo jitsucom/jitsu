@@ -72,36 +72,61 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   const destinationsTabs = useRef<Tab[]>([{
     key: 'config',
     name: 'Connection Properties',
-    getComponent: (form: FormInstance) => <DestinationEditorConfig handleTouchAnyField={setTouchedFields} form={form} destinationReference={destinationReference} destinationData={destinationData.current} />,
-    form: Form.useForm()[0]
+    getComponent: (form: FormInstance) =>
+      <DestinationEditorConfig
+        form={form}
+        destinationReference={destinationReference}
+        destinationData={destinationData.current}
+        handleTouchAnyField={setTouchedFields(0)}
+      />,
+    form: Form.useForm()[0],
+    touched: false
   },
   {
     key: 'mappings',
     name: 'Mappings',
-    getComponent: (form: FormInstance) => <DestinationEditorMappings form={form} initialValues={destinationData.current?._mappings} />,
-    form: Form.useForm()[0]
+    getComponent: (form: FormInstance) =>
+      <DestinationEditorMappings
+        form={form}
+        initialValues={destinationData.current?._mappings}
+        handleTouchAnyField={setTouchedFields(1)}
+      />,
+    form: Form.useForm()[0],
+    touched: false
   },
   {
     key: 'sources',
     name: 'Linked Connectors & API Keys',
-    getComponent: (form: FormInstance) => <DestinationEditorConnectors form={form} initialValues={destinationData.current} destination={destinationReference} />,
+    getComponent: (form: FormInstance) =>
+      <DestinationEditorConnectors
+        form={form}
+        initialValues={destinationData.current}
+        destination={destinationReference}
+        handleTouchAnyField={setTouchedFields(2)}
+      />,
     form: Form.useForm()[0],
-    errorsLevel: 'warning'
+    errorsLevel: 'warning',
+    touched: false
   },
   {
     key: 'settings',
     name: <ComingSoon render="Settings Library" documentation={<>A predefined library of settings such as <a href="https://jitsu.com/docs/other-features/segment-compatibility" target="_blank" rel="noreferrer">Segment-like schema</a></>} />,
-    isDisabled: true
+    isDisabled: true,
+    touched: false
   },
   {
     key: 'statistics',
     name: <ComingSoon render="Statistics" documentation={<>A detailed statistics on how many events have been sent to the destinations</>} />,
-    isDisabled: true
+    isDisabled: true,
+    touched: false
   }]);
 
-  const setTouchedFields = useCallback(() => touchedFields.current = true, []);
+  const setTouchedFields = useCallback(
+    (index: number) => (value: boolean) => destinationsTabs.current[index].touched = value === undefined ? true : value,
+    []
+  );
 
-  const getPromptMessage = useCallback(() => touchedFields.current
+  const getPromptMessage = useCallback(() => destinationsTabs.current.some(tab => tab.touched)
     ? 'You have unsaved changes. Are you sure you want to leave the page?'
     : undefined, []);
 

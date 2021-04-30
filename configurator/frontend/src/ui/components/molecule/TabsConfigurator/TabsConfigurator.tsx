@@ -16,6 +16,7 @@ export interface Tab {
   form?: FormInstance;
   errorsCount?: number;
   readonly errorsLevel?: 'warning' | 'error';
+  touched?: boolean;
 }
 
 export interface Props {

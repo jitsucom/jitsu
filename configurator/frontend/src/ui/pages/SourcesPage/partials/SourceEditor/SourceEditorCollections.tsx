@@ -33,9 +33,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
       ? initialValues.collections?.reduce((accumulator: any, value: CollectionSource, index: number) => {
         return { ...accumulator, [index]: value.type };
       }, {})
-      : connectorSource.collectionTypes.length === 1
-        ? { 0: connectorSource.collectionTypes[0] }
-        : {}
+      : { 0: connectorSource.collectionTypes[0] }
   );
 
   const generateReportName = useCallback((index: number) => {
@@ -82,8 +80,10 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
       setChosenTypes(newChosenTypes);
 
       operation.remove(index);
+
+      handleTouchAnyField();
     },
-    [chosenTypes]
+    [chosenTypes, handleTouchAnyField]
   );
 
   const getCollectionScheduleValue = useCallback((index: number) => {
@@ -104,8 +104,10 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
           : { type: connectorSource.collectionTypes[0] };
 
       operation.add(addingValue);
+
+      handleTouchAnyField();
     },
-    [connectorSource.collectionTypes]
+    [connectorSource.collectionTypes, handleTouchAnyField]
   );
 
   const getCollectionTypeValue = useCallback(
@@ -116,9 +118,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
         return initial;
       }
 
-      return connectorSource.collectionTypes.length > 0
-        ? connectorSource.collectionTypes[0]
-        : undefined;
+      return connectorSource.collectionTypes[0];
     },
     [initialValues, connectorSource.collectionTypes]
   );
@@ -157,115 +157,118 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
             (fields: FormListFieldData[], operation: FormListOperation) => (
               <>
                 {
-                  fields.map((field: FormListFieldData) => (
-                    <div className={styles.item} key={field.name}>
-                      {
-                        connectorSource.collectionTypes.length > 0 && (
-                          <Row>
-                            <Col span={16}>
-                              <Form.Item
-                                initialValue={getCollectionTypeValue(field.name)}
-                                name={[field.name, 'type']}
-                                className="form-field_fixed-label"
-                                label="Report type:"
-                                labelCol={{ span: 6 }}
-                                wrapperCol={{ span: 18 }}
-                                rules={connectorSource.collectionTypes.length > 1
-                                  ? [{ required: true, message: 'You have to choose report type' }]
-                                  : undefined}
-                              >
-                                <Select
-                                  disabled={connectorSource.collectionTypes.length === 1}
-                                  onChange={handleReportTypeChange(field.name)}
+                  fields.map((field: FormListFieldData) => {
+                    return (
+                      <div className={styles.item} key={field.name}>
+                        {
+                          connectorSource.collectionTypes.length > 0 && (
+                            <Row>
+                              <Col span={16}>
+                                <Form.Item
+                                  initialValue={getCollectionTypeValue(field.name)}
+                                  name={[field.name, 'type']}
+                                  className="form-field_fixed-label"
+                                  label="Report type:"
+                                  labelCol={{ span: 6 }}
+                                  wrapperCol={{ span: 18 }}
+                                  rules={connectorSource.collectionTypes.length > 1
+                                    ? [{ required: true, message: 'You have to choose report type' }]
+                                    : undefined}
                                 >
-                                  {connectorSource.collectionTypes.map((type: string) => (
-                                    <Select.Option key={type} value={type}>
-                                      {type}
-                                    </Select.Option>
-                                  ))}
-                                </Select>
-                              </Form.Item>
-                            </Col>
-                            <Col span={1}>
-                              <DeleteOutlined
-                                className={styles.delete}
-                                onClick={handleRemoveField(operation, field.name)}
-                              />
-                            </Col>
-                          </Row>
-                        )
-                      }
+                                  <Select
+                                    disabled={connectorSource.collectionTypes.length === 1}
+                                    onChange={handleReportTypeChange(field.name)}
+                                  >
+                                    {connectorSource.collectionTypes.map((type: string) => (
+                                      <Select.Option key={type} value={type}>
+                                        {type}
+                                      </Select.Option>
+                                    ))}
+                                  </Select>
+                                </Form.Item>
+                              </Col>
+                              <Col span={1}>
+                                <DeleteOutlined
+                                  className={styles.delete}
+                                  onClick={handleRemoveField(operation, field.name)}
+                                />
+                              </Col>
+                            </Row>
+                          )
+                        }
 
-                      {/*
+                        {/*
                         ToDo: refactor this code. Either create a reused component, or change catalog connectors data to be able
                          to control this code
                       */}
-                      {
-                        !connectorSource.isSingerType && <Row>
-                          <Col span={16}>
-                            <Form.Item
-                              initialValue={getCollectionScheduleValue(field.name)}
-                              name={[field.name, 'schedule']}
-                              className="form-field_fixed-label"
-                              label="Schedule:"
-                              labelCol={{ span: 6 }}
-                              wrapperCol={{ span: 18 }}
-                              rules={[{ required: true, message: 'You have to choose schedule' }]}
-                            >
-                              <Select onChange={handleTouchAnyField}>
-                                {
-                                  COLLECTIONS_SCHEDULES.map((option) =>
-                                    <Select.Option value={option.value} key={option.value}>{option.label}</Select.Option>
-                                  )
-                                }
-                              </Select>
-                            </Form.Item>
-                          </Col>
-                        </Row>
-                      }
-
-                      <>
-                        <Row>
-                          <Col span={16}>
-                            <Form.Item
-                              initialValue={generateReportName(0)}
-                              className="form-field_fixed-label"
-                              label={<span>Report name:</span>}
-                              name={[field.name, 'name']}
-                              rules={[
-                                { required: true, message: 'Field is required. You can remove this collection.' },
-                                {
-                                  validator: (rule: any, value: string) => {
-                                    const formValues = form.getFieldsValue();
-                                    const isError = formValues.collections
-                                      .map((collection, index) => index !== field.name && collection.name)
-                                      .includes(value);
-
-                                    return isError
-                                      ? Promise.reject('Must be unique under the current collection')
-                                      : Promise.resolve();
+                        {
+                          !connectorSource.isSingerType && <Row>
+                            <Col span={16}>
+                              <Form.Item
+                                initialValue={getCollectionScheduleValue(field.name)}
+                                name={[field.name, 'schedule']}
+                                className="form-field_fixed-label"
+                                label="Schedule:"
+                                labelCol={{ span: 6 }}
+                                wrapperCol={{ span: 18 }}
+                                rules={[{ required: true, message: 'You have to choose schedule' }]}
+                              >
+                                <Select onChange={handleTouchAnyField}>
+                                  {
+                                    COLLECTIONS_SCHEDULES.map((option) =>
+                                      <Select.Option value={option.value} key={option.value}>{option.label}</Select.Option>
+                                    )
                                   }
-                                }
-                              ]}
-                              labelCol={{ span: 6 }}
-                              wrapperCol={{ span: 18 }}
-                            >
-                              <Input autoComplete="off" />
-                            </Form.Item>
-                          </Col>
-                        </Row>
+                                </Select>
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                        }
 
-                        {getCollectionParameters(field.name).map((collection: CollectionParameter) => (
-                          <SourceFormCollectionsField
-                            field={field}
-                            key={collection.id}
-                            collection={collection}
-                            initialValue={initialValues?.collections?.[field.name]?.parameters?.[collection.id] ?? collection.defaultValue}
-                          />
-                        ))}
-                      </>
-                    </div>
-                  ))
+                        <>
+                          <Row>
+                            <Col span={16}>
+                              <Form.Item
+                                initialValue={generateReportName(0)}
+                                className="form-field_fixed-label"
+                                label={<span>Report name:</span>}
+                                name={[field.name, 'name']}
+                                rules={[
+                                  { required: true, message: 'Field is required. You can remove this collection.' },
+                                  {
+                                    validator: (rule: any, value: string) => {
+                                      const formValues = form.getFieldsValue();
+                                      const isError = formValues.collections
+                                        .map((collection, index) => index !== field.name && collection.name)
+                                        .includes(value);
+
+                                      return isError
+                                        ? Promise.reject('Must be unique under the current collection')
+                                        : Promise.resolve();
+                                    }
+                                  }
+                                ]}
+                                labelCol={{ span: 6 }}
+                                wrapperCol={{ span: 18 }}
+                              >
+                                <Input autoComplete="off" />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+
+                          {getCollectionParameters(field.name).map((collection: CollectionParameter) => (
+                            <SourceFormCollectionsField
+                              field={field}
+                              key={collection.id}
+                              collection={collection}
+                              initialValue={initialValues?.collections?.[field.name]?.parameters?.[collection.id] ?? collection.defaultValue}
+                              handleFormFieldsChange={handleTouchAnyField}
+                            />
+                          ))}
+                        </>
+                      </div>
+                    )
+                  })
                 }
 
                 <Button type="ghost" onClick={handleAddField(operation)} className="add-field-btn" icon={<PlusOutlined />}>
