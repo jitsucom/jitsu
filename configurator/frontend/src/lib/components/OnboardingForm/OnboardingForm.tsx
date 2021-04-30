@@ -12,6 +12,7 @@ import * as Utils from '../../commons/utils';
 import { reloadPage } from '../../commons/utils';
 import { handleError, makeErrorHandler } from '../components';
 import './OnboardingForm.less';
+import { randomId } from '@util/numbers';
 
 type State = {
   loading: boolean;
@@ -57,7 +58,7 @@ export default function OnboardingForm(props: Props) {
       }));
 
       user.onboarded = true;
-      user.projects = [new Project(Utils.randomId(), values['projectName'])];
+      user.projects = [new Project(randomId(), values['projectName'])];
       if (!user.created) {
         user.created = new Date();
       }

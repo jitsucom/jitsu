@@ -130,6 +130,7 @@ export default class LoginForm extends React.Component<Props, State> {
                 floatingLabelText="E-Mail"
                 prefix={<MailOutlined />}
                 inputType="email"
+                className="login-form-input"
               />
 
               <FloatingLabelInput
@@ -144,6 +145,7 @@ export default class LoginForm extends React.Component<Props, State> {
                 floatingLabelText="Password"
                 prefix={<LockOutlined className="site-form-item-icon" />}
                 inputType="password"
+                className="login-form-input"
               />
 
               <Form.Item>
