@@ -205,14 +205,6 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
       });
   }, [history, services, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode]);
 
-  const handleTabChange = useCallback((tabName: string) => {
-    const path = editorMode === 'add'
-      ? generatePath(destinationPageRoutes.newDestination, { type: params.type, tabName })
-      : generatePath(destinationPageRoutes.editDestination, { id: params.id, tabName })
-
-    history.replace(path);
-  }, [history, editorMode, params]);
-
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
@@ -232,8 +224,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
             type="card"
             className={styles.tabCard}
             tabsList={destinationsTabs.current}
-            defaultTabIndex={destinationsTabs.current.findIndex(tab => tab.key === params.tabName) ?? 0}
-            onTabChange={handleTabChange}
+            defaultTabIndex={0}
           />
         </div>
 

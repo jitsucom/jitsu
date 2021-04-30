@@ -2,7 +2,7 @@
 import React, { Dispatch, SetStateAction, useMemo } from 'react';
 import { Route, Switch } from 'react-router-dom';
 // @Routes
-import { sourcesPageRoutes } from './routes';
+import { sourcesPageRoutes } from './SourcesPage.routes';
 // @Components
 import { SourcesList } from './partials/SourcesList';
 import { SourceEditor } from './partials/SourceEditor';

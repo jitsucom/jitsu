@@ -23,7 +23,7 @@ import {
   DESTINATIONS_CONNECTED_SOURCES
 } from '@./embeddedDocs/destinationsConnectedItems';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
+import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
 import Icon from '@ant-design/icons';
 import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';

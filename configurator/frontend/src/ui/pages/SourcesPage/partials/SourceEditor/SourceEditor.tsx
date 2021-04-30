@@ -18,7 +18,7 @@ import { SourceConnector } from '@catalog/sources/types';
 import { FormInstance } from 'antd/es';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
+import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 // @Catalog sources
 import { allSources } from '@catalog/sources/lib';
 // @Utils
@@ -212,14 +212,6 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       });
   }, [forceUpdate, editorMode, projectId, history, services.storageService, sources, updateSources]);
 
-  const handleTabChange = useCallback((tabName: string) => {
-    const path = editorMode === 'add'
-      ? generatePath(sourcesPageRoutes.addExact, { source: params.source, tabName })
-      : generatePath(sourcesPageRoutes.editExact, { sourceId: params.sourceId, tabName })
-
-    history.replace(path);
-  }, [history, editorMode, params]);
-
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
@@ -238,8 +230,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
           <TabsConfigurator
             type="card"
             tabsList={sourcesTabs.current}
-            defaultTabIndex={sourcesTabs.current.findIndex(tab => tab.key === params.tabName) ?? 0}
-            onTabChange={handleTabChange}
+            defaultTabIndex={0}
           />
         </div>
 

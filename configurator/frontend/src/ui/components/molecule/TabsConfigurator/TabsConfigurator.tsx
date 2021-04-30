@@ -23,10 +23,10 @@ export interface Props {
   className?: string;
   type: TabsType;
   defaultTabIndex?: number;
-  onTabChange: (tabName: any) => void;
+  onTabChange?: (tabName: any) => void;
 }
 
-const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex = 0, onTabChange }: Props) => (
+const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex = 0, onTabChange = () => null }: Props) => (
   <Tabs
     type={type}
     className={className}
