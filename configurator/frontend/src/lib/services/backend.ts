@@ -37,7 +37,7 @@ export class BackendUserService implements UserService {
   login(email: string, password: string): Promise<any> {
     return new Promise<any>((resolve, reject) => {
       this.backendApi
-        .post('/users/signin', { email: email, password: password }, true)
+        .post('/users/signin', { email: email, password: password }, { noauth: true })
         .then((response) => {
           this.apiAccess = new ApiAccess(response['access_token'], response['refresh_token'], this.localStorageUpdate);
           this.localStorageUpdate(response['access_token'], response['refresh_token']);
@@ -54,7 +54,7 @@ export class BackendUserService implements UserService {
       password: password
     };
 
-    let response = await this.backendApi.post('/users/signup', signUpPayload, true);
+    let response = await this.backendApi.post('/users/signup', signUpPayload, { noauth: true });
 
     this.apiAccess = new ApiAccess(response['access_token'], response['refresh_token'], this.localStorageUpdate);
     this.localStorageUpdate(response['access_token'], response['refresh_token']);
@@ -92,7 +92,7 @@ export class BackendUserService implements UserService {
       emailOptout,
       usageOptout
     };
-    let response = await this.backendApi.post('/users/onboarded/signup', signUpPayload, true);
+    let response = await this.backendApi.post('/users/onboarded/signup', signUpPayload, { noauth: true });
 
     this.apiAccess = new ApiAccess(response['access_token'], response['refresh_token'], this.localStorageUpdate);
     this.localStorageUpdate(response['access_token'], response['refresh_token']);
@@ -216,7 +216,7 @@ export class BackendUserService implements UserService {
     return this.backendApi.post('/users/password/reset', {
       email: email,
       callback: `${window.location.protocol}//${window.location.host}/reset_password/{{token}}`
-    }, true);
+    }, { noauth: true });
   }
 
   hasUser(): boolean {
@@ -225,7 +225,7 @@ export class BackendUserService implements UserService {
 
   changePassword(newPassword: any, resetId?: string): Promise<void> {
     return this.backendApi
-      .post('/users/password/change', { new_password: newPassword, reset_id: resetId }, true)
+      .post('/users/password/change', { new_password: newPassword, reset_id: resetId }, { noauth: true } )
       .then((res) => {
         localStorage.removeItem(LS_ACCESS_KEY);
         localStorage.removeItem(LS_REFRESH_KEY);

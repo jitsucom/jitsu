@@ -2,7 +2,7 @@
 import React, { ReactNode, useCallback, useState } from 'react';
 import { Form, Switch, Typography } from 'antd';
 // @Components
-import { ListItem, SomeAction } from '@molecule/ListItem';
+import { ListItem, ListItemAction } from '@molecule/ListItem';
 // @Types
 import { FormInstance } from 'antd/es';
 

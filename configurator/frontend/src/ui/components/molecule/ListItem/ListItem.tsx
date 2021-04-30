@@ -1,18 +1,15 @@
 // @Libs
-import React, { memo, useMemo } from 'react';
+import React, { memo, ReactNode, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from 'antd';
 import cn from 'classnames';
 // @Styles
 import styles from './ListItem.module.less';
-// @Icons
-import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
-import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 
-export interface SomeAction {
-  key: 'edit' | 'delete';
-  method: (id: string) => () => void;
-  title: string;
+export interface ListItemAction {
+  onClick: () => void
+  title: string
+  icon: ReactNode
 }
 
 export interface Props {
@@ -22,16 +19,12 @@ export interface Props {
   description?: React.ReactNode;
   additional?: React.ReactNode;
   prefix?: React.ReactNode;
-  actions?: SomeAction[];
+  actions?: ListItemAction[];
   id: string;
 }
 
 // ToDo: maybe components name has to be changed?
 const ListItemComponent = ({ className, icon, title, description, additional, prefix, actions, id }: Props) => {
-  const iconsMap = {
-    edit: <EditOutlined/>,
-    delete: <DeleteOutlined/>
-  };
 
   return (
     <li className={cn(styles.item, className)}>
@@ -47,10 +40,10 @@ const ListItemComponent = ({ className, icon, title, description, additional, pr
       {
         actions?.length > 0 && <span className={styles.right}>
           {
-            actions.map((action: SomeAction, index: number) => {
+            actions.map((action: ListItemAction, index: number) => {
               return (
-                <span key={action.key} className={styles.action}>
-                  <Button icon={iconsMap[action.key]} key="edit" shape="round" onClick={action.method(id)}>{action.title}</Button>
+                <span key={action.title} className={styles.action}>
+                  <Button icon={action.icon} key="edit" shape="round" type="link" onClick={action.onClick}>{action.title}</Button>
                   {
                     index < actions.length - 1 && <span className={styles.splitter} />
                   }
