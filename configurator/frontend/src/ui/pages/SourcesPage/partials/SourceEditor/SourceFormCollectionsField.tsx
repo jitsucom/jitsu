@@ -73,7 +73,7 @@ const SourceFormCollectionsFieldComponent = ({
             <LabelWithTooltip documentation={documentation} render={collection.displayName} /> :
             <span>{collection.displayName}:</span>}
           key={collection.id}
-          name={[field.name, collection.id]}
+          name={[field.name, `parameters.${collection.id}`]}
           rules={validationRules}
           labelCol={{ span: 6 }}
           wrapperCol={{ span: 18 }}

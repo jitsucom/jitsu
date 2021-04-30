@@ -172,6 +172,16 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
           }, {})
         };
 
+        if (sourceData.current.collections) {
+          sourceData.current.collections = sourceData.current.collections.map((collection: CollectionSource) => {
+            if (!collection.parameters) {
+              collection.parameters = {} as Array<{ [key: string]: string[]; }>;
+            }
+
+            return collection;
+          });
+        }
+
         const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current, true);
 
         sourceData.current = {
