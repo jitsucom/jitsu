@@ -80,10 +80,11 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         isCreateForm={editorMode === 'add'}
         initialValues={sourceData.current}
         sources={sources}
-        handleTouchAnyField={setTouchedFields}
+        handleTouchAnyField={setTouchedFields(0)}
       />
     ),
-    form: Form.useForm()[0]
+    form: Form.useForm()[0],
+    touched: false
   },
   {
     key: 'collections',
@@ -93,11 +94,12 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         form={form}
         initialValues={sourceData.current}
         connectorSource={connectorSource}
-        handleTouchAnyField={setTouchedFields}
+        handleTouchAnyField={setTouchedFields(1)}
       />
     ),
     form: Form.useForm()[0],
-    isHidden: connectorSource.isSingerType
+    isHidden: connectorSource.isSingerType,
+    touched: false
   },
   {
     key: 'destinations',
@@ -107,15 +109,18 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         form={form}
         initialValues={sourceData.current}
         projectId={projectId}
+        handleTouchAnyField={setTouchedFields(2)}
       />
     ),
     form: Form.useForm()[0],
-    errorsLevel: 'warning'
+    errorsLevel: 'warning',
+    touched: false
   }]);
 
-  const touchedFields = useRef<boolean>(false);
-
-  const setTouchedFields = useCallback(() => touchedFields.current = true, []);
+  const setTouchedFields = useCallback(
+    (index: number) => (value: boolean) => sourcesTabs.current[index].touched = value === undefined ? true : value,
+    []
+  );
 
   const savePopoverClose = useCallback(() => switchSavePopover(false), []);
   const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
@@ -123,7 +128,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   const handleCancel = useCallback(() => history.push(sourcesPageRoutes.root), [history]);
 
   const getPromptMessage = useCallback(
-    () => touchedFields.current ? 'You have unsaved changes. Are you sure you want to leave the page?': undefined,
+    () => sourcesTabs.current.some(tab => tab.touched) ? 'You have unsaved changes. Are you sure you want to leave the page?': undefined,
     []
   );
 
@@ -205,7 +210,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
           updateSources(payload);
 
-          touchedFields.current = false;
+          sourcesTabs.current.forEach((tab: Tab) => tab.touched = false);
 
           history.push(sourcesPageRoutes.root);
 
