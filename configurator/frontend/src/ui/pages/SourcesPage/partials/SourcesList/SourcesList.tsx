@@ -24,6 +24,10 @@ import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 import { DropDownListItem } from '@molecule/DropDownList';
 // @Utils
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
+import { taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
+import CodeOutlined from '@ant-design/icons/lib/icons/CodeOutlined';
+import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
+import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 
 const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const history = useHistory();
@@ -57,21 +61,6 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
     getClassName={isFirstSingerType}
     filterPlaceholder="Filter by source name or id"
   />, [isFirstSingerType]);
-
-  const handleDeleteAction = useCallback(
-    (sourceId: string) => () => {
-      const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
-
-      services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
-        updateSources({ sources: updatedSources });
-
-        message.success('Sources list successfully updated');
-      });
-    },
-    [sources, updateSources, services.storageService, projectId]
-  );
-
-  const handleEditAction = useCallback((id: string) => () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: id })), [history]);
 
   useEffect(() => {
     setBreadcrumbs(withHome({
@@ -116,8 +105,18 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
             id={src.sourceId}
             key={src.sourceId}
             actions={[
-              { key: 'edit', method: handleEditAction, title: 'Edit' },
-              { key: 'delete', method: handleDeleteAction, title: 'Delete' }
+              { onClick: () => history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId })), title: 'View logs', icon: <CodeOutlined /> },
+              { onClick: () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })), title: 'Edit', icon: <EditOutlined /> },
+              { onClick: () => {
+                const updatedSources = [...sources.filter((source: SourceData) => src.sourceId !== source.sourceId)];
+
+                services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
+                  updateSources({ sources: updatedSources });
+
+                  message.success('Sources list successfully updated');
+                });
+
+              }, title: 'Delete', icon: <DeleteOutlined /> }
             ]}
           />
         })}

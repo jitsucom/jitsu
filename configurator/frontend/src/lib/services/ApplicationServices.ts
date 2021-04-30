@@ -21,22 +21,22 @@ export class ApplicationConfiguration {
   private readonly _appEnvironment: AppEnvironmentType;
   private readonly _buildId: string;
 
-    constructor() {
-        this._rawConfig = getRawApplicationConfig();
-        let backendApiBase = this._rawConfig.env.BACKEND_API_BASE || `${window.location.protocol}//${window.location.host}`
-        this._firebaseConfig = this._rawConfig.firebase;
-        this._backendApiBase = concatenateURLs(backendApiBase, '/api/v1');
-        this._backendApiProxyBase = concatenateURLs(backendApiBase, '/proxy/api/v1');
-        this._appEnvironment = (this._rawConfig.env.NODE_ENV || 'production').toLowerCase() as AppEnvironmentType;
-        this._buildId = [
-            `b=${this._rawConfig.env.BUILD_ID || 'dev'}`,
-            `sc=${this._rawConfig.env.GIT_BRANCH || 'unknown'}/${this._rawConfig.env.GIT_COMMIT_REF || 'unknown'}`,
-            `t=${this._rawConfig.env.BUILD_TIMESTAMP || 'unknown'}`
-        ].join(";");
+  constructor() {
+    this._rawConfig = getRawApplicationConfig();
+    let backendApiBase = this._rawConfig.env.BACKEND_API_BASE || `${window.location.protocol}//${window.location.host}`
+    this._firebaseConfig = this._rawConfig.firebase;
+    this._backendApiBase = concatenateURLs(backendApiBase, '/api/v1');
+    this._backendApiProxyBase = concatenateURLs(backendApiBase, '/proxy/api/v1');
+    this._appEnvironment = (this._rawConfig.env.NODE_ENV || 'production').toLowerCase() as AppEnvironmentType;
+    this._buildId = [
+      `b=${this._rawConfig.env.BUILD_ID || 'dev'}`,
+      `sc=${this._rawConfig.env.GIT_BRANCH || 'unknown'}/${this._rawConfig.env.GIT_COMMIT_REF || 'unknown'}`,
+      `t=${this._rawConfig.env.BUILD_TIMESTAMP || 'unknown'}`
+    ].join(";");
 
     console.log(
       `App initialized. Backend: ${this._backendApiBase}. Env: ${this._appEnvironment}. Firebase configured: ${!!this
-          ._firebaseConfig}. Build info: ${this._buildId}`
+        ._firebaseConfig}. Build info: ${this._buildId}`
     );
   }
 
@@ -48,9 +48,9 @@ export class ApplicationConfiguration {
     return this._appEnvironment;
   }
 
-    get backendApiBase(): string {
-        return this._backendApiBase;
-    }
+  get backendApiBase(): string {
+    return this._backendApiBase;
+  }
 
   get backendApiProxyBase(): string {
     return this._backendApiProxyBase;
@@ -378,6 +378,24 @@ export function setDebugInfo(field: string, obj: any, purify = true) {
 }
 
 /**
+ * Additional options for API request
+ */
+export type ApiRequestOptions = {
+  /**
+   * If request should be sent to /proxy endpoint
+   */
+  proxy?: boolean
+  /**
+   * Get parameters (to avoid adding them to URL for better readability)
+   */
+  urlParams?: { [propName: string]: any }
+  /**
+   * If set to true, Auth header should not be added
+   */
+  noauth?: boolean
+}
+
+/**
  * Backend API client. Authorization is handled by implementation
  */
 export interface BackendApiClient {
@@ -385,19 +403,19 @@ export interface BackendApiClient {
    * For end-points that returns JSON. In that case response will
    * be deserialized
    * @param url url
-   * @param data data
-   * @param authLess do not send auth header
+   * @param payload payload
+   * @param opts additional options
    */
-  post(url, data: any, authLess?: boolean): Promise<any>;
+  post(url, payload: any, opts?: ApiRequestOptions): Promise<any>;
 
   /**
    * Same as post, but returns raw body
    */
-  postRaw(url, data: any): Promise<string>;
+  postRaw(url, data: any, opts?: ApiRequestOptions): Promise<string>;
 
-  getRaw(url): Promise<string>;
+  getRaw(url, opts?: ApiRequestOptions): Promise<string>;
 
-  get(url: string, proxy?: boolean): Promise<any>;
+  get(url: string, opts?: ApiRequestOptions): Promise<any>;
 }
 
 class APIError extends Error {
@@ -495,13 +513,17 @@ export class JWTBackendClient implements BackendApiClient {
     method: Method,
     transform: AxiosTransformer,
     url: string,
-    payload?: any,
-    authLess?: boolean,
-    proxy?: boolean,
+    payload: any,
+    opts: ApiRequestOptions
   ): Promise<any> {
     let fullUrl = concatenateURLs(this.baseUrl, url);
-    if (proxy && proxy === true){
+    if (opts.proxy){
       fullUrl = concatenateURLs(this.proxyUrl, url);
+    }
+    if (opts.urlParams) {
+      fullUrl += "?" + Object.entries(opts.urlParams)
+        .filter(([,val]) => val !== undefined)
+        .map(([key, val]) => `${key}=${encodeURIComponent(val + "")}`).join("&")
     }
 
     let request: AxiosRequestConfig = {
@@ -510,7 +532,7 @@ export class JWTBackendClient implements BackendApiClient {
       transformResponse: transform
     };
 
-    if (!authLess) {
+    if (!opts.noauth) {
       request.headers = {
         'X-Client-Auth': this.apiAccessAccessor().accessToken
       };
@@ -569,20 +591,20 @@ export class JWTBackendClient implements BackendApiClient {
     });
   }
 
-  get(url: string, proxy?: boolean): Promise<any> {
-    return this.exec('get', JSON_FORMAT, url, undefined, false, proxy);
+  get(url: string, opts?: ApiRequestOptions): Promise<any> {
+    return this.exec('get', JSON_FORMAT, url, undefined, opts ?? {});
   }
 
-  post(url: string, data: any, authLess?: boolean): Promise<any> {
-    return this.exec('post', JSON_FORMAT, url, data ? data : {}, authLess);
+  post(url: string, data: any, opts?: ApiRequestOptions): Promise<any> {
+    return this.exec('post', JSON_FORMAT, url, data ?? {}, opts ?? {});
   }
 
-  postRaw(url, data: any): Promise<string> {
-    return this.exec('post', AS_IS_FORMAT, url, data ? data : {});
+  postRaw(url, data: any, opts?: ApiRequestOptions): Promise<string> {
+    return this.exec('post', AS_IS_FORMAT, url, data ?? {}, opts ?? {});
   }
 
-  getRaw(url): Promise<string> {
-    return this.exec('get', AS_IS_FORMAT, url);
+  getRaw(url, opts?: ApiRequestOptions): Promise<string> {
+    return this.exec('get', AS_IS_FORMAT, url, undefined, opts ?? {});
   }
 }
 

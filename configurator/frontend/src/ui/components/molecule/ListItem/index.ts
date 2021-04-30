@@ -4,4 +4,4 @@ import { ListItem } from './ListItem';
 export default ListItem;
 export { ListItem };
 
-export type { SomeAction } from './ListItem';
+export type { ListItemAction } from './ListItem';
