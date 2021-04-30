@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Prompt, useHistory, useParams } from 'react-router-dom';
+import { generatePath, Prompt, useHistory, useParams } from 'react-router-dom';
 import { Form, message } from 'antd';
 import cn from 'classnames';
 // @Components
@@ -37,7 +37,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
   const forceUpdate = useForceUpdate();
 
-  const params = useParams<{ type?: string; id?: string; }>();
+  const params = useParams<{ type?: string; id?: string; tabName?: string; }>();
 
   const [testConnecting, setTestConnecting] = useState<boolean>(false);
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
@@ -205,6 +205,14 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
       });
   }, [history, services, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode]);
 
+  const handleTabChange = useCallback((tabName: string) => {
+    const path = editorMode === 'add'
+      ? generatePath(destinationPageRoutes.newDestination, { type: params.type, tabName })
+      : generatePath(destinationPageRoutes.editDestination, { id: params.id, tabName })
+
+    history.replace(path);
+  }, [history, editorMode, params]);
+
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
@@ -220,7 +228,13 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
         <div className={cn('flex-grow', styles.mainArea)} id="dst-editor-tabs">
-          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={1} />
+          <TabsConfigurator
+            type="card"
+            className={styles.tabCard}
+            tabsList={destinationsTabs.current}
+            defaultTabIndex={destinationsTabs.current.findIndex(tab => tab.key === params.tabName) ?? 0}
+            onTabChange={handleTabChange}
+          />
         </div>
 
         <div className="flex-shrink border-t pt-2">
