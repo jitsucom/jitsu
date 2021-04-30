@@ -40,15 +40,18 @@ const sourcePageUtils = {
 
       return {
         connected: false,
-        connectedErrorMessage: error
+        connectedErrorMessage: error.message ?? 'Failed to connect'
       };
     }
   },
   getTitle: (src: SourceData) => {
-    const connected = src.connected;
-    const render = connected ? src.sourceId : <><b>!</b> {src.sourceId}</>;
-
-    return <ListItemTitle render={render} error={!connected} />
+    return <ListItemTitle
+      render={src.sourceId}
+      error={!src.connected}
+      errorMessage={
+        <>Last connection test failed with <b><i>'{src.connectedErrorMessage}'</i></b>. Source might be unavailable. Please, go to editor and fix the connection settings</>
+      }
+    />
   }
 };
 

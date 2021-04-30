@@ -1,5 +1,5 @@
 // @Libs
-import { message, Popover, Tooltip } from 'antd';
+import { message, Popover } from 'antd';
 // @Components
 import { ListItemTitle } from '@atom/ListItemTitle';
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
@@ -12,18 +12,16 @@ import { copyToClipboard } from '@./lib/commons/utils';
 
 const destinationsUtils = {
   getTitle: (dst: DestinationData) => {
-    const configTitle = dst._connectionTestOk
-      ? <ListItemTitle render={dst._id} /> :
-      <Tooltip
-        trigger={['click', 'hover']}
-        title={
-          <>
-            Last connection test failed with <b><i>'{dst._connectionErrorMessage}'</i></b>. Destination might be not
-            accepting data. Please, go to editor and fix the connection settings
-          </>
-        }>
-        <ListItemTitle error render={<><b>!</b> {dst._id}</>} />
-      </Tooltip>;
+    const configTitle = <ListItemTitle
+      error={!dst._connectionTestOk}
+      errorMessage={
+        dst._connectionErrorMessage && <>
+          Last connection test failed with <b><i>'{dst._connectionErrorMessage}'</i></b>. Destination might be not
+          accepting data. Please, go to editor and fix the connection settings
+        </>
+      }
+      render={dst._id}
+    />;
 
     return dst._comment
       ? <LabelWithTooltip documentation={dst._comment} render={configTitle} />
