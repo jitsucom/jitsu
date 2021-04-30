@@ -58,12 +58,12 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
 
   const handleTypeChange = useCallback((index: number) => (event: React.ChangeEvent<HTMLInputElement>) => {
     const formValues = form.getFieldsValue();
-    const mappings = formValues['_mappings._mapping'];
+    const mappings = formValues['_mappings._mappings'];
 
     mappings[index]['_columnType'] = event.target.value;
 
     form.setFieldsValue({
-      '_mappings._mapping': mappings
+      '_mappings._mappings': mappings
     });
   }, [form]);
 
@@ -87,7 +87,7 @@ const DestinationEditorMappings = ({ form, initialValues }: Props) => {
           </Col>
         </Row>
 
-        <Form.List name="_mappings._mapping" initialValue={initialValues?._mapping ?? []}>
+        <Form.List name="_mappings._mappings" initialValue={initialValues?._mappings ?? []}>
           {
             (fields: FormListFieldData[], { add, remove }: FormListOperation) => (
               <div className={styles.mappings}>
