@@ -220,7 +220,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
           updateDestinations(payload);
 
-          touchedFields.current = false;
+          destinationsTabs.current.forEach((tab: Tab) => tab.touched = false);
 
           if (destinationData.current._connectionTestOk) {
             message.success('New destination has been added!');
