@@ -141,7 +141,12 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         ...makeObjectFromFieldsValues(config)
       };
 
-      sourceData.current.connected = await sourcePageUtils.testConnection(sourceData.current);
+      const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current);
+
+      sourceData.current = {
+        ...sourceData.current,
+        ...testConnectionResults
+      };
     } catch(error) {
       switchTestConnectingPopover(true);
     } finally {
@@ -166,9 +171,12 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
           }, {})
         };
 
-        sourceData.current.connected = !sourceData.current.connected
-          ? await sourcePageUtils.testConnection(sourceData.current)
-          : sourceData.current.connected;
+        const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current);
+
+        sourceData.current = {
+          ...sourceData.current,
+          ...testConnectionResults
+        };
 
         try {
           const payload: CollectionSourceData = {
