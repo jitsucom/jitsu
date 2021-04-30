@@ -8,7 +8,7 @@ declare interface DestinationData {
   _uid: string;
   _comment: string;
   _connectionTestOk: boolean;
-  _connectionErrorMessage: React.ReactNode;
+  _connectionErrorMessage?: string;
   _mode: 'batch' | 'stream';
   _formData: {
     [key: string]: any;

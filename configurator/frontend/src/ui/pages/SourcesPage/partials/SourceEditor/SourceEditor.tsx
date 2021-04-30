@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { generatePath, Prompt, useHistory, useParams } from 'react-router-dom';
+import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Form, message } from 'antd';
 import cn from 'classnames';
 import { snakeCase } from 'lodash';
@@ -30,6 +30,7 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import { handleError } from '@./lib/components/components';
+import { firstToLower } from '@./lib/commons/utils';
 
 const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
   const services = ApplicationServices.get();
@@ -201,7 +202,12 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
           if (sourceData.current.connected) {
             message.success('New destination has been added!');
           } else {
-
+            message.warn(
+              `Source has been saved, but test has failed with '${firstToLower(
+                sourceData.current.connectedErrorMessage
+              )}'. Data from this source will not be available`,
+              10
+            );
           }
         } catch(error) {
           handleError(error, 'Something goes wrong, source hasn\'t been added');
