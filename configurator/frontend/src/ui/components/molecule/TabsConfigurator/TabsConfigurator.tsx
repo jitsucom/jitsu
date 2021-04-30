@@ -35,18 +35,24 @@ const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex 
     onChange={onTabChange}
   >
     {
-      tabsList.map((tab: Tab) => !tab.isHidden ? (
-        <React.Fragment key={tab.key}>
-          <Tabs.TabPane
-            key={tab.key}
-            tab={<TabName name={tab.name} errorsCount={tab.errorsCount} errorsLevel={tab.errorsLevel} />}
-            disabled={tab.isDisabled}
-            forceRender
-          >
-            {tab.getComponent?.(tab.form)}
-          </Tabs.TabPane>
-        </React.Fragment>
-      ) : null)
+      tabsList.map((tab: Tab) => {
+        if (!tab.isHidden) {
+          return (
+            <React.Fragment key={tab.key}>
+              <Tabs.TabPane
+                key={tab.key}
+                tab={<TabName name={tab.name} errorsCount={tab.errorsCount} errorsLevel={tab.errorsLevel} />}
+                disabled={tab.isDisabled}
+                forceRender
+              >
+                {tab.getComponent?.(tab.form)}
+              </Tabs.TabPane>
+            </React.Fragment>
+          )
+        } else {
+          return null;
+        }
+      })
     }
   </Tabs>
 );
