@@ -1,6 +1,7 @@
 @import '~antd/lib/style/themes/dark.less';
 @import '~antd/dist/antd.less';
 @import "theme.less";
+@import './src/assets/input';
 
 
 body {
@@ -10,6 +11,11 @@ body {
 #root {
   display: flex;
   min-height: 100%;
+}
+
+ol, ul {
+  margin: 0;
+  padding: 0;
 }
 
 *,
@@ -193,7 +199,7 @@ body {
 }
 
 .ant-layout-sider, .app-layout-side-bar .ant-menu {
-  background-color: @secondary-background;
+  background-color: @secondary-background !important;
 }
 
 .app-layout-content {
@@ -217,8 +223,18 @@ body {
 .form-field_fixed-label {
   .ant-form-item-label {
     label {
+      align-items: unset;
+      padding: 5px 10px 0 0;
+
+      span {
+        white-space: normal;
+      }
+
       &::after {
         content: '';
+        display: inline-block;
+        position: static;
+        margin: 0 0 0 2px;
       }
     }
   }

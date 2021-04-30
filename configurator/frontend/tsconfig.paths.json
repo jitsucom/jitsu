@@ -5,11 +5,13 @@
       "@./*": ["./*"],
       "@atom/*": ["./ui/components/atom/*"],
       "@molecule/*": ["./ui/components/molecule/*"],
+      "@organism/*": ["./ui/components/organism/*"],
       "@page/*": ["./ui/pages/*"],
       "@catalog/*": ["./catalog/*"],
       "@service/*": ["./lib/services/*"],
       "@util/*": ["./utils/*"],
       "@hooks/*": ["./hooks/*"],
+      "@hocs/*": ["./hocs/*"]
     }
   }
 }
