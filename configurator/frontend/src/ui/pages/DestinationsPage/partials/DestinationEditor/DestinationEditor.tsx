@@ -47,7 +47,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
   const destinationData = useRef<DestinationData>(
     destinations.find(dst => dst._id === params.id) || {
-      _id: getUniqueAutoIncId(params.type, destinations.map(dst => dst._type)),
+      _id: getUniqueAutoIncId(params.type, destinations.map(dst => dst._id)),
       _uid: randomId(),
       _type: params.type,
       _mappings: { _keepUnmappedFields: true },
