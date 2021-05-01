@@ -24,7 +24,7 @@
 * Capture events your application generates and stream to Data Warehouse;
 * Pull data from APIs and save it to Data Warehouse
 
-Read more about [our features](https://https://jitsu.com/#features) and check out the [platform overview](https://jitsu.com/overview)!
+Read more about [our features](https://jitsu.com/#features) and check out the [platform overview](https://jitsu.com/overview)!
 
 
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/quickstart.gif" width="40px"/></a>
