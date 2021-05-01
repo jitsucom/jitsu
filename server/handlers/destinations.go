@@ -24,11 +24,13 @@ func DestinationsHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
 		return
 	}
+
 	err := testDestinationConnection(destinationConfig)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
+
 	c.Status(http.StatusOK)
 }
 
@@ -100,11 +102,14 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			if err := config.S3.Validate(); err != nil {
 				return err
 			}
+
 			s3, err := adapters.NewS3(config.S3)
 			if err != nil {
 				return err
 			}
+
 			defer s3.Close()
+
 			if err = s3.ValidateWritePermission(); err != nil {
 				return err
 			}
@@ -149,7 +154,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		snowflake, err := storages.CreateSnowflakeAdapter(context.Background(), nil, *config.Snowflake, logging.NewQueryLogger("snowflake_test_connection", nil, nil), typing.SQLTypes{})
+		snowflake, err := adapters.NewSnowflake(context.Background(), config.Snowflake, nil, nil, typing.SQLTypes{})
 		if err != nil {
 			return err
 		}
@@ -161,29 +166,42 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 				if err := config.S3.Validate(); err != nil {
 					return err
 				}
+
 				s3, err := adapters.NewS3(config.S3)
 				if err != nil {
 					return err
 				}
+
 				defer s3.Close()
+
 				if err = s3.ValidateWritePermission(); err != nil {
 					return err
 				}
+
 			} else if config.Google != nil && config.Google.Bucket != "" {
 				if err := config.Google.Validate(false); err != nil {
 					return err
 				}
+
 				gcp, err := adapters.NewGoogleCloudStorage(context.Background(), config.Google)
 				if err != nil {
 					return err
 				}
+
 				defer gcp.Close()
+
 				if err = gcp.ValidateWritePermission(); err != nil {
 					return err
 				}
 			}
 		}
+
+		if err = snowflake.ValidateWritePermission(); err != nil {
+			return err
+		}
+
 		return nil
+
 	case storages.GoogleAnalyticsType:
 		if err := config.GoogleAnalytics.Validate(); err != nil {
 			return err

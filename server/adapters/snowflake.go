@@ -5,11 +5,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
-	sf "github.com/snowflakedb/gosnowflake"
+	"math/rand"
 	"sort"
 	"strings"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/typing"
+	sf "github.com/snowflakedb/gosnowflake"
 )
 
 const (
@@ -25,6 +28,7 @@ const (
 	createSFDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS %s`
 	addSFColumnTemplate                 = `ALTER TABLE %s.%s ADD COLUMN %s`
 	createSFTableTemplate               = `CREATE TABLE %s.%s (%s)`
+	deleteSFTableTemplate               = `DROP TABLE %s.%s`
 	insertSFTemplate                    = `INSERT INTO %s.%s (%s) VALUES (%s)`
 )
 
@@ -173,6 +177,30 @@ func (s *Snowflake) CreateTable(tableSchema *Table) error {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error creating [%s] table: %v", tableSchema.Name, err)
 	}
+	return wrappedTx.tx.Commit()
+}
+
+// DeleteTable removes database table with name provided in Table representation
+func (s *Snowflake) DeleteTable(table *Table) error {
+	wrappedTx, err := s.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	query := fmt.Sprintf(deleteSFTableTemplate, s.config.Schema, reformatValue(table.Name))
+	s.queryLogger.LogDDL(query)
+	createStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error preparing delete table [%s] statement: %v", table.Name, err)
+	}
+
+	_, err = createStmt.ExecContext(s.ctx)
+	if err != nil {
+		wrappedTx.Rollback()
+		return fmt.Errorf("Error deleting [%s] table: %v", table.Name, err)
+	}
+
 	return wrappedTx.tx.Commit()
 }
 
@@ -326,6 +354,34 @@ func (s *Snowflake) columnDDL(name string, column Column) string {
 	}
 
 	return fmt.Sprintf(`%s %s`, reformatValue(name), sqlColumnTypeDDL)
+}
+
+func (s *Snowflake) ValidateWritePermission() error {
+	tableName := fmt.Sprintf("test_%v_%v", timestamp.NowUTC(), rand.Int())
+	columnName := "field"
+	table := &Table{
+		Name:    tableName,
+		Columns: Columns{columnName: Column{"text"}},
+	}
+	event := map[string]interface{}{
+		columnName: "value 42",
+	}
+
+	if err := s.CreateTable(table); err != nil {
+		return err
+	}
+
+	if err := s.Insert(table, event); err != nil {
+		return err
+	}
+
+	if err := s.DeleteTable(table); err != nil {
+		logging.Warnf("Cannot remove table [%s] from snowflake: %v", tableName, err)
+		// Suppressing error because we need to check only write permission
+		// return err
+	}
+
+	return nil
 }
 
 //Snowflake has table with schema, table names and there
