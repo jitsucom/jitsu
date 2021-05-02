@@ -150,7 +150,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		}
 		return bq.Test()
 	case storages.SnowflakeType:
-		if err := config.Snowflake.Validate(); err != nil {
+		if err := config.Snowflake.Validate(true); err != nil {
 			return err
 		}
 
@@ -208,6 +208,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		}
 
 		return nil
+
 	case storages.FacebookType:
 		if err := config.Facebook.Validate(); err != nil {
 			return err
@@ -222,6 +223,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		}
 
 		return nil
+
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}

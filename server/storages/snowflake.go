@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/typing"
 
@@ -37,7 +38,7 @@ func init() {
 //NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
 func NewSnowflake(config *Config) (Storage, error) {
 	snowflakeConfig := config.destination.Snowflake
-	if err := snowflakeConfig.Validate(); err != nil {
+	if err := snowflakeConfig.Validate(false); err != nil {
 		return nil, err
 	}
 	if snowflakeConfig.Schema == "" {
