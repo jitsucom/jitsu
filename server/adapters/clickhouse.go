@@ -313,9 +313,7 @@ func (ch *ClickHouse) CreateTable(tableSchema *Table) error {
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	statementStr := ch.tableStatementFactory.CreateTableStatement(tableSchema.Name, strings.Join(columnsDDL, ","))
-	if ch.queryLogger != nil {
-		ch.queryLogger.LogDDL(statementStr)
-	}
+	ch.queryLogger.LogDDL(statementStr)
 
 	_, err := ch.dataSource.ExecContext(ch.ctx, statementStr)
 	if err != nil {
@@ -338,9 +336,7 @@ func (ch *ClickHouse) DeleteTable(tableSchema *Table) error {
 	}
 
 	statementStr := ch.tableStatementFactory.DeleteTableStatement(tableSchema.Name)
-	if ch.queryLogger != nil {
-		ch.queryLogger.LogDDL(statementStr)
-	}
+	ch.queryLogger.LogDDL(statementStr)
 
 	_, err = ch.dataSource.ExecContext(ch.ctx, statementStr)
 	if err != nil {

@@ -196,6 +196,7 @@ func (s *Snowflake) DeleteTable(table *Table) error {
 	}
 
 	_, err = createStmt.ExecContext(s.ctx)
+
 	if err != nil {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error deleting [%s] table: %v", table.Name, err)

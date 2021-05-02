@@ -304,9 +304,7 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 	//sorting columns asc
 	sort.Strings(columnsDDL)
 	query := fmt.Sprintf(createTableTemplate, p.config.Schema, table.Name, strings.Join(columnsDDL, ", "))
-	if p.queryLogger != nil {
-		p.queryLogger.LogDDL(query)
-	}
+	p.queryLogger.LogDDL(query)
 
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 
@@ -364,9 +362,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 
 func (p *Postgres) deleteTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	query := fmt.Sprintf(deleteTableTemplate, p.config.Schema, table.Name)
-	if p.queryLogger != nil {
-		p.queryLogger.LogDDL(query)
-	}
+	p.queryLogger.LogDDL(query)
 
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 

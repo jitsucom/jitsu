@@ -42,19 +42,19 @@ func NewQueryLogger(identifier string, ddlWriter io.Writer, queryWriter io.Write
 }
 
 func (l *QueryLogger) LogDDL(query string) {
-	if l.ddlLogger != nil {
+	if l != nil && l.ddlLogger != nil {
 		l.ddlLogger.Printf("%s [%s] %s\n", debugPrefix, l.identifier, query)
 	}
 }
 
 func (l *QueryLogger) LogQuery(query string) {
-	if l.queryLogger != nil {
+	if l != nil && l.queryLogger != nil {
 		l.queryLogger.Printf("%s [%s] %s\n", debugPrefix, l.identifier, query)
 	}
 }
 
 func (l *QueryLogger) LogQueryWithValues(query string, values []interface{}) {
-	if l.queryLogger != nil {
+	if l != nil && l.queryLogger != nil {
 		var stringValues []string
 		for _, value := range values {
 			stringValues = append(stringValues, fmt.Sprint(value))
