@@ -6,9 +6,8 @@ import { Task, TaskId, TaskLogEntry } from './utils';
 import { useLoader } from '@hooks/useLoader';
 import { useServices } from '@hooks/useServices';
 import { CollectionSourceData } from '@page/SourcesPage';
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 import { PageHeader } from '@atom/PageHeader';
 import { PageProps } from '@./navigation';
 import { allSources } from '@catalog/sources/lib';
@@ -17,6 +16,8 @@ import { snakeCase } from 'lodash';
 import { taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
 import styles from './TaskLogsPage.module.less'
 import classNames from 'classnames';
+import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
+import moment from 'moment';
 
 export const taskLogsViewerRoute = '/sources/logs/:sourceId/:taskId'
 type TaskInfo = {
@@ -29,6 +30,7 @@ export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   taskId = TaskId.decode(taskId);
   const services = useServices();
   const history = useHistory();
+  const viewerRef = useRef(null)
   const [error, taskInfo] = useLoader<TaskInfo>(async() => {
     const data: CollectionSourceData = await services.storageService.get('sources', services.activeProject.id);
     if (!data.sources) {
@@ -61,6 +63,12 @@ export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
     }
   }, [setBreadcrumbs, sourceId, taskId, taskInfo])
 
+  useEffect(() => {
+    if (viewerRef.current) {
+      viewerRef.current.scrollTo(0, viewerRef.current.scrollHeight, { behavior: 'smooth' });
+    }
+  })
+
   if (error) {
     return <CenteredError error={error} />
   } else if (!taskInfo) {
@@ -72,8 +80,10 @@ export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
       Back to task list
     </Button>
     <div className={classNames(styles.logViewerWrapper, 'custom-scrollbar')}>
-      <pre className={classNames(styles.logViewer, 'custom-scrollbar')}>
-        {taskInfo.logs.map(l => <span className={classNames(styles['logEntry' + l.level], styles.logEntry)}><span className={styles.logTime}>{l.time}</span> <span className={styles.logLevel}>[{l.level.toUpperCase()}]</span> - <span className={styles.logMessage}>{l.message}</span>{'\n'}</span>)}
+      <pre ref={viewerRef} className={classNames(styles.logViewer, 'custom-scrollbar', 'text-xs')}>
+        {taskInfo.logs.map(l => <span className={classNames(styles['logEntry' + l.level], styles.logEntry)}><span className={styles.logTime}>
+          {moment.utc(l.time).format('YYYY-MM-DD HH:mm:ss')}
+        </span> <span className={styles.logLevel}>[{l.level.toUpperCase()}]</span> - <span className={styles.logMessage}>{l.message}</span>{'\n'}</span>)}
       </pre>
     </div>
   </div>

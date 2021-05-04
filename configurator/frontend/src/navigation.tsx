@@ -7,7 +7,7 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 import ComponentTest from './lib/components/componentTest';
 import { TaskLogsPage, taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
 import { taskLogsViewerRoute, TaskLogViewer } from '@page/TaskLogs/TaskLogViewer';
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
+import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 // @Components
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));

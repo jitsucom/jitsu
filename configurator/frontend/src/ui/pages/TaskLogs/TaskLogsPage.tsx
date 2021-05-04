@@ -11,12 +11,12 @@ import { colorMap, TaskStatus } from './utils';
 import styles from './TaskLogsPage.module.less';
 import moment from 'moment';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 import { allSources } from '@catalog/sources/lib';
 import { snakeCase } from 'lodash';
 import { SourceConnector } from '@catalog/sources/types';
 import { CollectionSourceData } from '@page/SourcesPage';
 import { PageHeader } from '@atom/PageHeader';
+import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 
 export const taskLogsPageRoute = '/sources/logs/:sourceId'
 

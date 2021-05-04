@@ -24,6 +24,10 @@ import { CommonDestinationPageProps } from '@page/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 
+import CodeOutlined from '@ant-design/icons/lib/icons/CodeOutlined';
+import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
+import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
+
 const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: CommonDestinationPageProps) => {
   const history = useHistory();
 
@@ -40,19 +44,6 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
       handleError(errors, 'Unable to delete destination at this moment, please try later.')
     }
   }, [destinations, updateDestinations]);
-
-  const handleDeleteAction = useCallback((id: string) => () => {
-    Modal.confirm({
-      title: 'Please confirm deletion of destination',
-      icon: <ExclamationCircleOutlined/>,
-      content: 'Are you sure you want to delete ' + id + ' destination?',
-      okText: 'Delete',
-      cancelText: 'Cancel',
-      onOk: update(id)
-    });
-  }, [update]);
-
-  const handleEditAction = useCallback((id: string) => () => history.push(generatePath(destinationPageRoutes.editDestination, { id })), [history]);
 
   const dropDownList = useMemo(() => <DropDownList
     hideFilter
@@ -107,8 +98,17 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
             id={dst._id}
             key={dst._id}
             actions={[
-              { key: 'edit', method: handleEditAction, title: 'Edit' },
-              { key: 'delete', method: handleDeleteAction, title: 'Delete' }
+              { onClick: () => history.push(generatePath(destinationPageRoutes.editDestination, { id: dst._id })), title: 'Edit', icon: <EditOutlined /> },
+              { onClick: () => {
+                Modal.confirm({
+                  title: 'Please confirm deletion of destination',
+                  icon: <ExclamationCircleOutlined/>,
+                  content: 'Are you sure you want to delete ' + dst._id + ' destination?',
+                  okText: 'Delete',
+                  cancelText: 'Cancel',
+                  onOk: update(dst._id)
+                });
+              }, title: 'Delete', icon: <DeleteOutlined /> }
             ]}
           />
         })

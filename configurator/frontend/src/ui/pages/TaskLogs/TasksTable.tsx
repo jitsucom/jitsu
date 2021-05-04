@@ -1,6 +1,6 @@
 import { generatePath, NavLink } from 'react-router-dom';
 import ApplicationServices from '@service/ApplicationServices';
-import { ReactNode } from 'react';
+import { ReactNode, useState } from 'react';
 import { CenteredError, CenteredSpin, handleError, withProgressBar } from '@./lib/components/components';
 import { Button, Table, Tag } from 'antd';
 import RedoOutlined from '@ant-design/icons/lib/icons/RedoOutlined';
@@ -22,7 +22,7 @@ export type TasksTableProps = {
 }
 export const TasksTable: React.FC<TasksTableProps> = (props) => {
   const appServices = useServices();
-  const forceUpdate = useForceUpdate();
+  const [taskRuns, setTaskRuns] = useState(0); //to trigger reload on manual task run
   const [loadingError, tasksSorted] = useLoader<Task[]>(async() => {
 
     const tasks = await appServices.backendApiClient.get('/tasks',
@@ -37,16 +37,18 @@ export const TasksTable: React.FC<TasksTableProps> = (props) => {
         }
       });
     return tasks.tasks.sort(comparator<Task>(t => new Date(t.created_at)));
-  }, [props.projectId,props.start, props.end, props.collection, props.status]);
+  }, [props.projectId,props.start, props.end, props.collection, props.status, taskRuns]);
 
   const runTask = (source: string, collection: string) => {
     return async() => {
       return await withProgressBar({
         estimatedMs: 100,
         callback: async() => {
-          await appServices.backendApiClient.post('/tasks', { source, collection }, { proxy: true, urlParams: { project_id: props.projectId } });
-          forceUpdate();
-
+          await appServices.backendApiClient.post('/tasks', undefined, { proxy: true, urlParams: {
+            source, collection,
+            project_id: props.projectId }
+          });
+          setTaskRuns(taskRuns + 1);
         }
       })
     }
@@ -103,7 +105,7 @@ const columns: ColumnData[] = [
               taskId: TaskId.encode(t.logs.taskId)
             })}>View logs</NavLink>
         </div>
-        <div className="text-xs text-secondaryText">{date.format('YYYY-MM-DD HH:mm:SS')} (UTC)</div>
+        <div className="text-xs text-secondaryText">{date.format('YYYY-MM-DD HH:mm:ss')} (UTC)</div>
       </div>;
     }
   },
