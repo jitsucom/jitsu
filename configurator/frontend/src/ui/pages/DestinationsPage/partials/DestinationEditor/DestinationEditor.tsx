@@ -268,7 +268,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
             type="card"
             className={styles.tabCard}
             tabsList={destinationsTabs.current}
-            defaultTabIndex={2}
+            defaultTabIndex={0}
           />
         </div>
 
