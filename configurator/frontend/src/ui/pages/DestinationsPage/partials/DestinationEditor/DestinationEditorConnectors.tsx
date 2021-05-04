@@ -23,7 +23,7 @@ import {
   DESTINATIONS_CONNECTED_SOURCES
 } from '@./embeddedDocs/destinationsConnectedItems';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
+import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
 import Icon from '@ant-design/icons';
 import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
@@ -33,9 +33,10 @@ export interface Props {
   form: FormInstance;
   destination: Destination,
   initialValues: DestinationData;
+  handleTouchAnyField: VoidFunc;
 }
 
-const DestinationEditorConnectors = ({ form, initialValues, destination }: Props) => {
+const DestinationEditorConnectors = ({ form, initialValues, destination, handleTouchAnyField }: Props) => {
   const service = ApplicationServices.get();
 
   const [sourcesError, sourcesData] = useLoader(async() => await service.storageService.get('sources', service.activeProject.id));
@@ -71,6 +72,12 @@ const DestinationEditorConnectors = ({ form, initialValues, destination }: Props
     [apiKeysData?.keys]
   );
 
+  const handleItemChange = useCallback((name: string) => (items: string[]) => {
+    const beenTouched = JSON.stringify(items) !== JSON.stringify(initialValues?.[name]);
+
+    handleTouchAnyField(beenTouched);
+  }, [initialValues, handleTouchAnyField])
+
   if (apiKeysError || sourcesError) {
     return <CenteredError error={apiKeysError || sourcesError}/>
   } else if (!sourcesData || !apiKeysData) {
@@ -96,7 +103,9 @@ const DestinationEditorConnectors = ({ form, initialValues, destination }: Props
                 fieldName="_onlyKeys"
                 itemsList={apiKeysList}
                 warningMessage={<p>Please, choose at least one API key.</p>}
-                initialValues={initialValues?._onlyKeys}/>
+                initialValues={initialValues?._onlyKeys}
+                handleItemChange={handleItemChange('_onlyKeys')}
+              />
             </div>
           </Collapse.Panel>
           <Collapse.Panel header={<b>Linked Connectors (<NavLink to="/sources">edit connectors</NavLink>)</b>} key="connectors">
@@ -111,6 +120,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination }: Props
                 itemsList={sourcesList}
                 warningMessage={<p>Please, choose at least one source.</p>}
                 initialValues={initialValues?._sources}
+                handleItemChange={handleItemChange('_sources')}
               />}
               {destination.syncFromSourcesStatus === 'coming_soon' && <div className="text-secondaryText">
                 <b>{destination.displayName}</b> support is <i>coming soon!</i>. At the moment, Jitsu can't send data from connectors to {destination.displayName}.

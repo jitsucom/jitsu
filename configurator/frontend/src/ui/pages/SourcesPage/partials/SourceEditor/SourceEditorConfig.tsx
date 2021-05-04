@@ -1,6 +1,7 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
 import { Col, Form, Input, Row, Select } from 'antd';
+import { debounce } from 'lodash';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { SourceConnector } from '@catalog/sources/types';
@@ -25,6 +26,8 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
       : Promise.resolve(),
     [sources]
   );
+
+  const handleChange = debounce(handleTouchAnyField, 500);
 
   const sourceIdValidators = useMemo(() => {
     const rules: Rule[] = [{ required: true, message: 'Source ID is required field' }];
@@ -51,7 +54,7 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
       name="source-config"
       form={form}
       autoComplete="off"
-      onChange={handleTouchAnyField}
+      onChange={handleChange}
     >
       <Row>
         <Col span={16}>

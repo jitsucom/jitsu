@@ -13,13 +13,15 @@ export interface Props {
   field: FormListFieldData;
   initialValue: any;
   documentation?: React.ReactNode;
+  handleFormFieldsChange: VoidFunc;
 }
 
 const SourceFormCollectionsFieldComponent = ({
   collection,
   field,
   initialValue,
-  documentation
+  documentation,
+  handleFormFieldsChange
 }: Props) => {
   const formItemChild = useMemo(() => {
     switch (collection.type.typeName) {
@@ -30,6 +32,7 @@ const SourceFormCollectionsFieldComponent = ({
           mode={collection.type.data?.maxOptions > 1 || !collection.type.data?.maxOptions
             ? 'multiple'
             : undefined}
+          onChange={handleFormFieldsChange}
         >
           {collection.type.data.options.map((option: { displayName: string; id: string }) => (
             <Select.Option key={option.id} value={option.id}>
@@ -41,7 +44,7 @@ const SourceFormCollectionsFieldComponent = ({
 
     case 'string':
     default:
-      return <Input autoComplete="off" />;
+      return <Input autoComplete="off" onChange={handleFormFieldsChange} />;
     }
   }, [collection]);
 
@@ -73,7 +76,7 @@ const SourceFormCollectionsFieldComponent = ({
             <LabelWithTooltip documentation={documentation} render={collection.displayName} /> :
             <span>{collection.displayName}:</span>}
           key={collection.id}
-          name={[field.name, collection.id]}
+          name={[field.name, `parameters.${collection.id}`]}
           rules={validationRules}
           labelCol={{ span: 6 }}
           wrapperCol={{ span: 18 }}
