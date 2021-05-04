@@ -97,7 +97,7 @@ export default class EventsStream extends LoadableComponent<{}, State> {
 
   protected async load(): Promise<State> {
     let events: Event[] = (
-      await this.services.backendApiClient.get(`/events/cache?project_id=${this.services.activeProject.id}&limit=100`, true)
+      await this.services.backendApiClient.get(`/events/cache?project_id=${this.services.activeProject.id}&limit=100`, {proxy: true })
     )['events'].map((rawEvent) => {
       return { time: moment(rawEvent['original']['_timestamp']), data: rawEvent };
     });

@@ -15,7 +15,7 @@ import OnboardingForm from './lib/components/OnboardingForm/OnboardingForm';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import PapercupsWrapper from './lib/commons/papercups';
-import { ApplicationPageWrapper, SlackChatWidget } from './Layout';
+import { ApplicationPage, SlackChatWidget } from './Layout';
 import classNames from 'classnames';
 import { PaymentPlanStatus } from '@service/billing';
 
@@ -153,7 +153,7 @@ export default class App extends React.Component<AppProperties, AppState> {
                             document.title = route.pageTitle;
                             return route.doNotWrap ?
                               <Component {...(routeProps as any)} /> :
-                              <ApplicationPageWrapper user={this.state.user} plan={this.state.paymentPlanStatus} page={route} {...routeProps} />;
+                              <ApplicationPage user={this.state.user} plan={this.state.paymentPlanStatus} page={route} {...routeProps} />;
                         }}
                     />;
             } else {
