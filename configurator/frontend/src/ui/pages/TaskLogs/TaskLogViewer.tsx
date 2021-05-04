@@ -2,7 +2,7 @@ import { Button } from 'antd';
 import ArrowLeftOutlined from '@ant-design/icons/lib/icons/ArrowLeftOutlined';
 import { generatePath, NavLink, useHistory, useParams } from 'react-router-dom';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
-import { Task, TaskLogEntry } from './utils';
+import { Task, TaskId, TaskLogEntry } from './utils';
 import { useLoader } from '@hooks/useLoader';
 import { useServices } from '@hooks/useServices';
 import { CollectionSourceData } from '@page/SourcesPage';
@@ -15,6 +15,8 @@ import { allSources } from '@catalog/sources/lib';
 import { SourceConnector } from '@catalog/sources/types';
 import { snakeCase } from 'lodash';
 import { taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
+import styles from './TaskLogsPage.module.less'
+import classNames from 'classnames';
 
 export const taskLogsViewerRoute = '/sources/logs/:sourceId/:taskId'
 type TaskInfo = {
@@ -23,7 +25,8 @@ type TaskInfo = {
   source: SourceData
 }
 export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
-  const { sourceId, taskId } = useParams<{sourceId: string, taskId: string}>()
+  let { sourceId, taskId } = useParams<{sourceId: string, taskId: string}>()
+  taskId = TaskId.decode(taskId);
   const services = useServices();
   const history = useHistory();
   const [error, taskInfo] = useLoader<TaskInfo>(async() => {
@@ -65,11 +68,14 @@ export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   }
 
   return <div>
-    <Button type="primary" icon={<ArrowLeftOutlined />} onClick={() => history.push(generatePath(taskLogsPageRoute, { sourceId }))}>
+    <Button type="primary" className="mb-4" icon={<ArrowLeftOutlined />} onClick={() => history.push(generatePath(taskLogsPageRoute, { sourceId }))}>
       Back to task list
     </Button>
-    <pre>
-      {taskInfo.logs.map(l => `${l.time} [${l.level.toLowerCase()}] - ${l.message}\n`)}
-    </pre>
+    <div className={classNames(styles.logViewerWrapper, 'custom-scrollbar')}>
+      <pre className={classNames(styles.logViewer, 'custom-scrollbar')}>
+        {taskInfo.logs.map(l => <span className={classNames(styles['logEntry' + l.level], styles.logEntry)}><span className={styles.logTime}>{l.time}</span> <span className={styles.logLevel}>[{l.level.toUpperCase()}]</span> - <span className={styles.logMessage}>{l.message}</span>{'\n'}</span>)}
+      </pre>
+    </div>
   </div>
+
 }

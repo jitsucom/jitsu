@@ -28,6 +28,7 @@ import { BreadcrumbsProps, withHome } from '@molecule/Breadcrumbs/Breadcrumbs.ty
 import { Breadcrumbs } from '@molecule/Breadcrumbs';
 import { CurrentPlan } from '@molecule/CurrentPlan/CurrentPlan';
 import { PaymentPlan, PaymentPlanStatus } from '@service/billing';
+import styles from './Layout.module.less';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
@@ -40,7 +41,7 @@ export const ApplicationMenu: React.FC<{}> = () => {
   if (key.charAt(0) === '/') {
     key = key.substr(1);
   }
-  return <Menu selectable={false} focusable={false} mode="inline" selectedKeys={[key]} className="app-layout-sidebar-menu">
+  return <Menu selectable={false} focusable={false} mode="inline" selectedKeys={[key]} className="border-0">
     <Menu.Item key="dashboard" icon={<AreaChartOutlined/>}>
       <NavLink to="/dashboard" activeClassName="selected">
         Dashboard
@@ -76,25 +77,24 @@ export const ApplicationMenu: React.FC<{}> = () => {
 
 export const ApplicationSidebar: React.FC<{}> = () => {
   const services = useServices();
-  return <Layout.Sider key="sider" className="app-layout-side-bar">
-    <div className="app-layout-side-bar-top">
-      <a className="app-logo-wrapper" href="https://jitsu.com">
-        <img className="app-logo" src={logo} alt="[logo]"/>
+  return <div className={styles.sideBarContent} >
+    <div>
+      <a href="https://jitsu.com" className="text-center block pt-5 h-14">
+        <img src={logo} alt="[logo]" className="w-32 mx-auto"/>
       </a>
       <ApplicationMenu/>
     </div>
-    <div className="app-layout-side-bar-bottom">
-      <a className="app-layout-side-bar-bottom-item"
-        onClick={() => {
-          if (services.features.chatSupportType === 'chat') {
-            PapercupsWrapper.focusWidget();
-          } else {
-            document.getElementById('jitsuSlackWidget').click();
-          }
-        }}><WechatOutlined/> Chat with us!
-      </a>
+    <div className="flex justify-center pb-4"><Button type="link" size="large"
+      onClick={() => {
+        if (services.features.chatSupportType === 'chat') {
+          PapercupsWrapper.focusWidget();
+        } else {
+          document.getElementById('jitsuSlackWidget').click();
+        }
+      }}><WechatOutlined/> Chat with us!
+    </Button>
     </div>
-  </Layout.Sider>
+  </div>
 }
 
 export type PageHeaderProps = {
@@ -108,26 +108,24 @@ function abbr(user: User) {
 
 export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) => {
   const [dropdownVisible, setDropdownVisible] = useState(false);
-  return <Row className="internal-page-header-container">
-    <Col span={12}>
+  return <div className="border-b border-splitBorder mb-4 h-12 flex flex-nowrap">
+    <div className="flex-grow">
       <div className="h-12 flex items-center">
         {children}
       </div>
-    </Col>
-    <Col span={12}>
-      <Align horizontal="right">
-        <Dropdown
-          trigger={['click']}
-          onVisibleChange={(vis) => setDropdownVisible(vis)}
-          visible={dropdownVisible}
-          overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}>
-          <Button className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text" size="large" shape="circle">
-            {abbr(user)}
-          </Button>
-        </Dropdown>
-      </Align>
-    </Col>
-  </Row>
+    </div>
+    <div className="flex-shrink">
+      <Dropdown
+        trigger={['click']}
+        onVisibleChange={(vis) => setDropdownVisible(vis)}
+        visible={dropdownVisible}
+        overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}>
+        <Button className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text" size="large" shape="circle">
+          {abbr(user)}
+        </Button>
+      </Dropdown>
+    </div>
+  </div>
 }
 
 export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMenu: () => void}> = ({ plan, user , hideMenu }) => {
@@ -207,23 +205,23 @@ export type ApplicationPageWrapperProps = {
   [propName: string]: any
 }
 
-export const ApplicationPageWrapper: React.FC<ApplicationPageWrapperProps> = ({ plan, page, user, ...rest }) => {
+export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, page, user, ...rest }) => {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(withHome({ elements: [{ title: page.pageHeader }] }));
   const pageId = usePageLocation().id;
 
   let Component = page.component as React.ExoticComponent;
   let props = { setBreadcrumbs }
-  return <>
-    <ApplicationSidebar />
-    <Layout.Content key="content" className="app-layout-content">
-      <div className={classNames('internal-page-wrapper', 'page-' + pageId + '-wrapper')}>
-        <PageHeader user={user} plan={plan}><Breadcrumbs {...breadcrumbs} /></PageHeader>
-        <div className="internal-page-content-wrapper">
-          <Component {...(props as any)} />
-        </div>
+  return <div className={styles.applicationPage}>
+    <div className={classNames(styles.sidebar)}>
+      <ApplicationSidebar />
+    </div>
+    <div className={classNames(styles.rightbar)}>
+      <PageHeader user={user} plan={plan}><Breadcrumbs {...breadcrumbs} /></PageHeader>
+      <div className="flex-grow">
+        <Component {...(props as any)} />
       </div>
-    </Layout.Content>
-  </>;
+    </div>
+  </div>;
 }
 
 export const SlackChatWidget: React.FC<{}> = () => {

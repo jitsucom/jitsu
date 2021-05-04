@@ -40,7 +40,8 @@ const sourcePageUtils = {
   },
   getTitle: (src: SourceData) => {
     const connected = src.connected;
-    const render = connected ? src.sourceId : <><b>!</b> {src.sourceId}</>;
+    const render = connected ? src.sourceId :
+      <><b>!</b> {src.sourceId}</>;
 
     return <ListItemTitle render={render} error={!connected} />
   }

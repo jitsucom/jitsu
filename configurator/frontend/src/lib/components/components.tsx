@@ -501,7 +501,7 @@ export type IWithProgressProps<T> = {
   callback: () => Promise<T>;
 };
 
-export async function withProgressBar<T>(props: IWithProgressProps<T>) {
+export async function withProgressBar<T>(props: IWithProgressProps<T>): Promise<T> {
   let modal = Modal.info({
     className: 'estimated-progress-bar',
     icon: null,
@@ -515,9 +515,10 @@ export async function withProgressBar<T>(props: IWithProgressProps<T>) {
     okText: 'Cancel'
   });
   try {
-    await props.callback();
+    const res = await props.callback();
     modal.destroy();
     message.info('Completed successfully!');
+    return res;
   } catch (e) {
     modal.update({
       className: 'estimated-progress-bar',
