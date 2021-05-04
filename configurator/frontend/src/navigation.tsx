@@ -2,10 +2,12 @@
 import React, { ExoticComponent, ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 // @???
 import ComponentTest from './lib/components/componentTest';
+import { TaskLogsPage, taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
+import { taskLogsViewerRoute, TaskLogViewer } from '@page/TaskLogs/TaskLogViewer';
+import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 // @Components
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
@@ -113,5 +115,24 @@ export const PRIVATE_PAGES: Page[] = [
     Object.keys(sourcesPageRoutes).map((key) => sourcesPageRoutes[key]),
     SourcesPage,
     'Sources'
+  ),
+  new Page(
+    'Jitsu | sources',
+    Object.keys(sourcesPageRoutes).map((key) => sourcesPageRoutes[key]),
+    SourcesPage,
+    'Sources'
+  ),
+  new Page(
+    'Jitsu | task logs',
+    taskLogsPageRoute,
+    TaskLogsPage,
+    'Task Logs'
+  ),
+  new Page(
+    'Jitsu | Task Logs View',
+    taskLogsViewerRoute,
+    TaskLogViewer,
+    'Task Logs'
   )
+
 ];

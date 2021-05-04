@@ -109,7 +109,7 @@ export class StatServiceImpl implements StatService {
     let data = (
       await this.api.get(
         `/statistics?project_id=${this.project.id}&start=${start.toISOString()}&end=${end.toISOString()}&granularity=${granularity}`,
-        true
+        { proxy: true }
       )
     )['data'];
     return mergeSeries(
