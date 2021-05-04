@@ -23,23 +23,28 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 import { CommonDestinationPageProps } from '@page/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 
-const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: CommonDestinationPageProps) => {
+const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, sources }: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const update = useCallback((id: string) => async() => {
     const appServices = ApplicationServices.get();
 
+    const currentDestination = destinations.find(dest => dest._id === id);
+
     const newDestinations = destinations.filter(dest => dest._id !== id);
 
     try {
+      destinationEditorUtils.updateSources(sources, currentDestination, appServices.activeProject.id);
+
       await appServices.storageService.save('destinations', { destinations: newDestinations }, appServices.activeProject.id);
 
       updateDestinations({ destinations: newDestinations });
     } catch (errors) {
       handleError(errors, 'Unable to delete destination at this moment, please try later.')
     }
-  }, [destinations, updateDestinations]);
+  }, [destinations, updateDestinations, sources]);
 
   const handleDeleteAction = useCallback((id: string) => () => {
     Modal.confirm({
