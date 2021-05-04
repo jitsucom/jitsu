@@ -28,20 +28,21 @@ export interface CommonDestinationPageProps {
   destinations: DestinationData[];
   updateDestinations: Dispatch<SetStateAction<any>>;
   editorMode?: 'edit' | 'add';
+  sources: SourceData[];
 }
 
 export const DestinationsPage = (props: PageProps) => {
-  const services = useMemo(() => ApplicationServices.get(), []);
+  const services = ApplicationServices.get();
 
-  const [error, destinations, updateDestinations] = useLoader(
-    async() => await services.storageService.get('destinations', services.activeProject.id)
-  );
+  const [sourcesError, sourcesData] = useLoader(async() => await services.storageService.get('sources', services.activeProject.id));
+  const [error, destinations, updateDestinations] = useLoader(async() => await services.storageService.get('destinations', services.activeProject.id));
 
   const additionalProps = useMemo(() => ({
     setBreadcrumbs: props.setBreadcrumbs,
     destinations: destinations?.destinations ?? [],
-    updateDestinations
-  }), [props.setBreadcrumbs, destinations, updateDestinations]);
+    updateDestinations,
+    sources: sourcesData?.sources
+  }), [props.setBreadcrumbs, destinations, updateDestinations, sourcesData]);
 
   if (error) {
     return <CenteredError error={error} />;
