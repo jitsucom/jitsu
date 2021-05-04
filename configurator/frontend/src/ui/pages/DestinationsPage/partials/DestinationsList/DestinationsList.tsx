@@ -29,7 +29,7 @@ import CodeOutlined from '@ant-design/icons/lib/icons/CodeOutlined';
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
 import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 
-const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: CommonDestinationPageProps) => {
+const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, sources, updateSources  }: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const update = useCallback((id: string) => async() => {
