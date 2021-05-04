@@ -28,6 +28,7 @@ import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
 import Icon from '@ant-design/icons';
 import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
 import { Destination } from '@catalog/destinations/types';
+import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 
 export interface Props {
   form: FormInstance;
@@ -96,7 +97,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination, handleT
       <Form form={form} name="connected-sources">
         <div className="text-xs italic text-secondaryText mb-5">{DESTINATIONS_CONNECTED_SOURCES}</div>
         <Collapse ghost defaultActiveKey={activeKey}>
-          <Collapse.Panel header={<b>Linked API Keys (<NavLink to="/api_keys">edit API keys</NavLink>)</b>} key="keys">
+          <Collapse.Panel header={<b>Linked API Keys (<NavLink to="/api_keys">edit API keys</NavLink>)</b>} key="keys" forceRender>
             <div className="pl-6">
               <ConnectedItems
                 form={form}
@@ -108,7 +109,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination, handleT
               />
             </div>
           </Collapse.Panel>
-          <Collapse.Panel header={<b>Linked Connectors (<NavLink to="/sources">edit connectors</NavLink>)</b>} key="connectors">
+          <Collapse.Panel header={<b>Linked Connectors (<NavLink to="/sources">edit connectors</NavLink>)</b>} key="connectors" forceRender>
             <div className="pl-6">
               {
                 destination.syncFromSourcesStatus === 'supported' && sourcesData && !sourcesData?.sources?.length &&
@@ -119,7 +120,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination, handleT
                 fieldName="_sources"
                 itemsList={sourcesList}
                 warningMessage={<p>Please, choose at least one source.</p>}
-                initialValues={initialValues?._sources}
+                initialValues={destinationEditorUtils.getCheckedSources(sourcesData?.sources, initialValues)}
                 handleItemChange={handleItemChange('_sources')}
               />}
               {destination.syncFromSourcesStatus === 'coming_soon' && <div className="text-secondaryText">
