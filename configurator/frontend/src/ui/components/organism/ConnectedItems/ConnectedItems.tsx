@@ -1,5 +1,5 @@
 // @Libs
-import React, { ReactNode, useCallback, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useState } from 'react';
 import { Form, Switch, Typography } from 'antd';
 // @Components
 import { ListItem, SomeAction } from '@molecule/ListItem';
@@ -19,6 +19,7 @@ export interface Props {
   itemsList: ConnectedItem[];
   initialValues?: string[];
   warningMessage: React.ReactNode;
+  handleItemChange?: (selectedItems: string[]) => void;
 }
 
 export const NameWithPicture: React.FC<{ icon: ReactNode, children: ReactNode }> = ({ icon, children }) => {
@@ -28,7 +29,7 @@ export const NameWithPicture: React.FC<{ icon: ReactNode, children: ReactNode }>
   </span>
 }
 
-const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], warningMessage }: Props) => {
+const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], warningMessage, handleItemChange }: Props) => {
   const [selectedItems, setSelectedItems] = useState<string[]>(initialValues ?? []);
 
   const handleChange = useCallback((id: string) => (checked: boolean) => {
@@ -51,7 +52,9 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
     form.setFieldsValue({
       [fieldName]: newItemsIds
     });
-  }, [selectedItems, form, fieldName]);
+
+    handleItemChange(newItemsIds);
+  }, [selectedItems, form, fieldName, handleItemChange]);
 
   return (
     <>
