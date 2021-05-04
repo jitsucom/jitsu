@@ -34,10 +34,10 @@ const destinationEditorUtils = {
   },
   updateSources: (sources: SourceData[], data: DestinationData, projectId: string) => {
     const result = sources.reduce((accumulator: SourceData[], current: SourceData) => {
-      if (data._sources.includes(current.sourceId)) {
+      if (data._sources?.includes(current.sourceId)) {
         current = {
           ...current,
-          destinations: current?.destinations?.find((dst: string) => !data._sources.includes(data._uid))
+          destinations: current?.destinations?.find((dst: string) => !data._sources?.includes(data._uid))
             ? current?.destinations
             : [...current?.destinations, data._uid]
         };
@@ -56,6 +56,8 @@ const destinationEditorUtils = {
 
     try {
       ApplicationServices.get().storageService.save('sources', { sources: result }, projectId);
+
+      return result;
     } catch (error) {
       message.warn(
         `Destination will be saved, but connected sources will not by the reason: '${firstToLower(

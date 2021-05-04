@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
-import { Button, Dropdown, message } from 'antd';
+import { Button, Dropdown, message, Modal } from 'antd';
 import { snakeCase } from 'lodash';
 // @Components
 import { DropDownList } from '@molecule/DropDownList';
@@ -29,6 +29,7 @@ import { DropDownListItem } from '@molecule/DropDownList';
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
 import { taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
 import { withProgressBar } from '@./lib/components/components';
+import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 
 const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const history = useHistory();
@@ -62,6 +63,21 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
     getClassName={isFirstSingerType}
     filterPlaceholder="Filter by source name or id"
   />, [isFirstSingerType]);
+
+  const handleDeleteAction = useCallback(
+    (sourceId: string) => () => {
+      const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
+
+      services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
+        updateSources({ sources: updatedSources });
+
+        message.success('Sources list successfully updated');
+      });
+    },
+    [sources, updateSources, services.storageService, projectId]
+  );
+
+  const handleEditAction = useCallback((id: string) => () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: id })), [history]);
 
   useEffect(() => {
     setBreadcrumbs(withHome({

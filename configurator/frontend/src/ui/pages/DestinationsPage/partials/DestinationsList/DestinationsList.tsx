@@ -23,6 +23,7 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 import { CommonDestinationPageProps } from '@page/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 
 import CodeOutlined from '@ant-design/icons/lib/icons/CodeOutlined';
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
@@ -34,16 +35,21 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
   const update = useCallback((id: string) => async() => {
     const appServices = ApplicationServices.get();
 
+    const currentDestination = destinations.find(dest => dest._id === id);
+
     const newDestinations = destinations.filter(dest => dest._id !== id);
 
     try {
+      const updatesSources = destinationEditorUtils.updateSources(sources, currentDestination, appServices.activeProject.id);
+      updateSources(updatesSources);
+
       await appServices.storageService.save('destinations', { destinations: newDestinations }, appServices.activeProject.id);
 
       updateDestinations({ destinations: newDestinations });
     } catch (errors) {
       handleError(errors, 'Unable to delete destination at this moment, please try later.')
     }
-  }, [destinations, updateDestinations]);
+  }, [destinations, updateDestinations, sources, updateSources]);
 
   const dropDownList = useMemo(() => <DropDownList
     hideFilter
