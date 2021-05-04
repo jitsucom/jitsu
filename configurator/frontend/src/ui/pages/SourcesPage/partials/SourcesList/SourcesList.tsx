@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
-import { Button, Dropdown, message } from 'antd';
+import { Button, Dropdown, message, Modal } from 'antd';
 import { snakeCase } from 'lodash';
 // @Components
 import { DropDownList } from '@molecule/DropDownList';
@@ -24,6 +24,7 @@ import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 import { DropDownListItem } from '@molecule/DropDownList';
 // @Utils
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
+import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 
 const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const history = useHistory();
@@ -60,12 +61,21 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
 
   const handleDeleteAction = useCallback(
     (sourceId: string) => () => {
-      const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
+      Modal.confirm({
+        title: 'Please confirm deletion of connector',
+        icon: <ExclamationCircleOutlined/>,
+        content: 'Are you sure you want to delete ' + sourceId + ' connector?',
+        okText: 'Delete',
+        cancelText: 'Cancel',
+        onOk: () => {
+          const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
 
-      services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
-        updateSources({ sources: updatedSources });
+          services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
+            updateSources({ sources: updatedSources });
 
-        message.success('Sources list successfully updated');
+            message.success('Sources list successfully updated');
+          });
+        }
       });
     },
     [sources, updateSources, services.storageService, projectId]
