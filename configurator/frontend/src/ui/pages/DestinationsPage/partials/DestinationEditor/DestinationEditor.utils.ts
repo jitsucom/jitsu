@@ -56,6 +56,8 @@ const destinationEditorUtils = {
 
     try {
       ApplicationServices.get().storageService.save('sources', { sources: result }, projectId);
+
+      return result;
     } catch (error) {
       message.warn(
         `Destination will be saved, but connected sources will not by the reason: '${firstToLower(
