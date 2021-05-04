@@ -225,8 +225,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
   return (
     <>
-      <div className={cn('flex flex-col items-stretch flex-auto')}>
-        <div className={cn('flex-grow')}>
+      <div className="flex flex-col items-stretch justify-between">
+        <div className="flex-grow">
           <TabsConfigurator
             type="card"
             tabsList={sourcesTabs.current}

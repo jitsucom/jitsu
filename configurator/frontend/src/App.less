@@ -30,87 +30,6 @@ ol, ul {
   padding: 0;
 }
 
-.app-layout-header {
-  background: white;
-  border-bottom: 1px solid darkgray;
-}
-
-.app-layout-content {
-  display: flex;
-  flex-direction: column;
-}
-
-.app-logo-wrapper {
-  text-align: center;
-  display: block;
-
-  .app-logo {
-    height: 40px !important;
-    padding-top: 15px;
-    margin-bottom: 13px;
-  }
-}
-
-.app-layout-side-bar {
-  .ant-layout-sider-children {
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    background-color: @bgSecondary;
-  }
-
-  .app-layout-side-bar-bottom-item {
-    padding-left: 24px;
-    font-size: 120%;
-  }
-
-  .app-layout-side-bar-bottom {
-    padding-bottom: 30px;
-  }
-
-  border: 0 !important;
-
-  .ant-menu-item-selected {
-    border-right: 0 !important;
-    background-color: @primary-background !important;
-    border-top-left-radius: 16px;
-    border-bottom-left-radius: 16px;
-    color: @link-color;
-
-    a {
-      font-weight: bold !important;
-      color: @link-color;
-    }
-  }
-
-  .ant-menu-item {
-    width: auto;
-    margin-left: 12px;
-    padding-left: 12px !important;
-    border-top-left-radius: 16px !important;
-    border-bottom-left-radius: 16px !important;
-  }
-
-  .ant-menu-item::after {
-    border-right: 0 !important;
-  }
-
-  .ant-menu-item-active {
-    border-top-left-radius: 16px !important;
-    border-bottom-left-radius: 16px !important;
-  }
-
-  .ant-menu-item-selected.ant-menu-item-active {
-    border-top-left-radius: 16px !important;
-    border-bottom-left-radius: 16px !important;
-  }
-}
-
-.app-layout-sidebar-menu {
-  border: 0 !important;
-}
-
-
 .trigger {
   font-size: 18px;
   line-height: 64px;
@@ -126,34 +45,6 @@ ol, ul {
   background: @component-background;
 }
 
-.internal-page-wrapper {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  padding: 14px 40px 20px;
-}
-
-.internal-page-content-wrapper {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-}
-
-.internal-page-header-container {
-  padding-bottom: 0;
-  border-bottom: 1px solid @border-color-split;
-  margin-bottom: 20px;
-
-  .ant-col, .ant-row {
-    margin-bottom: 0px !important;
-  }
-
-}
-
-.internal-page-header {
-  padding-bottom: 0px !important;
-  font-size: 180%;
-}
 
 .ant-table-content table,
 .ant-table,
@@ -198,9 +89,6 @@ ol, ul {
   }
 }
 
-.ant-layout-sider, .app-layout-side-bar .ant-menu {
-  background-color: @secondary-background !important;
-}
 
 .app-layout-content {
   background-color: @primary-background;
