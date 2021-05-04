@@ -66,9 +66,9 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
 
     handleFieldsChange();
 
-    const tabScrollingEl = document.querySelector('#dst-editor-tabs')?.querySelector('.ant-tabs-content');
+    const tabScrollingEl = document.querySelector('#addNewFieldMappingScrollMarker');
 
-    setTimeout(() => tabScrollingEl.scrollTo(0, tabScrollingEl.scrollHeight), 0);
+    setTimeout(() => tabScrollingEl.scrollIntoView(), 200);
   }, [actions, handleFieldsChange]);
 
   const handleTypeChange = useCallback((index: number) => (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -233,6 +233,7 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
                   <Button type="ghost" icon={<PlusOutlined />} onClick={handleAdd(add)}>
                     Add new Field Mapping
                   </Button>
+                  <div id="addNewFieldMappingScrollMarker" />
                 </div>
               </div>
             )
