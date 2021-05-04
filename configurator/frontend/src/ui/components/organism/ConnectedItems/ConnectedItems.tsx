@@ -44,7 +44,6 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
     }
 
     setSelectedItems(newItemsIds);
-
     /**
      * It would be necessary to refactor this code and add destructured form fields values
      *  if {fieldName} stops to be single
@@ -60,7 +59,7 @@ const ConnectedItems = ({ form, fieldName, itemsList = [], initialValues = [], w
     <>
       {
         itemsList?.length > 0 && (
-          <Form.Item className="mb-1" name={fieldName}>
+          <Form.Item className="mb-1" name={fieldName} initialValue={initialValues}>
             <ul>
               {
                 itemsList.sort()

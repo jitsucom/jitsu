@@ -32,11 +32,16 @@ import { getUniqueAutoIncId, randomId } from '@util/numbers';
 import { firstToLower } from '@./lib/commons/utils';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
+import useLoader from '@hooks/useLoader';
 
 const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, editorMode }: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const forceUpdate = useForceUpdate();
+
+  const services = ApplicationServices.get();
+
+  const [sourcesError, sourcesData] = useLoader(async() => await services.storageService.get('sources', services.activeProject.id));
 
   const params = useParams<{ type?: string; id?: string; tabName?: string; }>();
 
@@ -64,10 +69,6 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
     return destinationsReferenceMap[destinationData.current._type];
   }, [params.type]);
-
-  const services = useMemo(() => ApplicationServices.get(), []);
-
-  const touchedFields = useRef<boolean>(false);
 
   const destinationsTabs = useRef<Tab[]>([{
     key: 'config',
@@ -120,6 +121,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     isDisabled: true,
     touched: false
   }]);
+
   const getPromptMessage = useCallback(() => destinationsTabs.current.some(tab => tab.touched)
     ? 'You have unsaved changes. Are you sure you want to leave the page?'
     : undefined, []);
@@ -198,6 +200,8 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
           }, {})
         };
 
+        await destinationEditorUtils.updateSources(sourcesData?.sources, destinationData.current, services.activeProject.id);
+
         if (destinationData.current._mappings?._keepUnmappedFields) {
           destinationData.current._mappings._keepUnmappedFields = Boolean(destinationData.current._mappings._keepUnmappedFields);
         }
@@ -236,14 +240,14 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
           history.push(destinationPageRoutes.root);
         } catch (errors) {}
       })
-      .catch(() => {
+      .catch((errors) => {
         switchSavePopover(true);
       })
       .finally(() => {
         setDestinationSaving(false);
         forceUpdate();
       });
-  }, [history, services, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode]);
+  }, [sourcesData?.sources, history, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode, services.activeProject.id, services.storageService]);
 
   useEffect(() => {
     setBreadcrumbs(withHome({
