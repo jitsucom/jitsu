@@ -29,24 +29,28 @@ export interface CommonDestinationPageProps {
   updateDestinations: Dispatch<SetStateAction<any>>;
   editorMode?: 'edit' | 'add';
   sources: SourceData[];
+  sourcesError: any;
+  updateSources: Dispatch<SetStateAction<any>>;
 }
 
 export const DestinationsPage = (props: PageProps) => {
   const services = ApplicationServices.get();
 
-  const [sourcesError, sourcesData] = useLoader(async() => await services.storageService.get('sources', services.activeProject.id));
+  const [sourcesError, sourcesData, updateSources] = useLoader(async() => await services.storageService.get('sources', services.activeProject.id));
   const [error, destinations, updateDestinations] = useLoader(async() => await services.storageService.get('destinations', services.activeProject.id));
 
   const additionalProps = useMemo(() => ({
     setBreadcrumbs: props.setBreadcrumbs,
     destinations: destinations?.destinations ?? [],
     updateDestinations,
-    sources: sourcesData?.sources
-  }), [props.setBreadcrumbs, destinations, updateDestinations, sourcesData]);
+    sources: sourcesData?.sources,
+    sourcesError,
+    updateSources
+  }), [props.setBreadcrumbs, destinations, updateDestinations, sourcesData, sourcesError, updateSources]);
 
   if (error) {
     return <CenteredError error={error} />;
-  } else if (!destinations) {
+  } else if (!destinations || (!sourcesData && !sourcesError)) {
     return <CenteredSpin />;
   }
 
