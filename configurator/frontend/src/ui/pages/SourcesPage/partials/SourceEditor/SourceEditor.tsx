@@ -56,7 +56,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
       return sourceType
         ? allSources.find((source: SourceConnector) => snakeCase(source.id) === snakeCase(sourceType))
-        : {} as SourceConnector;
+        : undefined;
     },
     [params.source, params.sourceId, sources]
   );
@@ -98,7 +98,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       />
     ),
     form: Form.useForm()[0],
-    isHidden: connectorSource.isSingerType,
+    isHidden: connectorSource?.isSingerType,
     touched: false
   },
   {
@@ -255,6 +255,15 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       ]
     }));
   }, [connectorSource, setBreadcrumbs]);
+
+  console.log('connectorSource: ', connectorSource);
+  if (!connectorSource) {
+    return (
+      <div>
+        <div>asdasd</div>
+      </div>
+    );
+  }
 
   return (
     <>
