@@ -29,7 +29,7 @@
     "lines-between-class-members": ["error", "always"],
     "jsx-quotes": ["error", "prefer-double"],
     //"multiline-ternary": ["error", ""],
-    "no-extra-parens": ["error", "all", { "ignoreJSX": "multi-line" }],
+//    "no-extra-parens": ["error", "all", { "ignoreJSX": "multi-line" }],
     "no-multiple-empty-lines": ["error", { "max":  1 }],
     "no-trailing-spaces": ["error"],
     "object-curly-spacing": ["error", "always"],
