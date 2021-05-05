@@ -129,7 +129,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		return nil
 
 	case storages.BigQueryType:
-		if err := config.Google.Validate(config.Mode != storages.BatchMode); err != nil {
+		if err := config.Google.Validate(true, config.Mode != storages.BatchMode); err != nil {
 			return err
 		}
 
@@ -137,18 +137,32 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		if err != nil {
 			return err
 		}
+
 		defer bq.Close()
+
 		if config.Mode == storages.BatchMode {
 			googleStorage, err := adapters.NewGoogleCloudStorage(context.Background(), config.Google)
 			if err != nil {
 				return err
 			}
+
 			defer googleStorage.Close()
+
 			if err = googleStorage.ValidateWritePermission(); err != nil {
 				return nil
 			}
 		}
-		return bq.Test()
+
+		if err := bq.Test(); err != nil {
+			return err
+		}
+
+		if err := bq.ValidateWritePermission(); err != nil {
+			return err
+		}
+
+		return nil
+
 	case storages.SnowflakeType:
 		if err := config.Snowflake.Validate(true); err != nil {
 			return err
@@ -179,7 +193,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 				}
 
 			} else if config.Google != nil && config.Google.Bucket != "" {
-				if err := config.Google.Validate(false); err != nil {
+				if err := config.Google.Validate(true, false); err != nil {
 					return err
 				}
 

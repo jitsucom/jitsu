@@ -53,7 +53,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 	}
 
 	if config.destination.Google != nil {
-		if err := config.destination.Google.Validate(config.streamMode); err != nil {
+		if err := config.destination.Google.Validate(false, config.streamMode); err != nil {
 			return nil, err
 		}
 		//stage is required when gcp integration

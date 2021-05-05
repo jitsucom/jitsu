@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/schema"
 	"strings"
 
 	"cloud.google.com/go/storage"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"google.golang.org/api/option"
 )
@@ -32,13 +32,21 @@ type GoogleConfig struct {
 	credentials option.ClientOption
 }
 
-func (gc *GoogleConfig) Validate(streamMode bool) error {
+func (gc *GoogleConfig) Validate(strict, streamMode bool) error {
 	if gc == nil {
 		return errors.New("Google config is required")
 	}
 	//batch mode works via google cloud storage
 	if !streamMode && gc.Bucket == "" {
 		return errors.New("Google cloud storage bucket(gcs_bucket) is required parameter")
+	}
+
+	if strict && gc.Project == "" {
+		return errors.New("Google cloud storage project (bq_project) is required parameter")
+	}
+
+	if strict && gc.Dataset == "" {
+		return errors.New("Google cloud storage dataset (bq_dataset) is required parameter")
 	}
 
 	if gc.Dataset != "" {

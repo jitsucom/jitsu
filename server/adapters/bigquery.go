@@ -1,15 +1,19 @@
 package adapters
 
 import (
-	"cloud.google.com/go/bigquery"
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
-	"google.golang.org/api/googleapi"
+	"math/rand"
 	"net/http"
 	"strings"
+	"time"
+
+	"cloud.google.com/go/bigquery"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/typing"
+	"google.golang.org/api/googleapi"
 )
 
 var (
@@ -151,6 +155,17 @@ func (bq *BigQuery) CreateDataset(dataset string) error {
 	return nil
 }
 
+// DeleteTable removes google BigQuery table with name provided in Table representation
+func (bq *BigQuery) DeleteTable(table *Table) error {
+	bqTable := bq.client.Dataset(bq.config.Dataset).Table(table.Name)
+
+	if err := bqTable.Delete(bq.ctx); err != nil {
+		return fmt.Errorf("Error deleting [%s] BigQuery table: %v", table.Name, err)
+	}
+
+	return nil
+}
+
 //PatchTableSchema adds Table columns to google BigQuery table
 func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	bqTable := bq.client.Dataset(bq.config.Dataset).Table(patchSchema.Name)
@@ -195,6 +210,34 @@ func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl boo
 
 func (bq *BigQuery) Close() error {
 	return bq.client.Close()
+}
+
+func (bq *BigQuery) ValidateWritePermission() error {
+	tableName := fmt.Sprintf("test_%v_%v", time.Now().Format(timestamp.DayLayout), rand.Int())
+	columnName := "field"
+	table := &Table{
+		Name:    tableName,
+		Columns: Columns{columnName: Column{"STRING"}},
+	}
+	event := map[string]interface{}{
+		columnName: "value 42",
+	}
+
+	if err := bq.CreateTable(table); err != nil {
+		return err
+	}
+
+	if err := bq.Insert(table, event); err != nil {
+		return err
+	}
+
+	if err := bq.DeleteTable(table); err != nil {
+		logging.Warnf("Cannot remove table [%s] from BigQuery: %v", tableName, err)
+		// Suppressing error because we need to check only write permission
+		// return err
+	}
+
+	return nil
 }
 
 //Return true if google err is 404
