@@ -1,6 +1,6 @@
 ---
 sort: "0001"
-title: "JS SDK (new)"
+title: "JS SDK 2.0"
 
 ---
 

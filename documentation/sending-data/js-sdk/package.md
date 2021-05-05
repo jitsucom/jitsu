@@ -12,10 +12,10 @@ import {CodeInTabs, CodeTab} from "../../../../components/Code";
 Jitsu JS SDK available as an npm package. Npm/yarn is a preferred way of sending data to Jitsu
 for applications build with modern frameworks such as React, Angular, Vue etc.
 
-Of you're using no-code tools such as Webflow, Wix, Wordpress etc, [html snippet](/docs/sending-data/js-sdk/snippet) will work better
+Of you're using no-code tools such as Webflow, Wix, Wordpress etc - [html snippet](/docs/sending-data/js-sdk/snippet) will work better
 
 <Hint>
-    Check out <a href="/docs/sending-data/js-sdk/react">Jitsu React hooks</a>. Special guides for other frameworks are coming soon!
+    Check out <a href="/docs/sending-data/js-sdk/react">Jitsu React Guide</a>. Special guides for other frameworks are coming soon!
 </Hint>
 
 ## Installing Jitsu
