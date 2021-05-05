@@ -20,19 +20,19 @@ const AddSourceDialogComponent = () => {
 
   const [filterParam, setFilterParam] = useState<string>();
 
-  const handleClick = useCallback((isSingerType: boolean, id: string) => (e: React.MouseEvent) => {
-    if (isSingerType) {
+  const handleClick = useCallback((src: SourceConnector) => (e: React.MouseEvent) => {
+    if (src.isSingerType) {
       e.stopPropagation();
       e.preventDefault();
 
       Modal.confirm({
-        title: 'Please confirm',
+        title: 'Please confirm adding singer connector',
         icon: <ExclamationCircleOutlined/>,
-        content: 'Are you sure?',
-        okText: 'Go',
+        content: `${src.displayName} configuration is rather difficult, it contains four JSON objects, two of them are required.`,
+        okText: 'Add',
         cancelText: 'Cancel',
         onOk: () => {
-          history.push(generatePath(sourcesPageRoutes.addExact, { source: id }));
+          history.push(generatePath(sourcesPageRoutes.addExact, { source: src.id }));
         }
       });
     }
@@ -60,18 +60,18 @@ const AddSourceDialogComponent = () => {
 
       <div className={styles.list}>
         {
-          filteredSourcesList.map(({ id, pic, displayName, isSingerType }: SourceConnector) => (
+          filteredSourcesList.map((src: SourceConnector) => (
             <Link
-              to={generatePath(sourcesPageRoutes.addExact, { source: id })}
-              key={id}
+              to={generatePath(sourcesPageRoutes.addExact, { source: src.id })}
+              key={src.id}
               className={styles.item}
-              onClick={handleClick(isSingerType, id)}
+              onClick={handleClick(src)}
             >
-              <span className={styles.pic}>{pic}</span>
-              <span className={styles.title}>{displayName}</span>
+              <span className={styles.pic}>{src.pic}</span>
+              <span className={styles.title}>{src.displayName}</span>
 
               {
-                isSingerType
+                src.isSingerType
                   ? <Badge.Ribbon text="Expert mode" className={styles.expertLabel} />
                   : <span className={styles.star}>
                     <StarOutlined className={cn(styles.starIcon, styles.strokeStar)} />
