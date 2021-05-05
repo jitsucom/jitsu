@@ -85,7 +85,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
             };
             let newTokens = [...this.state.tokens, newToken];
             await this.saveTokens(newTokens, 'NEW');
-            message.info('New token has been saved!');
+            message.info('New API key has been saved!');
           }}
         >
           Generate New Key

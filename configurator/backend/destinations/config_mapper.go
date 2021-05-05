@@ -35,6 +35,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	if err != nil {
 		return nil, err
 	}
+
 	enrichMappingRules(destination, config)
 	setEnrichmentRules(destination, config)
 
@@ -53,9 +54,10 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 			AnonymousIDNode: destination.UsersRecognition.AnonymousIDNode,
 			UserIDNode:      destination.UsersRecognition.UserIDJSONNode,
 		}
-	} else {
-		config.UsersRecognition = &enstorages.UsersRecognition{Enabled: false}
 	}
+
+	//only keys
+	config.OnlyTokens = destination.OnlyKeys
 
 	return config, nil
 }
@@ -280,34 +282,26 @@ func mapFacebook(fbDestination *entities.Destination) (*enstorages.DestinationCo
 
 func enrichMappingRules(destination *entities.Destination, enDestinationConfig *enstorages.DestinationConfig) {
 	if !destination.Mappings.IsEmpty() {
-		var rules []string
+		var mappingFields []schema.MappingField
 		for _, rule := range destination.Mappings.Rules {
-			var cast string
-			switch rule.Action {
-			case "move", "erase":
-				cast = ""
-			case "cast/int":
-				cast = "(integer) "
-			case "cast/double":
-				cast = "(double) "
-			case "cast/date":
-				cast = "(timestamp) "
-			case "cast/string":
-				cast = "(string) "
-			}
-			rules = append(rules, rule.SourceField+" -> "+cast+rule.DestinationField)
+			mappingFields = append(mappingFields, schema.MappingField{
+				Src:        rule.SourceField,
+				Dst:        rule.DestinationField,
+				Action:     rule.Action,
+				Type:       rule.Type,
+				ColumnType: rule.ColumnType,
+				Value:      rule.Value,
+			})
 		}
 
 		if enDestinationConfig.DataLayout == nil {
 			enDestinationConfig.DataLayout = &enstorages.DataLayout{}
 		}
 
-		enDestinationConfig.DataLayout.Mapping = rules
-		mappingType := schema.Default
-		if !destination.Mappings.KeepFields {
-			mappingType = schema.Strict
+		enDestinationConfig.DataLayout.Mappings = &schema.Mapping{
+			KeepUnmapped: &destination.Mappings.KeepFields,
+			Fields:       mappingFields,
 		}
-		enDestinationConfig.DataLayout.MappingType = mappingType
 	}
 }
 
