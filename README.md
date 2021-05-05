@@ -35,10 +35,20 @@ The easiest way to start Jitsu locally is using docker-compose:
 ```bash
 git clone https://github.com/jitsucom/jitsu.git
 cd jitsu
+```
+
+For running `latest` version use:
+
+```bash
 docker-compose up
 ```
 
-The build might take a while (up to 10 mins). Visit `http://localhost:7000` after the build is complete.
+Note: `latest` images will be downloaded and started. For building and running local version (it takes ~15 min) use:
+```bash
+docker-compose build && docker-compose up
+```
+
+Visit `http://localhost:7000` after the build is complete.
 
 To learn more check out [Jitsu deployment documentation](https://jitsu.com/docs/deployment/):
 
