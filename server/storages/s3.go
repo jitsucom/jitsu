@@ -13,13 +13,14 @@ import (
 
 //S3 stores files to aws s3 in batch mode
 type S3 struct {
-	name           string
-	s3Adapter      *adapters.S3
-	processor      *schema.Processor
-	fallbackLogger *logging.AsyncLogger
-	eventsCache    *caching.EventsCache
-	uniqueIDField  *identifiers.UniqueID
-	staged         bool
+	name                 string
+	s3Adapter            *adapters.S3
+	processor            *schema.Processor
+	fallbackLogger       *logging.AsyncLogger
+	eventsCache          *caching.EventsCache
+	uniqueIDField        *identifiers.UniqueID
+	cachingConfiguration *CachingConfiguration
+	staged               bool
 }
 
 func init() {
@@ -44,13 +45,14 @@ func NewS3(config *Config) (Storage, error) {
 	}
 
 	s3 := &S3{
-		name:           config.destinationID,
-		s3Adapter:      s3Adapter,
-		processor:      config.processor,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:    config.eventsCache,
-		uniqueIDField:  config.uniqueIDField,
-		staged:         config.destination.Staged,
+		name:                 config.destinationID,
+		s3Adapter:            s3Adapter,
+		processor:            config.processor,
+		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
+		eventsCache:          config.eventsCache,
+		uniqueIDField:        config.uniqueIDField,
+		staged:               config.destination.Staged,
+		cachingConfiguration: config.destination.CachingConfiguration,
 	}
 
 	return s3, nil
@@ -70,7 +72,7 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		s3.eventsCache.Error(s3.ID(), failedEvent.EventID, failedEvent.Error)
+		s3.eventsCache.Error(s3.IsCachingDisabled(), s3.ID(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -88,7 +90,7 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				s3.eventsCache.Error(s3.ID(), s3.uniqueIDField.Extract(object), err.Error())
+				s3.eventsCache.Error(s3.IsCachingDisabled(), s3.ID(), s3.uniqueIDField.Extract(object), err.Error())
 			}
 		}
 	}
@@ -126,6 +128,11 @@ func (s3 *S3) GetUsersRecognition() *UserRecognitionConfiguration {
 //GetUniqueIDField returns unique ID field configuration
 func (s3 *S3) GetUniqueIDField() *identifiers.UniqueID {
 	return s3.uniqueIDField
+}
+
+//IsCachingDisabled returns true if caching is disabled in destination configuration
+func (s3 *S3) IsCachingDisabled() bool {
+	return s3.cachingConfiguration != nil && s3.cachingConfiguration.Disabled
 }
 
 //ID returns destination ID

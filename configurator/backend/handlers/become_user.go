@@ -27,19 +27,19 @@ func (buh *BecomeUserHandler) Handler(c *gin.Context) {
 
 	isAdmin, err := buh.authService.IsAdmin(userID)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, mdlwr.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
 	if !isAdmin {
-		c.JSON(http.StatusUnauthorized, mdlwr.ErrorResponse{Message: "Only admins may call this API"})
+		c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse("Only admins may call this API", nil))
 		return
 	}
 
 	becomingUserID := c.Query("user_id")
 	userToken, err := buh.authService.GenerateUserToken(becomingUserID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 

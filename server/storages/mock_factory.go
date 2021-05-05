@@ -23,6 +23,9 @@ func (tpm *testProxyMock) ID() string { return "" }
 //Close is a mock func
 func (tpm *testProxyMock) Close() error { return nil }
 
+//IsCachingDisabled is a mock func
+func (tpm *testProxyMock) IsCachingDisabled() bool { return false }
+
 //MockFactory is a Mock destinations storages factory
 type MockFactory struct{}
 

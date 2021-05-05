@@ -34,6 +34,7 @@ type Storage interface {
 	ID() string
 	Type() string
 	IsStaging() bool
+	IsCachingDisabled() bool
 }
 
 //StorageProxy is a storage proxy
@@ -41,6 +42,7 @@ type StorageProxy interface {
 	io.Closer
 	Get() (Storage, bool)
 	GetUniqueIDField() *identifiers.UniqueID
+	IsCachingDisabled() bool
 	ID() string
 }
 

@@ -19,10 +19,12 @@ const (
 //ContextEnrichmentStep enriches payload with ip, user-agent, token, unique ID field (event_id) and _timestamp
 func ContextEnrichmentStep(payload events.Event, token string, r *http.Request, preprocessor events.Processor,
 	uniqueIDField *identifiers.UniqueID) {
-	//1. source IP
-	ip := extractIP(r)
-	if ip != "" {
-		payload[ipKey] = ip
+	//1. source IP (don't override income value)
+	if _, ok := payload[ipKey]; !ok {
+		ip := extractIP(r)
+		if ip != "" {
+			payload[ipKey] = ip
+		}
 	}
 
 	//2. preprocess

@@ -28,31 +28,31 @@ func (ph *ProxyHandler) Handler(c *gin.Context) {
 
 	projectID := c.Query("project_id")
 	if projectID == "" {
-		c.JSON(http.StatusBadRequest, smdlwr.ErrorResponse{Message: "[project_id] is a required query parameter"})
+		c.JSON(http.StatusBadRequest, smdlwr.ErrResponse(ErrProjectIDRequired.Error(), nil))
 		return
 	}
 
 	userProjectID := c.GetString(middleware.ProjectIDKey)
 	if userProjectID == "" {
 		logging.SystemError(ErrProjectIDNotFoundInContext)
-		c.JSON(http.StatusUnauthorized, smdlwr.ErrorResponse{Error: ErrProjectIDNotFoundInContext.Error(), Message: "Authorization error"})
+		c.JSON(http.StatusUnauthorized, smdlwr.ErrResponse("Project authorization error", ErrProjectIDNotFoundInContext))
 		return
 	}
 
 	if userProjectID != projectID {
-		c.JSON(http.StatusUnauthorized, smdlwr.ErrorResponse{Message: "User does not have access to project " + projectID})
+		c.JSON(http.StatusUnauthorized, smdlwr.ErrResponse("User does not have access to project "+projectID, nil))
 		return
 	}
 
 	req, err := ph.getJitsuRequest(c)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, smdlwr.ErrorResponse{Message: "Failed to create proxy request to Jitsu server", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, smdlwr.ErrResponse("Failed to create proxy request to Jitsu server", err))
 		return
 	}
 
 	code, payload, err := ph.jitsuService.ProxySend(req)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, smdlwr.ErrorResponse{Message: "Failed to proxy request to Jitsu server", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, smdlwr.ErrResponse("Failed to proxy request to Jitsu server", err))
 		return
 	}
 
@@ -61,7 +61,7 @@ func (ph *ProxyHandler) Handler(c *gin.Context) {
 
 	_, err = c.Writer.Write(payload)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, smdlwr.ErrorResponse{Message: "Failed to write proxy response", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, smdlwr.ErrResponse("Failed to write proxy response", err))
 	}
 
 	logging.Debugf("%s response in [%.2f] seconds", c.Request.URL.Path, time.Now().Sub(begin).Seconds())
