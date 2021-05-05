@@ -56,7 +56,7 @@ func (h *CustomDomainHandler) AllHandler(c *gin.Context) {
 		async = true
 	}
 	if async {
-		go h.updateExecutor.Run()
+		go h.runAllSSLUpdate()
 		c.JSON(http.StatusOK, middleware2.OkResponse{Status: "scheduled SSL update"})
 		return
 	}
@@ -72,5 +72,11 @@ func (h *CustomDomainHandler) AllHandler(c *gin.Context) {
 func (h *CustomDomainHandler) runSSLUpdate(projectID string) {
 	if err := h.updateExecutor.RunForProject(projectID); err != nil {
 		logging.Errorf("Error updating SSL for project [%s]: %v", projectID, err)
+	}
+}
+
+func (h *CustomDomainHandler) runAllSSLUpdate() {
+	if err := h.updateExecutor.Run(); err != nil {
+		logging.Errorf("Error updating all SSL: %v", err)
 	}
 }
