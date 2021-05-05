@@ -27,6 +27,7 @@ type ClickHouse struct {
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 	uniqueIDField                 *identifiers.UniqueID
 	staged                        bool
+	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
@@ -81,6 +82,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 		usersRecognitionConfiguration: config.usersRecognition,
 		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
+		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	adapter, _ := ch.getAdapters()
@@ -156,7 +158,7 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		ch.eventsCache.Error(ch.ID(), failedEvent.EventID, failedEvent.Error)
+		ch.eventsCache.Error(ch.IsCachingDisabled(), ch.ID(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -173,9 +175,9 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				ch.eventsCache.Error(ch.ID(), ch.uniqueIDField.Extract(object), err.Error())
+				ch.eventsCache.Error(ch.IsCachingDisabled(), ch.ID(), ch.uniqueIDField.Extract(object), err.Error())
 			} else {
-				ch.eventsCache.Succeed(ch.ID(), ch.uniqueIDField.Extract(object), object, table)
+				ch.eventsCache.Succeed(ch.IsCachingDisabled(), ch.ID(), ch.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
@@ -273,6 +275,11 @@ func (ch *ClickHouse) GetUsersRecognition() *UserRecognitionConfiguration {
 //GetUniqueIDField returns unique ID field configuration
 func (ch *ClickHouse) GetUniqueIDField() *identifiers.UniqueID {
 	return ch.uniqueIDField
+}
+
+//IsCachingDisabled returns true if caching is disabled in destination configuration
+func (ch *ClickHouse) IsCachingDisabled() bool {
+	return ch.cachingConfiguration != nil && ch.cachingConfiguration.Disabled
 }
 
 //Fallback log event with error to fallback logger

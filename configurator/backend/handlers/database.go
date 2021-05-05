@@ -36,18 +36,18 @@ func (eh *DatabaseHandler) PostHandler(c *gin.Context) {
 	userProjectID := c.GetString(middleware.ProjectIDKey)
 	if userProjectID == "" {
 		logging.SystemError(ErrProjectIDNotFoundInContext)
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: ErrProjectIDNotFoundInContext.Error(), Message: "Authorization error"})
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrResponse("Project authorization error", ErrProjectIDNotFoundInContext))
 		return
 	}
 
 	if userProjectID != projectID {
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Message: "User does not have access to project " + projectID})
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrResponse("User does not have access to project "+projectID, nil))
 		return
 	}
 
 	database, err := eh.storage.CreateDefaultDestination(projectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Error: err.Error(), Message: "Failed to create a database for project " + projectID})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to create a database for project "+projectID, err))
 		return
 	}
 

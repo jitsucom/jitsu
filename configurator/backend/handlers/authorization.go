@@ -106,29 +106,29 @@ func NewAuthorizationHandler(authService *authorization.Service, emailService *e
 func (ah *AuthorizationHandler) SignIn(c *gin.Context) {
 	req := &SignRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid input JSON", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	err := req.Validate()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid input data", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input data", err))
 		return
 	}
 
 	td, err := ah.authService.SignIn(req.Email, req.Password)
 	if err != nil {
 		if err == authorization.ErrUserNotFound {
-			c.JSON(http.StatusUnauthorized, mdlwr.ErrorResponse{Error: err.Error()})
+			c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(err.Error(), nil))
 			return
 		}
 
 		if err == authorization.ErrIncorrectPassword {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Error: err.Error()})
+			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -139,24 +139,24 @@ func (ah *AuthorizationHandler) SignIn(c *gin.Context) {
 func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 	req := &SignUpRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid input JSON", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	err := req.Validate()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid input data", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input data", err))
 		return
 	}
 
 	td, err := ah.authService.SignUp(req.Email, req.Password)
 	if err != nil {
 		if err == authorization.ErrUserExists {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Error: err.Error()})
+			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -182,24 +182,24 @@ func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 func (ah *AuthorizationHandler) SignUp(c *gin.Context) {
 	req := &SignRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid input JSON", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	err := req.Validate()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid input data", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input data", err))
 		return
 	}
 
 	td, err := ah.authService.SignUp(req.Email, req.Password)
 	if err != nil {
 		if err == authorization.ErrUserExists {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Error: err.Error()})
+			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -211,7 +211,7 @@ func (ah *AuthorizationHandler) SignOut(c *gin.Context) {
 
 	err := ah.authService.SignOut(token)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -222,40 +222,40 @@ func (ah *AuthorizationHandler) SignOut(c *gin.Context) {
 //otherwise return error
 func (ah *AuthorizationHandler) ResetPassword(c *gin.Context) {
 	if !ah.emailService.IsConfigured() {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "SMTP isn't configured"})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("SMTP isn't configured", nil))
 		return
 	}
 
 	req := &PasswordResetRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid input JSON", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	if req.Email == "" {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "email is required"})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("email is required", nil))
 		return
 	}
 
 	if req.Callback == "" {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "callback is required"})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("callback is required", nil))
 		return
 	}
 
 	resetID, email, err := ah.authService.CreateResetID(req.Email)
 	if err != nil {
 		if err == authorization.ErrUserNotFound {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: err.Error()})
+			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
 	err = ah.emailService.SendResetPassword(email, strings.ReplaceAll(req.Callback, "{{token}}", resetID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Message: "Error sending email message", Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse("Error sending email message", err))
 		return
 	}
 
@@ -265,24 +265,24 @@ func (ah *AuthorizationHandler) ResetPassword(c *gin.Context) {
 func (ah *AuthorizationHandler) ChangePassword(c *gin.Context) {
 	req := &ChangePasswordRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid input JSON", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	err := req.Validate()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid input data", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input data", err))
 		return
 	}
 
 	td, err := ah.authService.ChangePassword(req.ResetID, req.NewPassword)
 	if err != nil {
 		if err == authorization.ErrResetIDNotFound {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "The link has been expired!"})
+			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("The link has been expired!", nil))
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Message: err.Error()})
+		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -292,23 +292,23 @@ func (ah *AuthorizationHandler) ChangePassword(c *gin.Context) {
 func (ah *AuthorizationHandler) RefreshToken(c *gin.Context) {
 	req := &RefreshRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid input JSON", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	if req.RefreshToken == "" {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Invalid data JSON", Error: "refresh_token is required field"})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid data JSON", errors.New("refresh_token is required field")))
 		return
 	}
 
 	td, err := ah.authService.Refresh(req.RefreshToken)
 	if err != nil {
 		if err == authorization.ErrUnknownToken {
-			c.JSON(http.StatusUnauthorized, mdlwr.ErrorResponse{Message: authorization.ErrUnknownToken.Error()})
+			c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(authorization.ErrUnknownToken.Error(), nil))
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrorResponse{Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 

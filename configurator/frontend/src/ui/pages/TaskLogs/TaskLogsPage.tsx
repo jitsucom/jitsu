@@ -31,7 +31,7 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   const [filterStatus, setFilterStatus] = useState<TaskStatus>(query.get('status') as TaskStatus || undefined);
   const [filterCollection, setFilterCollection] = useState<string>(query.get('collection') || undefined);
   const [filterStart, setFilterStart] = useState(query.get('start') ? moment.utc(query.get('start')) : moment.utc().subtract(1, 'days'))
-  const [filterEnd, setFilterEnd] = useState(query.get('start') ? moment.utc(query.get('end')) : moment.utc())
+  const [filterEnd, setFilterEnd] = useState(query.get('end') ? moment.utc(query.get('end')) : moment.utc().endOf('day'))
   const [loadingError, source] = useLoader(async() => {
     const appServices = ApplicationServices.get();
     const data: CollectionSourceData = await appServices.storageService.get('sources', appServices.activeProject.id);

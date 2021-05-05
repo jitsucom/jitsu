@@ -306,7 +306,7 @@ func TestAPIEvent(t *testing.T) {
 			"",
 			"s2stoken",
 			http.StatusBadRequest,
-			`{"message":"Failed to parse body","error":"invalid character 'a' looking for beginning of object key string"}`,
+			`{"message":"Failed to parse body: invalid character 'a' looking for beginning of object key string","error":""}`,
 		},
 		{
 			"Randomized c2s endpoint 1.0",

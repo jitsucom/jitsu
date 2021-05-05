@@ -38,12 +38,16 @@ EventNative accepts the following parameters.
         <td>Name of tracking cookie (`__eventn_id` by default)</td>
     </tr>
     <tr>
-        <td>segment-hook<br />(<span style={{whiteSpace: 'nowrap'}}>data-tracking-host</span>)</td>
+        <td>segment_hook<br />(<span style={{whiteSpace: 'nowrap'}}>data-tracking-host</span>)</td>
         <td>If set to true, Jitsu will automatically listen to Segment's analytics.js events and collect them.</td>
     </tr>
     <tr>
         <td>randomize_url<br />(<span style={{whiteSpace: 'nowrap'}}>data-randomize-url</span>)</td>
         <td>If set to true, Jitsu will send events on a dynamic endpoint. It allows avoiding ad blockers.</td>
+    </tr>
+    <tr>
+        <td>compat_mode<br />(<span style={{whiteSpace: 'nowrap'}}>data-compat-mode</span>)</td>
+        <td>If event JSON should have a structure compatible with an old version. Read more about compat mode in <a href="/docs/sending-data/js-sdk/migrating">Migration Guide</a></td>
     </tr>
     </tbody>
 </table>

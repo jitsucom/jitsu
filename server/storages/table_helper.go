@@ -14,7 +14,7 @@ import (
 
 const unlockRetryCount = 5
 
-//Keeping tables schema state inmemory and update it according to incoming new data
+//TableHelper keeps tables schema state inmemory and update it according to incoming new data
 //note: Assume that after any outer changes in db we need to increment table version in MonitorKeeper
 type TableHelper struct {
 	sync.RWMutex
@@ -30,6 +30,7 @@ type TableHelper struct {
 	maxColumns int
 }
 
+//NewTableHelper returns configured TableHelper instance
 func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, pkFields map[string]bool,
 	columnTypesMapping map[typing.DataType]string, streamMode bool, maxColumns int) *TableHelper {
 

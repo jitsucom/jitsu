@@ -1,14 +1,12 @@
 ---
-description: 'https://eventnative.org'
+description: 'https://jitsu.com'
 ---
 
-# Welcome to EventNative
+# Welcome to Jitsu
 
-### Introduction 
+### Introduction
 
-Welcome to **EventNative** — an open-source web- and app- event collection server. EventNative is designed to be a fast and easy replacement for proprietary analytics stacks such as Google Analytics and Segment.
-
-Visit our [GitHub](https://github.com/jitsucom/eventnative) to learn more.
+Welcome to **Jitsu** — an open-source web- and app- event collection platform. Jitsu is designed to be a fast and easy replacement for proprietary analytics stacks such as Google Analytics and Segment.
 
 ### Getting Started
 
