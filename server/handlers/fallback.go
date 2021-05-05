@@ -47,16 +47,16 @@ func (fh *FallbackHandler) ReplayHandler(c *gin.Context) {
 	req := &ReplayRequest{}
 	if err := c.BindJSON(req); err != nil {
 		logging.Errorf("Error parsing replay body: %v", err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
 		return
 	}
 
 	err := fh.fallbackService.Replay(req.FileName, req.DestinationID, req.FileFormat == rawJSONFormat)
 	if err != nil {
 		logging.Errorf("Error replaying file: [%s] from fallback: %v", req.FileName, err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to replay file: " + req.FileName, Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to replay file: "+req.FileName, err))
 		return
 	}
 
-	c.JSON(http.StatusOK, middleware.OkResponse())
+	c.JSON(http.StatusOK, middleware.OKResponse())
 }

@@ -20,7 +20,7 @@ const jsConfigVar = "eventnConfig"
 
 const eventsChainJsTemplate = "eventN.track('%s'); "
 
-//Serve js files
+//StaticHandler serves js files
 type StaticHandler struct {
 	servingFiles    map[string][]byte
 	gzippedFiles    map[string][]byte

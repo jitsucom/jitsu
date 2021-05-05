@@ -30,7 +30,7 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 				}
 			} else {
 				//Unauthorized
-				response := ErrorResponse{Message: ErrTokenNotFound}
+				response := ErrResponse(ErrTokenNotFound, nil)
 				b, _ := json.Marshal(response)
 				w.WriteHeader(http.StatusUnauthorized)
 				w.Write(b)

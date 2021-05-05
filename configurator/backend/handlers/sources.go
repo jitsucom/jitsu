@@ -16,6 +16,8 @@ import (
 	"time"
 )
 
+const SourcesGettingErrMsg = "Sources getting error"
+
 type SourcesHandler struct {
 	configurationsService *storages.ConfigurationsService
 
@@ -33,7 +35,7 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 	begin := time.Now()
 	sourcesMap, err := sh.configurationsService.GetSources()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: err.Error(), Message: "Sources err"})
+		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse(SourcesGettingErrMsg, err))
 		return
 	}
 
@@ -53,7 +55,7 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 
 			mappedSourceConfig, err := mapSourceConfig(source, destinationIDs)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: fmt.Sprintf("Failed to map source [%s] config", sourceID), Error: err.Error()})
+				c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to map source [%s] config", sourceID), err))
 				return
 			}
 
@@ -69,20 +71,20 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 	sourceEntity := &entities.Source{}
 	err := c.BindJSON(sourceEntity)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Failed to parse request body", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to parse request body", err))
 		return
 	}
 
 	userProjectID := c.GetString(middleware.ProjectIDKey)
 	if userProjectID == "" {
 		logging.SystemError(ErrProjectIDNotFoundInContext)
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrorResponse{Error: ErrProjectIDNotFoundInContext.Error(), Message: "Authorization error"})
+		c.JSON(http.StatusUnauthorized, enmiddleware.ErrResponse("Project authorization error", ErrProjectIDNotFoundInContext))
 		return
 	}
 
 	enSourceConfig, err := mapSourceConfig(sourceEntity, []string{})
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: fmt.Sprintf("Failed to map source [%s.%s] config", userProjectID, sourceEntity.SourceID), Error: err.Error()})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to map source [%s.%s] config", userProjectID, sourceEntity.SourceID), err))
 		return
 	}
 
@@ -91,13 +93,13 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 
 	b, err := json.Marshal(enSourceConfig)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Failed to serialize source config", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to serialize source config", err))
 		return
 	}
 
 	code, content, err := sh.enService.TestSource(b)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Failed to get response from eventnative", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to get response from eventnative", err))
 		return
 	}
 
@@ -111,7 +113,7 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 
 	_, err = c.Writer.Write(content)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Failed to write response", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to write response", err))
 	}
 }
 

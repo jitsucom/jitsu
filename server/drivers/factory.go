@@ -95,9 +95,6 @@ func Create(ctx context.Context, sourceID string, sourceConfig *SourceConfig, cr
 	if len(collections) == 0 {
 		return nil, errors.New("collections are empty. Please specify at least one collection")
 	}
-	if len(sourceConfig.Destinations) == 0 {
-		return nil, errors.New("destinations are empty. Please specify at least one destination")
-	}
 
 	for _, collection := range collections {
 		if collection.StartDateStr != "" {
@@ -126,26 +123,45 @@ func Create(ctx context.Context, sourceID string, sourceConfig *SourceConfig, cr
 		}
 
 		//schedule collection sync
-		if collection.Schedule != "" {
-			if err := cronScheduler.Schedule(sourceID, collection.Name, collection.Schedule); err != nil {
-				//close all previous drivers
-				for _, alreadyCreatedDriver := range driverPerCollection {
-					if closingErr := alreadyCreatedDriver.Close(); closingErr != nil {
-						logging.Error(closingErr)
-					}
+		scheduleErr := schedule(cronScheduler, sourceID, sourceConfig, collection)
+		if scheduleErr != nil {
+			//close all previous drivers
+			for _, alreadyCreatedDriver := range driverPerCollection {
+				if closingErr := alreadyCreatedDriver.Close(); closingErr != nil {
+					logging.Error(closingErr)
 				}
-
-				return nil, fmt.Errorf("error scheduling sync collection [%s]: %v", collection.Name, err)
 			}
 
-			logging.Infof("[%s_%s] Using automatic scheduling: %s", sourceID, collection.Name, collection.Schedule)
-		} else {
-			logging.Warnf("[%s_%s] doesn't have schedule cron expression (automatic scheduling disabled)", sourceID, collection.Name)
+			return nil, fmt.Errorf("error scheduling sync collection [%s]: %v", collection.Name, scheduleErr)
 		}
 
 		driverPerCollection[collection.Name] = driver
 	}
 	return driverPerCollection, nil
+}
+
+//schedule pass source and collection to cronScheduler and writes logs
+//returns err if occurred
+func schedule(cronScheduler *scheduling.CronScheduler, sourceID string, sourceConfig *SourceConfig, collection *Collection) error {
+	if collection.Schedule == "" {
+		logging.Warnf("[%s_%s] doesn't have schedule cron expression (automatic scheduling disabled)", sourceID, collection.Name)
+		return nil
+	}
+
+	//check destinations (don't sync if destinations are empty)
+	if len(sourceConfig.Destinations) == 0 {
+		logging.Warnf("[%s_%s] doesn't have linked destinations (automatic scheduling disabled)", sourceID, collection.Name)
+		return nil
+	}
+
+	err := cronScheduler.Schedule(sourceID, collection.Name, collection.Schedule)
+	if err != nil {
+		return err
+	}
+
+	logging.Infof("[%s_%s] Using automatic scheduling: %s", sourceID, collection.Name, collection.Schedule)
+
+	return nil
 }
 
 //ParseCollections return serialized Collection objects slice

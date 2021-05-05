@@ -37,14 +37,14 @@ func NewTaskHandler(taskService *synchronization.TaskService, sourceService *sou
 func (sh *TaskHandler) GetByIDHandler(c *gin.Context) {
 	taskID := c.Param("taskID")
 	if taskID == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'task_id' is required path parameter"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("'task_id' is required path parameter", nil))
 		return
 	}
 
 	task, err := sh.taskService.GetTask(taskID)
 	if err != nil {
 		logging.Error(err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Sync Task gathering failed", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Tasks gathering failed", err))
 		return
 	}
 
@@ -54,39 +54,39 @@ func (sh *TaskHandler) GetByIDHandler(c *gin.Context) {
 func (sh *TaskHandler) GetAllHandler(c *gin.Context) {
 	sourceID := c.Query("source")
 	if sourceID == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'source' is required query parameter"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("'source' is required query parameter", nil))
 		return
 	}
 
 	source, err := sh.sourceService.GetSource(sourceID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error getting source", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error getting source", err))
 		return
 	}
 
 	startStr := c.Query("start")
 	if startStr == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'start' is required query parameter"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("'start' is required query parameter", nil))
 		return
 	}
 
 	start, err := time.Parse(time.RFC3339Nano, startStr)
 	if err != nil {
 		logging.Errorf("Error parsing 'start' query param [%s] in tasks handler: %v", startStr, err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing 'start' query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error parsing 'start' query parameter. Accepted datetime format: "+timestamp.Layout, err))
 		return
 	}
 
 	endStr := c.Query("end")
 	if endStr == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'end' is required query parameter"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("'end' is required query parameter", nil))
 		return
 	}
 
 	end, err := time.Parse(time.RFC3339Nano, endStr)
 	if err != nil {
 		logging.Errorf("Error parsing 'end' query param [%s] in tasks handler: %v", endStr, err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing 'end' query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error parsing 'end' query parameter. Accepted datetime format: "+timestamp.Layout, err))
 		return
 	}
 
@@ -95,7 +95,7 @@ func (sh *TaskHandler) GetAllHandler(c *gin.Context) {
 	if status != "" {
 		status, err := synchronization.StatusFromString(status)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing 'status' query parameter", Error: err.Error()})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error parsing 'status' query parameter", err))
 			return
 		}
 		statusFilter = &status
@@ -107,7 +107,7 @@ func (sh *TaskHandler) GetAllHandler(c *gin.Context) {
 	if collectionIDFilter == "" {
 		collections, err := sh.sourceService.GetCollections(sourceID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error getting source collections", Error: err.Error()})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error getting source collections", err))
 			return
 		}
 
@@ -124,7 +124,7 @@ func (sh *TaskHandler) GetAllHandler(c *gin.Context) {
 		limit, err = strconv.Atoi(limitStr)
 		if err != nil {
 			logging.Errorf("Error parsing limit [%s] to int in task handler: %v", limitStr, err)
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "[limit] must be int"})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse("[limit] must be int", err))
 			return
 		}
 	}
@@ -134,7 +134,7 @@ func (sh *TaskHandler) GetAllHandler(c *gin.Context) {
 		tasksPerCollection, err := sh.taskService.GetTasks(sourceID, collection, statusFilter, start, end, limit)
 		if err != nil {
 			logging.Error(err)
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Task gathering failed", Error: err.Error()})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Tasks gathering failed", err))
 			return
 		}
 
@@ -148,7 +148,7 @@ func (sh *TaskHandler) TaskLogsHandler(c *gin.Context) {
 	var err error
 	taskID := c.Param("taskID")
 	if taskID == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'task_id' is required path parameter"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("'task_id' is required path parameter", nil))
 		return
 	}
 
@@ -158,7 +158,7 @@ func (sh *TaskHandler) TaskLogsHandler(c *gin.Context) {
 		start, err = time.Parse(time.RFC3339Nano, startStr)
 		if err != nil {
 			logging.Errorf("Error parsing 'start' query param [%s] in task logs handler: %v", startStr, err)
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing 'start' query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error parsing 'start' query parameter. Accepted datetime format: "+timestamp.Layout, err))
 			return
 		}
 	}
@@ -169,7 +169,7 @@ func (sh *TaskHandler) TaskLogsHandler(c *gin.Context) {
 		end, err = time.Parse(time.RFC3339Nano, endStr)
 		if err != nil {
 			logging.Errorf("Error parsing 'end' query param [%s] in task logs handler: %v", endStr, err)
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing 'end' query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error parsing 'end' query parameter. Accepted datetime format: "+timestamp.Layout, err))
 			return
 		}
 	}
@@ -177,7 +177,7 @@ func (sh *TaskHandler) TaskLogsHandler(c *gin.Context) {
 	logRecords, err := sh.taskService.GetTaskLogs(taskID, start, end)
 	if err != nil {
 		logging.Error(err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Task logs gathering failed", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Task logs gathering failed", err))
 		return
 	}
 
@@ -187,19 +187,19 @@ func (sh *TaskHandler) TaskLogsHandler(c *gin.Context) {
 func (sh *TaskHandler) SyncHandler(c *gin.Context) {
 	sourceID := c.Query("source")
 	if sourceID == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'source' is required query parameter"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("'source' is required query parameter", nil))
 		return
 	}
 
 	source, err := sh.sourceService.GetSource(sourceID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error getting source", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error getting source", err))
 		return
 	}
 
 	collectionID := extractCollectionID(source.SourceType, c)
 	if collectionID == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "'collection' is required query parameter"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("'collection' is required query parameter", nil))
 		return
 	}
 
@@ -211,12 +211,12 @@ func (sh *TaskHandler) SyncHandler(c *gin.Context) {
 		}
 
 		if err == synchronization.ErrSourceCollectionIsStartingToSync {
-			c.JSON(http.StatusConflict, middleware.ErrorResponse{Message: "Sync Task creation failed", Error: err.Error()})
+			c.JSON(http.StatusConflict, middleware.ErrResponse("Sync Task creation failed", err))
 			return
 		}
 
 		logging.Errorf("Error sync source [%s] collection [%s]: %v", sourceID, collectionID, err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Sync Task creation failed", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Sync Task creation failed", err))
 		return
 	}
 
