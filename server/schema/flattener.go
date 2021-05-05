@@ -7,30 +7,6 @@ import (
 	"strings"
 )
 
-var (
-	specialCharsReplacer = strings.NewReplacer(
-		"(", "_",
-		")", "_",
-		"$", "_",
-		"[", "_",
-		"]", "_",
-		"{", "_",
-		"}", "_",
-		"@", "_",
-		"!", "_",
-		"#", "_",
-		"%", "_",
-		"&", "_",
-		",", "_",
-		".", "_",
-		";", "_",
-		":", "_",
-		"^", "_",
-		"-", "_",
-		" ", "_",
-	)
-)
-
 type Flattener interface {
 	FlattenObject(map[string]interface{}) (map[string]interface{}, error)
 }
@@ -103,8 +79,25 @@ func (f *FlattenerImpl) flatten(key string, value interface{}, destination map[s
 	return nil
 }
 
-//makes all keys to lower case
-//remove $, (, ) from all keys
+//Reformat makes all keys to lower case and replaces all special symbols with '_'
 func Reformat(key string) string {
-	return specialCharsReplacer.Replace(strings.ToLower(key))
+	key = strings.ToLower(key)
+	var result strings.Builder
+	for i := 0; i < len(key); i++ {
+		b := key[i]
+		if isLetterOrNumber(int32(b)) {
+			result.WriteByte(b)
+		} else {
+			result.WriteRune('_')
+		}
+	}
+	return result.String()
+}
+
+//A - Z: 65-90
+//a - z: 97-122
+func isLetterOrNumber(symbol int32) bool {
+	return ('a' <= symbol && symbol <= 'z') ||
+		('A' <= symbol && symbol <= 'Z') ||
+		('0' <= symbol && symbol <= '9')
 }

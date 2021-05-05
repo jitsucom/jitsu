@@ -29,15 +29,18 @@ import styles from './DestinationEditor.module.less';
 import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 import { getUniqueAutoIncId, randomId } from '@util/numbers';
+import { firstToLower } from '@./lib/commons/utils';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
 
-const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, editorMode }: CommonDestinationPageProps) => {
+const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, editorMode, sources, sourcesError, updateSources }: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const forceUpdate = useForceUpdate();
 
-  const params = useParams<{ type?: string; id?: string; }>();
+  const services = ApplicationServices.get();
+
+  const params = useParams<{ type?: string; id?: string; tabName?: string; }>();
 
   const [testConnecting, setTestConnecting] = useState<boolean>(false);
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
@@ -47,7 +50,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
   const destinationData = useRef<DestinationData>(
     destinations.find(dst => dst._id === params.id) || {
-      _id: getUniqueAutoIncId(params.type, destinations.map(dst => dst._type)),
+      _id: getUniqueAutoIncId(params.type, destinations.map(dst => dst._id)),
       _uid: randomId(),
       _type: params.type,
       _mappings: { _keepUnmappedFields: true },
@@ -64,43 +67,61 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     return destinationsReferenceMap[destinationData.current._type];
   }, [params.type]);
 
-  const services = useMemo(() => ApplicationServices.get(), []);
-
-  const touchedFields = useRef<boolean>(false);
-
   const destinationsTabs = useRef<Tab[]>([{
     key: 'config',
     name: 'Connection Properties',
-    getComponent: (form: FormInstance) => <DestinationEditorConfig handleTouchAnyField={setTouchedFields} form={form} destinationReference={destinationReference} destinationData={destinationData.current} />,
-    form: Form.useForm()[0]
+    getComponent: (form: FormInstance) =>
+      <DestinationEditorConfig
+        form={form}
+        destinationReference={destinationReference}
+        destinationData={destinationData.current}
+        handleTouchAnyField={setTouchedFields(0)}
+      />,
+    form: Form.useForm()[0],
+    touched: false
   },
   {
     key: 'mappings',
     name: 'Mappings',
-    getComponent: (form: FormInstance) => <DestinationEditorMappings form={form} initialValues={destinationData.current?._mappings} />,
-    form: Form.useForm()[0]
+    getComponent: (form: FormInstance) =>
+      <DestinationEditorMappings
+        form={form}
+        initialValues={destinationData.current?._mappings}
+        handleTouchAnyField={setTouchedFields(1)}
+      />,
+    form: Form.useForm()[0],
+    touched: false
   },
   {
     key: 'sources',
     name: 'Linked Connectors & API Keys',
-    getComponent: (form: FormInstance) => <DestinationEditorConnectors form={form} initialValues={destinationData.current} destination={destinationReference} />,
+    getComponent: (form: FormInstance) =>
+      <DestinationEditorConnectors
+        form={form}
+        initialValues={destinationData.current}
+        destination={destinationReference}
+        handleTouchAnyField={setTouchedFields(2)}
+        sources={sources}
+        sourcesError={sourcesError}
+      />,
     form: Form.useForm()[0],
-    errorsLevel: 'warning'
+    errorsLevel: 'warning',
+    touched: false
   },
   {
     key: 'settings',
     name: <ComingSoon render="Settings Library" documentation={<>A predefined library of settings such as <a href="https://jitsu.com/docs/other-features/segment-compatibility" target="_blank" rel="noreferrer">Segment-like schema</a></>} />,
-    isDisabled: true
+    isDisabled: true,
+    touched: false
   },
   {
     key: 'statistics',
     name: <ComingSoon render="Statistics" documentation={<>A detailed statistics on how many events have been sent to the destinations</>} />,
-    isDisabled: true
+    isDisabled: true,
+    touched: false
   }]);
 
-  const setTouchedFields = useCallback(() => touchedFields.current = true, []);
-
-  const getPromptMessage = useCallback(() => touchedFields.current
+  const getPromptMessage = useCallback(() => destinationsTabs.current.some(tab => tab.touched)
     ? 'You have unsaved changes. Are you sure you want to leave the page?'
     : undefined, []);
 
@@ -121,16 +142,27 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
         }
       }
 
+      tab.errorsCount = 0;
+
       return await form.validateFields();
     } catch (errors) {
       // ToDo: check errors count for fields with few validation rules
       tab.errorsCount = errors.errorFields?.length;
 
-      forceUpdate();
-
       throw errors;
+    } finally {
+      forceUpdate();
     }
   }, [forceUpdate]);
+
+  const setTouchedFields = useCallback(
+    (index: number) => (value: boolean) => {
+      destinationsTabs.current[index].touched = value === undefined ? true : value;
+
+      validateTabForm(destinationsTabs.current[index]);
+    },
+    [validateTabForm]
+  );
 
   const handleTestConnection = useCallback(async() => {
     setTestConnecting(true);
@@ -168,7 +200,16 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
         };
 
         try {
-          await destinationEditorUtils.testConnection(destinationData.current);
+          const updatedSources = await destinationEditorUtils.updateSources(sources, destinationData.current, services.activeProject.id);
+          updateSources({ sources: updatedSources });
+        } catch (error) {}
+
+        if (destinationData.current._mappings?._keepUnmappedFields) {
+          destinationData.current._mappings._keepUnmappedFields = Boolean(destinationData.current._mappings._keepUnmappedFields);
+        }
+
+        try {
+          await destinationEditorUtils.testConnection(destinationData.current, true);
 
           const payload = {
             destinations: editorMode === 'add'
@@ -185,21 +226,30 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
           updateDestinations(payload);
 
-          touchedFields.current = false;
+          destinationsTabs.current.forEach((tab: Tab) => tab.touched = false);
+
+          if (destinationData.current._connectionTestOk) {
+            message.success('New destination has been added!');
+          } else {
+            message.warn(
+              `Destination has been saved, but test has failed with '${firstToLower(
+                destinationData.current._connectionErrorMessage
+              )}'. Data will not be piped to this destination`,
+              10
+            );
+          }
 
           history.push(destinationPageRoutes.root);
-
-          message.success('New destination has been added!');
         } catch (errors) {}
       })
-      .catch(() => {
+      .catch((errors) => {
         switchSavePopover(true);
       })
       .finally(() => {
         setDestinationSaving(false);
         forceUpdate();
       });
-  }, [history, services, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode]);
+  }, [sources, history, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode, services.activeProject.id, services.storageService, updateSources]);
 
   useEffect(() => {
     setBreadcrumbs(withHome({
@@ -215,8 +265,13 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   return (
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
-        <div className={cn('flex-grow', styles.mainArea)}>
-          <TabsConfigurator type="card" className={styles.tabCard} tabsList={destinationsTabs.current} defaultTabIndex={0} />
+        <div className={cn('flex-grow', styles.mainArea)} id="dst-editor-tabs">
+          <TabsConfigurator
+            type="card"
+            className={styles.tabCard}
+            tabsList={destinationsTabs.current}
+            defaultTabIndex={0}
+          />
         </div>
 
         <div className="flex-shrink border-t pt-2">

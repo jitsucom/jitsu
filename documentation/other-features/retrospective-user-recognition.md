@@ -67,12 +67,15 @@ meta:
       port: 6379
       password: secret_password
  
-#global configuration
-#is applied to all destinations           
+#Global configuration is applied to all destinations
+#Example of compatible JS SDK 2.0 format
+#For using with old format - just configure enabled flag:
+#users_recognition:
+#  enabled: true
 users_recognition:
-  enabled: true      
-  anonymous_id_node: /user/anonymous_id #Optional. Default value: /eventn_ctx/user/anonymous_id
-  identification_nodes: #Optional. Default value: /eventn_ctx/user/internal_id 
+  enabled: true #Disabled by default.      
+  anonymous_id_node: /user/anonymous_id #Optional. Default value: /eventn_ctx/user/anonymous_id||/user/anonymous_id
+  identification_nodes: #Optional. Default value: /eventn_ctx/user/internal_id||/user/internal_id
     - /user/internal_id
     - /user/email
 ```

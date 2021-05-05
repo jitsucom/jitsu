@@ -43,23 +43,9 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 	}
 
 	idConfig := map[string]enstorages.DestinationConfig{}
-	keysByProject, err := dh.configurationsService.GetAPIKeysGroupByProjectID()
-	if err != nil {
-		logging.Errorf("Error getting api keys grouped by project id. All destinations will be skipped: %v", err)
-		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: err.Error(), Message: "Failed to get API keys"})
-		return
-	}
 	for projectID, destinationsEntity := range destinationsMap {
 		if len(destinationsEntity.Destinations) == 0 {
 			continue
-		}
-
-		//if only tokens empty - put all tokens by project
-		keys, _ := keysByProject[projectID]
-
-		projectTokenIDs := []string{}
-		for _, k := range keys {
-			projectTokenIDs = append(projectTokenIDs, k.ID)
 		}
 
 		for _, destination := range destinationsEntity.Destinations {
@@ -70,11 +56,6 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 				continue
 			}
 
-			if len(destination.OnlyKeys) > 0 {
-				enDestinationConfig.OnlyTokens = destination.OnlyKeys
-			} else {
-				enDestinationConfig.OnlyTokens = projectTokenIDs
-			}
 			idConfig[destinationID] = *enDestinationConfig
 		}
 	}

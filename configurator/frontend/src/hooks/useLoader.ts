@@ -1,4 +1,4 @@
-import { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { DependencyList, Dispatch, SetStateAction, useEffect, useState } from 'react';
 
 export type Loader<T> = () => Promise<T>;
 
@@ -22,10 +22,11 @@ export type Loader<T> = () => Promise<T>;
  *
  *
  */
-function useLoader<T>(loader: Loader<T>): [Error, T, Dispatch<SetStateAction<T>>] {
+function useLoader<T>(loader: Loader<T>, deps?: DependencyList): [Error, T, Dispatch<SetStateAction<T>>] {
   const [data, setData] = useState(undefined);
   const [error, setError] = useState(undefined);
   const loaderWrapper = async() => {
+    setData(null);
     try {
       setData(await loader())
     } catch (e) {
@@ -34,7 +35,7 @@ function useLoader<T>(loader: Loader<T>): [Error, T, Dispatch<SetStateAction<T>>
   }
   useEffect(() => {
     loaderWrapper();
-  }, [])
+  }, deps ?? [])
   return [error, data, setData];
 }
 

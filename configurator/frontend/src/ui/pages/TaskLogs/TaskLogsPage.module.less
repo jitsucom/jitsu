@@ -1,0 +1,23 @@
+@import './src/theme';
+@import './src/assets/mixins';
+
+
+.filterLabel {
+  @apply mr-2 text-secondaryText font-bold uppercase;
+}
+
+.filterEdit {
+  @apply w-48 inline-block pr-4;
+}
+
+.logViewer {
+  @apply border px-3 py-2 rounded-xl;
+  .custom-scrollbar();
+  height: 80vh;
+  overflow: auto;
+}
+
+.logViewerWrapper {
+  .custom-scrollbar();
+  overflow: auto;
+}

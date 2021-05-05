@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
-import { Button, Dropdown, message } from 'antd';
+import { Button, Dropdown, message, Modal } from 'antd';
 import { snakeCase } from 'lodash';
 // @Components
 import { DropDownList } from '@molecule/DropDownList';
@@ -9,6 +9,9 @@ import { ListItem } from '@molecule/ListItem';
 import { ListItemDescription } from '@atom/ListItemDescription';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
+import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
+import CodeOutlined from '@ant-design/icons/lib/icons/CodeOutlined';
+import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Types
@@ -20,10 +23,13 @@ import styles from './SourcesList.module.less';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
+import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 import { DropDownListItem } from '@molecule/DropDownList';
 // @Utils
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
+import { taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
+import { withProgressBar } from '@./lib/components/components';
+import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 
 const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const history = useHistory();
@@ -116,8 +122,33 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
             id={src.sourceId}
             key={src.sourceId}
             actions={[
-              { key: 'edit', method: handleEditAction, title: 'Edit' },
-              { key: 'delete', method: handleDeleteAction, title: 'Delete' }
+              { onClick: () => {
+                withProgressBar({
+                  estimatedMs: 1000,
+                  callback: async() => {
+                    for (let i = 0; i < src.collections.length; i++) {
+                      await services.backendApiClient.post('/tasks', undefined, { proxy: true, urlParams: {
+                        source: `${services.activeProject.id}.${src.sourceId}`, collection: src.collections[i].name,
+                        project_id: services.activeProject.id }
+                      });
+                    }
+                    history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId }));
+                  }
+                })
+
+              }, title: 'Schedule All Tasks', icon: <CodeOutlined /> },
+              { onClick: () => history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId })), title: 'View logs', icon: <CodeOutlined /> },
+              { onClick: () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })), title: 'Edit', icon: <EditOutlined /> },
+              { onClick: () => {
+                const updatedSources = [...sources.filter((source: SourceData) => src.sourceId !== source.sourceId)];
+
+                services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
+                  updateSources({ sources: updatedSources });
+
+                  message.success('Sources list successfully updated');
+                });
+
+              }, title: 'Delete', icon: <DeleteOutlined /> }
             ]}
           />
         })}

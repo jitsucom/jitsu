@@ -14,8 +14,6 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { ConnectedItem } from '@organism/ConnectedItems';
 // @Hooks
 import useLoader from '@hooks/useLoader';
-// @Routes
-import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 // @Utils
 import { destinationsUtils } from '@page/DestinationsPage/DestinationsPage.utils';
 import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
@@ -25,6 +23,7 @@ export interface Props {
   form: FormInstance;
   initialValues: SourceData;
   projectId: string;
+  handleTouchAnyField: VoidFunc;
 }
 
 function getDescription(reference: Destination) {
@@ -37,16 +36,12 @@ function getDescription(reference: Destination) {
   }
 }
 
-const SourceEditorDestinations = ({ form, initialValues, projectId }: Props) => {
-  const history = useHistory();
-
+const SourceEditorDestinations = ({ form, initialValues, projectId, handleTouchAnyField }: Props) => {
   const services = useMemo(() => ApplicationServices.get(), []);
 
   const [, destinations] = useLoader(
     async() => await services.storageService.get('destinations', projectId)
   );
-
-  const handleEditAction = useCallback((id: string) => () => history.push(generatePath(destinationPageRoutes.editDestination, { id })), [history]);
 
   const destinationsList = useMemo<ConnectedItem[]>(() => destinations?.destinations?.map((dst: DestinationData) => {
     const reference = destinationsReferenceMap[dst._type]
@@ -56,9 +51,15 @@ const SourceEditorDestinations = ({ form, initialValues, projectId }: Props) => 
       title: <NameWithPicture icon={reference.ui.icon}><b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}</NameWithPicture>,
       description: <i className="text-xs">{getDescription(reference)}</i>
     };
-  }) ?? [], [destinations?.destinations, handleEditAction]);
+  }) ?? [], [destinations?.destinations]);
 
   const preparedInitialValue = useMemo(() => initialValues?.destinations ?? [], [initialValues]);
+
+  const handleItemChange = useCallback((items: string[]) => {
+    const beenTouched = JSON.stringify(items) !== JSON.stringify(initialValues.destinations)
+
+    handleTouchAnyField(beenTouched);
+  }, [initialValues, handleTouchAnyField])
 
   return (
     <>
@@ -73,6 +74,7 @@ const SourceEditorDestinations = ({ form, initialValues, projectId }: Props) => 
           itemsList={destinationsList}
           warningMessage={<p>Please, choose at least one source.</p>}
           initialValues={preparedInitialValue}
+          handleItemChange={handleItemChange}
         />
       </Form>
     </>

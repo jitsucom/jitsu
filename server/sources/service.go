@@ -119,16 +119,19 @@ func (s *Service) init(sc map[string]drivers.SourceConfig) {
 
 	//close and remove non-existent (in new config)
 	toDelete := map[string]*Unit{}
-	for name, unit := range s.sources {
-		_, ok := sc[name]
+	s.RLock()
+	for sourceID, unit := range s.sources {
+		_, ok := sc[sourceID]
 		if !ok {
-			toDelete[name] = unit
+			toDelete[sourceID] = unit
 		}
 	}
+	s.RUnlock()
+
 	if len(toDelete) > 0 {
 		s.Lock()
-		for name, unit := range toDelete {
-			s.remove(name, unit)
+		for sourceIDToDel, unit := range toDelete {
+			s.remove(sourceIDToDel, unit)
 		}
 		s.Unlock()
 	}
@@ -144,7 +147,10 @@ func (s *Service) init(sc map[string]drivers.SourceConfig) {
 			continue
 		}
 
+		s.RLock()
 		unit, ok := s.sources[name]
+		s.RUnlock()
+
 		if ok {
 			if unit.hash == hash {
 				//source wasn't changed
@@ -211,20 +217,20 @@ func (s *Service) GetCollections(sourceID string) ([]string, error) {
 
 //remove closes and removes source instance from Service
 //method must be called with locks
-func (s *Service) remove(name string, unit *Unit) {
+func (s *Service) remove(sourceID string, unit *Unit) {
 	for collection := range unit.DriverPerCollection {
-		err := s.cronScheduler.Remove(name, collection)
+		err := s.cronScheduler.Remove(sourceID, collection)
 		if err != nil {
-			logging.Errorf("[%s] Error stopping scheduling collection [%s] sync: %v", name, collection, err)
+			logging.Errorf("[%s] Error stopping scheduling collection [%s] sync: %v", sourceID, collection, err)
 		}
 	}
 
 	if err := unit.Close(); err != nil {
-		logging.Errorf("[%s] Error closing source unit: %v", name, err)
+		logging.Errorf("[%s] Error closing source unit: %v", sourceID, err)
 	}
 
-	delete(s.sources, name)
-	logging.Infof("[%s] source has been removed!", name)
+	delete(s.sources, sourceID)
+	logging.Infof("[%s] source has been removed!", sourceID)
 }
 
 func (s *Service) Close() (multiErr error) {

@@ -66,8 +66,12 @@ func (mf *MappingField) Validate() error {
 // value --constant--> (Lowcardinality(String)) /dst
 func (mf *MappingField) String() string {
 	typeCast := ""
+	columnType := ""
+	if mf.ColumnType != "" {
+		columnType = "; column type=" + mf.ColumnType
+	}
 	if mf.Type != "" {
-		typeCast = "(" + mf.Type + ")"
+		typeCast = "(type=" + mf.Type + columnType + ")"
 	}
 	src := mf.Src
 	if mf.Action == CONSTANT {

@@ -1,54 +1,45 @@
 // @Libs
-import React, { ReactNode, useCallback, useMemo } from 'react';
-import { generatePath, Link, useHistory } from 'react-router-dom';
-import { Button, Collapse, Form } from 'antd';
+import React, { useCallback, useMemo } from 'react';
+import { Link, NavLink } from 'react-router-dom';
+import { Collapse, Form } from 'antd';
 // @Hooks
 import useLoader from '@hooks/useLoader';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Components
 import { ConnectedItems } from '@organism/ConnectedItems';
-import { ListItemDescription } from '@atom/ListItemDescription';
-import { CenteredError, CenteredSpin, CodeInline } from '@./lib/components/components';
-import { NavLink } from 'react-router-dom';
-
+import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { ConnectedItem } from '@organism/ConnectedItems';
 // @Catalog sources
 import { allSources } from '@catalog/sources/lib';
 // @Constants
-import {
-  DESTINATIONS_CONNECTED_API_KEYS,
-  DESTINATIONS_CONNECTED_SOURCES
-} from '@./embeddedDocs/destinationsConnectedItems';
+import { DESTINATIONS_CONNECTED_SOURCES } from '@./embeddedDocs/destinationsConnectedItems';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
-import Icon from '@ant-design/icons';
 import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
 import { Destination } from '@catalog/destinations/types';
+import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 
 export interface Props {
   form: FormInstance;
   destination: Destination,
   initialValues: DestinationData;
+  handleTouchAnyField: VoidFunc;
+  sources: SourceData[];
+  sourcesError: any;
 }
 
-const DestinationEditorConnectors = ({ form, initialValues, destination }: Props) => {
-  const history = useHistory();
-
+const DestinationEditorConnectors = ({ form, initialValues, destination, handleTouchAnyField, sources, sourcesError }: Props) => {
   const service = ApplicationServices.get();
 
-  const [sourcesError, sourcesData] = useLoader(async() => await service.storageService.get('sources', service.activeProject.id));
   const [apiKeysError, apiKeysData] = useLoader(async() => await service.storageService.get('api_keys', service.activeProject.id));
 
-  const handleEditAction = useCallback((id: string) => () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: id })), [history]);
-
   const sourcesList = useMemo<ConnectedItem[]>(
-    () => sourcesData?.sources
+    () => sources
       ?
-      sourcesData.sources?.map((src: SourceData) => {
+      sources?.map((src: SourceData) => {
         const proto = allSources.find(s => s.id === src.sourceType);
 
         return {
@@ -59,7 +50,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination }: Props
       })
       :
       [],
-    [handleEditAction, sourcesData?.sources]
+    [sources]
   );
 
   const apiKeysList = useMemo<ConnectedItem[]>(
@@ -75,14 +66,20 @@ const DestinationEditorConnectors = ({ form, initialValues, destination }: Props
     [apiKeysData?.keys]
   );
 
+  const handleItemChange = useCallback((name: string) => (items: string[]) => {
+    const beenTouched = JSON.stringify(items) !== JSON.stringify(initialValues?.[name]);
+
+    handleTouchAnyField(beenTouched);
+  }, [initialValues, handleTouchAnyField])
+
   if (apiKeysError || sourcesError) {
     return <CenteredError error={apiKeysError || sourcesError}/>
-  } else if (!sourcesData || !apiKeysData) {
+  } else if (!apiKeysData) {
     return <CenteredSpin/>
   }
 
   let activeKey;
-  if (apiKeysList.length > 0 || sourcesData.sources.length === 0 && apiKeysList.length === 0) {
+  if (apiKeysList.length > 0 || sources.length === 0 && apiKeysList.length === 0) {
     activeKey = 'keys';
   } else {
     activeKey = 'connectors'
@@ -93,20 +90,22 @@ const DestinationEditorConnectors = ({ form, initialValues, destination }: Props
       <Form form={form} name="connected-sources">
         <div className="text-xs italic text-secondaryText mb-5">{DESTINATIONS_CONNECTED_SOURCES}</div>
         <Collapse ghost defaultActiveKey={activeKey}>
-          <Collapse.Panel header={<b>Linked API Keys (<NavLink to="/api_keys">edit API keys</NavLink>)</b>} key="keys">
+          <Collapse.Panel header={<b>Linked API Keys (<NavLink to="/api_keys">edit API keys</NavLink>)</b>} key="keys" forceRender>
             <div className="pl-6">
               <ConnectedItems
                 form={form}
                 fieldName="_onlyKeys"
                 itemsList={apiKeysList}
                 warningMessage={<p>Please, choose at least one API key.</p>}
-                initialValues={initialValues?._onlyKeys}/>
+                initialValues={initialValues?._onlyKeys}
+                handleItemChange={handleItemChange('_onlyKeys')}
+              />
             </div>
           </Collapse.Panel>
-          <Collapse.Panel header={<b>Linked Connectors (<NavLink to="/api_keys">edit connectors</NavLink>)</b>} key="connectors">
+          <Collapse.Panel header={<b>Linked Connectors (<NavLink to="/sources">edit connectors</NavLink>)</b>} key="connectors" forceRender>
             <div className="pl-6">
               {
-                destination.syncFromSourcesStatus === 'supported' && sourcesData && !sourcesData?.sources?.length &&
+                destination.syncFromSourcesStatus === 'supported' && sources?.length === 0 &&
                 <p className="text-sm text-secondaryText">You don't have any connectors you can link to the destination. You can add them <Link to="/sources">here</Link>.</p>
               }
               {destination.syncFromSourcesStatus === 'supported' && <ConnectedItems
@@ -114,7 +113,8 @@ const DestinationEditorConnectors = ({ form, initialValues, destination }: Props
                 fieldName="_sources"
                 itemsList={sourcesList}
                 warningMessage={<p>Please, choose at least one source.</p>}
-                initialValues={initialValues?._sources}
+                initialValues={destinationEditorUtils.getCheckedSources(sources, initialValues)}
+                handleItemChange={handleItemChange('_sources')}
               />}
               {destination.syncFromSourcesStatus === 'coming_soon' && <div className="text-secondaryText">
                 <b>{destination.displayName}</b> support is <i>coming soon!</i>. At the moment, Jitsu can't send data from connectors to {destination.displayName}.
