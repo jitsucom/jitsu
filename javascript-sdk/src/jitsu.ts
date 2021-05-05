@@ -145,7 +145,7 @@ class JitsuClientImpl implements JitsuClient {
     }
 
     return this.compatMode ?
-      { ...base, eventn_ctx: context } :
+      { eventn_ctx: context, ...base } :
       {...context, ...base };
   }
 
