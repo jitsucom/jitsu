@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -49,11 +50,12 @@ type TaskService struct {
 	configured bool
 }
 
-//only for tests
+//NewTestTaskService returns TaskService test instance (only for tests)
 func NewTestTaskService() *TaskService {
 	return &TaskService{}
 }
 
+//NewTaskService returns configured TaskService instance
 func NewTaskService(sourceService *sources.Service, destinationService *destinations.Service,
 	metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper) *TaskService {
 	if !sourceService.IsConfigured() {
@@ -179,9 +181,11 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 		}
 	}
 
+	generatedTaskID := schema.Reformat(fmt.Sprintf("%s_%s_%s", sourceID, collection, uuid.NewV4().String()))
+
 	now := time.Now().UTC()
 	task := meta.Task{
-		ID:         fmt.Sprintf("%s_%s_%s", sourceID, collection, uuid.NewV4().String()),
+		ID:         generatedTaskID,
 		Source:     sourceID,
 		Collection: collection,
 		Priority:   priority.GetValue(now),

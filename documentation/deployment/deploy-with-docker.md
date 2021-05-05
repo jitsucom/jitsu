@@ -4,9 +4,39 @@ sort: 2
 
 import {Hint} from "../../../components/documentationComponents";
 
+# Run docker-compose
+
+**Jitsu** provides demo docker-compose that contains:
+* jitsucom/server 
+* jitsucom/configurator and UI
+* redis
+
+The easiest way to start Jitsu locally is using docker-compose:
+
+```bash
+git clone https://github.com/jitsucom/jitsu.git
+cd jitsu
+```
+
+For running `latest` version use:
+
+```bash
+docker-compose up
+```
+
+<Hint>
+    jitsucom/server and jitsucom/configurator <code inline="true">latest</code> images will be downloaded and started. 
+    For building and running local version use: <code inline="true">docker-compose build && docker-compose up</code>. It takes up to 15 min.
+
+</Hint>
+
+Visit `http://localhost:7000` after the build is complete.
+
 # Deploying with Docker
 
-**Jitsu** provides a Docker image to simplify deployment on your IaaS or hardware of choice. We build two images:
+## Deploy Jitsu Server
+
+Jitsu server is a Docker image to simplify deployment on your IaaS or hardware of choice. We build two images:
 
 * `jitsucom/server:latest` — contains the latest stable production release. This image is built from [master](https://github.com/jitsucom/jitsu/tree/master) branch
 * `jitsucom/server:beta` — contains the latest beta version built from [beta](https://github.com/jitsucom/jitsu/tree/beta) branch
