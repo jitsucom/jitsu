@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Prompt, useHistory, useParams } from 'react-router-dom';
+import { Prompt, Redirect, useHistory, useParams } from 'react-router-dom';
 import { Form, message } from 'antd';
 import cn from 'classnames';
 import { snakeCase } from 'lodash';
@@ -56,7 +56,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
       return sourceType
         ? allSources.find((source: SourceConnector) => snakeCase(source.id) === snakeCase(sourceType))
-        : {} as SourceConnector;
+        : undefined;
     },
     [params.source, params.sourceId, sources]
   );
@@ -98,7 +98,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       />
     ),
     form: Form.useForm()[0],
-    isHidden: connectorSource.isSingerType,
+    isHidden: connectorSource?.isSingerType,
     touched: false
   },
   {
@@ -255,6 +255,10 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       ]
     }));
   }, [connectorSource, setBreadcrumbs]);
+
+  if (!connectorSource) {
+    return <Redirect to={sourcesPageRoutes.add} />;
+  }
 
   return (
     <>

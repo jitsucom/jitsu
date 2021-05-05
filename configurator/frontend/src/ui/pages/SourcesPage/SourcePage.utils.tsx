@@ -13,9 +13,9 @@ import Marshal from '@./lib/commons/marshalling';
 import { ListItemTitle } from '@atom/ListItemTitle';
 
 const sourcePageUtils = {
-  getSourceType: (sourceConnector: SourceConnector) => sourceConnector.isSingerType
+  getSourceType: (sourceConnector: SourceConnector) => sourceConnector?.isSingerType
     ? 'singer'
-    : snakeCase(sourceConnector.id),
+    : snakeCase(sourceConnector?.id),
   getSourceId: (sourceProtoType: string, sourcesIds: string[]) => {
     const isUniqueSourceId = !sourcesIds.find(id => id === sourceProtoType);
 
