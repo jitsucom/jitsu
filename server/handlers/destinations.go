@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -149,7 +148,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			defer googleStorage.Close()
 
 			if err = googleStorage.ValidateWritePermission(); err != nil {
-				return nil
+				return err
 			}
 		}
 
@@ -176,7 +175,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		defer snowflake.Close()
 
 		if config.Mode == storages.BatchMode {
-			if config.S3 != nil && config.S3.Bucket != "" {
+			if config.S3 != nil {
 				if err := config.S3.Validate(); err != nil {
 					return err
 				}
@@ -192,8 +191,8 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 					return err
 				}
 
-			} else if config.Google != nil && config.Google.Bucket != "" {
-				if err := config.Google.Validate(true, false); err != nil {
+			} else if config.Google != nil {
+				if err := config.Google.Validate(false, false); err != nil {
 					return err
 				}
 
@@ -207,6 +206,8 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 				if err = gcp.ValidateWritePermission(); err != nil {
 					return err
 				}
+			} else {
+				return fmt.Errorf("Snowflake in batch mode needs Google or S3 configuration section")
 			}
 		}
 
@@ -239,6 +240,6 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		return nil
 
 	default:
-		return errors.New("unsupported destination type " + config.Type)
+		return fmt.Errorf("Unsupported destination type: '%v'", config.Type)
 	}
 }
