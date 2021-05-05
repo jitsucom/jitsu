@@ -1,5 +1,5 @@
 # BASE STAGE
-FROM alpine:3.12 as main
+FROM alpine:3.13 as main
 
 ENV CONFIGURATOR_USER=configurator
 
@@ -14,41 +14,38 @@ RUN addgroup -S $CONFIGURATOR_USER \
 RUN ln -s /home/$CONFIGURATOR_USER/data/config /home/$CONFIGURATOR_USER/app/res && \
     ln -s /home/$CONFIGURATOR_USER/data/logs /home/$CONFIGURATOR_USER/logs && \
     chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/logs
-
-#######################################
-# BUILD BASE STAGE
-FROM golang:1.14.6-alpine3.12 as builder
-
-# Install dependencies
-RUN apk add git make bash npm yarn
-
 #######################################
 # BUILD JS STAGE
-FROM builder as jsbuilder
-
+FROM jitsucom/configurator-builder as jsbuilder
 
 # Install yarn dependencies
-ADD configurator/frontend/package.json /app/package.json
+ADD configurator/frontend/package.json /frontend/package.json
 
 ARG SKIP_UI_BUILD
 ENV SKIP_UI=$SKIP_UI_BUILD
 
-WORKDIR /app
+WORKDIR /frontend
 
 # We need to make sure empty 'build' directory exists if SKIP_UI_BUILD==true and yarn won't make it
 RUN mkdir build
 
-RUN if [ "$SKIP_UI" != "true" ]; then yarn install --network-timeout 1000000; fi
+RUN if [ "$SKIP_UI" != "true" ]; then yarn install --prefer-offline --frozen-lockfile --network-timeout 1000000; fi
 
 # Copy project
 ADD configurator/frontend/. ./
 
+# write the output of the date command into a file called tmp_variable
+RUN free | awk 'FNR == 2 {print $2}' > ./build/mem
+
+# Check RAM > 4gb else error (JS build requires >4gb RAM)
+RUN if [ $(cat ./build/mem) < "4000000" ]; then echo echo Docker build requires 4gb of RAM. Configure it in the machine Docker configuration && exit 1; else rm ./build/mem; fi
+
 # Build
-RUN if [ "$SKIP_UI" != "true" ]; then yarn build --network-timeout 1000000; fi
+RUN if [ "$SKIP_UI" != "true" ]; then yarn docker_build; fi
 
 #######################################
 # BUILD BACKEND STAGE
-FROM builder as builder
+FROM jitsucom/configurator-builder as builder
 
 ENV CONFIGURATOR_USER=configurator
 
@@ -79,7 +76,7 @@ ENV TZ=UTC
 # copy static files from build-image
 COPY --from=builder /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend/build/dist /home/$CONFIGURATOR_USER/app
 
-COPY --from=jsbuilder /app/build /home/$CONFIGURATOR_USER/app/web
+COPY --from=jsbuilder /frontend/build /home/$CONFIGURATOR_USER/app/web
 
 RUN chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/app
 

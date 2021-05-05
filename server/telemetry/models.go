@@ -24,11 +24,12 @@ type Usage struct {
 	Source     string `json:"hashed_source_id,omitempty"`
 	SourceType string `json:"source_type,omitempty"`
 
-	Destination       string `json:"hashed_destination_id,omitempty"`
-	DestinationType   string `json:"destination_type,omitempty"`
-	DestinationMode   string `json:"destination_mode,omitempty"`
-	DestinationPkKeys bool   `json:"destination_primary_keys,omitempty"`
-	UsersRecognition  bool   `json:"users_recognition,omitempty"`
+	Destination        string `json:"hashed_destination_id,omitempty"`
+	DestinationType    string `json:"destination_type,omitempty"`
+	DestinationMode    string `json:"destination_mode,omitempty"`
+	DestinationMapping string `json:"destination_mappings,omitempty"`
+	DestinationPkKeys  bool   `json:"destination_primary_keys,omitempty"`
+	UsersRecognition   bool   `json:"users_recognition,omitempty"`
 
 	Coordination string `json:"coordination,omitempty"`
 }
