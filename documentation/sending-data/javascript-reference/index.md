@@ -1,6 +1,6 @@
 ---
 sort: "0001"
-title_: "JS Reference (DEPRECATED)"
+title: "Deprecated API"
 
 ---
 
@@ -16,8 +16,6 @@ import {Hint} from "../../../../components/documentationComponents";
     Please, read <a href="/docs/sending-data/js-sdk">JS SDK</a> section if you're starting new project. If you're migrating existing project,
     check out <a href="/docs/sending-data/js-sdk/migration">Migration Guide</a>
 </Hint>
-
-
 
 ## Understanding event tracking
 
