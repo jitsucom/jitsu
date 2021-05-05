@@ -4,7 +4,9 @@ sort: 2
 
 import {Hint} from "../../../components/documentationComponents";
 
-# Run docker-compose
+# Deploying with Docker
+
+## Run docker-compose
 
 **Jitsu** provides demo docker-compose that contains:
 * jitsucom/server 
@@ -32,9 +34,7 @@ docker-compose up
 
 Visit `http://localhost:7000` after the build is complete.
 
-# Deploying with Docker
-
-## Deploy Jitsu Server
+## Deploying Jitsu Server
 
 Jitsu server is a Docker image to simplify deployment on your IaaS or hardware of choice. We build two images:
 
