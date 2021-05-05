@@ -18,6 +18,8 @@ import (
 	"time"
 )
 
+const DestinationsGettingErrMsg = "Destinations getting error"
+
 type DestinationsHandler struct {
 	configurationsService *storages.ConfigurationsService
 	defaultS3             *enadapters.S3Config
@@ -38,7 +40,7 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 	begin := time.Now()
 	destinationsMap, err := dh.configurationsService.GetDestinations()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: err.Error(), Message: "Destinations err"})
+		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse(DestinationsGettingErrMsg, err))
 		return
 	}
 
@@ -68,25 +70,25 @@ func (dh *DestinationsHandler) TestHandler(c *gin.Context) {
 	destinationEntity := &entities.Destination{}
 	err := c.BindJSON(destinationEntity)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Failed to parse request body", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to parse request body", err))
 		return
 	}
 
 	enDestinationConfig, err := destinations.MapConfig("test_connection", destinationEntity, dh.defaultS3)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: fmt.Sprintf("Failed to map [%s] firebase config to eventnative format", destinationEntity.Type), Error: err.Error()})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to map [%s] firebase config to eventnative format", destinationEntity.Type), err))
 		return
 	}
 
 	b, err := json.Marshal(enDestinationConfig)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Failed to serialize destination config", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to serialize destination config", err))
 		return
 	}
 
 	code, content, err := dh.jitsuService.TestDestination(b)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Failed to get response from eventnative", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to get response from jitsu server", err))
 		return
 	}
 
@@ -100,6 +102,6 @@ func (dh *DestinationsHandler) TestHandler(c *gin.Context) {
 
 	_, err = c.Writer.Write(content)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: "Failed to write response", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to write response", err))
 	}
 }

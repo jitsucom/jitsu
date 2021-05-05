@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/storages"
@@ -20,6 +19,7 @@ type Configuration struct {
 	DefaultS3Bucket        bool   `json:"default_s3_bucket"`
 	SupportTrackingDomains bool   `json:"support_tracking_domains"`
 	TelemetryUsageDisabled bool   `json:"telemetry_usage_disabled"`
+	ShowBecomeUser         bool   `json:"show_become_user"`
 }
 
 type SystemHandler struct {
@@ -41,17 +41,13 @@ func NewSystemHandler(authService *authorization.Service, configurationService *
 func (sh *SystemHandler) GetHandler(c *gin.Context) {
 	exist, err := sh.authService.UsersExist()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{
-			Message: "Error checking users existence",
-			Error:   err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse("Error checking users existence", err))
 		return
 	}
 
 	telemetryConfig, err := sh.configurationService.GetParsedTelemetry()
 	if err != nil && err != storages.ErrConfigurationNotFound {
-		errorMessage := fmt.Sprintf("Error getting telemetry configuration: %v", err)
-		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: errorMessage, Message: "Telemetry error"})
+		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse("Error getting telemetry configuration", err))
 		return
 	}
 
@@ -72,6 +68,7 @@ func (sh *SystemHandler) GetHandler(c *gin.Context) {
 		DefaultS3Bucket:        !sh.selfHosted,
 		SupportTrackingDomains: !sh.selfHosted,
 		TelemetryUsageDisabled: telemetryUsageDisabled,
+		ShowBecomeUser:         !sh.selfHosted,
 	}
 
 	c.JSON(http.StatusOK, currentConfiguration)

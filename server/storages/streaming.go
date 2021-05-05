@@ -33,6 +33,7 @@ type StreamingWorker struct {
 	closed bool
 }
 
+//newStreamingWorker returns configured streaming worker
 func newStreamingWorker(eventQueue *events.PersistentQueue, processor *schema.Processor, streamingStorage StreamingStorage,
 	eventsCache *caching.EventsCache, archiveLogger *logging.AsyncLogger, tableHelper ...*TableHelper) *StreamingWorker {
 	return &StreamingWorker{
@@ -97,7 +98,7 @@ func (sw *StreamingWorker) start() {
 				}
 
 				//cache
-				sw.eventsCache.Error(sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err.Error())
+				sw.eventsCache.Error(sw.streamingStorage.IsCachingDisabled(), sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err.Error())
 
 				continue
 			}
@@ -129,7 +130,7 @@ func (sw *StreamingWorker) start() {
 				telemetry.Error(tokenID, sw.streamingStorage.ID(), events.ExtractSrc(fact), 1)
 
 				//cache
-				sw.eventsCache.Error(sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err.Error())
+				sw.eventsCache.Error(sw.streamingStorage.IsCachingDisabled(), sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err.Error())
 
 				metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.ID())
 				continue
@@ -139,7 +140,7 @@ func (sw *StreamingWorker) start() {
 			telemetry.Event(tokenID, sw.streamingStorage.ID(), events.ExtractSrc(fact), 1)
 
 			//cache
-			sw.eventsCache.Succeed(sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), flattenObject, table)
+			sw.eventsCache.Succeed(sw.streamingStorage.IsCachingDisabled(), sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), flattenObject, table)
 
 			metrics.SuccessTokenEvent(tokenID, sw.streamingStorage.ID())
 

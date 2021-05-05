@@ -56,6 +56,11 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		}
 	}
 
+	//disabling destination's events caching
+	if destination.CachingConfiguration != nil {
+		config.CachingConfiguration = &enstorages.CachingConfiguration{Disabled: destination.CachingConfiguration.Disabled}
+	}
+
 	//only keys
 	config.OnlyTokens = destination.OnlyKeys
 
