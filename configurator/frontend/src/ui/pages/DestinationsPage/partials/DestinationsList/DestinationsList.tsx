@@ -23,36 +23,33 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 import { CommonDestinationPageProps } from '@page/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 
-const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: CommonDestinationPageProps) => {
+import CodeOutlined from '@ant-design/icons/lib/icons/CodeOutlined';
+import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
+import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
+
+const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, sources, updateSources  }: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const update = useCallback((id: string) => async() => {
     const appServices = ApplicationServices.get();
 
+    const currentDestination = destinations.find(dest => dest._id === id);
+
     const newDestinations = destinations.filter(dest => dest._id !== id);
 
     try {
+      const updatesSources = destinationEditorUtils.updateSources(sources, currentDestination, appServices.activeProject.id);
+      updateSources(updatesSources);
+
       await appServices.storageService.save('destinations', { destinations: newDestinations }, appServices.activeProject.id);
 
       updateDestinations({ destinations: newDestinations });
     } catch (errors) {
       handleError(errors, 'Unable to delete destination at this moment, please try later.')
     }
-  }, [destinations, updateDestinations]);
-
-  const handleDeleteAction = useCallback((id: string) => () => {
-    Modal.confirm({
-      title: 'Please confirm deletion of destination',
-      icon: <ExclamationCircleOutlined/>,
-      content: 'Are you sure you want to delete ' + id + ' destination?',
-      okText: 'Delete',
-      cancelText: 'Cancel',
-      onOk: update(id)
-    });
-  }, [update]);
-
-  const handleEditAction = useCallback((id: string) => () => history.push(generatePath(destinationPageRoutes.editDestination, { id })), [history]);
+  }, [destinations, updateDestinations, sources, updateSources]);
 
   const dropDownList = useMemo(() => <DropDownList
     hideFilter
@@ -107,8 +104,17 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs }: 
             id={dst._id}
             key={dst._id}
             actions={[
-              { key: 'edit', method: handleEditAction, title: 'Edit' },
-              { key: 'delete', method: handleDeleteAction, title: 'Delete' }
+              { onClick: () => history.push(generatePath(destinationPageRoutes.editDestination, { id: dst._id })), title: 'Edit', icon: <EditOutlined /> },
+              { onClick: () => {
+                Modal.confirm({
+                  title: 'Please confirm deletion of destination',
+                  icon: <ExclamationCircleOutlined/>,
+                  content: 'Are you sure you want to delete ' + dst._id + ' destination?',
+                  okText: 'Delete',
+                  cancelText: 'Cancel',
+                  onOk: update(dst._id)
+                });
+              }, title: 'Delete', icon: <DeleteOutlined /> }
             ]}
           />
         })

@@ -28,7 +28,7 @@ export class PaymentPlanStatus {
   private _stat: StatService;
 
   public async init(project: Project, backendApiClient: BackendApiClient) {
-    if (!project.planId) {
+    if (!project?.planId) {
       this._currentPlan = paymentPlans.free;
     } else {
       this._currentPlan = paymentPlans[project.planId];

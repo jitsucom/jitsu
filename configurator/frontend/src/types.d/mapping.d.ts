@@ -7,6 +7,6 @@ declare interface MappingRow {
 }
 
 declare interface Mapping {
-  _mapping: MappingRow[];
-  _keepUnmappedFields: boolean;
+  _mappings: MappingRow[];
+  _keepUnmappedFields: boolean | number;
 }

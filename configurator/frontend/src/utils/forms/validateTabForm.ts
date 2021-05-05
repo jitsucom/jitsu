@@ -20,9 +20,9 @@ const validateTabForm = async(tab: Tab, { forceUpdate, beforeValidate, errorCb }
       errorCb(errors);
     }
 
-    forceUpdate();
-
     throw errors;
+  } finally {
+    forceUpdate();
   }
 }
 

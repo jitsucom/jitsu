@@ -1,5 +1,5 @@
 # BASE STAGE
-FROM alpine:3.12 as main
+FROM alpine:3.13 as main
 
 RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata
 
@@ -22,15 +22,8 @@ RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res &&
     chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER/logs
 
 #######################################
-# BUILD BASE STAGE
-FROM golang:1.14.6-alpine3.12 as builder
-
-# Install dependencies
-RUN apk add git make bash npm yarn build-base
-
-#######################################
 # BUILD JS STAGE
-FROM builder as jsbuilder
+FROM jitsucom/server-builder as jsbuilder
 
 RUN mkdir /app
 
@@ -45,16 +38,15 @@ RUN make clean_js js assemble_js &&\
 
 #######################################
 # BUILD JS SDK STAGE
-FROM builder as jsSdkbuilder
+FROM jitsucom/server-builder as jsSdkbuilder
 
-RUN mkdir /javascript-sdk && \
-    mkdir /app
+RUN mkdir /app
 
 WORKDIR /javascript-sdk
 
 # Install npm dependencies
-ADD javascript-sdk/package.json ./package.json
-RUN yarn install --network-timeout 1000000
+ADD javascript-sdk/package.json javascript-sdk/yarn.lock ./
+RUN yarn install --prefer-offline --frozen-lockfile --network-timeout 1000000
 
 # Copy project
 ADD javascript-sdk/. .
@@ -66,19 +58,15 @@ RUN yarn build && \
 
 #######################################
 # BUILD BACKEND STAGE
-FROM builder as builder
+FROM jitsucom/server-builder as builder
 
 RUN mkdir /app
 
-RUN mkdir -p /go/src/github.com/jitsucom/jitsu/jitsu/server
-
-WORKDIR /go/src/github.com/jitsucom/jitsu/jitsu/server
+WORKDIR /go/src/github.com/jitsucom/jitsu/server
 
 #Caching dependencies
 ADD server/go.mod server/go.sum ./
 RUN go mod download
-
-#######
 
 #Copy backend
 ADD server/. ./.

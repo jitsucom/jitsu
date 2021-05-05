@@ -18,7 +18,7 @@ import { SourceConnector } from '@catalog/sources/types';
 import { FormInstance } from 'antd/es';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/routes';
+import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 // @Catalog sources
 import { allSources } from '@catalog/sources/lib';
 // @Utils
@@ -30,6 +30,7 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import { handleError } from '@./lib/components/components';
+import { firstToLower } from '@./lib/commons/utils';
 
 const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
   const services = ApplicationServices.get();
@@ -38,7 +39,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
   const forceUpdate = useForceUpdate();
 
-  const params = useParams<{ source?: string; sourceId?: string; }>();
+  const params = useParams<{ source?: string; sourceId?: string; tabName?: string; }>();
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false);
   const [savePopover, switchSavePopover] = useState<boolean>(false);
@@ -79,10 +80,11 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         isCreateForm={editorMode === 'add'}
         initialValues={sourceData.current}
         sources={sources}
-        handleTouchAnyField={setTouchedFields}
+        handleTouchAnyField={setTouchedFields(0)}
       />
     ),
-    form: Form.useForm()[0]
+    form: Form.useForm()[0],
+    touched: false
   },
   {
     key: 'collections',
@@ -92,10 +94,12 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         form={form}
         initialValues={sourceData.current}
         connectorSource={connectorSource}
-        handleTouchAnyField={setTouchedFields}
+        handleTouchAnyField={setTouchedFields(1)}
       />
     ),
-    form: Form.useForm()[0]
+    form: Form.useForm()[0],
+    isHidden: connectorSource.isSingerType,
+    touched: false
   },
   {
     key: 'destinations',
@@ -105,15 +109,24 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         form={form}
         initialValues={sourceData.current}
         projectId={projectId}
+        handleTouchAnyField={setTouchedFields(2)}
       />
     ),
     form: Form.useForm()[0],
-    errorsLevel: 'warning'
+    errorsLevel: 'warning',
+    touched: false
   }]);
 
-  const touchedFields = useRef<boolean>(false);
+  const setTouchedFields = useCallback(
+    (index: number) => (value: boolean) => {
+      const tab = sourcesTabs.current[index];
 
-  const setTouchedFields = useCallback(() => touchedFields.current = true, []);
+      tab.touched = value === undefined ? true : value
+
+      validateTabForm(tab, { forceUpdate, beforeValidate: () => tab.errorsCount = 0, errorCb: errors => tab.errorsCount = errors.errorFields?.length });
+    },
+    [forceUpdate]
+  );
 
   const savePopoverClose = useCallback(() => switchSavePopover(false), []);
   const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
@@ -121,7 +134,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   const handleCancel = useCallback(() => history.push(sourcesPageRoutes.root), [history]);
 
   const getPromptMessage = useCallback(
-    () => touchedFields.current ? 'You have unsaved changes. Are you sure you want to leave the page?': undefined,
+    () => sourcesTabs.current.some(tab => tab.touched) ? 'You have unsaved changes. Are you sure you want to leave the page?': undefined,
     []
   );
 
@@ -131,14 +144,22 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     const tab = sourcesTabs.current[0];
 
     try {
+      const beforeValidate = () => tab.errorsCount = 0;
+
       const errorCb = (errors) => tab.errorsCount = errors.errorFields?.length;
 
-      const config = await validateTabForm(tab, { forceUpdate, errorCb });
+      const config = await validateTabForm(tab, { forceUpdate, errorCb, beforeValidate });
 
       sourceData.current = {
         ...sourceData.current,
-        ...makeObjectFromFieldsValues(config),
-        connected: await sourcePageUtils.testConnection(sourceData.current)
+        ...makeObjectFromFieldsValues(config)
+      };
+
+      const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current);
+
+      sourceData.current = {
+        ...sourceData.current,
+        ...testConnectionResults
       };
     } catch(error) {
       switchTestConnectingPopover(true);
@@ -152,19 +173,33 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     setSourceSaving(true);
 
     Promise
-      .all(sourcesTabs.current.map(tab => validateTabForm(tab, { forceUpdate, errorCb: errors => tab.errorsCount = errors.errorFields?.length })))
+      .all(sourcesTabs.current.map(tab => validateTabForm(tab, { forceUpdate, beforeValidate: () => tab.errorsCount = 0, errorCb: errors => tab.errorsCount = errors.errorFields?.length })))
       .then(async allValues => {
         sourceData.current = {
           ...sourceData.current,
-          connected: !sourceData.current.connected
-            ? await sourcePageUtils.testConnection(sourceData.current)
-            : sourceData.current.connected,
           ...allValues.reduce((result: any, current: any) => {
             return {
               ...result,
               ...makeObjectFromFieldsValues(current)
             };
           }, {})
+        };
+
+        if (sourceData.current.collections) {
+          sourceData.current.collections = sourceData.current.collections.map((collection: CollectionSource) => {
+            if (!collection.parameters) {
+              collection.parameters = {} as Array<{ [key: string]: string[]; }>;
+            }
+
+            return collection;
+          });
+        }
+
+        const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current, true);
+
+        sourceData.current = {
+          ...sourceData.current,
+          ...testConnectionResults
         };
 
         try {
@@ -183,11 +218,20 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
           updateSources(payload);
 
-          touchedFields.current = false;
+          sourcesTabs.current.forEach((tab: Tab) => tab.touched = false);
 
           history.push(sourcesPageRoutes.root);
 
-          message.success('New destination has been added!');
+          if (sourceData.current.connected) {
+            message.success('New destination has been added!');
+          } else {
+            message.warn(
+              `Source has been saved, but test has failed with '${firstToLower(
+                sourceData.current.connectedErrorMessage
+              )}'. Data from this source will not be available`,
+              10
+            );
+          }
         } catch(error) {
           handleError(error, 'Something goes wrong, source hasn\'t been added');
         }
@@ -216,7 +260,11 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     <>
       <div className={cn('flex flex-col items-stretch flex-auto')}>
         <div className={cn('flex-grow')}>
-          <TabsConfigurator type="card" tabsList={sourcesTabs.current} defaultTabIndex={0} />
+          <TabsConfigurator
+            type="card"
+            tabsList={sourcesTabs.current}
+            defaultTabIndex={0}
+          />
         </div>
 
         <div className="flex-shrink border-t pt-2">

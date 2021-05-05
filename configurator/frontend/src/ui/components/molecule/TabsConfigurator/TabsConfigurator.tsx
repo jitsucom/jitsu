@@ -12,9 +12,11 @@ export interface Tab {
   readonly name: React.ReactNode;
   readonly getComponent?: (form: FormInstance) => React.ReactNode;
   readonly isDisabled?: boolean;
+  readonly isHidden?: boolean;
   form?: FormInstance;
   errorsCount?: number;
   readonly errorsLevel?: 'warning' | 'error';
+  touched?: boolean;
 }
 
 export interface Props {
@@ -22,23 +24,35 @@ export interface Props {
   className?: string;
   type: TabsType;
   defaultTabIndex?: number;
+  onTabChange?: (tabName: any) => void;
 }
 
-const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex = 0 }: Props) => (
-  <Tabs type={type} className={className} defaultActiveKey={tabsList[defaultTabIndex]?.key ?? tabsList[0].key}>
+const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex = 0, onTabChange = () => null }: Props) => (
+  <Tabs
+    type={type}
+    className={className}
+    defaultActiveKey={tabsList[defaultTabIndex]?.key ?? tabsList[0].key}
+    onChange={onTabChange}
+  >
     {
-      tabsList.map((tab: Tab) =>  (
-        <React.Fragment key={tab.key}>
-          <Tabs.TabPane
-            key={tab.key}
-            tab={<TabName name={tab.name} errorsCount={tab.errorsCount} errorsLevel={tab.errorsLevel} />}
-            disabled={tab.isDisabled}
-            forceRender
-          >
-            {tab.getComponent?.(tab.form)}
-          </Tabs.TabPane>
-        </React.Fragment>
-      ))
+      tabsList.map((tab: Tab) => {
+        if (!tab.isHidden) {
+          return (
+            <React.Fragment key={tab.key}>
+              <Tabs.TabPane
+                key={tab.key}
+                tab={<TabName name={tab.name} errorsCount={tab.errorsCount} errorsLevel={tab.errorsLevel} />}
+                disabled={tab.isDisabled}
+                forceRender
+              >
+                {tab.getComponent?.(tab.form)}
+              </Tabs.TabPane>
+            </React.Fragment>
+          )
+        } else {
+          return null;
+        }
+      })
     }
   </Tabs>
 );

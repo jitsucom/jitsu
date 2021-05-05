@@ -21,4 +21,4 @@ const PopoverErrorsContentComponent = ({ tabsList }: Props) => (
 
 PopoverErrorsContentComponent.displayName = 'PopoverErrorsContent';
 
-export const PopoverErrorsContent = memo(PopoverErrorsContentComponent);
+export const PopoverErrorsContent = PopoverErrorsContentComponent;

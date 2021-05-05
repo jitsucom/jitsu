@@ -40,7 +40,10 @@ func (m *Mappings) IsEmpty() bool {
 
 //MapRule entity is stored in main storage (Firebase or Redis)
 type MapRule struct {
-	Action           string `firestore:"_action" json:"_action"`
-	SourceField      string `firestore:"_srcField" json:"_srcField"`
-	DestinationField string `firestore:"_dstField" json:"_dstField"`
+	Action           string      `firestore:"_action" json:"_action"`
+	SourceField      string      `firestore:"_srcField" json:"_srcField"`
+	DestinationField string      `firestore:"_dstField" json:"_dstField"`
+	Type             string      `firestore:"_type" json:"_type"`
+	ColumnType       string      `firestore:"_columnType" json:"_columnType"`
+	Value            interface{} `firestore:"_value" json:"_value"`
 }

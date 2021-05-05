@@ -24,7 +24,7 @@
 * Capture events your application generates and stream to Data Warehouse;
 * Pull data from APIs and save it to Data Warehouse
 
-Read more about [our features](https://https://jitsu.com/#features) and check out the [platform overview](https://jitsu.com/overview)!
+Read more about [our features](https://jitsu.com/#features) and check out the [platform overview](https://jitsu.com/overview)!
 
 
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/quickstart.gif" width="40px"/></a>
@@ -35,10 +35,20 @@ The easiest way to start Jitsu locally is using docker-compose:
 ```bash
 git clone https://github.com/jitsucom/jitsu.git
 cd jitsu
+```
+
+For running `latest` version use:
+
+```bash
 docker-compose up
 ```
 
-The build might take a while (up to 10 mins). Visit `http://localhost:7000` after the build is complete.
+Note: `latest` images will be downloaded and started. For building and running local version (it takes ~15 min) use:
+```bash
+docker-compose build && docker-compose up
+```
+
+Visit `http://localhost:7000` after the build is complete.
 
 To learn more check out [Jitsu deployment documentation](https://jitsu.com/docs/deployment/):
 

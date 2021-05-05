@@ -1,0 +1,70 @@
+@import "theme.less";
+
+.applicationPage {
+  @apply flex flex-row flex-grow border items-stretch;
+}
+
+.sidebar {
+  @apply flex items-stretch;
+  width: 12rem;
+  max-width: 12rem;
+  min-width: 12rem;
+}
+
+.rightbar {
+  @apply flex flex-col flex-grow justify-start;
+  width: calc(100vw - 16rem);
+  max-width: calc(100vw - 16rem);
+  min-width: 800px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-top: 14px;
+  padding-bottom: 20px;
+}
+
+.sideBarContent {
+  @apply flex flex-col justify-between;
+  width: 100%;
+  min-width: 100%;
+  background-color: @secondary-background !important;
+
+}
+.sideBarContent :global .ant-menu {
+  background-color: @secondary-background !important;
+}
+
+
+.sideBarContent :global .ant-menu-item-selected {
+  border-right: 0 !important;
+  background-color: @primary-background !important;
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+  color: @link-color;
+
+  a {
+    font-weight: bold !important;
+    color: @link-color;
+  }
+}
+
+.sideBarContent :global .ant-menu-item {
+  width: auto;
+  margin-left: 12px;
+  padding-left: 12px !important;
+  border-top-left-radius: 16px !important;
+  border-bottom-left-radius: 16px !important;
+}
+
+.sideBarContent :global .ant-menu-item::after {
+  border-right: 0 !important;
+}
+
+.sideBarContent :global .ant-menu-item-active {
+  border-top-left-radius: 16px !important;
+  border-bottom-left-radius: 16px !important;
+}
+
+.sideBarContent :global .ant-menu-item-selected.ant-menu-item-active {
+  border-top-left-radius: 16px !important;
+  border-bottom-left-radius: 16px !important;
+}
