@@ -256,13 +256,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     }));
   }, [connectorSource, setBreadcrumbs]);
 
-  console.log('connectorSource: ', connectorSource);
   if (!connectorSource) {
-    return (
-      <div>
-        <div>asdasd</div>
-      </div>
-    );
+    return <Redirect to={sourcesPageRoutes.add} />;
   }
 
   return (
