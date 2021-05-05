@@ -7,28 +7,33 @@ import (
 	"net/http"
 )
 
+//ClusterInfo is a dto for Cluster info response
 type ClusterInfo struct {
 	Instances []InstanceInfo `json:"instances"`
 }
 
+//InstanceInfo is a dto for server name
 type InstanceInfo struct {
 	Name string `json:"name"`
 }
 
+//ClusterHandler handles cluster info requests
 type ClusterHandler struct {
 	manager cluster.Manager
 }
 
+//NewClusterHandler returns configured ClusterHandler instance
 func NewClusterHandler(manager cluster.Manager) *ClusterHandler {
 	return &ClusterHandler{
 		manager: manager,
 	}
 }
 
+//Handler returns all jitsu server instances names from current cluster
 func (ch *ClusterHandler) Handler(c *gin.Context) {
 	instanceNames, err := ch.manager.GetInstances()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error getting cluster info", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error getting cluster info", err))
 		return
 	}
 

@@ -16,10 +16,11 @@
       ]
     },
     {
-      "name": "Sending data2",
+      "name": "Sending data",
       "pages": [
-        "sending-data/javascript-reference",
-        "sending-data/api"
+        "sending-data/js-sdk",
+        "sending-data/api",
+        "sending-data/javascript-reference"
       ]
     },
     {

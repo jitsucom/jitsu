@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
-import { Button, Dropdown, message, Modal } from 'antd';
+import { Button, Dropdown, message } from 'antd';
 import { snakeCase } from 'lodash';
 // @Components
 import { DropDownList } from '@molecule/DropDownList';
@@ -29,7 +29,6 @@ import { DropDownListItem } from '@molecule/DropDownList';
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
 import { taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
 import { withProgressBar } from '@./lib/components/components';
-import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 
 const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const history = useHistory();
@@ -48,36 +47,7 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
     []
   );
 
-  const isFirstSingerType = useCallback((list: DropDownListItem[], item: DropDownListItem, index: number) => {
-    return !item.isSingerType && list[index + 1]?.isSingerType ? styles.isFirstSingerTap : undefined;
-  }, []);
-
-  const dropDownList = useMemo(() => <DropDownList
-    list={allSources.map((src: SourceConnector) => ({
-      title: src.displayName,
-      id: src.id,
-      icon: src.pic,
-      link: generatePath(sourcesPageRoutes.addExact, { source: src.id }),
-      isSingerType: src.isSingerType
-    }))}
-    getClassName={isFirstSingerType}
-    filterPlaceholder="Filter by source name or id"
-  />, [isFirstSingerType]);
-
-  const handleDeleteAction = useCallback(
-    (sourceId: string) => () => {
-      const updatedSources = [...sources.filter((source: SourceData) => sourceId !== source.sourceId)];
-
-      services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
-        updateSources({ sources: updatedSources });
-
-        message.success('Sources list successfully updated');
-      });
-    },
-    [sources, updateSources, services.storageService, projectId]
-  );
-
-  const handleEditAction = useCallback((id: string) => () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: id })), [history]);
+  const handleAddClick = useCallback(() => history.push(sourcesPageRoutes.add), [history]);
 
   useEffect(() => {
     setBreadcrumbs(withHome({
@@ -95,9 +65,7 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
       <div className={styles.empty}>
         <h3 className="text-2xl">Sources list is still empty</h3>
         <div>
-          <Dropdown placement="bottomCenter" trigger={['click']} overlay={dropDownList}>
-            <Button type="primary" size="large" icon={<PlusOutlined />}>Add source</Button>
-          </Dropdown>
+          <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleAddClick}>Add source</Button>
         </div>
       </div>
     );
@@ -106,9 +74,7 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
   return (
     <>
       <div className="mb-5">
-        <Dropdown trigger={['click']} overlay={dropDownList}>
-          <Button type="primary" icon={<PlusOutlined />}>Add source</Button>
-        </Dropdown>
+        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddClick}>Add source</Button>
       </div>
 
       <ul>

@@ -73,6 +73,12 @@ func (rsp *RetryableProxy) ID() string {
 	return rsp.config.destinationID
 }
 
+//IsCachingDisabled returns true if caching is disabled in destination configuration
+func (rsp *RetryableProxy) IsCachingDisabled() bool {
+	return rsp.config.destination.CachingConfiguration != nil &&
+		rsp.config.destination.CachingConfiguration.Disabled
+}
+
 //Close stops underlying goroutine and close the storage
 func (rsp *RetryableProxy) Close() error {
 	rsp.closed = true

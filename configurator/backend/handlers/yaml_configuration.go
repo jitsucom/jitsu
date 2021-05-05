@@ -53,25 +53,25 @@ type Config struct {
 func (ch *ConfigHandler) Handler(c *gin.Context) {
 	projectID := c.Query("project_id")
 	if projectID == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "[project_id] query parameter absents"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(ErrProjectIDRequired.Error(), nil))
 		return
 	}
 	if !hasAccessToProject(c, projectID) {
-		c.JSON(http.StatusUnauthorized, middleware.ErrorResponse{Message: "You are not authorized to request data for project " + projectID})
+		c.JSON(http.StatusUnauthorized, middleware.ErrResponse("You are not authorized to request data for project "+projectID, nil))
 		return
 	}
 
 	//** API keys (auth) **
 	keys, err := ch.configurationsService.GetAPIKeysByProjectID(projectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to get API keys"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(APIKeysGettingErrMsg, err))
 		return
 	}
 
 	// ** Destinations **
 	projectDestinations, err := ch.configurationsService.GetDestinationsByProjectID(projectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to get Destinations"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(DestinationsGettingErrMsg, err))
 		return
 	}
 	mappedDestinations := make(map[string]*enstorages.DestinationConfig)
@@ -80,7 +80,7 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 		config, err := destinations.MapConfig(destinationID, destination, ch.defaultS3)
 
 		if err != nil {
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to build destinations response"})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to build destinations response", err))
 			return
 		}
 		mappedDestinations[destinationID] = config
@@ -89,7 +89,7 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 	// ** Sources **
 	projectSources, err := ch.configurationsService.GetSourcesByProjectID(projectID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to get Sources"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(SourcesGettingErrMsg, err))
 		return
 	}
 	mappedSources := make(map[string]*endrivers.SourceConfig)
@@ -103,7 +103,7 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 
 		mappedConfig, err := mapSourceConfig(source, destinationIDs)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: fmt.Sprintf("Failed to map source [%s] config", sourceID), Error: err.Error()})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse(fmt.Sprintf("Failed to map source [%s] config", sourceID), err))
 			return
 		}
 
@@ -118,7 +118,7 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 	configYaml := yaml.Node{}
 
 	if err = yaml.Unmarshal(marshal, &configYaml); err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed to deserialize result configuration"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to deserialize result configuration", err))
 		return
 	}
 	configYaml.HeadComment = configHeaderText
@@ -130,6 +130,6 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 	encoder.SetIndent(2)
 	err = encoder.Encode(&configYaml)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Error: err.Error(), Message: "Failed write response"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed write response", err))
 	}
 }

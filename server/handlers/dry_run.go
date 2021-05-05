@@ -24,14 +24,14 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 	payload := events.Event{}
 	if err := c.BindJSON(&payload); err != nil {
 		logging.Errorf("Error parsing event body: %v", err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
 		return
 	}
 	destinationID := c.Query("destination_id")
 	if destinationID == "" {
 		emptyDestinationIDMessage := "Error getting [destination_id] parameter - it must not be empty"
 		logging.Errorf(emptyDestinationIDMessage)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: emptyDestinationIDMessage})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(emptyDestinationIDMessage, nil))
 		return
 	}
 
@@ -39,13 +39,13 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 	if !ok {
 		destinationNotFoundErrorMessage := fmt.Sprintf("Error: destination with id=[%s] does not exist", destinationID)
 		logging.Error(destinationNotFoundErrorMessage)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: destinationNotFoundErrorMessage})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(destinationNotFoundErrorMessage, nil))
 		return
 	}
 	storage, ok := storageProxy.Get()
 	if !ok {
 		logging.Errorf("Error getting storage from proxy for id=[%s]", destinationID)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: fmt.Sprintf("Failed to get storage from proxy for id=%s", destinationID)})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(fmt.Sprintf("Failed to get storage from proxy for id=%s", destinationID), nil))
 		return
 	}
 
@@ -54,9 +54,9 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 
 	dataSchema, err := storage.DryRun(payload)
 	if err != nil {
-		dryRunError := fmt.Sprintf("Error getting dry run response for destination with id=[%s], %v", destinationID, err)
-		logging.Errorf("%s: %v", dryRunError, err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: dryRunError, Error: err.Error()})
+		dryRunMsg := fmt.Sprintf("Error getting dry run response for destination with id=[%s]", destinationID)
+		logging.Error("%s: %v", dryRunMsg, err)
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(dryRunMsg, err))
 		return
 	}
 

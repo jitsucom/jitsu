@@ -24,35 +24,35 @@ func NewStatisticsHandler(metaStorage meta.Storage) *StatisticsHandler {
 func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 	startStr := c.Query("start")
 	if startStr == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "[start] is a required query parameter"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("[start] is a required query parameter", nil))
 		return
 	}
 	start, err := time.Parse(time.RFC3339Nano, startStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing [start] query parameter", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error parsing [start] query parameter", err))
 		return
 	}
 
 	endStr := c.Query("end")
 	if endStr == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "[end] is a required query parameter"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("[end] is a required query parameter", nil))
 		return
 	}
 	end, err := time.Parse(time.RFC3339Nano, endStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing [end] query parameter", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error parsing [end] query parameter", err))
 		return
 	}
 
 	granularityStr := c.Query("granularity")
 	if granularityStr == "" {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "[granularity] is a required query parameter"})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("[granularity] is a required query parameter", nil))
 		return
 	}
 
 	granularity, err := meta.GranularityFromString(granularityStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing [granularity] query parameter", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error parsing [granularity] query parameter", err))
 		return
 	}
 
@@ -60,7 +60,7 @@ func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 
 	projectEvents, err := sh.metaStorage.GetProjectEventsWithGranularity(projectID, start, end, granularity)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to provide statistics", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to provide statistics", err))
 		return
 	}
 

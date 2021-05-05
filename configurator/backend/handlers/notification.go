@@ -20,5 +20,5 @@ func NotifyHandler(c *gin.Context) {
 
 	notifications.Custom(string(b))
 
-	c.JSON(http.StatusOK, enmiddleware.OkResponse())
+	c.JSON(http.StatusOK, enmiddleware.OKResponse())
 }
