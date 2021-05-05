@@ -331,14 +331,15 @@ func (ar *AwsRedshift) ValidateWritePermission() error {
 		return err
 	}
 
+	defer func() {
+		if err := ar.DeleteTable(table); err != nil {
+			// Suppressing error because we need to check only write permission
+			logging.Warnf("Cannot remove table [%s] from Redshift: %v", tableName, err)
+		}
+	}()
+
 	if err := ar.Insert(table, event); err != nil {
 		return err
-	}
-
-	if err := ar.DeleteTable(table); err != nil {
-		logging.Warnf("Cannot remove table %s from redshift: %v", tableName, err)
-		// Suppressing error because we need to check only write permission
-		// return err
 	}
 
 	return nil

@@ -739,14 +739,15 @@ func (p *Postgres) ValidateWritePermission() error {
 		return err
 	}
 
+	defer func() {
+		if err := p.DeleteTable(table); err != nil {
+			// Suppressing error because we need to check only write permission
+			logging.Warnf("Cannot remove table [%s] from Postgres: %v", tableName, err)
+		}
+	}()
+
 	if err := p.Insert(table, event); err != nil {
 		return err
-	}
-
-	if err := p.DeleteTable(table); err != nil {
-		logging.Warnf("Cannot remove table %s from postgres: %v", tableName, err)
-		// Suppressing error because we need to check only write permission
-		// return err
 	}
 
 	return nil

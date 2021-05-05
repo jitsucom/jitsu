@@ -227,14 +227,15 @@ func (bq *BigQuery) ValidateWritePermission() error {
 		return err
 	}
 
+	defer func() {
+		if err := bq.DeleteTable(table); err != nil {
+			// Suppressing error because we need to check only write permission
+			logging.Warnf("Cannot remove table [%s] from BigQuery: %v", tableName, err)
+		}
+	}()
+
 	if err := bq.Insert(table, event); err != nil {
 		return err
-	}
-
-	if err := bq.DeleteTable(table); err != nil {
-		logging.Warnf("Cannot remove table [%s] from BigQuery: %v", tableName, err)
-		// Suppressing error because we need to check only write permission
-		// return err
 	}
 
 	return nil

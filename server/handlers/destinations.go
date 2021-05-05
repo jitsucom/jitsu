@@ -190,7 +190,6 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 				if err = s3.ValidateWritePermission(); err != nil {
 					return err
 				}
-
 			} else if config.Google != nil {
 				if err := config.Google.Validate(false, false); err != nil {
 					return err
