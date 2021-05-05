@@ -15,15 +15,16 @@ import (
 
 //Facebook stores events to Facebook Conversion API in stream mode
 type Facebook struct {
-	destinationID   string
-	fbAdapter       *adapters.FacebookConversionAPI
-	tableHelper     *TableHelper
-	processor       *schema.Processor
-	streamingWorker *StreamingWorker
-	fallbackLogger  *logging.AsyncLogger
-	eventsCache     *caching.EventsCache
-	uniqueIDField   *identifiers.UniqueID
-	staged          bool
+	destinationID        string
+	fbAdapter            *adapters.FacebookConversionAPI
+	tableHelper          *TableHelper
+	processor            *schema.Processor
+	streamingWorker      *StreamingWorker
+	fallbackLogger       *logging.AsyncLogger
+	eventsCache          *caching.EventsCache
+	uniqueIDField        *identifiers.UniqueID
+	staged               bool
+	cachingConfiguration *CachingConfiguration
 }
 
 func init() {
@@ -48,14 +49,15 @@ func NewFacebook(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion, config.streamMode, 0)
 
 	fb := &Facebook{
-		destinationID:  config.destinationID,
-		fbAdapter:      fbAdapter,
-		tableHelper:    tableHelper,
-		processor:      config.processor,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:    config.eventsCache,
-		uniqueIDField:  config.uniqueIDField,
-		staged:         config.destination.Staged,
+		destinationID:        config.destinationID,
+		fbAdapter:            fbAdapter,
+		tableHelper:          tableHelper,
+		processor:            config.processor,
+		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
+		eventsCache:          config.eventsCache,
+		uniqueIDField:        config.uniqueIDField,
+		staged:               config.destination.Staged,
+		cachingConfiguration: config.destination.CachingConfiguration,
 	}
 
 	fb.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, fb, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
@@ -96,6 +98,11 @@ func (fb *Facebook) GetUsersRecognition() *UserRecognitionConfiguration {
 //GetUniqueIDField returns unique ID field configuration
 func (fb *Facebook) GetUniqueIDField() *identifiers.UniqueID {
 	return fb.uniqueIDField
+}
+
+//IsCachingDisabled returns true if caching is disabled in destination configuration
+func (fb *Facebook) IsCachingDisabled() bool {
+	return fb.cachingConfiguration != nil && fb.cachingConfiguration.Disabled
 }
 
 //Fallback log event with error to fallback logger

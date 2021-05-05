@@ -71,26 +71,32 @@ func (ec *EventsCache) start() {
 }
 
 //Put puts value into channel which will be read and written to storage
-func (ec *EventsCache) Put(destinationID, eventID string, value events.Event) {
-	select {
-	case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
-	default:
+func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value events.Event) {
+	if !disabled {
+		select {
+		case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
+		default:
+		}
 	}
 }
 
 //Succeed puts value into channel which will be read and updated in storage
-func (ec *EventsCache) Succeed(destinationID, eventID string, processed events.Event, table *adapters.Table) {
-	select {
-	case ec.succeedCh <- &succeedEvent{destinationID: destinationID, eventID: eventID, processed: processed, table: table}:
-	default:
+func (ec *EventsCache) Succeed(disabled bool, destinationID, eventID string, processed events.Event, table *adapters.Table) {
+	if !disabled {
+		select {
+		case ec.succeedCh <- &succeedEvent{destinationID: destinationID, eventID: eventID, processed: processed, table: table}:
+		default:
+		}
 	}
 }
 
 //Error puts value into channel which will be read and updated in storage
-func (ec *EventsCache) Error(destinationID, eventID string, errMsg string) {
-	select {
-	case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
-	default:
+func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMsg string) {
+	if !disabled {
+		select {
+		case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
+		default:
+		}
 	}
 }
 

@@ -20,16 +20,17 @@ import (
 //batch: via aws s3 (or gcp) in batch mode (1 file = 1 transaction)
 //stream: via events queue in stream mode (1 object = 1 transaction)
 type Snowflake struct {
-	name             string
-	stageAdapter     adapters.Stage
-	snowflakeAdapter *adapters.Snowflake
-	tableHelper      *TableHelper
-	processor        *schema.Processor
-	streamingWorker  *StreamingWorker
-	fallbackLogger   *logging.AsyncLogger
-	eventsCache      *caching.EventsCache
-	uniqueIDField    *identifiers.UniqueID
-	staged           bool
+	name                 string
+	stageAdapter         adapters.Stage
+	snowflakeAdapter     *adapters.Snowflake
+	tableHelper          *TableHelper
+	processor            *schema.Processor
+	streamingWorker      *StreamingWorker
+	fallbackLogger       *logging.AsyncLogger
+	eventsCache          *caching.EventsCache
+	uniqueIDField        *identifiers.UniqueID
+	staged               bool
+	cachingConfiguration *CachingConfiguration
 }
 
 func init() {
@@ -91,15 +92,16 @@ func NewSnowflake(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.streamMode, config.maxColumns)
 
 	snowflake := &Snowflake{
-		name:             config.destinationID,
-		stageAdapter:     stageAdapter,
-		snowflakeAdapter: snowflakeAdapter,
-		tableHelper:      tableHelper,
-		processor:        config.processor,
-		fallbackLogger:   config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:      config.eventsCache,
-		uniqueIDField:    config.uniqueIDField,
-		staged:           config.destination.Staged,
+		name:                 config.destinationID,
+		stageAdapter:         stageAdapter,
+		snowflakeAdapter:     snowflakeAdapter,
+		tableHelper:          tableHelper,
+		processor:            config.processor,
+		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
+		eventsCache:          config.eventsCache,
+		uniqueIDField:        config.uniqueIDField,
+		staged:               config.destination.Staged,
+		cachingConfiguration: config.destination.CachingConfiguration,
 	}
 
 	if config.streamMode {
@@ -186,7 +188,7 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		s.eventsCache.Error(s.ID(), failedEvent.EventID, failedEvent.Error)
+		s.eventsCache.Error(s.IsCachingDisabled(), s.ID(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -202,9 +204,9 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				s.eventsCache.Error(s.ID(), s.uniqueIDField.Extract(object), err.Error())
+				s.eventsCache.Error(s.IsCachingDisabled(), s.ID(), s.uniqueIDField.Extract(object), err.Error())
 			} else {
-				s.eventsCache.Succeed(s.ID(), s.uniqueIDField.Extract(object), object, table)
+				s.eventsCache.Succeed(s.IsCachingDisabled(), s.ID(), s.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
@@ -249,6 +251,11 @@ func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 //GetUniqueIDField returns unique ID field configuration
 func (s *Snowflake) GetUniqueIDField() *identifiers.UniqueID {
 	return s.uniqueIDField
+}
+
+//IsCachingDisabled returns true if caching is disabled in destination configuration
+func (s *Snowflake) IsCachingDisabled() bool {
+	return s.cachingConfiguration != nil && s.cachingConfiguration.Disabled
 }
 
 //Fallback log event with error to fallback logger

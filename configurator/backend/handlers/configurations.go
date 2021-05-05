@@ -23,13 +23,13 @@ func NewConfigurationsHandler(configStorage storages.ConfigurationsStorage) *Con
 func (ch *ConfigurationHandler) GetConfig(c *gin.Context) {
 	configID := c.Query("id")
 	if configID == "" {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Required query parameter [id] is empty"})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Required query parameter [id] is empty", nil))
 		return
 	}
 	collection := c.Param("collection")
 	config, err := ch.getConfig(collection, configID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 	writeResponse(c, config)
@@ -38,7 +38,7 @@ func (ch *ConfigurationHandler) GetConfig(c *gin.Context) {
 func (ch *ConfigurationHandler) StoreConfig(c *gin.Context) {
 	configID := c.Query("id")
 	if configID == "" {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: "Required query parameter [id] is empty"})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Required query parameter [id] is empty", nil))
 		return
 	}
 	collection := c.Param("collection")
@@ -50,7 +50,7 @@ func (ch *ConfigurationHandler) GetUserInfo(c *gin.Context) {
 
 	config, err := ch.getConfig(authorization.UsersInfoCollection, userID)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: err.Error()})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 	writeResponse(c, config)
@@ -64,17 +64,17 @@ func (ch *ConfigurationHandler) StoreUserInfo(c *gin.Context) {
 	err := c.BindJSON(&data)
 	if err != nil {
 		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get user info body from request: %v", err)
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: bodyExtractionErrorMessage})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(bodyExtractionErrorMessage, nil))
 		return
 	}
 	err = ch.configStorage.Store(authorization.UsersInfoCollection, userID, data)
 	if err != nil {
 		configStoreErrorMessage := fmt.Sprintf("Failed to save user info [%s]: %v", userID, err)
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: configStoreErrorMessage})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(configStoreErrorMessage, nil))
 		return
 	}
 
-	c.JSON(http.StatusOK, mdlwr.OkResponse())
+	c.JSON(http.StatusOK, mdlwr.OKResponse())
 }
 
 func (ch *ConfigurationHandler) getConfig(collection string, id string) ([]byte, error) {
@@ -94,16 +94,16 @@ func (ch *ConfigurationHandler) saveConfig(c *gin.Context, collection string, id
 	err := c.BindJSON(&data)
 	if err != nil {
 		bodyExtractionErrorMessage := fmt.Sprintf("Failed to get config body from request: %v", err)
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: bodyExtractionErrorMessage})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(bodyExtractionErrorMessage, nil))
 		return
 	}
 	err = ch.configStorage.Store(collection, id, data)
 	if err != nil {
 		configStoreErrorMessage := fmt.Sprintf("Failed to save collection [%s], id=[%s]: %v", collection, id, err)
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: configStoreErrorMessage})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(configStoreErrorMessage, nil))
 		return
 	}
-	c.JSON(http.StatusOK, mdlwr.OkResponse())
+	c.JSON(http.StatusOK, mdlwr.OKResponse())
 }
 
 func writeResponse(c *gin.Context, config []byte) {
@@ -112,6 +112,6 @@ func writeResponse(c *gin.Context, config []byte) {
 	_, err := c.Writer.Write(config)
 	if err != nil {
 		writeErrorMessage := fmt.Sprintf("Failed to write response: %v", err)
-		c.JSON(http.StatusBadRequest, mdlwr.ErrorResponse{Message: writeErrorMessage})
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(writeErrorMessage, nil))
 	}
 }

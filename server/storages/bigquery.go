@@ -19,16 +19,17 @@ var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: fa
 //batch: via google cloud storage in batch mode (1 file = 1 operation)
 //stream: via events queue in stream mode (1 object = 1 operation)
 type BigQuery struct {
-	destinationID   string
-	gcsAdapter      *adapters.GoogleCloudStorage
-	bqAdapter       *adapters.BigQuery
-	tableHelper     *TableHelper
-	processor       *schema.Processor
-	streamingWorker *StreamingWorker
-	fallbackLogger  *logging.AsyncLogger
-	eventsCache     *caching.EventsCache
-	uniqueIDField   *identifiers.UniqueID
-	staged          bool
+	destinationID        string
+	gcsAdapter           *adapters.GoogleCloudStorage
+	bqAdapter            *adapters.BigQuery
+	tableHelper          *TableHelper
+	processor            *schema.Processor
+	streamingWorker      *StreamingWorker
+	fallbackLogger       *logging.AsyncLogger
+	eventsCache          *caching.EventsCache
+	uniqueIDField        *identifiers.UniqueID
+	staged               bool
+	cachingConfiguration *CachingConfiguration
 }
 
 func init() {
@@ -80,15 +81,16 @@ func NewBigQuery(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString, config.streamMode, config.maxColumns)
 
 	bq := &BigQuery{
-		destinationID:  config.destinationID,
-		gcsAdapter:     gcsAdapter,
-		bqAdapter:      bigQueryAdapter,
-		tableHelper:    tableHelper,
-		processor:      config.processor,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:    config.eventsCache,
-		uniqueIDField:  config.uniqueIDField,
-		staged:         config.destination.Staged,
+		destinationID:        config.destinationID,
+		gcsAdapter:           gcsAdapter,
+		bqAdapter:            bigQueryAdapter,
+		tableHelper:          tableHelper,
+		processor:            config.processor,
+		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
+		eventsCache:          config.eventsCache,
+		uniqueIDField:        config.uniqueIDField,
+		staged:               config.destination.Staged,
+		cachingConfiguration: config.destination.CachingConfiguration,
 	}
 
 	if config.streamMode {
@@ -140,7 +142,7 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		bq.eventsCache.Error(bq.ID(), failedEvent.EventID, failedEvent.Error)
+		bq.eventsCache.Error(bq.IsCachingDisabled(), bq.ID(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -156,9 +158,9 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				bq.eventsCache.Error(bq.ID(), bq.uniqueIDField.Extract(object), err.Error())
+				bq.eventsCache.Error(bq.IsCachingDisabled(), bq.ID(), bq.uniqueIDField.Extract(object), err.Error())
 			} else {
-				bq.eventsCache.Succeed(bq.ID(), bq.uniqueIDField.Extract(object), object, table)
+				bq.eventsCache.Succeed(bq.IsCachingDisabled(), bq.ID(), bq.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
@@ -234,6 +236,11 @@ func (bq *BigQuery) IsStaging() bool {
 //GetUniqueIDField returns unique ID field configuration
 func (bq *BigQuery) GetUniqueIDField() *identifiers.UniqueID {
 	return bq.uniqueIDField
+}
+
+//IsCachingDisabled returns true if caching is disabled in destination configuration
+func (bq *BigQuery) IsCachingDisabled() bool {
+	return bq.cachingConfiguration != nil && bq.cachingConfiguration.Disabled
 }
 
 //Close closes BigQuery adapter, fallback logger and streaming worker

@@ -14,12 +14,12 @@ func SourcesHandler(c *gin.Context) {
 	sourceConfig := &drivers.SourceConfig{}
 	if err := c.BindJSON(sourceConfig); err != nil {
 		logging.Errorf("Error parsing source body: %v", err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
 		return
 	}
 	err := testSourceConnection(sourceConfig)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
 	c.Status(http.StatusOK)

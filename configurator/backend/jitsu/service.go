@@ -3,6 +3,7 @@ package jitsu
 import (
 	"bytes"
 	"fmt"
+	smdlwr "github.com/jitsucom/jitsu/server/middleware"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -10,8 +11,6 @@ import (
 	"sync"
 	"time"
 )
-
-const adminTokenName = "X-Admin-Token"
 
 //Service is used for communicate with Jitsu Server
 type Service struct {
@@ -60,7 +59,7 @@ func (s *Service) sendReq(method, url string, body io.Reader) (int, []byte, erro
 		return 0, nil, fmt.Errorf("Error creating request: %v", err)
 	}
 
-	req.Header.Add(adminTokenName, s.adminToken)
+	req.Header.Add(smdlwr.AdminTokenKey, s.adminToken)
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return 0, nil, fmt.Errorf("Error getting response: %v", err)

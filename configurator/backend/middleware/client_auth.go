@@ -28,14 +28,14 @@ func (a *Authenticator) ClientProjectAuth(main gin.HandlerFunc) gin.HandlerFunc 
 		userID, err := a.service.Authenticate(token)
 		if err != nil {
 			logging.Errorf("Failed to authenticate with token %s: %v", token, err)
-			c.JSON(http.StatusUnauthorized, middleware.ErrorResponse{Error: err.Error(), Message: "You are not authorized"})
+			c.JSON(http.StatusUnauthorized, middleware.ErrResponse("You are not authorized", err))
 			return
 		}
 
 		projectID, err := a.service.GetProjectID(userID)
 		if err != nil {
 			logging.SystemErrorf("Project id error in token %s: %v", token, err)
-			c.JSON(http.StatusUnauthorized, middleware.ErrorResponse{Message: "Authorization error", Error: err.Error()})
+			c.JSON(http.StatusUnauthorized, middleware.ErrResponse("Authorization error", err))
 			return
 		}
 
@@ -53,7 +53,7 @@ func (a *Authenticator) ClientAuth(main gin.HandlerFunc) gin.HandlerFunc {
 		userID, err := a.service.Authenticate(token)
 		if err != nil {
 			logging.Errorf("Failed to authenticate with token %s: %v", token, err)
-			c.JSON(http.StatusUnauthorized, middleware.ErrorResponse{Error: err.Error(), Message: "You are not authorized"})
+			c.JSON(http.StatusUnauthorized, middleware.ErrResponse("You are not authorized", err))
 			return
 		}
 

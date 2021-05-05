@@ -15,15 +15,16 @@ import (
 
 //GoogleAnalytics stores events to Google Analytics in stream mode
 type GoogleAnalytics struct {
-	destinationID   string
-	gaAdapter       *adapters.GoogleAnalytics
-	tableHelper     *TableHelper
-	processor       *schema.Processor
-	streamingWorker *StreamingWorker
-	fallbackLogger  *logging.AsyncLogger
-	eventsCache     *caching.EventsCache
-	uniqueIDField   *identifiers.UniqueID
-	staged          bool
+	destinationID        string
+	gaAdapter            *adapters.GoogleAnalytics
+	tableHelper          *TableHelper
+	processor            *schema.Processor
+	streamingWorker      *StreamingWorker
+	fallbackLogger       *logging.AsyncLogger
+	eventsCache          *caching.EventsCache
+	uniqueIDField        *identifiers.UniqueID
+	staged               bool
+	cachingConfiguration *CachingConfiguration
 }
 
 func init() {
@@ -48,14 +49,15 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToGoogleAnalytics, config.streamMode, 0)
 
 	ga := &GoogleAnalytics{
-		destinationID:  config.destinationID,
-		gaAdapter:      gaAdapter,
-		tableHelper:    tableHelper,
-		processor:      config.processor,
-		fallbackLogger: config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:    config.eventsCache,
-		uniqueIDField:  config.uniqueIDField,
-		staged:         config.destination.Staged,
+		destinationID:        config.destinationID,
+		gaAdapter:            gaAdapter,
+		tableHelper:          tableHelper,
+		processor:            config.processor,
+		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
+		eventsCache:          config.eventsCache,
+		uniqueIDField:        config.uniqueIDField,
+		staged:               config.destination.Staged,
+		cachingConfiguration: config.destination.CachingConfiguration,
 	}
 
 	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
@@ -96,6 +98,11 @@ func (ga *GoogleAnalytics) GetUsersRecognition() *UserRecognitionConfiguration {
 //GetUniqueIDField returns unique ID field configuration
 func (ga *GoogleAnalytics) GetUniqueIDField() *identifiers.UniqueID {
 	return ga.uniqueIDField
+}
+
+//IsCachingDisabled returns true if caching is disabled in destination configuration
+func (ga *GoogleAnalytics) IsCachingDisabled() bool {
+	return ga.cachingConfiguration != nil && ga.cachingConfiguration.Disabled
 }
 
 //Fallback logs event with error to fallback logger
