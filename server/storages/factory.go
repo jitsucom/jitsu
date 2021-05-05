@@ -107,6 +107,7 @@ type Config struct {
 	pkFields         map[string]bool
 	sqlTypes         typing.SQLTypes
 	uniqueIDField    *identifiers.UniqueID
+	mappingsStyle    string
 }
 
 //RegisterStorage registers function to create new storage(destination) instance
@@ -154,7 +155,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		destination.Mode = BatchMode
 	}
 
-	logging.Infof("[%s] Initializing destination of type: %s in mode: %s", destinationID, destination.Type, destination.Mode)
+	logging.Infof("[%s] initializing destination of type: %s in mode: %s", destinationID, destination.Type, destination.Mode)
 
 	storageConstructor, ok := StorageConstructors[destination.Type]
 	if !ok {
@@ -296,6 +297,14 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		}
 	}
 
+	//for telemetry
+	var mappingsStyle string
+	if len(oldStyleMappings) > 0 {
+		mappingsStyle = "old"
+	} else if newStyleMapping != nil {
+		mappingsStyle = "new"
+	}
+
 	storageConfig := &Config{
 		ctx:              f.ctx,
 		destinationID:    destinationID,
@@ -311,6 +320,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		pkFields:         pkFields,
 		sqlTypes:         sqlTypes,
 		uniqueIDField:    uniqueIDField,
+		mappingsStyle:    mappingsStyle,
 	}
 
 	storageProxy := newProxy(storageConstructor, storageConfig)
@@ -411,7 +421,7 @@ func enrichAndLogMappings(destinationID, destinationType string, uniqueIDField *
 	if !keepUnmapped {
 		mappingMode = "remove unmapped fields"
 	}
-	logging.Infof("[%s] Configured field mapping rules with [%s] mode:", destinationID, mappingMode)
+	logging.Infof("[%s] configured field mapping rules with [%s] mode:", destinationID, mappingMode)
 
 	for _, mappingRule := range mapping.Fields {
 		logging.Infof("[%s] %s", destinationID, mappingRule.String())

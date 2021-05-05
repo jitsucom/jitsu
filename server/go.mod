@@ -1,6 +1,6 @@
 module github.com/jitsucom/jitsu/server
 
-go 1.14
+go 1.16
 
 require (
 	bou.ke/monkey v1.0.2
@@ -9,6 +9,7 @@ require (
 	cloud.google.com/go/storage v1.6.0
 	firebase.google.com/go/v4 v4.1.0
 	github.com/aws/aws-sdk-go v1.34.0
+	github.com/charmbracelet/lipgloss v0.2.1
 	github.com/docker/go-connections v0.4.0
 	github.com/gin-gonic/gin v1.6.3
 	github.com/gomodule/redigo v1.8.2
@@ -20,6 +21,7 @@ require (
 	github.com/huandu/facebook/v2 v2.5.3
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/lib/pq v1.8.0
+	github.com/lucasb-eyer/go-colorful v1.2.0
 	github.com/mailru/easyjson v0.7.7
 	github.com/mailru/go-clickhouse v1.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
@@ -37,6 +39,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0
 	go.opencensus.io v0.22.4 // indirect
 	go.uber.org/atomic v1.6.0
+	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 	google.golang.org/api v0.20.0
 	google.golang.org/appengine v1.6.6 // indirect
 	google.golang.org/grpc v1.36.0 // indirect

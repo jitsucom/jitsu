@@ -141,14 +141,15 @@ func Error(sourceID, destinationID, src string, quantity int) {
 }
 
 //Destination puts usage event with hashed destination id and type
-func Destination(destinationID, destinationType, mode string, usersRecognition, primaryKeysPresent bool) {
+func Destination(destinationID, destinationType, mode, mappingsStyle string, usersRecognition, primaryKeysPresent bool) {
 	if !instance.usageOptOut.Load() {
 		instance.usageCh <- instance.reqFactory.fromUsage(&Usage{
-			Destination:       resources.GetStringHash(destinationID),
-			DestinationType:   destinationType,
-			DestinationMode:   mode,
-			DestinationPkKeys: primaryKeysPresent,
-			UsersRecognition:  usersRecognition,
+			Destination:        resources.GetStringHash(destinationID),
+			DestinationType:    destinationType,
+			DestinationMode:    mode,
+			DestinationMapping: mappingsStyle,
+			DestinationPkKeys:  primaryKeysPresent,
+			UsersRecognition:   usersRecognition,
 		})
 	}
 }
