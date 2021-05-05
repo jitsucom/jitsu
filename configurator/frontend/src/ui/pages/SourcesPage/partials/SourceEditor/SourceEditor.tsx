@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Prompt, useHistory, useParams } from 'react-router-dom';
+import { Prompt, Redirect, useHistory, useParams } from 'react-router-dom';
 import { Form, message } from 'antd';
 import cn from 'classnames';
 import { snakeCase } from 'lodash';

@@ -6,6 +6,7 @@ import { sourcesPageRoutes } from './SourcesPage.routes';
 // @Components
 import { SourcesList } from './partials/SourcesList';
 import { SourceEditor } from './partials/SourceEditor';
+import { AddSourceDialog } from './partials/AddSourceDialog';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
@@ -60,13 +61,19 @@ const SourcesPage = (props: PageProps) => {
         render={getComponent<CommonSourcePageProps>(SourcesList, additionalProps)}
       />
       <Route
-        path={[sourcesPageRoutes.add, sourcesPageRoutes.addExact]}
+        path={sourcesPageRoutes.addExact}
         strict={false}
         exact
         render={getComponent<CommonSourcePageProps>(SourceEditor, { ...additionalProps, editorMode: 'add' })}
       />
       <Route
-        path={[sourcesPageRoutes.edit, sourcesPageRoutes.editExact]}
+        path={sourcesPageRoutes.add}
+        strict={false}
+        exact
+        render={getComponent<CommonSourcePageProps>(AddSourceDialog, additionalProps)}
+      />
+      <Route
+        path={sourcesPageRoutes.editExact}
         strict={false}
         exact
         render={getComponent<CommonSourcePageProps>(SourceEditor, { ...additionalProps, editorMode: 'edit' })}

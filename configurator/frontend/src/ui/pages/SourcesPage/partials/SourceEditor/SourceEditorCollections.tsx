@@ -27,7 +27,6 @@ export interface Props {
 }
 
 const SourceEditorCollections = ({ form, initialValues, connectorSource, handleTouchAnyField }: Props) => {
-
   const [chosenTypes, setChosenTypes] = useState<{ [key: number]: string }>(
     initialValues.collections
       ? initialValues.collections?.reduce((accumulator: any, value: CollectionSource, index: number) => {
