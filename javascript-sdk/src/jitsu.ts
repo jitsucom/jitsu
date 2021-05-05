@@ -146,7 +146,7 @@ class JitsuClientImpl implements JitsuClient {
 
     return this.compatMode ?
       { ...base, eventn_ctx: context } :
-      { ...base, ...context };
+      {...context, ...base };
   }
 
   _send3p(sourceType: EventSrc, object: any, type?: string): Promise<any> {
