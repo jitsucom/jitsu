@@ -237,7 +237,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
               `Source has been saved, but test has failed with '${firstToLower(
                 sourceData.current.connectedErrorMessage
               )}'. Data from this source will not be available`,
-              10
+              3
             );
           }
         } catch(error) {
