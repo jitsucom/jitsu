@@ -4,6 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"strconv"
+	"sync"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/cluster"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
@@ -12,10 +17,6 @@ import (
 	"github.com/spf13/viper"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
-	"io"
-	"strconv"
-	"sync"
-	"time"
 )
 
 const instancePrefix = "en_instance_"
@@ -61,19 +62,14 @@ func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTim
 	es.startHeartBeating()
 
 	logging.Info("Using etcd as a coordination service")
+	telemetry.Coordination("etcd")
 	return es, nil
 }
 
-//NewService return EtcdService (etcd) if was configured or InMemoryService otherwise
+// NewService return EtcdService (etcd) if was configured
 //starts EtcdService heart beat goroutine: see EtcdService.startHeartBeating()
 func NewService(ctx context.Context, serverName string, viper *viper.Viper) (Service, error) {
-	if viper == nil {
-		logging.Info("Coordination service isn't provided. Jitsu server is working in single-node mode. " +
-			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
-		return NewInMemoryService([]string{serverName}), nil
-	}
-
-	if viper.IsSet("etcd") {
+	if viper != nil && viper.IsSet("etcd") {
 		etcdViper := viper.Sub("etcd")
 		connectTimeoutSeconds := etcdViper.GetUint("connection_timeout_seconds")
 		if connectTimeoutSeconds == 0 {
@@ -94,9 +90,8 @@ func NewService(ctx context.Context, serverName string, viper *viper.Viper) (Ser
 		logging.Info("Using etcd as a coordination service")
 		telemetry.Coordination("etcd")
 		return es, nil
-	} else {
-		return nil, fmt.Errorf("Unknown coordination service type. Supported: etcd")
 	}
+	return nil, nil
 }
 
 //Lock try to get Etcd monitor with timeout (2 minutes)
