@@ -55,10 +55,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
       _type: params.type,
       _mappings: { _keepUnmappedFields: true },
       _comment: null,
-      _onlyKeys: [],
-      _formData: {
-        mode: 'stream'
-      }
+      _onlyKeys: []
     } as DestinationData
   );
 
@@ -207,7 +204,17 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
           updateSources({ sources: updatedSources });
         } catch (error) {}
 
-        destinationData.current._mappings._keepUnmappedFields = Boolean(destinationData.current._mappings._keepUnmappedFields);
+        destinationData.current = {
+          ...destinationData.current,
+          _mappings: {
+            ...destinationData.current._mappings,
+            _keepUnmappedFields: Boolean(destinationData.current._mappings._keepUnmappedFields)
+          },
+          _formData: {
+            ...destinationData.current._formData,
+            mode: destinationData.current._formData.mode ?? 'stream'
+          }
+        };
 
         try {
           await destinationEditorUtils.testConnection(destinationData.current, true);
