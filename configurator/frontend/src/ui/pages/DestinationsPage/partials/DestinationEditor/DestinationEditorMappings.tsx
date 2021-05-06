@@ -93,7 +93,7 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
           <Col span={12}>
             <Form.Item
               name="_mappings._keepUnmappedFields"
-              initialValue={Number(initialValues?._keepUnmappedFields)}
+              initialValue={Number(initialValues?._keepUnmappedFields) ?? 0}
               label={<LabelWithTooltip render="Unnamed fields mapping mode" documentation="If the field doesn't have mapping: Keep - keep field as is, Remove - remove field from original JSON" />}
             >
               <Select>
