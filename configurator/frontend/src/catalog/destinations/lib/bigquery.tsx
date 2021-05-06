@@ -49,7 +49,7 @@ const bigQueryDestination: Destination = {
     {
       id: '_formData.bqDataset',
       displayName: 'Dataset',
-      defaultValue: 5432,
+      defaultValue: 'default',
       type: stringType
     },
     ...googleGCSCredentials('_formData.bqJSONKey', '_formData.bqGCSBucket', (cfg) => {
