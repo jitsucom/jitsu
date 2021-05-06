@@ -209,11 +209,13 @@ func main() {
 			if err != nil {
 				logging.Fatal("Failed to initiate coordination service", err)
 			}
+			telemetry.Coordination("etcd_sync")
 		} else {
 			//inmemory service (default)
 			logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
 				"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
 			coordinationService = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
+			telemetry.Coordination("inmemory")
 		}
 	}
 
@@ -241,7 +243,7 @@ func main() {
 	}
 
 	maxColumns := viper.GetInt("server.max_columns")
-	logging.Infof("⚙️  Limit server.max_columns is %d", maxColumns)
+	logging.Infof("📝 Limit server.max_columns is %d", maxColumns)
 	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns)
 
 	//Create event destinations
@@ -334,6 +336,7 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 	//etcd
 	etcdEndpoint := viper.GetString("coordination.etcd.endpoint")
 	if etcdEndpoint != "" {
+		telemetry.Coordination("etcd")
 		return coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("coordination.etcd.endpoint"), viper.GetUint("coordination.etcd.connection_timeout_seconds"))
 	}
 
@@ -353,6 +356,7 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 
 	//configured
 	if coordinationRedisConfiguration != nil {
+		telemetry.Coordination("redis")
 		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, coordinationRedisConfiguration.GetString("host"),
 			coordinationRedisConfiguration.GetInt("port"), coordinationRedisConfiguration.GetString("password"))
 	}

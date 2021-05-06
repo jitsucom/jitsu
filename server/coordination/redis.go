@@ -16,7 +16,6 @@ import (
 	rsyncpool "github.com/go-redsync/redsync/v4/redis/redigo"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/telemetry"
 )
 
 //redis key [variables] - description
@@ -77,8 +76,6 @@ func NewRedisService(ctx context.Context, serverName string, host string, port i
 	if err != nil {
 		return nil, fmt.Errorf("Error testing connection to Redis: %v", err)
 	}
-
-	telemetry.Coordination("redis")
 
 	rs := &RedisService{
 		ctx:        ctx,

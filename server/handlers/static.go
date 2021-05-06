@@ -72,7 +72,7 @@ func NewStaticHandler(sourceDir, serverPublicURL string) *StaticHandler {
 		} else {
 			gzippedFiles[f.Name()] = gzipped
 		}
-		logging.Info("📎 Serve static file:", "/"+f.Name())
+		logging.Info("📄 Serve static file:", "/"+f.Name())
 	}
 	var inlineJsParts = make([][]byte, 2)
 	for i, part := range strings.Split(string(servingFiles[inlineJs]), jsConfigVar) {

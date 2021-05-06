@@ -13,7 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/telemetry"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 )
@@ -65,7 +64,6 @@ func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTim
 	es := &EtcdService{ctx: ctx, serverName: serverName, client: client, unlockMe: map[string]*storages.RetryableLock{}}
 	es.startHeartBeating()
 
-	telemetry.Coordination("etcd")
 	return es, nil
 }
 

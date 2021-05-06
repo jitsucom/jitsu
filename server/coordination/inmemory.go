@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/telemetry"
 )
 
 type InMemoryLock struct {
@@ -34,7 +33,6 @@ type InMemoryService struct {
 }
 
 func NewInMemoryService(serverNameSingleArray []string) *InMemoryService {
-	telemetry.Coordination("inmemory")
 	return &InMemoryService{
 		serverNameSingleArray:    serverNameSingleArray,
 		systemCollectionVersions: map[string]*int64{},
