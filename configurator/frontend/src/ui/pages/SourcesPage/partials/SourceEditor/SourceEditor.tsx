@@ -29,7 +29,7 @@ import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
-import { handleError } from '@./lib/components/components';
+import { closeableMessage, handleError } from '@./lib/components/components';
 import { firstToLower } from '@./lib/commons/utils';
 // @Styles
 import styles from './SourceEditor.module.less';
@@ -228,12 +228,9 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
           if (sourceData.current.connected) {
             message.success('New destination has been added!');
           } else {
-            message.warn(
-              `Source has been saved, but test has failed with '${firstToLower(
-                sourceData.current.connectedErrorMessage
-              )}'. Data from this source will not be available`,
-              3
-            );
+            closeableMessage.warn(`Source has been saved, but test has failed with '${firstToLower(
+              sourceData.current.connectedErrorMessage
+            )}'. Data from this source will not be available`);
           }
         } catch(error) {
           handleError(error, 'Something goes wrong, source hasn\'t been added');
