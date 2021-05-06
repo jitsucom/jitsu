@@ -2,10 +2,15 @@
 @import '~antd/dist/antd.less';
 @import "theme.less";
 @import './src/assets/input';
+@import './src/assets/mixins';
 
 
 body {
   background: @primary-background;
+}
+
+body.custom-scroll-body {
+  .custom-scrollbar(scroll);
 }
 
 #root {
