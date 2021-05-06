@@ -104,7 +104,7 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 			return nil, errors.New("Unknown destination source: " + destinationsSource)
 		}
 	} else {
-		logging.Errorf("Destinations aren't configured")
+		logging.Warnf("❌ Destinations aren't configured")
 	}
 
 	return service, nil
