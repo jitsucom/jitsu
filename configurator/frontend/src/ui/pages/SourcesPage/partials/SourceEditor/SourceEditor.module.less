@@ -1,4 +1,5 @@
 @import './src/theme';
+@import './src/assets/mixins/custom-scrollbar';
 
 .collection {
   .item {
@@ -15,4 +16,11 @@
 
 .tabCard {
   height: calc(100vh - 150px);
+
+  :global .ant-tabs-content {
+    overflow: auto;
+    height: 98%;
+
+    .custom-scrollbar();
+  }
 }
