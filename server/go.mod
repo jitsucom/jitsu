@@ -12,6 +12,8 @@ require (
 	github.com/charmbracelet/lipgloss v0.2.1
 	github.com/docker/go-connections v0.4.0
 	github.com/gin-gonic/gin v1.6.3
+	github.com/go-redis/redis v6.15.9+incompatible
+	github.com/go-redsync/redsync/v4 v4.3.0
 	github.com/gomodule/redigo v1.8.2
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/martian v2.1.0+incompatible

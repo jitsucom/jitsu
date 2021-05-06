@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
-	"github.com/jitsucom/jitsu/server/config"
 	"math/rand"
 	"net/http"
 	"os"
@@ -18,6 +18,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
@@ -166,47 +167,61 @@ func main() {
 	//Get logger configuration
 	logEventPath := viper.GetString("log.path")
 	// Create full path to logs directory if it is necessary
-	logging.Infof("Create log.path directory: %q", logEventPath)
+	logging.Infof("📂 Create log.path directory: %q", logEventPath)
 	if err := logging.EnsureDir(logEventPath); err != nil {
 		logging.Fatalf("log.path %q cannot be created!", logEventPath)
 	}
 
 	//check if log.path is writable
 	if !logging.IsDirWritable(logEventPath) {
-		logging.Fatal("log.path:", logEventPath, "must be writable! Since EventNative docker user and owner of mounted dir are different: Please use 'chmod 777 your_mount_dir'")
+		logging.Fatal("log.path:", logEventPath, "must be writable! Since eventnative docker user and owner of mounted dir are different: Please use 'chmod 777 your_mount_dir'")
 	}
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
 	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
 
-	//TODO remove deprecated someday
-	//coordination service
-	var coordinationService coordination.Service
-	var err error
-	if viper.IsSet("synchronization_service") {
-		logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
-
-		coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
-		telemetry.Coordination("etcd")
-	} else {
-		coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
-	}
-
-	if err != nil {
-		logging.Fatal("Failed to initiate coordination service", err)
-	}
-
-	// ** Destinations **
-
-	//meta storage
-	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
+	// ** Meta storage **
+	metaStorageConfiguration := viper.Sub("meta.storage")
+	metaStorage, err := meta.NewStorage(metaStorageConfiguration)
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
-	//close after all for saving last task statuses
+	// Close after all for saving last task statuses
 	defer metaStorage.Close()
 
+	// ** Coordination Service **
+	var coordinationService coordination.Service
+	if viper.IsSet("coordination") {
+		coordinationService, err = initializeCoordinationService(ctx, metaStorageConfiguration)
+		if err != nil {
+			logging.Fatalf("Failed to initiate coordination service: %v", err)
+		}
+	}
+
+	if coordinationService == nil {
+		//TODO remove deprecated someday
+		//backward compatibility
+		if viper.IsSet("synchronization_service") {
+			logging.Warnf("\n\t'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
+
+			coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
+			if err != nil {
+				logging.Fatal("Failed to initiate coordination service", err)
+			}
+			telemetry.Coordination("etcd_sync")
+		} else {
+			//inmemory service (default)
+			logging.Info("❌ Coordination service isn't provided. Jitsu server is working in single-node mode. " +
+				"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
+			coordinationService = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
+			telemetry.Coordination("inmemory")
+		}
+	}
+
+	appconfig.Instance.ScheduleClosing(coordinationService)
+
+	// ** Destinations **
 	//events counters
 	counters.InitEvents(metaStorage)
 
@@ -228,7 +243,7 @@ func main() {
 	}
 
 	maxColumns := viper.GetInt("server.max_columns")
-	logging.Infof("Limit server.max_columns is %d", maxColumns)
+	logging.Infof("📝 Limit server.max_columns is %d", maxColumns)
 	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns)
 
 	//Create event destinations
@@ -305,7 +320,7 @@ func main() {
 
 	telemetry.ServerStart(*dockerHubID)
 	notifications.ServerStart()
-	logging.Info("Started server: " + appconfig.Instance.Authority)
+	logging.Info("🚀 Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
 		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
@@ -314,4 +329,38 @@ func main() {
 		IdleTimeout:       time.Second * 65,
 	}
 	logging.Fatal(server.ListenAndServe())
+}
+
+//initializeCoordinationService returns configured coordination.Service (redis or etcd or inmemory)
+func initializeCoordinationService(ctx context.Context, metaStorageConfiguration *viper.Viper) (coordination.Service, error) {
+	//etcd
+	etcdEndpoint := viper.GetString("coordination.etcd.endpoint")
+	if etcdEndpoint != "" {
+		telemetry.Coordination("etcd")
+		return coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("coordination.etcd.endpoint"), viper.GetUint("coordination.etcd.connection_timeout_seconds"))
+	}
+
+	//redis
+	//shortcut for meta redis as coordination
+	var coordinationRedisConfiguration *viper.Viper
+	redisShortcut := viper.GetString("coordination.type")
+	if redisShortcut == "redis" {
+		coordinationRedisConfiguration = metaStorageConfiguration.Sub("redis")
+		if coordinationRedisConfiguration == nil {
+			return nil, errors.New("'meta.storage.redis' is required when Redis coordination shortcut is used")
+		}
+	} else {
+		//plain redis configuration
+		coordinationRedisConfiguration = viper.Sub("coordination.redis")
+	}
+
+	//configured
+	if coordinationRedisConfiguration != nil {
+		telemetry.Coordination("redis")
+		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, coordinationRedisConfiguration.GetString("host"),
+			coordinationRedisConfiguration.GetInt("port"), coordinationRedisConfiguration.GetString("password"))
+	}
+
+	return nil, errors.New("Unknown coordination configuration. Currently only [redis, etcd] are supported. " +
+		"\n\tRead more about coordination service configuration: https://jitsu.com/docs/other-features/scaling-eventnative#coordination")
 }

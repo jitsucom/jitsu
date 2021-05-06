@@ -4,24 +4,25 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/cluster"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/telemetry"
-	"github.com/spf13/viper"
-	clientv3 "go.etcd.io/etcd/client/v3"
-	"go.etcd.io/etcd/client/v3/concurrency"
 	"io"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/cluster"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/storages"
+	clientv3 "go.etcd.io/etcd/client/v3"
+	"go.etcd.io/etcd/client/v3/concurrency"
 )
 
 const instancePrefix = "en_instance_"
 
+//ErrAlreadyLocked is about already locked resource in coordination service
 var ErrAlreadyLocked = errors.New("Resource has been already locked")
 
+//Service is an interface for coordination (locking, cluster management, etc)
 type Service interface {
 	io.Closer
 
@@ -40,10 +41,13 @@ type EtcdService struct {
 	closed   bool
 }
 
-//TODO remove DEPRECATED
+//NewEtcdService returns etcd service as a coordination layer
+//starts EtcdService heart beat goroutine: see EtcdService.startHeartBeating()
+//DEPRECATED
 func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTimeoutSeconds uint) (Service, error) {
+	logging.Info("🛫 Initializing etcd coordination service...")
 	if endpoint == "" {
-		return nil, errors.New("'synchronization_service.endpoint' is required parameter for type: etcd")
+		return nil, errors.New("'endpoint' is required parameter for type: etcd")
 	}
 
 	if connectTimeoutSeconds == 0 {
@@ -60,43 +64,7 @@ func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTim
 	es := &EtcdService{ctx: ctx, serverName: serverName, client: client, unlockMe: map[string]*storages.RetryableLock{}}
 	es.startHeartBeating()
 
-	logging.Info("Using etcd as a coordination service")
 	return es, nil
-}
-
-//NewService return EtcdService (etcd) if was configured or InMemoryService otherwise
-//starts EtcdService heart beat goroutine: see EtcdService.startHeartBeating()
-func NewService(ctx context.Context, serverName string, viper *viper.Viper) (Service, error) {
-	if viper == nil {
-		logging.Info("Coordination service isn't provided. Jitsu server is working in single-node mode. " +
-			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
-		return NewInMemoryService([]string{serverName}), nil
-	}
-
-	if viper.IsSet("etcd") {
-		etcdViper := viper.Sub("etcd")
-		connectTimeoutSeconds := etcdViper.GetUint("connection_timeout_seconds")
-		if connectTimeoutSeconds == 0 {
-			connectTimeoutSeconds = 20
-		}
-
-		client, err := clientv3.New(clientv3.Config{
-			DialTimeout: time.Duration(connectTimeoutSeconds) * time.Second,
-			Endpoints:   []string{etcdViper.GetString("endpoint")},
-		})
-		if err != nil {
-			return nil, err
-		}
-
-		es := &EtcdService{ctx: ctx, serverName: serverName, client: client, unlockMe: map[string]*storages.RetryableLock{}}
-		es.startHeartBeating()
-
-		logging.Info("Using etcd as a coordination service")
-		telemetry.Coordination("etcd")
-		return es, nil
-	} else {
-		return nil, fmt.Errorf("Unknown coordination service type. Supported: etcd")
-	}
 }
 
 //Lock try to get Etcd monitor with timeout (2 minutes)
@@ -184,6 +152,7 @@ func (es *EtcdService) IsLocked(system string, collection string) (bool, error) 
 	return false, nil
 }
 
+//GetVersion returns system collection version or error if occurred
 func (es *EtcdService) GetVersion(system string, collection string) (int64, error) {
 	ctx := context.Background()
 	response, err := es.client.Get(ctx, system+"_"+collection)
@@ -212,6 +181,7 @@ func (es *EtcdService) IncrementVersion(system string, collection string) (int64
 	return version, putErr
 }
 
+//GetInstances returns instance names list from Etcd
 func (es *EtcdService) GetInstances() ([]string, error) {
 	r, err := es.client.Get(context.Background(), instancePrefix, clientv3.WithPrefix())
 	if err != nil {
@@ -260,6 +230,7 @@ func (es *EtcdService) heartBeat() error {
 	return nil
 }
 
+//Close closes connection to Etcd and unlocks all locks
 func (es *EtcdService) Close() error {
 	es.closed = true
 

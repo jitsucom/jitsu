@@ -142,7 +142,7 @@ destinations:
 #    only_tokens: ['client_secret1', 'client_secret2']
 #    mode: stream
 #    datasource:
-#      schema: eventnative # Optional. Default value is 'public'
+#      schema: jitsu # Optional. Default value is 'public'
 #      host: your_host.com
 #      db: your_db
 #      username: your_username
@@ -212,7 +212,7 @@ destinations:
 #    snowflake:
 #      account: ina15845
 #      db: demo_db
-#      schema: eventnative #Optional. Default value is PUBLIC
+#      schema: jitsu #Optional. Default value is PUBLIC
 #      username: username
 #      password: password
 #      warehouse: compute_wh
@@ -328,11 +328,20 @@ destinations:
 #            action: move
 
 
-### Coordination in EventNative cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
-#coordination: #Optional. This section is required in cluster deployments.
-#  etcd: #Now EventNative supports only etcd
-#    endpoint: http://your_etcd_host
-#    connection_timeout_seconds: 60 #Optional. Default value is 60
+### Coordination in Jitsu Server cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
+# coordination: # Optional. This section is required in cluster deployments.
+### Redis configuration
+#   redis:
+#     host: redis_host
+#     port: 6379 #Optional. Default value is 6379
+#     password: abc #Optional.
+### Redis configuration shortcut (meta.storage redis will be used)
+#   type: redis
+### Etcd configuration example
+#   etcd:
+#     endpoint: http://your_etcd_host
+#     connection_timeout_seconds: 60 # Optional. Default value is 60
+
 
 ### Sources https://docs.eventnative.org/configuration-1/sources-configuration
 #sources:
@@ -390,8 +399,9 @@ destinations:
 
 ### Meta storage. It is required for using sources (see below).
 ### It is required for using events caching and counting https://docs.eventnative.org/other-features/events-cache
-### Also it is required if sources are used https://docs.eventnative.org/configuration-1/sources-configuration or
+### Also it is required if sources are used https://docs.eventnative.org/configuration-1/sources-configuration
 ### or Retrospective users recognition https://docs.eventnative.org/other-features/retrospective-user-recognition
+### or Coordination in cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
 #meta:
 #  storage:
 #    redis: #Currently EventNative supports only Redis
