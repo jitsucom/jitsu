@@ -17,6 +17,7 @@ export interface Props {
 
 const DestinationEditorConfig = ({ destinationData, destinationReference, form, handleTouchAnyField }: Props) => {
   const handleChange = debounce(handleTouchAnyField, 500);
+
   return (
     <Form
       name="destination-config"
