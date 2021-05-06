@@ -55,7 +55,10 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
       _type: params.type,
       _mappings: { _keepUnmappedFields: true },
       _comment: null,
-      _onlyKeys: []
+      _onlyKeys: [],
+      _formData: {
+        mode: 'stream'
+      }
     } as DestinationData
   );
 

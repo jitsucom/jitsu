@@ -97,7 +97,7 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, so
           const reference = destinationsReferenceMap[dst._type];
 
           return <ListItem
-            additional={destinationsUtils.getMode(dst._mode)}
+            additional={destinationsUtils.getMode(dst._formData?.mode)}
             description={destinationsUtils.getDescription(reference, dst)}
             title={destinationsUtils.getTitle(dst)}
             icon={reference?.ui?.icon}
