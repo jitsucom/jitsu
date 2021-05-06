@@ -22,25 +22,31 @@ import (
 const (
 	defaultTableName = "events"
 
-	BatchMode  = "batch"
+	//BatchMode is a mode when destinaions store data with batches
+	BatchMode = "batch"
+	//StreamMode is a mode when destinaions store data row by row
 	StreamMode = "stream"
 )
 
 var (
+	//ErrUnknownDestination error for checking unknown destination type
 	ErrUnknownDestination = errors.New("Unknown destination type")
-	StorageConstructors   = make(map[string]func(*Config) (Storage, error))
+	//StorageConstructors is used in all destinations init() methods
+	StorageConstructors = make(map[string]func(*Config) (Storage, error))
 )
 
+//DestinationConfig is a destination configuration for serialization
 type DestinationConfig struct {
-	OnlyTokens       []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
-	Type             string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	Mode             string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
-	DataLayout       *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
-	UsersRecognition *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
-	Enrichment       []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
-	Log              *logging.SQLDebugConfig  `mapstructure:"log" json:"log,omitempty" yaml:"log,omitempty"`
-	BreakOnError     bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
-	Staged           bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
+	OnlyTokens           []string                 `mapstructure:"only_tokens" json:"only_tokens,omitempty" yaml:"only_tokens,omitempty"`
+	Type                 string                   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+	Mode                 string                   `mapstructure:"mode" json:"mode,omitempty" yaml:"mode,omitempty"`
+	DataLayout           *DataLayout              `mapstructure:"data_layout" json:"data_layout,omitempty" yaml:"data_layout,omitempty"`
+	UsersRecognition     *UsersRecognition        `mapstructure:"users_recognition" json:"users_recognition,omitempty" yaml:"users_recognition,omitempty"`
+	Enrichment           []*enrichment.RuleConfig `mapstructure:"enrichment" json:"enrichment,omitempty" yaml:"enrichment,omitempty"`
+	Log                  *logging.SQLDebugConfig  `mapstructure:"log" json:"log,omitempty" yaml:"log,omitempty"`
+	BreakOnError         bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
+	Staged               bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
+	CachingConfiguration *CachingConfiguration    `mapstructure:"caching" json:"caching,omitempty" yaml:"caching,omitempty"`
 
 	DataSource      *adapters.DataSourceConfig            `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	S3              *adapters.S3Config                    `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
@@ -51,6 +57,7 @@ type DestinationConfig struct {
 	Facebook        *adapters.FacebookConversionAPIConfig `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
 }
 
+//DataLayout is used for configure mappings/table names and other data layout parameters
 type DataLayout struct {
 	//Deprecated
 	MappingType schema.FieldMappingType `mapstructure:"mapping_type" json:"mapping_type,omitempty" yaml:"mapping_type,omitempty"`
@@ -64,6 +71,7 @@ type DataLayout struct {
 	UniqueIDField     string          `mapstructure:"unique_id_field" json:"unique_id_field,omitempty" yaml:"unique_id_field,omitempty"`
 }
 
+//UsersRecognition is a model for Users recognition module configuration
 type UsersRecognition struct {
 	Enabled             bool     `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
 	AnonymousIDNode     string   `mapstructure:"anonymous_id_node" json:"anonymous_id_node,omitempty" yaml:"anonymous_id_node,omitempty"`
@@ -71,10 +79,17 @@ type UsersRecognition struct {
 	UserIDNode          string   `mapstructure:"user_id_node" json:"user_id_node,omitempty" yaml:"user_id_node,omitempty"`
 }
 
+//CachingConfiguration is a configuration for disabling caching
+type CachingConfiguration struct {
+	Disabled bool `mapstructure:"disabled" json:"disabled" yaml:"disabled"`
+}
+
+//IsEnabled returns true if enabled
 func (ur *UsersRecognition) IsEnabled() bool {
 	return ur != nil && ur.Enabled
 }
 
+//Validate returns err if invalid
 func (ur *UsersRecognition) Validate() error {
 	if ur.IsEnabled() {
 		if ur.AnonymousIDNode == "" {
@@ -92,6 +107,7 @@ func (ur *UsersRecognition) Validate() error {
 	return nil
 }
 
+//Config is a model for passing to destinations creator funcs
 type Config struct {
 	ctx              context.Context
 	destinationID    string
@@ -116,10 +132,12 @@ func RegisterStorage(storageType string,
 	StorageConstructors[storageType] = createStorageFunc
 }
 
+//Factory is a destinations factory for creation
 type Factory interface {
 	Create(name string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error)
 }
 
+//FactoryImpl is a destinations factory implementation
 type FactoryImpl struct {
 	ctx                 context.Context
 	logEventPath        string
@@ -131,6 +149,7 @@ type FactoryImpl struct {
 	maxColumns          int
 }
 
+//NewFactory returns configured Factory
 func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
 	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, metaStorage meta.Storage, maxColumns int) Factory {
 	return &FactoryImpl{
@@ -145,8 +164,8 @@ func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorK
 	}
 }
 
-//Create event storage proxy and event consumer (logger or event-queue)
-//Enrich incoming configs with default values if needed
+//Create builds event storage proxy and event consumer (logger or event-queue)
+//Enriches incoming configs with default values if needed
 func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig) (StorageProxy, *events.PersistentQueue, error) {
 	if destination.Type == "" {
 		destination.Type = destinationID
@@ -211,7 +230,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	if len(destination.Enrichment) == 0 {
 		logging.Warnf("[%s] doesn't have enrichment rules", destinationID)
 	} else {
-		logging.Infof("[%s] Configured enrichment rules:", destinationID)
+		logging.Infof("[%s] configured enrichment rules:", destinationID)
 	}
 
 	//default enrichment rules
@@ -295,6 +314,10 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 				RotationMin: destination.Log.Queries.RotationMin,
 				MaxBackups:  destination.Log.Queries.MaxBackups}))
 		}
+	}
+
+	if destination.CachingConfiguration != nil && destination.CachingConfiguration.Disabled {
+		logging.Infof("[%s] events caching is disabled", destinationID)
 	}
 
 	//for telemetry

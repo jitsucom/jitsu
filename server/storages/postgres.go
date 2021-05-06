@@ -28,6 +28,7 @@ type Postgres struct {
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 	uniqueIDField                 *identifiers.UniqueID
 	staged                        bool
+	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
@@ -79,6 +80,7 @@ func NewPostgres(config *Config) (Storage, error) {
 		usersRecognitionConfiguration: config.usersRecognition,
 		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
+		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	if config.streamMode {
@@ -103,7 +105,7 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		p.eventsCache.Error(p.ID(), failedEvent.EventID, failedEvent.Error)
+		p.eventsCache.Error(p.IsCachingDisabled(), p.ID(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -119,9 +121,9 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				p.eventsCache.Error(p.ID(), p.uniqueIDField.Extract(object), err.Error())
+				p.eventsCache.Error(p.IsCachingDisabled(), p.ID(), p.uniqueIDField.Extract(object), err.Error())
 			} else {
-				p.eventsCache.Succeed(p.ID(), p.uniqueIDField.Extract(object), object, table)
+				p.eventsCache.Succeed(p.IsCachingDisabled(), p.ID(), p.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
@@ -253,6 +255,11 @@ func (p *Postgres) GetUsersRecognition() *UserRecognitionConfiguration {
 //GetUniqueIDField returns unique ID field configuration
 func (p *Postgres) GetUniqueIDField() *identifiers.UniqueID {
 	return p.uniqueIDField
+}
+
+//IsCachingDisabled returns true if caching is disabled in destination configuration
+func (p *Postgres) IsCachingDisabled() bool {
+	return p.cachingConfiguration != nil && p.cachingConfiguration.Disabled
 }
 
 //Close closes Postgres adapter, fallback logger and streaming worker

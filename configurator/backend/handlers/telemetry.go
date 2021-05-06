@@ -29,8 +29,7 @@ func (th *TelemetryHandler) GetHandler(c *gin.Context) {
 			return
 		}
 
-		errorMessage := fmt.Sprintf("Error getting telemetry configuration : %v", err)
-		c.JSON(http.StatusInternalServerError, enmiddleware.ErrorResponse{Error: errorMessage, Message: "Telemetry error"})
+		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse("Error getting telemetry configuration", err))
 		return
 	}
 
@@ -40,6 +39,6 @@ func (th *TelemetryHandler) GetHandler(c *gin.Context) {
 	if err != nil {
 		writeErrorMessage := fmt.Sprintf("Failed to write response: %v", err)
 		logging.Error(writeErrorMessage)
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrorResponse{Message: writeErrorMessage})
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(writeErrorMessage, nil))
 	}
 }

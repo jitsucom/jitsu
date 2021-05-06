@@ -38,7 +38,7 @@ func (s *CronScheduler) Start(executeFunc func(source, collection string, retryC
 	s.cronInstance.Start()
 }
 
-//Schedule add source_collection pair to cron scheduler with scheduleTiming (standard cron format e.g. */5 1,2,3 * * *)
+//Schedule adds source_collection pair to cron scheduler with scheduleTiming (standard cron format e.g. */5 1,2,3 * * *)
 func (s *CronScheduler) Schedule(source, collection, scheduleTiming string) error {
 	key := fmt.Sprintf("%s_%s", source, collection)
 	s.mutex.RLock()

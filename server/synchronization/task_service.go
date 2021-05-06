@@ -168,6 +168,11 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 		return "", fmt.Errorf("Collection with id [%s] wasn't found in source [%s]", collection, sourceID)
 	}
 
+	//check if destinations are set
+	if len(sourceUnit.DestinationIDs) == 0 {
+		return "", fmt.Errorf("Destinations can't be empty. Please configure at least one destination")
+	}
+
 	//make sure all destinations exist and ready
 	for _, destinationID := range sourceUnit.DestinationIDs {
 		storageProxy, ok := ts.destinationService.GetDestinationByID(destinationID)

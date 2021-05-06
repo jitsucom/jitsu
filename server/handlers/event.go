@@ -59,7 +59,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	payload := events.Event{}
 	if err := c.BindJSON(&payload); err != nil {
 		logging.Errorf("Error parsing event body: %v", err)
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Failed to parse body", Error: err.Error()})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
 		return
 	}
 
@@ -75,7 +75,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	if len(destinationStorages) == 0 {
 		noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
 		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: noConsumerMessage})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(noConsumerMessage, nil))
 		return
 	}
 
@@ -96,7 +96,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	var destinationIDs []string
 	for _, destinationProxy := range destinationStorages {
 		destinationIDs = append(destinationIDs, destinationProxy.ID())
-		eh.eventsCache.Put(destinationProxy.ID(), eventID, cachingEvent)
+		eh.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, cachingEvent)
 	}
 
 	//** Multiplexing **
@@ -104,7 +104,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	if len(consumers) == 0 {
 		noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
 		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: noConsumerMessage})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(noConsumerMessage, nil))
 		return
 	}
 
@@ -117,14 +117,14 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 
 	counters.SuccessSourceEvents(tokenID, 1)
 
-	c.JSON(http.StatusOK, middleware.OkResponse())
+	c.JSON(http.StatusOK, middleware.OKResponse())
 }
 
 func (eh *EventHandler) GetHandler(c *gin.Context) {
 	var err error
 	destinationIDs, ok := c.GetQuery("destination_ids")
 	if !ok {
-		c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "destination_ids is required parameter."})
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse("destination_ids is required parameter", nil))
 		return
 	}
 
@@ -139,7 +139,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		start, err = time.Parse(time.RFC3339Nano, startStr)
 		if err != nil {
 			logging.Errorf("Error parsing start query param [%s] in events cache handler: %v", startStr, err)
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing start query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error parsing start query parameter. Accepted datetime format: "+timestamp.Layout, err))
 			return
 		}
 	}
@@ -150,7 +150,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		end, err = time.Parse(time.RFC3339Nano, endStr)
 		if err != nil {
 			logging.Errorf("Error parsing end query param [%s] in events cache handler: %v", endStr, err)
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "Error parsing end query parameter. Accepted datetime format: " + timestamp.Layout, Error: err.Error()})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Error parsing end query parameter. Accepted datetime format: "+timestamp.Layout, err))
 			return
 		}
 	}
@@ -163,7 +163,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		limit, err = strconv.Atoi(limitStr)
 		if err != nil {
 			logging.Errorf("Error parsing limit [%s] to int in events cache handler: %v", limitStr, err)
-			c.JSON(http.StatusBadRequest, middleware.ErrorResponse{Message: "limit must be int"})
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse("limit must be int", nil))
 			return
 		}
 	}
