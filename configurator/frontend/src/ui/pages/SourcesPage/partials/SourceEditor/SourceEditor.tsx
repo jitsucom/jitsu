@@ -284,7 +284,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
           <EditorButtons
             save={{
               isRequestPending: sourceSaving,
-              isPopoverVisible: savePopover,
+              isPopoverVisible: savePopover && sourcesTabs.current.some((tab: Tab) => tab.errorsCount > 0),
               handlePress: handleSubmit,
               handlePopoverClose: savePopoverClose,
               titleText: 'Source editor errors',
