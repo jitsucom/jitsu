@@ -258,7 +258,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       elements: [
         { title: 'Sources', link: sourcesPageRoutes.root },
         {
-          title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode="edit" />
+          title: <PageHeader title={connectorSource?.displayName} icon={connectorSource?.pic} mode={editorMode} />
         }
       ]
     }));
