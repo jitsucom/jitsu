@@ -1,5 +1,5 @@
 // @Libs
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, generatePath, useHistory } from 'react-router-dom';
 import { Badge, Input, Modal } from 'antd';
 import cn from 'classnames';
@@ -51,6 +51,12 @@ const AddSourceDialogComponent = () => {
       : allSources,
     [filterParam]
   );
+
+  useEffect(() => {
+    document.body.classList.add('custom-scroll-body');
+
+    return () => document.body.classList.remove('custom-scroll-body');
+  }, []);
 
   return (
     <div className={styles.dialog}>

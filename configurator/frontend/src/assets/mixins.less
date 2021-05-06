@@ -1,4 +1,6 @@
-.custom-scrollbar {
+.custom-scrollbar(@overflow: auto) {
+  overflow-y: @overflow;
+
   &::-webkit-scrollbar {
     width: 8px;
   }
