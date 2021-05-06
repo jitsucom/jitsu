@@ -830,13 +830,13 @@ func (r *Redis) incrementEventsCount(id, namespace, status string, now time.Time
 func noticeError(err error) {
 	if err != nil {
 		if err == redis.ErrPoolExhausted {
-			metrics.RedisErrors("ERR_POOL_EXHAUSTED")
+			metrics.MetaRedisErrors("ERR_POOL_EXHAUSTED")
 		} else if err == redis.ErrNil {
-			metrics.RedisErrors("ERR_NIL")
+			metrics.MetaRedisErrors("ERR_NIL")
 		} else if strings.Contains(strings.ToLower(err.Error()), "timeout") {
-			metrics.RedisErrors("ERR_TIMEOUT")
+			metrics.MetaRedisErrors("ERR_TIMEOUT")
 		} else {
-			metrics.RedisErrors("UNKNOWN")
+			metrics.MetaRedisErrors("UNKNOWN")
 			logging.Error("Unknown redis error:", err)
 		}
 	}
