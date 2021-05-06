@@ -33,40 +33,37 @@ const destinationsUtils = {
     const commandLineConnect = typeof connectCmd === 'function' ? connectCmd(dst) : undefined;
     const displayURL = typeof title === 'function' ? title(dst) : undefined;
 
-    if (!commandLineConnect) {
-      return <ListItemDescription render={displayURL} />;
-    }
-
-    const codeSnippet = commandLineConnect.indexOf('\n') < 0
-      ? <>
-        <div>
-          <CodeInline>{commandLineConnect}</CodeInline>
-        </div>
-        <Align horizontal="right">
-          <ActionLink
-            onClick={() => {
-              copyToClipboard(commandLineConnect);
-              message.info('Command copied to clipboard', 2);
-            }}>
-            Copy command to clipboard
-          </ActionLink>
-        </Align>
-      </>
-      : <CodeSnippet className="destinations-list-multiline-code" language="bash">
-        {commandLineConnect}
-      </CodeSnippet>;
-
-    return <Popover
-      placement="topLeft"
-      content={
-        <>
+    const codeSnippet = !commandLineConnect
+      ? undefined
+      : commandLineConnect.indexOf('\n') < 0
+        ? <>
           <h4><b>Use following command to connect to DB and run a test query:</b></h4>
-          {codeSnippet}
+          <div>
+            <CodeInline>{commandLineConnect}</CodeInline>
+          </div>
+          <Align horizontal="right">
+            <ActionLink
+              onClick={() => {
+                copyToClipboard(commandLineConnect);
+                message.info('Command copied to clipboard', 2);
+              }}>
+              Copy command to clipboard
+            </ActionLink>
+          </Align>
         </>
-      }
-      trigger="click">
-      <ListItemDescription render={displayURL} dotted />
-    </Popover>;
+        : <>
+          <h4><b>Use following command to connect to DB and run a test query:</b></h4>
+          <CodeSnippet className="destinations-list-multiline-code" language="bash">
+            {commandLineConnect}
+          </CodeSnippet>
+        </>;
+
+    return <ListItemDescription
+      dotted={!!codeSnippet}
+      render={displayURL}
+      tooltip={codeSnippet}
+    />;
+
   },
   getMode: (mode: string) => mode ? <ListItemDescription render={<>mode: {mode}</>} /> : undefined
 };
