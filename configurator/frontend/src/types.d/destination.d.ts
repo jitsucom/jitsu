@@ -9,8 +9,8 @@ declare interface DestinationData {
   _comment: string;
   _connectionTestOk: boolean;
   _connectionErrorMessage?: string;
-  _mode: 'batch' | 'stream';
   _formData: {
+    mode: 'batch' | 'stream';
     [key: string]: any;
   };
   _onlyKeys: string[];
