@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/jitsucom/jitsu/server/config"
 	"math/rand"
 	"net/http"
 	"os"
@@ -18,6 +17,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
@@ -180,32 +180,61 @@ func main() {
 	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
 
-	//TODO remove deprecated someday
-	//coordination service
-	var coordinationService coordination.Service
-	var err error
-	if viper.IsSet("synchronization_service") {
-		logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
-
-		coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
-		telemetry.Coordination("etcd")
-	} else {
-		coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
-	}
-
-	if err != nil {
-		logging.Fatal("Failed to initiate coordination service", err)
-	}
-
-	// ** Destinations **
-
-	//meta storage
-	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
+	// Meta storage
+	metaStorageConfiguration := viper.Sub("meta.storage")
+	metaStorage, err := meta.NewStorage(metaStorageConfiguration)
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
-	//close after all for saving last task statuses
+	// Close after all for saving last task statuses
 	defer metaStorage.Close()
+
+	//TODO remove deprecated someday
+	//coordination service
+	var coordinationService coordination.Service
+	if viper.IsSet("coordination") {
+		coordinationType := viper.GetString("coordination.type")
+		if coordinationType == "redis" {
+			configuration := metaStorageConfiguration.Sub("redis")
+			if configuration != nil {
+				host := configuration.GetString("host")
+				port := configuration.GetInt("port")
+				password := configuration.GetString("password")
+				coordinationService, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, host, port, password)
+				if err != nil {
+					logging.Fatal("Failed to initiate coordination service", err)
+				}
+			} else {
+				logging.Warn("Expected 'redis' section in 'meta.storage' section")
+			}
+		} else {
+			logging.Warn("Currently coordination service uses only redis implementation")
+		}
+	}
+
+	if coordinationService == nil {
+		if viper.IsSet("synchronization_service") {
+			logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
+
+			coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
+		} else {
+			coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
+		}
+
+		if err != nil {
+			logging.Fatal("Failed to initiate coordination service", err)
+		}
+	}
+
+	if coordinationService == nil {
+		logging.Info("Coordination service isn't provided. Jitsu server is working in single-node mode. " +
+			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
+		coordinationService = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
+	}
+
+	appconfig.Instance.ScheduleClosing(coordinationService)
+
+	// ** Destinations **
 
 	//events counters
 	counters.InitEvents(metaStorage)
