@@ -39,7 +39,7 @@ Events are saved under Redis key that contains user anonymous ID. Once any event
 There is an approximate formula for RAM size prediction:
 
 ```text
-SERVER RAM = 1 Event Size * Events per month
+REDIS RAM = 1 Event Size * Events per month
 
 1 event ~= 2 Kbyte
 10 000 000 events per month ~= 20GB RAM per month

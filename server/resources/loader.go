@@ -30,7 +30,7 @@ type ResponsePayload struct {
 	ContentType *ContentType
 }
 
-//return loaded content, empty string (because there is no last-modified logic in files), error
+//LoadFromFile returns loaded content, empty string (because there is no last-modified logic in files), error
 func LoadFromFile(filePath, lastModified string) (*ResponsePayload, error) {
 	filePath = strings.ReplaceAll(filePath, "file://", "")
 
@@ -52,7 +52,7 @@ func LoadFromFile(filePath, lastModified string) (*ResponsePayload, error) {
 	return &ResponsePayload{Content: b, ContentType: &contentType}, nil
 }
 
-//return loaded content, Last-modified value from header, error
+//LoadFromHTTP returns loaded content, Last-modified value from header, error
 func LoadFromHTTP(fullURL, ifModifiedSinceValue string) (*ResponsePayload, error) {
 	var username, password string
 	if strings.Contains(fullURL, "@") {

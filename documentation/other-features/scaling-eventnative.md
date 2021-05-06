@@ -34,7 +34,7 @@ coordination:
   redis:
     host: your_redis_host
     port: 6379
-    password: daonfi1b241dafasfja#@3n12b
+    password: secret_password
 
 ```
 
@@ -52,7 +52,7 @@ meta.storage:
   redis:
     host: your_redis_host
     port: 6379
-    password: daonfi1b241dafasfja#@3n12b
+    password: secret_password
         
 coordination:
   type: redis
