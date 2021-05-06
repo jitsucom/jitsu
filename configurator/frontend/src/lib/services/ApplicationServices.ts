@@ -7,6 +7,7 @@ import { firebaseInit, FirebaseUserService } from './firebase';
 import firebase from 'firebase';
 import Marshal from '../commons/marshalling';
 import { BackendUserService } from './backend';
+import { randomId } from '@util/numbers';
 
 type AppEnvironmentType = 'development' | 'production';
 
@@ -136,6 +137,19 @@ function parseJson(envVar, defaultValue) {
   return defaultValue;
 }
 
+/**
+ * Structure of /database API response
+ */
+export type PgDatabaseCredentials = {
+  User: string
+  Password: string
+  Host: string
+  Port: string
+  Database: string
+}
+
+
+
 function getRawApplicationConfig(): RawConfigObject {
   return {
     env: process.env || {},
@@ -248,28 +262,33 @@ export default class ApplicationServices {
     }
   }
 
-  public async initializeDefaultDestination() {
-    // let db = await this._backendApiClient.post('/database', { projectId: this.activeProject.id });
-    // const DestinationData = new PostgresConfig('test_destination');
-    // DestinationData.comment =
-    //   "We set up a test postgres database for you. It's hosted by us and has a 10,000 rows limitation. It's ok" +
-    //   " to try with service with it. However, don't use it in production setup. To reveal credentials, click on the 'Edit' button";
-    // let data = {};
-    // DestinationData.fillInitialValues(data);
-    //
-    // DestinationData.update({
-    //   ...data,
-    //   pguser: db['User'],
-    //   pgpassword: db['Password'],
-    //   pghost: db['Host'],
-    //   pgport: db['Port'],
-    //   pgdatabase: db['Database'],
-    //   mode: 'stream'
-    // });
-    // await this._storageService.save('destinations', { destinations: [DestinationData] }, this.activeProject.id);
+  public async initializeDefaultDestination(): Promise<{ credentials: PgDatabaseCredentials, destinations: DestinationData[] }> {
+    let credentials: PgDatabaseCredentials = await this._backendApiClient.post('/database', {
+      projectId: this.activeProject.id
+    });
+    const destinationData: DestinationData = {
+      _type: 'postgres',
+      _comment: "We set up a test postgres database for you. It's hosted by us and has a 10,000 rows limitation. It's ok" +
+        " to try with service with it. However, don't use it in production setup. To reveal credentials, click on the 'Edit' button",
+      _id: "demo_postgres",
+      _uid: randomId(),
+      _mappings: null,
+      _onlyKeys: [],
+      _connectionTestOk: true,
+      _sources: [],
+      _formData: {
+        pguser: credentials['User'],
+        pgpassword: credentials['Password'],
+        pghost: credentials['Host'],
+        pgport: credentials['Port'],
+        pgdatabase: credentials['Database'],
+        mode: 'stream'
+      }
+    } ;
+    const destinations = [destinationData];
+    await this._storageService.save('destinations', { destinations }, this.activeProject.id);
+    return { credentials, destinations };
   }
-
-
 
   generateToken(): any {
     return {

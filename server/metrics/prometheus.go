@@ -10,15 +10,16 @@ var Enabled = false
 func Init(enabled bool) {
 	Enabled = enabled
 	if Enabled {
-		logging.Info("Initializing Prometheus metrics..")
+		logging.Info("✅ Initializing Prometheus metrics..")
 		initEvents()
 		initSourcesPool()
 		initSourceObjects()
-		initRedis()
+		initMetaRedis()
+		initCoordinationRedis()
 		initUsersRecognitionQueue()
 		initStreamEventsQueue()
 	} else {
-		logging.Info("Prometheus metrics reporting is not enable. Read how to enable them: https://jitsu.com/docs/other-features/application-metrics")
+		logging.Info("❌ Prometheus metrics reporting is not enable. Read how to enable them: https://jitsu.com/docs/other-features/application-metrics")
 	}
 }
 

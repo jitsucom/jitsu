@@ -1,5 +1,5 @@
 // @Libs
-import React, { memo, useCallback, useMemo, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, generatePath, useHistory } from 'react-router-dom';
 import { Badge, Input, Modal } from 'antd';
 import cn from 'classnames';
@@ -14,29 +14,48 @@ import { SourceConnector } from '@catalog/sources/types';
 import { StarOutlined, StarFilled, ExclamationCircleOutlined } from '@ant-design/icons';
 // @Routes
 import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
+import { useServices } from '@hooks/useServices';
 
 const AddSourceDialogComponent = () => {
   const history = useHistory();
 
   const [filterParam, setFilterParam] = useState<string>();
+  const services = useServices();
 
-  const handleClick = useCallback((src: SourceConnector) => (e: React.MouseEvent) => {
+  const handleClick = (src: SourceConnector) => (e: React.MouseEvent) => {
     if (src.isSingerType) {
       e.stopPropagation();
       e.preventDefault();
+      services.analyticsService.withJitsu((jitsu => {
+        jitsu.track('singer_connector_attempt', {
+          app: services.features.appName,
+          connector_id: src.id
+        });
+      }));
 
       Modal.confirm({
-        title: 'Please confirm adding singer connector',
+        title: <><b>{src.displayName}</b> - alpha version notice!</>,
         icon: <ExclamationCircleOutlined/>,
-        content: `${src.displayName} configuration is rather difficult, it contains four JSON objects, two of them are required.`,
+        content: <>
+          <b>{src.displayName}</b> connector is available as alpha version only, it requires an
+          understanding of <a href="https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md">Singer Protocol</a>
+          <br /><br />
+          Do you want to continue?
+        </>,
         okText: 'Add',
         cancelText: 'Cancel',
         onOk: () => {
+          services.analyticsService.withJitsu((jitsu => {
+            jitsu.track('singer_connector_added', {
+              app: services.features.appName,
+              connector_id: src.id
+            });
+          }));
           history.push(generatePath(sourcesPageRoutes.addExact, { source: src.id }));
         }
       });
     }
-  }, [history]);
+  };
 
   const handleChange = debounce(
     useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -51,6 +70,12 @@ const AddSourceDialogComponent = () => {
       : allSources,
     [filterParam]
   );
+
+  useEffect(() => {
+    document.body.classList.add('custom-scroll-body');
+
+    return () => document.body.classList.remove('custom-scroll-body');
+  }, []);
 
   return (
     <div className={styles.dialog}>

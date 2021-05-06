@@ -1,97 +1,10 @@
-notify_pass: &notify_pass
-  slack/notify:
-    event: pass
-    custom: |
-      {
-      	"blocks": [
-      		{
-      			"type": "section",
-      			"text": {
-      				"type": "mrkdwn",
-      				"text": "The <https://github.com/jitsucom/jitsu/tree/$CIRCLE_BRANCH|$CIRCLE_BRANCH>* @ <https://github.com/jitsucom/jitsu/|jitsucom/jitsu> build has fixed!\n\nGreat job, *$CIRCLE_USERNAME*!"
-      			},
-      			"accessory": {
-      				"type": "image",
-      				"image_url": "https://media2.giphy.com/media/WsvLlmmjx9tnmeTPNc/giphy.gif?cid=ecf05e47h9ykneri13esdla2dpsk69ljttwqwqj7a3gchkll&rid=giphy.gif",
-      				"alt_text": "Rocking cat"
-      			}
-      		},
-      		{
-      			"type": "actions",
-      			"elements": [
-      				{
-      					"type": "button",
-      					"text": {
-      						"type": "plain_text",
-      						"text": "View Details on CircleCI"
-      					},
-      					"url": "https://circleci.com/workflow-run/${CIRCLE_WORKFLOW_ID}"
-      				}
-      			]
-      		}
-      	]
-      }
-
-notify_fail: &notify_fail
-  slack/notify:
-    event: fail
-    custom: |
-      {
-      	"blocks": [
-      		{
-      			"type": "section",
-      			"text": {
-      				"type": "mrkdwn",
-      				"text": "Oh, no! The *<https://github.com/jitsucom/jitsu/tree/$CIRCLE_BRANCH|$CIRCLE_BRANCH>* @ <https://github.com/jitsucom/jitsu/|jitsucom/jitsu> build has failed. The last commit was authored by *$CIRCLE_USERNAME*. If that's you, please take a look!"
-      			},
-      			"accessory": {
-      				"type": "image",
-      				"image_url": "https://media4.giphy.com/media/NPUqgb8UE2iw8/giphy.gif",
-      				"alt_text": "Sad cat"
-      			}
-      		},
-      		{
-      			"type": "actions",
-      			"elements": [
-      				{
-      					"type": "button",
-      					"text": {
-      						"type": "plain_text",
-      						"text": "View Details on CircleCI"
-      					},
-      					"url": "https://circleci.com/workflow-run/${CIRCLE_WORKFLOW_ID}"
-      				}
-      			]
-      		}
-      	]
-      }
-
-install_buildx: &install_buildx
-  run:
-    name: install docker buildx
-    command: |
-      mkdir -vp ~/.docker/cli-plugins/
-      curl --silent -L --output ~/.docker/cli-plugins/docker-buildx https://github.com/docker/buildx/releases/download/v0.3.1/buildx-v0.3.1.linux-amd64
-      chmod a+x ~/.docker/cli-plugins/docker-buildx
-      docker buildx version
-      docker context create jitsu
-      docker buildx create jitsu --use
-      docker run --privileged --rm tonistiigi/binfmt --install all
-
 build_ksense: &build_ksense
   run:
-    name: Build and Push ksense EventNative Docker image
+    name: Build and Push DEPRECATED ksense EventNative Docker image
     command: |
       DOCKER_BUILDKIT=1 docker build --build-arg dhid=ksense -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
       echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
       docker push $IMAGE_NAME
-
-build_jitsu: &build_jitsu
-  run:
-    name: Build and Push jitsu Docker image
-    command: |
-      docker login -u $DOCKER_LOGIN -p $DOCKER_PWD
-      DOCKER_BUILDKIT=1 docker buildx build  --platform linux/amd64,linux/arm64 --push -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
 
 setup_image_version: &setup_image_version
   run:
@@ -100,9 +13,6 @@ setup_image_version: &setup_image_version
       echo 'export IMAGE_VERSION=${CIRCLE_TAG//v}' >> $BASH_ENV
 
 version: 2.1
-
-orbs:
-  slack: circleci/slack@4.3.3
 
 jobs:
   lint:
@@ -186,54 +96,6 @@ jobs:
           docker_layer_caching: true
       - <<: *build_ksense
 
-  build-latest-jitsu-docker:
-    environment:
-      IMAGE_NAME: jitsucom/server
-      DOCKER_FILE: server.Dockerfile
-      IMAGE_VERSION: latest
-    docker:
-      - image: cimg/go:1.14.15
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-          docker_layer_caching: true
-      #step for debugging circleci issue
-      - run:
-          command: |
-            while true; do
-              sleep 2
-              ssh remote-docker ps auxwwf
-              echo "======"
-            done
-          background: true
-      - <<: *install_buildx
-      - <<: *build_jitsu
-      - <<: *notify_fail
-  build-latest-configurator-docker:
-    environment:
-      IMAGE_NAME: jitsucom/configurator
-      DOCKER_FILE: configurator.Dockerfile
-      IMAGE_VERSION: latest
-    docker:
-      - image: cimg/go:1.14.15
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-          docker_layer_caching: true
-      #step for debugging circleci issue
-      - run:
-          command: |
-            while true; do
-              sleep 2
-              ssh remote-docker ps auxwwf
-              echo "======"
-            done
-          background: true
-      - <<: *install_buildx
-      - <<: *build_jitsu
-      - <<: *notify_fail
   build-beta-en-docker:
     environment:
       IMAGE_NAME: ksense/eventnative
@@ -248,36 +110,6 @@ jobs:
           docker_layer_caching: true
       - <<: *build_ksense
 
-  build-beta-configurator-docker:
-    environment:
-      IMAGE_NAME: jitsucom/configurator
-      DOCKER_FILE: configurator.Dockerfile
-      IMAGE_VERSION: beta
-    docker:
-      - image: cimg/go:1.14.15
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-          docker_layer_caching: true
-      - <<: *install_buildx
-      - <<: *build_jitsu
-      - <<: *notify_fail
-  build-beta-jitsu-docker:
-    environment:
-      IMAGE_NAME: jitsucom/server
-      DOCKER_FILE: server.Dockerfile
-      IMAGE_VERSION: beta
-    docker:
-      - image: cimg/go:1.14.15
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-          docker_layer_caching: true
-      - <<: *install_buildx
-      - <<: *build_jitsu
-      - <<: *notify_fail
   build-tagged-en-docker:
     environment:
       IMAGE_NAME: ksense/eventnative
@@ -291,36 +123,6 @@ jobs:
           docker_layer_caching: true
       - <<: *setup_image_version
       - <<: *build_ksense
-  build-tagged-jitsu-docker:
-    environment:
-      IMAGE_NAME: jitsucom/server
-      DOCKER_FILE: server.Dockerfile
-    docker:
-      - image: cimg/go:1.14.15
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-          docker_layer_caching: true
-      - <<: *install_buildx
-      - <<: *setup_image_version
-      - <<: *build_jitsu
-      - <<: *notify_fail
-  build-tagged-configurator-docker:
-    environment:
-      IMAGE_NAME: jitsucom/configurator
-      DOCKER_FILE: configurator.Dockerfile
-    docker:
-      - image: cimg/go:1.14.15
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-          docker_layer_caching: true
-      - <<: *install_buildx
-      - <<: *setup_image_version
-      - <<: *build_jitsu
-      - <<: *notify_fail
 
 workflows:
   version: 2.1
@@ -348,20 +150,6 @@ workflows:
           filters:
             branches:
               only: master
-      - build-latest-jitsu-docker:
-          context: jitsu
-          requires:
-            - server-test
-          filters:
-            branches:
-              only: master
-      - build-latest-configurator-docker:
-          context: jitsu
-          requires:
-            - server-test
-          filters:
-            branches:
-              only: master
       - build-beta-en-docker:
           context: eventnative
           requires:
@@ -369,40 +157,8 @@ workflows:
           filters:
             branches:
               only: beta
-      - build-beta-jitsu-docker:
-          context: jitsu
-          requires:
-            - server-test
-          filters:
-            branches:
-              only: beta
-      - build-beta-configurator-docker:
-          context: jitsu
-          requires:
-            - server-test
-          filters:
-            branches:
-              only: beta
       - build-tagged-en-docker:
           context: eventnative
-          requires:
-            - server-test
-          filters:
-            tags:
-              only: /^v.*/
-            branches:
-              ignore: /.*/
-      - build-tagged-jitsu-docker:
-          context: jitsu
-          requires:
-            - server-test
-          filters:
-            tags:
-              only: /^v.*/
-            branches:
-              ignore: /.*/
-      - build-tagged-configurator-docker:
-          context: jitsu
           requires:
             - server-test
           filters:

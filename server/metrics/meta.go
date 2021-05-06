@@ -8,19 +8,19 @@ import (
 var metaRedisLabels = []string{"error_type"}
 
 var (
-	redisErrors *prometheus.CounterVec
+	metaRedisErrors *prometheus.CounterVec
 )
 
-func initRedis() {
-	redisErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+func initMetaRedis() {
+	metaRedisErrors = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
 		Subsystem: "meta",
 		Name:      "redis",
 	}, metaRedisLabels)
 }
 
-func RedisErrors(errorType string) {
+func MetaRedisErrors(errorType string) {
 	if Enabled {
-		redisErrors.WithLabelValues(errorType).Inc()
+		metaRedisErrors.WithLabelValues(errorType).Inc()
 	}
 }

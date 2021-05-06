@@ -3,6 +3,7 @@ import React, { useCallback } from 'react';
 import { Col, Form, Input, Row, Select, Switch } from 'antd';
 import MonacoEditor from 'react-monaco-editor';
 import { get } from 'lodash';
+import cn from 'classnames';
 // @Components
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 import { EditableList } from '@./lib/components/EditableList/EditableList';
@@ -13,7 +14,7 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { dsnValidator } from './configurableFieldsForm.utils';
 import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { validationChain } from '@util/validation/validationChain';
-import { isoDateValidator, requiredValidator } from '@util/validation/validators';
+import { isoDateValidator } from '@util/validation/validators';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
@@ -129,7 +130,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
           const constantValue = typeof constant === 'function'
             ? constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {}))
             : constant;
-          const isNull = constantValue !== undefined;
+          const isHidden = constantValue !== undefined;
 
           const additionalProps: AnyObject = {};
 
@@ -138,35 +139,34 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
             additionalProps.validator = dsnValidator;
           }
 
-          return !isNull
-            ? (
-              <Row key={id}>
-                <Col span={16}>
-                  <Form.Item
-                    className="form-field_fixed-label"
-                    initialValue={getInitialValue(id, defaultValue, constantValue, type.typeName)}
-                    name={id}
-                    hidden={isNull}
-                    label={
-                      documentation ?
-                        <LabelWithTooltip documentation={documentation} render={displayName} /> :
-                        <span>{displayName}:</span>
-                    }
-                    labelCol={{ span: 6 }}
-                    wrapperCol={{ span: 18 }}
-                    rules={
-                      validationChain(
-                        requiredValidator(required, displayName),
-                        type.typeName === 'isoUtcDate' && isoDateValidator()
-                      )
-                    }
-                  >
-                    {getFieldComponent(type, id, additionalProps)}
-                  </Form.Item>
-                </Col>
-              </Row>
-            )
-            : null;
+          return (
+            <Row key={id} className={cn(isHidden && 'hidden')}>
+              <Col span={16}>
+                <Form.Item
+                  className="form-field_fixed-label"
+                  initialValue={getInitialValue(id, defaultValue, constantValue, type?.typeName)}
+                  name={id}
+                  hidden={isHidden}
+                  label={
+                    documentation ?
+                      <LabelWithTooltip documentation={documentation} render={displayName} /> :
+                      <span>{displayName}:</span>
+                  }
+                  labelCol={{ span: 6 }}
+                  wrapperCol={{ span: 18 }}
+                  rules={
+                    !isHidden
+                      ? type?.typeName === 'isoUtcDate'
+                        ? [isoDateValidator(`${displayName} field is required.`)]
+                        : [{ required, message: `${displayName} field is required.` }]
+                      : undefined
+                  }
+                >
+                  {getFieldComponent(type, id, additionalProps)}
+                </Form.Item>
+              </Col>
+            </Row>
+          );
         })
       }
     </>

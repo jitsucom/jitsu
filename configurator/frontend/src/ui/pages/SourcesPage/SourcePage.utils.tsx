@@ -5,12 +5,13 @@ import { message } from 'antd';
 import { SourceConnector } from '@catalog/sources/types';
 // @Utils
 import { getUniqueAutoIncId } from '@util/numbers';
-import { handleError } from '@./lib/components/components';
+import { closeableMessage, handleError } from '@./lib/components/components';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import Marshal from '@./lib/commons/marshalling';
 // @Components
 import { ListItemTitle } from '@atom/ListItemTitle';
+import { Tab } from '@molecule/TabsConfigurator';
 
 const sourcePageUtils = {
   getSourceType: (sourceConnector: SourceConnector) => sourceConnector?.isSingerType
@@ -30,7 +31,7 @@ const sourcePageUtils = {
       await ApplicationServices.get().backendApiClient.post('/sources/test', Marshal.toPureJson(src));
 
       if (!hideMessage) {
-        message.success('Successfully connected!');
+        closeableMessage.info('Successfully connected!');
       }
 
       return {
@@ -55,7 +56,8 @@ const sourcePageUtils = {
         <>Last connection test failed with <b><i>'{src.connectedErrorMessage}'</i></b>. Source might be unavailable. Please, go to editor and fix the connection settings</>
       }
     />
-  }
+  },
+  getPromptMessage: (tabs: Tab[]) => () => tabs.some(tab => tab.touched) ? 'You have unsaved changes. Are you sure you want to leave the page?': undefined
 };
 
 export { sourcePageUtils };
