@@ -79,7 +79,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination, handleT
   }
 
   let activeKey;
-  if (apiKeysList.length > 0 || sources.length === 0 && apiKeysList.length === 0) {
+  if (apiKeysList?.length > 0 || sources?.length === 0 && apiKeysList?.length === 0) {
     activeKey = 'keys';
   } else {
     activeKey = 'connectors'
