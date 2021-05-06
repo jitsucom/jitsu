@@ -5,7 +5,10 @@ import (
 	"net/http"
 )
 
-const AdminTokenErr = "Admin token does not match"
+const (
+	AdminTokenErr = "Admin token does not match"
+	AdminTokenKey = "X-Admin-Token"
+)
 
 type AdminToken struct {
 	Token string
@@ -14,17 +17,17 @@ type AdminToken struct {
 func (a *AdminToken) AdminAuth(main gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		if a.Token == "" {
-			c.JSON(http.StatusUnauthorized, ErrorResponse{Message: "admin_token must be configured"})
+			c.JSON(http.StatusUnauthorized, ErrResponse("admin_token must be configured", nil))
 			return
 		}
 
 		token := c.Query(TokenName)
 		if token == "" {
-			token = c.GetHeader("X-Admin-Token")
+			token = c.GetHeader(AdminTokenKey)
 		}
 
 		if token != a.Token {
-			c.JSON(http.StatusUnauthorized, ErrorResponse{Message: AdminTokenErr})
+			c.JSON(http.StatusUnauthorized, ErrResponse(AdminTokenErr, nil))
 			return
 		}
 		main(c)

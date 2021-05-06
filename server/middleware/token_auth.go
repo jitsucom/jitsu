@@ -43,7 +43,7 @@ func TokenAuth(main gin.HandlerFunc, originalToken string) gin.HandlerFunc {
 		if token == originalToken {
 			main(c)
 		} else {
-			c.JSON(http.StatusUnauthorized, ErrorResponse{Message: "Wrong token"})
+			c.JSON(http.StatusUnauthorized, ErrResponse("Wrong token", nil))
 		}
 	}
 }
@@ -60,7 +60,7 @@ func TokenFuncAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([]st
 
 		_, allowed := isAllowedOriginsFunc(token)
 		if !allowed {
-			c.JSON(http.StatusUnauthorized, ErrorResponse{Message: errMsg})
+			c.JSON(http.StatusUnauthorized, ErrResponse(errMsg, nil))
 			return
 		}
 
@@ -81,9 +81,9 @@ func TokenTwoFuncAuth(main gin.HandlerFunc, isAllowedOriginsFunc func(string) ([
 		if !allowed {
 			_, exist := anotherTypeAllowedOriginsFunc(token)
 			if exist {
-				c.JSON(http.StatusUnauthorized, ErrorResponse{Message: errMsg})
+				c.JSON(http.StatusUnauthorized, ErrResponse(errMsg, nil))
 			} else {
-				c.JSON(http.StatusUnauthorized, ErrorResponse{Message: "The token is not found"})
+				c.JSON(http.StatusUnauthorized, ErrResponse("The token is not found", nil))
 			}
 			return
 		}

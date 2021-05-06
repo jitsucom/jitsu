@@ -29,6 +29,7 @@ type AwsRedshift struct {
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 	uniqueIDField                 *identifiers.UniqueID
 	staged                        bool
+	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
@@ -90,6 +91,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		usersRecognitionConfiguration: config.usersRecognition,
 		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
+		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	if config.streamMode {
@@ -141,7 +143,7 @@ func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, 
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
-		ar.eventsCache.Error(ar.ID(), failedEvent.EventID, failedEvent.Error)
+		ar.eventsCache.Error(ar.IsCachingDisabled(), ar.ID(), failedEvent.EventID, failedEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -157,9 +159,9 @@ func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, 
 		//events cache
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
-				ar.eventsCache.Error(ar.ID(), ar.uniqueIDField.Extract(object), err.Error())
+				ar.eventsCache.Error(ar.IsCachingDisabled(), ar.ID(), ar.uniqueIDField.Extract(object), err.Error())
 			} else {
-				ar.eventsCache.Succeed(ar.ID(), ar.uniqueIDField.Extract(object), object, table)
+				ar.eventsCache.Succeed(ar.IsCachingDisabled(), ar.ID(), ar.uniqueIDField.Extract(object), object, table)
 			}
 		}
 	}
@@ -239,6 +241,11 @@ func (ar *AwsRedshift) GetUsersRecognition() *UserRecognitionConfiguration {
 //GetUniqueIDField returns unique ID field configuration
 func (ar *AwsRedshift) GetUniqueIDField() *identifiers.UniqueID {
 	return ar.uniqueIDField
+}
+
+//IsCachingDisabled returns true if caching is disabled in destination configuration
+func (ar *AwsRedshift) IsCachingDisabled() bool {
+	return ar.cachingConfiguration != nil && ar.cachingConfiguration.Disabled
 }
 
 //ID returns destination ID
