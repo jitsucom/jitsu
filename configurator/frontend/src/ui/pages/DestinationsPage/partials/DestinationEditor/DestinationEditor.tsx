@@ -289,7 +289,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
           <EditorButtons
             save={{
               isRequestPending: destinationSaving,
-              isPopoverVisible: savePopover,
+              isPopoverVisible: savePopover && destinationsTabs.current.some((tab: Tab) => tab.errorsCount > 0),
               handlePress: handleSubmit,
               handlePopoverClose: savePopoverClose,
               titleText: 'Destination editor errors',
