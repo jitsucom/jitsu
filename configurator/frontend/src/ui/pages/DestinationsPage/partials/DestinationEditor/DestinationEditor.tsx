@@ -67,6 +67,8 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     return destinationsReferenceMap[destinationData.current._type];
   }, [params.type]);
 
+  const submittedOnce = useRef<boolean>(false);
+
   const destinationsTabs = useRef<Tab[]>([{
     key: 'config',
     name: 'Connection Properties',
@@ -75,7 +77,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
         form={form}
         destinationReference={destinationReference}
         destinationData={destinationData.current}
-        handleTouchAnyField={setTouchedFields(0)}
+        handleTouchAnyField={validateAndTouchField(0)}
       />,
     form: Form.useForm()[0],
     touched: false
@@ -87,7 +89,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
       <DestinationEditorMappings
         form={form}
         initialValues={destinationData.current?._mappings}
-        handleTouchAnyField={setTouchedFields(1)}
+        handleTouchAnyField={validateAndTouchField(1)}
       />,
     form: Form.useForm()[0],
     touched: false
@@ -100,7 +102,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
         form={form}
         initialValues={destinationData.current}
         destination={destinationReference}
-        handleTouchAnyField={setTouchedFields(2)}
+        handleTouchAnyField={validateAndTouchField(2)}
         sources={sources}
         sourcesError={sourcesError}
       />,
@@ -155,11 +157,13 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     }
   }, [forceUpdate]);
 
-  const setTouchedFields = useCallback(
+  const validateAndTouchField = useCallback(
     (index: number) => (value: boolean) => {
       destinationsTabs.current[index].touched = value === undefined ? true : value;
 
-      validateTabForm(destinationsTabs.current[index]);
+      if (submittedOnce.current) {
+        validateTabForm(destinationsTabs.current[index]);
+      }
     },
     [validateTabForm]
   );
@@ -184,6 +188,8 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   }, [validateTabForm, forceUpdate]);
 
   const handleSubmit = useCallback(() => {
+    submittedOnce.current = true;
+
     setDestinationSaving(true);
 
     Promise
