@@ -207,9 +207,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
           updateSources({ sources: updatedSources });
         } catch (error) {}
 
-        if (destinationData.current._mappings?._keepUnmappedFields) {
-          destinationData.current._mappings._keepUnmappedFields = Boolean(destinationData.current._mappings._keepUnmappedFields);
-        }
+        destinationData.current._mappings._keepUnmappedFields = Boolean(destinationData.current._mappings._keepUnmappedFields);
 
         try {
           await destinationEditorUtils.testConnection(destinationData.current, true);
