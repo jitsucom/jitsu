@@ -43,7 +43,7 @@ export const DestinationsPage = (props: PageProps) => {
     setBreadcrumbs: props.setBreadcrumbs,
     destinations: destinations?.destinations ?? [],
     updateDestinations,
-    sources: sourcesData?.sources,
+    sources: sourcesData?.sources ?? [],
     sourcesError,
     updateSources
   }), [props.setBreadcrumbs, destinations, updateDestinations, sourcesData, sourcesError, updateSources]);
