@@ -5,7 +5,7 @@ import { message } from 'antd';
 import { SourceConnector } from '@catalog/sources/types';
 // @Utils
 import { getUniqueAutoIncId } from '@util/numbers';
-import { handleError } from '@./lib/components/components';
+import { closeableMessage, handleError } from '@./lib/components/components';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import Marshal from '@./lib/commons/marshalling';
@@ -30,7 +30,7 @@ const sourcePageUtils = {
       await ApplicationServices.get().backendApiClient.post('/sources/test', Marshal.toPureJson(src));
 
       if (!hideMessage) {
-        message.success('Successfully connected!');
+        closeableMessage.info('Successfully connected!');
       }
 
       return {

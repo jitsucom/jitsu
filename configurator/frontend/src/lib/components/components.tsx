@@ -170,7 +170,7 @@ function messageFactory(type: string): MessageFunc {
 export type MessageContent = string | ReactNode | ArgsProps;
 export type MessageFunc = (args: MessageContent) => MessageType;
 
-const closeableMessage: Record<'error' | 'info' | 'warn', MessageFunc> = {
+export const closeableMessage: Record<'error' | 'info' | 'warn', MessageFunc> = {
   error: messageFactory('error'),
   info: messageFactory('info'),
   warn: messageFactory('warn')

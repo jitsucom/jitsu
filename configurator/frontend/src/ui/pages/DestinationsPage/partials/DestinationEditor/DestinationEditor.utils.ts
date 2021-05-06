@@ -1,6 +1,6 @@
 import ApplicationServices from '@service/ApplicationServices';
 import Marshal from '@./lib/commons/marshalling';
-import { handleError } from '@./lib/components/components';
+import { closeableMessage, handleError } from '@./lib/components/components';
 import { message } from 'antd';
 import { firstToLower } from '@./lib/commons/utils';
 
@@ -12,7 +12,7 @@ const destinationEditorUtils = {
       dst._connectionTestOk = true;
 
       if (!hideMessage) {
-        message.success('Successfully connected!');
+        closeableMessage.info('Successfully connected!');
       }
     } catch (error) {
       dst._connectionTestOk = false;
