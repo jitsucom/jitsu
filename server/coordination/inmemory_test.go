@@ -1,12 +1,15 @@
 package coordination
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIncrementVersion(t *testing.T) {
+	telemetry.InitTest()
 	ims := NewInMemoryService([]string{"instance1"})
 
 	go func() {

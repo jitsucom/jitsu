@@ -1,5 +1,23 @@
 @import '../../theme.less';
 
+.closable-message {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+}
+
+.close-message-icon {
+  display: inline-block;
+  color: @text-color-secondary !important;
+  position: static !important;
+  margin: -16px -8px 0 8px !important;
+
+  svg {
+    width: 10px;
+    height: 10px;
+  }
+}
+
 .error-image {
   height: 300px;
 }

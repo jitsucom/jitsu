@@ -2,10 +2,11 @@ package coordination
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/storages"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/storages"
 )
 
 type InMemoryLock struct {

@@ -54,7 +54,7 @@ func NewRedis(ctx context.Context, sourceConfig *SourceConfig, collection *Colle
 	}
 
 	if config.Port.String() == "" {
-		config.Port = json.Number("5439")
+		config.Port = "6379"
 		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", sourceConfig.SourceID, config.Port.String())
 	}
 

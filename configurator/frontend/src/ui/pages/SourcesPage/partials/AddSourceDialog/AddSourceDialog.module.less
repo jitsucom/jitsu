@@ -1,5 +1,5 @@
 @import './src/theme';
-@import './src/assets/transition';
+@import './src/assets/mixins/transition';
 
 .dialog {
   .filter {
@@ -43,7 +43,6 @@
       align-items: center;
       cursor: pointer;
       position: relative;
-      overflow: hidden;
       background-color: @background-color-light;
       .default-transition(border-color);
       @apply border rounded-xl;
@@ -70,10 +69,11 @@
         position: absolute;
         top: 0;
         right: 0;
-        width: 60px;
-        height: 60px;
+        width: 63px;
+        height: 63px;
         background: @primary-background;
         overflow: hidden;
+        @apply rounded-xl;
 
         .starIcon {
           position: absolute;
@@ -108,8 +108,8 @@
           transform: rotate(45deg);
           width: 80px;
           height: 80px;
-          top: 20px;
-          right: 20px;
+          top: 15px;
+          right: 15px;
         }
       }
 
@@ -122,7 +122,7 @@
       }
 
       .expertLabel {
-        right: 0;
+
       }
 
       &:hover {

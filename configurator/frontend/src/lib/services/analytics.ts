@@ -266,6 +266,7 @@ export default class AnalyticsService {
           }
         });
       }
+
     }
   }
 }
