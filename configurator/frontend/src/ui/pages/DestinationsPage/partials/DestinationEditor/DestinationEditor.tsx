@@ -267,7 +267,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
       elements: [
         { title: 'Destinations', link: destinationPageRoutes.root },
         {
-          title: <PageHeader title={destinationReference.displayName} icon={destinationReference.ui.icon} mode="edit" />
+          title: <PageHeader title={destinationReference.displayName} icon={destinationReference.ui.icon} mode={editorMode} />
         }
       ]
     }));
