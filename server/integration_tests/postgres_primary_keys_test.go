@@ -13,6 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/spf13/viper"
@@ -21,6 +22,7 @@ import (
 
 //Test postgres adapter with primary keys and without (make sure primary keys are deleted)
 func TestPrimaryKeyRemoval(t *testing.T) {
+	telemetry.InitTest()
 	viper.Set("server.log.path", "")
 
 	ctx := context.Background()

@@ -58,7 +58,7 @@ func NewService(ctx context.Context, sources *viper.Viper, sourcesURL string, de
 	}
 
 	if sources == nil && sourcesURL == "" {
-		logging.Warnf("Sources aren't configured")
+		logging.Warnf("❌ Sources aren't configured")
 		return service, nil
 	}
 

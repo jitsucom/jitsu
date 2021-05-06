@@ -116,15 +116,15 @@ func Init(containerized bool, dockerHubID string) error {
 	logDeprecatedImageUsage(dockerHubID)
 
 	if globalLoggerConfig.FileDir != "" {
-		logging.Infof("Using server.log.path directory: %q", globalLoggerConfig.FileDir)
+		logging.Infof("📂 Using server.log.path directory: %q", globalLoggerConfig.FileDir)
 	}
 
-	logging.Info("Starting Jitsu Server. Server name: ", serverName)
+	logging.Infof("🚀 Starting Jitsu Server. Server name: %s", serverName)
 	publicURL := viper.GetString("server.public_url")
 	if publicURL == "" {
-		logging.Info("Server public url will be taken from Host header")
+		logging.Info("💻 Server public url will be taken from Host header")
 	} else {
-		logging.Info("Server public url:", publicURL)
+		logging.Infof("💻 Server public url: %s", publicURL)
 	}
 
 	var appConfig AppConfig
@@ -205,13 +205,13 @@ func loadGeoResolver() geo.Resolver {
 	if viper.IsSet("geo.maxmind_path") {
 		geoResolver, err := geo.CreateResolver(geoPath)
 		if err != nil {
-			logging.Warnf("Failed to load MaxMind DB from %s: %v. Geo resolution won't be available", geoPath, err)
+			logging.Warnf("❌ Failed to load MaxMind DB from %s: %v. Geo resolution won't be available", geoPath, err)
 		} else {
-			logging.Info("Loaded MaxMind db:", geoPath)
+			logging.Info("✅ Loaded MaxMind db:", geoPath)
 			return geoResolver
 		}
 	} else {
-		logging.Info("Geo resolution won't be available as geo.maxmind_path is not set")
+		logging.Info("❌ Geo resolution won't be available as geo.maxmind_path is not set")
 	}
 
 	return &geo.DummyResolver{}
