@@ -41,7 +41,7 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, so
 
     try {
       const updatesSources = destinationEditorUtils.updateSources(sources, currentDestination, appServices.activeProject.id);
-      updateSources(updatesSources);
+      updateSources({ sources: updatesSources });
 
       await appServices.storageService.save('destinations', { destinations: newDestinations }, appServices.activeProject.id);
 
