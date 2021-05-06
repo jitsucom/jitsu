@@ -123,10 +123,6 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     touched: false
   }]);
 
-  const getPromptMessage = useCallback(() => destinationsTabs.current.some(tab => tab.touched)
-    ? 'You have unsaved changes. Are you sure you want to leave the page?'
-    : undefined, []);
-
   const handleCancel = useCallback(() => history.push(destinationPageRoutes.root), [history]);
 
   const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
@@ -308,7 +304,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
         </div>
       </div>
 
-      <Prompt message={getPromptMessage}/>
+      <Prompt message={destinationEditorUtils.getPromptMessage(destinationsTabs.current)}/>
     </>
   );
 };

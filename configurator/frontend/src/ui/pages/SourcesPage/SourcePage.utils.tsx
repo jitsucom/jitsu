@@ -11,6 +11,7 @@ import ApplicationServices from '@service/ApplicationServices';
 import Marshal from '@./lib/commons/marshalling';
 // @Components
 import { ListItemTitle } from '@atom/ListItemTitle';
+import { Tab } from '@molecule/TabsConfigurator';
 
 const sourcePageUtils = {
   getSourceType: (sourceConnector: SourceConnector) => sourceConnector?.isSingerType
@@ -55,7 +56,8 @@ const sourcePageUtils = {
         <>Last connection test failed with <b><i>'{src.connectedErrorMessage}'</i></b>. Source might be unavailable. Please, go to editor and fix the connection settings</>
       }
     />
-  }
+  },
+  getPromptMessage: (tabs: Tab[]) => () => tabs.some(tab => tab.touched) ? 'You have unsaved changes. Are you sure you want to leave the page?': undefined
 };
 
 export { sourcePageUtils };

@@ -3,6 +3,7 @@ import Marshal from '@./lib/commons/marshalling';
 import { closeableMessage, handleError } from '@./lib/components/components';
 import { message } from 'antd';
 import { firstToLower } from '@./lib/commons/utils';
+import { Tab } from '@molecule/TabsConfigurator';
 
 const destinationEditorUtils = {
   testConnection: async(dst: DestinationData, hideMessage?: boolean) => {
@@ -66,7 +67,10 @@ const destinationEditorUtils = {
         10
       );
     }
-  }
+  },
+  getPromptMessage: (tabs: Tab[]) => () => tabs.some(tab => tab.touched)
+    ? 'You have unsaved changes. Are you sure you want to leave the page?'
+    : undefined
 };
 
 export { destinationEditorUtils };

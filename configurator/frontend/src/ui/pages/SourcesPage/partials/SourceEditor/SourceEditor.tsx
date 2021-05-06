@@ -139,11 +139,6 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
   const handleCancel = useCallback(() => history.push(sourcesPageRoutes.root), [history]);
 
-  const getPromptMessage = useCallback(
-    () => sourcesTabs.current.some(tab => tab.touched) ? 'You have unsaved changes. Are you sure you want to leave the page?': undefined,
-    []
-  );
-
   const handleTestConnection = useCallback(async() => {
     setTestConnecting(true);
 
@@ -303,7 +298,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         </div>
       </div>
 
-      <Prompt message={getPromptMessage}/>
+      <Prompt message={sourcePageUtils.getPromptMessage(sourcesTabs.current)}/>
     </>
   );
 };
