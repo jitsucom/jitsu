@@ -180,7 +180,7 @@ func main() {
 	loggerFactory := logging.NewFactory(logEventPath, logRotationMin, viper.GetBool("log.show_in_server"),
 		appconfig.Instance.GlobalDDLLogsWriter, appconfig.Instance.GlobalQueryLogsWriter)
 
-	// Meta storage
+	// ** Meta storage **
 	metaStorageConfiguration := viper.Sub("meta.storage")
 	metaStorage, err := meta.NewStorage(metaStorageConfiguration)
 	if err != nil {
@@ -189,47 +189,47 @@ func main() {
 	// Close after all for saving last task statuses
 	defer metaStorage.Close()
 
-	//TODO remove deprecated someday
-	//coordination service
+	// ** Coordination Service **
 	var coordinationService coordination.Service
 	if viper.IsSet("coordination") {
 		coordinationType := viper.GetString("coordination.type")
-		if coordinationType == "redis" {
-			configuration := metaStorageConfiguration.Sub("redis")
-			if configuration != nil {
-				host := configuration.GetString("host")
-				port := configuration.GetInt("port")
-				password := configuration.GetString("password")
-				coordinationService, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, host, port, password)
-				if err != nil {
-					logging.Fatal("Failed to initiate coordination service", err)
-				}
-			} else {
-				logging.Warn("Expected 'redis' section in 'meta.storage' section")
+		switch coordinationType {
+		case "redis":
+			redisConfiguration := metaStorageConfiguration.Sub("redis")
+			if redisConfiguration == nil {
+				logging.Fatal("'meta.storage.redis' is required when Redis coordination is used")
 			}
-		} else {
-			logging.Warn("Currently coordination service uses only redis implementation")
+
+			coordinationService, err = coordination.NewRedisService(ctx, appconfig.Instance.ServerName, redisConfiguration.GetString("host"),
+				redisConfiguration.GetInt("port"), redisConfiguration.GetString("password"))
+			if err != nil {
+				logging.Fatal("Failed to initiate Redis coordination service", err)
+			}
+		case "etcd":
+			coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("coordination.etcd.endpoint"), viper.GetUint("coordination.etcd.connection_timeout_seconds"))
+			if err != nil {
+				logging.Fatal("Failed to initiate etcd coordination service", err)
+			}
+		default:
+			logging.Errorf("Unknown coordination.type: %s. Currently only 'redis' is supported", coordinationType)
 		}
 	}
 
 	if coordinationService == nil {
+		//TODO remove deprecated someday
 		if viper.IsSet("synchronization_service") {
-			logging.Warnf("'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
+			logging.Warnf("\n\t'synchronization_service' configuration is DEPRECATED. For more details see https://jitsu.com/docs/other-features/scaling-eventnative")
 
 			coordinationService, err = coordination.NewEtcdService(ctx, appconfig.Instance.ServerName, viper.GetString("synchronization_service.endpoint"), viper.GetUint("synchronization_service.connection_timeout_seconds"))
+			if err != nil {
+				logging.Fatal("Failed to initiate etcd coordination service", err)
+			}
 		} else {
-			coordinationService, err = coordination.NewService(ctx, appconfig.Instance.ServerName, viper.Sub("coordination"))
+			//inmemory service (default)
+			logging.Info("Coordination service isn't provided. Jitsu server is working in single-node mode. " +
+				"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
+			coordinationService = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
 		}
-
-		if err != nil {
-			logging.Fatal("Failed to initiate coordination service", err)
-		}
-	}
-
-	if coordinationService == nil {
-		logging.Info("Coordination service isn't provided. Jitsu server is working in single-node mode. " +
-			"\n\tRead about scaling Jitsu to multiple nodes: https://jitsu.com/docs/other-features/scaling-eventnative")
-		coordinationService = coordination.NewInMemoryService([]string{appconfig.Instance.ServerName})
 	}
 
 	appconfig.Instance.ScheduleClosing(coordinationService)

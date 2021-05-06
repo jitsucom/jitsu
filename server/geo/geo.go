@@ -79,7 +79,7 @@ func createGeoIPParser(geoipPath string) (*geoip2.Reader, error) {
 	}
 }
 
-//Get location info from client ip address
+//Resolve returns location info parsed from client ip address
 func (mr *MaxMindResolver) Resolve(ip string) (*Data, error) {
 	data := &Data{}
 	if ip == "" {

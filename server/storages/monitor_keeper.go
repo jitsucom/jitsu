@@ -68,7 +68,8 @@ func (rl *RetryableLock) unlockWithRetry(retry int) {
 	}
 }
 
-//unlock release resources
+//unlock release resources.
+//Note: should be done with background context (app context is closed on app shutdown)
 func (rl *RetryableLock) unlock() error {
 	ctx := context.Background()
 	if err := rl.resourceLock.Unlock(ctx); err != nil {
