@@ -142,7 +142,7 @@ destinations:
 #    only_tokens: ['client_secret1', 'client_secret2']
 #    mode: stream
 #    datasource:
-#      schema: eventnative # Optional. Default value is 'public'
+#      schema: jitsu # Optional. Default value is 'public'
 #      host: your_host.com
 #      db: your_db
 #      username: your_username
@@ -212,7 +212,7 @@ destinations:
 #    snowflake:
 #      account: ina15845
 #      db: demo_db
-#      schema: eventnative #Optional. Default value is PUBLIC
+#      schema: jitsu #Optional. Default value is PUBLIC
 #      username: username
 #      password: password
 #      warehouse: compute_wh
@@ -328,10 +328,17 @@ destinations:
 #            action: move
 
 
-### Coordination in EventNative cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
+### Coordination in Jitsu Server cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
 # coordination: # Optional. This section is required in cluster deployments.
-#   type: redis # Now EventNative supports redis
-#   etcd: # Now etcd support is deprecated
+### Redis configuration
+#   redis:
+#     host: redis_host
+#     port: 6379 #Optional. Default value is 6379
+#     password: abc #Optional.
+### Redis configuration shortcut (meta.storage redis will be used)
+#   type: redis
+### Etcd configuration example
+#   etcd:
 #     endpoint: http://your_etcd_host
 #     connection_timeout_seconds: 60 # Optional. Default value is 60
 

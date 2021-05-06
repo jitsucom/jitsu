@@ -61,7 +61,7 @@ func (mp *MutexProxy) Unlock(context context.Context) error {
 
 //NewRedisService returns configured RedisService instance
 func NewRedisService(ctx context.Context, serverName string, host string, port int, password string) (Service, error) {
-	logging.Info("Initializing redis coordination service...")
+	logging.Infof("🛫 Initializing redis coordination service [%s:%d]...", host, port)
 
 	if port == 0 {
 		port = 6379
@@ -79,7 +79,6 @@ func NewRedisService(ctx context.Context, serverName string, host string, port i
 	}
 
 	telemetry.Coordination("redis")
-	logging.Info("Using redis as a coordination service")
 
 	rs := &RedisService{
 		ctx:        ctx,

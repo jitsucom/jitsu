@@ -46,6 +46,7 @@ type EtcdService struct {
 //starts EtcdService heart beat goroutine: see EtcdService.startHeartBeating()
 //DEPRECATED
 func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTimeoutSeconds uint) (Service, error) {
+	logging.Info("🛫 Initializing etcd coordination service...")
 	if endpoint == "" {
 		return nil, errors.New("'endpoint' is required parameter for type: etcd")
 	}
@@ -64,7 +65,6 @@ func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTim
 	es := &EtcdService{ctx: ctx, serverName: serverName, client: client, unlockMe: map[string]*storages.RetryableLock{}}
 	es.startHeartBeating()
 
-	logging.Info("Using etcd as a coordination service")
 	telemetry.Coordination("etcd")
 	return es, nil
 }

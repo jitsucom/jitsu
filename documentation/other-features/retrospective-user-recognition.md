@@ -23,15 +23,34 @@ Right after **event3** **EventNative** amends **event1** and **event2** and adds
 | **event4** | 1 | a@b.com |
 
 <Hint>
-    Fields anonymous_id and email are configurable.
+    Fields anonymous_id and email are configurable. See <code inline="true">identification_nodes</code> below.
 </Hint>
+
+### Resources
+
+In case if Retrospective Users Recognition feature is enabled - all incoming anonymous events (events JSON without filled `identification_nodes`) are saved in `meta.storage` (Redis).
+Events are saved under Redis key that contains user anonymous ID. Once any event with filled `identification_nodes` is received (identification event) - Jitsu updates these events in Data Warehouse and removes them from Redis.
+
+<Hint>
+    Redis can take up a significant amount of RAM. It can be reduced by adding <code inline="true">ttl_minutes.anonymous_events</code> to <code inline="true">meta.storage</code> configuration (see below). 
+    TTL (time to live) is applied to Redis keys. It means that events from anonymous users that no longer visit your web pages will be deleted from Redis at the expiration time.
+</Hint>
+ 
+There is an approximate formula for RAM size prediction:
+
+```text
+SERVER RAM = 1 Event Size * Events per month
+
+1 event ~= 2 Kbyte
+10 000 000 events per month ~= 20GB RAM per month
+```
 
 ### Configuration
 
 For enabling this feature, a global `users_recognition` must present in the configuration. The global configuration is applied to all destinations. It means that all events which are supposed to be stored into destinations of Postgres, Redshift and ClickHouse types will be sent through the users recognition pipeline and all anonymous events will be stored into meta storage. Configuration per destination overrides the global one.
 
 <Hint>
-    This feature requires: meta.storage and primary_key_fields configuration in Postgres or Redshift destination.
+    This feature requires: <code inline="true">meta.storage</code> and <code inline="true">primary_key_fields</code> configuration in Postgres or Redshift destination.
     Read more about those settings on <a href="/docs/configuration/">General Configuration</a>
 </Hint>
 
@@ -66,6 +85,8 @@ meta:
       host: redis_host
       port: 6379
       password: secret_password
+      ttl_minutes: #Optional. Anonymous events TTL in minutes. Default value: no TTL
+        anonymous_events: 10080 #7 days
  
 #Global configuration is applied to all destinations
 #Example of compatible JS SDK 2.0 format
