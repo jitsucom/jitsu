@@ -32,6 +32,7 @@ import { getUniqueAutoIncId, randomId } from '@util/numbers';
 import { firstToLower } from '@./lib/commons/utils';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
+import { closeableMessage } from '@./lib/components/components';
 
 const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, editorMode, sources, sourcesError, updateSources }: CommonDestinationPageProps) => {
   const history = useHistory();
@@ -238,11 +239,10 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
           if (destinationData.current._connectionTestOk) {
             message.success('New destination has been added!');
           } else {
-            message.warn(
+            closeableMessage.warn(
               `Destination has been saved, but test has failed with '${firstToLower(
                 destinationData.current._connectionErrorMessage
-              )}'. Data will not be piped to this destination`,
-              3
+              )}'. Data will not be piped to this destination`
             );
           }
 

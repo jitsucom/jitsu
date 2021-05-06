@@ -158,11 +158,12 @@ function messageFactory(type: string): MessageFunc {
     const customization = {
       icon: <span className="text-error hover:font-bold" onClick={() => message.destroy(key)}>{iconsByType[type]}</span>,
       key,
+      duration: 100
     };
-    return message[type](typeof content === 'object' && content['content'] ? {
-      ...(content as any),
-      ...customization
-    } : {...customization, content});
+
+    const closeableContent = <span className="closable-message">{content} <CloseOutlined className="close-message-icon" onClick={() => message.destroy(key)} /></span>;
+
+    return message[type]({...customization, content: <>{closeableContent}</> });
   }
 }
 
@@ -389,6 +390,7 @@ import bash from 'react-syntax-highlighter/dist/esm/languages/hljs/bash';
 import html from 'react-syntax-highlighter/dist/esm/languages/hljs/xml'
 import { ArgsProps, MessageInstance } from 'antd/es/message';
 import { MessageType } from 'antd/lib/message';
+import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
 
 SyntaxHighlighter.registerLanguage('javascript', js);
 SyntaxHighlighter.registerLanguage('json', json);
