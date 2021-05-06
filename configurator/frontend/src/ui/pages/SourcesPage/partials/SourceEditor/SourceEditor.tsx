@@ -31,6 +31,8 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 import ApplicationServices from '@service/ApplicationServices';
 import { handleError } from '@./lib/components/components';
 import { firstToLower } from '@./lib/commons/utils';
+// @Styles
+import styles from './SourceEditor.module.less';
 
 const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
   const services = ApplicationServices.get();
@@ -70,6 +72,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     } as SourceData
   );
 
+  const submittedOnce = useRef<boolean>(false);
+
   const sourcesTabs = useRef<Tab[]>([{
     key: 'config',
     name: 'Connection Properties',
@@ -80,7 +84,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         isCreateForm={editorMode === 'add'}
         initialValues={sourceData.current}
         sources={sources}
-        handleTouchAnyField={setTouchedFields(0)}
+        handleTouchAnyField={validateAndTouchField(0)}
       />
     ),
     form: Form.useForm()[0],
@@ -94,7 +98,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         form={form}
         initialValues={sourceData.current}
         connectorSource={connectorSource}
-        handleTouchAnyField={setTouchedFields(1)}
+        handleTouchAnyField={validateAndTouchField(1)}
       />
     ),
     form: Form.useForm()[0],
@@ -109,7 +113,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         form={form}
         initialValues={sourceData.current}
         projectId={projectId}
-        handleTouchAnyField={setTouchedFields(2)}
+        handleTouchAnyField={validateAndTouchField(2)}
       />
     ),
     form: Form.useForm()[0],
@@ -117,13 +121,15 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     touched: false
   }]);
 
-  const setTouchedFields = useCallback(
+  const validateAndTouchField = useCallback(
     (index: number) => (value: boolean) => {
       const tab = sourcesTabs.current[index];
 
       tab.touched = value === undefined ? true : value
 
-      validateTabForm(tab, { forceUpdate, beforeValidate: () => tab.errorsCount = 0, errorCb: errors => tab.errorsCount = errors.errorFields?.length });
+      if (submittedOnce.current) {
+        validateTabForm(tab, { forceUpdate, beforeValidate: () => tab.errorsCount = 0, errorCb: errors => tab.errorsCount = errors.errorFields?.length });
+      }
     },
     [forceUpdate]
   );
@@ -170,6 +176,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   }, [forceUpdate]);
 
   const handleSubmit = useCallback(() => {
+    submittedOnce.current = true;
+
     setSourceSaving(true);
 
     Promise
@@ -266,6 +274,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         <div className={cn('flex-grow')}>
           <TabsConfigurator
             type="card"
+            className={styles.tabCard}
             tabsList={sourcesTabs.current}
             defaultTabIndex={0}
           />
