@@ -15,9 +15,7 @@ import { DESTINATION_EDITOR_MAPPING } from '@./embeddedDocs/mappings';
 // @Styles
 import styles from './DestinationEditor.module.less';
 // @Utils
-import { validationChain } from '@util/validation/validationChain';
-import { requiredValidator } from '@util/validation/validators';
-import { jsonPointerValidator } from '@util/validation/jsonPointer';
+import { isValidJsonPointer } from '@util/validation/jsonPointer';
 
 export interface Props {
   form: FormInstance;
@@ -126,7 +124,7 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
                                 span: ['move', 'cast'].includes(actions[field.name]) ? 6 : 4
                               }}
                               labelAlign="left"
-                              rules={[requiredValidator(true, 'This')]}
+                              rules={[{ required: true, message: 'This field is required.' }]}
                             >
                               <Select onChange={handleActionChange(field.name)}>
                                 {
@@ -162,7 +160,7 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
                                     label={actions[field.name] === 'cast' ? <span>Type: </span> : <span>Type: <sup>optional</sup></span>}
                                     labelCol={{ span: 9 }}
                                     labelAlign="left"
-                                    rules={actions[field.name] === 'cast' ? [requiredValidator(true, 'This')] : undefined}
+                                    rules={actions[field.name] === 'cast' ? [{ required: true, message: 'This field is required.' }] : undefined}
                                   >
                                     <Input onChange={handleTypeChange(field.name)} autoComplete="off" />
                                   </Form.Item>
@@ -193,10 +191,13 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
                                   label={<span>From: </span>}
                                   labelCol={{ span: 4 }}
                                   labelAlign="left"
-                                  rules={validationChain(
-                                    requiredValidator(true, 'This'),
-                                    jsonPointerValidator()
-                                  )}
+                                  rules={[{
+                                    validator: (rule, value) => !value
+                                      ? Promise.reject('This field is required.')
+                                      : isValidJsonPointer(value)
+                                        ? Promise.resolve()
+                                        : Promise.reject('Invalid JSON pointer syntax. Should be /path/to/element')
+                                  }]}
                                 >
                                   <Input autoComplete="off" />
                                 </Form.Item>
@@ -213,10 +214,13 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
                                   label={<span>To: </span>}
                                   labelCol={{ span: 4 }}
                                   labelAlign="left"
-                                  rules={validationChain(
-                                    requiredValidator(true, 'This'),
-                                    jsonPointerValidator()
-                                  )}
+                                  rules={[{
+                                    validator: (rule, value) => !value
+                                      ? Promise.reject('This field is required.')
+                                      : isValidJsonPointer(value)
+                                        ? Promise.resolve()
+                                        : Promise.reject('Invalid JSON pointer syntax. Should be /path/to/element')
+                                  }]}
                                 >
                                   <Input autoComplete="off" />
                                 </Form.Item>

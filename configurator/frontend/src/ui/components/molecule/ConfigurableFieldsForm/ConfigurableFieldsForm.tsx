@@ -14,7 +14,7 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { dsnValidator } from './configurableFieldsForm.utils';
 import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { validationChain } from '@util/validation/validationChain';
-import { isoDateValidator, requiredValidator } from '@util/validation/validators';
+import { isoDateValidator } from '@util/validation/validators';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
@@ -155,10 +155,11 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
                   labelCol={{ span: 6 }}
                   wrapperCol={{ span: 18 }}
                   rules={
-                    !isHidden && validationChain(
-                      requiredValidator(required, displayName),
-                      type?.typeName === 'isoUtcDate' && isoDateValidator()
-                    )
+                    !isHidden
+                      ? type?.typeName === 'isoUtcDate'
+                        ? [isoDateValidator(`${displayName} field is required.`)]
+                        : [{ required, message: `${displayName} field is required.` }]
+                      : undefined
                   }
                 >
                   {getFieldComponent(type, id, additionalProps)}
