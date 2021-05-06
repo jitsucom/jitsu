@@ -204,15 +204,12 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
           updateSources({ sources: updatedSources });
         } catch (error) {}
 
+        // ToDo: remove this code after _mappings refactoring
         destinationData.current = {
           ...destinationData.current,
           _mappings: {
             ...destinationData.current._mappings,
             _keepUnmappedFields: Boolean(destinationData.current._mappings._keepUnmappedFields)
-          },
-          _formData: {
-            ...destinationData.current._formData,
-            mode: destinationData.current._formData.mode ?? 'stream'
           }
         };
 
