@@ -155,7 +155,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
                   labelCol={{ span: 6 }}
                   wrapperCol={{ span: 18 }}
                   rules={
-                    validationChain(
+                    !isHidden && validationChain(
                       requiredValidator(required, displayName),
                       type?.typeName === 'isoUtcDate' && isoDateValidator()
                     )
