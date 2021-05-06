@@ -246,7 +246,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
               `Destination has been saved, but test has failed with '${firstToLower(
                 destinationData.current._connectionErrorMessage
               )}'. Data will not be piped to this destination`,
-              10
+              3
             );
           }
 
