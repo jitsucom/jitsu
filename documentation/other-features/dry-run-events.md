@@ -1,10 +1,11 @@
-import {APIMethod, APIParam} from "../../../components/documentationComponents"; import {CodeInTabs, CodeTab} from "../../../components/Code";
+import {APIMethod, APIParam} from "../../../components/documentationComponents";
+import {CodeInTabs, CodeTab} from "../../../components/Code";
 
 # Test mapping with Dry-Run
 
 
 
-To figure out what structure will be used to store your event without saving it to the destination, you may use a dry run endpoint and get the structure of the processed event. 
+To figure out what structure will be used to store your event without saving it to the destination, you may use a dry run endpoint and get the structure of the processed event.
 
 If you want to configure the destination so that it could not be used in production, i.e. no data is stored there,
 you may use `staged` parameter set to true \(see more information at
