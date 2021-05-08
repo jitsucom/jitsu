@@ -72,7 +72,12 @@ class CookiePersistence implements Persistence {
     let str = getCookie(this.cookieName);
     if (str) {
       try {
-        return JSON.parse(decodeURIComponent(str));
+        const parsed = JSON.parse(decodeURIComponent(str));
+        if (typeof parsed !== 'object') {
+          getLogger().warn(`Can't restore value of ${this.cookieName}@${this.cookieDomain}, expected to be object, but found ${typeof parsed !== 'object'}: ${parsed}. Ignoring`)
+          return undefined;
+        }
+        return parsed;
       } catch (e) {
         getLogger().error('Failed to decode JSON from ' + str, e);
         return undefined;
@@ -261,6 +266,16 @@ class JitsuClientImpl implements JitsuClient {
     this.userIdPersistence = new CookiePersistence(this.cookieDomain, this.idCookieName + '_usr');
     this.propsPersistance = new CookiePersistence(this.cookieDomain, this.idCookieName + '_props');
 
+    if (this.propsPersistance) {
+      const restored = this.propsPersistance.restore();
+      if (restored) {
+        this.permanentProperties = restored as PermanentProperties;
+        this.permanentProperties.globalProps = restored.globalProps ?? {};
+        this.permanentProperties.propsPerEvent = restored.propsPerEvent ?? {};
+      }
+      getLogger().debug('Restored persistent properties', this.permanentProperties);
+    }
+
     if (options.capture_3rd_party_cookies === false) {
       this._3pCookies = {}
     } else {
@@ -339,7 +354,7 @@ class JitsuClientImpl implements JitsuClient {
     }
 
     if (this.propsPersistance && persist) {
-      this.propsPersistance.save(eventType);
+      this.propsPersistance.save(this.permanentProperties);
     }
   }
 
@@ -353,7 +368,7 @@ class JitsuClientImpl implements JitsuClient {
       delete this.permanentProperties.propsPerEvent[eventType][propertyName];
     }
     if (this.propsPersistance && persist) {
-      this.propsPersistance.save(eventType);
+      this.propsPersistance.save(this.permanentProperties);
     }
   }
 }
