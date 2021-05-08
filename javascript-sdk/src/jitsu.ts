@@ -31,7 +31,7 @@ const xmlHttpReqTransport: Transport = (url: string, json: string): Promise<void
     };
     req.onload = () => {
       if (req.status !== 200) {
-        getLogger().warn(`Failed to send data (#${req.status} - ${req.statusText})`, json);
+        getLogger().warn(`Failed to send data to ${url} (#${req.status} - ${req.statusText})`, json);
         reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
       }
       resolve();
@@ -50,7 +50,12 @@ const beaconTransport: Transport = (url: string, json: string): Promise<void> =>
   return Promise.resolve();
 }
 
-class UserIdPersistance {
+interface Persistence {
+  save(props: Record<string, any>)
+  restore(): Record<string, any> | undefined
+}
+
+class CookiePersistence implements Persistence {
   private cookieDomain: string;
   private cookieName: string;
 
@@ -85,11 +90,20 @@ export function jitsuClient(opts?: JitsuOptions): JitsuClient {
   return client;
 }
 
+type PermanentProperties = {
+  globalProps: Record<string, any>
+  propsPerEvent: Record<string, Record<string, any>>
+
+}
+
 class JitsuClientImpl implements JitsuClient {
-  private userIdPersistance?: UserIdPersistance;
+  private userIdPersistence?: Persistence;
+  private propsPersistance?: Persistence;
+  private
 
   private anonymousId: string = '';
   private userProperties: UserProps = {}
+  private permanentProperties: PermanentProperties = { globalProps: {}, propsPerEvent: {}}
   private cookieDomain: string = '';
   private trackingHost: string = '';
   private idCookieName: string = '';
@@ -105,8 +119,8 @@ class JitsuClientImpl implements JitsuClient {
     this.userProperties = { ...this.userProperties, ...props }
     getLogger().debug('Jitsu user identified', props)
 
-    if (this.userIdPersistance) {
-      this.userIdPersistance.save(props);
+    if (this.userIdPersistence) {
+      this.userIdPersistence.save(props);
     } else {
       getLogger().warn('Id() is called before initialization')
     }
@@ -141,6 +155,8 @@ class JitsuClientImpl implements JitsuClient {
       api_key: this.apiKey,
       src,
       event_type,
+      ...this.permanentProperties.globalProps,
+      ...(this.permanentProperties.propsPerEvent[event_type] ?? {}),
       ...payload
     }
 
@@ -241,7 +257,10 @@ class JitsuClientImpl implements JitsuClient {
     this.randomizeUrl = options.randomize_url || false;
     this.idCookieName = options.cookie_name || '__eventn_id';
     this.apiKey = options.key;
-    this.userIdPersistance = new UserIdPersistance(this.cookieDomain, this.idCookieName + '_usr');
+
+    this.userIdPersistence = new CookiePersistence(this.cookieDomain, this.idCookieName + '_usr');
+    this.propsPersistance = new CookiePersistence(this.cookieDomain, this.idCookieName + '_props');
+
     if (options.capture_3rd_party_cookies === false) {
       this._3pCookies = {}
     } else {
@@ -300,11 +319,41 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   private restoreId() {
-    if (this.userIdPersistance) {
-      let props = this.userIdPersistance.restore();
+    if (this.userIdPersistence) {
+      let props = this.userIdPersistence.restore();
       if (props) {
         this.userProperties = { ...props, ...this.userProperties };
       }
+    }
+  }
+
+  set(properties, opts) {
+    const eventType = opts?.eventType;
+    const persist = opts?.persist === undefined || opts?.persist
+    console.log("Setting", properties);
+    if (eventType !== undefined) {
+      let current = this.permanentProperties.propsPerEvent[eventType] ?? {};
+      this.permanentProperties.propsPerEvent[eventType] = {...current, ...properties};
+    } else {
+      this.permanentProperties.globalProps = {...this.permanentProperties.globalProps, ...properties};
+    }
+
+    if (this.propsPersistance && persist) {
+      this.propsPersistance.save(eventType);
+    }
+  }
+
+  unset(propertyName: string, opts) {
+    const eventType = opts?.eventType;
+    const persist = opts?.persist === undefined || opts?.persist
+
+    if (!eventType) {
+      delete this.permanentProperties.globalProps[propertyName];
+    } else if (this.permanentProperties.propsPerEvent[eventType]) {
+      delete this.permanentProperties.propsPerEvent[eventType][propertyName];
+    }
+    if (this.propsPersistance && persist) {
+      this.propsPersistance.save(eventType);
     }
   }
 }

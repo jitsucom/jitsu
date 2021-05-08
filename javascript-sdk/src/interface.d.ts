@@ -44,12 +44,28 @@ export type JitsuClient = {
    * @param analytics window.analytics object
    */
   interceptAnalytics: (analytics: any) => void
+
+  /**
+   * Sets a permanent properties that will be persisted across sessions. On every track() call those properties
+   * will be merged with `payload` parameter
+   * @param properties properties
+   * @param opts options.
+   *    eventType - apply permanent properties to only certain event type (applied to all types by default)
+   *    persist - persist properties across sessions (in cookies). True by default
+   */
+  set(properties: Record<string, any>, opts: { eventType?: string, persist?: boolean });
+
+  /**
+   * User
+   */
+  unset(propertyName: string, opts: { eventType?: string, persist?: boolean });
+
 }
 
 /**
  * Type of jitsu function which is exported to window.jitsu when tracker is embedded from server
  */
-export type JitsuFunction = (action: 'track' | 'id', eventType: string, payload?: EventPayload) => void;
+export type JitsuFunction = (action: 'track' | 'id' | 'set', eventType: string, payload?: EventPayload) => void;
 
 /**
  * User identification method:
