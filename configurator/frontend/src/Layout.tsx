@@ -225,9 +225,13 @@ export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, p
 }
 
 export const SlackChatWidget: React.FC<{}> = () => {
+  const services = useServices();
   const [modalVisible, setModalVisible] = useState(false);
   return <><div id="jitsuSlackWidget"
     onClick={() => {
+      services.analyticsService.withJitsu(jitsu => {
+        jitsu.track('slack_invitation_open');
+      });
       setModalVisible(true)
     }}
     className="fixed bottom-5 right-5 rounded-full bg-primary text-text w-12 h-12 flex justify-center items-center cursor-pointer hover:bg-primaryHover">
@@ -241,12 +245,6 @@ export const SlackChatWidget: React.FC<{}> = () => {
 }
 
 export const SlackInvitationModal: React.FC<{visible: boolean, hide: () => void}> = ({ visible , hide }) => {
-  const services = useServices();
-  useEffect(() => {
-    services.analyticsService.withJitsu(jitsu => {
-      jitsu.track('slack_invitation_open');
-    });
-  })
 
   return <Modal
     title="Join Jitsu Slack"

@@ -45,7 +45,7 @@ export class TestServer {
     if (!fs.existsSync(libJs)) {
       throw new Error(`File ${libJs} does not exists. Please, run the build first!`);
     }
-    this.app.use("/lib.js", express.static(libJs));
+    this.app.use("/s/lib.js", express.static(libJs));
     this.app.get('/test-case/:name', (req, res, next) => {
       let path = `${__dirname}/../html/${req.params.name}`;
       let html = fs.readFileSync(path).toString();

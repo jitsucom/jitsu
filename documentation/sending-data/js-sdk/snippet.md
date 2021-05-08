@@ -13,7 +13,7 @@ Jitsu JS SDK for embedding as HTML snippet. The snippet is a small piece of HTML
 to `<head>` section of your page. Example:
 
 ```html
-<script src="https://t.jitsu.com/lib.js" data-key="JITSU_API_KEY" defer></script>
+<script src="https://t.jitsu.com/s/lib.js" data-key="JITSU_API_KEY" defer></script>
 ```
 
 The configuration parameters should be passed as `data-` attributes. The full list of attributes
@@ -30,7 +30,7 @@ The snippet sends `pageview` event automatically. However, this behaviour can be
 If you don't want to send pageviews automatically, set `data-init-only` to "true"
 
 ```html
-<script src="%%SERVER%%/lib.js"
+<script src="%%SERVER%%/s/lib.js"
         data-key="JITSU_API_KEY"
         data-init-only="true"
         defer></script>
@@ -54,7 +54,7 @@ Also, you should not use **defer** or **async** parameter
 
 
 ```html
-<script src="JITSU_SERVER/lib.js"
+<script src="JITSU_SERVER/s/lib.js"
         data-key="JITSU_KEY"
         data-init-only="true"
         data-segment-hook="true"
