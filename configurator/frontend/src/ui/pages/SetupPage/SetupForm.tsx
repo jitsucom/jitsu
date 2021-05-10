@@ -71,7 +71,8 @@ export default function SetupForm() {
         })
       }
       if (!usageOptout) {
-        await appService.analyticsService.withJitsuSync(async (jitsu) => {
+        await appService.analyticsService.onUserKnown();
+        await appService.analyticsService.track('selfhosted_signup', async (jitsu) => {
           const userData = { email: values['email'], uid: values['email'] };
           await jitsu.id(appService.analyticsService.getJitsuIdPayload(userData))
           return await jitsu.track('selfhosted_signup', {usageOptout: false});

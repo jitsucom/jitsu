@@ -1713,12 +1713,10 @@
     "@types/yargs" "^15.0.0"
     chalk "^4.0.0"
 
-"@jitsu/eventnative@^1.1.5":
-  version "1.1.7"
-  resolved "https://registry.yarnpkg.com/@jitsu/eventnative/-/eventnative-1.1.7.tgz#7040371893bb6477492d029f6f27a60b9c2aed97"
-  integrity sha512-1ANo4er0cRgzm9WfzFavYrMwE0RX1O/MJ5LntnhNIU4J9gaFbfwkwo7g0iAGXSgx82MmkyTBARW3Y8IqFicTgg==
-  dependencies:
-    uuid "^8.3.2"
+"@jitsu/sdk-js@^2.1.1":
+  version "2.1.1"
+  resolved "https://registry.yarnpkg.com/@jitsu/sdk-js/-/sdk-js-2.1.1.tgz#3bcd5dda1399e1fb9584c57edc1510d70fd9b126"
+  integrity sha512-uA0CbZazdQtwwyJEwI/arrkQVJ2fPYCWdnGXo1tXRmXdmhErfeX7FjJvYh5Gdk2L6r5Tv0sBraeA85fIO79E1g==
 
 "@nodelib/fs.scandir@2.1.4":
   version "2.1.4"
