@@ -112,7 +112,7 @@ JSON structure intact use the following pattern:
 <CodeInTabs>
 <CodeTab title="HTML Snippet" lang="html">
 {`
-<script src="%%SERVER%%/lib.js"
+<script src="%%SERVER%%/s/lib.js"
         data-compat-mode="true"
         ...other params></script>
 `}

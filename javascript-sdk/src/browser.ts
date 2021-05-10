@@ -12,7 +12,7 @@ const jitsuProps = [
 
 
 function getTrackingHost(scriptSrc: string): string {
-  return scriptSrc.replace("/" + jsFileName, "");
+  return scriptSrc.replace("/s/" + jsFileName, "").replace("/" + jsFileName, "");
 }
 
 const supressInterceptionWarnings = "data-suppress-interception-warning";

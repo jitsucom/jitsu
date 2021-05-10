@@ -36,7 +36,7 @@ function findIndent(str: string) {
 
 export function getEmbeddedHtml(segment: boolean,  key: string, host: string) {
   return formatCode(`
-    <script src="https://${host}/lib.js"
+    <script src="https://${host}/s/lib.js"
             data-key="${key}"${segment ? '\n            data-segment-hook="true"' : ''}
             data-init-only="true"${!segment ? '\n            defer' : ''}></script>
     `);

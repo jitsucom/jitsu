@@ -82,7 +82,8 @@ export default function SetupForm() {
         });
       }
       await appService.userService.setupUser({...nonSensitiveUserData, password: values['password']});
-      //reloadPage();
+
+      reloadPage();
     } catch (error) {
       handleError(error);
     } finally {
