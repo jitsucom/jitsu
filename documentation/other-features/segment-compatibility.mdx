@@ -1,0 +1,80 @@
+import {generateMapping} from "../utils";
+import {Code} from "../../../components/Code";
+
+
+# Segment Compatibility
+
+**EventNative** can serve as a Segment replacement.
+
+For that, we provide to different approaches:
+
+ * If you're using analytics.js on frontend already, EventNative can intercept all events you send to analytics.js. Check
+[Events Inteception page](/docs/sending-data/javascript-reference/events-interception) for more details
+ * If you're sending events directly from [JS SDK](/docs/sending-data/javascript-reference/npm-or-yarn)
+or [through API](/docs/sending-data/api) Segment compatible data still can be produced.
+
+For both approaches you'll need to configure fields [mapping](/docs/configuration/schema-and-mappings).
+See [Mappings for Segment Compatibility](#mappings-for-segment-compatibility) section.
+
+Also, you'll need to create a view to mimic Segment's `users` table. See below
+
+## Segment Tables
+
+By default, Segment creates 1 table per 1 event type. For keeping these table names - configure `table_name_template` (see examples below).
+Also, Segment creates `users` table as unique records from `identifies` table. For keeping it as well - create an SQL view with the
+following statement:
+
+```sql
+create view users as
+select distinct on (email) _timestamp,
+                           context_page_url,
+                           context_user_agent,
+                           email,
+                           name,
+                           context_locale,
+                           context_page_path,
+                           context_page_title,
+                           context_ip,
+                           context_page_search,
+                           context_page_referrer,
+                           anonymous_id,
+                           user_id,
+                           context_campaign_source,
+                           context_utm_source
+from identifies;
+```
+
+## Mappings for Segment Compatibility
+
+If you're using analytics.js on frontend already - **EventNative** javascript should be configured according to [the following javascript reference](../sending-data/javascript-reference/events-interception).
+If you're sending events directly - **EventNative** javascript should be set up, tracking event calls should be placed according to your requirements and the destination should contain the following mapping configuration:
+
+Destination configuration should have the following mapping configuration:
+
+<Code language="yaml">
+{`
+server:
+  ...
+destinations:
+  destination_to_write_segment_data:
+    type: ...
+    ...
+    data_layout:
+      table_name_template: |
+        {{if or (eq .event_type "user_identify") (eq .event_type "identify")}}
+          {{"identifies"}}
+        {{else}}
+          {{if or (eq .event_type "page") (eq .event_type "pageview")}}
+            {{"pages"}}
+          {{else}}
+            {{.event_type}}
+          {{end}}
+        {{end}}
+      mappings:
+        #Use true if you would like to have Segment like DB schema + all other fields.
+        #Use false for having only Segment data.
+        keep_unmapped: false
+        fields:
+${generateMapping('segment', '         ')}
+`}
+</Code>

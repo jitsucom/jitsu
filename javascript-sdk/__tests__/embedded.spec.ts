@@ -11,7 +11,7 @@ beforeAll(async () => {
 });
 
 test('lib.js accessible', async () => {
-  await runUrl(browser, server.getUrl('/lib.js'));
+  await runUrl(browser, server.getUrl('/s/lib.js'));
 });
 
 test('test embedded no init', async () => {
@@ -44,6 +44,11 @@ test('test embedded', async () => {
   expect(requestLog[0].click_id.gclid).toBe("1");
   expect(requestLog[0].user.anonymous_id).toBeDefined()
   expect(requestLog[0].user.anonymous_id).toBe(requestLog[1].user.anonymous_id)
+  expect(requestLog[0].user.anonymous_id).toBeDefined()
+  expect(requestLog[1].extra).toBe(1)
+  expect(requestLog[1].persistent_prop1).toBe(2)
+  expect(requestLog[1].persistent_prop2).toBe(3)
+  expect(requestLog[1].persistent_prop3).toBe(undefined)
 });
 
 afterAll(async () => {
