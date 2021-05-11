@@ -54,6 +54,8 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   const [savePopover, switchSavePopover] = useState<boolean>(false);
   const [destinationSaving, setDestinationSaving] = useState<boolean>(false);
 
+  const [activeTabIndex, setActiveTabIndex] = useState<number>(0);
+
   const destinationData = useRef<DestinationData>(
     destinations.find(dst => dst._id === params.id) || {
       _id: getUniqueAutoIncId(params.type, destinations.map(dst => dst._id)),
@@ -93,13 +95,21 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
       '_mappings._keepUnmappedFields': newMappings._keepUnmappedFields
     });
 
+    destinationsTabs.current[1].touched = true;
+
     if (newTableName) {
       await configForm.setFieldsValue({
         '_formData.tableName': newTableName
       });
+
+      destinationsTabs.current[0].touched = true;
     }
 
     await forceUpdate();
+
+    message.success('Mappings library has been successfully set');
+
+    setActiveTabIndex(1);
   };
 
   const destinationsTabs = useRef<Tab[]>([{
@@ -320,7 +330,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
             type="card"
             className={styles.tabCard}
             tabsList={destinationsTabs.current}
-            defaultTabIndex={3}
+            defaultTabIndex={activeTabIndex}
           />
         </div>
 
