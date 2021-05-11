@@ -15,6 +15,7 @@ export interface FieldMapping {
 }
 
 export interface Mapping {
+    tableNameTemplate?: string
     keepUnmappedFields: boolean
     mappings: FieldMapping[]
 }

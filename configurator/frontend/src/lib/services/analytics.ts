@@ -4,27 +4,27 @@ import { User } from './model';
 // @ts-ignore
 import LogRocket from 'logrocket';
 import murmurhash from 'murmurhash';
-import posthog from 'posthog-js';
 import { isNullOrUndef } from '../commons/utils';
 import { jitsuClient, JitsuClient } from '@jitsu/sdk-js';
-
-const AnalyticsJS = require('./analyticsjs-wrapper.js').default;
+import { getIntercom, initIntercom } from '@service/intercom-wrapper';
 
 type ConsoleMessageListener = (level: string, ...args) => void;
 
-type IntercomFunction = (...args) => void
+type IntercomClient = (...args) => void
 
-type AnalyticsExecutor = {
-  jitsu?: (jitsu: JitsuClient, eventType: string, payload: any) => Promise<void>
-  intercom?: (intercom: IntercomFunction, eventType: string, payload: any) => Promise<void> | void
+type Executor<T> = (client: T, eventType: string, payload: any) => Promise<void> | void
+
+interface AnalyticsExecutors extends Record<string, Executor<any>>{
+  jitsu?: Executor<JitsuClient>
+  intercom?: Executor<IntercomClient>
 }
 
-function defaultExecutors(execs: AnalyticsExecutor): AnalyticsExecutor {
+function defaultExecutors(execs: AnalyticsExecutors): AnalyticsExecutors {
   return {
-    jitsu: execs.jitsu ?? ((jitsu, eventType, payload) => {
+    jitsu: execs?.jitsu ?? ((jitsu, eventType, payload) => {
       return jitsu.track(eventType, payload);
     }),
-    intercom: execs.intercom ?? ((intercom, eventType, payload) => {
+    intercom: execs?.intercom ?? ((intercom, eventType, payload) => {
       intercom('trackEvent', eventType, payload);
       return Promise.resolve();
     })
@@ -112,15 +112,22 @@ function isError(obj: any) {
   );
 }
 
+export type UserProps = {
+  name: string
+  email: string
+  uid: string
+}
+
 export default class AnalyticsService {
   private globalErrorListenerPresent: boolean = false;
   private appConfig: ApplicationConfiguration;
-  private user: User;
+  private user: UserProps;
   private jitsu?: JitsuClient;
+  private intercom: IntercomClient;
   private logRocketInitialized: boolean = false;
   private consoleInterceptor: ConsoleLogInterceptor = new ConsoleLogInterceptor();
   private _anonymizeUsers = false;
-  private _appName = 'saas';
+  private _appName = 'unknown';
 
   constructor(appConfig: ApplicationConfiguration) {
     this.appConfig = appConfig;
@@ -132,6 +139,13 @@ export default class AnalyticsService {
         cookie_domain: 'jitsu.com',
         randomize_url: true
       });
+      this.jitsu.set({
+        app: this._appName
+      }, {});
+    }
+    if (this.appConfig.rawConfig.keys.intercom) {
+      initIntercom(this.appConfig.rawConfig.keys.intercom);
+      this.intercom = getIntercom();
     }
     this.setupGlobalErrorHandler();
     this.consoleInterceptor.addListener((level, ...args) => {
@@ -154,42 +168,61 @@ export default class AnalyticsService {
     return domains.find((domain) => email.indexOf('@' + domain) > 0) !== undefined;
   }
 
-  public onUserKnown({ email, uid}) {
-    if (!user) {
+  public onUserKnown(userProps?: UserProps) {
+    if (!userProps) {
       return;
     }
-    this.user = user;
+    this.user = userProps;
     this.ensureLogRocketInitialized();
     if (this.appConfig.rawConfig.keys.logrocket) {
-      LogRocket.identify(user.uid, {
-        email: user.email
+      LogRocket.identify(userProps.uid, {
+        email: userProps.email
       });
     }
     if (this.jitsu) {
-      this.jitsu.id(this.getJitsuIdPayload(user));
+      this.jitsu.id(this.getJitsuIdPayload(userProps));
+    }
+    if (this.intercom) {
+      this.intercom('boot', {
+        app_id: this._appName,
+        email: userProps.email,
+        name: userProps.name,
+        user_id: userProps.uid
+      });
     }
   }
 
-  public getJitsuIdPayload({ email, uid }) {
+  public getJitsuIdPayload({ email, uid}) {
     return {
       email: this._anonymizeUsers ? undefined : email,
       internal_id: this._anonymizeUsers ? 'hid_' + murmurhash.v3(email || uid) : uid
     };
   }
 
-  public track(eventType: string, payload: any, customHandlers?: AnalyticsExecutor): Promise<void> {
-    const execs = defaultExecutors(customHandlers);
-    let waitFor = [];
-    if (this.jitsu) {
-      waitFor.push(execs.jitsu(this.jitsu, eventType, payload));
+  public track(eventType: string, payload?: any, customHandlers?: AnalyticsExecutors): Promise<void> {
+    const waitlist: Promise<any>[] = [];
+    const add = <T>(exec: Executor<T>, client: T) => {
+      if (client) {
+        const res = exec(client, eventType, payload);
+        //if res is promise
+        if (res && typeof res === "object" && typeof res.then === 'function') {
+          waitlist.push(res);
+        }
+      }
     }
-    return Promise.all(waitFor).then();
+    const execs = defaultExecutors(customHandlers);
+    add(execs.jitsu, this.jitsu);
+    add(execs.intercom, this.intercom);
+    return Promise.all(waitlist).then();
   }
 
 
   public configure(features: FeatureSettings) {
     this._anonymizeUsers = features.anonymizeUsers;
     this._appName = features.appName;
+    this.jitsu.set({
+      app: this._appName
+    }, {});
   }
 
   private isDev() {

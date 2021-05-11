@@ -66,22 +66,23 @@ export default function SetupForm() {
         emailOptout, usageOptout
       };
       if (!emailOptout) {
-        await appService.analyticsService.withJitsuSync(async (jitsu) => {
-          return await jitsu.track('selfhosted_email_subscribe', nonSensitiveUserData);
-        })
+        await appService.analyticsService.track('selfhosted_email_subscribe', {
+          user: {
+            email: nonSensitiveUserData.email,
+            name: nonSensitiveUserData.name
+          },
+          company: nonSensitiveUserData.company,
+          emailOptout, usageOptout
+        });
       }
       if (!usageOptout) {
-        await appService.analyticsService.onUserKnown();
-        await appService.analyticsService.track('selfhosted_signup', async (jitsu) => {
-          const userData = { email: values['email'], uid: values['email'] };
-          await jitsu.id(appService.analyticsService.getJitsuIdPayload(userData))
-          return await jitsu.track('selfhosted_signup', {usageOptout: false});
-        });
-      } else {
-        await appService.analyticsService.withJitsuSync(async (jitsu) => {
-          return await jitsu.track('selfhosted_signup', {usageOptout: true});
+        await appService.analyticsService.onUserKnown({
+          email: nonSensitiveUserData.email,
+          uid: nonSensitiveUserData.email,
+          name: nonSensitiveUserData.name
         });
       }
+      await appService.analyticsService.track('selfhosted_signup', { usageOptout, emailOptout });
       await appService.userService.setupUser({...nonSensitiveUserData, password: values['password']});
 
       reloadPage();
