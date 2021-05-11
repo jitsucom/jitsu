@@ -3,7 +3,7 @@ declare type DestinationType = 'postgres' | 'bigquery' | 'redshift' | 'clickhous
 declare interface DestinationData {
   readonly _type: DestinationType;
 
-  _mappings: Mapping;
+  _mappings: DestinationMapping;
   _id: string;
   _uid: string;
   _comment: string;
