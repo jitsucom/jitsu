@@ -8,23 +8,22 @@ import {Hint} from "../../../components/documentationComponents";
 
 ### Prerequisites
 
-**EventNative** is written primarily in Go with the frontend written in JavaScript. 
+**Jitsu** is written primarily in Go with the frontend written in JavaScript.
 
 To install the required pre-requisites see the following guides:
 
-* [Installing Go \(&gt;=1.14.1\)](https://golang.org/doc/install)
+* [Installing Go \(&gt;=1.16\)](https://golang.org/doc/install)
 * [Installing npm](https://www.npmjs.com/get-npm)
 
 <Hint>
-    Please make sure your version of Go is > 1.14.1 with the following command:
+    Please make sure your version of Go is > 1.16 with the following command:
     <code inline="true">go version</code>.
 </Hint>
 
 
-
 ### Cloning source code
 
-**EventNative** code should be placed inside `$GOPATH` (see the following ["Effective Go"](https://golang.org/doc/gopath_code.html) chapter). Assuming that you didn't change the default value of GOPATH which is `~/go/` please use following commands:
+**Jitsu** code should be placed inside `$GOPATH` (see the following ["Effective Go"](https://golang.org/doc/gopath_code.html) chapter). Assuming that you didn't change the default value of GOPATH which is `~/go/` please use following commands:
 
 ```bash
 cd ~/go/
@@ -33,10 +32,11 @@ cd src/github.com/jitsucom/jitsu
 git clone https://github.com/jitsucom/jitsu.git .
 ```
 
-Building **EventNative** is simple, just run:
+Building **Jitsu Server** is simple, just run:
 
 ```bash
-make all
+cd server
+make
 ```
 
 <Hint>If you don't have <code inline={true}>make</code> installed run <code inline={true}>sudo apt-get install make</code></Hint>
@@ -49,7 +49,7 @@ $ ls -l ./build/dist
 drwxr-xr-x  5 vklmn  staff       160 Aug  6 15:58 web
 ```
 
-### Run EventNative
+### Run Jitsu Server
 
 `./eventnative` is the main application binary; `web` contains static files \(JS and HTML\). Run the application with the following:
 
