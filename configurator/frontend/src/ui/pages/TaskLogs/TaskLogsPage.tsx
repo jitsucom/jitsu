@@ -12,7 +12,7 @@ import styles from './TaskLogsPage.module.less';
 import moment from 'moment';
 import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
 import { allSources } from '@catalog/sources/lib';
-import { snakeCase } from 'lodash';
+import snakeCase from 'lodash/snakeCase';
 import { SourceConnector } from '@catalog/sources/types';
 import { CollectionSourceData } from '@page/SourcesPage';
 import { PageHeader } from '@atom/PageHeader';
