@@ -1,8 +1,7 @@
 // @Libs
 import React, { useCallback } from 'react';
 import { Col, Form, Input, Row, Select, Switch } from 'antd';
-import MonacoEditor from 'react-monaco-editor';
-import { get } from 'lodash';
+import { get, debounce } from 'lodash';
 import cn from 'classnames';
 // @Components
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
@@ -13,22 +12,27 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 // @Utils
 import { dsnValidator } from './configurableFieldsForm.utils';
 import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
-import { validationChain } from '@util/validation/validationChain';
 import { isoDateValidator } from '@util/validation/validators';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
 import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
 import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
+import { CenteredSpin } from '@./lib/components/components';
+
+const JsonEditor = React.lazy(() => import('@molecule/JsonEditor'));
 
 export interface Props {
   fieldsParamsList: Parameter[];
   form: FormInstance;
   initialValues: any;
   namePrefix?: string;
+  handleTouchAnyField: VoidFunc;
 }
 
-const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePrefix }: Props) => {
+const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePrefix, handleTouchAnyField }: Props) => {
+  const handleTouchField = debounce(handleTouchAnyField, 1000);
+
   const forceUpdate = useForceUpdate();
 
   const handleChangeIntInput = useCallback((id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -42,6 +46,12 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
 
     forceUpdate();
   }, [form, forceUpdate]);
+
+  const handleJsonChange = (id: string) => (value: string) => {
+    form.setFieldsValue({ [id]: value ? JSON.stringify(value) : undefined });
+
+    handleTouchField();
+  };
 
   const getFieldComponent = useCallback((type: ParameterType<any>, id: string, additionalProps?: AnyObject) => {
     const fieldsValue = form.getFieldsValue();
@@ -70,31 +80,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
       return <EditableList {...additionalProps} />;
 
     case 'json':
-      return <MonacoEditor
-        height="300"
-        language="json"
-        theme="own-theme"
-        options={{
-          glyphMargin: false,
-          folding: false,
-          lineNumbers: 'off',
-          lineDecorationsWidth: 11,
-          lineNumbersMinChars: 0,
-          minimap: {
-            enabled: false
-          },
-          scrollbar: {
-            verticalScrollbarSize: 8,
-            horizontalScrollbarSize: 8
-          },
-          padding: {
-            top: 4,
-            bottom: 4
-          },
-          hideCursorInOverviewRuler: true,
-          overviewRulerLanes: 0
-        }}
-      />;
+      return <React.Suspense fallback={<CenteredSpin/>}><JsonEditor handleChange={handleJsonChange(id)} /></React.Suspense>;
 
     case 'boolean':
       return <Switch onChange={handleChangeSwitch(id)} checked={get(fieldsValue, id)} />
@@ -103,7 +89,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
     default:
       return <Input autoComplete="off" />;
     }
-  }, [form, handleChangeSwitch, handleChangeIntInput, forceUpdate]);
+  }, [handleJsonChange, form, handleChangeSwitch, handleChangeIntInput, forceUpdate]);
 
   const getInitialValue = useCallback((id: string, defaultValue: any, constantValue: any, type: string) => {
     const initial = get(initialValues, id);
