@@ -260,7 +260,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
       });
   }, [sources, history, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode, services.activeProject.id, services.storageService, updateSources]);
 
-  const isAbleToConnectItems = () => !destinationData.current?._sources?.length && !destinationData.current?._onlyKeys?.length;
+  const isAbleToConnectItems = () => editorMode === 'edit' && !destinationData.current?._sources?.length && !destinationData.current?._onlyKeys?.length;
 
   useEffect(() => {
     setBreadcrumbs(withHome({
