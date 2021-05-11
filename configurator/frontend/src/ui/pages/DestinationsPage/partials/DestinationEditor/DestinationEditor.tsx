@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, useHistory, useParams } from 'react-router-dom';
-import { Form, message } from 'antd';
+import { Card, Form, message } from 'antd';
 import cn from 'classnames';
 // @Components
 import { TabsConfigurator } from '@molecule/TabsConfigurator';
@@ -33,6 +33,8 @@ import { firstToLower } from '@./lib/commons/utils';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
 import { closeableMessage } from '@./lib/components/components';
+import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
+import { DESTINATIONS_EMPTY_CONNECTORS } from '@./embeddedDocs/destinationsConnectedItems';
 
 const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, editorMode, sources, sourcesError, updateSources }: CommonDestinationPageProps) => {
   const history = useHistory();
@@ -258,6 +260,8 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
       });
   }, [sources, history, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode, services.activeProject.id, services.storageService, updateSources]);
 
+  const isAbleToConnectItems = () => !destinationData.current?._sources?.length && !destinationData.current?._onlyKeys?.length;
+
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
@@ -273,6 +277,15 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
         <div className={cn('flex-grow', styles.mainArea)} id="dst-editor-tabs">
+          {
+            isAbleToConnectItems() && (
+              <Card className={styles.linkedWarning}>
+                <WarningOutlined className={styles.warningIcon} />
+                <article>{DESTINATIONS_EMPTY_CONNECTORS}</article>
+              </Card>
+            )
+          }
+
           <TabsConfigurator
             type="card"
             className={styles.tabCard}
