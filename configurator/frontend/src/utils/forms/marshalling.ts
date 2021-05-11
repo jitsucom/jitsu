@@ -1,6 +1,7 @@
-import { set, isArray } from 'lodash';
+import isArray from 'lodash/isArray';
+import set from 'lodash/set';
 
-const makeObjectFromFieldsValues = <F = object>(fields: any): F => Object.keys(fields).reduce((accumulator: F, current: string) => {
+const makeObjectFromFieldsValues = <F = any>(fields: any): F => Object.keys(fields).reduce((accumulator: any, current: string) => {
   if (['string', 'number', 'boolean'].includes(typeof fields[current])) {
     set(accumulator, current, fields[current]);
   } else if (typeof fields[current] === 'object') {

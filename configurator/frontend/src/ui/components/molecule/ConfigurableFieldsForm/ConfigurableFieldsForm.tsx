@@ -1,7 +1,8 @@
 // @Libs
 import React, { useCallback } from 'react';
 import { Col, Form, Input, Row, Select, Switch } from 'antd';
-import { get, debounce } from 'lodash';
+import debounce from 'lodash/debounce';
+import get from 'lodash/get';
 import cn from 'classnames';
 // @Components
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';

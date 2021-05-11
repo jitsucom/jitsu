@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Prompt, Redirect, useHistory, useParams } from 'react-router-dom';
 import { Form, message } from 'antd';
 import cn from 'classnames';
-import { snakeCase } from 'lodash';
+import snakeCase from 'lodash/snakeCase';
 // @Page
 import { SourceEditorConfig } from './SourceEditorConfig';
 import { SourceEditorCollections } from './SourceEditorCollections';
