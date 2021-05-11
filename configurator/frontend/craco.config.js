@@ -72,6 +72,7 @@ module.exports = {
       return {
         ...webpackConfig,
         optimization: {
+          runtimeChunk: false,
           splitChunks: {
             chunks: 'all',
             maxSize: 240_000
