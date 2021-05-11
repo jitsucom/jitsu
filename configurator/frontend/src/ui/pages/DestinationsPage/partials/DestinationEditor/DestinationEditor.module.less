@@ -5,10 +5,24 @@
 }
 
 .mainArea {
-}
-
-.tabCard {
   height: calc(100vh - 150px);
+
+  .linkedWarning {
+    margin-bottom: 20px;
+    display: inline-flex;
+
+    :global {
+      .ant-card-body {
+        display: inline-flex;
+        align-items: center;
+      }
+    }
+
+    .warningIcon {
+      color: @warning-color;
+      margin-right: 10px;
+    }
+  }
 }
 
 .tabCard :global .ant-tabs-content {
