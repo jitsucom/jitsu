@@ -8,9 +8,11 @@ import { TabsConfigurator } from '@molecule/TabsConfigurator';
 import { EditorButtons } from '@molecule/EditorButtons';
 import { ComingSoon } from '@atom/ComingSoon';
 import { PageHeader } from '@atom/PageHeader';
+import { closeableMessage } from '@./lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
+import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
 // @CatalogDestinations
 import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
@@ -32,8 +34,9 @@ import { getUniqueAutoIncId, randomId } from '@util/numbers';
 import { firstToLower } from '@./lib/commons/utils';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
-import { closeableMessage } from '@./lib/components/components';
+// @Icons
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
+// @Constants
 import { DESTINATIONS_EMPTY_CONNECTORS } from '@./embeddedDocs/destinationsConnectedItems';
 
 const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, editorMode, sources, sourcesError, updateSources }: CommonDestinationPageProps) => {
@@ -50,6 +53,8 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
   const [savePopover, switchSavePopover] = useState<boolean>(false);
   const [destinationSaving, setDestinationSaving] = useState<boolean>(false);
+
+  const [activeTabIndex, setActiveTabIndex] = useState<number>(0);
 
   const destinationData = useRef<DestinationData>(
     destinations.find(dst => dst._id === params.id) || {
@@ -71,6 +76,41 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   }, [params.type]);
 
   const submittedOnce = useRef<boolean>(false);
+
+  const handleUseLibrary = async(newMappings: DestinationMapping, newTableName?: string) => {
+    destinationData.current = {
+      ...destinationData.current,
+      _formData: {
+        ...destinationData.current._formData,
+        tableName: newTableName ? newTableName : destinationData.current._formData?.tableName
+      },
+      _mappings: newMappings
+    };
+
+    const { form: mappingsForm } = destinationsTabs.current[1];
+    const { form: configForm } = destinationsTabs.current[0];
+
+    await mappingsForm.setFieldsValue({
+      '_mappings._mappings': newMappings._mappings,
+      '_mappings._keepUnmappedFields': newMappings._keepUnmappedFields
+    });
+
+    destinationsTabs.current[1].touched = true;
+
+    if (newTableName) {
+      await configForm.setFieldsValue({
+        '_formData.tableName': newTableName
+      });
+
+      destinationsTabs.current[0].touched = true;
+    }
+
+    await forceUpdate();
+
+    message.success('Mappings library has been successfully set');
+
+    setActiveTabIndex(1);
+  };
 
   const destinationsTabs = useRef<Tab[]>([{
     key: 'config',
@@ -115,9 +155,9 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   },
   {
     key: 'settings',
-    name: <ComingSoon render="Settings Library" documentation={<>A predefined library of settings such as <a href="https://jitsu.com/docs/other-features/segment-compatibility" target="_blank" rel="noreferrer">Segment-like schema</a></>} />,
-    isDisabled: true,
-    touched: false
+    name: 'Settings Library',
+    touched: false,
+    getComponent: () => <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary} />
   },
   {
     key: 'statistics',
@@ -276,7 +316,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   return (
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
-        <div className={cn('flex-grow', styles.mainArea)} id="dst-editor-tabs">
+        <div className={cn('flex flex-col flex-grow', styles.mainArea)} id="dst-editor-tabs">
           {
             isAbleToConnectItems() && (
               <Card className={styles.linkedWarning}>
@@ -290,7 +330,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
             type="card"
             className={styles.tabCard}
             tabsList={destinationsTabs.current}
-            defaultTabIndex={0}
+            defaultTabIndex={activeTabIndex}
           />
         </div>
 
