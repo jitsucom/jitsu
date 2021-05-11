@@ -49,7 +49,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
   }, [form, forceUpdate]);
 
   const handleJsonChange = (id: string) => (value: string) => {
-    form.setFieldsValue({ [id]: value ? JSON.stringify(value) : undefined });
+    form.setFieldsValue({ [id]: value ? value : '' });
 
     handleTouchField();
   };

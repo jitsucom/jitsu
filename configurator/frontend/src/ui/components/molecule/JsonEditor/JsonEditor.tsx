@@ -29,7 +29,7 @@ interface Props {
 
 const JsonEditor = ({ handleChange: handleChangeProp, initialValue }: Props) => {
   const value = !initialValue
-    ? JSON.stringify({})
+    ? ''
     : typeof initialValue === 'string'
       ? initialValue
       : JSON.stringify(initialValue);
