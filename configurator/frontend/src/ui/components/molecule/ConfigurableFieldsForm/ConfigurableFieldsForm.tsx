@@ -81,7 +81,9 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
       return <EditableList {...additionalProps} />;
 
     case 'json':
-      return <React.Suspense fallback={<CenteredSpin/>}><JsonEditor handleChange={handleJsonChange(id)} /></React.Suspense>;
+      return <React.Suspense fallback={<CenteredSpin/>}>
+        <JsonEditor handleChange={handleJsonChange(id)} initialValue={form.getFieldValue(id)} />
+      </React.Suspense>;
 
     case 'boolean':
       return <Switch onChange={handleChangeSwitch(id)} checked={get(fieldsValue, id)} />
