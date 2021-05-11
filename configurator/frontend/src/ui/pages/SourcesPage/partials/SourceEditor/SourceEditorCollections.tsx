@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useMemo, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select } from 'antd';
-import { unset } from 'lodash';
+import unset from 'lodash/unset';
 // @Components
 import { SourceFormCollectionsField } from './SourceFormCollectionsField';
 // @Types
