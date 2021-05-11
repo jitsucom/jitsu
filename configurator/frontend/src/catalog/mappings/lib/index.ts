@@ -3,7 +3,7 @@ import googleAnalytics from './googleAnalytics'
 import segment from './segment'
 
 const mappings = {
-    facebookPixel, googleAnalytics, segment
+  facebookPixel, googleAnalytics, segment
 };
 
 export default mappings;
