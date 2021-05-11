@@ -19,13 +19,13 @@ import { isValidJsonPointer } from '@util/validation/jsonPointer';
 
 export interface Props {
   form: FormInstance;
-  initialValues: Mapping;
+  initialValues: DestinationMapping;
   handleTouchAnyField: VoidFunc;
 }
 
 const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }: Props) => {
   const [actions, setActions] = useState<MappingAction[]>(
-    initialValues?._mappings?.map((row: MappingRow) => row._action) ?? []
+    initialValues?._mappings?.map((row: DestinationMappingRow) => row._action) ?? []
   );
 
   const handleFieldsChange = useCallback(() => {
