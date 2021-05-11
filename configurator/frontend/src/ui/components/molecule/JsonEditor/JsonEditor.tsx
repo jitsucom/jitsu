@@ -28,13 +28,11 @@ interface Props {
 }
 
 const JsonEditor = ({ handleChange: handleChangeProp, initialValue }: Props) => {
-  const getInitialValue = () => {
-    try {
-      return typeof initialValue === 'string' ? initialValue : JSON.stringify(initialValue);
-    } catch(error) {
-      return JSON.stringify({});
-    }
-  };
+  const value = !initialValue
+    ? JSON.stringify({})
+    : typeof initialValue === 'string'
+      ? initialValue
+      : JSON.stringify(initialValue);
 
   const handleChange = (value: string) => handleChangeProp(value);
 
@@ -44,7 +42,7 @@ const JsonEditor = ({ handleChange: handleChangeProp, initialValue }: Props) => 
       language="json"
       theme="own-theme"
       onChange={handleChange}
-      defaultValue={getInitialValue()}
+      value={value}
       options={{
         glyphMargin: false,
         folding: false,
