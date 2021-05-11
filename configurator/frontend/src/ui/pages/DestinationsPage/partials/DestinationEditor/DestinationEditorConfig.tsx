@@ -25,7 +25,12 @@ const DestinationEditorConfig = ({ destinationData, destinationReference, form, 
       autoComplete="off"
       onChange={handleChange}
     >
-      <ConfigurableFieldsForm fieldsParamsList={destinationReference.parameters} form={form} initialValues={destinationData} />
+      <ConfigurableFieldsForm
+        handleTouchAnyField={handleTouchAnyField}
+        fieldsParamsList={destinationReference.parameters}
+        form={form}
+        initialValues={destinationData}
+      />
     </Form>
   )
 };
