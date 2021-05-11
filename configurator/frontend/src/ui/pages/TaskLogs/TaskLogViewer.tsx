@@ -12,7 +12,7 @@ import { PageHeader } from '@atom/PageHeader';
 import { PageProps } from '@./navigation';
 import { allSources } from '@catalog/sources/lib';
 import { SourceConnector } from '@catalog/sources/types';
-import { snakeCase } from 'lodash';
+import snakeCase from 'lodash/snakeCase';
 import { taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
 import styles from './TaskLogsPage.module.less'
 import classNames from 'classnames';

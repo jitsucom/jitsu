@@ -1,5 +1,5 @@
 // @Libs
-import { snakeCase } from 'lodash';
+import snakeCase from 'lodash/snakeCase';
 import { message } from 'antd';
 // @Types
 import { SourceConnector } from '@catalog/sources/types';
