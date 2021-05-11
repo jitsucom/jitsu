@@ -96,7 +96,12 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
         </Row>
       }
 
-      <ConfigurableFieldsForm initialValues={initialValues} fieldsParamsList={sourceReference.configParameters} form={form}/>
+      <ConfigurableFieldsForm
+        handleTouchAnyField={handleTouchAnyField}
+        initialValues={initialValues}
+        fieldsParamsList={sourceReference.configParameters}
+        form={form}
+      />
     </Form>
   );
 };
