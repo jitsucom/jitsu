@@ -10,13 +10,13 @@ import {Hint} from "../../../components/documentationComponents";
 
 ![Heroku Dialog](/img/docs/deployment-heroku.png)
 
-[Heroku](https://www.heroku.com/) is the easiest way to get started with **EventNative**. If you don't have an active Heroku account you can [signup here](https://signup.heroku.com/)!
+[Heroku](https://www.heroku.com/) is the easiest way to get started with **Jitsu Server**. If you don't have an active Heroku account you can [signup here](https://signup.heroku.com/)!
 
 ### Getting Running on Heroku
 
 * Pick a destination for your event data, we recommend starting with [Postgres](https://devcenter.heroku.com/articles/heroku-postgresql).
-* Click our [Deploy](https://heroku.com/deploy?template=https://github.com/jitsucom/eventnative) to Heroku link.
-* Add your **EventNative** [configuration](/docs/configuration/) in raw JSON format.
+* Click our [Deploy](https://heroku.com/deploy?template=https://github.com/jitsucom/jitsu) to Heroku link.
+* Add your **Jitsu Server** [configuration](/docs/configuration/) in raw JSON format.
 
 ![JSON Configuration](/img/docs/heroku-en-configuration.png)
 
@@ -115,12 +115,12 @@ import {Hint} from "../../../components/documentationComponents";
 </Hint>
 
 * Click **Deploy App** and you're alive!
-* After your app is deployed, you can visit the following link to confirm deployment  [https://your_app.herokuapp.com](https://your-app.herokuapp.com/t/welcome.html)
+* After your app is deployed, you can visit the following link to confirm deployment  [https://your_app.herokuapp.com](https://your-app.herokuapp.com)
 
-Once your backend is set up,  place the following code on your web-app. (See our [JavaScript guide](/docs/sending-data/javascript-reference/#quickstart) for fine-tuning):
+Once your backend is set up, place the following code on your web-app. (See our [JavaScript SDK 2.0 guide](/docs/sending-data/js-sdk) for fine-tuning):
 
 ```html
-<script src="https://[your_app].herokuapp.com/t/inline.js?key=<SERVER_AUTH_FROM_CONFIG>" async>
+<script src="https://[your_app].herokuapp.com/s/lib.js" data-key="SERVER_AUTH_FROM_CONFIG" defer>
 </script>
 ```
 
