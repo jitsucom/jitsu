@@ -342,10 +342,9 @@ class JitsuClientImpl implements JitsuClient {
     }
   }
 
-  set(properties, opts) {
+  set(properties, opts?) {
     const eventType = opts?.eventType;
     const persist = opts?.persist === undefined || opts?.persist
-    console.log("Setting", properties);
     if (eventType !== undefined) {
       let current = this.permanentProperties.propsPerEvent[eventType] ?? {};
       this.permanentProperties.propsPerEvent[eventType] = {...current, ...properties};

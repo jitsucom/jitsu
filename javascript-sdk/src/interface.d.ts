@@ -53,7 +53,7 @@ export type JitsuClient = {
    *    eventType - apply permanent properties to only certain event type (applied to all types by default)
    *    persist - persist properties across sessions (in cookies). True by default
    */
-  set(properties: Record<string, any>, opts: { eventType?: string, persist?: boolean });
+  set(properties: Record<string, any>, opts?: { eventType?: string, persist?: boolean });
 
   /**
    * User
