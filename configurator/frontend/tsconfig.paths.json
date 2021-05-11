@@ -11,7 +11,10 @@
       "@service/*": ["./lib/services/*"],
       "@util/*": ["./utils/*"],
       "@hooks/*": ["./hooks/*"],
-      "@hocs/*": ["./hocs/*"]
+      "@hocs/*": ["./hocs/*"],
+      "lodash/*": [
+        "node_modules/@types/lodash-es/*"
+      ]
     }
   }
 }

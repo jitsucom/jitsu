@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
 import { Col, Form, Input, Row, Select } from 'antd';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { SourceConnector } from '@catalog/sources/types';
