@@ -1713,10 +1713,10 @@
     "@types/yargs" "^15.0.0"
     chalk "^4.0.0"
 
-"@jitsu/sdk-js@^2.1.1":
-  version "2.1.1"
-  resolved "https://registry.yarnpkg.com/@jitsu/sdk-js/-/sdk-js-2.1.1.tgz#3bcd5dda1399e1fb9584c57edc1510d70fd9b126"
-  integrity sha512-uA0CbZazdQtwwyJEwI/arrkQVJ2fPYCWdnGXo1tXRmXdmhErfeX7FjJvYh5Gdk2L6r5Tv0sBraeA85fIO79E1g==
+"@jitsu/sdk-js@^2.2.0":
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/@jitsu/sdk-js/-/sdk-js-2.2.0.tgz#5a88f84a360c05671f9c7bfb35dee23e963b3aaa"
+  integrity sha512-AIOovUcZHccAvCB6vWIz4quxQyCWcgVpR+IzOQsIrUanxPKn469HVt5uwQKBWkPSglEXqCK3Mip9w9mS93shJA==
 
 "@nodelib/fs.scandir@2.1.4":
   version "2.1.4"

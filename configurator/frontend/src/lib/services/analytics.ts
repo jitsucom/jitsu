@@ -220,9 +220,11 @@ export default class AnalyticsService {
   public configure(features: FeatureSettings) {
     this._anonymizeUsers = features.anonymizeUsers;
     this._appName = features.appName;
-    this.jitsu.set({
-      app: this._appName
-    }, {});
+    if (this.jitsu) {
+      this.jitsu.set({
+        app: this._appName
+      }, {});
+    }
   }
 
   private isDev() {
