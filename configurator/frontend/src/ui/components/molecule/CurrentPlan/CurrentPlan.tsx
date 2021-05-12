@@ -47,7 +47,7 @@ export const PlanUpgradeDialog: React.FC<{visible: boolean, hide: () => void, cu
   }
 
   useEffect(() => {
-    services.analyticsService.withJitsu(jitsu => jitsu.track('upgrade_plan_requested'));
+    services.analyticsService.track('upgrade_plan_requested');
   })
 
   return <Modal
@@ -91,9 +91,7 @@ export const PlanUpgradeDialog: React.FC<{visible: boolean, hide: () => void, cu
         onClick={async() => {
           setLoading(true);
           try {
-            await services.analyticsService.withJitsuSync(async(j) => {
-              return await j.track('upgrade_plan', { plan: selectedPlan });
-            })
+            await services.analyticsService.track('upgrade_plan', { plan: selectedPlan });
             await services.backendApiClient.post('/notify', {
               event: 'upgrade_plan',
               plan: selectedPlan,

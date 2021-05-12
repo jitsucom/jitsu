@@ -14,9 +14,7 @@ import {User} from './lib/services/model';
 import OnboardingForm from './lib/components/OnboardingForm/OnboardingForm';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
-import PapercupsWrapper from './lib/commons/papercups';
 import { ApplicationPage, SlackChatWidget } from './Layout';
-import classNames from 'classnames';
 import { PaymentPlanStatus } from '@service/billing';
 
 enum AppLifecycle {
@@ -65,7 +63,6 @@ export default class App extends React.Component<AppProperties, AppState> {
             setDebugInfo('user', loginStatus.user);
             if (loginStatus.user && this.services.features.chatSupportType === 'chat') {
                 this.services.analyticsService.onUserKnown(loginStatus.user);
-                PapercupsWrapper.init(loginStatus.user);
             }
 
             let paymentPlanStatus: PaymentPlanStatus;
@@ -82,7 +79,11 @@ export default class App extends React.Component<AppProperties, AppState> {
             });
         } catch (error) {
             console.error('Failed to initialize ApplicationServices', error);
-            this.services.analyticsService.onGlobalError(error, true);
+            if (this.services.analyticsService) {
+                this.services.analyticsService.onGlobalError(error, true);
+            } else {
+                console.error("Failed to send error to analytics service, it's not defined yet");
+            }
             this.setState({lifecycle: AppLifecycle.ERROR});
             return;
         }
