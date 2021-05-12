@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select } from 'antd';
 import cn from 'classnames';
 // @Components
+import { TabDescription } from '@atom/TabDescription';
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
@@ -85,8 +86,8 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
   }, [form, handleFieldsChange]);
 
   return (
-    <>
-      <article className="text-xs italic text-secondaryText mb-5">{DESTINATION_EDITOR_MAPPING}</article>
+    <div className={styles.mappingsWrap}>
+      <TabDescription>{DESTINATION_EDITOR_MAPPING}</TabDescription>
 
       <Form form={form} name="form-mapping" onChange={handleFieldsChange}>
         <Row>
@@ -246,7 +247,7 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
           }
         </Form.List>
       </Form>
-    </>
+    </div>
   );
 };
 
