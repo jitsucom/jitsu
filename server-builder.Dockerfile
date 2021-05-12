@@ -17,5 +17,5 @@ RUN mkdir -p /go/src/github.com/jitsucom/jitsu/server
 
 WORKDIR /go/src/github.com/jitsucom/jitsu/server
 
-ADD server/go.mod server/go.sum /go/src/github.com/jitsucom/jitsu/server/
+ADD server/go.mod /go/src/github.com/jitsucom/jitsu/server/
 RUN go mod download
