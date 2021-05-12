@@ -13,8 +13,6 @@ type Flattener interface {
 
 type FlattenerImpl struct {
 	omitNilValues bool
-
-	specialCharsReplacer *strings.Replacer
 }
 
 func NewFlattener() Flattener {
@@ -83,10 +81,9 @@ func (f *FlattenerImpl) flatten(key string, value interface{}, destination map[s
 func Reformat(key string) string {
 	key = strings.ToLower(key)
 	var result strings.Builder
-	for i := 0; i < len(key); i++ {
-		b := key[i]
-		if isLetterOrNumber(int32(b)) {
-			result.WriteByte(b)
+	for _, symbol := range key {
+		if IsLetterOrNumber(symbol) {
+			result.WriteByte(byte(symbol))
 		} else {
 			result.WriteRune('_')
 		}
@@ -94,9 +91,10 @@ func Reformat(key string) string {
 	return result.String()
 }
 
-//A - Z: 65-90
-//a - z: 97-122
-func isLetterOrNumber(symbol int32) bool {
+//IsLetterOrNumber returns true if input symbol is:
+//  A - Z: 65-90
+//  a - z: 97-122
+func IsLetterOrNumber(symbol int32) bool {
 	return ('a' <= symbol && symbol <= 'z') ||
 		('A' <= symbol && symbol <= 'Z') ||
 		('0' <= symbol && symbol <= '9')
