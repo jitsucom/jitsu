@@ -39,6 +39,8 @@ import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
 // @Constants
 import { DESTINATIONS_EMPTY_CONNECTORS } from '@./embeddedDocs/destinationsConnectedItems';
 
+type DestinationTabKey = 'config' | 'mappings' | 'sources' | 'settings' | 'statistics';
+
 const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, editorMode, sources, sourcesError, updateSources }: CommonDestinationPageProps) => {
   const history = useHistory();
 
@@ -54,7 +56,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   const [savePopover, switchSavePopover] = useState<boolean>(false);
   const [destinationSaving, setDestinationSaving] = useState<boolean>(false);
 
-  const [activeTabIndex, setActiveTabIndex] = useState<number>(0);
+  const [activeTabKey, setActiveTabKey] = useState<DestinationTabKey>('config');
 
   const destinationData = useRef<DestinationData>(
     destinations.find(dst => dst._id === params.id) || {
@@ -110,7 +112,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     message.success('Mappings library has been successfully set');
   };
 
-  const destinationsTabs = useRef<Tab[]>([{
+  const destinationsTabs = useRef<Tab<DestinationTabKey>[]>([{
     key: 'config',
     name: 'Connection Properties',
     getComponent: (form: FormInstance) =>
@@ -320,6 +322,7 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
               <Card className={styles.linkedWarning}>
                 <WarningOutlined className={styles.warningIcon} />
                 <article>{DESTINATIONS_EMPTY_CONNECTORS}</article>
+                {/*<p onClick={switchTab}>Switch tab</p>*/}
               </Card>
             )
           }
@@ -328,7 +331,8 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
             type="card"
             className={styles.tabCard}
             tabsList={destinationsTabs.current}
-            defaultTabIndex={activeTabIndex}
+            activeTabKey={activeTabKey}
+            onTabChange={setActiveTabKey}
           />
         </div>
 

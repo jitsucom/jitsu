@@ -34,6 +34,8 @@ import { firstToLower } from '@./lib/commons/utils';
 // @Styles
 import styles from './SourceEditor.module.less';
 
+type SourceTabKey = 'config' | 'collections' | 'destinations';
+
 const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
   const services = ApplicationServices.get();
 
@@ -45,8 +47,11 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false);
   const [savePopover, switchSavePopover] = useState<boolean>(false);
+
   const [testConnecting, setTestConnecting] = useState<boolean>(false);
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
+
+  const [activeTabKey, setActiveTabKey] = useState<SourceTabKey>('config');
 
   const connectorSource = useMemo<SourceConnector>(
     () => {
@@ -74,7 +79,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
   const submittedOnce = useRef<boolean>(false);
 
-  const sourcesTabs = useRef<Tab[]>([{
+  const sourcesTabs = useRef<Tab<SourceTabKey>[]>([{
     key: 'config',
     name: 'Connection Properties',
     getComponent: (form: FormInstance) => (
@@ -140,6 +145,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   const handleCancel = useCallback(() => history.push(sourcesPageRoutes.root), [history]);
 
   const handleTestConnection = useCallback(async() => {
+    console.log('sourceData.current: ', sourceData.current);
     setTestConnecting(true);
 
     const tab = sourcesTabs.current[0];
@@ -268,7 +274,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
             type="card"
             className={styles.tabCard}
             tabsList={sourcesTabs.current}
-            defaultTabIndex={0}
+            activeTabKey={activeTabKey}
+            onTabChange={setActiveTabKey}
           />
         </div>
 
