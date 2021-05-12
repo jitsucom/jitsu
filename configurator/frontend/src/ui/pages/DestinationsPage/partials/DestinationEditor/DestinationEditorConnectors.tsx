@@ -2,6 +2,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { Collapse, Form } from 'antd';
+import snakeCase from 'lodash/snakeCase';
 // @Hooks
 import useLoader from '@hooks/useLoader';
 // @Services
@@ -40,7 +41,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination, handleT
   const sourcesList = useMemo<ConnectedItem[]>(
     () => sources
       ? sources?.map((src: SourceData) => {
-        const proto = allSources.find(s => s.id === src.sourceType);
+        const proto = allSources.find(s => snakeCase(s.id) === snakeCase(src.sourceProtoType));
 
         return {
           id: src.sourceId,
