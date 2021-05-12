@@ -1,10 +1,12 @@
-export function initIntercom(key) {
+export function initIntercom(key, data) {
   if (window && window.Intercom) {
     return;
   }
   window.intercomSettings = {
-    app_id: key
+    app_id: key,
+    ...(data || {})
   };
+  console.log('Intercom', window.intercomSettings);
   (function() {
     var w = window;
     var ic = w.Intercom;

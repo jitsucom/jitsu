@@ -10,7 +10,7 @@ WORKDIR /frontend
 
 # Install yarn dependencies
 ADD configurator/frontend/package.json configurator/frontend/yarn.lock /frontend/
-RUN yarn install --prefer-offline --frozen-lockfile --network-timeout 1000000
+RUN yarn add global webpack --prefer-offline --frozen-lockfile --network-timeout 1000000
 
 # GO
 RUN mkdir -p /go/src/github.com/jitsucom/jitsu/configurator/backend && \

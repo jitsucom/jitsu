@@ -15,6 +15,7 @@ function numberWithCommas(x) {
 }
 export const CurrentPlan: React.FC<CurrentPlanProps> = (props) => {
   const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(false);
+  const services = useServices();
   const usagaPct = props.usage/props.limit*100;
   return <><div>
     <div>You're on <b className="capitalize">{props.planTitle}</b> plan</div>
@@ -26,6 +27,7 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = (props) => {
     </div>
     <div className="text-center mt-2"><a href="https://jitsu.com/pricing">Pricing Info</a> • <a onClick={() => {
       props.onPlanChangeModalOpen();
+      services.analyticsService.track('upgrade_plan_requested');
       setUpgradeDialogVisible(true)
     }}>Upgrade</a></div>
   </div>
@@ -46,9 +48,6 @@ export const PlanUpgradeDialog: React.FC<{visible: boolean, hide: () => void, cu
     }
   }
 
-  useEffect(() => {
-    services.analyticsService.track('upgrade_plan_requested');
-  })
 
   return <Modal
     destroyOnClose={true}
