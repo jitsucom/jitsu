@@ -22,10 +22,10 @@ interface AnalyticsExecutors extends Record<string, Executor<any>>{
 function defaultExecutors(execs: AnalyticsExecutors): AnalyticsExecutors {
   return {
     jitsu: execs?.jitsu ?? ((jitsu, eventType, payload) => {
-      return jitsu.track(eventType, payload);
+      return jitsu.track(eventType, payload || {});
     }),
     intercom: execs?.intercom ?? ((intercom, eventType, payload) => {
-      intercom('trackEvent', eventType, payload);
+      intercom('trackEvent', eventType, payload || {});
       return Promise.resolve();
     })
   }
@@ -123,7 +123,6 @@ export default class AnalyticsService {
   private appConfig: ApplicationConfiguration;
   private user: UserProps;
   private jitsu?: JitsuClient;
-  private intercom: IntercomClient;
   private logRocketInitialized: boolean = false;
   private consoleInterceptor: ConsoleLogInterceptor = new ConsoleLogInterceptor();
   private _anonymizeUsers = false;
@@ -142,10 +141,6 @@ export default class AnalyticsService {
       this.jitsu.set({
         app: this._appName
       }, {});
-    }
-    if (this.appConfig.rawConfig.keys.intercom) {
-      initIntercom(this.appConfig.rawConfig.keys.intercom);
-      this.intercom = getIntercom();
     }
     this.setupGlobalErrorHandler();
     this.consoleInterceptor.addListener((level, ...args) => {
@@ -182,19 +177,19 @@ export default class AnalyticsService {
     if (this.jitsu) {
       this.jitsu.id(this.getJitsuIdPayload(userProps));
     }
-    if (this.intercom) {
-      this.intercom('boot', {
-        app_id: this._appName,
+    if (this.appConfig.rawConfig.keys.intercom) {
+      initIntercom(this.appConfig.rawConfig.keys.intercom, {
         email: userProps.email,
         name: userProps.name,
         user_id: userProps.uid
       });
     }
+
   }
 
   public getJitsuIdPayload({ email, uid}) {
     return {
-      email: this._anonymizeUsers ? undefined : email,
+      email: this._anonymizeUsers ? 'masked' : email,
       internal_id: this._anonymizeUsers ? 'hid_' + murmurhash.v3(email || uid) : uid
     };
   }
@@ -212,7 +207,7 @@ export default class AnalyticsService {
     }
     const execs = defaultExecutors(customHandlers);
     add(execs.jitsu, this.jitsu);
-    add(execs.intercom, this.intercom);
+    add(execs.intercom, getIntercom());
     return Promise.all(waitlist).then();
   }
 
