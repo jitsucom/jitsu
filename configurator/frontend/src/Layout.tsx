@@ -11,7 +11,6 @@ import * as React from 'react';
 import { useEffect, useState } from 'react';
 import Icon from '@ant-design/icons';
 import logo from '@./icons/logo.svg';
-import PapercupsWrapper from '@./lib/commons/papercups';
 import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
 import { Align, handleError } from '@./lib/components/components';
 import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
@@ -87,7 +86,7 @@ export const ApplicationSidebar: React.FC<{}> = () => {
     <div className="flex justify-center pb-4"><Button type="link" size="large"
       onClick={() => {
         if (services.features.chatSupportType === 'chat') {
-          PapercupsWrapper.focusWidget();
+
         } else {
           document.getElementById('jitsuSlackWidget').click();
         }
@@ -229,9 +228,7 @@ export const SlackChatWidget: React.FC<{}> = () => {
   const [modalVisible, setModalVisible] = useState(false);
   return <><div id="jitsuSlackWidget"
     onClick={() => {
-      services.analyticsService.withJitsu(jitsu => {
-        jitsu.track('slack_invitation_open');
-      });
+      services.analyticsService.track('slack_invitation_open');
       setModalVisible(true)
     }}
     className="fixed bottom-5 right-5 rounded-full bg-primary text-text w-12 h-12 flex justify-center items-center cursor-pointer hover:bg-primaryHover">

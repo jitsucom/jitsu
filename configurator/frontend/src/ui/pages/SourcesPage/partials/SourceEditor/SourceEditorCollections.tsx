@@ -112,11 +112,9 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
   const getCollectionTypeValue = useCallback(
     (index: number) => {
       const initial = initialValues.collections?.[index]?.type;
-
       if (initial) {
         return initial;
       }
-
       return connectorSource.collectionTypes[0];
     },
     [initialValues, connectorSource.collectionTypes]

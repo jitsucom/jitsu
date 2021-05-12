@@ -67,9 +67,7 @@ export type RawConfigObject = {
   firebase?: Record<string, string>;
   keys: {
     logrocket?: string;
-    posthog?: string;
-    posthog_host?: string;
-    ajs?: string;
+    intercom?: string;
     eventnative?: string;
   };
 };

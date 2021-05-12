@@ -46,16 +46,14 @@ export default function OnboardingForm(props: Props) {
       let user = services.userService.getUser();
 
       //send conversion
-      services.analyticsService.withJitsu((jitsu => {
-        jitsu.track('signup', {
-          app: services.features.appName,
-          eventn_ctx: {
-            user: {
-              email: user.email
-            }
-          }
-        });
-      }));
+      services.analyticsService.track('signup', {
+        app: services.features.appName,
+        user: { email: user.email, id: user.uid }
+      }, {
+        intercom: (client, eventType, payload) => {
+
+        }
+      });
 
       user.onboarded = true;
       user.projects = [new Project(randomId(), values['projectName'])];
