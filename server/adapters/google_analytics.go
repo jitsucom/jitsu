@@ -3,11 +3,13 @@ package adapters
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
 	"net/http"
 	"net/url"
+	"text/template"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
 const defaultEventType = "event"
@@ -52,21 +54,16 @@ func (gac *GoogleAnalyticsConfig) Validate() error {
 }
 
 type GoogleAnalytics struct {
-	config      *GoogleAnalyticsConfig
-	client      *http.Client
-	debugLogger *logging.QueryLogger
+	config              *GoogleAnalyticsConfig
+	debugLogger         *logging.QueryLogger
+	httpQueue           *HttpAdapter
+	RequestFailCallback func(object map[string]interface{}, err error)
 }
 
 func NewGoogleAnalytics(config *GoogleAnalyticsConfig, requestDebugLogger *logging.QueryLogger) *GoogleAnalytics {
 	return &GoogleAnalytics{
-		config: config,
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:        1000,
-				MaxIdleConnsPerHost: 1000,
-			},
-		},
+		config:      config,
+		httpQueue:   NewHttpAdapter(10*time.Second, 1*time.Second, 1000, 1000, 1000, 1, 3),
 		debugLogger: requestDebugLogger,
 	}
 }
@@ -100,18 +97,17 @@ func (ga *GoogleAnalytics) Send(object map[string]interface{}) error {
 	reqURL := "https://www.google-analytics.com/collect?" + uv.Encode()
 	ga.debugLogger.LogQuery(reqURL)
 
-	r, err := ga.client.Get(reqURL)
-	if r != nil && r.Body != nil {
-		r.Body.Close()
-	}
-
+	urlTmpl, err := template.New("url").Parse(reqURL)
 	if err != nil {
 		return err
 	}
 
-	if r.StatusCode != http.StatusOK {
-		return fmt.Errorf("Google Analytics response code: %d", r.StatusCode)
-	}
+	ga.httpQueue.AddRequest(&Request{
+		Event:    object,
+		Method:   http.MethodGet,
+		URLTmpl:  urlTmpl,
+		Callback: ga.RequestFailCallback,
+	})
 
 	return nil
 }
@@ -138,7 +134,7 @@ func (ga *GoogleAnalytics) PatchTableSchema(schemaToAdd *Table) error {
 }
 
 func (ga *GoogleAnalytics) Close() error {
-	ga.client.CloseIdleConnections()
+	ga.httpQueue.Close()
 
 	return nil
 }

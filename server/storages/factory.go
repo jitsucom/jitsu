@@ -55,6 +55,8 @@ type DestinationConfig struct {
 	ClickHouse      *adapters.ClickHouseConfig            `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
 	Snowflake       *adapters.SnowflakeConfig             `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
 	Facebook        *adapters.FacebookConversionAPIConfig `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
+
+	WebHook *adapters.WebHookConfig `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
 }
 
 //DataLayout is used for configure mappings/table names and other data layout parameters

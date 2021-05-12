@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -61,9 +62,20 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	}
 
 	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
+	ga.gaAdapter.RequestFailCallback = ga.RequestFailedCallback
 	ga.streamingWorker.start()
 
 	return ga, nil
+}
+
+func (ga *GoogleAnalytics) RequestFailedCallback(object map[string]interface{}, err error) {
+	ga.Fallback(&events.FailedEvent{
+		Event:   []byte(events.Event(object).Serialize()),
+		Error:   err.Error(),
+		EventID: events.ExtractEventID(object),
+	})
+	counters.ErrorEvents(ga.Name(), 1)
+	ga.eventsCache.Error(ga.Name(), events.ExtractEventID(object), err.Error())
 }
 
 func (ga *GoogleAnalytics) DryRun(payload events.Event) ([]adapters.TableField, error) {
