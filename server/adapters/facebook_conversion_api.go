@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"github.com/jitsucom/jitsu/server/typing"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -18,16 +17,6 @@ import (
 const eventsURLTemplate = "https://graph.facebook.com/v9.0/%s/events?access_token=%s&locale=en_EN"
 
 var (
-	//FB doesn't use types
-	SchemaToFacebookConversion = map[typing.DataType]string{
-		typing.STRING:    "string",
-		typing.INT64:     "string",
-		typing.FLOAT64:   "string",
-		typing.TIMESTAMP: "string",
-		typing.BOOL:      "string",
-		typing.UNKNOWN:   "string",
-	}
-
 	fbEventTypeMapping = map[string]string{
 		"page":       "PageView",
 		"pageview":   "PageView",
@@ -62,10 +51,12 @@ func (fmc *FacebookConversionAPIConfig) Validate() error {
 	return nil
 }
 
+//FacebookResponse is a dto for parsing Facebook response
 type FacebookResponse struct {
 	Error FacebookResponseErr `json:"error,omitempty"`
 }
 
+//FacebookResponseErr is a dto for parsing Facebook response error
 type FacebookResponseErr struct {
 	Message string `json:"message,omitempty"`
 	Type    string `json:"type,omitempty"`
@@ -82,8 +73,7 @@ type FacebookConversionEventsReq struct {
 //FacebookConversionAPI adapter for Facebook Conversion API
 type FacebookConversionAPI struct {
 	config      *FacebookConversionAPIConfig
-	client      *http.Client
-	debugLogger *logging.QueryLogger
+	httpAdapter *HTTPAdapter
 }
 
 //NewFacebookConversion return new instance of adapter

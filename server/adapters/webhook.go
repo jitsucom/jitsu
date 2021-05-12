@@ -2,14 +2,23 @@ package adapters
 
 import (
 	"errors"
-	"fmt"
-	"text/template"
-	"time"
-
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
 )
 
-// WebHookConfig -
+var (
+	//DefaultSchemaTypeMappings is dummy mappings
+	DefaultSchemaTypeMappings = map[typing.DataType]string{
+		typing.STRING:    "string",
+		typing.INT64:     "string",
+		typing.FLOAT64:   "string",
+		typing.TIMESTAMP: "string",
+		typing.BOOL:      "string",
+		typing.UNKNOWN:   "string",
+	}
+)
+
+//WebHookConfig is a dto for parsing Webhook configuration
 type WebHookConfig struct {
 	URL     string            `mapstructure:"url" json:"url,omitempty" yaml:"url,omitempty"`
 	Method  string            `mapstructure:"method" json:"method,omitempty" yaml:"method,omitempty"`
@@ -17,63 +26,47 @@ type WebHookConfig struct {
 	Headers map[string]string `mapstructure:"headers" json:"headers,omitempty" yaml:"headers,omitempty"`
 }
 
+//Validate returns err if invalid
 func (whc *WebHookConfig) Validate() error {
 	if whc == nil {
-		return errors.New("WebHook config is required")
+		return errors.New("webHook config is required")
 	}
 	if whc.URL == "" {
-		return errors.New("URL is required parameter")
-	}
-	if whc.Headers == nil {
-		whc.Headers = map[string]string{}
+		return errors.New("'url' is required parameter")
 	}
 
 	return nil
 }
 
-type WebHookConversion struct {
-	config              *WebHookConfig
-	httpQueue           *HttpAdapter
-	debugLogger         *logging.QueryLogger
-	urlTmpl             *template.Template
-	bodyTmpl            *template.Template
-	RequestFailCallback func(object map[string]interface{}, err error)
+//WebHook is an adapter for sending HTTP requests with configurable HTTP parameters (URL, body, headers)
+type WebHook struct {
+	httpAdapter *HTTPAdapter
 }
 
-func NewWebHookConversion(config *WebHookConfig, requestDebugLogger *logging.QueryLogger) (*WebHookConversion, error) {
-	urlTmpl, err := template.New("url").Parse(config.URL)
+//NewWebHook returns configured WebHook adapter instance
+func NewWebHook(destinationID, queueDir string, config *WebHookConfig, httpConfig *HTTPConfiguration, poolWorkers int,
+	fallbackFunc func(), debugLogger *logging.QueryLogger) (*WebHook, error) {
+
+	httpReqFactory, err := NewWebhookRequestFactory(config.Method, config.URL, config.Body, config.Headers)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing URL template %v", err)
+		return nil, err
 	}
 
-	bodyTmpl, err := template.New("body").Parse(config.Body)
+	httpAdapter, err := NewHTTPAdapter(destinationID, queueDir, httpConfig, httpReqFactory, poolWorkers, fallbackFunc, debugLogger)
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing body template %v", err)
+		return nil, err
 	}
 
-	return &WebHookConversion{
-		config:      config,
-		debugLogger: requestDebugLogger,
-		urlTmpl:     urlTmpl,
-		bodyTmpl:    bodyTmpl,
-		httpQueue:   NewHttpAdapter(10*time.Second, 1*time.Second, 1000, 1000, 1000, 1, 3),
-	}, nil
+	return &WebHook{httpAdapter: httpAdapter}, nil
 }
 
-func (wh *WebHookConversion) Send(object map[string]interface{}) error {
-	wh.httpQueue.AddRequest(&Request{
-		Event:    object,
-		Method:   wh.config.Method,
-		URLTmpl:  wh.urlTmpl,
-		BodyTmpl: wh.bodyTmpl,
-		Headers:  wh.config.Headers,
-		Callback: wh.RequestFailCallback,
-	})
-
-	return nil
+//Send passes object to HTTPAdapter
+func (wh *WebHook) Send(object map[string]interface{}) error {
+	return wh.httpAdapter.SendAsync(object)
 }
 
-func (wh *WebHookConversion) GetTableSchema(tableName string) (*Table, error) {
+//GetTableSchema always returns empty table
+func (wh *WebHook) GetTableSchema(tableName string) (*Table, error) {
 	return &Table{
 		Name:           tableName,
 		Columns:        Columns{},
@@ -83,15 +76,17 @@ func (wh *WebHookConversion) GetTableSchema(tableName string) (*Table, error) {
 	}, nil
 }
 
-func (wh *WebHookConversion) CreateTable(schemaToCreate *Table) error {
+//CreateTable returns nil
+func (wh *WebHook) CreateTable(schemaToCreate *Table) error {
 	return nil
 }
 
-func (wh *WebHookConversion) PatchTableSchema(schemaToAdd *Table) error {
+//PatchTableSchema returns nil
+func (wh *WebHook) PatchTableSchema(schemaToAdd *Table) error {
 	return nil
 }
 
-func (wh *WebHookConversion) Close() error {
-	wh.httpQueue.Close()
-	return nil
+//Close closes underlying HTTPAdapter
+func (wh *WebHook) Close() error {
+	return wh.httpAdapter.Close()
 }

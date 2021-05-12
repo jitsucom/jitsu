@@ -5,26 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"text/template"
-	"time"
-
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
 )
 
 const defaultEventType = "event"
 
 var (
-	//GA doesn't use types
-	SchemaToGoogleAnalytics = map[typing.DataType]string{
-		typing.STRING:    "string",
-		typing.INT64:     "string",
-		typing.FLOAT64:   "string",
-		typing.TIMESTAMP: "string",
-		typing.BOOL:      "string",
-		typing.UNKNOWN:   "string",
-	}
-
 	gaEventTypeMapping = map[string]string{
 		"pageview":    "pageview",
 		"screenview":  "screenview",
@@ -38,10 +23,12 @@ var (
 	}
 )
 
+//GoogleAnalyticsConfig is a GA configuration
 type GoogleAnalyticsConfig struct {
 	TrackingID string `mapstructure:"tracking_id" json:"tracking_id,omitempty" yaml:"tracking_id,omitempty"`
 }
 
+//Validate returns true if some fields are empty
 func (gac *GoogleAnalyticsConfig) Validate() error {
 	if gac == nil {
 		return errors.New("google_analytics config is required")
@@ -53,26 +40,21 @@ func (gac *GoogleAnalyticsConfig) Validate() error {
 	return nil
 }
 
-type GoogleAnalytics struct {
-	config              *GoogleAnalyticsConfig
-	debugLogger         *logging.QueryLogger
-	httpQueue           *HttpAdapter
-	RequestFailCallback func(object map[string]interface{}, err error)
+//GoogleAnalyticsRequestFactory is a HTTPRequestFactory for GA
+type GoogleAnalyticsRequestFactory struct {
+	config *GoogleAnalyticsConfig
 }
 
-func NewGoogleAnalytics(config *GoogleAnalyticsConfig, requestDebugLogger *logging.QueryLogger) *GoogleAnalytics {
-	return &GoogleAnalytics{
-		config:      config,
-		httpQueue:   NewHttpAdapter(10*time.Second, 1*time.Second, 1000, 1000, 1000, 1, 3),
-		debugLogger: requestDebugLogger,
-	}
+//NewGoogleAnalyticsRequestFactory returns configured factory instance
+func NewGoogleAnalyticsRequestFactory(config *GoogleAnalyticsConfig) *GoogleAnalyticsRequestFactory {
+	return &GoogleAnalyticsRequestFactory{config: config}
 }
 
-//Send HTTP GET request to GoogleAnalytics with query parameters
-//remove system fields and map event type
-func (ga *GoogleAnalytics) Send(object map[string]interface{}) error {
+//Create returns HTTP GET request with query parameters
+//removes system fields and map event type
+func (garf *GoogleAnalyticsRequestFactory) Create(object map[string]interface{}) (*http.Request, error) {
 	uv := make(url.Values)
-	uv.Add("tid", ga.config.TrackingID)
+	uv.Add("tid", garf.config.TrackingID)
 	uv.Add("v", "1")
 
 	for k, v := range object {
@@ -95,21 +77,23 @@ func (ga *GoogleAnalytics) Send(object map[string]interface{}) error {
 	}
 
 	reqURL := "https://www.google-analytics.com/collect?" + uv.Encode()
-	ga.debugLogger.LogQuery(reqURL)
 
-	urlTmpl, err := template.New("url").Parse(reqURL)
-	if err != nil {
-		return err
-	}
+	return http.NewRequest(http.MethodGet, reqURL, nil)
+}
 
-	ga.httpQueue.AddRequest(&Request{
-		Event:    object,
-		Method:   http.MethodGet,
-		URLTmpl:  urlTmpl,
-		Callback: ga.RequestFailCallback,
-	})
+//GoogleAnalytics is an adapter for sending events into GoogleAnalytics
+type GoogleAnalytics struct {
+	httpAdapter *HTTPAdapter
+}
 
-	return nil
+//NewGoogleAnalytics returns configured GoogleAnalytics instance
+func NewGoogleAnalytics(adapter *HTTPAdapter) *GoogleAnalytics {
+	return &GoogleAnalytics{httpAdapter: adapter}
+}
+
+//Send passes object to HTTPAdapter
+func (ga *GoogleAnalytics) Send(object map[string]interface{}) error {
+	return ga.httpAdapter.SendAsync(object)
 }
 
 //GetTableSchema always return empty schema
@@ -133,8 +117,7 @@ func (ga *GoogleAnalytics) PatchTableSchema(schemaToAdd *Table) error {
 	return nil
 }
 
+//Close closes HTTPAdapter
 func (ga *GoogleAnalytics) Close() error {
-	ga.httpQueue.Close()
-
-	return nil
+	return ga.httpAdapter.Close()
 }

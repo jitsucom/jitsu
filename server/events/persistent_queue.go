@@ -27,15 +27,16 @@ func QueuedFactBuilder() interface{} {
 	return &QueuedEvent{}
 }
 
+//PersistentQueue is a persisted queue
 type PersistentQueue struct {
 	queue      *dque.DQue
 	identifier string
 }
 
-func NewPersistentQueue(identifier, queueName, fallbackDir string) (*PersistentQueue, error) {
-	queue, err := dque.NewOrOpen(queueName, fallbackDir, eventsPerPersistedFile, QueuedFactBuilder)
+func NewPersistentQueue(identifier, queueName, dir string) (*PersistentQueue, error) {
+	queue, err := dque.NewOrOpen(queueName, dir, eventsPerPersistedFile, QueuedFactBuilder)
 	if err != nil {
-		return nil, fmt.Errorf("Error opening/creating event queue [%s] in dir [%s]: %v", queueName, fallbackDir, err)
+		return nil, fmt.Errorf("Error opening/creating request queue [%s] in dir [%s]: %v", queueName, dir, err)
 	}
 
 	metrics.InitialStreamEventsQueueSize(identifier, queue.Size())

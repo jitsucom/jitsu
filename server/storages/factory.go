@@ -22,9 +22,9 @@ import (
 const (
 	defaultTableName = "events"
 
-	//BatchMode is a mode when destinaions store data with batches
+	//BatchMode is a mode when destinations store data with batches
 	BatchMode = "batch"
-	//StreamMode is a mode when destinaions store data row by row
+	//StreamMode is a mode when destinations store data row by row
 	StreamMode = "stream"
 )
 
@@ -126,6 +126,7 @@ type Config struct {
 	sqlTypes         typing.SQLTypes
 	uniqueIDField    *identifiers.UniqueID
 	mappingsStyle    string
+	logEventPath     string
 }
 
 //RegisterStorage registers function to create new storage(destination) instance
@@ -346,6 +347,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		sqlTypes:         sqlTypes,
 		uniqueIDField:    uniqueIDField,
 		mappingsStyle:    mappingsStyle,
+		logEventPath:     f.logEventPath,
 	}
 
 	storageProxy := newProxy(storageConstructor, storageConfig)

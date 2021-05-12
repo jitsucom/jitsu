@@ -13,7 +13,7 @@ import (
 
 //S3 stores files to aws s3 in batch mode
 type S3 struct {
-	name                 string
+	destinationID        string
 	s3Adapter            *adapters.S3
 	processor            *schema.Processor
 	fallbackLogger       *logging.AsyncLogger
@@ -45,7 +45,7 @@ func NewS3(config *Config) (Storage, error) {
 	}
 
 	s3 := &S3{
-		name:                 config.destinationID,
+		destinationID:        config.destinationID,
 		s3Adapter:            s3Adapter,
 		processor:            config.processor,
 		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
@@ -137,7 +137,7 @@ func (s3 *S3) IsCachingDisabled() bool {
 
 //ID returns destination ID
 func (s3 *S3) ID() string {
-	return s3.name
+	return s3.destinationID
 }
 
 //Type returns S3 type

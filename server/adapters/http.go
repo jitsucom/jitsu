@@ -1,153 +1,210 @@
 package adapters
 
 import (
-	"bytes"
+	"encoding/json"
 	"fmt"
-	"io"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/panjf2000/ants/v2"
 	"io/ioutil"
 	"net/http"
-	"strings"
-	"text/template"
 	"time"
-
-	"github.com/hashicorp/go-multierror"
-	"github.com/jitsucom/jitsu/server/safego"
 )
 
-type Request struct {
-	Event    map[string]interface{}
-	Method   string
-	URLTmpl  *template.Template
-	BodyTmpl *template.Template
-	Headers  map[string]string
-	Callback func(object map[string]interface{}, err error)
+//HTTPConfiguration is a dto for HTTP adapter (client) configuration
+type HTTPConfiguration struct {
+	GlobalClientTimeout time.Duration
+	RetryDelay          time.Duration
+	RetryCount          int
+
+	ClientMaxIdleConns        int
+	ClientMaxIdleConnsPerHost int
 }
 
-func (r *Request) GetURL() (string, error) {
-	var buf bytes.Buffer
-	if err := r.URLTmpl.Execute(&buf, r.Event); err != nil {
-		return "", fmt.Errorf("Error executing %s template: %v", r.URLTmpl, err)
-	}
-	return strings.TrimSpace(buf.String()), nil
+//HTTPAdapter is an adapter for sending HTTP requests with retries
+//has persistent request queue and workers pool under the hood
+type HTTPAdapter struct {
+	client         *http.Client
+	workersPool    *ants.PoolWithFunc
+	queue          *PersistentQueue
+	debugLogger    *logging.QueryLogger
+	httpReqFactory HTTPRequestFactory
+
+	fallbackFunc func()
+
+	destinationID string
+	retryCount    int
+	retryDelay    time.Duration
+	closed        bool
 }
 
-func (r *Request) GetBody() (string, error) {
-	var buf bytes.Buffer
-	if err := r.BodyTmpl.Execute(&buf, r.Event); err != nil {
-		return "", fmt.Errorf("Error executing %s template: %v", r.BodyTmpl, err)
-	}
-	return strings.TrimSpace(buf.String()), nil
-}
-
-type HttpAdapter struct {
-	client      *http.Client
-	queue       chan *Request
-	threadCount int
-	stopedChan  chan int
-	retryCount  int
-	retryTime   time.Duration
-	closed      bool
-	io.Closer
-}
-
-func NewHttpAdapter(timeout, retryTime time.Duration, maxIdleConns, maxIdleConnsPerHost, queueSize, threadCount, retryCount int) *HttpAdapter {
-	s := &HttpAdapter{
+//NewHTTPAdapter returns configured HTTPAdapter and starts queue observing goroutine
+func NewHTTPAdapter(destinationID, dir string, config *HTTPConfiguration, httpReqFactory HTTPRequestFactory, poolWorkers int, fallbackFunc func(), debugLogger *logging.QueryLogger) (*HTTPAdapter, error) {
+	httpAdapter := &HTTPAdapter{
 		client: &http.Client{
-			Timeout: timeout,
+			Timeout: config.GlobalClientTimeout,
 			Transport: &http.Transport{
-				MaxIdleConns:        maxIdleConns,
-				MaxIdleConnsPerHost: maxIdleConnsPerHost,
+				MaxIdleConns:        config.ClientMaxIdleConns,
+				MaxIdleConnsPerHost: config.ClientMaxIdleConnsPerHost,
 			},
 		},
-		queue:       make(chan *Request, queueSize),
-		stopedChan:  make(chan int, 1),
-		threadCount: threadCount,
-		retryCount:  retryCount,
-		retryTime:   retryTime,
-		closed:      false,
+		debugLogger:    debugLogger,
+		httpReqFactory: httpReqFactory,
+
+		fallbackFunc: fallbackFunc,
+
+		destinationID: destinationID,
+		retryCount:    config.RetryCount,
+		retryDelay:    config.RetryDelay,
 	}
 
-	for i := 0; i < threadCount; i++ {
-		safego.RunWithRestart(s.sendRequestWorker)
+	reqQueue, err := NewPersistentQueue("http_queue.dst="+destinationID, dir)
+	if err != nil {
+		httpAdapter.client.CloseIdleConnections()
+		return nil, err
 	}
 
-	return s
+	pool, err := ants.NewPoolWithFunc(poolWorkers, httpAdapter.sendRequestWithRetry)
+	if err != nil {
+		return nil, fmt.Errorf("Error creating HTTP adapter workers pool: %v", err)
+	}
+
+	httpAdapter.workersPool = pool
+	httpAdapter.queue = reqQueue
+
+	httpAdapter.startObserver()
+
+	return httpAdapter, nil
 }
 
-func (h *HttpAdapter) AddRequest(r *Request) {
-	h.queue <- r
-}
+//startObserver run goroutine for polling from the queue and executes Request
+func (h *HTTPAdapter) startObserver() {
+	safego.RunWithRestart(func() {
+		for {
+			if h.closed {
+				break
+			}
 
-func (h *HttpAdapter) sendRequestWorker() {
-	for {
-		if h.closed {
-			break
+			if h.workersPool.Free() > 0 {
+				queuedRequest, err := h.queue.DequeueBlock()
+				if err != nil {
+					if err == events.ErrQueueClosed && h.closed {
+						continue
+					}
+
+					logging.SystemErrorf("[%s] Error reading HTTP request from the queue: %v", h.destinationID, err)
+					continue
+				}
+
+				//dequeued request was from retry call and retry timeout hasn't come
+				if time.Now().UTC().Before(queuedRequest.DequeuedTime) {
+					if err := h.queue.Retry(queuedRequest); err != nil {
+						logging.SystemErrorf("[%s] Error enqueueing HTTP request after dequeuing: %v", h.destinationID, err)
+					}
+
+					continue
+				}
+
+				if err := h.workersPool.Invoke(queuedRequest); err != nil {
+					if err != ants.ErrPoolClosed {
+						logging.SystemErrorf("[%s] Error invoking HTTP request task: %v", h.destinationID, err)
+					}
+
+					if err := h.queue.Retry(queuedRequest); err != nil {
+						logging.SystemErrorf("[%s] Error enqueueing HTTP request after invoking: %v", h.destinationID, err)
+					}
+				}
+			}
 		}
-		request := <-h.queue
-		err := h.sendRequestWithRetry(request)
-		if err != nil {
-			request.Callback(request.Event, err)
-		}
-	}
+	})
 }
 
-func (h *HttpAdapter) sendRequestWithRetry(r *Request) (err error) {
-	var multiErr error
-
-	url, err := r.GetURL()
+//SendAsync puts request to the queue
+//returns err if occurred
+func (h *HTTPAdapter) SendAsync(object map[string]interface{}) error {
+	httpReq, err := h.httpReqFactory.Create(object)
 	if err != nil {
 		return err
 	}
 
-	var body = ""
-	if r.BodyTmpl != nil {
-		body, err = r.GetBody()
+	return h.queue.Add(httpReq)
+}
+
+func (h *HTTPAdapter) sendRequestWithRetry(i interface{}) {
+	queuedRequest, ok := i.(*QueuedRequest)
+	if !ok {
+		logging.SystemErrorf("HTTP webhook request has unknown type: %T", i)
+		return
+	}
+
+	retries := ""
+	if queuedRequest.Retry > 0 {
+		retries = fmt.Sprintf(" with %d retry", queuedRequest.Retry)
+	}
+
+	debugQuery := fmt.Sprintf("%s %s. Headers: %v %s", queuedRequest.HTTPReq.Method, queuedRequest.HTTPReq.URL, queuedRequest.HTTPReq.Header, retries)
+
+	var values []interface{}
+	//copying req body if not nil
+	body := queuedRequest.HTTPReq.Body
+	if body != nil {
+		bodyReader, err := queuedRequest.HTTPReq.GetBody()
 		if err != nil {
-			return err
+			logging.Errorf("Error copying HTTP body for debug logs: %v", err)
+		} else {
+			b, _ := ioutil.ReadAll(bodyReader)
+			values = append(values, string(b))
 		}
 	}
 
-	for i := 0; i < h.retryCount; i++ {
-		_, _, err := h.doRequest(r.Method, url, body, r.Headers)
-		if err == nil {
-			return nil
-		}
-		multiErr = multierror.Append(multiErr, err)
-		time.Sleep(h.retryTime)
+	h.debugLogger.LogQueryWithValues(debugQuery, values)
+
+	err := h.doRequest(queuedRequest.HTTPReq)
+	if err != nil {
+		h.doRetry(queuedRequest, err)
 	}
-	return multiErr
 }
 
-func (h *HttpAdapter) doRequest(method string, url string, body string, headers map[string]string) (code int, respBody []byte, err error) {
-	req, err := http.NewRequest(method, url, bytes.NewBuffer([]byte(body)))
-	if err != nil {
-		return 1, respBody, fmt.Errorf("Can't get request; %v", err)
-	}
-
-	if headers != nil {
-		for k, v := range headers {
-			req.Header.Set(k, v)
+func (h *HTTPAdapter) doRetry(queuedRequest *QueuedRequest, err error) {
+	if queuedRequest.Retry < h.retryCount {
+		queuedRequest.Retry += 1
+		queuedRequest.DequeuedTime = time.Now().UTC().Add(h.retryDelay)
+		if err := h.queue.Retry(queuedRequest); err != nil {
+			logging.SystemErrorf("[%s] Error enqueueing HTTP request after sending: %v", h.destinationID, err)
 		}
+		return
 	}
 
-	resp, err := h.client.Do(req)
-	if err != nil {
-		return 0, respBody, err
-	}
+	reqJson, _ := json.Marshal(queuedRequest)
+	logging.Errorf("[%s] error sending HTTP request [%s]: %v", h.destinationID, string(reqJson), err)
 
-	respBody, err = ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return resp.StatusCode, respBody, fmt.Errorf("Can't read response; %v", err)
+	if h.fallbackFunc != nil {
+		h.fallbackFunc(queuedRequest)
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 && resp.StatusCode != 201 {
-		return resp.StatusCode, respBody, fmt.Errorf("Response status code: %d", resp.StatusCode)
-	}
-
-	return resp.StatusCode, respBody, nil
 }
 
-func (h *HttpAdapter) Close() {
+func (h *HTTPAdapter) doRequest(httpReq *http.Request) error {
+	resp, err := h.client.Do(httpReq)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
+		return fmt.Errorf("Response status code: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+//Close closes underlying queue, workers pool and HTTP client
+//returns err if occurred
+func (h *HTTPAdapter) Close() (err error) {
 	h.closed = true
+	err = h.queue.Close()
+
+	h.workersPool.Release()
+	h.client.CloseIdleConnections()
+
+	return err
 }
