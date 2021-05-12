@@ -47,7 +47,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	gaAdapter := adapters.NewGoogleAnalytics(gaConfig, requestDebugLogger)
 
-	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToGoogleAnalytics, config.streamMode, 0)
+	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, config.streamMode, 0)
 
 	ga := &GoogleAnalytics{
 		destinationID:        config.destinationID,

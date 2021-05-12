@@ -19,7 +19,7 @@ const unlockRetryCount = 5
 type TableHelper struct {
 	sync.RWMutex
 
-	manager       adapters.TableManager
+	manager       adapters.TableCreator
 	monitorKeeper MonitorKeeper
 	tables        map[string]*adapters.Table
 
@@ -31,7 +31,8 @@ type TableHelper struct {
 }
 
 //NewTableHelper returns configured TableHelper instance
-func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, pkFields map[string]bool,
+//Note: columnTypesMapping must be not empty (or fields will be ignored)
+func NewTableHelper(manager adapters.TableCreator, monitorKeeper MonitorKeeper, pkFields map[string]bool,
 	columnTypesMapping map[typing.DataType]string, streamMode bool, maxColumns int) *TableHelper {
 
 	return &TableHelper{

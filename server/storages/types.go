@@ -19,6 +19,7 @@ const (
 	SnowflakeType       = "snowflake"
 	GoogleAnalyticsType = "google_analytics"
 	FacebookType        = "facebook"
+	WebHookType         = "webhook"
 )
 
 //Storage is a destination representation

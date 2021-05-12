@@ -46,7 +46,7 @@ func NewFacebook(config *Config) (Storage, error) {
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 	fbAdapter := adapters.NewFacebookConversion(fbConfig, requestDebugLogger)
 
-	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion, config.streamMode, 0)
+	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, config.streamMode, 0)
 
 	fb := &Facebook{
 		destinationID:        config.destinationID,

@@ -20,7 +20,7 @@ import (
 //batch: via aws s3 (or gcp) in batch mode (1 file = 1 transaction)
 //stream: via events queue in stream mode (1 object = 1 transaction)
 type Snowflake struct {
-	name                 string
+	destinationID        string
 	stageAdapter         adapters.Stage
 	snowflakeAdapter     *adapters.Snowflake
 	tableHelper          *TableHelper
@@ -92,7 +92,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.streamMode, config.maxColumns)
 
 	snowflake := &Snowflake{
-		name:                 config.destinationID,
+		destinationID:        config.destinationID,
 		stageAdapter:         stageAdapter,
 		snowflakeAdapter:     snowflakeAdapter,
 		tableHelper:          tableHelper,
@@ -277,7 +277,7 @@ func (s *Snowflake) Update(object map[string]interface{}) error {
 
 //ID returns destination ID
 func (s *Snowflake) ID() string {
-	return s.name
+	return s.destinationID
 }
 
 //Type returns Snowflake type
