@@ -1,23 +1,23 @@
 // @Libs
 import React, { useCallback, useMemo } from 'react';
-import { generatePath, useHistory } from 'react-router-dom';
 import { Form } from 'antd';
 // @Constants
 import { SOURCE_CONNECTED_DESTINATION } from '@./embeddedDocs/sourcesConnectedItems';
 // @Components
+import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
 import { ConnectedItems } from '@organism/ConnectedItems';
+import { TabDescription } from '@atom/TabDescription';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { ConnectedItem } from '@organism/ConnectedItems';
+import { Destination } from '@catalog/destinations/types';
 // @Hooks
 import useLoader from '@hooks/useLoader';
 // @Utils
 import { destinationsUtils } from '@page/DestinationsPage/DestinationsPage.utils';
-import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
-import { Destination } from '@catalog/destinations/types';
 
 export interface Props {
   form: FormInstance;
@@ -63,9 +63,7 @@ const SourceEditorDestinations = ({ form, initialValues, projectId, handleTouchA
 
   return (
     <>
-      <article className="mb-5 text-sm text-secondaryText">
-        {SOURCE_CONNECTED_DESTINATION}
-      </article>
+      <TabDescription>{SOURCE_CONNECTED_DESTINATION}</TabDescription>
 
       <Form form={form} name="connected-destinations">
         <ConnectedItems
