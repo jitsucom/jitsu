@@ -108,8 +108,6 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
     await forceUpdate();
 
     message.success('Mappings library has been successfully set');
-
-    setActiveTabIndex(1);
   };
 
   const destinationsTabs = useRef<Tab[]>([{
