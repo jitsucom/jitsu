@@ -69,7 +69,7 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
                   <p className={styles.name}>{key}</p>
                   {library.comment && <p className={styles.comment}>{library.comment}</p>}
                 </div>
-                <Button onClick={handleClick(library, key)}>Apply</Button>
+                <Button type="primary" onClick={handleClick(library, key)}>Apply</Button>
               </div>
             );
           })
