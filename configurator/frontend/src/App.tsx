@@ -61,7 +61,7 @@ export default class App extends React.Component<AppProperties, AppState> {
             await this.services.init();
             const loginStatus = await this.services.userService.waitForUser();
             setDebugInfo('user', loginStatus.user);
-            if (loginStatus.user && this.services.features.chatSupportType === 'chat') {
+            if (loginStatus.user) {
                 this.services.analyticsService.onUserKnown(loginStatus.user);
             }
 

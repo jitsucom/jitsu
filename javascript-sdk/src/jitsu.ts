@@ -155,19 +155,20 @@ class JitsuClientImpl implements JitsuClient {
   makeEvent(event_type: string, src: EventSrc, payload: EventPayload): Event | EventCompat {
     this.restoreId();
     let context = this.getCtx();
-
+    let persistentProps = {
+      ...this.permanentProperties.globalProps,
+      ...(this.permanentProperties.propsPerEvent[event_type] ?? {}),
+    }
     let base = {
       api_key: this.apiKey,
       src,
       event_type,
-      ...this.permanentProperties.globalProps,
-      ...(this.permanentProperties.propsPerEvent[event_type] ?? {}),
       ...payload
     }
 
     return this.compatMode ?
-      { eventn_ctx: context, ...base } :
-      {...context, ...base };
+      { ...persistentProps, eventn_ctx: context, ...base } :
+      { ...persistentProps, ...context, ...base };
   }
 
   _send3p(sourceType: EventSrc, object: any, type?: string): Promise<any> {
