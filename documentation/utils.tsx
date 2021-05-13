@@ -1,8 +1,8 @@
 import mappings from "../configurator/frontend/src/catalog/mappings/lib";
-import {Mapping} from "../configurator/frontend/src/catalog/mappings/types";
+import {DestinationConfigurationTemplate} from "../configurator/frontend/src/catalog/mappings/types";
 
 export function generateMapping(type: string, indent: string) {
-    let mapping: Mapping = mappings[type];
+    let mapping: DestinationConfigurationTemplate = mappings[type];
     if (!mapping) {
         throw new Error('mapping === null');
     }

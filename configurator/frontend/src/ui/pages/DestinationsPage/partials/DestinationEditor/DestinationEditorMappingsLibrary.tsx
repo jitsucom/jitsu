@@ -5,7 +5,7 @@ import mappings from '@catalog/mappings/lib';
 // @Styles
 import styles from './DestinationEditor.module.less';
 // @Types
-import { FieldMapping, Mapping } from '@catalog/mappings/types';
+import { FieldMapping, DestinationConfigurationTemplate } from '@catalog/mappings/types';
 // @Icons
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 // @Components
@@ -34,7 +34,7 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
       return accumulator;
     }, {} as DestinationMappingRow);
 
-  const setLibraryMapping = (library: Mapping) => {
+  const setLibraryMapping = (library: DestinationConfigurationTemplate) => {
     const newMappings = {
       _keepUnmappedFields: library.keepUnmappedFields,
       _mappings: library.mappings.map(mapFunction)
@@ -43,7 +43,7 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
     handleDataUpdate(newMappings, library.tableNameTemplate);
   };
 
-  const handleClick = (library: Mapping, key: string) => () => {
+  const handleClick = (library: DestinationConfigurationTemplate, key: string) => () => {
     Modal.confirm({
       title: 'Mapping library',
       icon: <ExclamationCircleOutlined/>,
@@ -65,12 +65,12 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
       <div className={styles.library}>
         {
           Object.keys(mappings).map((key: string) => {
-            const library: Mapping = mappings[key];
+            const library: DestinationConfigurationTemplate = mappings[key];
 
             return (
               <div key={key} className={styles.item}>
                 <div>
-                  <p className={styles.name}>{key}</p>
+                  <p className="font-bold capitalize">{library.displayName || key}</p>
                   {library.comment && <p className={styles.comment}>{library.comment}</p>}
                 </div>
                 <Button type="primary" onClick={handleClick(library, key)}>Apply</Button>
