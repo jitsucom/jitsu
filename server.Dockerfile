@@ -65,8 +65,8 @@ RUN mkdir /app
 WORKDIR /go/src/github.com/jitsucom/jitsu/server
 
 #Caching dependencies
-ADD server/go.mod server/go.sum ./
-RUN go mod download
+ADD server/go.mod ./
+RUN go mod tidy && go mod download
 
 #Copy backend
 ADD server/. ./.

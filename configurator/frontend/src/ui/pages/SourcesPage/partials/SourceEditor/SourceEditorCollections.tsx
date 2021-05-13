@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useMemo, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select } from 'antd';
-import { unset } from 'lodash';
+import unset from 'lodash/unset';
 // @Components
 import { SourceFormCollectionsField } from './SourceFormCollectionsField';
 // @Types
@@ -18,6 +18,7 @@ import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Utils
 import { getUniqueAutoIncId } from '@util/numbers';
+import { TabDescription } from '@atom/TabDescription';
 
 export interface Props {
   form: FormInstance;
@@ -112,11 +113,9 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
   const getCollectionTypeValue = useCallback(
     (index: number) => {
       const initial = initialValues.collections?.[index]?.type;
-
       if (initial) {
         return initial;
       }
-
       return connectorSource.collectionTypes[0];
     },
     [initialValues, connectorSource.collectionTypes]
@@ -142,8 +141,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
 
   return (
     <div className={styles.collection}>
-      <h3>Configure collections</h3>
-      {SOURCE_COLLECTIONS}
+      <TabDescription>{SOURCE_COLLECTIONS}</TabDescription>
 
       <Form
         name="source-collections"

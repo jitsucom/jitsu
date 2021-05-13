@@ -115,8 +115,9 @@ func (p *Processor) process(fileName string, objects []map[string]interface{}, a
 	return filePerTable, failedEvents, nil
 }
 
-//Check if table name in skipTables => return empty Table for skipping or
-//Return table representation of object and flatten, mapped object
+//processObject checks if table name in skipTables => return empty Table for skipping or
+//skips object if tableNameExtractor returns empty string or 'null'
+//returns table representation of object and flatten, mapped object
 //1. extract table name
 //2. execute enrichment.LookupEnrichmentStep and MappingStep
 //or ErrSkipObject/another error
@@ -125,7 +126,7 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 	if err != nil {
 		return nil, nil, err
 	}
-	if tableName == "" {
+	if tableName == "" || tableName == "null" {
 		return nil, nil, ErrSkipObject
 	}
 

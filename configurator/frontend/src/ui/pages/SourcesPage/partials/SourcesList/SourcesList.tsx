@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
 import { Button, Dropdown, message } from 'antd';
-import { snakeCase } from 'lodash';
+import snakeCase from 'lodash/snakeCase';
 // @Components
 import { DropDownList } from '@molecule/DropDownList';
 import { ListItem } from '@molecule/ListItem';

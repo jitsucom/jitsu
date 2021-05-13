@@ -1,5 +1,5 @@
 # Go parameters
-#GOBUILD_CMD=GOOS=linux GOARCH=amd64 go build
+export GOBUILD_PREFIX=
 export PATH := $(shell go env GOPATH)/bin:$(PATH)
 
 commit=`git rev-parse --short HEAD`
@@ -23,7 +23,7 @@ deps_backend:
 	go mod tidy
 
 build_backend:
-	go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o configurator
+	$(GOBUILD_PREFIX) go build -ldflags "-X main.commit=${commit} -X main.builtAt=${built_at} -X main.tag=${tag}" -o configurator
 
 test_backend:
 	go test -failfast -v -parallel=1 ./...

@@ -7,8 +7,8 @@ import { TabsType } from 'antd/es/tabs';
 // @Components
 import { TabName } from '@atom/TabName';
 
-export interface Tab {
-  readonly key: string;
+export interface Tab<K = string> {
+  readonly key: K;
   readonly name: React.ReactNode;
   readonly getComponent?: (form: FormInstance) => React.ReactNode;
   readonly isDisabled?: boolean;
@@ -23,15 +23,15 @@ export interface Props {
   tabsList: Tab[];
   className?: string;
   type: TabsType;
-  defaultTabIndex?: number;
+  activeTabKey: string;
   onTabChange?: (tabName: any) => void;
 }
 
-const TabsConfiguratorComponent = ({ tabsList, className, type, defaultTabIndex = 0, onTabChange = () => null }: Props) => (
+const TabsConfiguratorComponent = ({ tabsList, className, type, activeTabKey, onTabChange = () => null }: Props) => (
   <Tabs
     type={type}
     className={className}
-    defaultActiveKey={tabsList[defaultTabIndex]?.key ?? tabsList[0].key}
+    activeKey={activeTabKey}
     onChange={onTabChange}
   >
     {

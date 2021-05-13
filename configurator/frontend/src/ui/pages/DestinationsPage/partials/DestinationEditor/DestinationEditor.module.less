@@ -5,15 +5,34 @@
 }
 
 .mainArea {
-}
-
-.tabCard {
   height: calc(100vh - 150px);
+
+  .linkedWarning {
+    margin-bottom: 20px;
+    display: inline-flex;
+
+    :global {
+      .ant-card-body {
+        display: inline-flex;
+        align-items: center;
+      }
+    }
+
+    .warningIcon {
+      color: @warning-color;
+      margin-right: 10px;
+    }
+
+    .pseudoLink {
+      color: @link-color;
+      border-bottom: 1px dotted @link-color;
+      cursor: pointer;
+    }
+  }
 }
 
-.tabCard :global .ant-tabs-content {
+.tabCard :global .ant-tabs-content-holder {
   overflow: auto;
-  height: 98%;
 
   .custom-scrollbar();
 }
@@ -22,33 +41,63 @@
   transition: all 2s;
 }
 
-.mappings {
-  min-width: 1140px;
+.mappingsWrap {
+  padding-bottom: 20px;
 
-  .mappingsItem {
-    padding: 20px 20px 0;
-    margin-bottom: 20px;
-
-    .delete {
-      display: flex;
-      justify-content: flex-end;
-      align-items: center;
+  .mappings {
+    .mappingsItem {
+      min-width: 1140px;
+      padding: 20px 20px 0;
       margin-bottom: 20px;
 
-      .deleteLink {
-        cursor: pointer;
-        border-bottom: 1px dotted @link-color;
-        color: @link-color;
-        line-height: 1.35;
-      }
-    }
+      .delete {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        margin-bottom: 20px;
 
-    .secondaryLabel {
-      :global {
-        .ant-form-item-label-left {
-          padding-left: 20px;
+        .deleteLink {
+          cursor: pointer;
+          border-bottom: 1px dotted @link-color;
+          color: @link-color;
+          line-height: 1.35;
         }
       }
+
+      .secondaryLabel {
+        :global {
+          .ant-form-item-label-left {
+            padding-left: 20px;
+          }
+        }
+      }
+    }
+  }
+}
+
+.library {
+  width: 100%;
+
+  .item {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    border-bottom: 1px solid @border-color-base;
+    padding: 20px 0;
+
+    .name {
+      text-transform: capitalize;
+      margin: 0 0 4px 0;
+    }
+
+    .comment {
+      color: @text-color-secondary;
+      font-size: 14px;
+      line-height: 1.5715;
+    }
+
+    &:last-child {
+      border-bottom: none;
     }
   }
 }

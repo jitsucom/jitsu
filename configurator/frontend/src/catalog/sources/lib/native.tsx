@@ -309,7 +309,14 @@ export const redis: SourceConnector = {
   displayName: 'Redis',
   id: 'redis',
   collectionTypes: ['hash'],
-  collectionParameters: [],
+  collectionParameters: [
+    {
+      displayName: 'Redis Key',
+      id: 'redis_key',
+      type: stringType,
+      required: true
+    }
+  ],
   configParameters: [
     {
       displayName: 'Redis Host',

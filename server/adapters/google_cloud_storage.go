@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/schema"
 	"io/ioutil"
 	"strings"
 
@@ -14,6 +15,8 @@ import (
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
+
+var ErrMalformedBQDataset = errors.New("bq_dataset must be alphanumeric (plus underscores) and must be at most 1024 characters long")
 
 type GoogleCloudStorage struct {
 	config *GoogleConfig
@@ -38,6 +41,19 @@ func (gc *GoogleConfig) Validate(streamMode bool) error {
 	//batch mode works via google cloud storage
 	if !streamMode && gc.Bucket == "" {
 		return errors.New("Google cloud storage bucket(gcs_bucket) is required parameter")
+	}
+
+	if gc.Dataset != "" {
+		if len(gc.Dataset) > 1024 {
+			return ErrMalformedBQDataset
+		}
+
+		//check symbols
+		for _, symbol := range gc.Dataset {
+			if symbol != '_' && !schema.IsLetterOrNumber(symbol) {
+				return fmt.Errorf("%s: '%s'", ErrMalformedBQDataset.Error(), string(symbol))
+			}
+		}
 	}
 
 	switch gc.KeyFile.(type) {

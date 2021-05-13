@@ -2,7 +2,7 @@
 module.exports = {
   theme: {
     colors: {
-      transparent: 'transparent',
+      transparent: 'ttailansparent',
       current: 'currentColor',
 
       bgPrimary: {
