@@ -36,7 +36,7 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
 
   const setLibraryMapping = (library: Mapping) => {
     const newMappings = {
-      _keepUnmappedFields: library.keepUnmappedFields ? Number(library.keepUnmappedFields) : 1,
+      _keepUnmappedFields: library.keepUnmappedFields,
       _mappings: library.mappings.map(mapFunction)
     };
 
