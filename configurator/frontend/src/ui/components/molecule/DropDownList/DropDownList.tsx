@@ -2,7 +2,7 @@
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Input } from 'antd';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 import cn from 'classnames';
 // @Styles
 import styles from './DropDownList.module.less';

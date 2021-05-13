@@ -1,16 +1,18 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, useHistory, useParams } from 'react-router-dom';
-import { Form, message } from 'antd';
+import { Card, Form, message } from 'antd';
 import cn from 'classnames';
 // @Components
 import { TabsConfigurator } from '@molecule/TabsConfigurator';
 import { EditorButtons } from '@molecule/EditorButtons';
 import { ComingSoon } from '@atom/ComingSoon';
 import { PageHeader } from '@atom/PageHeader';
+import { closeableMessage } from '@./lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
+import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
 // @CatalogDestinations
 import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
@@ -32,9 +34,20 @@ import { getUniqueAutoIncId, randomId } from '@util/numbers';
 import { firstToLower } from '@./lib/commons/utils';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
-import { closeableMessage } from '@./lib/components/components';
+// @Icons
+import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
 
-const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, editorMode, sources, sourcesError, updateSources }: CommonDestinationPageProps) => {
+type DestinationTabKey = 'config' | 'mappings' | 'sources' | 'settings' | 'statistics';
+
+const DestinationEditor = ({
+  destinations,
+  setBreadcrumbs,
+  updateDestinations,
+  editorMode,
+  sources,
+  sourcesError,
+  updateSources
+}: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const forceUpdate = useForceUpdate();
@@ -48,6 +61,8 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
   const [savePopover, switchSavePopover] = useState<boolean>(false);
   const [destinationSaving, setDestinationSaving] = useState<boolean>(false);
+
+  const [activeTabKey, setActiveTabKey] = useState<DestinationTabKey>('config');
 
   const destinationData = useRef<DestinationData>(
     destinations.find(dst => dst._id === params.id) || {
@@ -70,7 +85,42 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
   const submittedOnce = useRef<boolean>(false);
 
-  const destinationsTabs = useRef<Tab[]>([{
+  const handleUseLibrary = async(newMappings: DestinationMapping, newTableName?: string) => {
+    destinationData.current = {
+      ...destinationData.current,
+      _formData: {
+        ...destinationData.current._formData,
+        tableName: newTableName ?
+          newTableName :
+          destinationData.current._formData?.tableName
+      },
+      _mappings: newMappings
+    };
+
+    const { form: mappingsForm } = destinationsTabs.current[1];
+    const { form: configForm } = destinationsTabs.current[0];
+
+    await mappingsForm.setFieldsValue({
+      '_mappings._mappings': newMappings._mappings,
+      '_mappings._keepUnmappedFields': newMappings._keepUnmappedFields
+    });
+
+    destinationsTabs.current[1].touched = true;
+
+    if (newTableName) {
+      await configForm.setFieldsValue({
+        '_formData.tableName': newTableName
+      });
+
+      destinationsTabs.current[0].touched = true;
+    }
+
+    await forceUpdate();
+
+    message.success('Mappings library has been successfully set');
+  };
+
+  const destinationsTabs = useRef<Tab<DestinationTabKey>[]>([{
     key: 'config',
     name: 'Connection Properties',
     getComponent: (form: FormInstance) =>
@@ -113,13 +163,15 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   },
   {
     key: 'settings',
-    name: <ComingSoon render="Settings Library" documentation={<>A predefined library of settings such as <a href="https://jitsu.com/docs/other-features/segment-compatibility" target="_blank" rel="noreferrer">Segment-like schema</a></>} />,
-    isDisabled: true,
-    touched: false
+    name: 'Settings Library',
+    touched: false,
+    getComponent: () => <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary}/>
   },
   {
     key: 'statistics',
-    name: <ComingSoon render="Statistics" documentation={<>A detailed statistics on how many events have been sent to the destinations</>} />,
+    name: <ComingSoon render="Statistics"
+      documentation={<>A detailed statistics on how many events have been sent to the
+                          destinations</>}/>,
     isDisabled: true,
     touched: false
   }]);
@@ -156,7 +208,9 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
   const validateAndTouchField = useCallback(
     (index: number) => (value: boolean) => {
-      destinationsTabs.current[index].touched = value === undefined ? true : value;
+      destinationsTabs.current[index].touched = value === undefined ?
+        true :
+        value;
 
       if (submittedOnce.current) {
         validateTabForm(destinationsTabs.current[index]);
@@ -205,7 +259,8 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
         try {
           const updatedSources = await destinationEditorUtils.updateSources(sources, destinationData.current, services.activeProject.id);
           updateSources({ sources: updatedSources });
-        } catch (error) {}
+        } catch (error) {
+        }
 
         // ToDo: remove this code after _mappings refactoring
         destinationData.current = {
@@ -221,12 +276,16 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
 
           const payload = {
             destinations: editorMode === 'add'
-              ? [...destinations, destinationData.current]
-              : destinations.reduce((accumulator: DestinationData[], current: DestinationData) => [
+              ?
+              [...destinations, destinationData.current]
+              :
+              destinations.reduce((accumulator: DestinationData[], current: DestinationData) => [
                 ...accumulator,
                 current._uid !== destinationData.current._uid
-                  ? current
-                  : destinationData.current
+                  ?
+                  current
+                  :
+                  destinationData.current
               ], [])
           };
 
@@ -247,7 +306,8 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
           }
 
           history.push(destinationPageRoutes.root);
-        } catch (errors) {}
+        } catch (errors) {
+        }
       })
       .catch((errors) => {
         switchSavePopover(true);
@@ -258,12 +318,15 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
       });
   }, [sources, history, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode, services.activeProject.id, services.storageService, updateSources]);
 
+  const isAbleToConnectItems = () => editorMode === 'edit' && !destinationData.current?._sources?.length && !destinationData.current?._onlyKeys?.length;
+
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
         { title: 'Destinations', link: destinationPageRoutes.root },
         {
-          title: <PageHeader title={destinationReference.displayName} icon={destinationReference.ui.icon} mode={editorMode} />
+          title: <PageHeader title={destinationReference.displayName} icon={destinationReference.ui.icon}
+            mode={editorMode}/>
         }
       ]
     }));
@@ -272,12 +335,25 @@ const DestinationEditor = ({ destinations, setBreadcrumbs, updateDestinations, e
   return (
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
-        <div className={cn('flex-grow', styles.mainArea)} id="dst-editor-tabs">
+        <div className={cn('flex flex-col flex-grow', styles.mainArea)} id="dst-editor-tabs">
+          {
+            isAbleToConnectItems() && (
+              <Card className={styles.linkedWarning}>
+                <WarningOutlined className={styles.warningIcon}/>
+                <article>
+                  This destination is not linked to any API keys or Connector.
+                  You <span className={styles.pseudoLink} onClick={() => setActiveTabKey('sources')}>can link the destination here</span>.
+                </article>
+              </Card>
+            )
+          }
+
           <TabsConfigurator
             type="card"
             className={styles.tabCard}
             tabsList={destinationsTabs.current}
-            defaultTabIndex={0}
+            activeTabKey={activeTabKey}
+            onTabChange={setActiveTabKey}
           />
         </div>
 

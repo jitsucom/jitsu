@@ -35,7 +35,7 @@ func NewTableNameExtractor(tableNameExtractExpression string) (*TableNameExtract
 }
 
 //Extract returns table name string (extracts it from JSON event with text/template expression)
-//returns empty string
+//replaces all empty fields with 'null': {{.field1}} with object {'field2':2} => returns 'null'
 func (tne *TableNameExtractor) Extract(object map[string]interface{}) (result string, err error) {
 	//panic handler
 	defer func() {

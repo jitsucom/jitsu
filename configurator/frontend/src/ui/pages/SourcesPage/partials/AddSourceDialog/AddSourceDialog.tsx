@@ -3,7 +3,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, generatePath, useHistory } from 'react-router-dom';
 import { Badge, Input, Modal } from 'antd';
 import cn from 'classnames';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 // @Catalog sources
 import { allSources } from '@catalog/sources/lib';
 // @Styles
@@ -26,12 +26,10 @@ const AddSourceDialogComponent = () => {
     if (src.isSingerType) {
       e.stopPropagation();
       e.preventDefault();
-      services.analyticsService.withJitsu((jitsu => {
-        jitsu.track('singer_connector_attempt', {
-          app: services.features.appName,
-          connector_id: src.id
-        });
-      }));
+      services.analyticsService.track('singer_connector_attempt', {
+        app: services.features.appName,
+        connector_id: src.id
+      });
 
       Modal.confirm({
         title: <><b>{src.displayName}</b> - alpha version notice!</>,
@@ -45,12 +43,10 @@ const AddSourceDialogComponent = () => {
         okText: 'Add',
         cancelText: 'Cancel',
         onOk: () => {
-          services.analyticsService.withJitsu((jitsu => {
-            jitsu.track('singer_connector_added', {
-              app: services.features.appName,
-              connector_id: src.id
-            });
-          }));
+          services.analyticsService.track('singer_connector_added', {
+            app: services.features.appName,
+            connector_id: src.id
+          });
           history.push(generatePath(sourcesPageRoutes.addExact, { source: src.id }));
         }
       });

@@ -2,25 +2,27 @@
 import React, { useCallback, useMemo } from 'react';
 import { Link, NavLink } from 'react-router-dom';
 import { Collapse, Form } from 'antd';
+import snakeCase from 'lodash/snakeCase';
 // @Hooks
 import useLoader from '@hooks/useLoader';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
+// @Utils
+import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
+import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 // @Components
 import { ConnectedItems } from '@organism/ConnectedItems';
+import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
+import { TabDescription } from '@atom/TabDescription';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
+import { Destination } from '@catalog/destinations/types';
 import { ConnectedItem } from '@organism/ConnectedItems';
 // @Catalog sources
 import { allSources } from '@catalog/sources/lib';
 // @Constants
 import { DESTINATIONS_CONNECTED_SOURCES } from '@./embeddedDocs/destinationsConnectedItems';
-// @Routes
-import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
-import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
-import { Destination } from '@catalog/destinations/types';
-import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 
 export interface Props {
   form: FormInstance;
@@ -38,9 +40,8 @@ const DestinationEditorConnectors = ({ form, initialValues, destination, handleT
 
   const sourcesList = useMemo<ConnectedItem[]>(
     () => sources
-      ?
-      sources?.map((src: SourceData) => {
-        const proto = allSources.find(s => s.id === src.sourceType);
+      ? sources?.map((src: SourceData) => {
+        const proto = allSources.find(s => snakeCase(s.id) === snakeCase(src.sourceProtoType));
 
         return {
           id: src.sourceId,
@@ -48,8 +49,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination, handleT
           description: null
         };
       })
-      :
-      [],
+      : [],
     [sources]
   );
 
@@ -88,7 +88,8 @@ const DestinationEditorConnectors = ({ form, initialValues, destination, handleT
   return (
     <>
       <Form form={form} name="connected-sources">
-        <div className="text-xs italic text-secondaryText mb-5">{DESTINATIONS_CONNECTED_SOURCES}</div>
+        <TabDescription>{DESTINATIONS_CONNECTED_SOURCES}</TabDescription>
+
         <Collapse ghost defaultActiveKey={activeKey}>
           <Collapse.Panel header={<b>Linked API Keys (<NavLink to="/api_keys">edit API keys</NavLink>)</b>} key="keys" forceRender>
             <div className="pl-6">
