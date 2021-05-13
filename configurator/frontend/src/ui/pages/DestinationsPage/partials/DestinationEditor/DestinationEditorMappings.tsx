@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Col, Form, Input, Row, Select } from 'antd';
 import cn from 'classnames';
 // @Components
@@ -19,14 +19,16 @@ import { isValidJsonPointer } from '@util/validation/jsonPointer';
 
 export interface Props {
   form: FormInstance;
-  initialValues: Mapping;
+  initialValues: DestinationMapping;
   handleTouchAnyField: VoidFunc;
 }
 
 const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }: Props) => {
-  const [actions, setActions] = useState<MappingAction[]>(
-    initialValues?._mappings?.map((row: MappingRow) => row._action) ?? []
-  );
+  const [actions, setActions] = useState<MappingAction[]>([]);
+
+  useEffect(() => {
+    setActions(initialValues?._mappings?.map((row: DestinationMappingRow) => row._action) ?? []);
+  }, [initialValues]);
 
   const handleFieldsChange = useCallback(() => {
     const formFields = form.getFieldsValue();

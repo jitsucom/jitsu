@@ -1,7 +1,7 @@
 // @Libs
 import React from 'react';
 import { Form } from 'antd';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 // @Components
 import { ConfigurableFieldsForm } from '@molecule/ConfigurableFieldsForm';
 // @Types

@@ -4,7 +4,7 @@
  */
 
 import React, { ReactNode, useState } from 'react';
-import { set } from 'lodash';
+import set from 'lodash/set';
 import './components.less';
 import { Card, Col, message, Progress, Modal, Row, Spin, Tooltip, Button } from 'antd';
 import CaretDownFilled from '@ant-design/icons/lib/icons/CaretDownFilled';

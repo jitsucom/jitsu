@@ -2,7 +2,7 @@
 import * as React from 'react';
 import { Form, Input } from 'antd';
 import cn from 'classnames';
-import { get } from 'lodash';
+import get from 'lodash/get';
 // @Components
 import { FloatingLabel } from '@atom/FloatingLabel';
 // @Types
