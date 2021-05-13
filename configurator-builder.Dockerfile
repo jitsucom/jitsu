@@ -13,7 +13,7 @@ RUN mkdir -p /go/src/github.com/deps/install
 WORKDIR /go/src/github.com/deps/install
 
 RUN echo $'\n\
-module github.com/jitsucom/jitsu/configurator \n\
+module github.com/deps/install \n\
 \n\
 go 1.16\n\
 \n\
@@ -44,4 +44,4 @@ replace (\n\
 	google.golang.org/grpc v1.27.0 => google.golang.org/grpc v1.26.0\n\
 )\n\
 ' > /go/src/github.com/deps/install/go.mod
-RUN go mod tidy && go mod download
+RUN go mod download
