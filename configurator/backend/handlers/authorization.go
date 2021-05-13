@@ -168,11 +168,13 @@ func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 
 	//telemetry user
 	user := &telemetry.UserData{
-		Email:       req.Email,
-		Name:        req.Name,
 		Company:     req.Company,
 		EmailOptout: req.EmailOptout,
 		UsageOptout: req.UsageOptout,
+	}
+	if !req.EmailOptout {
+		user.Email = req.Email
+		user.Name = req.Name
 	}
 	telemetry.User(user)
 

@@ -31,52 +31,71 @@ func testSourceConnection(config *drivers.SourceConfig) error {
 		return drivers.ErrUnknownSource
 	}
 
-	var testCollection *drivers.Collection
-
-	switch config.Type {
-	case drivers.SingerType:
-		testCollection = &drivers.Collection{
-			Name: drivers.DefaultSingerCollection,
-			Type: drivers.DefaultSingerCollection,
-		}
-	case drivers.FbMarketingType:
-		testCollection = &drivers.Collection{
-			Name: drivers.InsightsCollection,
-			Type: drivers.InsightsCollection,
-		}
-	case drivers.FirebaseType:
-		testCollection = &drivers.Collection{
-			Name: drivers.UsersCollection,
-			Type: drivers.UsersCollection,
-		}
-	case drivers.GoogleAnalyticsType:
-		testCollection = &drivers.Collection{
-			Name: drivers.ReportsCollection,
-			Type: drivers.ReportsCollection,
-			Parameters: map[string]interface{}{
-				"metrics":    []string{"test_metric"},
-				"dimensions": []string{"test_dimensions"},
-			},
-		}
-	case drivers.GooglePlayType:
-		testCollection = &drivers.Collection{
-			Name: drivers.SalesCollection,
-			Type: drivers.SalesCollection,
-		}
-	case drivers.RedisType:
-		testCollection = &drivers.Collection{
-			Name: drivers.HashCollection,
-			Type: drivers.HashCollection,
-		}
-	default:
-		return errors.New("unsupported source type " + config.Type)
-
-	}
-
-	driver, err := constructor(context.Background(), config, testCollection)
+	collections, err := drivers.ParseCollections(config)
 	if err != nil {
 		return err
 	}
+
+	if len(collections) == 0 {
+		switch config.Type {
+		case drivers.SingerType:
+			collections = append(collections, &drivers.Collection{
+				Name: drivers.DefaultSingerCollection,
+				Type: drivers.DefaultSingerCollection,
+			})
+		case drivers.FbMarketingType:
+			collections = append(collections, &drivers.Collection{
+				Name: drivers.InsightsCollection,
+				Type: drivers.InsightsCollection,
+			})
+		case drivers.FirebaseType:
+			collections = append(collections, &drivers.Collection{
+				Name: drivers.UsersCollection,
+				Type: drivers.UsersCollection,
+			})
+		case drivers.GoogleAnalyticsType:
+			collections = append(collections, &drivers.Collection{
+				Name: drivers.ReportsCollection,
+				Type: drivers.ReportsCollection,
+				Parameters: map[string]interface{}{
+					"metrics":    []string{"test_metric"},
+					"dimensions": []string{"test_dimensions"},
+				},
+			})
+		case drivers.GooglePlayType:
+			collections = append(collections, &drivers.Collection{
+				Name: drivers.SalesCollection,
+				Type: drivers.SalesCollection,
+			})
+		case drivers.RedisType:
+			collections = append(collections, &drivers.Collection{
+				Name: drivers.HashCollection,
+				Type: drivers.HashCollection,
+				Parameters: map[string]interface{}{
+					"redis_key": "test",
+				},
+			})
+		default:
+			return errors.New("unsupported source type " + config.Type)
+		}
+	}
+
+	for _, col := range collections {
+		driver, err := constructor(context.Background(), config, col)
+		if err != nil {
+			return err
+		}
+
+		if err := testDriver(driver); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func testDriver(driver drivers.Driver) error {
+	defer driver.Close()
 
 	return driver.TestConnection()
 }
