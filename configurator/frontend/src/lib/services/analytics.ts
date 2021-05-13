@@ -2,15 +2,34 @@
 import { ApplicationConfiguration, FeatureSettings, setDebugInfo } from './ApplicationServices';
 import { User } from './model';
 // @ts-ignore
-import { eventN, Tracker } from '@jitsu/eventnative';
 import LogRocket from 'logrocket';
 import murmurhash from 'murmurhash';
-import posthog from 'posthog-js';
 import { isNullOrUndef } from '../commons/utils';
-
-const AnalyticsJS = require('./analyticsjs-wrapper.js').default;
+import { jitsuClient, JitsuClient } from '@jitsu/sdk-js';
+import { getIntercom, initIntercom } from '@service/intercom-wrapper';
 
 type ConsoleMessageListener = (level: string, ...args) => void;
+
+type IntercomClient = (...args) => void
+
+type Executor<T> = (client: T, eventType: string, payload: any) => Promise<void> | void
+
+interface AnalyticsExecutors extends Record<string, Executor<any>>{
+  jitsu?: Executor<JitsuClient>
+  intercom?: Executor<IntercomClient>
+}
+
+function defaultExecutors(execs: AnalyticsExecutors): AnalyticsExecutors {
+  return {
+    jitsu: execs?.jitsu ?? ((jitsu, eventType, payload) => {
+      return jitsu.track(eventType, payload || {});
+    }),
+    intercom: execs?.intercom ?? ((intercom, eventType, payload) => {
+      intercom('trackEvent', eventType, payload || {});
+      return Promise.resolve();
+    })
+  }
+}
 
 class ConsoleLogInterceptor {
   private initialized: boolean = false;
@@ -93,26 +112,35 @@ function isError(obj: any) {
   );
 }
 
+export type UserProps = {
+  name: string
+  email: string
+  uid: string
+}
+
 export default class AnalyticsService {
   private globalErrorListenerPresent: boolean = false;
   private appConfig: ApplicationConfiguration;
-  private user: User;
+  private user: UserProps;
+  private jitsu?: JitsuClient;
   private logRocketInitialized: boolean = false;
   private consoleInterceptor: ConsoleLogInterceptor = new ConsoleLogInterceptor();
   private _anonymizeUsers = false;
-  private _appName = 'saas';
+  private _appName = 'unknown';
 
   constructor(appConfig: ApplicationConfiguration) {
     this.appConfig = appConfig;
     this.consoleInterceptor.init();
     if (this.appConfig.rawConfig.keys.eventnative) {
-      const cfg = {
+      this.jitsu = jitsuClient({
         key: this.appConfig.rawConfig.keys.eventnative,
         tracking_host: 'https://t.jitsu.com',
         cookie_domain: 'jitsu.com',
         randomize_url: true
-      };
-      eventN.init(cfg);
+      });
+      this.jitsu.set({
+        app: this._appName
+      }, {});
     }
     this.setupGlobalErrorHandler();
     this.consoleInterceptor.addListener((level, ...args) => {
@@ -135,55 +163,63 @@ export default class AnalyticsService {
     return domains.find((domain) => email.indexOf('@' + domain) > 0) !== undefined;
   }
 
-  public onUserKnown(user: User) {
-    if (!user) {
+  public onUserKnown(userProps?: UserProps) {
+    if (!userProps) {
       return;
     }
-    this.user = user;
-    if (this.appConfig.rawConfig.keys.posthog) {
-      posthog.init(this.appConfig.rawConfig.keys.posthog, { api_host: this.appConfig.rawConfig.keys.posthog_host });
-      posthog.people.set({ email: user.email });
-      posthog.identify(user.uid);
-    }
+    this.user = userProps;
     this.ensureLogRocketInitialized();
-    LogRocket.identify(user.uid, {
-      email: user.email
-    });
-    if (this.appConfig.rawConfig.keys.ajs) {
-      AnalyticsJS.init(this.appConfig.rawConfig.keys.ajs);
-      AnalyticsJS.get().identify(user.uid, {
-        email: user.email
+    if (this.appConfig.rawConfig.keys.logrocket) {
+      LogRocket.identify(userProps.uid, {
+        email: userProps.email
       });
     }
-    if (this.appConfig.rawConfig.keys.eventnative) {
-      const payload = this.getJitsuIdPayload(user);
-      eventN.id(payload);
+    if (this.jitsu) {
+      this.jitsu.id(this.getJitsuIdPayload(userProps));
     }
+    if (this.appConfig.rawConfig.keys.intercom) {
+      initIntercom(this.appConfig.rawConfig.keys.intercom, {
+        email: userProps.email,
+        name: userProps.name,
+        user_id: userProps.uid
+      });
+    }
+
   }
 
-  public getJitsuIdPayload({ email, uid }) {
+  public getJitsuIdPayload({ email, uid}) {
     return {
-      email: this._anonymizeUsers ? undefined : email,
+      email: this._anonymizeUsers ? 'masked' : email,
       internal_id: this._anonymizeUsers ? 'hid_' + murmurhash.v3(email || uid) : uid
     };
   }
 
-  public withJitsu(callback: (jitsu: Tracker) => void) {
-    if (this.appConfig.rawConfig.keys.eventnative) {
-      callback(eventN);
+  public track(eventType: string, payload?: any, customHandlers?: AnalyticsExecutors): Promise<void> {
+    const waitlist: Promise<any>[] = [];
+    const add = <T>(exec: Executor<T>, client: T) => {
+      if (client) {
+        const res = exec(client, eventType, payload);
+        //if res is promise
+        if (res && typeof res === "object" && typeof res.then === 'function') {
+          waitlist.push(res);
+        }
+      }
     }
+    const execs = defaultExecutors(customHandlers);
+    add(execs.jitsu, this.jitsu);
+    add(execs.intercom, getIntercom());
+    return Promise.all(waitlist).then();
   }
 
-  public async withJitsuSync(callback: (jitsu: Tracker) => Promise<void>) {
-    if (this.appConfig.rawConfig.keys.eventnative) {
-      return await callback(eventN);
-    }
-    return Promise.resolve();
-  }
 
   public configure(features: FeatureSettings) {
     this._anonymizeUsers = features.anonymizeUsers;
     this._appName = features.appName;
+    if (this.jitsu) {
+      this.jitsu.set({
+        app: this._appName
+      }, {});
+    }
   }
 
   private isDev() {
@@ -191,22 +227,9 @@ export default class AnalyticsService {
   }
 
   public onPageLoad({ pagePath }: { pagePath: string }) {
-    if (this.appConfig.rawConfig.keys.eventnative) {
-      eventN.track('app_page', {
-        path: pagePath,
-        app: this._appName
-      });
-    }
-
-    if (this.user && this.appConfig.rawConfig.keys.ajs) {
-      AnalyticsJS.get().page('app_page', pagePath, {
-        app: this._appName
-      });
-    }
-
-    if (this.user && this.appConfig.rawConfig.keys.posthog) {
-      posthog.capture('$pageview');
-    }
+    this.track('app_page', { path: pagePath, app: this._appName }, {
+      intercom: ((intercom, eventType, payload) => {})
+    })
   }
 
   public onGlobalError(error: Error, doNotLog?: boolean) {
@@ -266,13 +289,7 @@ export default class AnalyticsService {
           }
         });
       }
-
+      this.track('error', {error_message: error.message ?? "Empty message", error_name: error.name ?? "name_unknown", error_stack: error.stack ?? "" })
     }
-  }
-}
-
-declare global {
-  interface Window {
-    analytics: any;
   }
 }

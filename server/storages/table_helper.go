@@ -12,8 +12,6 @@ import (
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
-const unlockRetryCount = 5
-
 //TableHelper keeps tables schema state inmemory and update it according to incoming new data
 //note: Assume that after any outer changes in db we need to increment table version in MonitorKeeper
 type TableHelper struct {
@@ -48,6 +46,8 @@ func NewTableHelper(manager adapters.TableCreator, monitorKeeper MonitorKeeper, 
 	}
 }
 
+//MapTableSchema maps schema.BatchHeader (JSON structure with json data types) into adapters.Table (structure with SQL types)
+//applies column types mapping
 func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters.Table {
 	table := &adapters.Table{
 		Name:     batchHeader.TableName,

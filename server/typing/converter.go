@@ -36,6 +36,9 @@ var (
 		"eventn_ctx_utc_time":       TIMESTAMP,
 		"eventn_ctx_interval_start": TIMESTAMP,
 		"eventn_ctx_interval_end":   TIMESTAMP,
+		"utc_time":                  TIMESTAMP,
+		"interval_start":            TIMESTAMP,
+		"interval_end":              TIMESTAMP,
 	}
 	convertRules = map[rule]ConvertFunc{
 		rule{from: BOOL, to: STRING}:      boolToString,
@@ -65,7 +68,7 @@ type typeNode struct {
 	right *typeNode
 }
 
-//ConvertFunc is a function for a certain DataType convertation
+//ConvertFunc is a function for a certain DataType conversion
 type ConvertFunc func(v interface{}) (interface{}, error)
 
 type rule struct {

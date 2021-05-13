@@ -34,6 +34,8 @@ import { firstToLower } from '@./lib/commons/utils';
 // @Styles
 import styles from './SourceEditor.module.less';
 
+export type SourceTabKey = 'config' | 'collections' | 'destinations';
+
 const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
   const services = ApplicationServices.get();
 
@@ -45,8 +47,11 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false);
   const [savePopover, switchSavePopover] = useState<boolean>(false);
+
   const [testConnecting, setTestConnecting] = useState<boolean>(false);
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
+
+  const [activeTabKey, setActiveTabKey] = useState<SourceTabKey>('config');
 
   const connectorSource = useMemo<SourceConnector>(
     () => {
@@ -74,7 +79,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
   const submittedOnce = useRef<boolean>(false);
 
-  const sourcesTabs = useRef<Tab[]>([{
+  const sourcesTabs = useRef<Tab<SourceTabKey>[]>([{
     key: 'config',
     name: 'Connection Properties',
     getComponent: (form: FormInstance) => (
@@ -139,64 +144,43 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
 
   const handleCancel = useCallback(() => history.push(sourcesPageRoutes.root), [history]);
 
-  const handleTestConnection = useCallback(async() => {
+  const handleTestConnection = () => {
     setTestConnecting(true);
 
-    const tab = sourcesTabs.current[0];
+    sourcePageUtils.bringSourceData({
+      sourcesTabs: sourcesTabs.current,
+      sourceData: sourceData.current,
+      forceUpdate
+    })
+      .then(async(response: SourceData) => {
+        sourceData.current = response;
 
-    try {
-      const beforeValidate = () => tab.errorsCount = 0;
+        const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current);
 
-      const errorCb = (errors) => tab.errorsCount = errors.errorFields?.length;
+        sourceData.current = {
+          ...sourceData.current,
+          ...testConnectionResults
+        };
 
-      const config = await validateTabForm(tab, { forceUpdate, errorCb, beforeValidate });
+        console.log('sourceData.current: ', sourceData.current);
+      })
+      .finally(() => {
+        setTestConnecting(false);
+      });
+  };
 
-      sourceData.current = {
-        ...sourceData.current,
-        ...makeObjectFromFieldsValues(config)
-      };
-
-      const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current);
-
-      sourceData.current = {
-        ...sourceData.current,
-        ...testConnectionResults
-      };
-    } catch(error) {
-      switchTestConnectingPopover(true);
-    } finally {
-      setTestConnecting(false);
-      forceUpdate();
-    }
-  }, [forceUpdate]);
-
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = () => {
     submittedOnce.current = true;
 
     setSourceSaving(true);
 
-    Promise
-      .all(sourcesTabs.current.map(tab => validateTabForm(tab, { forceUpdate, beforeValidate: () => tab.errorsCount = 0, errorCb: errors => tab.errorsCount = errors.errorFields?.length })))
-      .then(async allValues => {
-        sourceData.current = {
-          ...sourceData.current,
-          ...allValues.reduce((result: any, current: any) => {
-            return {
-              ...result,
-              ...makeObjectFromFieldsValues(current)
-            };
-          }, {})
-        };
-
-        if (sourceData.current.collections) {
-          sourceData.current.collections = sourceData.current.collections.map((collection: CollectionSource) => {
-            if (!collection.parameters) {
-              collection.parameters = {} as Array<{ [key: string]: string[]; }>;
-            }
-
-            return collection;
-          });
-        }
+    sourcePageUtils.bringSourceData({
+      sourcesTabs: sourcesTabs.current,
+      sourceData: sourceData.current,
+      forceUpdate
+    })
+      .then(async(response: SourceData) => {
+        sourceData.current = response;
 
         const testConnectionResults = await sourcePageUtils.testConnection(sourceData.current, true);
 
@@ -241,9 +225,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       })
       .finally(() => {
         setSourceSaving(false);
-        forceUpdate();
-      });
-  }, [forceUpdate, editorMode, projectId, history, services.storageService, sources, updateSources]);
+      })
+  };
 
   useEffect(() => {
     setBreadcrumbs(withHome({
@@ -268,7 +251,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
             type="card"
             className={styles.tabCard}
             tabsList={sourcesTabs.current}
-            defaultTabIndex={0}
+            activeTabKey={activeTabKey}
+            onTabChange={setActiveTabKey}
           />
         </div>
 
