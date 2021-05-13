@@ -20,8 +20,10 @@ sources:
     collections:
       - name: known_users
         type: users
-      - name: collection_name_from_firestore
+      - name: my_collection
         type: firestore
+        parameters:
+          collection: firestore_collection_ID
     config:
       project_id: "firebase_project_id"
       key: '<GOOGLE_SERVICE_ACCOUNT_KEY_JSON>'
@@ -35,7 +37,13 @@ Config parameters:
 | `project_id` (required) | Firebase project identifier. See at Firebase console (for example, at URL: `/u/1/project/tracker-285220/overview` - `tracker-285220` is project identifier)  |
 | `key` (required) | Service account key. This parameter may be a string, representing JSON or JSON object. Read more about [Google Authorization](/docs/configuration/google-authorization) and examples below. |
 
-### Key examples
+Collection parameters:
+
+| Parameter | Description |
+| :--- | :--- |
+| `collection` (required) | Firestore collection to sync identifier (Key).|
+
+### Authorization Key examples
 
 String representation:
 

@@ -41,7 +41,7 @@ RUN free | awk 'FNR == 2 {print $2}' > ./build/mem
 RUN if [ $(cat ./build/mem) < "4000000" ]; then echo echo Docker build requires 4gb of RAM. Configure it in the machine Docker configuration && exit 1; else rm ./build/mem; fi
 
 # Build
-RUN if [ "$SKIP_UI" != "true" ]; then yarn docker_build; fi
+RUN if [ "$SKIP_UI" != "true" ]; then CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build; fi
 
 #######################################
 # BUILD BACKEND STAGE
@@ -55,9 +55,9 @@ RUN mkdir -p /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend && \
 WORKDIR /go/src/github.com/jitsucom/jitsu/$CONFIGURATOR_USER/backend
 
 #Caching dependencies
-ADD configurator/backend/go.mod configurator/backend/go.sum ./
-ADD server/go.mod server/go.sum /go/src/github.com/jitsucom/jitsu/server/
-RUN go mod download
+ADD configurator/backend/go.mod ./
+ADD server/go.mod /go/src/github.com/jitsucom/jitsu/server/
+RUN go mod tidy && go mod download
 
 #Copy backend
 ADD configurator/backend/. ./.

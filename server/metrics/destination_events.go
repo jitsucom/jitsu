@@ -9,6 +9,7 @@ var eventLabels = []string{"source_id", "project_id", "destination_id"}
 
 var (
 	successEvents *prometheus.CounterVec
+	skippedEvents *prometheus.CounterVec
 	errorsEvents  *prometheus.CounterVec
 )
 
@@ -17,6 +18,11 @@ func initEvents() {
 		Namespace: "eventnative",
 		Subsystem: "destinations",
 		Name:      "events",
+	}, eventLabels)
+	skippedEvents = promauto.NewCounterVec(prometheus.CounterOpts{
+		Namespace: "eventnative",
+		Subsystem: "destinations",
+		Name:      "skips",
 	}, eventLabels)
 	errorsEvents = promauto.NewCounterVec(prometheus.CounterOpts{
 		Namespace: "eventnative",
@@ -36,6 +42,10 @@ func SuccessTokenEvents(tokenID, destinationName string, value int) {
 	}
 }
 
+func SkipTokenEvent(tokenID, destinationName string) {
+	SkipTokenEvents(tokenID, destinationName, 1)
+}
+
 func ErrorTokenEvent(tokenID, destinationName string) {
 	ErrorTokenEvents(tokenID, destinationName, 1)
 }
@@ -52,6 +62,13 @@ func SuccessSourceEvents(sourceName, destinationName string, value int) {
 		projectID, destinationID := extractLabels(destinationName)
 		_, sourceID := extractLabels(sourceName)
 		successEvents.WithLabelValues("source_"+sourceID, projectID, destinationID).Add(float64(value))
+	}
+}
+
+func SkipTokenEvents(tokenID, destinationName string, value int) {
+	if Enabled {
+		projectID, destinationID := extractLabels(destinationName)
+		skippedEvents.WithLabelValues("token_"+tokenID, projectID, destinationID).Add(float64(value))
 	}
 }
 

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@jitsu/eventnative": "^1.1.5",
+    "@jitsu/sdk-js": "^2.2.0",
     "antd": "^4.13.1",
     "axios": "^0.21.1",
     "classnames": "^2.2.6",
@@ -24,7 +24,6 @@
     "clean": "rm -rf ./node_modules/ build dist",
     "start": "NODE_ENV=development craco start",
     "build": "CI=false NODE_ENV=production craco build",
-    "docker_build": "CI=false NODE_ENV=production ANALYTICS_KEYS='{\"eventnative\": \"js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi\"}' craco build",
     "test": "craco test",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",
     "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix"

@@ -22,11 +22,13 @@ const (
 	firestoreDocumentIDField = "_firestore_document_id"
 )
 
+//FirebaseConfig is a Firebase configuration dto for serialization
 type FirebaseConfig struct {
 	ProjectID   string `mapstructure:"project_id" json:"project_id,omitempty" yaml:"project_id,omitempty"`
 	Credentials string `mapstructure:"key" json:"key,omitempty" yaml:"key,omitempty"`
 }
 
+//Validate returns err if configuration is invalid
 func (fc *FirebaseConfig) Validate() error {
 	if fc == nil {
 		return errors.New("firebase config is required")
@@ -40,12 +42,30 @@ func (fc *FirebaseConfig) Validate() error {
 	return nil
 }
 
+//FirestoreParameters is a Firebase Firestore configuration dto for serialization
+type FirestoreParameters struct {
+	FirestoreCollection string `mapstructure:"collection" json:"collection,omitempty" yaml:"collection,omitempty"`
+}
+
+//Validate returns err if configuration is invalid
+func (fp *FirestoreParameters) Validate() error {
+	if fp == nil {
+		return errors.New("'parameters' section is required")
+	}
+	if fp.FirestoreCollection == "" {
+		return errors.New("'collection' is required firebase parameter")
+	}
+	return nil
+}
+
+//Firebase is a Firebase/Firestore driver. It used in syncing data from Firebase/Firestore
 type Firebase struct {
-	ctx             context.Context
-	config          *FirebaseConfig
-	firestoreClient *firestore.Client
-	authClient      *auth.Client
-	collection      *Collection
+	ctx                    context.Context
+	config                 *FirebaseConfig
+	firestoreClient        *firestore.Client
+	authClient             *auth.Client
+	collection             *Collection
+	firestoreCollectionKey string
 }
 
 func init() {
@@ -54,6 +74,7 @@ func init() {
 	}
 }
 
+//NewFirebase returns configured Firebase driver instance
 func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
 	config := &FirebaseConfig{}
 	if err := unmarshalConfig(sourceConfig.Config, config); err != nil {
@@ -62,6 +83,25 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 
 	if err := config.Validate(); err != nil {
 		return nil, err
+	}
+
+	if collection.Type != FirestoreCollection && collection.Type != UsersCollection {
+		return nil, fmt.Errorf("Unsupported collection type %s: only [%s] and [%s] collections are allowed", collection.Type, UsersCollection, FirestoreCollection)
+	}
+
+	var firestoreCollectionKey string
+	//check firestore collection Key
+	if collection.Type == FirestoreCollection {
+		parameters := &FirestoreParameters{}
+		if err := unmarshalConfig(collection.Parameters, parameters); err != nil {
+			return nil, err
+		}
+
+		if err := parameters.Validate(); err != nil {
+			return nil, err
+		}
+
+		firestoreCollectionKey = parameters.FirestoreCollection
 	}
 
 	app, err := firebase.NewApp(context.Background(),
@@ -78,14 +118,18 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 
 	authClient, err := app.Auth(ctx)
 	if err != nil {
+		firestoreClient.Close()
 		return nil, err
 	}
 
-	if collection.Type != FirestoreCollection && collection.Type != UsersCollection {
-		return nil, fmt.Errorf("Unsupported collection type %s: only [%s] and [%s] collections are allowed", collection.Type, UsersCollection, FirestoreCollection)
-	}
-
-	return &Firebase{config: config, ctx: ctx, firestoreClient: firestoreClient, authClient: authClient, collection: collection}, nil
+	return &Firebase{
+		config:                 config,
+		ctx:                    ctx,
+		firestoreClient:        firestoreClient,
+		authClient:             authClient,
+		collection:             collection,
+		firestoreCollectionKey: firestoreCollectionKey,
+	}, nil
 }
 
 func (f *Firebase) GetCollectionTable() string {
@@ -118,7 +162,7 @@ func (f *Firebase) TestConnection() error {
 
 func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 	var documentJSONs []map[string]interface{}
-	iter := f.firestoreClient.Collection(f.collection.Name).Documents(f.ctx)
+	iter := f.firestoreClient.Collection(f.firestoreCollectionKey).Documents(f.ctx)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {

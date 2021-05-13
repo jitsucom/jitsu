@@ -5,11 +5,14 @@ import mappings from '@catalog/mappings/lib';
 // @Styles
 import styles from './DestinationEditor.module.less';
 // @Types
-import { FormInstance } from 'antd/es';
 import { FieldMapping, Mapping } from '@catalog/mappings/types';
 // @Icons
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
+// @Components
+import { TabDescription } from '@atom/TabDescription';
+// @Constant
 import { MAPPING_ROW_PROPS_MAP } from '@./constants/mapping';
+import { MAPPING_LIBRARY } from '@./embeddedDocs/mappingsLibrary';
 
 interface Props {
   handleDataUpdate: (newMappings: DestinationMapping, newTableName?: string) => void;
@@ -33,7 +36,7 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
 
   const setLibraryMapping = (library: Mapping) => {
     const newMappings = {
-      _keepUnmappedFields: library.keepUnmappedFields ? Number(library.keepUnmappedFields) : 1,
+      _keepUnmappedFields: library.keepUnmappedFields,
       _mappings: library.mappings.map(mapFunction)
     };
 
@@ -57,7 +60,8 @@ const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {
 
   return (
     <>
-      <article className="text-xs italic text-secondaryText mb-5">Using default mapping library wil overwrite current mappings settings.</article>
+      <TabDescription>{MAPPING_LIBRARY}</TabDescription>
+
       <div className={styles.library}>
         {
           Object.keys(mappings).map((key: string) => {
