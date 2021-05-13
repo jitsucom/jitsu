@@ -3,7 +3,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, generatePath, useHistory } from 'react-router-dom';
 import { Badge, Input, Modal } from 'antd';
 import cn from 'classnames';
-import { debounce } from 'lodash';
+import debounce from 'lodash/debounce';
 // @Catalog sources
 import { allSources } from '@catalog/sources/lib';
 // @Styles

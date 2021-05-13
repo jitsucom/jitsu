@@ -11,4 +11,13 @@ const MAPPINGS_REFERENCE_MAP = {
   segment: 'segment'
 };
 
-export { MAPPING_NAMES, MAPPINGS_REFERENCE_MAP };
+const MAPPING_ROW_PROPS_MAP = {
+  _action: 'action',
+  _srcField: 'src',
+  _dstField: 'dst',
+  _columnType: 'type',
+  _type: 'type',
+  _value: 'value'
+};
+
+export { MAPPING_NAMES, MAPPINGS_REFERENCE_MAP, MAPPING_ROW_PROPS_MAP };
