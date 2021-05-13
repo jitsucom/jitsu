@@ -1,22 +1,19 @@
 // @Libs
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Col, Form, Input, Row, Select } from 'antd';
-import cn from 'classnames';
+import { Button, Col, Form, Row, Select } from 'antd';
 // @Components
 import { TabDescription } from '@atom/TabDescription';
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
+import { DestinationEditorMappingsItem } from './DestinationEditorMappingsItem';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Constants
-import { MAPPING_NAMES } from '@./constants/mapping';
 import { DESTINATION_EDITOR_MAPPING } from '@./embeddedDocs/mappings';
 // @Styles
 import styles from './DestinationEditor.module.less';
-// @Utils
-import { isValidJsonPointer } from '@util/validation/jsonPointer';
 
 export interface Props {
   form: FormInstance;
@@ -112,126 +109,14 @@ const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }:
                 <>
                   {
                     fields.map((field: FormListFieldData) => (
-                      <div key={`mapping-${field.name}`} className={cn(styles.mappingsItem, 'bg-bgSecondary border rounded-xl')}>
-                        <div className={styles.delete}>
-                          <span className={styles.deleteLink} onClick={handleDelete(remove, field.name)}>Delete</span>
-                        </div>
-
-                        <Row>
-                          <Col span={['move', 'cast'].includes(actions[field.name]) ? 8 : 12}>
-                            <Form.Item
-                              className="form-field_fixed-label"
-                              name={[field.name, '_action']}
-                              label={<span>Action: </span>}
-                              labelCol={{
-                                span: ['move', 'cast'].includes(actions[field.name]) ? 6 : 4
-                              }}
-                              labelAlign="left"
-                              rules={[{ required: true, message: 'This field is required.' }]}
-                            >
-                              <Select onChange={handleActionChange(field.name)}>
-                                {
-                                  Object.keys(MAPPING_NAMES).map((key: MappingAction) =>
-                                    <Select.Option key={key} value={key}>{MAPPING_NAMES[key]}</Select.Option>
-                                  )
-                                }
-                              </Select>
-                            </Form.Item>
-                          </Col>
-                          {
-                            actions[field.name] === 'constant' && (
-                              <Col className={styles.secondaryLabel} span={12}>
-                                <Form.Item
-                                  className="form-field_fixed-label"
-                                  name={[field.name, '_value']}
-                                  label={<span style={{ whiteSpace: 'nowrap' }}>Value: <sup>optional</sup></span>}
-                                  labelCol={{ span: 5 }}
-                                  labelAlign="left"
-                                >
-                                  <Input />
-                                </Form.Item>
-                              </Col>
-                            )
-                          }
-                          {
-                            ['move', 'cast'].includes(actions[field.name]) && (
-                              <>
-                                <Col className={styles.secondaryLabel} span={7}>
-                                  <Form.Item
-                                    className="form-field_fixed-label"
-                                    name={[field.name, '_type']}
-                                    label={actions[field.name] === 'cast' ? <span>Type: </span> : <span>Type: <sup>optional</sup></span>}
-                                    labelCol={{ span: 9 }}
-                                    labelAlign="left"
-                                    rules={actions[field.name] === 'cast' ? [{ required: true, message: 'This field is required.' }] : undefined}
-                                  >
-                                    <Input onChange={handleTypeChange(field.name)} autoComplete="off" />
-                                  </Form.Item>
-                                </Col>
-                                <Col className={styles.secondaryLabel} span={9}>
-                                  <Form.Item
-                                    className="form-field_fixed-label"
-                                    name={[field.name, '_columnType']}
-                                    label={<span>Column type: <sup>optional</sup></span>}
-                                    labelCol={{ span: 10 }}
-                                    labelAlign="left"
-                                  >
-                                    <Input />
-                                  </Form.Item>
-                                </Col>
-                              </>
-                            )
-                          }
-                        </Row>
-
-                        <Row>
-                          {
-                            !['constant', 'cast'].includes(actions[field.name]) && (
-                              <Col span={12}>
-                                <Form.Item
-                                  className="form-field_fixed-label"
-                                  name={[field.name, '_srcField']}
-                                  label={<span>From: </span>}
-                                  labelCol={{ span: 4 }}
-                                  labelAlign="left"
-                                  rules={[{
-                                    validator: (rule, value) => !value
-                                      ? Promise.reject('This field is required.')
-                                      : isValidJsonPointer(value)
-                                        ? Promise.resolve()
-                                        : Promise.reject('Invalid JSON pointer syntax. Should be /path/to/element')
-                                  }]}
-                                >
-                                  <Input autoComplete="off" />
-                                </Form.Item>
-                              </Col>
-                            )
-                          }
-
-                          {
-                            actions[field.name] !== 'remove' && (
-                              <Col span={12} className={cn(!['constant', 'cast'].includes(actions[field.name]) && styles.secondaryLabel)}>
-                                <Form.Item
-                                  className="form-field_fixed-label"
-                                  name={[field.name, '_dstField']}
-                                  label={<span>To: </span>}
-                                  labelCol={{ span: 4 }}
-                                  labelAlign="left"
-                                  rules={[{
-                                    validator: (rule, value) => !value
-                                      ? Promise.reject('This field is required.')
-                                      : isValidJsonPointer(value)
-                                        ? Promise.resolve()
-                                        : Promise.reject('Invalid JSON pointer syntax. Should be /path/to/element')
-                                  }]}
-                                >
-                                  <Input autoComplete="off" />
-                                </Form.Item>
-                              </Col>
-                            )
-                          }
-                        </Row>
-                      </div>
+                      <DestinationEditorMappingsItem
+                        key={`mapping-${field.name}`}
+                        field={field}
+                        action={actions?.[field.name]}
+                        handleActionChange={handleActionChange(field.name)}
+                        handleTypeChange={handleTypeChange(field.name)}
+                        handleDelete={handleDelete(remove, field.name)}
+                      />
                     ))
                   }
                 </>
