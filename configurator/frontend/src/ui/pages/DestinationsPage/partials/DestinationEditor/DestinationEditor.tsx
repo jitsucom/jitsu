@@ -163,7 +163,7 @@ const DestinationEditor = ({
   },
   {
     key: 'settings',
-    name: 'Settings Library',
+    name: 'Configuration Templates',
     touched: false,
     getComponent: () => <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary}/>
   },

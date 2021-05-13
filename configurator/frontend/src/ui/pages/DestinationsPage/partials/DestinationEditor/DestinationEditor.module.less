@@ -8,7 +8,7 @@
   height: calc(100vh - 150px);
 
   .linkedWarning {
-    margin-bottom: 20px;
+    @apply mb-2;
     display: inline-flex;
 
     :global {
@@ -19,8 +19,8 @@
     }
 
     .warningIcon {
+      @apply mr-4;
       color: @warning-color;
-      margin-right: 10px;
     }
 
     .pseudoLink {
@@ -84,11 +84,6 @@
     justify-content: space-between;
     border-bottom: 1px solid @border-color-base;
     padding: 20px 0;
-
-    .name {
-      text-transform: capitalize;
-      margin: 0 0 4px 0;
-    }
 
     .comment {
       color: @text-color-secondary;
