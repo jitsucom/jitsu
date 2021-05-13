@@ -1,12 +1,12 @@
 # NOTE: this not an actual config used by the application. This is
 # a template to show all configuration parameters.
 
-### Server section. https://docs.eventnative.org/configuration-1/configuration#server
+### Server section. https://jitsu.com/docs/configuration#server
 server:
   #name: event-us-01.domain.com #Optional. This parameter is required in cluster deployments. If not set - will be default (unnamed-server)
   #port: 8001 #Optional
 
-  ### Authorization configuration. https://docs.eventnative.org/configuration-1/configuration/authorization
+  ### Authorization configuration. https://jitsu.com/docs/configuration/authorization
   ### If not configured - UUID will be generated and will be written in logs
   ### It might be http url of file source
   #auth: https://source_of_tokens
@@ -35,7 +35,7 @@ server:
   #auth_reload_sec: 3 #Optional. Default value is 3.
 
   ### Admin endpoint authorization
-  admin_token: admin_token #Optional. Token for using Admin endpoints https://docs.eventnative.org/other-features/admin-endpoints
+  admin_token: admin_token #Optional. Token for using Admin endpoints https://jitsu.com/docs/other-features/admin-endpoints
 
   ### Public URL. It is used in welcome.html if not configured it will be taken from 'Host' http header on welcome.html requests
   #public_url: https://yourhost #Optional.
@@ -58,21 +58,21 @@ server:
   #sources_reload_sec: 7 #Optional. Default value is 7.
 
   ### Application metrics
-  ### At present only Prometheus is supported. Read more about application metrics https://docs.eventnative.org/other-features/application-metrics
+  ### At present only Prometheus is supported. Read more about application metrics https://jitsu.com/docs/other-features/application-metrics
 #  metrics:
 #    prometheus:
 #      enabled: true #Optional. Enable metrics collecting and /prometheus endpoint
 
 
-### GEO resolution https://docs.eventnative.org/other-features/geo-data-resolution
+### GEO resolution https://jitsu.com/docs/other-features/geo-data-resolution
 #geo.maxmind_path: https://statichost/GeoIP2-City.mmdb Optional. EventNative resolves geo data only if maxmind is configured.
 
-### Events logs https://docs.eventnative.org/configuration-1/configuration#log
+### Events logs https://jitsu.com/docs/configuration#log
 #log:
 #  path: /home/eventnative/logs/events #Optional. Default value is /home/eventnative/logs/events
 #  rotation_min: 5 #Optional. Default value is 5 minutes
 
-### SQL debug logs https://docs.eventnative.org/configuration-1/configuration/sql-query-logs
+### SQL debug logs https://jitsu.com/docs/configuration/sql-query-logs
 ### DDL and queries logs are supported
 ### Logs can be written to main logger as well as to separate files
 #sql_debug_log:
@@ -110,7 +110,7 @@ destinations:
 #      region: us-west-1
 #      folder: redshift_one #optional. Specify this parameter if several destinations use one s3 bucket
 #    data_layout:
-#      ## Mappings https://docs.eventnative.org/configuration-1/configuration/schema-and-mappings
+#      ## Mappings https://jitsu.com/docs/configuration/schema-and-mappings
 #      mappings: #Optional
 #        keep_unmapped: true #Optional. Default value is true. It is out of mapping behavior. When 'false' - only fields from mapping rules will be in the result object.
 #        fields:
@@ -328,7 +328,7 @@ destinations:
 #            action: move
 
 
-### Coordination in Jitsu Server cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
+### Coordination in Jitsu Server cluster setup https://jitsu.com/docs/other-features/scaling-eventnative
 # coordination: # Optional. This section is required in cluster deployments.
 ### Redis configuration
 #   redis:
@@ -343,22 +343,24 @@ destinations:
 #     connection_timeout_seconds: 60 # Optional. Default value is 60
 
 
-### Sources https://docs.eventnative.org/configuration-1/sources-configuration
+### Sources https://jitsu.com/docs/sources-configuration
 #sources:
-#  ### Firebase https://docs.eventnative.org/configuration-1/sources-configuration/firebase
+#  ### Firebase https://jitsu.com/docs/sources-configuration/firebase
 #  my_firebase:
 #    type: firebase
 #    destinations: [ "destination_id1" ]
 #    collections:
-#      - name: collection_to_load
+#      - name: my_payments_collection
 #        type: firestore
+#        parameters:
+#          collection: payments
 #      - name: known_users
 #        type: users
 #    config:
 #      project_id: "firebase_project_id"
-#      key: 'service_account_key_json'
+#      key: {<SERVICE_ACCOUNT_KEY_JSON>}
 
-  ### Google Analytics https://docs.eventnative.org/configuration-1/sources-configuration/google-analytics
+  ### Google Analytics https://jitsu.com/docs/sources-configuration/google-analytics
 #  my_ga:
 #    type: google_analytics
 #    destinations: [ "destination_id2" ]
@@ -371,17 +373,33 @@ destinations:
 #    config:
 #      view_id: "VIEW_ID_VALUE"
 #      auth:
-#        service_account_key: "{SERVICE_ACCOUNT_KEY_JSON}"
+#        service_account_key: {<SERVICE_ACCOUNT_KEY_JSON>}
 #
-#  ### Google Play https://docs.eventnative.org/configuration-1/sources-configuration/google-play
+#  ### Google Play https://jitsu.com/docs/sources-configuration/google-play
 #  google_play_test:
 #    type: google_play
 #    account_id: account_id
 #    auth:
-#      service_account_key: "{SERVICE_ACCOUNT_KEY_JSON}"
+#      service_account_key: {<SERVICE_ACCOUNT_KEY_JSON>}
+
+#  ### Redis https://jitsu.com/docs/sources-configuration/redis
+#  my_firebase:
+#    type: firebase
+#    destinations: [ "destination_id1" ]
+#    collections:
+#      - name: my_payments_collection
+#        type: firestore
+#        parameters:
+#          collection: payments
+#      - name: known_users
+#        type: users
+#    config:
+#      project_id: "firebase_project_id"
+#      key: {<SERVICE_ACCOUNT_KEY_JSON>}
 
 
-### Retrospective users recognition global configuration https://docs.eventnative.org/other-features/retrospective-user-recognition
+
+### Retrospective users recognition global configuration https://jitsu.com/docs/other-features/retrospective-user-recognition
 ### It is applied to all destinations, but you could override this configuration on the destination level
 ### Note: only Postgres, Clickhouse and Redshift support this feature
 #users_recognition:
@@ -398,10 +416,10 @@ destinations:
 
 
 ### Meta storage. It is required for using sources (see below).
-### It is required for using events caching and counting https://docs.eventnative.org/other-features/events-cache
-### Also it is required if sources are used https://docs.eventnative.org/configuration-1/sources-configuration
-### or Retrospective users recognition https://docs.eventnative.org/other-features/retrospective-user-recognition
-### or Coordination in cluster setup https://docs.eventnative.org/other-features/scaling-eventnative
+### It is required for using events caching and counting https://jitsu.com/docs/other-features/events-cache
+### Also it is required if sources are used https://jitsu.com/docs/sources-configuration
+### or Retrospective users recognition https://jitsu.com/docs/other-features/retrospective-user-recognition
+### or Coordination in cluster setup https://jitsu.com/docs/other-features/scaling-eventnative
 #meta:
 #  storage:
 #    redis: #Currently EventNative supports only Redis
