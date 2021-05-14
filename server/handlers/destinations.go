@@ -172,6 +172,12 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		fbAdapter := adapters.NewTestFacebookConversion(config.Facebook)
 
 		return fbAdapter.TestAccess()
+	case storages.WebHookType:
+		if err := config.WebHook.Validate(); err != nil {
+			return err
+		}
+
+		return nil
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}

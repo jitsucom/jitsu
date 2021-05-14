@@ -153,7 +153,7 @@ func main() {
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
 	go func() {
 		<-c
-		logging.Info("* Service is shutting down.. *")
+		logging.Info("🤖 * Service is shutting down.. *")
 		telemetry.ServerStop()
 		appstatus.Instance.Idle = true
 		cancel()
@@ -304,7 +304,7 @@ func main() {
 
 	adminToken := viper.GetString("server.admin_token")
 	if strings.HasPrefix(adminToken, "demo") {
-		logging.Warnf("\n\t*** Please replace server.admin_token with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
+		logging.Errorf("\n\t*** Please replace server.admin_token with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
 
 	fallbackService, err := fallback.NewService(logEventPath, destinationsService)

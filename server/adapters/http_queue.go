@@ -1,10 +1,10 @@
 package adapters
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/joncrlsn/dque"
-	"net/http"
 	"time"
 )
 
@@ -13,12 +13,25 @@ const requestsPerPersistedFile = 2000
 //ErrQueueClosed is a error in case when queue has been already closed
 var ErrQueueClosed = errors.New("queue is closed")
 
-//QueuedRequest is a dto for enqueueing
+//QueuedRequest is a dto for serialization in persistent queue
 type QueuedRequest struct {
-	HTTPReq      *http.Request
+	SerializedRetryableRequest []byte
+}
+
+//RetryableRequest is a HTTP request with retry count
+type RetryableRequest struct {
+	Request      *Request
 	Retry        int
 	DequeuedTime time.Time
 	EventContext *EventContext
+}
+
+//Request is a dto for serialization custom http.Request
+type Request struct {
+	URL     string
+	Method  string
+	Body    []byte
+	Headers map[string]string
 }
 
 //QueuedRequestBuilder creates and returns a new *adapters.QueuedRequest (must be pointer).
@@ -43,17 +56,18 @@ func NewPersistentQueue(queueName, fallbackDir string) (*PersistentQueue, error)
 }
 
 //Add puts HTTP request and error callback to the queue
-func (pq *PersistentQueue) Add(httpReq *http.Request, eventContext *EventContext) error {
-	return pq.AddRequest(&QueuedRequest{HTTPReq: httpReq, DequeuedTime: time.Now().UTC(), Retry: 0, EventContext: eventContext})
+func (pq *PersistentQueue) Add(req *Request, eventContext *EventContext) error {
+	return pq.AddRequest(&RetryableRequest{Request: req, DequeuedTime: time.Now().UTC(), Retry: 0, EventContext: eventContext})
 }
 
 //AddRequest puts request to the queue with retryCount
-func (pq *PersistentQueue) AddRequest(req *QueuedRequest) error {
-	return pq.queue.Enqueue(req)
+func (pq *PersistentQueue) AddRequest(req *RetryableRequest) error {
+	serialized, _ := json.Marshal(req)
+	return pq.queue.Enqueue(&QueuedRequest{SerializedRetryableRequest: serialized})
 }
 
 //DequeueBlock waits when enqueued request is ready and return it
-func (pq *PersistentQueue) DequeueBlock() (*QueuedRequest, error) {
+func (pq *PersistentQueue) DequeueBlock() (*RetryableRequest, error) {
 	iface, err := pq.queue.DequeueBlock()
 	if err != nil {
 		if err == dque.ErrQueueClosed {
@@ -67,7 +81,13 @@ func (pq *PersistentQueue) DequeueBlock() (*QueuedRequest, error) {
 		return nil, fmt.Errorf("Dequeued object is not a QueuedRequest instance. Type is: %T", iface)
 	}
 
-	return wrappedReq, nil
+	retryableRequest := &RetryableRequest{}
+	err = json.Unmarshal(wrappedReq.SerializedRetryableRequest, retryableRequest)
+	if err != nil {
+		return nil, fmt.Errorf("Error deserializing RetryableRequest from the HTTP queue: %v", err)
+	}
+
+	return retryableRequest, nil
 }
 
 //Close closes underlying persistent queue

@@ -179,7 +179,7 @@ type FacebookRequestFactory struct {
 //transforms parameters (event_time -> unix timestamp)
 //maps input event_type(event_name) with standard
 //hashes fields according to documentation
-func (frf *FacebookRequestFactory) Create(object map[string]interface{}) (*http.Request, error) {
+func (frf *FacebookRequestFactory) Create(object map[string]interface{}) (*Request, error) {
 	// ** Parameters transformation **
 	// * action_source
 	_, ok := object["action_source"]
@@ -221,14 +221,12 @@ func (frf *FacebookRequestFactory) Create(object map[string]interface{}) (*http.
 	reqBody := &FacebookConversionEventsReq{Data: []map[string]interface{}{object}, TestEventCode: testEventCodeStr}
 	bodyPayload, _ := json.Marshal(reqBody)
 
-	httpReq, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewBuffer(bodyPayload))
-	if err != nil {
-		return nil, err
-	}
-
-	httpReq.Header.Add("Content-Type", "application/json")
-
-	return httpReq, nil
+	return &Request{
+		URL:     reqURL,
+		Method:  http.MethodPost,
+		Body:    bodyPayload,
+		Headers: map[string]string{"Content-Type": "application/json"},
+	}, nil
 }
 
 func (frf *FacebookRequestFactory) enrichWithEventTime(object map[string]interface{}) {

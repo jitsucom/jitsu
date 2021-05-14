@@ -237,7 +237,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 	serverToken := viper.GetString("server.auth")
 	if strings.HasPrefix(serverToken, "demo") {
-		logging.Warnf("\n\t*** Please replace server.auth with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
+		logging.Errorf("\n\t*** Please replace server.auth with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
 
 	apiKeysHandler := handlers.NewAPIKeysHandler(configurationsService)

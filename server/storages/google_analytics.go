@@ -85,12 +85,7 @@ func (ga *GoogleAnalytics) DryRun(payload events.Event) ([]adapters.TableField, 
 //Insert sends event to Google Analytics
 //uses errCallback under the hood (in adapters.HTTPAdapter)
 func (ga *GoogleAnalytics) Insert(eventContext *adapters.EventContext) error {
-	err := ga.gaAdapter.Insert(eventContext)
-
-	//metrics/counters/cache/fallback
-	ga.AccountResult(eventContext, err)
-
-	return err
+	return ga.gaAdapter.Insert(eventContext)
 }
 
 //Store isn't supported

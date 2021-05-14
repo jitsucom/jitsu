@@ -62,8 +62,10 @@ func NewWebHook(config *Config) (Storage, error) {
 	}
 
 	wh := &WebHook{
-		processor: config.processor,
-		staged:    config.destination.Staged,
+		processor:            config.processor,
+		uniqueIDField:        config.uniqueIDField,
+		staged:               config.destination.Staged,
+		cachingConfiguration: config.destination.CachingConfiguration,
 	}
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
@@ -99,12 +101,7 @@ func NewWebHook(config *Config) (Storage, error) {
 
 //Insert sends event into adapters.HTTPAdapter
 func (wh *WebHook) Insert(eventContext *adapters.EventContext) error {
-	err := wh.whAdapter.Insert(eventContext)
-
-	//metrics/counters/cache/fallback
-	wh.AccountResult(eventContext, err)
-
-	return err
+	return wh.whAdapter.Insert(eventContext)
 }
 
 func (wh *WebHook) DryRun(payload events.Event) ([]adapters.TableField, error) {
