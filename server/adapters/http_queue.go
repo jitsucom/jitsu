@@ -18,6 +18,7 @@ type QueuedRequest struct {
 	HTTPReq      *http.Request
 	Retry        int
 	DequeuedTime time.Time
+	EventContext *EventContext
 }
 
 //QueuedRequestBuilder creates and returns a new *adapters.QueuedRequest (must be pointer).
@@ -35,19 +36,19 @@ type PersistentQueue struct {
 func NewPersistentQueue(queueName, fallbackDir string) (*PersistentQueue, error) {
 	queue, err := dque.NewOrOpen(queueName, fallbackDir, requestsPerPersistedFile, QueuedRequestBuilder)
 	if err != nil {
-		return nil, fmt.Errorf("Error opening/creating HTTP requests queue [%s] in dir [%s]: %v", queueName, fallbackDir, err)
+		return nil, fmt.Errorf("Error opening/creating HTTP requests queue [%s] in Dir [%s]: %v", queueName, fallbackDir, err)
 	}
 
 	return &PersistentQueue{queue: queue}, nil
 }
 
-//Add puts HTTP request to the queue
-func (pq *PersistentQueue) Add(httpReq *http.Request) error {
-	return pq.Retry(&QueuedRequest{HTTPReq: httpReq, DequeuedTime: time.Now().UTC(), Retry: 0})
+//Add puts HTTP request and error callback to the queue
+func (pq *PersistentQueue) Add(httpReq *http.Request, eventContext *EventContext) error {
+	return pq.AddRequest(&QueuedRequest{HTTPReq: httpReq, DequeuedTime: time.Now().UTC(), Retry: 0, EventContext: eventContext})
 }
 
-//Retry puts request to the queue with retryCount
-func (pq *PersistentQueue) Retry(req *QueuedRequest) error {
+//AddRequest puts request to the queue with retryCount
+func (pq *PersistentQueue) AddRequest(req *QueuedRequest) error {
 	return pq.queue.Enqueue(req)
 }
 

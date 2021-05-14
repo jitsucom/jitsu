@@ -9,7 +9,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -20,14 +19,12 @@ import (
 //batch: via aws s3 (or gcp) in batch mode (1 file = 1 transaction)
 //stream: via events queue in stream mode (1 object = 1 transaction)
 type Snowflake struct {
-	destinationID        string
+	Abstract
+
 	stageAdapter         adapters.Stage
 	snowflakeAdapter     *adapters.Snowflake
-	tableHelper          *TableHelper
 	processor            *schema.Processor
 	streamingWorker      *StreamingWorker
-	fallbackLogger       *logging.AsyncLogger
-	eventsCache          *caching.EventsCache
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
 	cachingConfiguration *CachingConfiguration
@@ -37,7 +34,7 @@ func init() {
 	RegisterStorage(SnowflakeType, NewSnowflake)
 }
 
-//NewSnowflake return Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
+//NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
 func NewSnowflake(config *Config) (Storage, error) {
 	snowflakeConfig := config.destination.Snowflake
 	if err := snowflakeConfig.Validate(); err != nil {
@@ -92,20 +89,24 @@ func NewSnowflake(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.streamMode, config.maxColumns)
 
 	snowflake := &Snowflake{
-		destinationID:        config.destinationID,
 		stageAdapter:         stageAdapter,
 		snowflakeAdapter:     snowflakeAdapter,
-		tableHelper:          tableHelper,
 		processor:            config.processor,
-		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:          config.eventsCache,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
 	}
 
+	//Abstract
+	snowflake.destinationID = config.destinationID
+	snowflake.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
+	snowflake.eventsCache = config.eventsCache
+	snowflake.tableHelpers = []*TableHelper{tableHelper}
+	snowflake.sqlAdapters = []adapters.SQLAdapter{snowflakeAdapter}
+	snowflake.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+
 	if config.streamMode {
-		snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
+		snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
 		snowflake.streamingWorker.start()
 	}
 
@@ -148,39 +149,14 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 }
 
 func (s *Snowflake) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	return dryRun(payload, s.processor, s.tableHelper)
-}
-
-//Insert inserts event in Snowflake (1 retry if err)
-func (s *Snowflake) Insert(table *adapters.Table, event events.Event) (err error) {
-	dbTable, err := s.tableHelper.EnsureTable(s.ID(), table)
-	if err != nil {
-		return err
-	}
-
-	err = s.snowflakeAdapter.Insert(dbTable, event)
-
-	//renew current db schema and retry
-	if err != nil {
-		dbTable, err := s.tableHelper.RefreshTableSchema(s.ID(), table)
-		if err != nil {
-			return err
-		}
-
-		dbTable, err = s.tableHelper.EnsureTable(s.ID(), table)
-		if err != nil {
-			return err
-		}
-
-		return s.snowflakeAdapter.Insert(dbTable, event)
-	}
-
-	return nil
+	_, tableHelper := s.getAdapters()
+	return dryRun(payload, s.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	_, tableHelper := s.getAdapters()
 	flatData, failedEvents, err := s.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
 		return nil, nil, err
@@ -194,7 +170,7 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
-		table := s.tableHelper.MapTableSchema(fdata.BatchHeader)
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := s.storeTable(fdata, table)
 		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
@@ -222,7 +198,8 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 //check table schema
 //and store data into one table via stage (google cloud storage or s3)
 func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
-	dbTable, err := s.tableHelper.EnsureTable(s.ID(), table)
+	_, tableHelper := s.getAdapters()
+	dbTable, err := tableHelper.EnsureTable(s.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -258,13 +235,6 @@ func (s *Snowflake) IsCachingDisabled() bool {
 	return s.cachingConfiguration != nil && s.cachingConfiguration.Disabled
 }
 
-//Fallback log event with error to fallback logger
-func (s *Snowflake) Fallback(failedEvents ...*events.FailedEvent) {
-	for _, failedEvent := range failedEvents {
-		s.fallbackLogger.ConsumeAny(failedEvent)
-	}
-}
-
 //SyncStore isn't supported
 func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
 	return errors.New("Snowflake doesn't support sync store")
@@ -273,11 +243,6 @@ func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 //Update isn't supported
 func (s *Snowflake) Update(object map[string]interface{}) error {
 	return errors.New("Snowflake doesn't support updates")
-}
-
-//ID returns destination ID
-func (s *Snowflake) ID() string {
-	return s.destinationID
 }
 
 //Type returns Snowflake type
@@ -307,8 +272,8 @@ func (s *Snowflake) Close() (multiErr error) {
 		}
 	}
 
-	if err := s.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", s.ID(), err))
+	if err := s.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return

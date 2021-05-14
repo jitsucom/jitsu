@@ -7,22 +7,18 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
 //GoogleAnalytics stores events to Google Analytics in stream mode
 type GoogleAnalytics struct {
-	destinationID        string
+	Abstract
+
 	gaAdapter            *adapters.GoogleAnalytics
 	tableHelper          *TableHelper
 	processor            *schema.Processor
 	streamingWorker      *StreamingWorker
-	fallbackLogger       *logging.AsyncLogger
-	eventsCache          *caching.EventsCache
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
 	cachingConfiguration *CachingConfiguration
@@ -44,38 +40,42 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	gaAdapter := adapters.NewGoogleAnalytics(gaConfig, requestDebugLogger)
-
-	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, config.streamMode, 0)
-
 	ga := &GoogleAnalytics{
-		destinationID:        config.destinationID,
-		gaAdapter:            gaAdapter,
-		tableHelper:          tableHelper,
 		processor:            config.processor,
-		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:          config.eventsCache,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
 	}
 
-	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
-	ga.gaAdapter.RequestFailCallback = ga.RequestFailedCallback
+	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
+	gaAdapter, err := adapters.NewGoogleAnalytics(gaConfig, &adapters.HTTPAdapterConfiguration{
+		DestinationID:  config.destinationID,
+		Dir:            config.logEventPath,
+		HTTPConfig:     DefaultHTTPConfiguration,
+		PoolWorkers:    defaultWorkersPoolSize,
+		DebugLogger:    requestDebugLogger,
+		ErrorHandler:   ga.ErrorEvent,
+		SuccessHandler: ga.SuccessEvent,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, config.streamMode, 0)
+
+	ga.gaAdapter = gaAdapter
+	ga.tableHelper = tableHelper
+
+	//Abstract (SQLAdapters and tableHelpers are omitted)
+	ga.destinationID = config.destinationID
+	ga.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
+	ga.eventsCache = config.eventsCache
+	ga.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+
+	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, tableHelper)
 	ga.streamingWorker.start()
 
 	return ga, nil
-}
-
-func (ga *GoogleAnalytics) RequestFailedCallback(object map[string]interface{}, err error) {
-	ga.Fallback(&events.FailedEvent{
-		Event:   []byte(events.Event(object).Serialize()),
-		Error:   err.Error(),
-		EventID: events.ExtractEventID(object),
-	})
-	counters.ErrorEvents(ga.Name(), 1)
-	ga.eventsCache.Error(ga.Name(), events.ExtractEventID(object), err.Error())
 }
 
 func (ga *GoogleAnalytics) DryRun(payload events.Event) ([]adapters.TableField, error) {
@@ -83,8 +83,14 @@ func (ga *GoogleAnalytics) DryRun(payload events.Event) ([]adapters.TableField, 
 }
 
 //Insert sends event to Google Analytics
-func (ga *GoogleAnalytics) Insert(table *adapters.Table, event events.Event) (err error) {
-	return ga.gaAdapter.Send(event)
+//uses errCallback under the hood (in adapters.HTTPAdapter)
+func (ga *GoogleAnalytics) Insert(eventContext *adapters.EventContext) error {
+	err := ga.gaAdapter.Insert(eventContext)
+
+	//metrics/counters/cache/fallback
+	ga.AccountResult(eventContext, err)
+
+	return err
 }
 
 //Store isn't supported
@@ -117,18 +123,6 @@ func (ga *GoogleAnalytics) IsCachingDisabled() bool {
 	return ga.cachingConfiguration != nil && ga.cachingConfiguration.Disabled
 }
 
-//Fallback logs event with error to fallback logger
-func (ga *GoogleAnalytics) Fallback(failedEvents ...*events.FailedEvent) {
-	for _, failedEvent := range failedEvents {
-		ga.fallbackLogger.ConsumeAny(failedEvent)
-	}
-}
-
-//ID returns destination ID
-func (ga *GoogleAnalytics) ID() string {
-	return ga.destinationID
-}
-
 //Type returns Google Analytics type
 func (ga *GoogleAnalytics) Type() string {
 	return GoogleAnalyticsType
@@ -150,8 +144,8 @@ func (ga *GoogleAnalytics) Close() (multiErr error) {
 		}
 	}
 
-	if err := ga.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ga.ID(), err))
+	if err := ga.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return

@@ -7,9 +7,7 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
@@ -17,13 +15,12 @@ import (
 //batch: (1 file = 1 statement)
 //stream: (1 object = 1 statement)
 type ClickHouse struct {
-	destinationID                 string
+	Abstract
+
 	adapters                      []*adapters.ClickHouse
 	tableHelpers                  []*TableHelper
 	processor                     *schema.Processor
 	streamingWorker               *StreamingWorker
-	fallbackLogger                *logging.AsyncLogger
-	eventsCache                   *caching.EventsCache
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 	uniqueIDField                 *identifiers.UniqueID
 	staged                        bool
@@ -55,7 +52,10 @@ func NewClickHouse(config *Config) (Storage, error) {
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 
+	//creating tableHelpers and Adapters
+	//1 helper+adapter per ClickHouse node
 	var chAdapters []*adapters.ClickHouse
+	var sqlAdapters []adapters.SQLAdapter
 	var tableHelpers []*TableHelper
 	for _, dsn := range chConfig.Dsns {
 		adapter, err := adapters.NewClickHouse(config.ctx, dsn, chConfig.Database, chConfig.Cluster, chConfig.TLS,
@@ -69,21 +69,27 @@ func NewClickHouse(config *Config) (Storage, error) {
 		}
 
 		chAdapters = append(chAdapters, adapter)
+		sqlAdapters = append(sqlAdapters, adapter)
 		tableHelpers = append(tableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse, config.streamMode, config.maxColumns))
 	}
 
 	ch := &ClickHouse{
-		destinationID:                 config.destinationID,
 		adapters:                      chAdapters,
 		tableHelpers:                  tableHelpers,
 		processor:                     config.processor,
-		eventsCache:                   config.eventsCache,
-		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.destinationID),
 		usersRecognitionConfiguration: config.usersRecognition,
 		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
 		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
+
+	//Abstract
+	ch.destinationID = config.destinationID
+	ch.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
+	ch.eventsCache = config.eventsCache
+	ch.tableHelpers = tableHelpers
+	ch.sqlAdapters = sqlAdapters
+	ch.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
 	adapter, _ := ch.getAdapters()
 	err = adapter.CreateDB(chConfig.Database)
@@ -97,16 +103,11 @@ func NewClickHouse(config *Config) (Storage, error) {
 	}
 
 	if config.streamMode {
-		ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelpers...)
+		ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, tableHelpers...)
 		ch.streamingWorker.start()
 	}
 
 	return ch, nil
-}
-
-//ID returns destination ID
-func (ch *ClickHouse) ID() string {
-	return ch.destinationID
 }
 
 //Type returns ClickHouse type
@@ -117,35 +118,6 @@ func (ch *ClickHouse) Type() string {
 func (ch *ClickHouse) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	_, tableHelper := ch.getAdapters()
 	return dryRun(payload, ch.processor, tableHelper)
-}
-
-//Insert inserts event in ClickHouse (1 retry if err)
-func (ch *ClickHouse) Insert(dataSchema *adapters.Table, event events.Event) (err error) {
-	adapter, tableHelper := ch.getAdapters()
-
-	dbSchema, err := tableHelper.EnsureTable(ch.ID(), dataSchema)
-	if err != nil {
-		return err
-	}
-
-	err = adapter.Insert(dbSchema, event)
-
-	//renew current db schema and retry
-	if err != nil {
-		dbSchema, err := tableHelper.RefreshTableSchema(ch.ID(), dataSchema)
-		if err != nil {
-			return err
-		}
-
-		dbSchema, err = tableHelper.EnsureTable(ch.ID(), dataSchema)
-		if err != nil {
-			return err
-		}
-
-		return adapter.Insert(dbSchema, event)
-	}
-
-	return nil
 }
 
 //Store process events and stores with storeTable() func
@@ -282,13 +254,6 @@ func (ch *ClickHouse) IsCachingDisabled() bool {
 	return ch.cachingConfiguration != nil && ch.cachingConfiguration.Disabled
 }
 
-//Fallback log event with error to fallback logger
-func (ch *ClickHouse) Fallback(failedEvents ...*events.FailedEvent) {
-	for _, failedEvent := range failedEvents {
-		ch.fallbackLogger.ConsumeAny(failedEvent)
-	}
-}
-
 func (ch *ClickHouse) IsStaging() bool {
 	return ch.staged
 }
@@ -307,8 +272,8 @@ func (ch *ClickHouse) Close() (multiErr error) {
 		}
 	}
 
-	if err := ch.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ch.ID(), err))
+	if err := ch.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return

@@ -169,14 +169,9 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		adapter := adapters.NewFacebookConversion(config.Facebook, nil)
-		defer adapter.Close()
+		fbAdapter := adapters.NewTestFacebookConversion(config.Facebook)
 
-		if err := adapter.TestAccess(); err != nil {
-			return err
-		}
-
-		return nil
+		return fbAdapter.TestAccess()
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}

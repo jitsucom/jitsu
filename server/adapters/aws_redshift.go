@@ -110,15 +110,15 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 }
 
 //Insert provided object in AwsRedshift
-func (ar *AwsRedshift) Insert(table *Table, valuesMap map[string]interface{}) error {
-	header, placeholders, values := ar.dataSourceProxy.buildQueryPayload(valuesMap)
+func (ar *AwsRedshift) Insert(eventContext *EventContext) error {
+	header, placeholders, values := ar.dataSourceProxy.buildQueryPayload(eventContext.ProcessedEvent)
 
-	query := fmt.Sprintf(insertTemplate, ar.dataSourceProxy.config.Schema, table.Name, header, "("+placeholders+")")
+	query := fmt.Sprintf(insertTemplate, ar.dataSourceProxy.config.Schema, eventContext.Table.Name, header, "("+placeholders+")")
 
 	ar.dataSourceProxy.queryLogger.LogQueryWithValues(query, values)
 	_, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, query, values...)
 	if err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, query, values, err)
 	}
 
 	return nil

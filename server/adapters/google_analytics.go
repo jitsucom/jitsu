@@ -45,11 +45,6 @@ type GoogleAnalyticsRequestFactory struct {
 	config *GoogleAnalyticsConfig
 }
 
-//NewGoogleAnalyticsRequestFactory returns configured factory instance
-func NewGoogleAnalyticsRequestFactory(config *GoogleAnalyticsConfig) *GoogleAnalyticsRequestFactory {
-	return &GoogleAnalyticsRequestFactory{config: config}
-}
-
 //Create returns HTTP GET request with query parameters
 //removes system fields and map event type
 func (garf *GoogleAnalyticsRequestFactory) Create(object map[string]interface{}) (*http.Request, error) {
@@ -87,13 +82,20 @@ type GoogleAnalytics struct {
 }
 
 //NewGoogleAnalytics returns configured GoogleAnalytics instance
-func NewGoogleAnalytics(adapter *HTTPAdapter) *GoogleAnalytics {
-	return &GoogleAnalytics{httpAdapter: adapter}
+func NewGoogleAnalytics(config *GoogleAnalyticsConfig, httpAdapterConfiguration *HTTPAdapterConfiguration) (*GoogleAnalytics, error) {
+	httpAdapterConfiguration.HTTPReqFactory = &GoogleAnalyticsRequestFactory{config: config}
+
+	httpAdapter, err := NewHTTPAdapter(httpAdapterConfiguration)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GoogleAnalytics{httpAdapter: httpAdapter}, nil
 }
 
-//Send passes object to HTTPAdapter
-func (ga *GoogleAnalytics) Send(object map[string]interface{}) error {
-	return ga.httpAdapter.SendAsync(object)
+//Insert passes object to HTTPAdapter
+func (ga *GoogleAnalytics) Insert(eventContext *EventContext) error {
+	return ga.httpAdapter.SendAsync(eventContext)
 }
 
 //GetTableSchema always return empty schema

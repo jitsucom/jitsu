@@ -17,7 +17,7 @@ type AsyncLogger struct {
 	closed bool
 }
 
-//Create AsyncLogger and run goroutine that's read from channel and write to file
+//NewAsyncLogger creates AsyncLogger and run goroutine that's read from channel and write to file
 func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger {
 	logger := &AsyncLogger{writer: writer, logCh: make(chan interface{}, 20000), showInGlobalLogger: showInGlobalLogger}
 
