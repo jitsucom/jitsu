@@ -11,7 +11,7 @@ import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 import { ConfigurableFieldsForm } from '@molecule/ConfigurableFieldsForm';
 import { COLLECTIONS_SCHEDULES } from '@./constants/schedule';
 // @Styles
-import styles from '@molecule/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
+import editorStyles from '@molecule/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
 
 export interface Props {
   form: FormInstance;
@@ -63,7 +63,7 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
         <Col span={24}>
           <Form.Item
             initialValue={initialValues.sourceId}
-            className={cn('form-field_fixed-label', styles.field)}
+            className={cn('form-field_fixed-label', editorStyles.field)}
             label={<span>SourceId:</span>}
             name="sourceId"
             rules={sourceIdValidators}
@@ -81,7 +81,7 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
             <Form.Item
               initialValue={initialSchedule}
               name="schedule"
-              className={cn('form-field_fixed-label', styles.field)}
+              className={cn('form-field_fixed-label', editorStyles.field)}
               label="Schedule:"
               labelCol={{ span: 4 }}
               wrapperCol={{ span: 20 }}
