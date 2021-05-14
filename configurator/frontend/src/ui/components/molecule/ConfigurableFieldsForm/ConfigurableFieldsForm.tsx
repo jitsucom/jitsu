@@ -7,11 +7,11 @@ import cn from 'classnames';
 // @Components
 import { LabelWithTooltip } from '@atom/LabelWithTooltip';
 import { EditableList } from '@./lib/components/EditableList/EditableList';
+import { CenteredSpin } from '@./lib/components/components';
 // @Types
 import { Parameter, ParameterType } from '@catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 // @Utils
-import { dsnValidator } from './configurableFieldsForm.utils';
 import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { isoDateValidator } from '@util/validation/validators';
 // @Hooks
@@ -19,7 +19,6 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
 import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
 import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
-import { CenteredSpin } from '@./lib/components/components';
 
 const JsonEditor = React.lazy(() => import('@molecule/JsonEditor'));
 
@@ -122,11 +121,6 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
           const isHidden = constantValue !== undefined;
 
           const additionalProps: AnyObject = {};
-
-          // ToDo: bad code, think about exceptions
-          if (id === '_formData.ch_dsns_list') {
-            additionalProps.validator = dsnValidator;
-          }
 
           return (
             <Row key={id} className={cn(isHidden && 'hidden')}>
