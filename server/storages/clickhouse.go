@@ -18,7 +18,7 @@ type ClickHouse struct {
 	Abstract
 
 	adapters                      []*adapters.ClickHouse
-	tableHelpers                  []*TableHelper
+	chTableHelpers                []*TableHelper
 	processor                     *schema.Processor
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
@@ -56,7 +56,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 	//1 helper+adapter per ClickHouse node
 	var chAdapters []*adapters.ClickHouse
 	var sqlAdapters []adapters.SQLAdapter
-	var tableHelpers []*TableHelper
+	var chTableHelpers []*TableHelper
 	for _, dsn := range chConfig.Dsns {
 		adapter, err := adapters.NewClickHouse(config.ctx, dsn, chConfig.Database, chConfig.Cluster, chConfig.TLS,
 			tableStatementFactory, nullableFields, queryLogger, config.sqlTypes)
@@ -70,12 +70,12 @@ func NewClickHouse(config *Config) (Storage, error) {
 
 		chAdapters = append(chAdapters, adapter)
 		sqlAdapters = append(sqlAdapters, adapter)
-		tableHelpers = append(tableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse, config.streamMode, config.maxColumns))
+		chTableHelpers = append(chTableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse, config.streamMode, config.maxColumns))
 	}
 
 	ch := &ClickHouse{
 		adapters:                      chAdapters,
-		tableHelpers:                  tableHelpers,
+		chTableHelpers:                chTableHelpers,
 		processor:                     config.processor,
 		usersRecognitionConfiguration: config.usersRecognition,
 		uniqueIDField:                 config.uniqueIDField,
@@ -87,7 +87,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 	ch.destinationID = config.destinationID
 	ch.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	ch.eventsCache = config.eventsCache
-	ch.tableHelpers = tableHelpers
+	ch.tableHelpers = chTableHelpers
 	ch.sqlAdapters = sqlAdapters
 	ch.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
@@ -103,7 +103,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 	}
 
 	if config.streamMode {
-		ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, tableHelpers...)
+		ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, chTableHelpers...)
 		ch.streamingWorker.start()
 	}
 
@@ -282,5 +282,5 @@ func (ch *ClickHouse) Close() (multiErr error) {
 //assume that adapters quantity == tableHelpers quantity
 func (ch *ClickHouse) getAdapters() (*adapters.ClickHouse, *TableHelper) {
 	num := rand.Intn(len(ch.adapters))
-	return ch.adapters[num], ch.tableHelpers[num]
+	return ch.adapters[num], ch.chTableHelpers[num]
 }
