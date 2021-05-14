@@ -23,7 +23,7 @@ const webhookDestination: Destination = {
       required: true,
       type: stringType,
       documentation:
-        <>HTTP URL constant string or with text/template expressions e.g. {'{{'}.event_type{'}}'} will get event_type field from every event and use it as a part of URL path</>
+        <>HTTP URL constant string or with text/template expressions e.g. https://mydomain/{'{{'}.event_type{'}}'}/notification will get event_type field from every event and use it as a part of URL path.</>
     },
     {
       id: '_formData.method',
@@ -38,7 +38,7 @@ const webhookDestination: Destination = {
       required: false,
       type: jsonType,
       documentation:
-        <>HTTP body JSON constant or with text/template expressions e.g. {'{ "action": "{{'}.event_name{'}}"'}, "message":"User {'{{'}.user.email{'}}'} has been logged in." will get event_name and user email fields from every event and use it as a part of request body JSON</>
+        <>HTTP body JSON constant or with text/template expressions e.g. {'{ "action": "{{'}.event_name{'}}"'}, "message":"User {'{{'}.user.email{'}}'} has been logged in." will get event_name and user email fields from every event and use it as a part of request body JSON.</>
     },
     {
       id: '_formData.headers',
