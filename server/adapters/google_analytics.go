@@ -47,7 +47,7 @@ type GoogleAnalyticsRequestFactory struct {
 
 //Create returns HTTP GET request with query parameters
 //removes system fields and map event type
-func (garf *GoogleAnalyticsRequestFactory) Create(object map[string]interface{}) (*http.Request, error) {
+func (garf *GoogleAnalyticsRequestFactory) Create(object map[string]interface{}) (*Request, error) {
 	uv := make(url.Values)
 	uv.Add("tid", garf.config.TrackingID)
 	uv.Add("v", "1")
@@ -73,7 +73,12 @@ func (garf *GoogleAnalyticsRequestFactory) Create(object map[string]interface{})
 
 	reqURL := "https://www.google-analytics.com/collect?" + uv.Encode()
 
-	return http.NewRequest(http.MethodGet, reqURL, nil)
+	return &Request{
+		URL:     reqURL,
+		Method:  http.MethodGet,
+		Body:    nil,
+		Headers: map[string]string{},
+	}, nil
 }
 
 //GoogleAnalytics is an adapter for sending events into GoogleAnalytics

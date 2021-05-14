@@ -29,6 +29,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		config, err = mapGoogleAnalytics(destination)
 	case enstorages.FacebookType:
 		config, err = mapFacebook(destination)
+	case enstorages.WebHookType:
+		config, err = mapWebhook(destination)
 	default:
 		return nil, fmt.Errorf("Unknown destination type: %s", destination.Type)
 	}
@@ -281,6 +283,42 @@ func mapFacebook(fbDestination *entities.Destination) (*enstorages.DestinationCo
 		},
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: fbFormData.TableName,
+		},
+	}, nil
+}
+
+func mapWebhook(whDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+	b, err := json.Marshal(whDestination.Data)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshaling webhook config destination: %v", err)
+	}
+
+	whFormData := &entities.WebhookFormData{}
+	err = json.Unmarshal(b, whFormData)
+	if err != nil {
+		return nil, fmt.Errorf("Error unmarshaling webhook form data: %v", err)
+	}
+
+	headers := map[string]string{}
+	for _, header := range whFormData.Headers {
+		nameValue := strings.Split(header, ":")
+		if len(nameValue) == 0 {
+			return nil, fmt.Errorf("Header malformed: %s. Must be in header_name:header_value format", header)
+		}
+		headers[nameValue[0]] = nameValue[1]
+	}
+
+	return &enstorages.DestinationConfig{
+		Type: enstorages.WebHookType,
+		Mode: whFormData.Mode,
+		WebHook: &enadapters.WebHookConfig{
+			URL:     whFormData.URL,
+			Method:  whFormData.Method,
+			Body:    whFormData.Body,
+			Headers: headers,
+		},
+		DataLayout: &enstorages.DataLayout{
+			TableNameTemplate: whFormData.TableName,
 		},
 	}, nil
 }

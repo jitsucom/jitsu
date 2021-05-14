@@ -84,14 +84,8 @@ func (fb *Facebook) DryRun(payload events.Event) ([]adapters.TableField, error) 
 }
 
 //Insert sends event to Facebook Conversion API
-//uses errCallback under the hood (in adapters.HTTPAdapter)
 func (fb *Facebook) Insert(eventContext *adapters.EventContext) error {
-	err := fb.fbAdapter.Insert(eventContext)
-
-	//metrics/counters/cache/fallback
-	fb.AccountResult(eventContext, err)
-
-	return err
+	return fb.fbAdapter.Insert(eventContext)
 }
 
 //Store isn't supported

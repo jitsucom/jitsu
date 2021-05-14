@@ -1,0 +1,81 @@
+import {Hint} from "../../../components/documentationComponents";
+
+# WebHook
+
+
+**Jitsu** supports any HTTP destinations. WebHook destination can send configurable HTTP requests based on input JS/API event objects.
+For instance WebHook destination can send notifications about important conversion events to [Slack](https://slack.com/) or another notification channel.
+URL and Body might be configured with [GO text/template](https://golang.org/pkg/text/template/). It allows to enrich HTTP request with data from JS/API events.
+
+<Hint>
+    WebHook destination supports only `stream` mode.
+</Hint>
+
+
+## Filtering events
+
+For filtering events stream to prevent sending all events to WebHook `table_name_template` is used.
+For more information see [Table Names and Filters](/docs/configuration/table-names-and-filters).
+
+## Configuration
+
+WebHook destination config consists of the following schema:
+
+```yaml
+destinations:
+  my_webhook:
+    type: webhook
+    mode: stream
+    webhook:
+      url: https://my_domain.com/notification #or https://my_domain.com/{{.event_type}}/notification
+      method: POST
+      body: |-
+             {
+               "user": "{{.user.email}}",
+               "time": "{{._timestamp}}",
+               "conversion_id": "{{.conversion.id}}"
+             }
+      headers:
+        authorization: <my_authorization_token>
+        content-type: application/json
+    data_layout:
+      table_name_template: '{{text template}}' #Optional. It is used for filtering events.
+```
+
+## WebHook Configuration Parameters
+
+| Parameter | Description |
+| :--- | :--- |
+| `url` (required) | HTTP URL. Can be a string constant or a string with [GO text/template](https://golang.org/pkg/text/template/) |
+| `method`| HTTP method. Optional. Default value is: `GET`|
+| `body`| HTTP request JSON body. Can be a JSON constant or a JSON with [GO text/template](https://golang.org/pkg/text/template/) |
+| `headers`| HTTP headers Map. All HTTP requests will be enriched with configured HTTP headers. |
+
+## Slack Example
+WebHook destination will send only `conversion` events with constructed body to Slack:
+
+```yaml
+destinations:
+  slack_conversion_webhook:
+    type: webhook
+    mode: stream
+    webhook:
+      url: https://hooks.slack.com/services/T1DBYWPEWA/A2184KHBDSA/d2ONDSao431bF
+      method: POST
+      body: |-
+        {
+          "blocks": [
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "User {{.user.email}} has created order #{{.conversion.order_id}}: {{.conversion.price}} {{.conversion.currency}}!"
+              }
+            }
+          ]
+        }
+      headers:
+        content-type: application/json
+    data_layout:
+      table_name_template: '{{if eq .event_type "conversion"}}{{.event_type}}{{else}}{{end}}' #Consumes only conversions
+```

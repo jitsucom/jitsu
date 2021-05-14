@@ -3,25 +3,13 @@ package adapters
 import (
 	"bytes"
 	"fmt"
-	"net/http"
 	"strings"
 	"text/template"
 )
 
 //HTTPRequestFactory is a factory for creating http.Request from input event object
 type HTTPRequestFactory interface {
-	Create(object map[string]interface{}) (*http.Request, error)
-}
-
-//Request is a dto for building http.Request
-type Request struct {
-	Event    map[string]interface{}
-	Method   string
-	URLTmpl  *template.Template
-	BodyTmpl *template.Template
-	Headers  map[string]string
-
-	OverriddenHTTPRequest *http.Request
+	Create(object map[string]interface{}) (*Request, error)
 }
 
 //WebhookRequestFactory is a factory for building webhook (templating) HTTP requests from input events
@@ -53,27 +41,31 @@ func NewWebhookRequestFactory(httpMethod, urlTmplStr, bodyTmplStr string, header
 }
 
 //Create returns created http.Request with templates
-func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (*http.Request, error) {
+func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Request, err error) {
+	//panic handler
+	defer func() {
+		if r := recover(); r != nil {
+			req = nil
+			err = fmt.Errorf("Error constructing webhook request: %v", r)
+		}
+	}()
+
 	var urlBuf bytes.Buffer
-	if err := wrf.urlTmpl.Execute(&urlBuf, object); err != nil {
+	if err = wrf.urlTmpl.Execute(&urlBuf, object); err != nil {
 		return nil, fmt.Errorf("Error executing URL template: %v", err)
 	}
 	url := strings.TrimSpace(urlBuf.String())
 
 	var bodyBuf bytes.Buffer
-	if err := wrf.bodyTmpl.Execute(&bodyBuf, object); err != nil {
+	if err = wrf.bodyTmpl.Execute(&bodyBuf, object); err != nil {
 		return nil, fmt.Errorf("Error executing body template: %v", err)
 	}
 	body := []byte(strings.TrimSpace(bodyBuf.String()))
 
-	httpReq, err := http.NewRequest(wrf.httpMethod, url, bytes.NewReader(body))
-	if err != nil {
-		return nil, err
-	}
-
-	for header, value := range wrf.headers {
-		httpReq.Header.Add(header, value)
-	}
-
-	return httpReq, nil
+	return &Request{
+		URL:     url,
+		Method:  wrf.httpMethod,
+		Body:    body,
+		Headers: wrf.headers,
+	}, nil
 }

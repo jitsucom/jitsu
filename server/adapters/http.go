@@ -1,9 +1,9 @@
 package adapters
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/panjf2000/ants/v2"
@@ -102,9 +102,9 @@ func (h *HTTPAdapter) startObserver() {
 			}
 
 			if h.workersPool.Free() > 0 {
-				queuedRequest, err := h.queue.DequeueBlock()
+				retryableRequest, err := h.queue.DequeueBlock()
 				if err != nil {
-					if err == events.ErrQueueClosed && h.closed {
+					if err == ErrQueueClosed && h.closed {
 						continue
 					}
 
@@ -113,23 +113,23 @@ func (h *HTTPAdapter) startObserver() {
 				}
 
 				//dequeued request was from retry call and retry timeout hasn't come
-				if time.Now().UTC().Before(queuedRequest.DequeuedTime) {
-					if err := h.queue.AddRequest(queuedRequest); err != nil {
+				if time.Now().UTC().Before(retryableRequest.DequeuedTime) {
+					if err := h.queue.AddRequest(retryableRequest); err != nil {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after dequeuing: %v", h.destinationID, err)
-						h.errorHandler(true, queuedRequest.EventContext, err)
+						h.errorHandler(true, retryableRequest.EventContext, err)
 					}
 
 					continue
 				}
 
-				if err := h.workersPool.Invoke(queuedRequest); err != nil {
+				if err := h.workersPool.Invoke(retryableRequest); err != nil {
 					if err != ants.ErrPoolClosed {
 						logging.SystemErrorf("[%s] Error invoking HTTP request task: %v", h.destinationID, err)
 					}
 
-					if err := h.queue.AddRequest(queuedRequest); err != nil {
+					if err := h.queue.AddRequest(retryableRequest); err != nil {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after invoking: %v", h.destinationID, err)
-						h.errorHandler(true, queuedRequest.EventContext, err)
+						h.errorHandler(true, retryableRequest.EventContext, err)
 					}
 				}
 			}
@@ -140,92 +140,97 @@ func (h *HTTPAdapter) startObserver() {
 //SendAsync puts request to the queue
 //returns err if can't put to the queue
 func (h *HTTPAdapter) SendAsync(eventContext *EventContext) error {
-	httpReq, err := h.httpReqFactory.Create(eventContext.ProcessedEvent)
+	req, err := h.httpReqFactory.Create(eventContext.ProcessedEvent)
 	if err != nil {
 		return err
 	}
 
-	return h.queue.Add(httpReq, eventContext)
+	return h.queue.Add(req, eventContext)
 }
 
 func (h *HTTPAdapter) sendRequestWithRetry(i interface{}) {
-	queuedRequest, ok := i.(*QueuedRequest)
+	retryableRequest, ok := i.(*RetryableRequest)
 	if !ok {
 		logging.SystemErrorf("HTTP webhook request has unknown type: %T", i)
 		return
 	}
 
 	retries := ""
-	if queuedRequest.Retry > 0 {
-		retries = fmt.Sprintf(" with %d retry", queuedRequest.Retry)
+	if retryableRequest.Retry > 0 {
+		retries = fmt.Sprintf(" with %d retry", retryableRequest.Retry)
 	}
 
-	debugQuery := fmt.Sprintf("%s %s. Headers: %v %s", queuedRequest.HTTPReq.Method, queuedRequest.HTTPReq.URL, queuedRequest.HTTPReq.Header, retries)
+	debugQuery := fmt.Sprintf("%s %s. Headers: %v %s", retryableRequest.Request.Method, retryableRequest.Request.URL, retryableRequest.Request.Headers, retries)
 
-	var values []interface{}
-	//copying req body if not nil
-	body := queuedRequest.HTTPReq.Body
-	if body != nil {
-		bodyReader, err := queuedRequest.HTTPReq.GetBody()
-		if err != nil {
-			logging.Errorf("Error copying HTTP body for debug logs: %v", err)
-		} else {
-			b, _ := ioutil.ReadAll(bodyReader)
-			values = append(values, string(b))
-		}
-	}
+	h.debugLogger.LogQueryWithValues(debugQuery, []interface{}{string(retryableRequest.Request.Body)})
 
-	h.debugLogger.LogQueryWithValues(debugQuery, values)
-
-	err := h.doRequest(queuedRequest.HTTPReq)
+	err := h.doRequest(retryableRequest.Request)
 	if err != nil {
-		h.doRetry(queuedRequest, err)
+		h.doRetry(retryableRequest, err)
 	} else {
-		h.successHandler(queuedRequest.EventContext)
+		h.successHandler(retryableRequest.EventContext)
 	}
 }
 
-func (h *HTTPAdapter) doRetry(queuedRequest *QueuedRequest, sendErr error) {
-	if queuedRequest.Retry < h.retryCount {
-		queuedRequest.Retry += 1
-		queuedRequest.DequeuedTime = time.Now().UTC().Add(h.retryDelay)
-		if err := h.queue.AddRequest(queuedRequest); err != nil {
+func (h *HTTPAdapter) doRetry(retryableRequest *RetryableRequest, sendErr error) {
+	if retryableRequest.Retry < h.retryCount {
+		retryableRequest.Retry += 1
+		retryableRequest.DequeuedTime = time.Now().UTC().Add(h.retryDelay)
+		if err := h.queue.AddRequest(retryableRequest); err != nil {
 			logging.SystemErrorf("[%s] Error enqueueing HTTP request after sending: %v", h.destinationID, err)
-			h.errorHandler(true, queuedRequest.EventContext, sendErr)
+			h.errorHandler(true, retryableRequest.EventContext, sendErr)
 		} else {
-			h.errorHandler(false, queuedRequest.EventContext, sendErr)
+			h.errorHandler(false, retryableRequest.EventContext, sendErr)
 		}
 		return
 	}
 
-	reqJson, _ := json.Marshal(queuedRequest)
-	logging.Errorf("[%s] Error sending HTTP request [%s]: %v", h.destinationID, string(reqJson), sendErr)
+	reqJson, _ := json.Marshal(retryableRequest.Request)
+	logging.Errorf("[%s] Error sending HTTP request %s: %v", h.destinationID, string(reqJson), sendErr)
 
-	h.errorHandler(true, queuedRequest.EventContext, sendErr)
+	h.errorHandler(true, retryableRequest.EventContext, sendErr)
 }
 
-func (h *HTTPAdapter) doRequest(httpReq *http.Request) error {
+func (h *HTTPAdapter) doRequest(req *Request) error {
+	var httpReq *http.Request
+	var err error
+	if req.Body != nil && len(req.Body) > 0 {
+		httpReq, err = http.NewRequest(req.Method, req.URL, bytes.NewReader(req.Body))
+	} else {
+		httpReq, err = http.NewRequest(req.Method, req.URL, nil)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	for header, value := range req.Headers {
+		httpReq.Header.Add(header, value)
+	}
+
 	resp, err := h.client.Do(httpReq)
 	if err != nil {
 		return err
 	}
 
-	var responsePayload string
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
+	}
 
+	//check HTTP response code
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		//read response body
+		var responsePayload string
 		responseBody, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
 			responsePayload = fmt.Sprintf("[%s] Error reading HTTP response body: %v", h.destinationID, err)
 		} else {
 			responsePayload = string(responseBody)
 		}
-	}
 
-	headers, _ := json.Marshal(resp.Header)
+		headers, _ := json.MarshalIndent(resp.Header, " ", " ")
 
-	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
-		return fmt.Errorf("HTTP Response status code: [%d], Response body: [%s], Response headers: [%s]", resp.StatusCode, responsePayload, string(headers))
+		return fmt.Errorf("\n\tHTTP Response status code: [%d],\n\tResponse body: [%s],\n\tResponse headers: [%s]", resp.StatusCode, responsePayload, string(headers))
 	}
 
 	return nil
