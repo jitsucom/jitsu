@@ -1,32 +1,40 @@
+---
+title: Deployment
+---
+
+
 import {LargeLink} from "../../../components/documentationComponents";
 import {Hint} from "../../../components/documentationComponents";
 
-# Deployment
+# Deploying Jitsu
 
-[**EventNative**](https://github.com/jitsucom/eventnative) — is an open-source core of Jitsu. It is a monolithic app
-that takes care of all features, such as pulling data from external APIs and accepting event stream from
-[JS SDK](/docs/sending-data/javascript-reference) or [API](/docs/sending-data/api).
+[**Jitsu**](https://github.com/jitsucom/jitsu) — is an open-source data collection platform. We built
+our platform incredibly easy to deploy and use. Below, we have several step-by-step guides outlining
+how to set up Jitsu on a variety of different environments  with the easiest being [**Docker deploy**](/docs/deployment/deploy-with-docker).
 
-EventNative is written in Go and compiles into a single binary. It has zero mandatory dependencies. However, certain external
-services is required for certain features:
-
- * [etcd](https://etcd.io/) is required for coordination if EventNative works in a [cluster mode](/docs/other-features/scaling-eventnative)
- * [Redis](https://redis.io) is required for [retrospective user recognition](/docs/other-features/retrospective-user-recognition)
+<LargeLink title="Deploy Jitsu with Docker" href="/docs/deployment/deploy-with-docker" />
 
 
+## Jitsu Architecture
 
-We support multiple methods of deployment with the easiest being [**Heroku 1-click deploy**](/docs/deployment/deploy-on-heroku).
-However, for production usage we recommend [**Docker**](/docs/deployment/deploy-with-docker). Please see all available deployment methods:
+We built Jitsu to have as few external dependencies as possible. It consists from following services:
 
-<LargeLink title="Deploy on heroku" href="/docs/deployment/deploy-on-heroku" />
+ * **Jitsu Server** (🐳 [@jitsucom/server](https://hub.docker.com/r/jitsucom/server)) — Jitsu core that does all work such as transformations,
+queueing, batching, task scheduling etc.
+ * **Jitsu Configurator** (optional) (🐳 [@jitsucom/configurator](https://hub.docker.com/r/jitsucom/configurator)) — and optional UI for configuring Jitsu.
+Without UI configuration has to be done through [YAML file](https://jitsu.com/docs/configuration). You can try configuration UI at [cloud.jitsu.com](https://cloud.jitsu.com)
+ * **Redis** (optional) — Redis is required if you have more than one node running Jitsu Server for redundancy (Redis provisions coordination service). Also, Redis is required
+if you have [Retrospective User Recognition](/docs/other-features/retrospective-user-recognition) enabled
+
+Docker Compose file provided with the source code (see [Docker Deployment](/docs/deployment/deploy-with-docker) for details) runs all 3 services.
+
+## All deployment methods
+
+<LargeLink title="Deploy on Heroku" href="/docs/deployment/deploy-on-heroku" />
 
 <LargeLink title="Deploy with Docker" href="/docs/deployment/deploy-with-docker" />
 
 <LargeLink title="Build from Sources" href="/docs/deployment/build-from-sources" />
-
-<Hint>
-    <a href="https://github.com/jitsucom/eventnative">Read more about EventNative on GitHub</a>
-</Hint>
 
 
 
