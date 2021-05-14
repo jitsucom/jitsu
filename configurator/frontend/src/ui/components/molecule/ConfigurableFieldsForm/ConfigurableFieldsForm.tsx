@@ -19,6 +19,8 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
 import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
 import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
+// @Styles
+import styles from './ConfigurableFieldsForm.module.less';
 
 const JsonEditor = React.lazy(() => import('@molecule/JsonEditor'));
 
@@ -124,9 +126,9 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
 
           return (
             <Row key={id} className={cn(isHidden && 'hidden')}>
-              <Col span={16}>
+              <Col span={24}>
                 <Form.Item
-                  className="form-field_fixed-label"
+                  className={cn('form-field_fixed-label', styles.field)}
                   initialValue={getInitialValue(id, defaultValue, constantValue, type?.typeName)}
                   name={id}
                   hidden={isHidden}
@@ -135,8 +137,8 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
                       <LabelWithTooltip documentation={documentation} render={displayName} /> :
                       <span>{displayName}:</span>
                   }
-                  labelCol={{ span: 6 }}
-                  wrapperCol={{ span: 18 }}
+                  labelCol={{ span: 4 }}
+                  wrapperCol={{ span: 20 }}
                   rules={
                     !isHidden
                       ? type?.typeName === 'isoUtcDate'
