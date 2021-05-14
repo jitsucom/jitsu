@@ -3,22 +3,25 @@ package storages
 import (
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
-	"github.com/jitsucom/jitsu/server/telemetry"
 	"math/rand"
-	"strings"
 	"time"
 )
 
+//StreamingStorage supports Insert operation
 type StreamingStorage interface {
 	Storage
-	Insert(dataSchema *adapters.Table, event events.Event) (err error)
+	//Insert uses errCallback in async adapters (e.g. adapters.HTTPAdapter)
+	Insert(eventContext *adapters.EventContext) (err error)
+	//SuccessEvent writes metrics/counters/events cache, etc
+	SuccessEvent(eventCtx *adapters.EventContext)
+	//ErrorEvent writes metrics/counters/events cache, etc
+	ErrorEvent(fallback bool, eventCtx *adapters.EventContext, err error)
+	//SkipEvent writes metrics/counters/events cache, etc
+	SkipEvent(eventCtx *adapters.EventContext, err error)
 }
 
 //StreamingWorker reads events from queue and using events.StreamingStorage writes them
@@ -26,8 +29,6 @@ type StreamingWorker struct {
 	eventQueue       *events.PersistentQueue
 	processor        *schema.Processor
 	streamingStorage StreamingStorage
-	eventsCache      *caching.EventsCache
-	archiveLogger    *logging.AsyncLogger
 	tableHelper      []*TableHelper
 
 	closed bool
@@ -35,13 +36,11 @@ type StreamingWorker struct {
 
 //newStreamingWorker returns configured streaming worker
 func newStreamingWorker(eventQueue *events.PersistentQueue, processor *schema.Processor, streamingStorage StreamingStorage,
-	eventsCache *caching.EventsCache, archiveLogger *logging.AsyncLogger, tableHelper ...*TableHelper) *StreamingWorker {
+	tableHelper ...*TableHelper) *StreamingWorker {
 	return &StreamingWorker{
 		eventQueue:       eventQueue,
 		processor:        processor,
 		streamingStorage: streamingStorage,
-		eventsCache:      eventsCache,
-		archiveLogger:    archiveLogger,
 		tableHelper:      tableHelper,
 	}
 }
@@ -74,6 +73,16 @@ func (sw *StreamingWorker) start() {
 				continue
 			}
 
+			//is used in writing counters/metrics/events cache
+			eventContext := &adapters.EventContext{
+				CacheDisabled: sw.streamingStorage.IsCachingDisabled(),
+				DestinationID: sw.streamingStorage.ID(),
+				EventID:       sw.streamingStorage.GetUniqueIDField().Extract(fact),
+				TokenID:       tokenID,
+				Src:           sw.streamingStorage.GetUniqueIDField().Extract(fact),
+				RawEvent:      fact,
+			}
+
 			batchHeader, flattenObject, err := sw.processor.ProcessEvent(fact)
 			if err != nil {
 				if err == schema.ErrSkipObject {
@@ -81,24 +90,11 @@ func (sw *StreamingWorker) start() {
 						logging.Warnf("[%s] Event [%s]: %v", sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err)
 					}
 
-					counters.SkipEvents(sw.streamingStorage.ID(), 1)
+					sw.streamingStorage.SkipEvent(eventContext, err)
 				} else {
-					serialized := fact.Serialize()
-					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.ID(), serialized, err)
-
-					metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.ID())
-					counters.ErrorEvents(sw.streamingStorage.ID(), 1)
-					telemetry.Error(tokenID, sw.streamingStorage.ID(), events.ExtractSrc(fact), 1)
-
-					sw.streamingStorage.Fallback(&events.FailedEvent{
-						Event:   []byte(serialized),
-						Error:   err.Error(),
-						EventID: sw.streamingStorage.GetUniqueIDField().Extract(fact),
-					})
+					logging.Errorf("[%s] Unable to process object %s: %v", sw.streamingStorage.ID(), fact.Serialize(), err)
+					sw.streamingStorage.ErrorEvent(true, eventContext, err)
 				}
-
-				//cache
-				sw.eventsCache.Error(sw.streamingStorage.IsCachingDisabled(), sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err.Error())
 
 				continue
 			}
@@ -110,42 +106,18 @@ func (sw *StreamingWorker) start() {
 
 			table := sw.getTableHelper().MapTableSchema(batchHeader)
 
-			if err := sw.streamingStorage.Insert(table, flattenObject); err != nil {
+			eventContext.ProcessedEvent = flattenObject
+			eventContext.Table = table
+
+			if err := sw.streamingStorage.Insert(eventContext); err != nil {
 				logging.Errorf("[%s] Error inserting object %s to table [%s]: %v", sw.streamingStorage.ID(), flattenObject.Serialize(), table.Name, err)
-				if strings.Contains(err.Error(), "connection refused") ||
-					strings.Contains(err.Error(), "EOF") ||
-					strings.Contains(err.Error(), "write: broken pipe") ||
-					strings.Contains(err.Error(), "context deadline exceeded") ||
-					strings.Contains(err.Error(), "connection reset by peer") {
+				if isConnectionError(err) {
+					//retry
 					sw.eventQueue.ConsumeTimed(fact, time.Now().Add(20*time.Second), tokenID)
-				} else {
-					sw.streamingStorage.Fallback(&events.FailedEvent{
-						Event:   []byte(fact.Serialize()),
-						Error:   err.Error(),
-						EventID: sw.streamingStorage.GetUniqueIDField().Extract(flattenObject),
-					})
 				}
 
-				counters.ErrorEvents(sw.streamingStorage.ID(), 1)
-				telemetry.Error(tokenID, sw.streamingStorage.ID(), events.ExtractSrc(fact), 1)
-
-				//cache
-				sw.eventsCache.Error(sw.streamingStorage.IsCachingDisabled(), sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), err.Error())
-
-				metrics.ErrorTokenEvent(tokenID, sw.streamingStorage.ID())
 				continue
 			}
-
-			counters.SuccessEvents(sw.streamingStorage.ID(), 1)
-			telemetry.Event(tokenID, sw.streamingStorage.ID(), events.ExtractSrc(fact), 1)
-
-			//cache
-			sw.eventsCache.Succeed(sw.streamingStorage.IsCachingDisabled(), sw.streamingStorage.ID(), sw.streamingStorage.GetUniqueIDField().Extract(fact), flattenObject, table)
-
-			metrics.SuccessTokenEvent(tokenID, sw.streamingStorage.ID())
-
-			//archive
-			sw.archiveLogger.Consume(fact, tokenID)
 		}
 	})
 }
@@ -153,7 +125,7 @@ func (sw *StreamingWorker) start() {
 func (sw *StreamingWorker) Close() error {
 	sw.closed = true
 
-	return sw.archiveLogger.Close()
+	return nil
 }
 
 func (sw *StreamingWorker) getTableHelper() *TableHelper {

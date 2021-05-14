@@ -264,10 +264,10 @@ func (s *Snowflake) Copy(fileName, tableName string, header []string) error {
 }
 
 //Insert provided object in snowflake
-func (s *Snowflake) Insert(table *Table, valuesMap map[string]interface{}) error {
+func (s *Snowflake) Insert(eventContext *EventContext) error {
 	var header, placeholders string
 	var values []interface{}
-	for name, value := range valuesMap {
+	for name, value := range eventContext.ProcessedEvent {
 		header += reformatValue(name) + ","
 
 		castClause := s.getCastClause(name)
@@ -278,7 +278,7 @@ func (s *Snowflake) Insert(table *Table, valuesMap map[string]interface{}) error
 	header = removeLastComma(header)
 	placeholders = removeLastComma(placeholders)
 
-	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(table.Name), header, placeholders)
+	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(eventContext.Table.Name), header, placeholders)
 	s.queryLogger.LogQueryWithValues(query, values)
 
 	wrappedTx, err := s.OpenTx()
@@ -289,13 +289,13 @@ func (s *Snowflake) Insert(table *Table, valuesMap map[string]interface{}) error
 	insertStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)
+		return fmt.Errorf("Error preparing insert table %s statement: %v", eventContext.Table.Name, err)
 	}
 
 	_, err = insertStmt.ExecContext(s.ctx, values...)
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", table.Name, header, values, err)
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, header, values, err)
 	}
 
 	return wrappedTx.DirectCommit()

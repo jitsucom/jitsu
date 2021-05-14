@@ -74,10 +74,10 @@ func (bq *BigQuery) Test() error {
 }
 
 //Insert provided object in BigQuery in stream mode
-func (bq *BigQuery) Insert(schema *Table, valuesMap map[string]interface{}) error {
-	inserter := bq.client.Dataset(bq.config.Dataset).Table(schema.Name).Inserter()
-	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", schema.Name), valuesMap, false)
-	return inserter.Put(bq.ctx, BQItem{values: valuesMap})
+func (bq *BigQuery) Insert(eventContext *EventContext) error {
+	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
+	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
+	return inserter.Put(bq.ctx, BQItem{values: eventContext.ProcessedEvent})
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct

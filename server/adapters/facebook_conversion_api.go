@@ -14,7 +14,11 @@ import (
 	"time"
 )
 
-const eventsURLTemplate = "https://graph.facebook.com/v9.0/%s/events?access_token=%s&locale=en_EN"
+const (
+	eventsURLTemplate = "https://graph.facebook.com/v9.0/%s/events?access_token=%s&locale=en_EN"
+
+	maskedParameterValue = "masked"
+)
 
 var (
 	fbEventTypeMapping = map[string]string{
@@ -76,22 +80,24 @@ type FacebookConversionAPI struct {
 	httpAdapter *HTTPAdapter
 }
 
-//NewFacebookConversion return new instance of adapter
-func NewFacebookConversion(config *FacebookConversionAPIConfig, requestDebugLogger *logging.QueryLogger) *FacebookConversionAPI {
-	return &FacebookConversionAPI{
-		config: config,
-		client: &http.Client{
-			Timeout: 10 * time.Second,
-			Transport: &http.Transport{
-				MaxIdleConns:        1000,
-				MaxIdleConnsPerHost: 1000,
-			},
-		},
-		debugLogger: requestDebugLogger,
-	}
+//NewTestFacebookConversion returns test instance of adapter
+func NewTestFacebookConversion(config *FacebookConversionAPIConfig) *FacebookConversionAPI {
+	return &FacebookConversionAPI{config: config}
 }
 
-//TestAccess send test request (empty POST) to Facebook and check if pixel id or access token are invalid
+//NewFacebookConversion returns new instance of adapter
+func NewFacebookConversion(config *FacebookConversionAPIConfig, httpAdapterConfiguration *HTTPAdapterConfiguration) (*FacebookConversionAPI, error) {
+	httpAdapterConfiguration.HTTPReqFactory = &FacebookRequestFactory{config: config}
+
+	httpAdapter, err := NewHTTPAdapter(httpAdapterConfiguration)
+	if err != nil {
+		return nil, err
+	}
+
+	return &FacebookConversionAPI{config: config, httpAdapter: httpAdapter}, nil
+}
+
+//TestAccess sends test request (empty POST) to Facebook and check if pixel id or access token are invalid
 func (fc *FacebookConversionAPI) TestAccess() error {
 	reqURL := fmt.Sprintf(eventsURLTemplate, fc.config.PixelID, fc.config.AccessToken)
 	reqBody := &FacebookConversionEventsReq{}
@@ -99,7 +105,7 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 	bodyPayload, _ := json.Marshal(reqBody)
 
 	//send empty request and expect error
-	r, err := fc.client.Post(reqURL, "application/json", bytes.NewBuffer(bodyPayload))
+	r, err := http.DefaultClient.Post(reqURL, "application/json", bytes.NewBuffer(bodyPayload))
 	if r != nil && r.Body != nil {
 		defer r.Body.Close()
 
@@ -133,78 +139,9 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 	return errors.New("Empty Facebook response body")
 }
 
-//Send HTTP POST request to Facebook Conversion API
-//transform parameters (event_time -> unix timestamp)
-//map input event_type(event_name) with standard
-//hash fields according to documentation
-func (fc *FacebookConversionAPI) Send(object map[string]interface{}) error {
-	// ** Parameters transformation **
-	// * action_source
-	_, ok := object["action_source"]
-	if !ok {
-		object["action_source"] = "website"
-	}
-
-	// * event_time
-	fc.enrichWithEventTime(object)
-
-	// * event_name
-	eventName, ok := object["event_name"]
-	if !ok {
-		return fmt.Errorf("Object doesn't have event_name")
-	}
-
-	eventNameStr, ok := eventName.(string)
-	if !ok {
-		return fmt.Errorf("event_name must be string: %T", eventName)
-	}
-
-	mappedEventName, ok := fbEventTypeMapping[eventNameStr]
-	if ok {
-		object["event_name"] = mappedEventName
-	}
-
-	fc.hashFields(object)
-
-	//* test_event_code
-	var testEventCodeStr string
-	testEventCode, testEventCodeExists := object["test_event_code"]
-	if testEventCodeExists {
-		delete(object, "test_event_code")
-		testEventCodeStr = fmt.Sprint(testEventCode)
-	}
-
-	//sending
-	var responsePayload string
-
-	reqURL := fmt.Sprintf(eventsURLTemplate, fc.config.PixelID, fc.config.AccessToken)
-	reqBody := &FacebookConversionEventsReq{Data: []map[string]interface{}{object}, TestEventCode: testEventCodeStr}
-
-	bodyPayload, _ := json.Marshal(reqBody)
-
-	fc.debugLogger.LogQueryWithValues("POST "+reqURL, []interface{}{string(bodyPayload)})
-
-	r, err := fc.client.Post(reqURL, "application/json", bytes.NewBuffer(bodyPayload))
-	if r != nil && r.Body != nil {
-		defer r.Body.Close()
-
-		responseBody, err := ioutil.ReadAll(r.Body)
-		if err != nil {
-			return fmt.Errorf("Error reading facebook conversion API response body: %v", err)
-		}
-
-		responsePayload = string(responseBody)
-	}
-
-	if err != nil {
-		return err
-	}
-
-	if r.StatusCode != http.StatusOK {
-		return fmt.Errorf("Facebook Conversion API response code: %d body: %s", r.StatusCode, responsePayload)
-	}
-
-	return nil
+//Insert sends HTTP POST request to Facebook Conversion API via HTTPAdapter
+func (fc *FacebookConversionAPI) Insert(eventContext *EventContext) error {
+	return fc.httpAdapter.SendAsync(eventContext)
 }
 
 //GetTableSchema always return empty schema
@@ -228,13 +165,73 @@ func (fc *FacebookConversionAPI) PatchTableSchema(schemaToAdd *Table) error {
 	return nil
 }
 
+//Close closes underlying HTTPAdapter
 func (fc *FacebookConversionAPI) Close() error {
-	fc.client.CloseIdleConnections()
-
-	return nil
+	return fc.httpAdapter.Close()
 }
 
-func (fc *FacebookConversionAPI) enrichWithEventTime(object map[string]interface{}) {
+//FacebookRequestFactory is a factory for building facebook POST HTTP requests from input events
+type FacebookRequestFactory struct {
+	config *FacebookConversionAPIConfig
+}
+
+//Create returns created http.Request
+//transforms parameters (event_time -> unix timestamp)
+//maps input event_type(event_name) with standard
+//hashes fields according to documentation
+func (frf *FacebookRequestFactory) Create(object map[string]interface{}) (*http.Request, error) {
+	// ** Parameters transformation **
+	// * action_source
+	_, ok := object["action_source"]
+	if !ok {
+		object["action_source"] = "website"
+	}
+
+	// * event_time
+	frf.enrichWithEventTime(object)
+
+	// * event_name
+	eventName, ok := object["event_name"]
+	if !ok {
+		return nil, fmt.Errorf("Object doesn't have event_name")
+	}
+
+	eventNameStr, ok := eventName.(string)
+	if !ok {
+		return nil, fmt.Errorf("event_name must be string: %T", eventName)
+	}
+
+	mappedEventName, ok := fbEventTypeMapping[eventNameStr]
+	if ok {
+		object["event_name"] = mappedEventName
+	}
+
+	frf.hashFields(object)
+
+	//* test_event_code
+	var testEventCodeStr string
+	testEventCode, testEventCodeExists := object["test_event_code"]
+	if testEventCodeExists {
+		delete(object, "test_event_code")
+		testEventCodeStr = fmt.Sprint(testEventCode)
+	}
+
+	//creating
+	reqURL := fmt.Sprintf(eventsURLTemplate, frf.config.PixelID, frf.config.AccessToken)
+	reqBody := &FacebookConversionEventsReq{Data: []map[string]interface{}{object}, TestEventCode: testEventCodeStr}
+	bodyPayload, _ := json.Marshal(reqBody)
+
+	httpReq, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewBuffer(bodyPayload))
+	if err != nil {
+		return nil, err
+	}
+
+	httpReq.Header.Add("Content-Type", "application/json")
+
+	return httpReq, nil
+}
+
+func (frf *FacebookRequestFactory) enrichWithEventTime(object map[string]interface{}) {
 	eventTime := time.Now().UTC()
 	// * event_time
 	t, ok := object[timestamp.Key]
@@ -259,7 +256,7 @@ func (fc *FacebookConversionAPI) enrichWithEventTime(object map[string]interface
 
 //hashFields hash fields from 'user_data' object according to
 //https://developers.facebook.com/docs/marketing-api/conversions-api/parameters/customer-information-parameters
-func (fc *FacebookConversionAPI) hashFields(object map[string]interface{}) {
+func (frf *FacebookRequestFactory) hashFields(object map[string]interface{}) {
 	iface, ok := object["user_data"]
 	if !ok {
 		return
@@ -283,7 +280,7 @@ func (fc *FacebookConversionAPI) hashFields(object map[string]interface{}) {
 	email, ok := userData["em"]
 	if ok {
 		strEmail := fmt.Sprintf("%v", email)
-		if strings.Contains(strEmail, "@") {
+		if strings.Contains(strEmail, "@") || strEmail == maskedParameterValue {
 			sum := sha256.Sum256([]byte(strEmail))
 			userData["em"] = fmt.Sprintf("%x", sum)
 		}

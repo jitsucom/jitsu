@@ -2,7 +2,6 @@ package adapters
 
 import (
 	"errors"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
@@ -44,15 +43,15 @@ type WebHook struct {
 }
 
 //NewWebHook returns configured WebHook adapter instance
-func NewWebHook(destinationID, queueDir string, config *WebHookConfig, httpConfig *HTTPConfiguration, poolWorkers int,
-	fallbackFunc func(), debugLogger *logging.QueryLogger) (*WebHook, error) {
-
+func NewWebHook(config *WebHookConfig, httpAdapterConfiguration *HTTPAdapterConfiguration) (*WebHook, error) {
 	httpReqFactory, err := NewWebhookRequestFactory(config.Method, config.URL, config.Body, config.Headers)
 	if err != nil {
 		return nil, err
 	}
 
-	httpAdapter, err := NewHTTPAdapter(destinationID, queueDir, httpConfig, httpReqFactory, poolWorkers, fallbackFunc, debugLogger)
+	httpAdapterConfiguration.HTTPReqFactory = httpReqFactory
+
+	httpAdapter, err := NewHTTPAdapter(httpAdapterConfiguration)
 	if err != nil {
 		return nil, err
 	}
@@ -60,9 +59,9 @@ func NewWebHook(destinationID, queueDir string, config *WebHookConfig, httpConfi
 	return &WebHook{httpAdapter: httpAdapter}, nil
 }
 
-//Send passes object to HTTPAdapter
-func (wh *WebHook) Send(object map[string]interface{}) error {
-	return wh.httpAdapter.SendAsync(object)
+//Insert passes object to HTTPAdapter
+func (wh *WebHook) Insert(eventContext *EventContext) error {
+	return wh.httpAdapter.SendAsync(eventContext)
 }
 
 //GetTableSchema always returns empty table

@@ -12,6 +12,19 @@ import (
 	"time"
 )
 
+//HTTPAdapterConfiguration is a dto for creating HTTPAdapter
+type HTTPAdapterConfiguration struct {
+	DestinationID  string
+	Dir            string
+	HTTPConfig     *HTTPConfiguration
+	HTTPReqFactory HTTPRequestFactory
+	PoolWorkers    int
+	DebugLogger    *logging.QueryLogger
+
+	ErrorHandler   func(fallback bool, eventContext *EventContext, err error)
+	SuccessHandler func(eventContext *EventContext)
+}
+
 //HTTPConfiguration is a dto for HTTP adapter (client) configuration
 type HTTPConfiguration struct {
 	GlobalClientTimeout time.Duration
@@ -31,7 +44,8 @@ type HTTPAdapter struct {
 	debugLogger    *logging.QueryLogger
 	httpReqFactory HTTPRequestFactory
 
-	fallbackFunc func()
+	errorHandler   func(fallback bool, eventContext *EventContext, err error)
+	successHandler func(eventContext *EventContext)
 
 	destinationID string
 	retryCount    int
@@ -40,32 +54,33 @@ type HTTPAdapter struct {
 }
 
 //NewHTTPAdapter returns configured HTTPAdapter and starts queue observing goroutine
-func NewHTTPAdapter(destinationID, dir string, config *HTTPConfiguration, httpReqFactory HTTPRequestFactory, poolWorkers int, fallbackFunc func(), debugLogger *logging.QueryLogger) (*HTTPAdapter, error) {
+func NewHTTPAdapter(config *HTTPAdapterConfiguration) (*HTTPAdapter, error) {
 	httpAdapter := &HTTPAdapter{
 		client: &http.Client{
-			Timeout: config.GlobalClientTimeout,
+			Timeout: config.HTTPConfig.GlobalClientTimeout,
 			Transport: &http.Transport{
-				MaxIdleConns:        config.ClientMaxIdleConns,
-				MaxIdleConnsPerHost: config.ClientMaxIdleConnsPerHost,
+				MaxIdleConns:        config.HTTPConfig.ClientMaxIdleConns,
+				MaxIdleConnsPerHost: config.HTTPConfig.ClientMaxIdleConnsPerHost,
 			},
 		},
-		debugLogger:    debugLogger,
-		httpReqFactory: httpReqFactory,
+		debugLogger:    config.DebugLogger,
+		httpReqFactory: config.HTTPReqFactory,
 
-		fallbackFunc: fallbackFunc,
+		errorHandler:   config.ErrorHandler,
+		successHandler: config.SuccessHandler,
 
-		destinationID: destinationID,
-		retryCount:    config.RetryCount,
-		retryDelay:    config.RetryDelay,
+		destinationID: config.DestinationID,
+		retryCount:    config.HTTPConfig.RetryCount,
+		retryDelay:    config.HTTPConfig.RetryDelay,
 	}
 
-	reqQueue, err := NewPersistentQueue("http_queue.dst="+destinationID, dir)
+	reqQueue, err := NewPersistentQueue("http_queue.dst="+config.DestinationID, config.Dir)
 	if err != nil {
 		httpAdapter.client.CloseIdleConnections()
 		return nil, err
 	}
 
-	pool, err := ants.NewPoolWithFunc(poolWorkers, httpAdapter.sendRequestWithRetry)
+	pool, err := ants.NewPoolWithFunc(config.PoolWorkers, httpAdapter.sendRequestWithRetry)
 	if err != nil {
 		return nil, fmt.Errorf("Error creating HTTP adapter workers pool: %v", err)
 	}
@@ -99,8 +114,9 @@ func (h *HTTPAdapter) startObserver() {
 
 				//dequeued request was from retry call and retry timeout hasn't come
 				if time.Now().UTC().Before(queuedRequest.DequeuedTime) {
-					if err := h.queue.Retry(queuedRequest); err != nil {
+					if err := h.queue.AddRequest(queuedRequest); err != nil {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after dequeuing: %v", h.destinationID, err)
+						h.errorHandler(true, queuedRequest.EventContext, err)
 					}
 
 					continue
@@ -111,8 +127,9 @@ func (h *HTTPAdapter) startObserver() {
 						logging.SystemErrorf("[%s] Error invoking HTTP request task: %v", h.destinationID, err)
 					}
 
-					if err := h.queue.Retry(queuedRequest); err != nil {
+					if err := h.queue.AddRequest(queuedRequest); err != nil {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after invoking: %v", h.destinationID, err)
+						h.errorHandler(true, queuedRequest.EventContext, err)
 					}
 				}
 			}
@@ -121,14 +138,14 @@ func (h *HTTPAdapter) startObserver() {
 }
 
 //SendAsync puts request to the queue
-//returns err if occurred
-func (h *HTTPAdapter) SendAsync(object map[string]interface{}) error {
-	httpReq, err := h.httpReqFactory.Create(object)
+//returns err if can't put to the queue
+func (h *HTTPAdapter) SendAsync(eventContext *EventContext) error {
+	httpReq, err := h.httpReqFactory.Create(eventContext.ProcessedEvent)
 	if err != nil {
 		return err
 	}
 
-	return h.queue.Add(httpReq)
+	return h.queue.Add(httpReq, eventContext)
 }
 
 func (h *HTTPAdapter) sendRequestWithRetry(i interface{}) {
@@ -163,25 +180,28 @@ func (h *HTTPAdapter) sendRequestWithRetry(i interface{}) {
 	err := h.doRequest(queuedRequest.HTTPReq)
 	if err != nil {
 		h.doRetry(queuedRequest, err)
+	} else {
+		h.successHandler(queuedRequest.EventContext)
 	}
 }
 
-func (h *HTTPAdapter) doRetry(queuedRequest *QueuedRequest, err error) {
+func (h *HTTPAdapter) doRetry(queuedRequest *QueuedRequest, sendErr error) {
 	if queuedRequest.Retry < h.retryCount {
 		queuedRequest.Retry += 1
 		queuedRequest.DequeuedTime = time.Now().UTC().Add(h.retryDelay)
-		if err := h.queue.Retry(queuedRequest); err != nil {
+		if err := h.queue.AddRequest(queuedRequest); err != nil {
 			logging.SystemErrorf("[%s] Error enqueueing HTTP request after sending: %v", h.destinationID, err)
+			h.errorHandler(true, queuedRequest.EventContext, sendErr)
+		} else {
+			h.errorHandler(false, queuedRequest.EventContext, sendErr)
 		}
 		return
 	}
 
 	reqJson, _ := json.Marshal(queuedRequest)
-	logging.Errorf("[%s] error sending HTTP request [%s]: %v", h.destinationID, string(reqJson), err)
+	logging.Errorf("[%s] Error sending HTTP request [%s]: %v", h.destinationID, string(reqJson), sendErr)
 
-	if h.fallbackFunc != nil {
-		h.fallbackFunc(queuedRequest)
-	}
+	h.errorHandler(true, queuedRequest.EventContext, sendErr)
 }
 
 func (h *HTTPAdapter) doRequest(httpReq *http.Request) error {
@@ -190,8 +210,22 @@ func (h *HTTPAdapter) doRequest(httpReq *http.Request) error {
 		return err
 	}
 
+	var responsePayload string
+	if resp != nil && resp.Body != nil {
+		defer resp.Body.Close()
+
+		responseBody, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			responsePayload = fmt.Sprintf("[%s] Error reading HTTP response body: %v", h.destinationID, err)
+		} else {
+			responsePayload = string(responseBody)
+		}
+	}
+
+	headers, _ := json.Marshal(resp.Header)
+
 	if resp.StatusCode >= 200 && resp.StatusCode <= 299 {
-		return fmt.Errorf("Response status code: %d", resp.StatusCode)
+		return fmt.Errorf("HTTP Response status code: [%d], Response body: [%s], Response headers: [%s]", resp.StatusCode, responsePayload, string(headers))
 	}
 
 	return nil
