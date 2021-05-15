@@ -162,10 +162,7 @@ func Init(containerized bool, dockerHubID string) error {
 		appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
 	}
 
-	port := viper.GetString("port")
-	if port == "" {
-		port = viper.GetString("server.port")
-	}
+	port := viper.GetString("server.port")
 	appConfig.Authority = "0.0.0.0:" + port
 
 	authService, err := authorization.NewService()
