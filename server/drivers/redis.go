@@ -92,9 +92,14 @@ func NewRedis(ctx context.Context, sourceConfig *SourceConfig, collection *Colle
 		return nil, fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
+	pool, err := meta.NewRedisPool(config.Host, int(intPort), config.Password)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Redis{
 		collection:     collection,
-		connectionPool: meta.NewRedisPool(config.Host, int(intPort), config.Password),
+		connectionPool: pool,
 		redisKey:       parameters.RedisKey,
 	}, nil
 }

@@ -24,7 +24,11 @@ const (
 	responseTimestampLayout = "2006-01-02T15:04:05+0000"
 )
 
-var ErrTaskNotFound = errors.New("Sync task wasn't found")
+var (
+	ErrTaskNotFound           = errors.New("Sync task wasn't found")
+	defaultDialConnectTimeout = redis.DialConnectTimeout(10 * time.Second)
+	defaultDialReadTimeout    = redis.DialReadTimeout(10 * time.Second)
+)
 
 type Redis struct {
 	pool                      *redis.Pool
@@ -74,45 +78,76 @@ func NewRedis(host string, port int, password string, anonymousEventsMinutesTTL 
 	} else {
 		logging.Infof("🏪 Initializing meta storage redis [%s:%d]...", host, port)
 	}
-	r := &Redis{pool: NewRedisPool(host, port, password), anonymousEventsSecondsTTL: anonymousEventsMinutesTTL * 60}
 
-	//test connection
-	connection := r.pool.Get()
-	defer connection.Close()
-	_, err := redis.String(connection.Do("PING"))
+	pool, err := NewRedisPool(host, port, password)
 	if err != nil {
-		return nil, fmt.Errorf("Error testing connection to Redis: %v", err)
+		return nil, err
 	}
 
-	return r, nil
+	return &Redis{pool: pool, anonymousEventsSecondsTTL: anonymousEventsMinutesTTL * 60}, nil
 }
 
-//NewRedisPool returns configured Redis connection pool
-func NewRedisPool(host string, port int, password string) *redis.Pool {
-	return &redis.Pool{
-		MaxIdle:     100,
-		MaxActive:   600,
-		IdleTimeout: 240 * time.Second,
-
-		Wait: false,
-		Dial: func() (redis.Conn, error) {
+//NewRedisPool returns configured Redis connection pool and err if ping failed
+//host might be URLS : [redis:// or rediss://] or plain host
+func NewRedisPool(host string, port int, password string) (*redis.Pool, error) {
+	var dialFunc func() (redis.Conn, error)
+	if strings.HasPrefix(host, "rediss://") {
+		//redis secured URL
+		dialFunc = func() (redis.Conn, error) {
+			c, err := redis.DialURL(host, defaultDialConnectTimeout, defaultDialReadTimeout)
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		}
+	} else if strings.HasPrefix(host, "redis://") {
+		//redis unsecured URL
+		dialFunc = func() (redis.Conn, error) {
+			c, err := redis.DialURL(host, redis.DialTLSSkipVerify(true), defaultDialConnectTimeout, defaultDialReadTimeout)
+			if err != nil {
+				return nil, err
+			}
+			return c, err
+		}
+	} else {
+		//host + port
+		dialFunc = func() (redis.Conn, error) {
 			c, err := redis.Dial(
 				"tcp",
 				host+":"+strconv.Itoa(port),
-				redis.DialConnectTimeout(10*time.Second),
-				redis.DialReadTimeout(10*time.Second),
+				defaultDialConnectTimeout,
+				defaultDialReadTimeout,
 				redis.DialPassword(password),
 			)
 			if err != nil {
 				return nil, err
 			}
 			return c, err
-		},
+		}
+	}
+	pool := &redis.Pool{
+		MaxIdle:     100,
+		MaxActive:   600,
+		IdleTimeout: 240 * time.Second,
+
+		Wait: false,
+		Dial: dialFunc,
 		TestOnBorrow: func(c redis.Conn, t time.Time) error {
 			_, err := c.Do("PING")
 			return err
 		},
 	}
+
+	//test connection
+	connection := pool.Get()
+	defer connection.Close()
+
+	if _, err := redis.String(connection.Do("PING")); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("Error testing Redis connection: %v", err)
+	}
+
+	return pool, nil
 }
 
 //GetSignature returns sync interval signature from Redis
