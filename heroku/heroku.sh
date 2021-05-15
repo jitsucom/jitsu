@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Start the first process
+# Start Jitsu Configurator process
 nohup /home/configurator/app/configurator -cfg=/home/configurator/data/config/configurator.yaml -cr=true &
 status=$?
 if [ $status -ne 0 ]; then
@@ -10,7 +10,7 @@ fi
 
 sleep 1
 
-# Start the second process
+# Start Jitsu Server process
 nohup /home/eventnative/app/eventnative -cfg=/home/eventnative/data/config/eventnative.yaml -cr=true &
 status=$?
 if [ $status -ne 0 ]; then
@@ -19,6 +19,19 @@ if [ $status -ne 0 ]; then
 fi
 
 sleep 1
+
+# Start Nginx process
+/bin/sh -c "envsubst < /etc/nginx/nginx.conf > /etc/nginx/nginx-with-env.conf" && \
+mv /etc/nginx/nginx-with-env.conf /etc/nginx/nginx.conf && \
+nohup nginx -g 'daemon off;' &
+status=$?
+if [ $status -ne 0 ]; then
+  echo "Failed to start Nginx : $status"
+  exit $status
+fi
+
+sleep 1
+
 
 # Naive check runs checks once a minute to see if either of the processes exited.
 # This illustrates part of the heavy lifting you need to do if you want to run
@@ -31,6 +44,8 @@ while sleep 5; do
   PROCESS_CONFIGURATOR=$?
   ps aux |grep eventnative |grep -q -v grep
   PROCESS_SERVER=$?
+  ps aux |grep nginx |grep -q -v grep
+  PROCESS_NGINX=$?
   # If the greps above find anything, they exit with 0 status
   # If they are not both 0, then something is wrong
   if [ $PROCESS_CONFIGURATOR -ne 0 ]; then
@@ -39,6 +54,10 @@ while sleep 5; do
   fi
   if [ $PROCESS_SERVER -ne 0 ]; then
     echo "Jitsu Server has already exited."
+    exit 1
+  fi
+  if [ $PROCESS_NGINX -ne 0 ]; then
+    echo "Nginx has already exited."
     exit 1
   fi
 done
