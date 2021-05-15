@@ -15,4 +15,4 @@ sources: 'http://localhost:7000/api/v1/sources?token=${env.CONFIGURATOR_ADMIN_TO
 meta:
   storage:
     redis:
-      host: '${env.REDIS_TLS_URL}'
+      host: '${env.REDIS_URL}'
