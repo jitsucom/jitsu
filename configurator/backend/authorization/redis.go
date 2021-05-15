@@ -5,8 +5,7 @@ import (
 	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/logging"
-	"strconv"
-	"time"
+	"github.com/jitsucom/jitsu/server/meta"
 )
 
 const (
@@ -29,42 +28,16 @@ type RedisProvider struct {
 
 func NewRedisProvider(host, password, accessSecret, refreshSecret string, port int) (*RedisProvider, error) {
 	logging.Infof("Initializing redis authorization storage [%s:%d]...", host, port)
-	r := &RedisProvider{pool: &redis.Pool{
-		MaxIdle:     100,
-		MaxActive:   600,
-		IdleTimeout: 240 * time.Second,
 
-		Wait: false,
-		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial(
-				"tcp",
-				host+":"+strconv.Itoa(port),
-				redis.DialConnectTimeout(10*time.Second),
-				redis.DialReadTimeout(10*time.Second),
-				redis.DialPassword(password),
-			)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		},
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-			_, err := c.Do("PING")
-			return err
-		},
-	},
-		jwtTokenManager: NewTokenManager(accessSecret, refreshSecret),
-	}
-
-	//test connection
-	connection := r.pool.Get()
-	defer connection.Close()
-	_, err := redis.String(connection.Do("PING"))
+	pool, err := meta.NewRedisPool(host, port, password)
 	if err != nil {
-		return nil, fmt.Errorf("Error testing connection to Redis: %v", err)
+		return nil, err
 	}
 
-	return r, nil
+	return &RedisProvider{
+		pool:            pool,
+		jwtTokenManager: NewTokenManager(accessSecret, refreshSecret),
+	}, nil
 }
 
 //VerifyToken verify token

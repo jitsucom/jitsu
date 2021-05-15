@@ -6,7 +6,7 @@ import (
 	"github.com/gomodule/redigo/redis"
 	entime "github.com/jitsucom/jitsu/configurator/time"
 	"github.com/jitsucom/jitsu/server/logging"
-	"strconv"
+	"github.com/jitsucom/jitsu/server/meta"
 	"time"
 )
 
@@ -18,40 +18,13 @@ type Redis struct {
 
 func NewRedis(host string, port int, password string) (*Redis, error) {
 	logging.Infof("Initializing redis configuration storage [%s:%d]...", host, port)
-	r := &Redis{pool: &redis.Pool{
-		MaxIdle:     100,
-		MaxActive:   600,
-		IdleTimeout: 240 * time.Second,
 
-		Wait: false,
-		Dial: func() (redis.Conn, error) {
-			c, err := redis.Dial(
-				"tcp",
-				host+":"+strconv.Itoa(port),
-				redis.DialConnectTimeout(10*time.Second),
-				redis.DialReadTimeout(10*time.Second),
-				redis.DialPassword(password),
-			)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		},
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-			_, err := c.Do("PING")
-			return err
-		},
-	}}
-
-	//test connection
-	connection := r.pool.Get()
-	defer connection.Close()
-	_, err := redis.String(connection.Do("PING"))
+	pool, err := meta.NewRedisPool(host, port, password)
 	if err != nil {
-		return nil, fmt.Errorf("Error testing connection to Redis: %v", err)
+		return nil, err
 	}
 
-	return r, nil
+	return &Redis{pool: pool}, nil
 }
 
 func (r *Redis) Get(collection string, documentID string) ([]byte, error) {

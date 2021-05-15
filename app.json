@@ -1,16 +1,27 @@
 {
-  "name": "Jitsu Server",
+  "name": "Jitsu",
   "description": "The easiest event capturing in the world. Please, read the guide before deploying: https://jitsu.com/docs/deployment/deploy-on-heroku",
   "success_url": "/",
-  "repository": "https://github.com/jitsucom/jitsu/server",
+  "repository": "https://github.com/jitsucom/jitsu/tree/hotfix/fix-heroku",
   "logo": "https://jitsu.com/img/jitsu-light.svg",
   "keywords": ["jitsu", "events", "pixel", "golang", "tracking"],
   "stack": "container",
   "env": {
-    "CONFIG_LOCATION": {
-      "description": "Jitsu Server JSON config. Please, read documentation first! https://jitsu.com/docs/deployment/deploy-on-heroku",
-      "value": "{\n  \"server\": {\n    \"public_url\": \"<APP NAME>.herokuapp.com\",\n    \"auth\": \"57ac6e96-172a-4929-9fcf-6e6b1f16afdc\"\n  },\n  \"destinations\": {\n    \"postgres\": {\n      \"mode\": \"stream\",\n      \"type\": \"postgres\",\n      \"datasource\": {\n        \"host\": \"<your_host>\",\n        \"db\": \"<your_db>\",\n        \"username\": \"<your_username>\",\n        \"password\": \"<your_password>\"\n      },\n      \"data_layout\": {\n        \"table_name_template\": \"events\"\n      }\n    }\n  }\n}",
-      "required": true
+    "CONFIGURATOR_ADMIN_TOKEN": {
+      "required": true,
+      "description": "A secret Jitsu Configurator Admin token for Jitsu Server -> Jitsu Configurator integration",
+      "generator": "secret"
+    },
+    "SERVER_ADMIN_TOKEN": {
+      "required": true,
+      "description": "A secret Jitsu Server Admin token for Jitsu Configurator -> Jitsu Server integration",
+      "generator": "secret"
     }
-  }
+  },
+  "addons": [
+    "openredis",
+    {
+      "plan": "heroku-redis:hobby-dev"
+    }
+  ]
 }
