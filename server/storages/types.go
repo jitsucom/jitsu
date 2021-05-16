@@ -30,6 +30,8 @@ type Storage interface {
 	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error
 	Update(object map[string]interface{}) error
 	Fallback(events ...*events.FailedEvent)
+	TestBatchProcessing(testName string, events []map[string]interface{}) error
+
 	GetUsersRecognition() *UserRecognitionConfiguration
 	GetUniqueIDField() *identifiers.UniqueID
 	ID() string
@@ -41,6 +43,7 @@ type Storage interface {
 //StorageProxy is a storage proxy
 type StorageProxy interface {
 	io.Closer
+	Create() (Storage, error)
 	Get() (Storage, bool)
 	GetUniqueIDField() *identifiers.UniqueID
 	IsCachingDisabled() bool

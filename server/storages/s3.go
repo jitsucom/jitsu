@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
@@ -143,4 +144,8 @@ func (s3 *S3) IsStaging() bool {
 //Close closes fallback logger
 func (s3 *S3) Close() error {
 	return s3.close()
+}
+
+func (s3 *S3) TestBatchProcessing(testName string, events []map[string]interface{}) error {
+	return fmt.Errorf("S3 does not support TestBatchProcessing")
 }

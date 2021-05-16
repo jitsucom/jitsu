@@ -3,13 +3,13 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
@@ -165,4 +165,8 @@ func (wh *WebHook) Close() (multiErr error) {
 	}
 
 	return
+}
+
+func (wh *WebHook) TestBatchProcessing(testName string, events []map[string]interface{}) error {
+	return fmt.Errorf("WebHook does not support TestBatchProcessing() func")
 }

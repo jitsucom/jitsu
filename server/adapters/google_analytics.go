@@ -124,6 +124,11 @@ func (ga *GoogleAnalytics) PatchTableSchema(schemaToAdd *Table) error {
 	return nil
 }
 
+// DeleteTable GA doesn't use tables
+func (ga *GoogleAnalytics) DeleteTable(schemaToDelete *Table) error {
+	return nil
+}
+
 //Close closes HTTPAdapter
 func (ga *GoogleAnalytics) Close() error {
 	return ga.httpAdapter.Close()

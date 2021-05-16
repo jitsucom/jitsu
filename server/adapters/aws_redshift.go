@@ -326,6 +326,10 @@ func (ar *AwsRedshift) ValidateWritePermission() error {
 	event := map[string]interface{}{
 		columnName: "value 42",
 	}
+	eventContext := &EventContext{
+		ProcessedEvent: event,
+		Table:          table,
+	}
 
 	if err := ar.CreateTable(table); err != nil {
 		return err
@@ -338,7 +342,7 @@ func (ar *AwsRedshift) ValidateWritePermission() error {
 		}
 	}()
 
-	if err := ar.Insert(table, event); err != nil {
+	if err := ar.Insert(eventContext); err != nil {
 		return err
 	}
 

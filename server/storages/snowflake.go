@@ -278,3 +278,27 @@ func (s *Snowflake) Close() (multiErr error) {
 
 	return
 }
+
+func (s *Snowflake) TestBatchProcessing(testName string, events []map[string]interface{}) error {
+	defer func() {
+		table := &adapters.Table{
+			Name: testName,
+		}
+		if err := s.snowflakeAdapter.DeleteTable(table); err != nil {
+			// Suppressing error because we need to check only write permission
+			logging.Warnf("Cannot remove table [%s] from Snowflake: %v", testName, err)
+		}
+	}()
+
+	defer func() {
+		s.stageAdapter.DeleteObject(testName)
+	}()
+
+	alreadyUploadedTables := map[string]bool{}
+	_, _, err := s.Store(testName, events, alreadyUploadedTables)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

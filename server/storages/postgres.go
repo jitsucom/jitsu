@@ -3,12 +3,12 @@ package storages
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 )
@@ -260,4 +260,8 @@ func (p *Postgres) Close() (multiErr error) {
 	}
 
 	return
+}
+
+func (p *Postgres) TestBatchProcessing(testName string, events []map[string]interface{}) error {
+	return fmt.Errorf("Postgres does not support TestBatchProcessing() func")
 }

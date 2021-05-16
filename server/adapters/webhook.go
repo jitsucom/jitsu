@@ -2,6 +2,7 @@ package adapters
 
 import (
 	"errors"
+
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
@@ -82,6 +83,11 @@ func (wh *WebHook) CreateTable(schemaToCreate *Table) error {
 
 //PatchTableSchema returns nil
 func (wh *WebHook) PatchTableSchema(schemaToAdd *Table) error {
+	return nil
+}
+
+// DeleteTable returns nil
+func (wh *WebHook) DeleteTable(schemaToDelete *Table) error {
 	return nil
 }
 

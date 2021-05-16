@@ -64,6 +64,10 @@ func (f *Factory) CreateIncomingLogger(tokenID string) *AsyncLogger {
 }
 
 func (f *Factory) CreateFailedLogger(destinationName string) *AsyncLogger {
+	if f == nil {
+		return nil
+	}
+
 	return NewAsyncLogger(NewRollingWriter(&Config{
 		FileName:      "failed.dst=" + destinationName,
 		FileDir:       path.Join(f.logEventPath, FailedDir),
@@ -73,6 +77,10 @@ func (f *Factory) CreateFailedLogger(destinationName string) *AsyncLogger {
 }
 
 func (f *Factory) CreateSQLQueryLogger(destinationName string) *QueryLogger {
+	if f == nil {
+		return nil
+	}
+
 	return NewQueryLogger(destinationName, f.ddlLogsWriter, f.queryLogsWriter)
 }
 

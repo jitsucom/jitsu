@@ -3,11 +3,11 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
@@ -145,4 +145,8 @@ func (ga *GoogleAnalytics) Close() (multiErr error) {
 	}
 
 	return
+}
+
+func (ga *GoogleAnalytics) TestBatchProcessing(testName string, events []map[string]interface{}) error {
+	return fmt.Errorf("GoogleAnalytics does not support TestBatchProcessing() func")
 }

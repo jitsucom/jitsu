@@ -1,12 +1,13 @@
 package storages
 
 import (
+	"sync"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/telemetry"
-	"sync"
-	"time"
 )
 
 //RetryableProxy creates Storage with retry (if create fails e.g. because of connection issue)
@@ -35,7 +36,7 @@ func (rsp *RetryableProxy) start() {
 				break
 			}
 
-			storage, err := rsp.factoryMethod(rsp.config)
+			storage, err := rsp.Create()
 			if err != nil {
 				logging.Errorf("[%s] Error initializing destination of type %s: %v. Retry after 1 minute", rsp.config.destinationID, rsp.config.destination.Type, err)
 				time.Sleep(1 * time.Minute)
@@ -86,4 +87,8 @@ func (rsp *RetryableProxy) Close() error {
 		return rsp.storage.Close()
 	}
 	return nil
+}
+
+func (rsp *RetryableProxy) Create() (Storage, error) {
+	return rsp.factoryMethod(rsp.config)
 }

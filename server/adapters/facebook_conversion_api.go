@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 const (
@@ -162,6 +163,11 @@ func (fc *FacebookConversionAPI) CreateTable(schemaToCreate *Table) error {
 
 //PatchTableSchema Facebook doesn't use tables
 func (fc *FacebookConversionAPI) PatchTableSchema(schemaToAdd *Table) error {
+	return nil
+}
+
+// DeleteTable Facebook doesn't use tables
+func (fc *FacebookConversionAPI) DeleteTable(schemaToDelete *Table) error {
 	return nil
 }
 

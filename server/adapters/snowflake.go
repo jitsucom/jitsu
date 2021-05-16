@@ -373,6 +373,10 @@ func (s *Snowflake) ValidateWritePermission() error {
 	event := map[string]interface{}{
 		columnName: "value 42",
 	}
+	eventContext := &EventContext{
+		ProcessedEvent: event,
+		Table:          table,
+	}
 
 	if err := s.CreateTable(table); err != nil {
 		return err
@@ -385,7 +389,7 @@ func (s *Snowflake) ValidateWritePermission() error {
 		}
 	}()
 
-	if err := s.Insert(table, event); err != nil {
+	if err := s.Insert(eventContext); err != nil {
 		return err
 	}
 

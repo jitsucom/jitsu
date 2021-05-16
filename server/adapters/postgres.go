@@ -734,6 +734,10 @@ func (p *Postgres) ValidateWritePermission() error {
 	event := map[string]interface{}{
 		columnName: "value 42",
 	}
+	eventContext := &EventContext{
+		ProcessedEvent: event,
+		Table:          table,
+	}
 
 	if err := p.CreateTable(table); err != nil {
 		return err
@@ -746,7 +750,7 @@ func (p *Postgres) ValidateWritePermission() error {
 		}
 	}()
 
-	if err := p.Insert(table, event); err != nil {
+	if err := p.Insert(eventContext); err != nil {
 		return err
 	}
 

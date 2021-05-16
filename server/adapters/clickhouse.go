@@ -659,6 +659,10 @@ func (ch *ClickHouse) ValidateWritePermission() error {
 	event := map[string]interface{}{
 		columnName: 42,
 	}
+	eventContext := &EventContext{
+		ProcessedEvent: event,
+		Table:          table,
+	}
 
 	if err := ch.CreateTable(table); err != nil {
 		return err
@@ -671,7 +675,7 @@ func (ch *ClickHouse) ValidateWritePermission() error {
 		}
 	}()
 
-	if err := ch.Insert(table, event); err != nil {
+	if err := ch.Insert(eventContext); err != nil {
 		return err
 	}
 

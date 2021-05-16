@@ -2,12 +2,12 @@ package storages
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"math/rand"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
@@ -282,4 +282,8 @@ func (ch *ClickHouse) Close() (multiErr error) {
 func (ch *ClickHouse) getAdapters() (*adapters.ClickHouse, *TableHelper) {
 	num := rand.Intn(len(ch.adapters))
 	return ch.adapters[num], ch.chTableHelpers[num]
+}
+
+func (ch *ClickHouse) TestBatchProcessing(testName string, events []map[string]interface{}) error {
+	return fmt.Errorf("ClickHouse does not support TestBatchProcessing() func")
 }

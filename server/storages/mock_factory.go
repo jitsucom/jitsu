@@ -9,6 +9,9 @@ import (
 //Mock proxy
 type testProxyMock struct{}
 
+// Create is a mock func
+func (tpm *testProxyMock) Create() (Storage, error) { return nil, nil }
+
 //Get is a mock func
 func (tpm *testProxyMock) Get() (Storage, bool) { return nil, false }
 

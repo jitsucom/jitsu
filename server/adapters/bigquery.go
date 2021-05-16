@@ -222,6 +222,10 @@ func (bq *BigQuery) ValidateWritePermission() error {
 	event := map[string]interface{}{
 		columnName: "value 42",
 	}
+	eventContext := &EventContext{
+		ProcessedEvent: event,
+		Table:          table,
+	}
 
 	if err := bq.CreateTable(table); err != nil {
 		return err
@@ -234,7 +238,7 @@ func (bq *BigQuery) ValidateWritePermission() error {
 		}
 	}()
 
-	if err := bq.Insert(table, event); err != nil {
+	if err := bq.Insert(eventContext); err != nil {
 		return err
 	}
 
