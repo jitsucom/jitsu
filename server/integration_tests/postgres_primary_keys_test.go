@@ -54,7 +54,10 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		err = pg.Insert(ensuredWithMerge, data)
+		err = pg.Insert(&adapters.EventContext{
+			ProcessedEvent: data,
+			Table:          ensuredWithMerge,
+		})
 		if err != nil {
 			t.Fatal("failed to insert", err)
 		}
@@ -75,7 +78,10 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		err = pg.Insert(ensuredWithoutMerge, data)
+		err = pg.Insert(&adapters.EventContext{
+			ProcessedEvent: data,
+			Table:          ensuredWithoutMerge,
+		})
 		if err != nil {
 			t.Fatal("failed to insert", err)
 		}

@@ -7,21 +7,18 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
 //Facebook stores events to Facebook Conversion API in stream mode
 type Facebook struct {
-	destinationID        string
+	Abstract
+
 	fbAdapter            *adapters.FacebookConversionAPI
 	tableHelper          *TableHelper
 	processor            *schema.Processor
 	streamingWorker      *StreamingWorker
-	fallbackLogger       *logging.AsyncLogger
-	eventsCache          *caching.EventsCache
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
 	cachingConfiguration *CachingConfiguration
@@ -44,23 +41,39 @@ func NewFacebook(config *Config) (Storage, error) {
 	}
 
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	fbAdapter := adapters.NewFacebookConversion(fbConfig, requestDebugLogger)
-
-	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToFacebookConversion, config.streamMode, 0)
 
 	fb := &Facebook{
-		destinationID:        config.destinationID,
-		fbAdapter:            fbAdapter,
-		tableHelper:          tableHelper,
 		processor:            config.processor,
-		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:          config.eventsCache,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
 	}
 
-	fb.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, fb, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
+	fbAdapter, err := adapters.NewFacebookConversion(fbConfig, &adapters.HTTPAdapterConfiguration{
+		DestinationID:  config.destinationID,
+		Dir:            config.logEventPath,
+		HTTPConfig:     DefaultHTTPConfiguration,
+		PoolWorkers:    defaultWorkersPoolSize,
+		DebugLogger:    requestDebugLogger,
+		ErrorHandler:   fb.ErrorEvent,
+		SuccessHandler: fb.SuccessEvent,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, config.streamMode, 0)
+
+	fb.fbAdapter = fbAdapter
+	fb.tableHelper = tableHelper
+
+	//Abstract (SQLAdapters and tableHelpers are omitted)
+	fb.destinationID = config.destinationID
+	fb.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
+	fb.eventsCache = config.eventsCache
+	fb.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+
+	fb.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, fb, tableHelper)
 	fb.streamingWorker.start()
 
 	return fb, nil
@@ -71,8 +84,8 @@ func (fb *Facebook) DryRun(payload events.Event) ([]adapters.TableField, error) 
 }
 
 //Insert sends event to Facebook Conversion API
-func (fb *Facebook) Insert(table *adapters.Table, event events.Event) (err error) {
-	return fb.fbAdapter.Send(event)
+func (fb *Facebook) Insert(eventContext *adapters.EventContext) error {
+	return fb.fbAdapter.Insert(eventContext)
 }
 
 //Store isn't supported
@@ -105,18 +118,6 @@ func (fb *Facebook) IsCachingDisabled() bool {
 	return fb.cachingConfiguration != nil && fb.cachingConfiguration.Disabled
 }
 
-//Fallback log event with error to fallback logger
-func (fb *Facebook) Fallback(failedEvents ...*events.FailedEvent) {
-	for _, failedEvent := range failedEvents {
-		fb.fallbackLogger.ConsumeAny(failedEvent)
-	}
-}
-
-//ID returns destination ID
-func (fb *Facebook) ID() string {
-	return fb.destinationID
-}
-
 //Type returns Facebook type
 func (fb *Facebook) Type() string {
 	return FacebookType
@@ -138,8 +139,8 @@ func (fb *Facebook) Close() (multiErr error) {
 		}
 	}
 
-	if err := fb.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", fb.ID(), err))
+	if err := fb.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return

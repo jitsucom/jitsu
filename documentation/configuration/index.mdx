@@ -1,6 +1,6 @@
 # General Configuration
 
-**EventNative** is configured through a single YAML file. We follow
+**Jitsu Server** is configured through a single YAML file. We follow
 [convention over configuration](https://en.wikipedia.org/wiki/Convention_over_configuration) so the majority of
 parameters are optional. To get a base file, clone it from
 [GitHub](https://github.com/jitsucom/eventnative/blob/master/config/config.template.yaml).
@@ -9,14 +9,14 @@ Our config file consists of the following sections:
 
 * `server` — General configuration parameters such as port, authorization, application logs configuration, singer bridge configuration, etc.
 * `geo` — Geo resolution data (extracting city/state information from the IP address). We currently only support [MaxMind](https://www.maxmind.com/en/home) as a data provider. see [Geo Data resolution](/docs/other-features/geo-data-resolution)
-* `log` — EventNative writes all events locally and sends them to their destinations (in batch mode). This is where you configure your local temporary path and push frequency.
+* `log` — Jitsu writes all events locally and sends them to their destinations (in batch mode). This is where you configure your local temporary path and push frequency.
 * `sql_debug_log` — All SQL statements such as DDL and DML expressions can be stored in separated log files or in stdout. see [SQL Query Logs](/docs/configuration/sql-query-logs)
 * `destinations` — A set of targets where the final version of events will be stored. see [Destinations Configuration](/docs/destinations-configuration)
 * `sources` — A set of data sources to synchronize from. see [Sources Configuration](/docs/sources-configuration)
-* `users_recognition` — EventNative can update past events with user identifiers on user's identification event! see [Retrospective Users Recognition](/docs/other-features/retrospective-user-recognition)
-* `coordination` — coordination service configuration. It is used in cluster EventNative deployments. see [Scaling EventNative](/docs/other-features/scaling-eventnative)
+* `users_recognition` — Jitsu can update past events with user identifiers on user's identification event! see [Retrospective Users Recognition](/docs/other-features/retrospective-user-recognition)
+* `coordination` — coordination service configuration. It is used in cluster Jitsu deployments. see [Scaling Jitsu](/docs/other-features/scaling-eventnative)
 * `notifications` — notifier configuration. Server starts, system errors, and panics information will be sent to it. Currently, only Slack notifications are supported.
-* `meta.storage` - meta storage configuration. At present EventNative supports only [Redis](https://redis.io/). It is used for last events caching (see [Events Cache](/docs/other-features/events-cache)), sources synchronization (see [Sources Configuration](/docs/sources-configuration/)), and [Retrospective Users Recognition](/docs/other-features/retrospective-user-recognition).
+* `meta.storage` - meta storage configuration. At present Jitsu supports only [Redis](https://redis.io/). It is used for last events caching (see [Events Cache](/docs/other-features/events-cache)), sources synchronization (see [Sources Configuration](/docs/sources-configuration/)), and [Retrospective Users Recognition](/docs/other-features/retrospective-user-recognition) and can be used in [coordination](/docs/other-features/scaling-eventnative).
 
 **Example**:
 
@@ -52,8 +52,7 @@ users_recognition:
   enabled: true
   
 coordination:
-  etcd:
-    endpoint: http://your_etcd_host
+  type: redis
 
 notifications:
   slack:
@@ -84,12 +83,12 @@ All fields from the **server** section are optional:
 | **destinations\_reload\_sec** | int | If an URL is set in **destinations** section, destinations will be reloaded every **destinations\_reload\_sec** seconds. see [Destinations](./#destinations). | `40` |
 | **admin\_token** | string | see [Admin Endpoints](/docs/other-features/admin-endpoints) page. | - |
 | **metrics.prometheus.enabled** | boolean | see [Application Metrics](/docs/other-features/application-metrics) page. | `false` |
-| **telemetry.disabled.usage** | boolean | Flag for disabling telemetry. **EventNative** collects usage metrics about how you use it and how it is working. **We don't collect any customer data**. | `false` |
-| **disable\_version\_reminder** | boolean | Flag for disabling log reminder banner about new **EventNatvie** versions availability. | `false` |
+| **telemetry.disabled.usage** | boolean | Flag for disabling telemetry. **Jitsu** collects usage metrics about how you use it and how it is working. **We don't collect any customer data**. | `false` |
+| **disable\_version\_reminder** | boolean | Flag for disabling log reminder banner about new **Jitsu** versions availability. | `false` |
 
 ### Log
 
-**EventNative** supports destinations in streaming and batch modes. In the case of batch mode, all events are stored in JSON log files locally to **path** directory, and every **rotation\_min** minutes they are processed and pushed to destinations.  
+**Jitsu Server** supports destinations in streaming and batch modes. In the case of batch mode, all events are stored in JSON log files locally to **path** directory, and every **rotation\_min** minutes they are processed and pushed to destinations.
 All fields from **log** section are optional:
 
 | Field | Type | Description | Default value |

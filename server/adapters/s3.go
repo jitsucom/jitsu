@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -15,11 +14,13 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
+//S3 is a S3 adapter for uploading/deleting files
 type S3 struct {
 	config *S3Config
 	client *s3.S3
 }
 
+//S3Config is a dto for config deserialization
 type S3Config struct {
 	AccessKeyID string `mapstructure:"access_key_id" json:"access_key_id,omitempty" yaml:"access_key_id,omitempty"`
 	SecretKey   string `mapstructure:"secret_access_key" json:"secret_access_key,omitempty" yaml:"secret_access_key,omitempty"`
@@ -29,6 +30,7 @@ type S3Config struct {
 	Folder      string `mapstructure:"folder" json:"folder,omitempty" yaml:"folder,omitempty"`
 }
 
+//Validate returns err if invalid
 func (s3c *S3Config) Validate() error {
 	if s3c == nil {
 		return errors.New("S3 config is required")
@@ -49,6 +51,7 @@ func (s3c *S3Config) Validate() error {
 	return nil
 }
 
+//NewS3 returns configured S3 adapter
 func NewS3(s3Config *S3Config) (*S3, error) {
 	if err := s3Config.Validate(); err != nil {
 		return nil, err
@@ -65,7 +68,7 @@ func NewS3(s3Config *S3Config) (*S3, error) {
 	return &S3{client: s3.New(s3Session, awsConfig), config: s3Config}, nil
 }
 
-//Create named file on s3 with payload
+//UploadBytes creates named file on s3 with payload
 func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	if a.config.Folder != "" {
 		fileName = a.config.Folder + "/" + fileName
@@ -84,55 +87,7 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-//Return s3 bucket file keys filtered by file name prefix
-//Deprecated
-func (a *S3) ListBucket(fileNamePrefix string) ([]string, error) {
-	prefix := fileNamePrefix
-	if a.config.Folder != "" {
-		prefix = a.config.Folder + "/" + fileNamePrefix
-	}
-	input := &s3.ListObjectsV2Input{Bucket: &a.config.Bucket, Prefix: &prefix}
-	var files []string
-	for {
-		output, err := a.client.ListObjectsV2(input)
-		if err != nil {
-			return nil, err
-		}
-		for _, f := range output.Contents {
-			files = append(files, *f.Key)
-		}
-		if *output.IsTruncated == false {
-			break
-		} else {
-			input.ContinuationToken = output.NextContinuationToken
-		}
-	}
-
-	return files, nil
-}
-
-//Return s3 file by key
-//Deprecated
-func (a *S3) GetObject(key string) ([]byte, error) {
-	if a.config.Folder != "" {
-		key = a.config.Folder + "/" + key
-	}
-	input := &s3.GetObjectInput{Bucket: &a.config.Bucket, Key: &key}
-	result, err := a.client.GetObject(input)
-	if err != nil {
-		return nil, err
-	}
-
-	defer result.Body.Close()
-
-	buf := bytes.NewBuffer(nil)
-	if _, err := io.Copy(buf, result.Body); err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
-}
-
-//Delete object from s3 bucket by key
+//DeleteObject deletes object from s3 bucket by key
 func (a *S3) DeleteObject(key string) error {
 	if a.config.Folder != "" {
 		key = a.config.Folder + "/" + key
@@ -150,8 +105,8 @@ func (a *S3) DeleteObject(key string) error {
 	return nil
 }
 
-// Function tries to create temporary file and remove it.
-// Returns OK if file creation was successfull.
+//ValidateWritePermission tries to create temporary file and remove it.
+//returns nil if file creation was successful.
 func (a *S3) ValidateWritePermission() error {
 	filename := fmt.Sprintf("test_%v", timestamp.NowUTC())
 
@@ -168,6 +123,7 @@ func (a *S3) ValidateWritePermission() error {
 	return nil
 }
 
+//Close returns nil
 func (a *S3) Close() error {
 	return nil
 }
