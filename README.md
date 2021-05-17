@@ -40,7 +40,7 @@ cd jitsu
 For running `latest` version use:
 
 ```bash
-docker-compose up
+docker-compose pull && docker-compose up
 ```
 
 Note: `latest` images will be downloaded and started. For building and running local version (it takes ~15 min) use:

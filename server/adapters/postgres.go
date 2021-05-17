@@ -352,14 +352,14 @@ func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *
 }
 
 //Insert provided object in postgres with typecasts
-func (p *Postgres) Insert(table *Table, valuesMap map[string]interface{}) error {
-	header, placeholders, values := p.buildQueryPayload(valuesMap)
-	query := p.insertQuery(table.GetPKFields(), table.Name, header, "("+placeholders+")")
+func (p *Postgres) Insert(eventContext *EventContext) error {
+	header, placeholders, values := p.buildQueryPayload(eventContext.ProcessedEvent)
+	query := p.insertQuery(eventContext.Table.GetPKFields(), eventContext.Table.Name, header, "("+placeholders+")")
 	p.queryLogger.LogQueryWithValues(query, values)
 
 	_, err := p.dataSource.ExecContext(p.ctx, query, values...)
 	if err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, query, values, err)
 	}
 
 	return nil

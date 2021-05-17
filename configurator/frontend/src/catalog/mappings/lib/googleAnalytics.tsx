@@ -1,6 +1,11 @@
-import { Mapping } from '../types';
+import { DestinationConfigurationTemplate } from '../types';
 
-const mapping: Mapping = {
+const mapping: DestinationConfigurationTemplate = {
+  displayName: 'Google Analytics',
+  comment: <>
+    This templates converts incoming events to <a href="https://developers.google.com/analytics/devguides/collection/protocol/v1">Google Analytics Measurement API</a> calls.
+    {' '}Make sure you use Google Analytics destination, otherwise configuration won't make much sense
+  </>,
   keepUnmappedFields: true,
   mappings: [
     {

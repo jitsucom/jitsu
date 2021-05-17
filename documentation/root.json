@@ -8,11 +8,9 @@
       ]
     },
     {
-      "name": "How it works",
+      "name": "Jitsu Internals",
       "pages": [
-        "how-it-works/architecture",
-        "how-it-works/directories-structure",
-        "how-it-works/pipelines"
+        "internals/jitsu-server"
       ]
     },
     {
@@ -32,9 +30,8 @@
       ]
     },
     {
-      "name": "Features",
+      "name": "❤️ Features",
       "pages": [
-        "other-features/scaling-eventnative",
         "other-features/segment-compatibility",
         "other-features/dry-run-events",
         "other-features/retrospective-user-recognition",

@@ -33,7 +33,7 @@ type TaskExecutor struct {
 	closed bool
 }
 
-//NewTaskExecutor return TaskExecutor and run 2 goroutines (monitoring and queue observer)
+//NewTaskExecutor returns TaskExecutor and starts 2 goroutines (monitoring and queue observer)
 func NewTaskExecutor(poolSize int, sourceService *sources.Service, destinationService *destinations.Service, metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper) (*TaskExecutor, error) {
 	executor := &TaskExecutor{sourceService: sourceService, destinationService: destinationService, metaStorage: metaStorage, monitorKeeper: monitorKeeper}
 	pool, err := ants.NewPoolWithFunc(poolSize, executor.execute)

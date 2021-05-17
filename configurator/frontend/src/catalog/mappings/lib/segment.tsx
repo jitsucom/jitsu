@@ -1,7 +1,11 @@
-import { Mapping } from '../types';
+import { DestinationConfigurationTemplate } from '../types';
 
-const mapping: Mapping = {
+const mapping: DestinationConfigurationTemplate = {
   keepUnmappedFields: true,
+  comment: <>
+    Template for Segment compatibility implementation. Use this template to cast Jitsu events to Segment-like schema.
+    {' '}<a href="https://jitsu.com/docs/other-features/segment-compatibility">More on Segment compatibility here</a>
+  </>,
   mappings: [
     {
       src: '/src_payload/name',

@@ -4,6 +4,7 @@ import (
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/schema"
+	"strings"
 )
 
 func dryRun(payload events.Event, processor *schema.Processor, tableHelper *TableHelper) ([]adapters.TableField, error) {
@@ -20,4 +21,12 @@ func dryRun(payload events.Event, processor *schema.Processor, tableHelper *Tabl
 	}
 
 	return dryRunResponses, nil
+}
+
+func isConnectionError(err error) bool {
+	return strings.Contains(err.Error(), "connection refused") ||
+		strings.Contains(err.Error(), "EOF") ||
+		strings.Contains(err.Error(), "write: broken pipe") ||
+		strings.Contains(err.Error(), "context deadline exceeded") ||
+		strings.Contains(err.Error(), "connection reset by peer")
 }

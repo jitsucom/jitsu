@@ -376,10 +376,10 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 }
 
 //Insert provided object in ClickHouse in stream mode
-func (ch *ClickHouse) Insert(table *Table, valuesMap map[string]interface{}) error {
+func (ch *ClickHouse) Insert(eventContext *EventContext) error {
 	var header, placeholders []string
 	var values []interface{}
-	for name, value := range valuesMap {
+	for name, value := range eventContext.ProcessedEvent {
 		header = append(header, name)
 		placeholders = append(placeholders, ch.getPlaceholder(name))
 		values = append(values, value)
@@ -390,18 +390,18 @@ func (ch *ClickHouse) Insert(table *Table, valuesMap map[string]interface{}) err
 		return err
 	}
 
-	query := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(header, ", "), strings.Join(placeholders, ", "))
+	query := fmt.Sprintf(insertCHTemplate, ch.database, eventContext.Table.Name, strings.Join(header, ", "), strings.Join(placeholders, ", "))
 	ch.queryLogger.LogQueryWithValues(query, values)
 	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing insert table %s statement: %v", table.Name, err)
+		return fmt.Errorf("Error preparing insert table %s statement: %v", eventContext.Table.Name, err)
 	}
 
 	_, err = insertStmt.ExecContext(ch.ctx, values...)
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", table.Name, header, values, err)
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, header, values, err)
 	}
 
 	return wrappedTx.DirectCommit()
