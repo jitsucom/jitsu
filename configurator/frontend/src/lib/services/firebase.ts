@@ -28,13 +28,13 @@ export class FirebaseUserService implements UserService {
     this.storageService = storageService;
   }
 
-  initiateGithubLogin(redirect?: string) {
-    return new Promise<void>((resolve, reject) => {
+  initiateGithubLogin(): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
       firebase
         .auth()
         .signInWithPopup(new firebase.auth.GithubAuthProvider())
         .then((a) => {
-          resolve();
+          resolve(a.user.email);
         })
         .catch((error) => {
           reject(error);
@@ -42,13 +42,13 @@ export class FirebaseUserService implements UserService {
     });
   }
 
-  initiateGoogleLogin(redirect?: string): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+  initiateGoogleLogin(): Promise<string> {
+    return new Promise<string>((resolve, reject) => {
       firebase
         .auth()
         .signInWithPopup(new firebase.auth.GoogleAuthProvider())
         .then((a) => {
-          resolve();
+          resolve(a.user.email);
         })
         .catch((error) => {
           reject(error);

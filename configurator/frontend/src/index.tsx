@@ -7,13 +7,8 @@ import App from './App';
 // @Styles
 import './index.less'
 
-let root = React.createElement(
-  BrowserRouter,
-  {},
-  <Route
-    render={(props) => {
-      return <App location={props.location.pathname} />;
-    }}
-  />
-);
-ReactDOM.render(root, document.getElementById('root'));
+ReactDOM.render(
+  <BrowserRouter basename={process.env.APP_PATH}>
+    <App />
+  </BrowserRouter>,
+  document.getElementById('root'));

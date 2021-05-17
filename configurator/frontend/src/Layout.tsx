@@ -28,6 +28,7 @@ import { Breadcrumbs } from '@molecule/Breadcrumbs';
 import { CurrentPlan } from '@molecule/CurrentPlan/CurrentPlan';
 import { PaymentPlan, PaymentPlanStatus } from '@service/billing';
 import styles from './Layout.module.less';
+import { getIntercom } from '@service/intercom-wrapper';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
@@ -76,6 +77,7 @@ export const ApplicationMenu: React.FC<{}> = () => {
 
 export const ApplicationSidebar: React.FC<{}> = () => {
   const services = useServices();
+  const intercom = getIntercom();
   return <div className={styles.sideBarContent} >
     <div>
       <a href="https://jitsu.com" className="text-center block pt-5 h-14">
@@ -86,7 +88,7 @@ export const ApplicationSidebar: React.FC<{}> = () => {
     <div className="flex justify-center pb-4"><Button type="link" size="large"
       onClick={() => {
         if (services.features.chatSupportType === 'chat') {
-
+          intercom('show');
         } else {
           document.getElementById('jitsuSlackWidget').click();
         }
