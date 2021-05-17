@@ -8,7 +8,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -18,13 +17,11 @@ import (
 //batch: (1 file = 1 statement)
 //stream: (1 object = 1 statement)
 type Postgres struct {
-	destinationID                 string
+	Abstract
+
 	adapter                       *adapters.Postgres
-	tableHelper                   *TableHelper
 	processor                     *schema.Processor
 	streamingWorker               *StreamingWorker
-	fallbackLogger                *logging.AsyncLogger
-	eventsCache                   *caching.EventsCache
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 	uniqueIDField                 *identifiers.UniqueID
 	staged                        bool
@@ -71,20 +68,24 @@ func NewPostgres(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres, config.streamMode, config.maxColumns)
 
 	p := &Postgres{
-		destinationID:                 config.destinationID,
 		adapter:                       adapter,
-		tableHelper:                   tableHelper,
 		processor:                     config.processor,
-		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:                   config.eventsCache,
 		usersRecognitionConfiguration: config.usersRecognition,
 		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
 		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
+	//Abstract
+	p.destinationID = config.destinationID
+	p.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
+	p.eventsCache = config.eventsCache
+	p.tableHelpers = []*TableHelper{tableHelper}
+	p.sqlAdapters = []adapters.SQLAdapter{adapter}
+	p.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+
 	if config.streamMode {
-		p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
+		p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
 		p.streamingWorker.start()
 	}
 
@@ -92,12 +93,14 @@ func NewPostgres(config *Config) (Storage, error) {
 }
 
 func (p *Postgres) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	return dryRun(payload, p.processor, p.tableHelper)
+	_, tableHelper := p.getAdapters()
+	return dryRun(payload, p.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	_, tableHelper := p.getAdapters()
 	flatData, failedEvents, err := p.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
 		return nil, nil, err
@@ -111,7 +114,7 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
-		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := p.storeTable(fdata, table)
 		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
@@ -139,7 +142,8 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 //check table schema
 //and store data into one table
 func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
-	dbSchema, err := p.tableHelper.EnsureTable(p.ID(), table)
+	_, tableHelper := p.getAdapters()
+	dbSchema, err := tableHelper.EnsureTable(p.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -153,15 +157,9 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 	return nil
 }
 
-//Fallback logs event with error to fallback logger
-func (p *Postgres) Fallback(failedEvents ...*events.FailedEvent) {
-	for _, failedEvent := range failedEvents {
-		p.fallbackLogger.ConsumeAny(failedEvent)
-	}
-}
-
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
 func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+	_, tableHelper := p.getAdapters()
 	flatData, err := p.processor.ProcessPulledEvents(timeIntervalValue, objects)
 	if err != nil {
 		return err
@@ -179,9 +177,9 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
 		}
 
-		table := p.tableHelper.MapTableSchema(overriddenDataSchema)
+		table := tableHelper.MapTableSchema(overriddenDataSchema)
 
-		dbSchema, err := p.tableHelper.EnsureTable(p.ID(), table)
+		dbSchema, err := tableHelper.EnsureTable(p.ID(), table)
 		if err != nil {
 			return err
 		}
@@ -194,14 +192,14 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 
 	//plain flow
 	for _, fdata := range flatData {
-		table := p.tableHelper.MapTableSchema(fdata.BatchHeader)
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 
 		//overridden table destinationID
 		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
 			table.Name = overriddenDataSchema.TableName
 		}
 
-		dbSchema, err := p.tableHelper.EnsureTable(p.ID(), table)
+		dbSchema, err := tableHelper.EnsureTable(p.ID(), table)
 		if err != nil {
 			return err
 		}
@@ -220,33 +218,6 @@ func (p *Postgres) Update(object map[string]interface{}) error {
 	return p.SyncStore(nil, []map[string]interface{}{object}, "")
 }
 
-//Insert event in Postgres (1 retry if error)
-func (p *Postgres) Insert(table *adapters.Table, event events.Event) (err error) {
-	dbTable, err := p.tableHelper.EnsureTable(p.ID(), table)
-	if err != nil {
-		return err
-	}
-
-	err = p.adapter.Insert(dbTable, event)
-
-	//renew current db schema and retry
-	if err != nil {
-		dbTable, err := p.tableHelper.RefreshTableSchema(p.ID(), table)
-		if err != nil {
-			return err
-		}
-
-		dbTable, err = p.tableHelper.EnsureTable(p.ID(), table)
-		if err != nil {
-			return err
-		}
-
-		return p.adapter.Insert(dbTable, event)
-	}
-
-	return nil
-}
-
 //GetUsersRecognition returns users recognition configuration
 func (p *Postgres) GetUsersRecognition() *UserRecognitionConfiguration {
 	return p.usersRecognitionConfiguration
@@ -262,6 +233,15 @@ func (p *Postgres) IsCachingDisabled() bool {
 	return p.cachingConfiguration != nil && p.cachingConfiguration.Disabled
 }
 
+//Type returns Facebook type
+func (p *Postgres) Type() string {
+	return PostgresType
+}
+
+func (p *Postgres) IsStaging() bool {
+	return p.staged
+}
+
 //Close closes Postgres adapter, fallback logger and streaming worker
 func (p *Postgres) Close() (multiErr error) {
 	if err := p.adapter.Close(); err != nil {
@@ -274,23 +254,9 @@ func (p *Postgres) Close() (multiErr error) {
 		}
 	}
 
-	if err := p.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", p.ID(), err))
+	if err := p.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return
-}
-
-//ID returns destination ID
-func (p *Postgres) ID() string {
-	return p.destinationID
-}
-
-//Type returns Facebook type
-func (p *Postgres) Type() string {
-	return PostgresType
-}
-
-func (p *Postgres) IsStaging() bool {
-	return p.staged
 }

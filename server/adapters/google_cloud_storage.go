@@ -6,13 +6,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/schema"
-	"io/ioutil"
 	"strings"
 
 	"cloud.google.com/go/storage"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
@@ -110,26 +108,7 @@ func (gcs *GoogleCloudStorage) UploadBytes(fileName string, fileBytes []byte) er
 	return nil
 }
 
-//Return google cloud storage bucket file names filtered by prefix
-func (gcs *GoogleCloudStorage) ListBucket(prefix string) ([]string, error) {
-	bucket := gcs.client.Bucket(gcs.config.Bucket)
-	it := bucket.Objects(gcs.ctx, &storage.Query{Prefix: prefix})
-	var files []string
-	for {
-		attrs, err := it.Next()
-		if err == iterator.Done {
-			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("Error listing google cloud storage bucket %s: %v", gcs.config.Bucket, err)
-		}
-		files = append(files, attrs.Name)
-	}
-
-	return files, nil
-}
-
-//Delete object from google cloud storage bucket
+//DeleteObject deletes object from google cloud storage bucket
 func (gcs *GoogleCloudStorage) DeleteObject(key string) error {
 	bucket := gcs.client.Bucket(gcs.config.Bucket)
 	obj := bucket.Object(key)
@@ -141,22 +120,8 @@ func (gcs *GoogleCloudStorage) DeleteObject(key string) error {
 	return nil
 }
 
-//Get object from google cloud storage bucket
-func (gcs *GoogleCloudStorage) GetObject(key string) ([]byte, error) {
-	bucket := gcs.client.Bucket(gcs.config.Bucket)
-	obj := bucket.Object(key)
-
-	r, err := obj.NewReader(gcs.ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	return ioutil.ReadAll(r)
-}
-
-// Function tries to create temporary file and remove it.
-// Returns OK if file creation was successfull.
+//ValidateWritePermission tries to create temporary file and remove it.
+//returns nil if file creation was successful.
 func (gcs *GoogleCloudStorage) ValidateWritePermission() error {
 	filename := fmt.Sprintf("test_%v", timestamp.NowUTC())
 
@@ -173,6 +138,7 @@ func (gcs *GoogleCloudStorage) ValidateWritePermission() error {
 	return nil
 }
 
+//Close closes gcp client and returns err if occurred
 func (gcs *GoogleCloudStorage) Close() error {
 	return gcs.client.Close()
 }

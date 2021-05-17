@@ -13,7 +13,8 @@ import (
 
 //S3 stores files to aws s3 in batch mode
 type S3 struct {
-	name                 string
+	Abstract
+
 	s3Adapter            *adapters.S3
 	processor            *schema.Processor
 	fallbackLogger       *logging.AsyncLogger
@@ -45,15 +46,17 @@ func NewS3(config *Config) (Storage, error) {
 	}
 
 	s3 := &S3{
-		name:                 config.destinationID,
 		s3Adapter:            s3Adapter,
 		processor:            config.processor,
-		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:          config.eventsCache,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
 	}
+
+	//Abstract (SQLAdapters and tableHelpers and archive logger are omitted)
+	s3.destinationID = config.destinationID
+	s3.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
+	s3.eventsCache = config.eventsCache
 
 	return s3, nil
 }
@@ -103,13 +106,6 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 	return tableResults, nil, nil
 }
 
-//Fallback logs event with error to fallback logger
-func (s3 *S3) Fallback(failedEvents ...*events.FailedEvent) {
-	for _, failedEvent := range failedEvents {
-		s3.fallbackLogger.ConsumeAny(failedEvent)
-	}
-}
-
 //SyncStore isn't supported
 func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
 	return errors.New("S3 doesn't support sync store")
@@ -135,11 +131,6 @@ func (s3 *S3) IsCachingDisabled() bool {
 	return s3.cachingConfiguration != nil && s3.cachingConfiguration.Disabled
 }
 
-//ID returns destination ID
-func (s3 *S3) ID() string {
-	return s3.name
-}
-
 //Type returns S3 type
 func (s3 *S3) Type() string {
 	return S3Type
@@ -151,8 +142,5 @@ func (s3 *S3) IsStaging() bool {
 
 //Close closes fallback logger
 func (s3 *S3) Close() error {
-	if err := s3.fallbackLogger.Close(); err != nil {
-		return fmt.Errorf("[%s] Error closing fallback logger: %v", s3.ID(), err)
-	}
-	return nil
+	return s3.close()
 }

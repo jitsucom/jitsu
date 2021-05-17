@@ -2,18 +2,22 @@ package adapters
 
 import "reflect"
 
+//Columns is a list of columns representation
 type Columns map[string]Column
 
+//TableField is a table column representation
 type TableField struct {
 	Field string      `json:"field,omitempty"`
 	Type  string      `json:"type,omitempty"`
 	Value interface{} `json:"value,omitempty"`
 }
 
+//Column is a column representation
 type Column struct {
 	SQLType string
 }
 
+//Table is a dto for DWH Table representation
 type Table struct {
 	Name           string
 	Columns        Columns
@@ -31,7 +35,7 @@ func (t *Table) Exists() bool {
 	return len(t.Columns) > 0 || len(t.PKFields) > 0 || t.DeletePkFields
 }
 
-//GetPKFields returns primary keys
+//GetPKFields returns primary keys list
 func (t *Table) GetPKFields() []string {
 	var pkFields []string
 	for pkField := range t.PKFields {
@@ -41,6 +45,7 @@ func (t *Table) GetPKFields() []string {
 	return pkFields
 }
 
+//GetPKFieldsMap returns primary keys set
 func (t *Table) GetPKFieldsMap() map[string]bool {
 	pkFields := make(map[string]bool, len(t.PKFields))
 	for name := range t.PKFields {

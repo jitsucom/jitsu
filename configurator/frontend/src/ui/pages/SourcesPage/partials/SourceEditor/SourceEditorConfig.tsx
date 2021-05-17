@@ -2,6 +2,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { Col, Form, Input, Row, Select } from 'antd';
 import debounce from 'lodash/debounce';
+import cn from 'classnames';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { SourceConnector } from '@catalog/sources/types';
@@ -9,6 +10,8 @@ import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 // @Components
 import { ConfigurableFieldsForm } from '@molecule/ConfigurableFieldsForm';
 import { COLLECTIONS_SCHEDULES } from '@./constants/schedule';
+// @Styles
+import editorStyles from '@molecule/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
 
 export interface Props {
   form: FormInstance;
@@ -57,15 +60,15 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
       onChange={handleChange}
     >
       <Row>
-        <Col span={16}>
+        <Col span={24}>
           <Form.Item
             initialValue={initialValues.sourceId}
-            className="form-field_fixed-label"
+            className={cn('form-field_fixed-label', editorStyles.field)}
             label={<span>SourceId:</span>}
             name="sourceId"
             rules={sourceIdValidators}
-            labelCol={{ span: 6 }}
-            wrapperCol={{ span: 18 }}
+            labelCol={{ span: 4 }}
+            wrapperCol={{ span: 20 }}
           >
             <Input autoComplete="off" disabled={!isCreateForm} />
           </Form.Item>
@@ -74,14 +77,14 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
 
       {
         sourceReference.isSingerType && <Row>
-          <Col span={16}>
+          <Col span={24}>
             <Form.Item
               initialValue={initialSchedule}
               name="schedule"
-              className="form-field_fixed-label"
+              className={cn('form-field_fixed-label', editorStyles.field)}
               label="Schedule:"
-              labelCol={{ span: 6 }}
-              wrapperCol={{ span: 18 }}
+              labelCol={{ span: 4 }}
+              wrapperCol={{ span: 20 }}
               rules={[{ required: true, message: 'You have to choose schedule' }]}
             >
               <Select>

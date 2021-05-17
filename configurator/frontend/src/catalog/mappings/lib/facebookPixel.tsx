@@ -1,6 +1,10 @@
-import { Mapping } from '../types';
+import { DestinationConfigurationTemplate } from '../types';
 
-const mapping: Mapping = {
+const mapping: DestinationConfigurationTemplate = {
+  displayName: 'Facebook Pixel',
+  comment: <>This templates converts incoming  events to <a href="https://developers.facebook.com/docs/marketing-api/conversions-api/">Facebook conversion (pixel)</a> API calls.
+    {' '}Make sure you use Facebook destination, otherwise configuration won't make much sense
+  </>,
   keepUnmappedFields: false,
   mappings: [
     {

@@ -11,6 +11,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"syscall"
 	"time"
 
@@ -152,7 +153,7 @@ func main() {
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
 	go func() {
 		<-c
-		logging.Info("* Service is shutting down.. *")
+		logging.Info("🤖 * Service is shutting down.. *")
 		telemetry.ServerStop()
 		appstatus.Instance.Idle = true
 		cancel()
@@ -302,6 +303,9 @@ func main() {
 	appconfig.Instance.ScheduleClosing(periodicArchiver)
 
 	adminToken := viper.GetString("server.admin_token")
+	if strings.HasPrefix(adminToken, "demo") {
+		logging.Errorf("\n\t*** Please replace server.admin_token with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
+	}
 
 	fallbackService, err := fallback.NewService(logEventPath, destinationsService)
 	if err != nil {
