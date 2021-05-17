@@ -220,17 +220,19 @@ func (h *HTTPAdapter) doRequest(req *Request) error {
 	//check HTTP response code
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		//read response body
-		var responsePayload string
-		responseBody, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			responsePayload = fmt.Sprintf("[%s] Error reading HTTP response body: %v", h.destinationID, err)
-		} else {
-			responsePayload = string(responseBody)
+		responsePayload := "no HTTP response body"
+		if resp != nil && resp.Body != nil {
+			responseBody, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				responsePayload = fmt.Sprintf("[%s] Error reading HTTP response body: %v", h.destinationID, err)
+			} else {
+				responsePayload = string(responseBody)
+			}
 		}
 
 		headers, _ := json.MarshalIndent(resp.Header, " ", " ")
 
-		return fmt.Errorf("\n\tHTTP Response status code: [%d],\n\tResponse body: [%s],\n\tResponse headers: [%s]", resp.StatusCode, responsePayload, string(headers))
+		return fmt.Errorf("HTTP Response status code: [%d],\n\tResponse body: [%s],\n\tResponse headers: [%s]", resp.StatusCode, responsePayload, string(headers))
 	}
 
 	return nil
