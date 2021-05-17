@@ -8,7 +8,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -18,14 +17,12 @@ import (
 //batch: via aws s3 in batch mode (1 file = 1 statement)
 //stream: via events queue in stream mode (1 object = 1 statement)
 type AwsRedshift struct {
-	destinationID                 string
+	Abstract
+
 	s3Adapter                     *adapters.S3
 	redshiftAdapter               *adapters.AwsRedshift
-	tableHelper                   *TableHelper
 	processor                     *schema.Processor
 	streamingWorker               *StreamingWorker
-	fallbackLogger                *logging.AsyncLogger
-	eventsCache                   *caching.EventsCache
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 	uniqueIDField                 *identifiers.UniqueID
 	staged                        bool
@@ -81,21 +78,25 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.streamMode, config.maxColumns)
 
 	ar := &AwsRedshift{
-		destinationID:                 config.destinationID,
 		s3Adapter:                     s3Adapter,
 		redshiftAdapter:               redshiftAdapter,
-		tableHelper:                   tableHelper,
 		processor:                     config.processor,
-		fallbackLogger:                config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:                   config.eventsCache,
 		usersRecognitionConfiguration: config.usersRecognition,
 		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
 		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
+	//Abstract
+	ar.destinationID = config.destinationID
+	ar.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
+	ar.eventsCache = config.eventsCache
+	ar.tableHelpers = []*TableHelper{tableHelper}
+	ar.sqlAdapters = []adapters.SQLAdapter{redshiftAdapter}
+	ar.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+
 	if config.streamMode {
-		ar.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ar, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
+		ar.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ar, tableHelper)
 		ar.streamingWorker.start()
 	}
 
@@ -103,39 +104,14 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 }
 
 func (ar *AwsRedshift) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	return dryRun(payload, ar.processor, ar.tableHelper)
-}
-
-//Insert event in Redshift
-func (ar *AwsRedshift) Insert(table *adapters.Table, event events.Event) (err error) {
-	dbTable, err := ar.tableHelper.EnsureTable(ar.ID(), table)
-	if err != nil {
-		return err
-	}
-
-	err = ar.redshiftAdapter.Insert(dbTable, event)
-
-	//renew current db schema and retry
-	if err != nil {
-		dbTable, err := ar.tableHelper.RefreshTableSchema(ar.ID(), table)
-		if err != nil {
-			return err
-		}
-
-		dbTable, err = ar.tableHelper.EnsureTable(ar.ID(), table)
-		if err != nil {
-			return err
-		}
-
-		return ar.redshiftAdapter.Insert(dbTable, event)
-	}
-
-	return nil
+	_, tableHelper := ar.getAdapters()
+	return dryRun(payload, ar.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	_, tableHelper := ar.getAdapters()
 	flatData, failedEvents, err := ar.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
 		return nil, nil, err
@@ -149,7 +125,7 @@ func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, 
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
-		table := ar.tableHelper.MapTableSchema(fdata.BatchHeader)
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := ar.storeTable(fdata, table)
 		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
@@ -177,7 +153,8 @@ func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, 
 //check table schema
 //and store data into one table via s3
 func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
-	dbTable, err := ar.tableHelper.EnsureTable(ar.ID(), table)
+	_, tableHelper := ar.getAdapters()
+	dbTable, err := tableHelper.EnsureTable(ar.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -198,13 +175,6 @@ func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.T
 	return nil
 }
 
-//Fallback log event with error to fallback logger
-func (ar *AwsRedshift) Fallback(failedEvents ...*events.FailedEvent) {
-	for _, failedEvent := range failedEvents {
-		ar.fallbackLogger.ConsumeAny(failedEvent)
-	}
-}
-
 //SyncStore isn't supported
 func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
 	return errors.New("RedShift doesn't support sync store")
@@ -212,14 +182,15 @@ func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objec
 
 //Update updates record in Redshift
 func (ar *AwsRedshift) Update(object map[string]interface{}) error {
+	_, tableHelper := ar.getAdapters()
 	batchHeader, processedObject, err := ar.processor.ProcessEvent(object)
 	if err != nil {
 		return err
 	}
 
-	table := ar.tableHelper.MapTableSchema(batchHeader)
+	table := tableHelper.MapTableSchema(batchHeader)
 
-	dbSchema, err := ar.tableHelper.EnsureTable(ar.ID(), table)
+	dbSchema, err := tableHelper.EnsureTable(ar.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -248,11 +219,6 @@ func (ar *AwsRedshift) IsCachingDisabled() bool {
 	return ar.cachingConfiguration != nil && ar.cachingConfiguration.Disabled
 }
 
-//ID returns destination ID
-func (ar *AwsRedshift) ID() string {
-	return ar.destinationID
-}
-
 //Type returns Redshift type
 func (ar *AwsRedshift) Type() string {
 	return RedshiftType
@@ -274,8 +240,8 @@ func (ar *AwsRedshift) Close() (multiErr error) {
 		}
 	}
 
-	if err := ar.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", ar.ID(), err))
+	if err := ar.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return

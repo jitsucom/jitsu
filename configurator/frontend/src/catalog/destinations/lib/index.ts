@@ -6,6 +6,7 @@ import snowflakeDestination from './snowflake';
 
 import facebookDestination from './facebook';
 import googleAnalyticsDestination from './googleAnalytics';
+import webhookDestination from "@catalog/destinations/lib/webhook";
 
 export {
   postgresDestination,
@@ -14,5 +15,6 @@ export {
   clickHouseDestination,
   snowflakeDestination,
   facebookDestination,
-  googleAnalyticsDestination
+  googleAnalyticsDestination,
+  webhookDestination
 }
