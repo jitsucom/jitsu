@@ -5,7 +5,8 @@ import {
   googleAnalyticsDestination,
   postgresDestination,
   redshiftDestination,
-  snowflakeDestination
+  snowflakeDestination,
+  webhookDestination
 } from '@catalog/destinations/lib';
 
 export const destinationsReferenceMap = {
@@ -15,7 +16,8 @@ export const destinationsReferenceMap = {
   clickhouse: clickHouseDestination,
   snowflake: snowflakeDestination,
   facebook: facebookDestination,
-  google_analytics: googleAnalyticsDestination
+  google_analytics: googleAnalyticsDestination,
+  webhook: webhookDestination
 };
 
 export const destinationsReferenceList = Object.keys(destinationsReferenceMap).map(key => destinationsReferenceMap[key]);

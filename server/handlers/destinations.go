@@ -169,10 +169,11 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		adapter := adapters.NewFacebookConversion(config.Facebook, nil)
-		defer adapter.Close()
+		fbAdapter := adapters.NewTestFacebookConversion(config.Facebook)
 
-		if err := adapter.TestAccess(); err != nil {
+		return fbAdapter.TestAccess()
+	case storages.WebHookType:
+		if err := config.WebHook.Validate(); err != nil {
 			return err
 		}
 

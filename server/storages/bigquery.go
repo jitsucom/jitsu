@@ -7,7 +7,6 @@ import (
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -19,14 +18,12 @@ var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: fa
 //batch: via google cloud storage in batch mode (1 file = 1 operation)
 //stream: via events queue in stream mode (1 object = 1 operation)
 type BigQuery struct {
-	destinationID        string
+	Abstract
+
 	gcsAdapter           *adapters.GoogleCloudStorage
 	bqAdapter            *adapters.BigQuery
-	tableHelper          *TableHelper
 	processor            *schema.Processor
 	streamingWorker      *StreamingWorker
-	fallbackLogger       *logging.AsyncLogger
-	eventsCache          *caching.EventsCache
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
 	cachingConfiguration *CachingConfiguration
@@ -81,20 +78,24 @@ func NewBigQuery(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString, config.streamMode, config.maxColumns)
 
 	bq := &BigQuery{
-		destinationID:        config.destinationID,
 		gcsAdapter:           gcsAdapter,
 		bqAdapter:            bigQueryAdapter,
-		tableHelper:          tableHelper,
 		processor:            config.processor,
-		fallbackLogger:       config.loggerFactory.CreateFailedLogger(config.destinationID),
-		eventsCache:          config.eventsCache,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
 	}
 
+	//Abstract
+	bq.destinationID = config.destinationID
+	bq.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
+	bq.eventsCache = config.eventsCache
+	bq.tableHelpers = []*TableHelper{tableHelper}
+	bq.sqlAdapters = []adapters.SQLAdapter{bigQueryAdapter}
+	bq.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+
 	if config.streamMode {
-		bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, config.eventsCache, config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID), tableHelper)
+		bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
 		bq.streamingWorker.start()
 	}
 
@@ -102,39 +103,14 @@ func NewBigQuery(config *Config) (Storage, error) {
 }
 
 func (bq *BigQuery) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	return dryRun(payload, bq.processor, bq.tableHelper)
-}
-
-//Insert event in BigQuery
-func (bq *BigQuery) Insert(dataSchema *adapters.Table, event events.Event) (err error) {
-	dbTable, err := bq.tableHelper.EnsureTable(bq.ID(), dataSchema)
-	if err != nil {
-		return err
-	}
-
-	err = bq.bqAdapter.Insert(dbTable, event)
-
-	//renew current db schema and retry
-	if err != nil {
-		dbTable, err := bq.tableHelper.RefreshTableSchema(bq.ID(), dataSchema)
-		if err != nil {
-			return err
-		}
-
-		dbTable, err = bq.tableHelper.EnsureTable(bq.ID(), dataSchema)
-		if err != nil {
-			return err
-		}
-
-		return bq.bqAdapter.Insert(dbTable, event)
-	}
-
-	return nil
+	_, tableHelper := bq.getAdapters()
+	return dryRun(payload, bq.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	_, tableHelper := bq.getAdapters()
 	flatData, failedEvents, err := bq.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
 		return nil, nil, err
@@ -148,7 +124,7 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
-		table := bq.tableHelper.MapTableSchema(fdata.BatchHeader)
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
 		err := bq.storeTable(fdata, table)
 		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
@@ -176,7 +152,8 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 //check table schema
 //and store data into one table via google cloud storage
 func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
-	dbTable, err := bq.tableHelper.EnsureTable(bq.ID(), table)
+	_, tableHelper := bq.getAdapters()
+	dbTable, err := tableHelper.EnsureTable(bq.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -210,18 +187,6 @@ func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 //GetUsersRecognition returns disabled users recognition configuration
 func (bq *BigQuery) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
-}
-
-//Fallback logs event with error to fallback logger
-func (bq *BigQuery) Fallback(failedEvents ...*events.FailedEvent) {
-	for _, failedEvent := range failedEvents {
-		bq.fallbackLogger.ConsumeAny(failedEvent)
-	}
-}
-
-//ID returns destination ID
-func (bq *BigQuery) ID() string {
-	return bq.destinationID
 }
 
 //Type returns BigQuery type
@@ -261,8 +226,8 @@ func (bq *BigQuery) Close() (multiErr error) {
 		}
 	}
 
-	if err := bq.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", bq.ID(), err))
+	if err := bq.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
 	}
 
 	return

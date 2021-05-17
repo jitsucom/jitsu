@@ -27,7 +27,7 @@ const (
 )
 
 type SourceConfig struct {
-	SourceID string `json:"-" yaml:"-"`
+	SourceID string `json:"source_id" yaml:"-"`
 
 	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
 	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
