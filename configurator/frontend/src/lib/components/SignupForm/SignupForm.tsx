@@ -54,7 +54,6 @@ export default class SignupForm extends React.Component<any, State> {
       .initiateGithubLogin()
       .then(() => {
         message.destroy();
-        // this.services.initializeDefaultDestination().then(() => console.log("initialized") ).catch(() => message.error(this.services.onboardingNotCompleteErrorMessage))
         reloadPage();
       })
       .catch((error) => {
@@ -140,8 +139,8 @@ export default class SignupForm extends React.Component<any, State> {
           />
           <Form.Item name="agreeToTos" className="signup-checkboxes">
             <Checkbox defaultChecked={true} checked={this.state.tosAgree} onChange={this.handleChange}>
-              <span>I agree to <a href="https://ksense.io/tos">Terms of Services</a> and{' '}</span>
-              <a href="https://ksense.io/privacy">Privacy Policy</a>
+              <span>I agree to <a href="https://jitsu.com/tos">Terms of Services</a> and{' '}</span>
+              <a href="https://jitsu.com/privacy">Privacy Policy</a>
             </Checkbox>
           </Form.Item>
 

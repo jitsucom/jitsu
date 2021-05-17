@@ -103,6 +103,11 @@ export function asFunction<P, V>(p: ConstantOrFunction<P, V>): Function<P, V> {
   }
 }
 
+/**
+ * Validates the value. Returns null if the value is valid and undefined
+ */
+export type Validator = (value: any) => string | undefined
+
 export type Parameter = {
   /**
    * Display name (for UI)

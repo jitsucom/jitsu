@@ -1,6 +1,6 @@
 import { Destination } from '../types';
 import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
-import { arrayOf, jsonType, stringType } from '../../sources/types';
+import { arrayOf, jsonType, selectionType, stringType } from '../../sources/types';
 
 const icon = <svg width="32px" height="32px" viewBox="0 0 256 239" version="1.1" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid">
   <g>
@@ -29,7 +29,7 @@ const webhookDestination: Destination = {
       id: '_formData.method',
       displayName: 'HTTP Method',
       required: true,
-      type: stringType,
+      type: selectionType(['GET', 'POST', 'PUT'], 1),
       defaultValue: 'GET'
     },
     {
