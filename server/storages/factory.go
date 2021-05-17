@@ -22,9 +22,9 @@ import (
 const (
 	defaultTableName = "events"
 
-	//BatchMode is a mode when destinaions store data with batches
+	//BatchMode is a mode when destinations store data with batches
 	BatchMode = "batch"
-	//StreamMode is a mode when destinaions store data row by row
+	//StreamMode is a mode when destinations store data row by row
 	StreamMode = "stream"
 )
 
@@ -55,6 +55,8 @@ type DestinationConfig struct {
 	ClickHouse      *adapters.ClickHouseConfig            `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
 	Snowflake       *adapters.SnowflakeConfig             `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
 	Facebook        *adapters.FacebookConversionAPIConfig `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
+
+	WebHook *adapters.WebHookConfig `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
 }
 
 //DataLayout is used for configure mappings/table names and other data layout parameters
@@ -124,6 +126,7 @@ type Config struct {
 	sqlTypes         typing.SQLTypes
 	uniqueIDField    *identifiers.UniqueID
 	mappingsStyle    string
+	logEventPath     string
 }
 
 //RegisterStorage registers function to create new storage(destination) instance
@@ -275,7 +278,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
 	var flattener schema.Flattener
 	var typeResolver schema.TypeResolver
-	if destination.Type == FacebookType {
+	if destination.Type == FacebookType || destination.Type == WebHookType {
 		flattener = schema.NewDummyFlattener()
 		typeResolver = schema.NewDummyTypeResolver()
 	} else {
@@ -344,6 +347,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		sqlTypes:         sqlTypes,
 		uniqueIDField:    uniqueIDField,
 		mappingsStyle:    mappingsStyle,
+		logEventPath:     f.logEventPath,
 	}
 
 	storageProxy := newProxy(storageConstructor, storageConfig)

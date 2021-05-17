@@ -17,7 +17,7 @@ import (
 type TableHelper struct {
 	sync.RWMutex
 
-	manager       adapters.TableManager
+	sqlAdapter    adapters.SQLAdapter
 	monitorKeeper MonitorKeeper
 	tables        map[string]*adapters.Table
 
@@ -29,11 +29,12 @@ type TableHelper struct {
 }
 
 //NewTableHelper returns configured TableHelper instance
-func NewTableHelper(manager adapters.TableManager, monitorKeeper MonitorKeeper, pkFields map[string]bool,
+//Note: columnTypesMapping must be not empty (or fields will be ignored)
+func NewTableHelper(sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper, pkFields map[string]bool,
 	columnTypesMapping map[typing.DataType]string, streamMode bool, maxColumns int) *TableHelper {
 
 	return &TableHelper{
-		manager:       manager,
+		sqlAdapter:    sqlAdapter,
 		monitorKeeper: monitorKeeper,
 		tables:        map[string]*adapters.Table{},
 
@@ -124,7 +125,7 @@ func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Ta
 
 	//get schema and calculate diff one more time if version was changed (this statement handles optimistic locking)
 	if ver != dbSchema.Version {
-		dbSchema, err = th.manager.GetTableSchema(dbSchema.Name)
+		dbSchema, err = th.sqlAdapter.GetTableSchema(dbSchema.Name)
 		if err != nil {
 			return nil, fmt.Errorf("Error getting table %s schema: %v", dataSchema.Name, err)
 		}
@@ -139,7 +140,7 @@ func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Ta
 		return dbSchema, nil
 	}
 
-	if err := th.manager.PatchTableSchema(diff); err != nil {
+	if err := th.sqlAdapter.PatchTableSchema(diff); err != nil {
 		return nil, err
 	}
 
@@ -216,14 +217,14 @@ func (th *TableHelper) getOrCreate(destinationName string, dataSchema *adapters.
 	defer th.monitorKeeper.Unlock(lock)
 
 	//Get schema
-	dbTableSchema, err := th.manager.GetTableSchema(dataSchema.Name)
+	dbTableSchema, err := th.sqlAdapter.GetTableSchema(dataSchema.Name)
 	if err != nil {
 		return nil, fmt.Errorf("Error getting table %s schema: %v", dataSchema.Name, err)
 	}
 
 	//create new or get version
 	if !dbTableSchema.Exists() {
-		if err := th.manager.CreateTable(dataSchema); err != nil {
+		if err := th.sqlAdapter.CreateTable(dataSchema); err != nil {
 			return nil, fmt.Errorf("Error creating table %s: %v", dataSchema.Name, err)
 		}
 

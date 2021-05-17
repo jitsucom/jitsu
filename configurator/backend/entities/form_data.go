@@ -94,3 +94,14 @@ type FacebookFormData struct {
 	PixelID     string `firestore:"fbPixelID" json:"fbPixelID"`
 	AccessToken string `firestore:"fbAccessToken" json:"fbAccessToken"`
 }
+
+//WebhookFormData entity is stored in main storage (Firebase/Redis)
+type WebhookFormData struct {
+	Mode      string `firestore:"mode" json:"mode"`
+	TableName string `firestore:"tableName" json:"tableName"`
+
+	URL     string   `firestore:"url" json:"url"`
+	Method  string   `firestore:"method" json:"method"`
+	Body    string   `firestore:"body" json:"body"`
+	Headers []string `firestore:"headers" json:"headers"`
+}
