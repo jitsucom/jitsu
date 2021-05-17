@@ -69,6 +69,14 @@ module.exports = {
       })
     ],
     configure: (webpackConfig, { env, paths }) => {
+      const miniCssExtractPlugin = webpackConfig.plugins.find(
+        plugin => plugin.constructor.name === 'MiniCssExtractPlugin'
+      );
+
+      if (miniCssExtractPlugin) {
+        miniCssExtractPlugin.options.ignoreOrder = true;
+      }
+
       return {
         ...webpackConfig,
         optimization: {
