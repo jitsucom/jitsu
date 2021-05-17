@@ -305,7 +305,7 @@ func mapWebhook(whDestination *entities.Destination) (*enstorages.DestinationCon
 		if len(nameValue) != 2 {
 			return nil, fmt.Errorf("Header malformed: %s. Must be in header_name:header_value format", header)
 		}
-		headers[nameValue[0]] = nameValue[1]
+		headers[strings.TrimSpace(nameValue[0])] = strings.TrimSpace(nameValue[1])
 	}
 
 	return &enstorages.DestinationConfig{
