@@ -79,7 +79,7 @@ func (sw *StreamingWorker) start() {
 				DestinationID: sw.streamingStorage.ID(),
 				EventID:       sw.streamingStorage.GetUniqueIDField().Extract(fact),
 				TokenID:       tokenID,
-				Src:           sw.streamingStorage.GetUniqueIDField().Extract(fact),
+				Src:           events.ExtractSrc(fact),
 				RawEvent:      fact,
 			}
 

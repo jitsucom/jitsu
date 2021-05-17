@@ -110,17 +110,17 @@ func (wh *WebHook) DryRun(payload events.Event) ([]adapters.TableField, error) {
 
 //Store isn't supported
 func (wh *WebHook) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
-	return nil, nil, errors.New("WebHook Conversion doesn't support Store() func")
+	return nil, nil, errors.New("WebHook doesn't support Store() func")
 }
 
 //SyncStore isn't supported
 func (wh *WebHook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
-	return errors.New("WebHook Conversion doesn't support Store() func")
+	return errors.New("WebHook doesn't support Store() func")
 }
 
 //Update isn't supported
 func (wh *WebHook) Update(object map[string]interface{}) error {
-	return errors.New("WebHook Conversion doesn't support Store() func")
+	return errors.New("WebHook doesn't support Store() func")
 }
 
 //GetUsersRecognition returns users recognition configuration
@@ -150,7 +150,7 @@ func (wh *WebHook) IsStaging() bool {
 //Close closes WebHook adapter, fallback logger and streaming worker
 func (wh *WebHook) Close() (multiErr error) {
 	if err := wh.whAdapter.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing WebHook client: %v", wh.ID(), err))
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing WebHook adapter: %v", wh.ID(), err))
 	}
 
 	if wh.streamingWorker != nil {

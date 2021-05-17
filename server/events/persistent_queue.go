@@ -33,10 +33,10 @@ type PersistentQueue struct {
 	identifier string
 }
 
-func NewPersistentQueue(identifier, queueName, dir string) (*PersistentQueue, error) {
-	queue, err := dque.NewOrOpen(queueName, dir, eventsPerPersistedFile, QueuedFactBuilder)
+func NewPersistentQueue(identifier, queueName, logEventPath string) (*PersistentQueue, error) {
+	queue, err := dque.NewOrOpen(queueName, logEventPath, eventsPerPersistedFile, QueuedFactBuilder)
 	if err != nil {
-		return nil, fmt.Errorf("Error opening/creating request queue [%s] in dir [%s]: %v", queueName, dir, err)
+		return nil, fmt.Errorf("Error opening/creating event queue [%s] in dir [%s]: %v", queueName, logEventPath, err)
 	}
 
 	metrics.InitialStreamEventsQueueSize(identifier, queue.Size())
