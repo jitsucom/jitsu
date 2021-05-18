@@ -2,8 +2,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Col, Form, Row, Select } from 'antd';
 // @Components
-import { TabDescription } from '@component/TabDescription';
-import { LabelWithTooltip } from '@component/LabelWithTooltip';
+import { TabDescription } from '@component/TabDescription/TabDescription';
+import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
 import { DestinationEditorMappingsItem } from './DestinationEditorMappingsItem';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';

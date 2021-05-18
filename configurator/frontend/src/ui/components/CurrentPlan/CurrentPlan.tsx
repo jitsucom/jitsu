@@ -1,18 +1,23 @@
-import { CurrentPlanProps } from './CurrentPlan.types';
-import styles from './CurrentPlan.module.less';
+import { useState } from 'react';
 import { Button, Modal, Progress } from 'antd';
-import { useEffect, useState } from 'react';
-import Icon from '@ant-design/icons';
-import * as React from 'react';
 import cn from 'classnames';
 import { PaymentPlan, paymentPlans } from '@service/billing';
 import { useServices } from '@hooks/useServices';
 import { handleError } from '@./lib/components/components';
-import { sleep } from '@./lib/commons/utils';
+import styles from './CurrentPlan.module.less';
 
 function numberWithCommas(x) {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
+
+export type CurrentPlanProps = {
+  planTitle: string,
+  planId: string
+  usage: number
+  limit: number
+  onPlanChangeModalOpen: () => void,
+}
+
 export const CurrentPlan: React.FC<CurrentPlanProps> = (props) => {
   const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(false);
   const services = useServices();
@@ -47,7 +52,6 @@ export const PlanUpgradeDialog: React.FC<{visible: boolean, hide: () => void, cu
       onClick: () => setSelectedPlan(plan.id)
     }
   }
-
 
   return <Modal
     destroyOnClose={true}

@@ -1,7 +1,7 @@
 // @Libs
-import React, { memo } from 'react';
+import React from 'react';
 // @Types
-import { Tab } from '@component/TabsConfigurator';
+import { Tab } from '@component/TabsConfigurator/TabsConfigurator';
 // @Styles
 import styles from './PopoverErrorsContent.module.less';
 
@@ -9,7 +9,7 @@ export interface Props {
   tabsList: Tab[];
 }
 
-const PopoverErrorsContentComponent = ({ tabsList }: Props) => (
+const PopoverErrorsContent = ({ tabsList }: Props) => (
   <ul className={styles.list}>
     {
       tabsList
@@ -19,6 +19,6 @@ const PopoverErrorsContentComponent = ({ tabsList }: Props) => (
   </ul>
 )
 
-PopoverErrorsContentComponent.displayName = 'PopoverErrorsContent';
+PopoverErrorsContent.displayName = 'PopoverErrorsContent';
 
-export const PopoverErrorsContent = PopoverErrorsContentComponent;
+export { PopoverErrorsContent };

@@ -7,12 +7,14 @@ import ApplicationServices from '@service/ApplicationServices';
 import { destinationsReferenceList, destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Components
 import { handleError } from '@./lib/components/components';
-import { DropDownList } from '@component/DropDownList';
-import { ListItem } from '@component/ListItem';
-import { EmptyList } from '@component/EmptyList';
+import { DropDownList } from '@component/DropDownList/DropDownList';
+import { ListItem } from '@component/ListItem/ListItem';
+import { EmptyList } from '@component/EmptyList/EmptyList';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
+import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
+import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 // @Styles
 import styles from './DestinationsList.module.less';
 // @Utils
@@ -20,14 +22,10 @@ import { destinationsUtils } from '@page/DestinationsPage/DestinationsPage.utils
 // @Routes
 import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
 // @Types
-import { CommonDestinationPageProps } from '@page/DestinationsPage';
+import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
-import { withHome } from '@component/Breadcrumbs/Breadcrumbs.types';
+import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
 import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
-
-import CodeOutlined from '@ant-design/icons/lib/icons/CodeOutlined';
-import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
-import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 
 const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, sources, updateSources  }: CommonDestinationPageProps) => {
   const history = useHistory();

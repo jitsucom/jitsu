@@ -4,10 +4,10 @@ import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Card, Form, message } from 'antd';
 import cn from 'classnames';
 // @Components
-import { TabsConfigurator } from '@component/TabsConfigurator';
-import { EditorButtons } from '@component/EditorButtons';
-import { ComingSoon } from '@component/ComingSoon';
-import { PageHeader } from '@component/PageHeader';
+import { TabsConfigurator } from '@component/TabsConfigurator/TabsConfigurator';
+import { EditorButtons } from '@component/EditorButtons/EditorButtons';
+import { ComingSoon } from '@component/ComingSoon/ComingSoon';
+import { PageHeader } from '@component/PageHeader/PageHeader';
 import { closeableMessage } from '@./lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
@@ -18,9 +18,9 @@ import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/es';
 import { Destination } from '@catalog/destinations/types';
-import { Tab } from '@component/TabsConfigurator';
-import { CommonDestinationPageProps } from '@page/DestinationsPage';
-import { withHome } from '@component/Breadcrumbs/Breadcrumbs.types';
+import { Tab } from '@component/TabsConfigurator/TabsConfigurator';
+import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
+import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Routes

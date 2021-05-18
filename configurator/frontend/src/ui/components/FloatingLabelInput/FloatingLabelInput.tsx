@@ -4,9 +4,38 @@ import { Form, Input } from 'antd';
 import cn from 'classnames';
 import get from 'lodash/get';
 // @Components
-import { FloatingLabel } from '@component/FloatingLabel';
+import { FloatingLabel } from '@component/FloatingLabel/FloatingLabel';
 // @Types
-import { Props } from './FloatingLabelInput.types';
+import { NamePath } from 'rc-field-form/lib/interface';
+import { Rule } from 'antd/lib/form';
+import { SizeType } from 'antd/lib/config-provider/SizeContext';
+
+export interface Props {
+  className?: string;
+  wrapClassName?: string;
+  name: NamePath;
+  formName: string;
+  floatingLabelText: React.ReactNode;
+  rules?: Rule[];
+  size?: SizeType
+  prefix?: React.ReactNode;
+  inputType?:
+    | 'button'
+    | 'checkbox'
+    | 'file'
+    | 'hidden'
+    | 'image'
+    | 'password'
+    | 'radio'
+    | 'reset'
+    | 'submit'
+    | 'text'
+    | 'email'
+    | 'range'
+    | 'search'
+    | 'tel'
+    | 'url';
+}
 
 const FloatingLabelInputComponent = ({ formName, name, rules, floatingLabelText, prefix, inputType = 'text', size, className, wrapClassName }: Props) => {
   return (

@@ -9,14 +9,14 @@ import { SourceEditorConfig } from './SourceEditorConfig';
 import { SourceEditorCollections } from './SourceEditorCollections';
 import { SourceEditorDestinations } from './SourceEditorDestinations';
 // @Components
-import { Tab, TabsConfigurator } from '@component/TabsConfigurator';
-import { PageHeader } from '@component/PageHeader';
-import { EditorButtons } from '@component/EditorButtons';
+import { Tab, TabsConfigurator } from '@component/TabsConfigurator/TabsConfigurator';
+import { PageHeader } from '@component/PageHeader/PageHeader';
+import { EditorButtons } from '@component/EditorButtons/EditorButtons';
 // @Types
-import { CollectionSourceData, CommonSourcePageProps } from '@page/SourcesPage';
+import { CollectionSourceData, CommonSourcePageProps } from '@page/SourcesPage/SourcesPage';
 import { SourceConnector } from '@catalog/sources/types';
 import { FormInstance } from 'antd/es';
-import { withHome } from '@component/Breadcrumbs/Breadcrumbs.types';
+import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
 // @Routes
 import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 // @Catalog sources
@@ -24,7 +24,6 @@ import { allSources } from '@catalog/sources/lib';
 // @Utils
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
 import { validateTabForm } from '@util/forms/validateTabForm';
-import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 // @Hooks
 import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Services
