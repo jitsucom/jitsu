@@ -5,7 +5,7 @@ import { Button, message } from 'antd';
 import snakeCase from 'lodash/snakeCase';
 // @Components
 import { ListItem } from '@component/ListItem/ListItem';
-import { ListItemDescription } from '@component/ListItemDescription/ListItemDescription';
+import { ListItemDescription } from '@component/ListItem/ListItemDescription';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
