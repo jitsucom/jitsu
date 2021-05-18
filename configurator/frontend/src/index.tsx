@@ -7,13 +7,16 @@ import App from './App';
 // @Styles
 import './index.less'
 
-let root = React.createElement(
-  BrowserRouter,
-  {},
-  <Route
-    render={(props) => {
-      return <App location={props.location.pathname} />;
-    }}
-  />
-);
-ReactDOM.render(root, document.getElementById('root'));
+let basename;
+if (window.location.pathname.indexOf('/configurator') === 0) {
+  //hack that makes the app work in Heroku env, when the app isn't deployed at root path
+  basename = '/configurator';
+} else {
+  basename = process.env.APP_PATH || undefined;
+}
+
+ReactDOM.render(
+  <BrowserRouter basename={basename}>
+    <App />
+  </BrowserRouter>,
+  document.getElementById('root'));

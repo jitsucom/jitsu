@@ -56,6 +56,7 @@ module.exports = {
           BACKEND_API_BASE: JSON.stringify(process.env.BACKEND_API_BASE),
           NODE_ENV: JSON.stringify(process.env.NODE_ENV || 'production'),
           ANALYTICS_KEYS: JSON.stringify(process.env.ANALYTICS_KEYS || null),
+          APP_PATH: JSON.stringify(process.env.APP_PATH || ''),
           FIREBASE_CONFIG: JSON.stringify(process.env.FIREBASE_CONFIG || null)
         }
       }),
@@ -69,6 +70,14 @@ module.exports = {
       })
     ],
     configure: (webpackConfig, { env, paths }) => {
+      const miniCssExtractPlugin = webpackConfig.plugins.find(
+        plugin => plugin.constructor.name === 'MiniCssExtractPlugin'
+      );
+
+      if (miniCssExtractPlugin) {
+        miniCssExtractPlugin.options.ignoreOrder = true;
+      }
+
       return {
         ...webpackConfig,
         optimization: {
