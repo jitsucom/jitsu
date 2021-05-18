@@ -8,6 +8,8 @@ import firebase from 'firebase';
 import Marshal from '../commons/marshalling';
 import { BackendUserService } from './backend';
 import { randomId } from '@util/numbers';
+import { concatenateURLs } from '@./lib/commons/utils';
+import { getBackendApiBase } from '@./lib/commons/pathHelper';
 
 type AppEnvironmentType = 'development' | 'production';
 
@@ -24,10 +26,10 @@ export class ApplicationConfiguration {
 
   constructor() {
     this._rawConfig = getRawApplicationConfig();
-    let backendApiBase = this._rawConfig.env.BACKEND_API_BASE || `${window.location.protocol}//${window.location.host}`
     this._firebaseConfig = this._rawConfig.firebase;
-    this._backendApiBase = concatenateURLs(backendApiBase, '/api/v1');
-    this._backendApiProxyBase = concatenateURLs(backendApiBase, '/proxy/api/v1');
+    const backendApi = getBackendApiBase(this._rawConfig.env);
+    this._backendApiBase = concatenateURLs(backendApi, '/api/v1');
+    this._backendApiProxyBase = concatenateURLs(backendApi, '/proxy/api/v1');
     this._appEnvironment = (this._rawConfig.env.NODE_ENV || 'production').toLowerCase() as AppEnvironmentType;
     this._buildId = [
       `b=${this._rawConfig.env.BUILD_ID || 'dev'}`,
@@ -625,10 +627,6 @@ export class JWTBackendClient implements BackendApiClient {
   }
 }
 
-function concatenateURLs(baseUrl: string, url: string) {
-  let base = baseUrl.endsWith('/') ? baseUrl.substr(0, baseUrl.length - 1) : baseUrl;
-  return base + (url.startsWith('/') ? url : '/' + url);
-}
 
 /**
  * A generic object storage
