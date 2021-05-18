@@ -4,7 +4,7 @@ import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Card, Form, message } from 'antd';
 import cn from 'classnames';
 // @Components
-import { TabsConfigurator } from '@component/TabsConfigurator/TabsConfigurator';
+import { TabsConfigurator } from '@component/Tabs/TabsConfigurator';
 import { EditorButtons } from '@component/EditorButtons/EditorButtons';
 import { ComingSoon } from '@component/ComingSoon/ComingSoon';
 import { PageHeader } from '@component/PageHeader/PageHeader';
@@ -18,7 +18,7 @@ import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/es';
 import { Destination } from '@catalog/destinations/types';
-import { Tab } from '@component/TabsConfigurator/TabsConfigurator';
+import { Tab } from '@component/Tabs/TabsConfigurator';
 import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
 import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
 // @Services

@@ -9,7 +9,7 @@ import { SourceEditorConfig } from './SourceEditorConfig';
 import { SourceEditorCollections } from './SourceEditorCollections';
 import { SourceEditorDestinations } from './SourceEditorDestinations';
 // @Components
-import { Tab, TabsConfigurator } from '@component/TabsConfigurator/TabsConfigurator';
+import { Tab, TabsConfigurator } from '@component/Tabs/TabsConfigurator';
 import { PageHeader } from '@component/PageHeader/PageHeader';
 import { EditorButtons } from '@component/EditorButtons/EditorButtons';
 // @Types

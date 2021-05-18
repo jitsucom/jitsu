@@ -9,8 +9,8 @@ import { closeableMessage, handleError } from '@./lib/components/components';
 import ApplicationServices from '@service/ApplicationServices';
 import Marshal from '@./lib/commons/marshalling';
 // @Components
-import { ListItemTitle } from '@component/ListItemTitle/ListItemTitle';
-import { Tab } from '@component/TabsConfigurator/TabsConfigurator';
+import { ListItemTitle } from '@component/ListItem/ListItemTitle';
+import { Tab } from '@component/Tabs/TabsConfigurator';
 import { validateTabForm } from '@util/forms/validateTabForm';
 import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { SourceTabKey } from '@page/SourcesPage/partials/SourceEditor/SourceEditor';
