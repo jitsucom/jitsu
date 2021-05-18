@@ -2,8 +2,8 @@
 import React, { Dispatch, SetStateAction, useMemo } from 'react';
 import { Route, Switch } from 'react-router-dom';
 // @Pages
-import { DestinationsList } from './partials/DestinationsList';
-import { DestinationEditor } from './partials/DestinationEditor';
+import { DestinationsList } from './partials/DestinationsList/DestinationsList';
+import { DestinationEditor } from './partials/DestinationEditor/DestinationEditor';
 // @Routes
 import { destinationPageRoutes } from './DestinationsPage.routes';
 // @Hooks
@@ -16,7 +16,7 @@ import { getComponent } from '@hocs/getComponent';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Types
 import { PageProps } from '@./navigation';
-import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { BreadcrumbsProps } from '@component/Breadcrumbs/Breadcrumbs';
 
 export interface CollectionDestinationData {
   destinations: DestinationData[];
