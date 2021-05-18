@@ -46,7 +46,7 @@ export default function OnboardingForm(props: Props) {
       let user = services.userService.getUser();
 
       //send conversion
-      services.analyticsService.track('signup', {
+      services.analyticsService.track('saas_signup', {
         app: services.features.appName,
         user: { email: user.email, id: user.uid }
       }, {
@@ -56,7 +56,7 @@ export default function OnboardingForm(props: Props) {
       });
 
       user.onboarded = true;
-      user.projects = [new Project(randomId(), values['projectName'])];
+      user.projects = [new Project(randomId(5), values['projectName'])];
       if (!user.created) {
         user.created = new Date();
       }

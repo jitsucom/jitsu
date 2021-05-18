@@ -1,7 +1,7 @@
 // @Libs
 import React, { memo, ReactElement, ReactNode, useState } from 'react';
 import { Button, Dropdown, Modal } from 'antd';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useHistory } from 'react-router-dom';
 // @Styles
 import styles from './EmptyList.module.less';
 // @Icons
@@ -23,6 +23,7 @@ export interface Props {
 const EmptyListComponent = ({ title, list, unit }: Props) => {
   const services = useServices();
   const [creating, setCreating] = useState(false);
+  const router = useHistory();
   return <div className={styles.empty}>
     <h3 className="text-2xl">{title}</h3>
     <div className="flex flex-row justify-center items center">
@@ -41,16 +42,14 @@ const EmptyListComponent = ({ title, list, unit }: Props) => {
               setCreating(true);
               try {
                 const { destinations } = await services.initializeDefaultDestination();
-                //const destinations = [];
-
+                services.analyticsService.track('create_database');
                 let helper = new ApiKeyHelper(services, { destinations });
                 await helper.init();
-                let keyCreated = false;
                 if (helper.keys.length === 0) {
                   const newKey: APIKey = {
-                    uid: `${services.activeProject.id}.${randomId(6)}`,
-                    serverAuth: `s2s.${services.activeProject.id}.${randomId(8)}`,
-                    jsAuth: `js.${services.activeProject.id}.${randomId(8)}`,
+                    uid: `${services.activeProject.id}.${randomId(5)}`,
+                    serverAuth: `s2s.${services.activeProject.id}.${randomId(5)}`,
+                    jsAuth: `js.${services.activeProject.id}.${randomId(5)}`,
                     origins: []
                   };
                   await services.storageService.save('api_keys', { keys: [newKey] }, services.activeProject.id);
@@ -59,16 +58,18 @@ const EmptyListComponent = ({ title, list, unit }: Props) => {
                 if (!helper.hasLinks()) {
                   await helper.link();
                 }
-                Modal.info({
+                const modal = Modal.info({
                   title: 'New destination has been created',
                   content: <>
-                  We have created a Postgres database for you. Also we made sure that
-                    <a href="/api_keys">API key</a> has been created and linked to current destination.
+                    We have created a Postgres database for you. Also we made sure that <a onClick={() => {
+                      modal.destroy();
+                      router.push('/api_keys');
+                    }}>API key</a> has been created and linked to current destination.
                     <br />
                   Read more on how to send data to Jitsu with <a href="https://jitsu.com/docs/sending-data/js-sdk">JavaScript SDK</a> or <a href="https://jitsu.com/docs/sending-data/api">HTTP API</a>
                   </>,
                   onOk: () => reloadPage()
-                })
+                });
 
               } catch (e) {
                 handleError(e);

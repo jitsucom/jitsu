@@ -152,7 +152,7 @@ function getRawApplicationConfig(): RawConfigObject {
   return {
     env: process.env || {},
     firebase: parseJson(process.env.FIREBASE_CONFIG, null),
-    keys: parseJson(process.env.ANALYTICS_KEYS, {})
+    keys: parseJson(process.env.ANALYTICS_KEYS, {}),
   };
 }
 
@@ -339,10 +339,10 @@ export interface UserService {
   getLoginFeatures(): LoginFeatures;
 
   /**
-   * Initiates google login. Returns Promise. On success user must reload
+   * Initiates google login. Returns promise on email of the user . On success user must reload
    * page.
    */
-  initiateGoogleLogin(redirect?: string): Promise<void>;
+  initiateGoogleLogin(redirect?: string): Promise<string>;
 
   /**
    * Initiates google login
