@@ -2,9 +2,6 @@ FROM nginx:alpine as main
 
 RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata
 
-ARG dhid
-ENV DOCKER_HUB_ID=$dhid
-
 ENV EVENTNATIVE_USER=eventnative
 
 RUN addgroup -S $EVENTNATIVE_USER \

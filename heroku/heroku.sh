@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start Jitsu Configurator process
-nohup /home/configurator/app/configurator -cfg=/home/configurator/data/config/configurator.yaml -cr=true -dhid=heroku &
+nohup /home/configurator/app/configurator -cfg=/home/configurator/data/config/configurator.yaml -cr=true &
 status=$?
 if [ $status -ne 0 ]; then
   echo "Failed to start Jitsu Configurator: $status"
@@ -11,7 +11,7 @@ fi
 sleep 1
 
 # Start Jitsu Server process
-nohup /home/eventnative/app/eventnative -cfg=/home/eventnative/data/config/eventnative.yaml -cr=true &
+nohup /home/eventnative/app/eventnative -cfg=/home/eventnative/data/config/eventnative.yaml -cr=true -dhid=heroku &
 status=$?
 if [ $status -ne 0 ]; then
   echo "Failed to start Jitsu Server : $status"

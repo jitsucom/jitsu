@@ -44,8 +44,9 @@ In this step, events are enriched with context data:
 
 * Add IP from where the request came from (`/source_ip` field)
 * Add UTC timestamp (`/_timestamp` field)
-* If request is processed by JavaScript endpoint - read and add user-agent header (`/eventn_ctx/user_agent` field)
-* If request is processed by Server API - add `api` value (`/src` field) and generated UUID (`/eventn_ctx/event_id` field)
+* Add generated UUID (`/eventn_ctx_event_id` field)
+* If request is processed by JavaScript endpoint - read and add user-agent header (`/user_agent` field)
+* If request is processed by Server API - add `api` value (`/src` field)
 
 ### Lookup Enrichment Step
 
