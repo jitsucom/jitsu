@@ -1,9 +1,9 @@
 // @Libs
 import { message } from 'antd';
 // @Components
-import { ListItemTitle } from '@component/ListItemTitle/ListItemTitle';
+import { ListItemTitle } from '@component/ListItem/ListItemTitle';
 import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
-import { ListItemDescription } from '@component/ListItemDescription/ListItemDescription';
+import { ListItemDescription } from '@component/ListItem/ListItemDescription';
 import { ActionLink, Align, CodeInline, CodeSnippet } from '@./lib/components/components';
 // @Types
 import { Destination } from '@catalog/destinations/types';

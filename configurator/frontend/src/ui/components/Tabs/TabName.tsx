@@ -1,5 +1,4 @@
 // @Libs
-import { memo } from 'react';
 import cn from 'classnames';
 // @Styles
 import styles from './TabName.module.less';
