@@ -1,12 +1,11 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
-import { Button, Dropdown, message } from 'antd';
+import { Button, message } from 'antd';
 import snakeCase from 'lodash/snakeCase';
 // @Components
-import { DropDownList } from '@molecule/DropDownList';
-import { ListItem } from '@molecule/ListItem';
-import { ListItemDescription } from '@atom/ListItemDescription';
+import { ListItem } from '@component/ListItem/ListItem';
+import { ListItemDescription } from '@component/ListItemDescription/ListItemDescription';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
@@ -16,15 +15,14 @@ import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 import ApplicationServices from '@service/ApplicationServices';
 // @Types
 import { SourceConnector } from '@catalog/sources/types';
-import { CommonSourcePageProps } from '@page/SourcesPage';
-import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage';
+import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
 // @Styles
 import styles from './SourcesList.module.less';
 // @Sources
 import { allSources } from '@catalog/sources/lib';
 // @Routes
 import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
-import { DropDownListItem } from '@molecule/DropDownList';
 // @Utils
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
 import { taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
