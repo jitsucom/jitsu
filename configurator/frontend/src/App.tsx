@@ -33,15 +33,12 @@ type AppState = {
     paymentPlanStatus?: PaymentPlanStatus;
 };
 
-type AppProperties = {
-    location: string;
-};
 
 const LOGIN_TIMEOUT = 5000;
-export default class App extends React.Component<AppProperties, AppState> {
+export default class App extends React.Component<{}, AppState> {
     private readonly services: ApplicationServices;
 
-    constructor(props: AppProperties, context: any) {
+    constructor(props: any, context: any) {
         super(props, context);
         this.services = ApplicationServices.get();
         setDebugInfo('applicationServices', this.services, false);

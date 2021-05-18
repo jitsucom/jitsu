@@ -14,7 +14,7 @@ import {LargeLink} from "../../../../components/documentationComponents";
 
 ### **Definitions**
 
-`Event` — an incoming message as a JSON object. Message can be sent to EventNative via API or JavaScript library.
+`Event` — an incoming message as a JSON object. Message can be sent to Jitsu via API or JavaScript library.
 
 `Destination` — usually a database, but can be a different type of service as well. The destination is a service that contains structured records and supports an INSERT-like statement. [Google analytics measurment protocol](https://developers.google.com/analytics/devguides/collection/protocol/v1) is an example of a non-DB destination. It has structured records (events) and an INSERT-like interface.
 
@@ -24,7 +24,7 @@ import {LargeLink} from "../../../../components/documentationComponents";
 
 ### Destination modes
 
-EventNative's destination can operate in two modes:
+Jitsu's destination can operate in two modes:
 
 `Stream` — data (events) is being sent to a destination as soon as possible.
 
@@ -44,12 +44,13 @@ In this step, events are enriched with context data:
 
 * Add IP from where the request came from (`/source_ip` field)
 * Add UTC timestamp (`/_timestamp` field)
-* If request is processed by JavaScript endpoint - read and add user-agent header (`/eventn_ctx/user_agent` field)
-* If request is processed by Server API - add `api` value (`/src` field) and generated UUID (`/eventn_ctx/event_id` field)
+* Add generated UUID (`/eventn_ctx_event_id` field)
+* If request is processed by JavaScript endpoint - read and add user-agent header (`/user_agent` field)
+* If request is processed by Server API - add `api` value (`/src` field)
 
 ### Lookup Enrichment Step
 
-During this step [Enrichment rules](/docs/configuration/enrichment-rules) are applied. Enrichment rule is a function F(src_node) → dst_node. It is configured in the [destination section](/docs/destinations-configuration) of the **EventNative** configuration. Also, there are [two default enrichment rules](/docs/configuration/enrichment-rules#default-rules) that are applied to JavaScript events.
+During this step [Enrichment rules](/docs/configuration/enrichment-rules) are applied. Enrichment rule is a function F(src_node) → dst_node. It is configured in the [destination section](/docs/destinations-configuration) of the **Jitsu** configuration. Also, there are [two default enrichment rules](/docs/configuration/enrichment-rules#default-rules) that are applied to JavaScript events.
 
 ### Mapping Step
 

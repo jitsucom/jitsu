@@ -3,7 +3,7 @@ import Marshal from '@./lib/commons/marshalling';
 import { closeableMessage, handleError } from '@./lib/components/components';
 import { message } from 'antd';
 import { firstToLower } from '@./lib/commons/utils';
-import { Tab } from '@molecule/TabsConfigurator';
+import { Tab } from '@component/Tabs/TabsConfigurator';
 
 const destinationEditorUtils = {
   testConnection: async(dst: DestinationData, hideMessage?: boolean) => {

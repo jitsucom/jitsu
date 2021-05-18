@@ -4,15 +4,13 @@ import { Form } from 'antd';
 // @Constants
 import { SOURCE_CONNECTED_DESTINATION } from '@./embeddedDocs/sourcesConnectedItems';
 // @Components
-import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
-import { ConnectedItems } from '@organism/ConnectedItems';
-import { TabDescription } from '@atom/TabDescription';
+import { NameWithPicture, ConnectedItem, ConnectedItems } from '@component/ConnectedItems/ConnectedItems';
+import { TabDescription } from '@component/Tabs/TabDescription';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { ConnectedItem } from '@organism/ConnectedItems';
 import { Destination } from '@catalog/destinations/types';
 // @Hooks
 import useLoader from '@hooks/useLoader';

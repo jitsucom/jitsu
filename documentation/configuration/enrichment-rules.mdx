@@ -1,6 +1,6 @@
 # Enrichment Rules
 
-**EventNative** supports `ip_lookup` and __`user_agent_parse` enrichment rules per destination. Rules are executed **before** field mappings. Enrichment rule configuration has the following structure:
+**Jitsu** supports `ip_lookup` and __`user_agent_parse` enrichment rules per destination. Rules are executed **before** field mappings. Enrichment rule configuration has the following structure:
 
 <table>
   <thead>
@@ -88,16 +88,16 @@ Parsed user agent example:
 
 ## Default Rules
 
-**EventNative** has default enrichment rules that are applied to events from JavaScript API:
+**Jitsu** has default enrichment rules that are applied to events from JavaScript API:
 
 ```yaml
     enrichment:
        - name: ip_lookup
          from: /source_ip
-         to: /eventn_ctx/location
+         to: /location
        - name: user_agent_parse 
-         from: /eventn_ctx/user_agent
-         to: /eventn_ctx/parsed_ua
+         from: /user_agent
+         to: /parsed_ua
 ```
 
 

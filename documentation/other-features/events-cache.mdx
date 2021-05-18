@@ -2,7 +2,7 @@ import {APIMethod, APIParam, Hint} from "../../../components/documentationCompon
 
 # Events Cache
 
-**EventNative** supports caching last events in storage \(currently only Redis is supported\). All income events will be stored in meta storage as well as processed events with DB data types and errors if occurred. Default cache size is **100** events per destination. It is configured in `server.cache.events.size`.
+**Jitsu** supports caching last events in storage \(currently only Redis is supported\). All income events will be stored in meta storage as well as processed events with DB data types and errors if occurred. Default cache size is **100** events per destination. It is configured in `server.cache.events.size`.
 
 <Hint>
 This feature requires meta.storage configuration.
@@ -25,7 +25,7 @@ meta:
 
 ### **Endpoint**
 
-**EventNative** has an endpoint that return last events from cache. Last event structure:
+**Jitsu** has an endpoint that return last events from cache. Last event structure:
 
 | Field | Type | Description |
 | :--- | :--- | :--- |

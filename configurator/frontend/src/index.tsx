@@ -6,14 +6,10 @@ import { BrowserRouter, Route } from 'react-router-dom';
 import App from './App';
 // @Styles
 import './index.less'
+import { getBaseUIPath } from '@./lib/commons/pathHelper';
 
-let root = React.createElement(
-  BrowserRouter,
-  {},
-  <Route
-    render={(props) => {
-      return <App location={props.location.pathname} />;
-    }}
-  />
-);
-ReactDOM.render(root, document.getElementById('root'));
+ReactDOM.render(
+  <BrowserRouter basename={getBaseUIPath()}>
+    <App />
+  </BrowserRouter>,
+  document.getElementById('root'));

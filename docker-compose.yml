@@ -5,9 +5,6 @@ networks:
 services:
   configurator:
     container_name: jitsu_configurator
-    build:
-      context: .
-      dockerfile: configurator.Dockerfile
     environment:
       - SERVER_ADMIN_TOKEN=${SERVER_ADMIN_TOKEN}
       - CONFIGURATOR_ADMIN_TOKEN=${CONFIGURATOR_ADMIN_TOKEN}
@@ -23,9 +20,6 @@ services:
       - main
   server:
     container_name: jitsu_server
-    build:
-      context: .
-      dockerfile: server.Dockerfile
     environment:
       - SERVER_ADMIN_TOKEN=${SERVER_ADMIN_TOKEN}
       - CONFIGURATOR_ADMIN_TOKEN=${CONFIGURATOR_ADMIN_TOKEN}

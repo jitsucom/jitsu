@@ -368,10 +368,21 @@ func (f *FactoryImpl) initializeRetrospectiveUsersRecognition(destinationID stri
 
 	//validates or overrides with the global one
 	if destination.UsersRecognition != nil {
+		//partly overriding
+		if destination.UsersRecognition.UserIDNode == "" {
+			destination.UsersRecognition.UserIDNode = f.globalConfiguration.UserIDNode
+		}
+		if len(destination.UsersRecognition.IdentificationNodes) == 0 {
+			destination.UsersRecognition.IdentificationNodes = f.globalConfiguration.IdentificationNodes
+		}
+		if destination.UsersRecognition.AnonymousIDNode == "" {
+			destination.UsersRecognition.AnonymousIDNode = f.globalConfiguration.AnonymousIDNode
+		}
 		if err := destination.UsersRecognition.Validate(); err != nil {
-			return nil, fmt.Errorf("Error validation destination users_recognition configuration: %v", err)
+			return nil, fmt.Errorf("Error validating destination users_recognition configuration: %v", err)
 		}
 	} else {
+		//completely overriding
 		destination.UsersRecognition = f.globalConfiguration
 	}
 

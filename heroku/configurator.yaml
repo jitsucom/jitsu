@@ -1,0 +1,20 @@
+server:
+  log:
+    level: info
+  domain: herokuapp.com
+  name: demo-jitsu
+  auth: '${env.CONFIGURATOR_ADMIN_TOKEN}'
+
+storage:
+  redis:
+    host: '${env.REDIS_URL}'
+
+jitsu:
+  base_url: 'http://localhost:8001'
+  admin_token: '${env.SERVER_ADMIN_TOKEN}'
+
+auth:
+  redis:
+    host: '${env.REDIS_URL}'
+    access_secret: '${env.UI_AUTH_ACCESS_SECRET}'
+    refresh_secret: '${env.UI_AUTH_REFRESH_SECRET}'
