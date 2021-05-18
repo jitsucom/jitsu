@@ -1,6 +1,12 @@
 /* eslint-disable */
 import { message } from 'antd';
 
+export function concatenateURLs(baseUrl: string, url: string) {
+  let base = baseUrl.endsWith('/') ? baseUrl.substr(0, baseUrl.length - 1) : baseUrl;
+  return base + (url.startsWith('/') ? url : '/' + url);
+}
+
+
 function circularReferencesReplacer() {
   let cache = [];
   return (key, value) => {
