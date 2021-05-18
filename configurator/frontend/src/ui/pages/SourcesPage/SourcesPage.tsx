@@ -15,7 +15,7 @@ import './SourcesPage.less';
 // @Hocs
 import { getComponent } from '@hocs/getComponent';
 // @Types
-import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { BreadcrumbsProps } from '@component/Breadcrumbs/Breadcrumbs.types';
 import { PageProps } from '@./navigation';
 // @Hooks
 import useLoader from '@hooks/useLoader';

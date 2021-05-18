@@ -21,7 +21,7 @@ import TagsInput from '../TagsInput/TagsInput';
 import { getCurlDocumentation, getEmbeddedHtml, getNPMDocumentation } from '../../commons/api-documentation';
 import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
-import { LabelWithTooltip } from '@atom/LabelWithTooltip';
+import { LabelWithTooltip } from '@component/LabelWithTooltip';
 import useLoader from '@hooks/useLoader';
 import { randomId } from '@util/numbers';
 

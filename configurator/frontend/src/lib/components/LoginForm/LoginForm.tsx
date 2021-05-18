@@ -14,7 +14,7 @@ import ApplicationServices from '../../services/ApplicationServices';
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { reloadPage } from '../../commons/utils';
-import { FloatingLabelInput } from '../../../ui/components/molecule/FloatingLabelInput';
+import { FloatingLabelInput } from '../../../ui/components/FloatingLabelInput';
 import { getErrorPayload } from '@service/analytics';
 
 type State = {

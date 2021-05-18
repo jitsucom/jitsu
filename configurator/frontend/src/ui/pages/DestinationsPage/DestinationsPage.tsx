@@ -16,7 +16,7 @@ import { getComponent } from '@hocs/getComponent';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Types
 import { PageProps } from '@./navigation';
-import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { BreadcrumbsProps } from '@component/Breadcrumbs/Breadcrumbs.types';
 
 export interface CollectionDestinationData {
   destinations: DestinationData[];

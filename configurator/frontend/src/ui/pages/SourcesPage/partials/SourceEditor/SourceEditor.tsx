@@ -9,14 +9,14 @@ import { SourceEditorConfig } from './SourceEditorConfig';
 import { SourceEditorCollections } from './SourceEditorCollections';
 import { SourceEditorDestinations } from './SourceEditorDestinations';
 // @Components
-import { Tab, TabsConfigurator } from '@molecule/TabsConfigurator';
-import { PageHeader } from '@atom/PageHeader';
-import { EditorButtons } from '@molecule/EditorButtons';
+import { Tab, TabsConfigurator } from '@component/TabsConfigurator';
+import { PageHeader } from '@component/PageHeader';
+import { EditorButtons } from '@component/EditorButtons';
 // @Types
 import { CollectionSourceData, CommonSourcePageProps } from '@page/SourcesPage';
 import { SourceConnector } from '@catalog/sources/types';
 import { FormInstance } from 'antd/es';
-import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { withHome } from '@component/Breadcrumbs/Breadcrumbs.types';
 // @Routes
 import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 // @Catalog sources

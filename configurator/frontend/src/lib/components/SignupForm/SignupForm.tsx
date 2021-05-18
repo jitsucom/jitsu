@@ -10,7 +10,7 @@ import { NavLink } from 'react-router-dom';
 import { reloadPage } from '../../commons/utils';
 import ApplicationServices from '../../services/ApplicationServices';
 import { Align, handleError } from '../components';
-import { FloatingLabelInput } from '../../../ui/components/molecule/FloatingLabelInput';
+import { FloatingLabelInput } from '../../../ui/components/FloatingLabelInput';
 import { CheckboxChangeEvent } from 'antd/es/checkbox';
 
 import '../LoginForm/LoginForm.less';

@@ -7,9 +7,9 @@ import ApplicationServices from '@service/ApplicationServices';
 import { destinationsReferenceList, destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Components
 import { handleError } from '@./lib/components/components';
-import { DropDownList } from '@molecule/DropDownList';
-import { ListItem } from '@molecule/ListItem';
-import { EmptyList } from '@molecule/EmptyList';
+import { DropDownList } from '@component/DropDownList';
+import { ListItem } from '@component/ListItem';
+import { EmptyList } from '@component/EmptyList';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
@@ -22,7 +22,7 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 // @Types
 import { CommonDestinationPageProps } from '@page/DestinationsPage';
 import { Destination } from '@catalog/destinations/types';
-import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { withHome } from '@component/Breadcrumbs/Breadcrumbs.types';
 import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 
 import CodeOutlined from '@ant-design/icons/lib/icons/CodeOutlined';

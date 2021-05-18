@@ -10,12 +10,12 @@ import { useServices } from '@hooks/useServices';
 import { colorMap, TaskStatus } from './utils';
 import styles from './TaskLogsPage.module.less';
 import moment from 'moment';
-import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { withHome } from '@component/Breadcrumbs/Breadcrumbs.types';
 import { allSources } from '@catalog/sources/lib';
 import snakeCase from 'lodash/snakeCase';
 import { SourceConnector } from '@catalog/sources/types';
 import { CollectionSourceData } from '@page/SourcesPage';
-import { PageHeader } from '@atom/PageHeader';
+import { PageHeader } from '@component/PageHeader';
 import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 
 export const taskLogsPageRoute = '/sources/logs/:sourceId'

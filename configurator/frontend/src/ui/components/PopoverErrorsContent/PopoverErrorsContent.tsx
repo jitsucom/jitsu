@@ -1,7 +1,7 @@
 // @Libs
 import React, { memo } from 'react';
 // @Types
-import { Tab } from '@molecule/TabsConfigurator';
+import { Tab } from '@component/TabsConfigurator';
 // @Styles
 import styles from './PopoverErrorsContent.module.less';
 
