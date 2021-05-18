@@ -1,6 +1,6 @@
 # Typecast
 
-**EventNative** doesn't require you to configure data schema for destination database. Data types will be determined
+**Jitsu** doesn't require you to configure data schema for destination database. Data types will be determined
 from input data unless [explicit data types are configured in mapping section](/docs/configuration/schema-and-mappings).
 
 #### Default types
@@ -9,8 +9,8 @@ At present there are two default typecast rules:
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| _\_timestamp_ | timestamp | System field inserting by **EventNative** backend |
-| _eventn\_ctx\_utc\_time_ | timestamp | Default field inserting by **EventNative** js |
+| _\_timestamp_ | timestamp | System field inserting by **Jitsu Server** |
+| _\_utc\_time_ | timestamp | Default field inserting by **Jitsu JS SDK** |
 
 #### Configurable mappings
 
@@ -25,7 +25,7 @@ VALUES ('1'::bigint, 'John', '20000'::numeric(38,18), 'USD')
 
 #### From input data
 
-**EventNative** detects data types from values within one batch before creating a table or patching a table with a new column. In case when one field has several value types the result type will be calculated by finding the lowest common ancestor in the following typecast tree:
+**Jitsu** detects data types from values within one batch before creating a table or patching a table with a new column. In case when one field has several value types the result type will be calculated by finding the lowest common ancestor in the following typecast tree:
 
 ```java
         Typecast tree

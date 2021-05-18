@@ -8,9 +8,9 @@ import {Hint, LargeLink} from "../../../components/documentationComponents";
 
 # Authorization
 
-**EventNative** supports two types of authorization: client/server secrets and admin token.
+**Jitsu** has two types of authorization: API Keys (client/server secrets) and admin token.
 
-## Client/server secrets authorization
+## API Keys (client/server secrets) authorization
 
 All incoming events should pass client/server secrets authorization depends on the endpoint type:
 
@@ -26,7 +26,7 @@ Secrets objects configuration has all fields **optional**:
 | **server\_secret** | string | Server token is used in server endpoint authorization |
 | **origins** | string array | An array of allowed request origins. Values can be with wildcard e.g. "abc\*" will allow requests from abc.com, abcd.com, etc. |
 
-**EventNative** supports ****reloadable client/server secrets authorization configuration from an HTTP source, from a local file, and from YAML structure in app config.
+**Jitsu** supports ****reloadable client/server secrets authorization configuration from an HTTP source, from a local file, and from YAML structure in app config.
 
 ##  YAML configuration
 
@@ -34,7 +34,7 @@ Authorization can be configured via YAML array of objects.
 
 ```yaml
 server:
-  auth:
+  api_keys:
    -
     id: unique_tokenId
     client_secret: bd33c5fa-d69f-11ea-87d0-0242ac130003
@@ -50,22 +50,22 @@ server:
     server_secret: 231dasds-3211kb3rdf-412dkjnabf
 ```
 
-Also, authorization can be configured via plain string. In this case, plain string will be parsed as client secret.
+Also, API Keys can be configured via plain string. In this case, plain string will be parsed as client secret.
 
 ```yaml
 server:
-  auth: 193b6281-f211-47a9-b384-102cf4cd2d55 #client secret
+  api_keys: 193b6281-f211-47a9-b384-102cf4cd2d55 #client secret
 ```
 
 ## HTTP URL
 
 ```yaml
 server:
-  auth: 'https://token-source.com/path'
-  auth_reload_sec: 30
+  api_keys: 'https://token-source.com/path'
+  api_keys_reload_sec: 30
 ```
 <Hint>
-    Authorization will be reloaded every <b>auth_reload_sec</b> seconds. Default value is <b>30</b>.
+    Authorization will be reloaded every <b>api_keys_reload_sec</b> seconds. Default value is <b>3</b> seconds.
 </Hint>
 
 
@@ -92,8 +92,8 @@ Tokens file must have the same payload as the HTTP response body above.
 
 ```yaml
 server:
-  auth: 'file:///home/eventnative/data/config/tokens.json'
-  auth_reload_sec: 30
+  api_keys: 'file:///home/eventnative/data/config/tokens.json'
+  api_keys_reload_sec: 30
 ```
 
 ## Admin token authorization

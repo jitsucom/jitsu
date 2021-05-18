@@ -21,8 +21,9 @@ fi
 sleep 1
 
 # Start Nginx process
-/bin/sh -c "envsubst < /etc/nginx/nginx.conf > /etc/nginx/nginx-with-env.conf" && \
-mv /etc/nginx/nginx-with-env.conf /etc/nginx/nginx.conf && \
+NGINX_PORT_VALUE=$PORT
+sed "s/NGINX_PORT/$NGINX_PORT_VALUE/g" /etc/nginx/nginx.conf > /etc/nginx/nginx_replaced.conf && \
+mv /etc/nginx/nginx_replaced.conf /etc/nginx/nginx.conf && \
 nohup nginx -g 'daemon off;' &
 status=$?
 if [ $status -ne 0 ]; then

@@ -37,7 +37,8 @@ ADD configurator.yaml /home/configurator/data/config/
 ADD eventnative.yaml /home/eventnative/data/config/
 ADD heroku.sh /home/eventnative/heroku.sh
 ADD nginx.conf /etc/nginx/nginx.conf
-RUN touch /var/run/nginx.pid && \
+RUN mv /home/configurator/app/web /home/configurator/web &&\
+  touch /var/run/nginx.pid && \
   chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/configurator && \
   chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/eventnative && \
   chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /var/cache/nginx /var/run/nginx.pid /var/log/nginx /etc/nginx
