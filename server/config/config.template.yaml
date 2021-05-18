@@ -9,10 +9,10 @@ server:
   ### Authorization configuration. https://jitsu.com/docs/configuration/authorization
   ### If not configured - UUID will be generated and will be written in logs
   ### It might be http url of file source
-  #auth: https://source_of_tokens
+  #api_keys: https://source_of_api_keys
 
-  ###or might be full configured token object
-  #auth:
+  ###or might be full configured API Key object
+  #api_keys:
   #  -
   #    id: unique_tokenId
   #    client_secret: bd33c5fa-d69f-11ea-87d0-0242ac130003
@@ -28,11 +28,11 @@ server:
   #    server_secret: 231dasds-3211kb3rdf-412dkjnabf
 
   ### or plain strings - client_secrets
-  auth:
+  api_keys:
       - client_secret1
       - client_secret2
-  ### Authorization reloading. If 'auth' key is http or file:/// source than it will be reloaded every auth_reload_sec
-  #auth_reload_sec: 3 #Optional. Default value is 3.
+  ### Authorization reloading. If 'server.api_keys' is http or file:/// source than it will be reloaded every api_keys_reload_sec
+  #api_keys_reload_sec: 3 #Optional. Default value is 3.
 
   ### Admin endpoint authorization
   admin_token: admin_token #Optional. Token for using Admin endpoints https://jitsu.com/docs/other-features/admin-endpoints

@@ -36,7 +36,7 @@ import (
 
 func SetTestDefaultParams() {
 	viper.Set("log.path", "")
-	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
+	viper.Set("server.api_keys", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
 	viper.Set("server.log.path", "")
 }
 
@@ -510,7 +510,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 
 	telemetry.InitTest()
 	viper.Set("log.path", "")
-	viper.Set("server.auth", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
+	viper.Set("server.api_keys", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
 
 	destinationConfig := fmt.Sprintf(pgDestinationConfigTemplate, container.Host, container.Port, container.Database, container.Schema, container.Username, container.Password)
 
@@ -624,6 +624,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	defer container.Close()
 	telemetry.InitTest()
 	viper.Set("log.path", "")
+	//This test Uses deprecated config key (server.auth) for testing purposes.
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
 
 	dsns := make([]string, len(container.Dsns))

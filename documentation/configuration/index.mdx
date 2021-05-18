@@ -3,7 +3,7 @@
 **Jitsu Server** is configured through a single YAML file. We follow
 [convention over configuration](https://en.wikipedia.org/wiki/Convention_over_configuration) so the majority of
 parameters are optional. To get a base file, clone it from
-[GitHub](https://github.com/jitsucom/eventnative/blob/master/config/config.template.yaml).
+[GitHub](https://github.com/jitsucom/jitsu/blob/master/config/config.template.yaml).
 
 Our config file consists of the following sections:
 
@@ -27,13 +27,13 @@ server:
   auth: '193b6281-f211-47a9-b384-102cf4cd2d55'
   public_url: https://instances.domain.com 
   log:
-    path: /home/eventnative/logs/
+    path: /home/eventnative/data/logs/
   metrics.prometheus.enabled: true    
     
 geo.maxmind_path: /home/eventnative/data/config
 
 log:
-  path: /home/eventnative/logs/events
+  path: /home/eventnative/data/logs/events
   rotation_min: 5
 
 sql_debug_log:
@@ -93,7 +93,7 @@ All fields from **log** section are optional:
 
 | Field | Type | Description | Default value |
 | :--- | :--- | :--- | :--- |
-| **path** | string | Events log files path. | `/home/eventnative/logs/events` |
+| **path** | string | Events log files path. | `/home/eventnative/data/logs/events` |
 | **rotation\_min** | int | Log files rotation minutes. | `5` |
 | **show\_in\_server** | boolean | Flag for debugging. If true - all events JSON data is written in app logs. | `false` |
 

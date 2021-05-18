@@ -19,7 +19,7 @@
 
 <hr />
 
-**[Jitsu](https://jitsu.com/?utm_source=gh)** is an open source high-performance data integration service. It can:
+**[Jitsu](https://jitsu.com/?utm_source=gh)** is an open source high-performance data collection service. It can:
 
 * Capture events your application generates and stream to Data Warehouse;
 * Pull data from APIs and save it to Data Warehouse
@@ -30,7 +30,17 @@ Read more about [our features](https://jitsu.com/#features) and check out the [p
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/quickstart.gif" width="40px"/></a>
 ## Quick Start
 
-The easiest way to start Jitsu locally is using docker-compose:
+Two easiest ways to start Jitsu are Heroku deployment and local docker-compose. 
+
+### 1-click Heroku deploy
+It may take up to 5 minutes for Heroku to install environment. After that you can visit:
+- Jitsu Server welcome page on `your_app.herokuapp.com`
+- Jitsu Configurator UI on `your_app.herokuapp.com/configurator`
+
+<a href="https://heroku.com/deploy?template=https://github.com/jitsucom/jitsu"><img src="https://www.herokucdn.com/deploy/button.svg" width="250px" /></a>
+
+### Docker Compose
+The easiest way to start Jitsu is using docker-compose:
 
 ```bash
 git clone https://github.com/jitsucom/jitsu.git
@@ -40,13 +50,10 @@ cd jitsu
 For running `latest` version use:
 
 ```bash
-docker-compose pull && docker-compose up
+docker-compose up
 ```
 
 Note: `latest` images will be downloaded and started. For building and running local version (it takes ~15 min) use:
-```bash
-docker-compose build && docker-compose up
-```
 
 Visit `http://localhost:7000` after the build is complete.
 

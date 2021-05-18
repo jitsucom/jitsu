@@ -8,9 +8,9 @@ import {Hint} from "../../../../components/documentationComponents";
 
 # Events Interception
 
-EventNative javascript tracker could be configured to intercept events from third-party tracking systems. Currently, we support [Google Analytics](https://developers.google.com/analytics/devguides/collection/analyticsjs) and Segment's [Analytics.js](https://segment.com/docs/connections/sources/catalog/libraries/website/javascript/). 
+Jitsu JS SDK could be configured to intercept events from third-party tracking systems. Currently, we support [Google Analytics](https://developers.google.com/analytics/devguides/collection/analyticsjs) and Segment's [Analytics.js](https://segment.com/docs/connections/sources/catalog/libraries/website/javascript/).
 
-EventNative will intercept all events, transform them to an internal structure and pass further to the original destination. EventNative initialization code **must be** executed (added into `<head>` section if tracking code is [added directly](/docs/sending-data/javascript-reference/#quickstart)) before intercepted tracking code (GA or Segment)
+Jitsu will intercept all events, transform them to an internal structure and pass further to the original destination. Jitsu initialization code **must be** executed (added into `<head>` section if tracking code is [added directly](/docs/sending-data/javascript-reference/#quickstart)) before intercepted tracking code (GA or Segment)
 
 
 <Hint>
