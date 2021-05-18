@@ -10,8 +10,8 @@ import { closeableMessage, handleError } from '@./lib/components/components';
 import ApplicationServices from '@service/ApplicationServices';
 import Marshal from '@./lib/commons/marshalling';
 // @Components
-import { ListItemTitle } from '@atom/ListItemTitle';
-import { Tab } from '@molecule/TabsConfigurator';
+import { ListItemTitle } from '@component/ListItemTitle';
+import { Tab } from '@component/TabsConfigurator';
 import { validateTabForm } from '@util/forms/validateTabForm';
 import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { SourceTabKey } from '@page/SourcesPage/partials/SourceEditor/SourceEditor';

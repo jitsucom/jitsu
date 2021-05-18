@@ -3,7 +3,7 @@ import React from 'react';
 import { Form } from 'antd';
 import debounce from 'lodash/debounce';
 // @Components
-import { ConfigurableFieldsForm } from '@molecule/ConfigurableFieldsForm';
+import { ConfigurableFieldsForm } from '@component/ConfigurableFieldsForm';
 // @Types
 import { Destination } from '@catalog/destinations/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';

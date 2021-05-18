@@ -1,9 +1,9 @@
 // @Libs
 import { message, Popover } from 'antd';
 // @Components
-import { ListItemTitle } from '@atom/ListItemTitle';
-import { LabelWithTooltip } from '@atom/LabelWithTooltip';
-import { ListItemDescription } from '@atom/ListItemDescription';
+import { ListItemTitle } from '@component/ListItemTitle';
+import { LabelWithTooltip } from '@component/LabelWithTooltip';
+import { ListItemDescription } from '@component/ListItemDescription';
 import { ActionLink, Align, CodeInline, CodeSnippet } from '@./lib/components/components';
 // @Types
 import { Destination } from '@catalog/destinations/types';

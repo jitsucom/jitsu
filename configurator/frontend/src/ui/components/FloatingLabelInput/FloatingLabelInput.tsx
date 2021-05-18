@@ -4,7 +4,7 @@ import { Form, Input } from 'antd';
 import cn from 'classnames';
 import get from 'lodash/get';
 // @Components
-import { FloatingLabel } from '@atom/FloatingLabel';
+import { FloatingLabel } from '@component/FloatingLabel';
 // @Types
 import { Props } from './FloatingLabelInput.types';
 

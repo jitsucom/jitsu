@@ -8,10 +8,10 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { SourceConnector } from '@catalog/sources/types';
 import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 // @Components
-import { ConfigurableFieldsForm } from '@molecule/ConfigurableFieldsForm';
+import { ConfigurableFieldsForm } from '@component/ConfigurableFieldsForm';
 import { COLLECTIONS_SCHEDULES } from '@./constants/schedule';
 // @Styles
-import editorStyles from '@molecule/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
+import editorStyles from '@component/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
 
 export interface Props {
   form: FormInstance;

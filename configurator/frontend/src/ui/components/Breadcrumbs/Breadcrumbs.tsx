@@ -1,4 +1,4 @@
-import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { BreadcrumbsProps } from '@./ui/components/Breadcrumbs/Breadcrumbs.types';
 import { NavLink } from 'react-router-dom';
 
 function join<T>(array: T[], separatorFactory: (id: number) => T): T[] {

@@ -4,10 +4,10 @@ import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Card, Form, message } from 'antd';
 import cn from 'classnames';
 // @Components
-import { TabsConfigurator } from '@molecule/TabsConfigurator';
-import { EditorButtons } from '@molecule/EditorButtons';
-import { ComingSoon } from '@atom/ComingSoon';
-import { PageHeader } from '@atom/PageHeader';
+import { TabsConfigurator } from '@component/TabsConfigurator';
+import { EditorButtons } from '@component/EditorButtons';
+import { ComingSoon } from '@component/ComingSoon';
+import { PageHeader } from '@component/PageHeader';
 import { closeableMessage } from '@./lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
@@ -18,9 +18,9 @@ import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/es';
 import { Destination } from '@catalog/destinations/types';
-import { Tab } from '@molecule/TabsConfigurator';
+import { Tab } from '@component/TabsConfigurator';
 import { CommonDestinationPageProps } from '@page/DestinationsPage';
-import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { withHome } from '@component/Breadcrumbs/Breadcrumbs.types';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Routes

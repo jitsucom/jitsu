@@ -15,7 +15,7 @@ import BankOutlined from '@ant-design/icons/lib/icons/BankOutlined';
 import { useEffect, useState } from 'react';
 
 import fullLogo from '../../../icons/logo.svg';
-import { FloatingLabelInput } from '@molecule/FloatingLabelInput';
+import { FloatingLabelInput } from '@component/FloatingLabelInput';
 import classNames from 'classnames';
 import { validatePassword } from '../../../lib/commons/passwordValidator';
 

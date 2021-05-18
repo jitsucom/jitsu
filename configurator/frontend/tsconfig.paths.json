@@ -3,9 +3,7 @@
   "compilerOptions": {
     "paths": {
       "@./*": ["./*"],
-      "@atom/*": ["./ui/components/atom/*"],
-      "@molecule/*": ["./ui/components/molecule/*"],
-      "@organism/*": ["./ui/components/organism/*"],
+      "@component/*": ["./ui/components/*"],
       "@page/*": ["./ui/pages/*"],
       "@catalog/*": ["./catalog/*"],
       "@service/*": ["./lib/services/*"],

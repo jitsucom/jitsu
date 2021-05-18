@@ -5,7 +5,7 @@ import { Tabs } from 'antd';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { TabsType } from 'antd/es/tabs';
 // @Components
-import { TabName } from '@atom/TabName';
+import { TabName } from '@component/TabName';
 
 export interface Tab<K = string> {
   readonly key: K;
