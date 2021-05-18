@@ -9,7 +9,7 @@ import { FieldMapping, DestinationConfigurationTemplate } from '@catalog/mapping
 // @Icons
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 // @Components
-import { TabDescription } from '@component/TabDescription/TabDescription';
+import { TabDescription } from '@component/Tabs/TabDescription';
 // @Constant
 import { MAPPING_ROW_PROPS_MAP } from '@./constants/mapping';
 import { MAPPING_LIBRARY } from '@./embeddedDocs/mappingsLibrary';

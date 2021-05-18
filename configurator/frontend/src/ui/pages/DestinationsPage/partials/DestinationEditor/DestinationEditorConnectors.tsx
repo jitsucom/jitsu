@@ -13,7 +13,7 @@ import { destinationEditorUtils } from '@page/DestinationsPage/partials/Destinat
 // @Components
 import { NameWithPicture, ConnectedItems, ConnectedItem } from '@component/ConnectedItems/ConnectedItems';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
-import { TabDescription } from '@component/TabDescription/TabDescription';
+import { TabDescription } from '@component/Tabs/TabDescription';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { Destination } from '@catalog/destinations/types';

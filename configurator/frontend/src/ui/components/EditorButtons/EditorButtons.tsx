@@ -2,12 +2,12 @@
 import React from 'react';
 import { Button, Popover } from 'antd';
 // @Components
-import { PopoverTitle } from '@component/PopoverTitle/PopoverTitle';
-import { PopoverErrorsContent } from '@component/PopoverErrorsContent/PopoverErrorsContent';
+import { PopoverTitle } from '@component/Popover/PopoverTitle';
+import { PopoverErrorsContent } from '@component/Popover/PopoverErrorsContent';
 // @Icons
 import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 // @Types
-import { Tab } from '@component/TabsConfigurator/TabsConfigurator';
+import { Tab } from '@component/Tabs/TabsConfigurator';
 
 interface ButtonProps {
   isPopoverVisible: boolean;

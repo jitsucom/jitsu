@@ -5,7 +5,7 @@ import { Form } from 'antd';
 import { SOURCE_CONNECTED_DESTINATION } from '@./embeddedDocs/sourcesConnectedItems';
 // @Components
 import { NameWithPicture, ConnectedItem, ConnectedItems } from '@component/ConnectedItems/ConnectedItems';
-import { TabDescription } from '@component/TabDescription/TabDescription';
+import { TabDescription } from '@component/Tabs/TabDescription';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 import { destinationsReferenceMap } from '@page/DestinationsPage/commons';

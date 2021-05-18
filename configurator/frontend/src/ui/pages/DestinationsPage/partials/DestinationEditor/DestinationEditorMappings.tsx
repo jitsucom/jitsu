@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Col, Form, Row, Select } from 'antd';
 // @Components
-import { TabDescription } from '@component/TabDescription/TabDescription';
+import { TabDescription } from '@component/Tabs/TabDescription';
 import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
 import { DestinationEditorMappingsItem } from './DestinationEditorMappingsItem';
 // @Types
