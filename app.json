@@ -1,8 +1,8 @@
 {
   "name": "Jitsu",
-  "description": "The easiest event capturing in the world. Please, read the guide before deploying: https://jitsu.com/docs/deployment/deploy-on-heroku",
+  "description": "The easiest real-time Data collection in the world. Please, read the guide before deploying: https://jitsu.com/docs/deployment/deploy-on-heroku",
   "success_url": "/",
-  "repository": "https://github.com/jitsucom/jitsu/tree/hotfix/fix-heroku",
+  "repository": "https://github.com/jitsucom/jitsu",
   "logo": "https://jitsu.com/img/jitsu-light.svg",
   "keywords": ["jitsu", "events", "pixel", "golang", "tracking"],
   "stack": "container",
