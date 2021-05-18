@@ -73,10 +73,14 @@ type Redis struct {
 
 //NewRedis returns configured Redis struct with connection pool
 func NewRedis(host string, port int, password string, anonymousEventsMinutesTTL int) (*Redis, error) {
+	connectionStr := fmt.Sprintf("%s:%d", host, port)
+	if strings.HasPrefix(host, "redis://") || strings.HasPrefix(host, "rediss://") {
+		connectionStr = host
+	}
 	if anonymousEventsMinutesTTL > 0 {
-		logging.Infof("🏪 Initializing meta storage redis [%s:%d] with anonymous events ttl: %d...", host, port, anonymousEventsMinutesTTL)
+		logging.Infof("🏪 Initializing meta storage redis [%s] with anonymous events ttl: %d...", connectionStr, anonymousEventsMinutesTTL)
 	} else {
-		logging.Infof("🏪 Initializing meta storage redis [%s:%d]...", host, port)
+		logging.Infof("🏪 Initializing meta storage redis [%s]...", connectionStr)
 	}
 
 	pool, err := NewRedisPool(host, port, password)

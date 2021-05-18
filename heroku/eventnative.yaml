@@ -1,5 +1,5 @@
 server:
-  configurator_url: 'http://localhost:7000'
+  configurator_url: '/configurator'
   log:
     level: info
   name: demo-jitsu

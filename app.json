@@ -16,6 +16,18 @@
       "required": true,
       "description": "A secret Jitsu Server Admin token for Jitsu Configurator -> Jitsu Server integration",
       "generator": "secret"
+    },
+    "UI_AUTH_ACCESS_SECRET": {
+      "required": true,
+      "description": "An access secret for UI authorization flow. Please keep this secret for restarting Jitsu with the same UI login/password"
+    },
+    "UI_AUTH_REFRESH_SECRET": {
+      "required": true,
+      "description": "An refresh secret for UI authorization flow. Please keep this secret for restarting Jitsu with the same UI login/password"
+    },
+    "GEO_MAXMIND_PATH": {
+      "description": "GEO data resolution (https://jitsu.com/docs/other-features/geo-data-resolution). HTTP URL to hosted maxmind DB file.",
+      "required": false
     }
   },
   "addons": [

@@ -13,8 +13,9 @@ import (
 
 const (
 	serviceName            = "authorization"
-	viperAuthKey           = "server.auth"
-	deprecatedViperAuthKey = "server.s2s_auth"
+	viperApiKeysKey        = "server.api_keys"
+	deprecatedViperAuthKey = "server.auth"
+	deprecatedViperS2SKey  = "server.s2s_auth"
 
 	defaultTokenID = "defaultid"
 )
@@ -30,23 +31,33 @@ type Service struct {
 func NewService() (*Service, error) {
 	service := &Service{}
 
-	reloadSec := viper.GetInt("server.auth_reload_sec")
+	reloadSec := viper.GetInt("server.api_keys_reload_sec")
 	if reloadSec == 0 {
-		return nil, errors.New("server.auth_reload_sec can't be empty")
+		//backward compatibility
+		reloadSec = viper.GetInt("server.auth_reload_sec")
 	}
 
-	//deprecated viper key
-	deprecatedS2SAuth := viper.GetStringSlice(deprecatedViperAuthKey)
+	if reloadSec == 0 {
+		return nil, errors.New("server.api_keys_reload_sec can't be empty")
+	}
+
+	viperKey := viperApiKeysKey
+	if !viper.IsSet(viperKey) && viper.IsSet(deprecatedViperAuthKey) {
+		viperKey = deprecatedViperAuthKey
+	}
+
+	//deprecated viper s2s key
+	deprecatedS2SAuth := viper.GetStringSlice(deprecatedViperS2SKey)
 
 	var tokens []Token
-	err := viper.UnmarshalKey(viperAuthKey, &tokens)
+	err := viper.UnmarshalKey(viperKey, &tokens)
 	if err == nil {
 		for _, s2sauth := range deprecatedS2SAuth {
 			tokens = append(tokens, Token{ServerSecret: s2sauth})
 		}
 		service.tokensHolder = reformat(tokens)
 	} else {
-		auth := viper.GetStringSlice(viperAuthKey)
+		auth := viper.GetStringSlice(viperKey)
 
 		if len(auth) == 1 {
 			authSource := auth[0]
@@ -82,7 +93,7 @@ func NewService() (*Service, error) {
 		}
 
 		service.tokensHolder = reformat([]Token{generatedToken})
-		logging.Info("Empty 'server.auth' config keys. Auto generate token:", generatedTokenSecret)
+		logging.Info("Empty authorization 'server.api_keys' config. Auto generate API Key:", generatedTokenSecret)
 	}
 
 	return service, nil

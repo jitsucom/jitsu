@@ -6,6 +6,7 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
+	"strings"
 )
 
 const (
@@ -27,7 +28,11 @@ type RedisProvider struct {
 }
 
 func NewRedisProvider(host, password, accessSecret, refreshSecret string, port int) (*RedisProvider, error) {
-	logging.Infof("Initializing redis authorization storage [%s:%d]...", host, port)
+	connectionStr := fmt.Sprintf("%s:%d", host, port)
+	if strings.HasPrefix(host, "redis://") || strings.HasPrefix(host, "rediss://") {
+		connectionStr = host
+	}
+	logging.Infof("Initializing redis authorization storage [%s]...", connectionStr)
 
 	pool, err := meta.NewRedisPool(host, port, password)
 	if err != nil {
@@ -40,8 +45,8 @@ func NewRedisProvider(host, password, accessSecret, refreshSecret string, port i
 	}, nil
 }
 
-//VerifyToken verify token
-//return user id if token is valid
+//VerifyAccessToken verifies token
+//returns user id if token is valid
 func (rp *RedisProvider) VerifyAccessToken(strToken string) (string, error) {
 	jwtToken, err := rp.jwtTokenManager.ParseToken(strToken, rp.jwtTokenManager.accessKeyFunc)
 	if err != nil {
