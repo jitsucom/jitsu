@@ -18,13 +18,15 @@ type AppConfig struct {
 	ServerName string
 	Authority  string
 
-	GeoResolver           geo.Resolver
-	UaResolver            useragent.Resolver
-	AuthorizationService  *authorization.Service
+	DisableSkipEventsWarn bool
+
+	GeoResolver          geo.Resolver
+	UaResolver           useragent.Resolver
+	AuthorizationService *authorization.Service
+
 	GlobalDDLLogsWriter   io.Writer
 	GlobalQueryLogsWriter io.Writer
 	SingerLogsWriter      io.Writer
-	DisableSkipEventsWarn bool
 
 	GlobalUniqueIDField *identifiers.UniqueID
 
@@ -45,6 +47,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.log.level", "info")
 	viper.SetDefault("server.static_files_dir", "./web")
 	viper.SetDefault("server.auth_reload_sec", 3)
+	viper.SetDefault("server.api_keys_reload_sec", 3)
 	viper.SetDefault("server.destinations_reload_sec", 5)
 	viper.SetDefault("server.sources_reload_sec", 7)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
@@ -162,10 +165,7 @@ func Init(containerized bool, dockerHubID string) error {
 		appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
 	}
 
-	port := viper.GetString("port")
-	if port == "" {
-		port = viper.GetString("server.port")
-	}
+	port := viper.GetString("server.port")
 	appConfig.Authority = "0.0.0.0:" + port
 
 	authService, err := authorization.NewService()

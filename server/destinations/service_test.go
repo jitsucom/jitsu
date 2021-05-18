@@ -27,7 +27,7 @@ type payloadHolder struct {
 
 func TestServiceInit(t *testing.T) {
 	viper.Set("server.destinations_reload_sec", 1)
-	viper.Set("server.auth_reload_sec", 1)
+	viper.Set("server.api_keys_reload_sec", 1)
 	viper.Set("server.log.path", "")
 
 	initialAuth := `{
@@ -48,7 +48,7 @@ func TestServiceInit(t *testing.T) {
 }`
 	authPayload := &payloadHolder{payload: []byte(initialAuth)}
 	mockAuthServer := startTestServer(authPayload)
-	viper.Set("server.auth", mockAuthServer.URL)
+	viper.Set("server.api_keys", mockAuthServer.URL)
 	appconfig.Init(false, "")
 
 	initialDestinations := `{
