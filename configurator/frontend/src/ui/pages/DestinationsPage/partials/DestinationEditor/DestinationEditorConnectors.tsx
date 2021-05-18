@@ -11,14 +11,12 @@ import ApplicationServices from '@service/ApplicationServices';
 import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
 import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 // @Components
-import { ConnectedItems } from '@organism/ConnectedItems';
-import { NameWithPicture } from '@organism/ConnectedItems/ConnectedItems';
+import { NameWithPicture, ConnectedItems, ConnectedItem } from '@component/ConnectedItems/ConnectedItems';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
-import { TabDescription } from '@atom/TabDescription';
+import { TabDescription } from '@component/TabDescription/TabDescription';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { Destination } from '@catalog/destinations/types';
-import { ConnectedItem } from '@organism/ConnectedItems';
 // @Catalog sources
 import { allSources } from '@catalog/sources/lib';
 // @Constants

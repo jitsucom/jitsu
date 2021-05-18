@@ -2,7 +2,7 @@ import { PageProps } from '@./navigation';
 import { useHistory, useLocation, useParams } from 'react-router-dom';
 import useLoader from '@./hooks/useLoader';
 import ApplicationServices from '@service/ApplicationServices';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 import { DatePicker, Select, Tag } from 'antd';
 import { TasksTable } from '@page/TaskLogs/TasksTable';
@@ -10,12 +10,12 @@ import { useServices } from '@hooks/useServices';
 import { colorMap, TaskStatus } from './utils';
 import styles from './TaskLogsPage.module.less';
 import moment from 'moment';
-import { withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
 import { allSources } from '@catalog/sources/lib';
 import snakeCase from 'lodash/snakeCase';
 import { SourceConnector } from '@catalog/sources/types';
-import { CollectionSourceData } from '@page/SourcesPage';
-import { PageHeader } from '@atom/PageHeader';
+import { CollectionSourceData } from '@page/SourcesPage/SourcesPage';
+import { PageHeader } from '@component/PageHeader/PageHeader';
 import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 
 export const taskLogsPageRoute = '/sources/logs/:sourceId'

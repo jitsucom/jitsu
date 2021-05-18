@@ -1,4 +1,4 @@
-import { Tab } from '@molecule/TabsConfigurator';
+import { Tab } from '@component/TabsConfigurator/TabsConfigurator';
 
 interface Options {
   forceUpdate: VoidFunc;

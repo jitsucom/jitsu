@@ -11,12 +11,12 @@ import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 // @Components
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
-const DestinationsPage = React.lazy(() => import('@page/DestinationsPage'));
+const DestinationsPage = React.lazy(() => import('@page/DestinationsPage/DestinationsPage'));
 const EventsStream = React.lazy(() => import('./lib/components/EventsStream/EventsStream'));
 const LoginForm = React.lazy(() => import('./lib/components/LoginForm/LoginForm'));
 const SetupForm = React.lazy(() => import('@page/SetupPage/SetupForm'));
 const SignupForm = React.lazy(() => import('./lib/components/SignupForm/SignupForm'));
-const SourcesPage = React.lazy(() => import('./ui/pages/SourcesPage'));
+const SourcesPage = React.lazy(() => import('@page/SourcesPage/SourcesPage'));
 const StatusPage = React.lazy(() => import('./lib/components/StatusPage/StatusPage'));
 const PasswordForm = React.lazy(() => import('./lib/components/PasswordForm/PasswordForm'));
 const DownloadConfig = React.lazy(() => import('./lib/components/DownloadConfig/DownloadConfig'));
