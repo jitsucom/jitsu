@@ -94,10 +94,10 @@ Parsed user agent example:
     enrichment:
        - name: ip_lookup
          from: /source_ip
-         to: /eventn_ctx/location
+         to: /location
        - name: user_agent_parse 
-         from: /eventn_ctx/user_agent
-         to: /eventn_ctx/parsed_ua
+         from: /user_agent
+         to: /parsed_ua
 ```
 
 
