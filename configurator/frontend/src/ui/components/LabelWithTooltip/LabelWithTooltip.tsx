@@ -4,8 +4,12 @@ import { Tooltip } from 'antd';
 import cn from 'classnames';
 // @Icons
 import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
-// @Types
-import { Props } from './LabelWithTooltip.types';
+
+export interface Props {
+  render?: React.ReactNode;
+  documentation: React.ReactNode;
+  className?: string;
+}
 
 const LabelWithTooltipComponent = ({ render, documentation, className }: Props) => (
   <span className={cn('label-with-tooltip', className)}>

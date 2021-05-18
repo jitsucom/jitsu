@@ -1,8 +1,11 @@
 // @Libs
 import { memo } from 'react';
 import { Tooltip } from 'antd'
-// @Types
-import { Props } from './ComingSoon.types';
+
+export interface Props {
+  render: React.ReactNode;
+  documentation: React.ReactNode;
+}
 
 const ComingSoonComponent = ({ render, documentation }: Props) => (
   <Tooltip title={documentation}>

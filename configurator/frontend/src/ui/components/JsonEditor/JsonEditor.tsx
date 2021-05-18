@@ -69,4 +69,4 @@ const JsonEditor = ({ handleChange: handleChangeProp, initialValue }: Props) => 
 
 JsonEditor.displayName = 'JsonEditor';
 
-export { JsonEditor };
+export default JsonEditor;

@@ -5,7 +5,7 @@ import debounce from 'lodash/debounce';
 import get from 'lodash/get';
 import cn from 'classnames';
 // @Components
-import { LabelWithTooltip } from '@component/LabelWithTooltip';
+import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
 import { EditableList } from '@./lib/components/EditableList/EditableList';
 import { CenteredSpin } from '@./lib/components/components';
 // @Types
@@ -22,7 +22,7 @@ import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlin
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
 
-const JsonEditor = React.lazy(() => import('@./ui/components/JsonEditor'));
+const JsonEditor = React.lazy(() => import('@component/JsonEditor/JsonEditor'));
 
 export interface Props {
   fieldsParamsList: Parameter[];

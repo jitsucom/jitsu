@@ -1,10 +1,18 @@
 // @Libs
-import * as React from 'react';
+import { memo } from 'react';
 import cn from 'classnames';
 // @Types
-import { Props } from './FloatingLabel.types';
+import { SizeType } from 'antd/lib/config-provider/SizeContext';
 // @Styles
 import './FloatingLabel.less';
+
+export interface Props {
+  className?: string;
+  htmlFor: string;
+  render: React.ReactNode;
+  size?: SizeType
+  hasValue?: boolean;
+}
 
 const FloatingLabelComponent = ({ className, htmlFor, render, hasValue, size }: Props) => {
   return (
@@ -20,4 +28,4 @@ const FloatingLabelComponent = ({ className, htmlFor, render, hasValue, size }: 
 
 FloatingLabelComponent.displayName = 'FloatingLabel';
 
-export const FloatingLabel = React.memo(FloatingLabelComponent);
+export const FloatingLabel = memo(FloatingLabelComponent);

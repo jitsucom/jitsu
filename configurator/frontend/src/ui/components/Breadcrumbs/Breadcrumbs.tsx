@@ -1,4 +1,4 @@
-import { BreadcrumbsProps } from '@./ui/components/Breadcrumbs/Breadcrumbs.types';
+import { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 
 function join<T>(array: T[], separatorFactory: (id: number) => T): T[] {
@@ -10,6 +10,24 @@ function join<T>(array: T[], separatorFactory: (id: number) => T): T[] {
     }
   }
   return res;
+}
+
+export type BreadcrumbsProps = {
+  elements: BreadcrumbElement[]
+}
+
+export type BreadcrumbElement = {
+  link?: string
+  title: ReactNode
+}
+
+export function withHome(props: BreadcrumbsProps): BreadcrumbsProps {
+  return {
+    elements: [
+      { link: '/', title: 'Home' },
+      ...props.elements
+    ]
+  };
 }
 
 export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ elements }) => {

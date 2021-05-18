@@ -7,17 +7,17 @@ import LockOutlined from '@ant-design/icons/lib/icons/LockOutlined';
 import MailOutlined from '@ant-design/icons/lib/icons/MailOutlined';
 
 import { NavLink } from 'react-router-dom';
-import { reloadPage } from '../../../lib/commons/utils';
+import { reloadPage } from '@./lib/commons/utils';
 import ApplicationServices from '../../../lib/services/ApplicationServices';
-import { Align, handleError } from '../../../lib/components/components';
+import { Align, handleError } from '@./lib/components/components';
 import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
 import BankOutlined from '@ant-design/icons/lib/icons/BankOutlined';
 import { useEffect, useState } from 'react';
 
 import fullLogo from '../../../icons/logo.svg';
-import { FloatingLabelInput } from '@component/FloatingLabelInput';
+import { FloatingLabelInput } from '@component/FloatingLabelInput/FloatingLabelInput';
 import classNames from 'classnames';
-import { validatePassword } from '../../../lib/commons/passwordValidator';
+import { validatePassword } from '@./lib/commons/passwordValidator';
 
 import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
 import CheckOutlined from '@ant-design/icons/lib/icons/CheckOutlined';
