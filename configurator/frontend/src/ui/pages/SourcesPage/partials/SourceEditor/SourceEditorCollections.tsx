@@ -18,7 +18,7 @@ import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Utils
 import { getUniqueAutoIncId } from '@util/numbers';
-import { TabDescription } from '@atom/TabDescription';
+import { TabDescription } from '@component/TabDescription/TabDescription';
 
 export interface Props {
   form: FormInstance;
