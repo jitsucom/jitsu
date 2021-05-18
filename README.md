@@ -40,7 +40,7 @@ It may take up to 5 minutes for Heroku to install environment. After that you ca
 <a href="https://heroku.com/deploy?template=https://github.com/jitsucom/jitsu"><img src="https://www.herokucdn.com/deploy/button.svg" width="250px" /></a>
 
 ### Docker Compose
-The easiest way to start Jitsu is using docker-compose:
+The local way to start Jitsu is using docker-compose:
 
 ```bash
 git clone https://github.com/jitsucom/jitsu.git
@@ -53,7 +53,7 @@ For running `latest` version use:
 docker-compose up
 ```
 
-Note: `latest` images will be downloaded and started. For building and running local version (it takes ~15 min) use:
+Note: `latest` images will be downloaded and started.
 
 Visit `http://localhost:7000` after the build is complete.
 
