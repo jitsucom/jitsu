@@ -23,11 +23,11 @@ import { reloadPage } from '@./lib/commons/utils';
 import { useServices } from '@hooks/useServices';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 import { Page, usePageLocation } from '@./navigation';
-import { BreadcrumbsProps, withHome } from '@molecule/Breadcrumbs/Breadcrumbs.types';
-import { Breadcrumbs } from '@molecule/Breadcrumbs';
-import { CurrentPlan } from '@molecule/CurrentPlan/CurrentPlan';
+import { BreadcrumbsProps, withHome, Breadcrumbs } from '@component/Breadcrumbs/Breadcrumbs';
+import { CurrentPlan } from '@component/CurrentPlan/CurrentPlan';
 import { PaymentPlan, PaymentPlanStatus } from '@service/billing';
 import styles from './Layout.module.less';
+import { getIntercom } from '@service/intercom-wrapper';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
@@ -76,6 +76,7 @@ export const ApplicationMenu: React.FC<{}> = () => {
 
 export const ApplicationSidebar: React.FC<{}> = () => {
   const services = useServices();
+  const intercom = getIntercom();
   return <div className={styles.sideBarContent} >
     <div>
       <a href="https://jitsu.com" className="text-center block pt-5 h-14">
@@ -86,7 +87,7 @@ export const ApplicationSidebar: React.FC<{}> = () => {
     <div className="flex justify-center pb-4"><Button type="link" size="large"
       onClick={() => {
         if (services.features.chatSupportType === 'chat') {
-
+          intercom('show');
         } else {
           document.getElementById('jitsuSlackWidget').click();
         }

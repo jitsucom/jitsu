@@ -118,6 +118,10 @@ export type UserProps = {
   uid: string
 }
 
+export function getErrorPayload(error: Error) {
+  return { error_message: error.message ?? 'Empty message', error_name: error.name ?? 'name_unknown', error_stack: error.stack ?? '' };
+}
+
 export default class AnalyticsService {
   private globalErrorListenerPresent: boolean = false;
   private appConfig: ApplicationConfiguration;
@@ -289,7 +293,7 @@ export default class AnalyticsService {
           }
         });
       }
-      this.track('error', {error_message: error.message ?? "Empty message", error_name: error.name ?? "name_unknown", error_stack: error.stack ?? "" })
+      this.track('error', getErrorPayload(error))
     }
   }
 }

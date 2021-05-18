@@ -4,9 +4,9 @@ import { Route, Switch } from 'react-router-dom';
 // @Routes
 import { sourcesPageRoutes } from './SourcesPage.routes';
 // @Components
-import { SourcesList } from './partials/SourcesList';
-import { SourceEditor } from './partials/SourceEditor';
-import { AddSourceDialog } from './partials/AddSourceDialog';
+import { SourcesList } from './partials/SourcesList/SourcesList';
+import { SourceEditor } from './partials/SourceEditor/SourceEditor';
+import { AddSourceDialog } from './partials/AddSourceDialog/AddSourceDialog';
 import { CenteredError, CenteredSpin } from '@./lib/components/components';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
@@ -15,7 +15,7 @@ import './SourcesPage.less';
 // @Hocs
 import { getComponent } from '@hocs/getComponent';
 // @Types
-import { BreadcrumbsProps } from '@molecule/Breadcrumbs/Breadcrumbs.types';
+import { BreadcrumbsProps } from '@component/Breadcrumbs/Breadcrumbs';
 import { PageProps } from '@./navigation';
 // @Hooks
 import useLoader from '@hooks/useLoader';
@@ -84,4 +84,4 @@ const SourcesPage = (props: PageProps) => {
 
 SourcesPage.displayName = 'SourcesPage';
 
-export { SourcesPage };
+export default SourcesPage;

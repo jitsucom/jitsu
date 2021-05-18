@@ -2,7 +2,6 @@ package coordination
 
 import (
 	"context"
-	"fmt"
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
@@ -66,16 +65,12 @@ func NewRedisService(ctx context.Context, serverName string, host string, port i
 		port = 6379
 	}
 
-	redigoPool := meta.NewRedisPool(host, port, password)
-	redisSync := redsync.New(rsyncpool.NewPool(redigoPool))
-
-	//Test connection
-	connection := redigoPool.Get()
-	defer connection.Close()
-	_, err := connection.Do("PING")
+	redigoPool, err := meta.NewRedisPool(host, port, password)
 	if err != nil {
-		return nil, fmt.Errorf("Error testing connection to Redis: %v", err)
+		return nil, err
 	}
+
+	redisSync := redsync.New(rsyncpool.NewPool(redigoPool))
 
 	rs := &RedisService{
 		ctx:        ctx,

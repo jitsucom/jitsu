@@ -14,7 +14,8 @@ import ApplicationServices from '../../services/ApplicationServices';
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { reloadPage } from '../../commons/utils';
-import { FloatingLabelInput } from '../../../ui/components/molecule/FloatingLabelInput';
+import { getErrorPayload } from '@service/analytics';
+import { FloatingLabelInput } from '@component/FloatingLabelInput/FloatingLabelInput';
 
 type State = {
   loading: boolean;
@@ -57,50 +58,49 @@ export default class LoginForm extends React.Component<Props, State> {
     );
   }
 
-  private passwordLogin(values) {
-    this.services.userService
-      .login(values['username'].trim(), values['password'].trim())
-      .then(() => {
-        message.destroy();
-        this.setState({ loading: false });
-        reloadPage();
-      })
-      .catch((error) => {
-        message.destroy();
-        console.log('Error', error);
-        message.error('Invalid login or password');
-        this.setState({ loading: false });
-      });
+  private async passwordLogin(values) {
+    try {
+      await this.services.userService.login(values['username'].trim(), values['password'].trim())
+      await this.services.analyticsService.track('app_login', {user: {email: values['username'].trim()}, login_type: 'password'});
+      reloadPage();
+    } catch (error) {
+      message.destroy();
+      this.services.analyticsService.track('failed_app_login', {user: {email: values['username'].trim()}, login_type: 'password', ...getErrorPayload(error)});
+      console.log('Error', error);
+      message.error('Invalid login or password');
+    } finally {
+      this.setState({ loading: false });
+    }
   }
 
-  private googleLogin() {
-    this.services.userService
-      .initiateGoogleLogin()
-      .then(() => {
-        message.destroy();
-        this.setState({ loading: false });
-        reloadPage();
-      })
-      .catch((error) => {
-        message.destroy();
-        console.log('Google auth error', error);
-        message.error('Access denied: ' + error.message);
-      });
+  private async googleLogin() {
+    try {
+      const email = await this.services.userService.initiateGoogleLogin();
+      await this.services.analyticsService.track('app_login', {user: { email }, login_type: 'google'});
+      reloadPage();
+    } catch (error) {
+      message.destroy();
+      this.services.analyticsService.track('failed_app_login', {user: {email: null}, login_type: 'google', ...getErrorPayload(error)});
+      console.log('Google auth error', error);
+      message.error('Access denied: ' + error.message);
+    } finally {
+      this.setState({ loading: false });
+    }
   }
 
-  private githubLogin() {
-    this.services.userService
-      .initiateGithubLogin()
-      .then(() => {
-        message.destroy();
-        this.setState({ loading: false });
-        reloadPage();
-      })
-      .catch((error) => {
-        message.destroy();
-        console.log('Google auth error', error);
-        message.error('Access denied: ' + error.message);
-      });
+  private async githubLogin() {
+    try {
+      const email = await this.services.userService.initiateGithubLogin();
+      await this.services.analyticsService.track('app_login', {user: { email }, login_type: 'github'});
+      reloadPage();
+    } catch(error) {
+      message.destroy();
+      this.services.analyticsService.track('failed_app_login', {user: {email: null}, login_type: 'github', ...getErrorPayload(error)});
+      console.log('Github auth error', error);
+      message.error('Access denied: ' + error.message);
+    } finally {
+      this.setState({ loading: false });
+    }
   }
 
   private loginFormPart({ title }) {

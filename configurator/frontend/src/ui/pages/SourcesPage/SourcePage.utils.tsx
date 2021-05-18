@@ -1,6 +1,5 @@
 // @Libs
 import snakeCase from 'lodash/snakeCase';
-import { message } from 'antd';
 // @Types
 import { SourceConnector } from '@catalog/sources/types';
 // @Utils
@@ -10,8 +9,8 @@ import { closeableMessage, handleError } from '@./lib/components/components';
 import ApplicationServices from '@service/ApplicationServices';
 import Marshal from '@./lib/commons/marshalling';
 // @Components
-import { ListItemTitle } from '@atom/ListItemTitle';
-import { Tab } from '@molecule/TabsConfigurator';
+import { ListItemTitle } from '@component/ListItem/ListItemTitle';
+import { Tab } from '@component/Tabs/TabsConfigurator';
 import { validateTabForm } from '@util/forms/validateTabForm';
 import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
 import { SourceTabKey } from '@page/SourcesPage/partials/SourceEditor/SourceEditor';
