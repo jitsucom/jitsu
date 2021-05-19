@@ -18,34 +18,28 @@ cd jitsu
 For running `latest` version use:
 
 ```bash
-docker-compose pull && docker-compose up
+docker-compose up
 ```
 
 Visit `http://localhost:7000` after the build is complete.
 
 **Jitsu** provides demo docker-compose that contains:
 * jitsucom/server 
-* jitsucom/configurator and UI
-* redis
+* jitsucom/configurator (with User Interface)
+* Redis
 
 <Hint>
-    jitsucom/server and jitsucom/configurator <code inline="true">latest</code> images will be downloaded and started. 
+    <a href="https://hub.docker.com/r/jitsucom/server">@jitsucom/server</a> and <a href="https://hub.docker.com/r/jitsucom/configurator">@jitsucom/configurator</a> <code inline="true">latest</code> images will be downloaded and started.
     For building and running local version use: <code inline="true">docker-compose build && docker-compose up</code>. It takes up to 15 min.
-
 </Hint>
 
 ## Deploying Jitsu Server
 
-Jitsu server is a Docker image to simplify deployment on your IaaS or hardware of choice. We build images:
-
-* `jitsucom/server:latest` — contains the latest stable production release. This image is built from [master](https://github.com/jitsucom/jitsu/tree/master) branch
-* `jitsucom/server:beta` — contains the latest beta version built from [beta](https://github.com/jitsucom/jitsu/tree/beta) branch
-
-We recommend using beta for experiments. It's stable and well tested. It usually takes 2-4 months for the feature to graduate from beta to stable. This guide uses beta build. Just replace is with latest if you want to run a stable version
+Jitsu server is a Docker image to simplify deployment on your IaaS or hardware of choice. This image `latest` version is built from [master](https://github.com/jitsucom/jitsu/tree/master) branch.
 
 ### Getting started with Docker
 
-* Pull the image from Docker Hub with: `docker pull jitsucom/server:beta`
+* Pull the image from Docker Hub with: `docker pull jitsucom/server:latest`
 * Create an `<data_dir>`. It will be used as Docker mount directory for keeping Jitsu config and logs.
 * Create [your config file](/docs/configuration/) and save it in `<data_dir>/config/eventnative.yaml`.
 
@@ -58,7 +52,7 @@ We recommend using beta for experiments. It's stable and well tested. It usually
 ```javascript
 docker run -p <local_port>:8001 \
   -v /<data_dir>/:/home/eventnative/data/ \
-  jitsucom/server:beta
+  jitsucom/server:latest
 ```
 
 Please, refer `<data_dir>` by its absolute path. Use `$PWD` macro if necessary. Example:
@@ -66,7 +60,7 @@ Please, refer `<data_dir>` by its absolute path. Use `$PWD` macro if necessary. 
 ```javascript
 docker run --name jitsu-test -p 8000:8001 \
   -v $PWD/data/:/home/eventnative/data/ \
-  jitsucom/server:beta
+  jitsucom/server:latest
 ```
 
 Also, **Jitsu** supports passing config via `CONFIG_LOCATION` environment variable. The configuration might be one of the [described formats](/docs/deployment/configuration-source). For example, docker run with externalized [HTTP configuration source](/docs/deployment/configuration-source#http-source):
@@ -74,7 +68,7 @@ Also, **Jitsu** supports passing config via `CONFIG_LOCATION` environment variab
 ```javascript
 docker run --name jitsu-test -p 8000:8001 \n
   -e CONFIG_LOCATION='https://username:password@config-server.com?env=dev' \
-  jitsucom/server:beta
+  jitsucom/server:latest
 ```
 
 
