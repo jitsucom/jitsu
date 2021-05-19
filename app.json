@@ -19,12 +19,12 @@
     },
     "UI_AUTH_ACCESS_SECRET": {
       "required": true,
-      "description": "An JWT access secret for UI authorization flow (generating authorization JWT objects). You can find this value in Heroku App settings after start.",
+      "description": "JWT access secret for UI authorization flow (generating authorization JWT objects). You can find this value in Heroku App settings after start.",
       "generator": "secret"
     },
     "UI_AUTH_REFRESH_SECRET": {
       "required": true,
-      "description": "An JWT refresh secret for UI authorization flow (generating refreshing JTW objects). You can find this value in Heroku App settings after start.",
+      "description": "JWT refresh secret for UI authorization flow (generating refreshing JTW objects). You can find this value in Heroku App settings after start.",
       "generator": "secret"
     },
     "GEO_MAXMIND_PATH": {
