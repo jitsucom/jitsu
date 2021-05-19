@@ -118,13 +118,8 @@ func (ah *AuthorizationHandler) SignIn(c *gin.Context) {
 
 	td, err := ah.authService.SignIn(req.Email, req.Password)
 	if err != nil {
-		if err == authorization.ErrUserNotFound {
+		if err == authorization.ErrUserNotFound || err == authorization.ErrIncorrectPassword || err == authorization.ErrTokenSignature {
 			c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(err.Error(), nil))
-			return
-		}
-
-		if err == authorization.ErrIncorrectPassword {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 			return
 		}
 
@@ -305,8 +300,8 @@ func (ah *AuthorizationHandler) RefreshToken(c *gin.Context) {
 
 	td, err := ah.authService.Refresh(req.RefreshToken)
 	if err != nil {
-		if err == authorization.ErrUnknownToken {
-			c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(authorization.ErrUnknownToken.Error(), nil))
+		if err == authorization.ErrUnknownToken || err == authorization.ErrTokenSignature {
+			c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(err.Error(), nil))
 			return
 		}
 

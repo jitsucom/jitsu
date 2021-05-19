@@ -50,7 +50,7 @@ func NewRedisProvider(host, password, accessSecret, refreshSecret string, port i
 func (rp *RedisProvider) VerifyAccessToken(strToken string) (string, error) {
 	jwtToken, err := rp.jwtTokenManager.ParseToken(strToken, rp.jwtTokenManager.accessKeyFunc)
 	if err != nil {
-		if err == ErrExpiredToken {
+		if err == ErrExpiredToken || err == ErrTokenSignature {
 			return "", err
 		}
 
@@ -158,7 +158,7 @@ func (rp *RedisProvider) DeleteAllTokens(userID string) error {
 func (rp *RedisProvider) DeleteToken(strToken string) error {
 	jwtToken, err := rp.jwtTokenManager.ParseToken(strToken, rp.jwtTokenManager.accessKeyFunc)
 	if err != nil {
-		if err == ErrExpiredToken {
+		if err == ErrExpiredToken || err == ErrTokenSignature {
 			return err
 		}
 
@@ -190,7 +190,7 @@ func (rp *RedisProvider) CreateTokens(userID string) (*TokenDetails, error) {
 func (rp *RedisProvider) RefreshTokens(strRefreshToken string) (*TokenDetails, error) {
 	jwtRefreshToken, err := rp.jwtTokenManager.ParseToken(strRefreshToken, rp.jwtTokenManager.refreshKeyFunc)
 	if err != nil {
-		if err == ErrExpiredToken {
+		if err == ErrExpiredToken || err == ErrTokenSignature {
 			return nil, err
 		}
 

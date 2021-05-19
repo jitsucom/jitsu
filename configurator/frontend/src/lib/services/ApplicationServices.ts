@@ -8,7 +8,7 @@ import firebase from 'firebase';
 import Marshal from '../commons/marshalling';
 import { BackendUserService } from './backend';
 import { randomId } from '@util/numbers';
-import { concatenateURLs } from '@./lib/commons/utils';
+import { cleanAuthorizationLocalStorage, concatenateURLs, reloadPage } from '@./lib/commons/utils';
 import { getBackendApiBase } from '@./lib/commons/pathHelper';
 
 type AppEnvironmentType = 'development' | 'production';
@@ -608,6 +608,12 @@ export class JWTBackendClient implements BackendApiClient {
       responseStatus: response.status,
       responseObject: response.data
     });
+
+    //we should remove authorization and reload page
+    if (response.status == 401){
+      cleanAuthorizationLocalStorage()
+      reloadPage()
+    }
   }
 
   get(url: string, opts?: ApiRequestOptions): Promise<any> {
