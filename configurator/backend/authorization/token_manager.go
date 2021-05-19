@@ -64,6 +64,10 @@ func (jtm *JwtTokenManager) ParseToken(strToken string, keyFunc func(token *jwt.
 			if jwve.Errors == jwt.ValidationErrorExpired {
 				return nil, ErrExpiredToken
 			}
+
+			if jwve.Errors == jwt.ValidationErrorSignatureInvalid {
+				return nil, ErrTokenSignature
+			}
 		}
 
 		return nil, err

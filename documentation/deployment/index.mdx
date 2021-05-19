@@ -10,9 +10,7 @@ import {Hint} from "../../../components/documentationComponents";
 
 [**Jitsu**](https://github.com/jitsucom/jitsu) — is an open-source data collection platform. We built
 our platform incredibly easy to deploy and use. Below, we have several step-by-step guides outlining
-how to set up Jitsu on a variety of different environments  with the easiest being [**Docker deploy**](/docs/deployment/deploy-with-docker).
-
-<LargeLink title="Deploy Jitsu with Docker" href="/docs/deployment/deploy-with-docker" />
+how to set up Jitsu on a variety of different environments  with the easiest being [**Heroku deploy**](/docs/deployment/deploy-on-heroku) and [**Docker deploy**](/docs/deployment/deploy-with-docker).
 
 
 ## Jitsu Architecture
@@ -24,7 +22,7 @@ queueing, batching, task scheduling etc.
  * **Jitsu Configurator** (optional) (🐳 [@jitsucom/configurator](https://hub.docker.com/r/jitsucom/configurator)) — and optional UI for configuring Jitsu.
 Without UI configuration has to be done through [YAML file](https://jitsu.com/docs/configuration). You can try configuration UI at [cloud.jitsu.com](https://cloud.jitsu.com)
  * **Redis** (optional) — Redis is required if you have more than one node running Jitsu Server for redundancy (Redis provisions coordination service). Also, Redis is required
-if you have [Retrospective User Recognition](/docs/other-features/retrospective-user-recognition) enabled
+if you have [Retrospective User Recognition](/docs/other-features/retrospective-user-recognition) enabled.
 
 Docker Compose file provided with the source code (see [Docker Deployment](/docs/deployment/deploy-with-docker) for details) runs all 3 services.
 
