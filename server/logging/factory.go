@@ -85,6 +85,10 @@ func (f *Factory) CreateSQLQueryLogger(destinationName string) *QueryLogger {
 }
 
 func (f *Factory) CreateStreamingArchiveLogger(destinationName string) *AsyncLogger {
+	if f == nil {
+		return nil
+	}
+
 	return NewAsyncLogger(NewRollingWriter(&Config{
 		FileName:      "streaming-archive.dst=" + destinationName,
 		FileDir:       path.Join(f.logEventPath, ArchiveDir),

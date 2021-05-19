@@ -249,6 +249,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		fbAdapter := adapters.NewTestFacebookConversion(config.Facebook)
 
 		return fbAdapter.TestAccess()
+
 	case storages.WebHookType:
 		if err := config.WebHook.Validate(); err != nil {
 			return err
@@ -305,8 +306,8 @@ func TestProcessing(config *storages.DestinationConfig) error {
 	defer storage.Close()
 
 	event := map[string]interface{}{
-		"id":     randomValue,
-		"column": testName,
+		"id":    randomValue,
+		"field": testName,
 	}
 	events := []map[string]interface{}{
 		event,
