@@ -313,7 +313,7 @@ export const allSingerTaps: SingerTap[] = [
                     displayName: "Start Date",
                     id: "start_date",
                     type: isoUtcDateType,
-                    defaultValue: "2018-01-01T00:00:00Z",
+                    defaultValue: "2018-01-01T00:00:00.000Z",
                     required: true
                 },
                 {
