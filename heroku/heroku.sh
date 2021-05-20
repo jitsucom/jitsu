@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Start Jitsu Configurator process
-nohup /home/configurator/app/configurator -cfg=/home/configurator/data/config/configurator.yaml -cr=true &
+nohup /home/configurator/app/configurator -cfg=/home/configurator/data/config/configurator.yaml -cr=true -dhid=heroku &
 status=$?
 if [ $status -ne 0 ]; then
   echo "Failed to start Jitsu Configurator: $status"
