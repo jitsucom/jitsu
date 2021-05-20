@@ -70,7 +70,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 
 		chAdapters = append(chAdapters, adapter)
 		sqlAdapters = append(sqlAdapters, adapter)
-		chTableHelpers = append(chTableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse, config.streamMode, config.maxColumns))
+		chTableHelpers = append(chTableHelpers, NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToClickhouse, config.maxColumns))
 	}
 
 	ch := &ClickHouse{
@@ -165,7 +165,7 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 //check table schema
 //and store data into one table
 func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *TableHelper, fdata *schema.ProcessedFile, table *adapters.Table) error {
-	dbSchema, err := tableHelper.EnsureTable(ch.ID(), table)
+	dbSchema, err := tableHelper.EnsureTableWithoutCaching(ch.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -200,7 +200,7 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 
 		table := tableHelper.MapTableSchema(overriddenDataSchema)
 
-		dbSchema, err := tableHelper.EnsureTable(ch.ID(), table)
+		dbSchema, err := tableHelper.EnsureTableWithoutCaching(ch.ID(), table)
 		if err != nil {
 			return err
 		}
@@ -221,7 +221,7 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 			table.Name = overriddenDataSchema.TableName
 		}
 
-		dbSchema, err := tableHelper.EnsureTable(ch.ID(), table)
+		dbSchema, err := tableHelper.EnsureTableWithoutCaching(ch.ID(), table)
 		if err != nil {
 			return err
 		}

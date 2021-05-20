@@ -1,7 +1,7 @@
 {
   "name": "Jitsu",
   "description": "The easiest real-time data collection in the world. Please, read the guide before deploying: https://jitsu.com/docs/deployment/deploy-on-heroku",
-  "success_url": "/",
+  "success_url": "/configurator",
   "repository": "https://github.com/jitsucom/jitsu",
   "logo": "https://jitsu.com/img/jitsu-light.svg",
   "keywords": ["jitsu", "events", "pixel", "golang", "tracking"],
@@ -9,21 +9,23 @@
   "env": {
     "CONFIGURATOR_ADMIN_TOKEN": {
       "required": true,
-      "description": "A secret Jitsu Configurator Admin token for Jitsu Server -> Jitsu Configurator integration",
+      "description": "A secret Jitsu Configurator Admin token for Jitsu Server -> Jitsu Configurator integration. You can find this value in Heroku App settings after start.",
       "generator": "secret"
     },
     "SERVER_ADMIN_TOKEN": {
       "required": true,
-      "description": "A secret Jitsu Server Admin token for Jitsu Configurator -> Jitsu Server integration",
+      "description": "A secret Jitsu Server Admin token for Jitsu Configurator -> Jitsu Server integration. You can find this value in Heroku App settings after start.",
       "generator": "secret"
     },
     "UI_AUTH_ACCESS_SECRET": {
       "required": true,
-      "description": "An access secret for UI authorization flow. Please keep this secret for restarting Jitsu with the same UI login/password"
+      "description": "JWT access secret for UI authorization flow (generating authorization JWT objects). You can find this value in Heroku App settings after start.",
+      "generator": "secret"
     },
     "UI_AUTH_REFRESH_SECRET": {
       "required": true,
-      "description": "An refresh secret for UI authorization flow. Please keep this secret for restarting Jitsu with the same UI login/password"
+      "description": "JWT refresh secret for UI authorization flow (generating refreshing JTW objects). You can find this value in Heroku App settings after start.",
+      "generator": "secret"
     },
     "GEO_MAXMIND_PATH": {
       "description": "GEO data resolution (https://jitsu.com/docs/other-features/geo-data-resolution). HTTP URL to hosted maxmind DB file.",

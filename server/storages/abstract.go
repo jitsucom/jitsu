@@ -87,7 +87,7 @@ func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error)
 
 	dbSchemaFromObject := eventContext.Table
 
-	dbTable, err := tableHelper.EnsureTable(a.ID(), eventContext.Table)
+	dbTable, err := tableHelper.EnsureTableWithCaching(a.ID(), eventContext.Table)
 	if err != nil {
 		insertErr = err
 		return err
@@ -105,7 +105,7 @@ func (a *Abstract) Insert(eventContext *adapters.EventContext) (insertErr error)
 			return err
 		}
 
-		dbTable, err = tableHelper.EnsureTable(a.ID(), dbSchemaFromObject)
+		dbTable, err = tableHelper.EnsureTableWithCaching(a.ID(), dbSchemaFromObject)
 		if err != nil {
 			insertErr = err
 			return err

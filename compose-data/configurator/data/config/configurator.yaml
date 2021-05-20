@@ -18,5 +18,5 @@ auth:
   redis:
     host: redis
     port: 6379
-    access_secret: access
-    refresh_secret: refresh
+    access_secret: generate
+    refresh_secret: generate

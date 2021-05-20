@@ -32,7 +32,7 @@ Pass external configuration to **Jitsu** with or without basic auth:
 
 docker run -p <local_port>:8001 \
   -e CONFIG_LOCATION='https://username:password@config-server.com?env=prod' \
-  jitsucom/server:beta
+  jitsucom/server:latest
 ```
 
 <Hint>
@@ -50,5 +50,5 @@ Pass raw JSON payload to **Jitsu**:
 
 docker run -p <local_port>:8001 \
   -e CONFIG_LOCATION='{"server":{"name":"test_instance", "auth":"token1"}}' \
-  jitsucom/server:beta
+  jitsucom/server:latest
 ```

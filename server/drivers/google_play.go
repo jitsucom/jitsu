@@ -76,7 +76,7 @@ func init() {
 
 func NewGooglePlay(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
 	config := &GooglePlayConfig{}
-	err := unmarshalConfig(sourceConfig.Config, config)
+	err := UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}

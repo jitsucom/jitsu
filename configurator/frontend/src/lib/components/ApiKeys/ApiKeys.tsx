@@ -351,7 +351,7 @@ function KeyDocumentation({ token }: { token: Token }) {
     </div>
   );
 
-  const documentationDomain = selectedDomain || services.features.jitsuBaseUrl || "http://REPLACE_WITH_JITSU_DOMAIN";
+  const documentationDomain = selectedDomain || services.features.jitsuBaseUrl || "REPLACE_WITH_JITSU_DOMAIN";
   return (
     <Tabs
       className="api-keys-documentation-tabs"
