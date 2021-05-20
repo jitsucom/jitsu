@@ -61,7 +61,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, config.streamMode, 0)
+	tableHelper := NewTableHelper(gaAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0)
 
 	ga.gaAdapter = gaAdapter
 	ga.tableHelper = tableHelper

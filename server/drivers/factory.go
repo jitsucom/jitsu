@@ -186,7 +186,7 @@ func ParseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 			}
 
 			collectionObj := &Collection{}
-			if err := unmarshalConfig(collectionObjMap, collectionObj); err != nil {
+			if err := UnmarshalConfig(collectionObjMap, collectionObj); err != nil {
 				return nil, fmt.Errorf("error parsing collections: %v", err)
 			}
 
@@ -205,19 +205,9 @@ func ParseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 	return collections, nil
 }
 
-func getStringParameter(dict map[string]interface{}, parameterName string) string {
-	value, ok := dict[parameterName]
-	if !ok {
-		return ""
-	}
-	str, ok := value.(string)
-	if ok {
-		return str
-	}
-	return ""
-}
-
-func unmarshalConfig(config map[string]interface{}, object interface{}) error {
+//UnmarshalConfig serializes and deserializes config into the object
+//return error if occurred
+func UnmarshalConfig(config interface{}, object interface{}) error {
 	b, err := json.Marshal(config)
 	if err != nil {
 		return fmt.Errorf("error marshalling object: %v", err)
