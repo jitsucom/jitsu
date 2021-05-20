@@ -33,7 +33,7 @@ type Property struct {
 
 type OutputRepresentation struct {
 	State interface{}
-	//[tableName] - {}
+	//[streamName] - {}
 	Streams map[string]*StreamRepresentation
 }
 
@@ -100,12 +100,12 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 			}
 		case "RECORD":
 			records++
-			tableName, object, err := parseRecord(lineObject)
+			streamName, object, err := parseRecord(lineObject)
 			if err != nil {
 				return fmt.Errorf("Error parsing singer record line %s: %v", string(lineBytes), err)
 			}
 
-			outputPortion.Streams[tableName].Objects = append(outputPortion.Streams[tableName].Objects, object)
+			outputPortion.Streams[streamName].Objects = append(outputPortion.Streams[streamName].Objects, object)
 		default:
 			return fmt.Errorf("Unknown output line type: %s", objectType)
 		}
@@ -125,63 +125,6 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 	}
 
 	return nil
-}
-
-func ParseOutput(stdout io.ReadCloser) (*OutputRepresentation, error) {
-	outputRepresentation := &OutputRepresentation{
-		Streams: map[string]*StreamRepresentation{},
-	}
-
-	scanner := bufio.NewScanner(stdout)
-	buf := make([]byte, 0, 64*1024)
-	scanner.Buffer(buf, 1024*1024)
-	for scanner.Scan() {
-		lineBytes := scanner.Bytes()
-
-		lineObject := map[string]interface{}{}
-		err := json.Unmarshal(lineBytes, &lineObject)
-		if err != nil {
-			return nil, fmt.Errorf("Error unmarshalling singer output line %s into json: %v", string(lineBytes), err)
-		}
-
-		objectType, ok := lineObject["type"]
-		if !ok || objectType == "" {
-			return nil, fmt.Errorf("Error getting singer object 'type' field from: %s", string(lineBytes))
-		}
-
-		switch objectType {
-		case "SCHEMA":
-			streamRepresentation, err := parseSchema(lineBytes)
-			if err != nil {
-				return nil, fmt.Errorf("Error parsing singer schema %s: %v", string(lineBytes), err)
-			}
-
-			outputRepresentation.Streams[streamRepresentation.BatchHeader.TableName] = streamRepresentation
-		case "STATE":
-			state, ok := lineObject["value"]
-			if !ok {
-				return nil, fmt.Errorf("Error parsing singer state line %s: malformed state line 'value' doesn't exist", string(lineBytes))
-			}
-
-			outputRepresentation.State = state
-		case "RECORD":
-			tableName, object, err := parseRecord(lineObject)
-			if err != nil {
-				return nil, fmt.Errorf("Error parsing singer record line %s: %v", string(lineBytes), err)
-			}
-
-			outputRepresentation.Streams[tableName].Objects = append(outputRepresentation.Streams[tableName].Objects, object)
-		default:
-			return nil, fmt.Errorf("Unknown output line type: %s", objectType)
-		}
-	}
-
-	err := scanner.Err()
-	if err != nil {
-		return nil, err
-	}
-
-	return outputRepresentation, nil
 }
 
 func parseRecord(line map[string]interface{}) (string, map[string]interface{}, error) {
@@ -213,9 +156,9 @@ func parseSchema(schemaBytes []byte) (*StreamRepresentation, error) {
 	fields := schema.Fields{}
 	parseProperties("", sr.Schema.Properties, fields)
 
-	tableName := schema.Reformat(sr.Stream)
+	streamName := schema.Reformat(sr.Stream)
 	return &StreamRepresentation{
-		BatchHeader: &schema.BatchHeader{TableName: tableName, Fields: fields},
+		BatchHeader: &schema.BatchHeader{TableName: streamName, Fields: fields},
 		KeyFields:   sr.KeyProperties,
 	}, nil
 }

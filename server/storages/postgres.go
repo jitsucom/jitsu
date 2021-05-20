@@ -65,7 +65,7 @@ func NewPostgres(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres, config.streamMode, config.maxColumns)
+	tableHelper := NewTableHelper(adapter, config.monitorKeeper, config.pkFields, adapters.SchemaToPostgres, config.maxColumns)
 
 	p := &Postgres{
 		adapter:                       adapter,
@@ -143,7 +143,7 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 //and store data into one table
 func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
 	_, tableHelper := p.getAdapters()
-	dbSchema, err := tableHelper.EnsureTable(p.ID(), table)
+	dbSchema, err := tableHelper.EnsureTableWithoutCaching(p.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -179,7 +179,7 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 
 		table := tableHelper.MapTableSchema(overriddenDataSchema)
 
-		dbSchema, err := tableHelper.EnsureTable(p.ID(), table)
+		dbSchema, err := tableHelper.EnsureTableWithoutCaching(p.ID(), table)
 		if err != nil {
 			return err
 		}
@@ -199,7 +199,7 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 			table.Name = overriddenDataSchema.TableName
 		}
 
-		dbSchema, err := tableHelper.EnsureTable(p.ID(), table)
+		dbSchema, err := tableHelper.EnsureTableWithoutCaching(p.ID(), table)
 		if err != nil {
 			return err
 		}
