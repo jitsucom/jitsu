@@ -282,17 +282,24 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 		}
 	})
 
+	stdErrWriter := logging.NewStringWriter()
+
 	//writing process logs (singer writes process logs to stderr)
 	wg.Add(1)
 	safego.Run(func() {
 		defer wg.Done()
-		io.Copy(singer.Instance.LogWriter, stderr)
+		io.Copy(stdErrWriter, stderr)
 	})
 
 	wg.Wait()
 
 	err = syncCmd.Wait()
 	if err != nil {
+		errMsg := stdErrWriter.String()
+		if errMsg != "" {
+			return fmt.Errorf("%v:\n%s", err, errMsg)
+		}
+
 		return err
 	}
 
