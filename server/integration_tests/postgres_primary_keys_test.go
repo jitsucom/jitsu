@@ -50,7 +50,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	})
 	data := map[string]interface{}{"email": "test@domain.com", "name": "AnyName"}
 
-	ensuredWithMerge, err := tableHelperWithPk.EnsureTable("test", tableWithMerge, true)
+	ensuredWithMerge, err := tableHelperWithPk.EnsureTableWithCaching("test", tableWithMerge)
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
@@ -74,7 +74,7 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 		Fields:    schema.Fields{"email": schema.NewField(typing.STRING), "name": schema.NewField(typing.STRING)},
 	})
 
-	ensuredWithoutMerge, err := tableHelperWithoutPk.EnsureTable("test", table, true)
+	ensuredWithoutMerge, err := tableHelperWithoutPk.EnsureTableWithCaching("test", table)
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
