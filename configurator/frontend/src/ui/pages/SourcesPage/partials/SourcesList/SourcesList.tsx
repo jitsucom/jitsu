@@ -90,10 +90,25 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
                 withProgressBar({
                   estimatedMs: 1000,
                   callback: async() => {
-                    for (let i = 0; i < src.collections.length; i++) {
-                      await services.backendApiClient.post('/tasks', undefined, { proxy: true, urlParams: {
-                        source: `${services.activeProject.id}.${src.sourceId}`, collection: src.collections[i].name,
-                        project_id: services.activeProject.id }
+                    if (src.collections && src.collections.length > 0) {
+                      for (let i = 0; i < src.collections.length; i++) {
+                        await services.backendApiClient.post('/tasks', undefined, {
+                          proxy: true,
+                          urlParams: {
+                            source: `${services.activeProject.id}.${src.sourceId}`,
+                            collection: src.collections[i].name,
+                            project_id: services.activeProject.id }
+                        });
+                      }
+                    } else {
+                      //workaround for singer, it doesn't have collections, so we should pass
+                      //any value
+                      await services.backendApiClient.post('/tasks', undefined, {
+                        proxy: true,
+                        urlParams: {
+                          source: `${services.activeProject.id}.${src.sourceId}`,
+                          collection: 'bogus',
+                          project_id: services.activeProject.id }
                       });
                     }
                     history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId }));
