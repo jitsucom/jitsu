@@ -297,7 +297,33 @@ export const allSingerTaps: SingerTap[] = [
         displayName: "Intercom",
         tap: "tap-intercom",
         stable: true,
-        hasNativeEquivalent: false
+        hasNativeEquivalent: false,
+        parameters: customParameters("tap-intercom", {
+            customConfig: [
+                {
+                    displayName: "Intercom API Access Token",
+                    id: "access_token",
+                    type: stringType,
+                    required: true,
+                    documentation: <>
+                        Intercom API Access Token. <a href="https://developers.intercom.com/building-apps/docs/authentication-types#section-access-tokens">Read how to get it</a>
+                    </>
+                },
+                {
+                    displayName: "Start Date",
+                    id: "start_date",
+                    type: isoUtcDateType,
+                    defaultValue: "2018-01-01T00:00:00Z",
+                    required: true
+                },
+                {
+                    displayName: "User Agent",
+                    id: "user_agent",
+                    type: stringType,
+                    constant: "Jitsu Bot (https://jitsu.com)",
+                }
+            ]
+        })
     },
     {
         pic: logos.tap_invoiced,
