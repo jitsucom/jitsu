@@ -1,0 +1,36 @@
+@import './src/theme';
+@import './src/assets/mixins/custom-scrollbar';
+
+.input {
+  background-color: @primary-background;
+}
+
+.buttonContainer {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.events {
+  .custom-scrollbar();
+}
+
+.panel {
+  :global {
+    .ant-collapse-content-box {
+      padding: 0 !important;
+    }
+  }
+}
+
+.field {
+  flex-direction: column;
+}
+
+.resultHeader {
+  &::after {
+    content: ':';
+    position: relative;
+    top: -0.5px;
+    margin: 0 8px 0 2px;
+  }
+}
