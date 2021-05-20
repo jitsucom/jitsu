@@ -31,7 +31,7 @@ type TableHelper struct {
 //NewTableHelper returns configured TableHelper instance
 //Note: columnTypesMapping must be not empty (or fields will be ignored)
 func NewTableHelper(sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper, pkFields map[string]bool,
-	columnTypesMapping map[typing.DataType]string, streamMode bool, maxColumns int) *TableHelper {
+	columnTypesMapping map[typing.DataType]string, maxColumns int) *TableHelper {
 
 	return &TableHelper{
 		sqlAdapter:    sqlAdapter,
@@ -41,7 +41,6 @@ func NewTableHelper(sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper,
 		pkFields:           pkFields,
 		columnTypesMapping: columnTypesMapping,
 
-		streamMode: streamMode,
 		maxColumns: maxColumns,
 	}
 }
@@ -69,16 +68,28 @@ func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters
 	return table
 }
 
-//EnsureTable return DB table schema and err if occurred
+//EnsureTableWithCaching calls ensureTable with cacheTable = true
+//it is used in stream destinations (because we don't have time to select table schema, but there is retry on error)
+func (th *TableHelper) EnsureTableWithCaching(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
+	return th.ensureTable(destinationID, dataSchema, true)
+}
+
+//EnsureTableWithoutCaching calls ensureTable with cacheTable = true
+//it is used in batch destinations and syncStore (because we have time to select table schema)
+func (th *TableHelper) EnsureTableWithoutCaching(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
+	return th.ensureTable(destinationID, dataSchema, false)
+}
+
+//ensureTable returns DB table schema and err if occurred
 //if table doesn't exist - create a new one and increment version
 //if exists - calculate diff, patch existing one with diff and increment version
-//return actual db table schema (with actual db types)
-func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
+//returns actual db table schema (with actual db types)
+func (th *TableHelper) ensureTable(destinationID string, dataSchema *adapters.Table, cacheTable bool) (*adapters.Table, error) {
 	var dbSchema *adapters.Table
 	var err error
 
-	if th.streamMode {
-		dbSchema, err = th.getSavedTableSchema(destinationID, dataSchema)
+	if cacheTable {
+		dbSchema, err = th.getCachedTableSchema(destinationID, dataSchema)
 	} else {
 		dbSchema, err = th.getOrCreate(destinationID, dataSchema)
 	}
@@ -168,7 +179,7 @@ func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Ta
 	return dbSchema, nil
 }
 
-func (th *TableHelper) getSavedTableSchema(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
+func (th *TableHelper) getCachedTableSchema(destinationName string, dataSchema *adapters.Table) (*adapters.Table, error) {
 	th.RLock()
 	dbSchema, ok := th.tables[dataSchema.Name]
 	th.RUnlock()

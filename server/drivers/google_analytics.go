@@ -79,7 +79,7 @@ func init() {
 
 func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
 	config := &GoogleAnalyticsConfig{}
-	err := unmarshalConfig(sourceConfig.Config, config)
+	err := UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +87,7 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collect
 		return nil, err
 	}
 	var reportFieldsConfig GAReportFieldsConfig
-	err = unmarshalConfig(collection.Parameters, &reportFieldsConfig)
+	err = UnmarshalConfig(collection.Parameters, &reportFieldsConfig)
 	if err != nil {
 		return nil, err
 	}

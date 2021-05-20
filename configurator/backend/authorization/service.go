@@ -24,6 +24,7 @@ var ErrOldPasswordIncorrect = errors.New("Old password is incorrect")
 var ErrResetIDNotFound = errors.New("Reset id wasn't found")
 var ErrIncorrectPassword = errors.New("Incorrect password")
 var ErrExpiredToken = errors.New("Expired token")
+var ErrTokenSignature = errors.New("Token signature is invalid")
 var ErrUnknownToken = errors.New("Unknown token")
 
 type Service struct {
@@ -59,9 +60,19 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 			return nil, errors.New("auth.redis.access_secret is required")
 		}
 
+		if accessSecret == "generate" {
+			accessSecret = uuid.NewV4().String()
+			logging.Infof("'auth.redis.access_secret' has been generated: %q. For keeping UI authorization sessions between application restarts - replace 'auth.redis.access_secret' in configurator.yaml with any random string or uuid.", accessSecret)
+		}
+
 		refreshSecret := vp.GetString("auth.redis.refresh_secret")
 		if refreshSecret == "" {
 			return nil, errors.New("auth.redis.refresh_secret is required")
+		}
+
+		if refreshSecret == "generate" {
+			refreshSecret = uuid.NewV4().String()
+			logging.Infof("'auth.redis.refresh_secret' has been generated: %q. For keeping UI authorization sessions between application restarts - replace 'auth.redis.refresh_secret' in configurator.yaml with any random string or uuid.", refreshSecret)
 		}
 
 		authProvider, err = NewRedisProvider(host, redisPassword, accessSecret, refreshSecret, port)
@@ -75,7 +86,7 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 	return &Service{authProvider: authProvider, configurationsStorage: storage}, nil
 }
 
-//Authenticate verify acess token and return user id
+//Authenticate verify access token and return user id
 func (s *Service) Authenticate(token string) (string, error) {
 	userID, err := s.authProvider.VerifyAccessToken(token)
 	if err != nil {

@@ -1,5 +1,6 @@
 /* eslint-disable */
 import { message } from 'antd';
+import {LS_ACCESS_KEY, LS_REFRESH_KEY} from "@service/backend";
 
 export function concatenateURLs(baseUrl: string, url: string) {
   let base = baseUrl.endsWith('/') ? baseUrl.substr(0, baseUrl.length - 1) : baseUrl;
@@ -59,6 +60,14 @@ export function firstToLower(string: string) {
  */
 export function reloadPage() {
   location.reload();
+}
+
+/**
+ * Clean authorization tokens from local storage (without ApplicationServices context)
+ */
+export function cleanAuthorizationLocalStorage(){
+  localStorage.removeItem(LS_ACCESS_KEY);
+  localStorage.removeItem(LS_REFRESH_KEY);
 }
 
 type INumberFormatOpts = {};

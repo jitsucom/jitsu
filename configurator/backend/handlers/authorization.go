@@ -118,17 +118,7 @@ func (ah *AuthorizationHandler) SignIn(c *gin.Context) {
 
 	td, err := ah.authService.SignIn(req.Email, req.Password)
 	if err != nil {
-		if err == authorization.ErrUserNotFound {
-			c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(err.Error(), nil))
-			return
-		}
-
-		if err == authorization.ErrIncorrectPassword {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -151,12 +141,7 @@ func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 
 	td, err := ah.authService.SignUp(req.Email, req.Password)
 	if err != nil {
-		if err == authorization.ErrUserExists {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -196,12 +181,7 @@ func (ah *AuthorizationHandler) SignUp(c *gin.Context) {
 
 	td, err := ah.authService.SignUp(req.Email, req.Password)
 	if err != nil {
-		if err == authorization.ErrUserExists {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -213,7 +193,7 @@ func (ah *AuthorizationHandler) SignOut(c *gin.Context) {
 
 	err := ah.authService.SignOut(token)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -284,7 +264,7 @@ func (ah *AuthorizationHandler) ChangePassword(c *gin.Context) {
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -305,12 +285,7 @@ func (ah *AuthorizationHandler) RefreshToken(c *gin.Context) {
 
 	td, err := ah.authService.Refresh(req.RefreshToken)
 	if err != nil {
-		if err == authorization.ErrUnknownToken {
-			c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(authorization.ErrUnknownToken.Error(), nil))
-			return
-		}
-
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(err.Error(), nil))
 		return
 	}
 

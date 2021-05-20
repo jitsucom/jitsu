@@ -5,9 +5,10 @@ import 'firebase/firestore';
 import Marshal from '../commons/marshalling';
 import { BackendApiClient, LoginFeatures, ServerStorage, UserLoginStatus, UserService } from './ApplicationServices';
 import { randomId } from '@util/numbers';
+import { cleanAuthorizationLocalStorage } from "@./lib/commons/utils";
 
-const LS_ACCESS_KEY = 'en_access';
-const LS_REFRESH_KEY = 'en_refresh';
+export const LS_ACCESS_KEY = 'en_access';
+export const LS_REFRESH_KEY = 'en_refresh';
 
 export class BackendUserService implements UserService {
   private user?: User;
@@ -174,9 +175,12 @@ export class BackendUserService implements UserService {
   }
 
   removeAuth(callback: () => void) {
-    this.backendApi.post('/users/signout', {}).then(callback).catch(callback);
-    localStorage.removeItem(LS_ACCESS_KEY);
-    localStorage.removeItem(LS_REFRESH_KEY);
+    let cleaningCallback = () => {
+      cleanAuthorizationLocalStorage()
+      callback();
+    }
+
+    this.backendApi.post('/users/signout', {}).then(cleaningCallback).catch(cleaningCallback);
   }
 
   getUser(): User {

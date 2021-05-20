@@ -77,7 +77,7 @@ func init() {
 //NewFirebase returns configured Firebase driver instance
 func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
 	config := &FirebaseConfig{}
-	if err := unmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 
@@ -93,7 +93,7 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 	//check firestore collection Key
 	if collection.Type == FirestoreCollection {
 		parameters := &FirestoreParameters{}
-		if err := unmarshalConfig(collection.Parameters, parameters); err != nil {
+		if err := UnmarshalConfig(collection.Parameters, parameters); err != nil {
 			return nil, err
 		}
 

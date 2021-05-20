@@ -86,7 +86,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.streamMode, config.maxColumns)
+	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.maxColumns)
 
 	snowflake := &Snowflake{
 		stageAdapter:         stageAdapter,
@@ -199,7 +199,7 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 //and store data into one table via stage (google cloud storage or s3)
 func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
 	_, tableHelper := s.getAdapters()
-	dbTable, err := tableHelper.EnsureTable(s.ID(), table)
+	dbTable, err := tableHelper.EnsureTableWithoutCaching(s.ID(), table)
 	if err != nil {
 		return err
 	}

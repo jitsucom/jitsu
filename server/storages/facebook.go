@@ -62,7 +62,7 @@ func NewFacebook(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, config.streamMode, 0)
+	tableHelper := NewTableHelper(fbAdapter, config.monitorKeeper, config.pkFields, adapters.DefaultSchemaTypeMappings, 0)
 
 	fb.fbAdapter = fbAdapter
 	fb.tableHelper = tableHelper

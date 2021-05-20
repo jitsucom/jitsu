@@ -25,23 +25,34 @@ type ResultSaver struct {
 	taskLogger   *TaskLogger
 	destinations []storages.Storage
 	metaStorage  meta.Storage
+	//mapping stream name -> table name
+	streamTableNames map[string]string
 }
 
 //NewResultSaver returns configured Singer ResultSaver instance
-func NewResultSaver(task *meta.Task, tap string, taskLogger *TaskLogger, destinations []storages.Storage, metaStorage meta.Storage) *ResultSaver {
+func NewResultSaver(task *meta.Task, tap string, taskLogger *TaskLogger, destinations []storages.Storage, metaStorage meta.Storage,
+	streamTableNames map[string]string) *ResultSaver {
 	return &ResultSaver{
-		task:         task,
-		tap:          tap,
-		taskLogger:   taskLogger,
-		destinations: destinations,
-		metaStorage:  metaStorage,
+		task:             task,
+		tap:              tap,
+		taskLogger:       taskLogger,
+		destinations:     destinations,
+		metaStorage:      metaStorage,
+		streamTableNames: streamTableNames,
 	}
 }
 
 //Consume consumes result batch and writes it to destinations and saves Singer State
 func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) error {
-	for tableName, stream := range representation.Streams {
-		rs.taskLogger.INFO("Table [%s] key fields [%s] objects [%d]", tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
+	for streamName, stream := range representation.Streams {
+		tableName, ok := rs.streamTableNames[streamName]
+		if !ok {
+			//put as sourceID + stream name if mapping doesn't exist
+			tableName = rs.task.Source + "_" + streamName
+		}
+		stream.BatchHeader.TableName = tableName
+
+		rs.taskLogger.INFO("Stream [%s] Table name [%s] key fields [%s] objects [%d]", streamName, tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 
 		//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
 		uniqueIDField := rs.destinations[0].GetUniqueIDField()
