@@ -10,7 +10,7 @@ import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import './EventsSteam.less';
 import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
 
-type Event = {
+export type Event = {
   time: Moment;
   data: any;
 };
@@ -19,11 +19,17 @@ type State = {
   events?: Event[];
 };
 
-export default class EventsStream extends LoadableComponent<{}, State> {
+interface Props {
+  withTop?: boolean;
+  handleEventClick?: (event: Event) => (e: React.SyntheticEvent) => void;
+  dataLoadCb?: (count: number) => void;
+}
+
+export default class EventsStream extends LoadableComponent<Props, State> {
   private readonly services: ApplicationServices;
   private timeInUTC: boolean;
 
-  constructor(props: any, context: any) {
+  constructor(props: Props, context: any) {
     super(props, context);
     this.timeInUTC = withDefaultVal(undefined, true);
     this.services = ApplicationServices.get();
@@ -34,12 +40,20 @@ export default class EventsStream extends LoadableComponent<{}, State> {
     await super.componentDidMount();
   }
 
+  componentDidUpdate(prevProps: Readonly<Props>, prevState: Readonly<State>, snapshot?: any) {
+    if (this.state.events?.length !== prevState.events?.length && this.props.dataLoadCb) {
+      this.props.dataLoadCb(this.state.events.length);
+    }
+  }
+
   eventHeader(event: Event) {
+    const { handleEventClick = () => null } = this.props;
+
     return (
-      <>
+      <span onClick={handleEventClick(event)}>
         <span className="events-stream-event-time">{event.time.utc().format()}</span>
         <span className="events-stream-event-preview">{JSON.stringify(event.data)}</span>
-      </>
+      </span>
     );
   }
 
@@ -52,6 +66,8 @@ export default class EventsStream extends LoadableComponent<{}, State> {
   }
 
   protected renderReady(): React.ReactNode {
+    const { withTop = true } = this.props;
+
     let top = (
       <div className="status-and-events-panel">
         <NavLink to="/dahsboard" className="status-and-events-panel-main">
@@ -70,14 +86,14 @@ export default class EventsStream extends LoadableComponent<{}, State> {
     if (!this.state.events || this.state.events.length == 0) {
       return (
         <>
-          {top}
+          {withTop && top}
           <Align horizontal="center">No Data</Align>
         </>
       );
     }
     return (
       <>
-        {top}
+        {withTop && top}
         <Collapse
           className="events-stream-events"
           bordered={false}
@@ -86,7 +102,7 @@ export default class EventsStream extends LoadableComponent<{}, State> {
           {this.state.events.map((event: Event) => {
             return (
               <Collapse.Panel className="events-stream-panel" header={this.eventHeader(event)} key={Math.random()}>
-                <p>{this.eventContent(event)}</p>
+                <span>{this.eventContent(event)}</span>
               </Collapse.Panel>
             );
           })}
@@ -97,7 +113,7 @@ export default class EventsStream extends LoadableComponent<{}, State> {
 
   protected async load(): Promise<State> {
     let events: Event[] = (
-      await this.services.backendApiClient.get(`/events/cache?project_id=${this.services.activeProject.id}&limit=100`, {proxy: true })
+      await this.services.backendApiClient.get(`/events/cache?project_id=${this.services.activeProject.id}&limit=100000`, {proxy: true })
     )['events'].map((rawEvent) => {
       return { time: moment(rawEvent['original']['_timestamp']), data: rawEvent };
     });

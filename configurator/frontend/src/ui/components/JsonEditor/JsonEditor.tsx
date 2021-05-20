@@ -24,10 +24,12 @@ monacoEditor.editor.defineTheme('own-theme', {
 
 interface Props {
   handleChange: (value: string) => void;
-  initialValue: object | string;
+  initialValue?: object | string;
+  height?: number;
+  monacoRef?: { current: MonacoEditor };
 }
 
-const JsonEditor = ({ handleChange: handleChangeProp, initialValue }: Props) => {
+const JsonEditor = ({ handleChange: handleChangeProp, initialValue, height = 300, monacoRef }: Props) => {
   const value = !initialValue
     ? ''
     : typeof initialValue === 'string'
@@ -38,7 +40,8 @@ const JsonEditor = ({ handleChange: handleChangeProp, initialValue }: Props) => 
 
   return (
     <MonacoEditor
-      height="300"
+      ref={monacoRef || null}
+      height={height}
       language="json"
       theme="own-theme"
       onChange={handleChange}
