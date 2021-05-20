@@ -66,7 +66,7 @@ func init() {
 //NewRedis returns configured Redis driver instance
 func NewRedis(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
 	config := &RedisConfig{}
-	err := unmarshalConfig(sourceConfig.Config, config)
+	err := UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -75,7 +75,7 @@ func NewRedis(ctx context.Context, sourceConfig *SourceConfig, collection *Colle
 	}
 
 	parameters := &RedisParameters{}
-	if err := unmarshalConfig(collection.Parameters, parameters); err != nil {
+	if err := UnmarshalConfig(collection.Parameters, parameters); err != nil {
 		return nil, err
 	}
 	if err := parameters.Validate(); err != nil {

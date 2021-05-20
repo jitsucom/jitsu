@@ -69,14 +69,14 @@ func (fmc *FacebookMarketingConfig) Validate() error {
 
 func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
 	config := &FacebookMarketingConfig{}
-	if err := unmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	reportConfig := &FacebookReportConfig{}
-	if err := unmarshalConfig(collection.Parameters, reportConfig); err != nil {
+	if err := UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
 		return nil, err
 	}
 	if reportConfig.Level == "" {

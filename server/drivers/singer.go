@@ -24,14 +24,29 @@ const (
 
 var errNotReady = errors.New("Singer driver isn't ready yet. Tap is being installed..")
 
-type SingerConfig struct {
-	Tap          string      `mapstructure:"tap" json:"tap,omitempty" yaml:"tap,omitempty"`
-	Config       interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
-	Catalog      interface{} `mapstructure:"catalog" json:"catalog,omitempty" yaml:"catalog,omitempty"`
-	Properties   interface{} `mapstructure:"properties" json:"properties,omitempty" yaml:"properties,omitempty"`
-	InitialState interface{} `mapstructure:"initial_state" json:"initial_state,omitempty" yaml:"initial_state,omitempty"`
+//SingerCatalog is a dto for Singer catalog serialization
+type SingerCatalog struct {
+	Streams []SingerStreamCatalog `json:"streams,omitempty"`
 }
 
+//SingerStreamCatalog is a dto for Singer catalog Stream object serialization
+type SingerStreamCatalog struct {
+	Stream               string `json:"stream,omitempty"`
+	TapStreamID          string `json:"tap_stream_id,omitempty"`
+	DestinationTableName string `json:"destination_table_name,omitempty"`
+}
+
+//SingerConfig is a dto for Singer configuration serialization
+type SingerConfig struct {
+	Tap              string            `mapstructure:"tap" json:"tap,omitempty" yaml:"tap,omitempty"`
+	Config           interface{}       `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
+	Catalog          interface{}       `mapstructure:"catalog" json:"catalog,omitempty" yaml:"catalog,omitempty"`
+	Properties       interface{}       `mapstructure:"properties" json:"properties,omitempty" yaml:"properties,omitempty"`
+	InitialState     interface{}       `mapstructure:"initial_state" json:"initial_state,omitempty" yaml:"initial_state,omitempty"`
+	StreamTableNames map[string]string `mapstructure:"stream_table_names" json:"stream_table_names,omitempty" yaml:"stream_table_names,omitempty"`
+}
+
+//Validate returns err if configuration is invalid
 func (sc *SingerConfig) Validate() error {
 	if sc == nil {
 		return errors.New("Singer config is required")
@@ -43,6 +58,10 @@ func (sc *SingerConfig) Validate() error {
 
 	if sc.Config == nil {
 		return errors.New("Singer config is required")
+	}
+
+	if sc.StreamTableNames == nil {
+		sc.StreamTableNames = map[string]string{}
 	}
 
 	return nil
@@ -60,6 +79,8 @@ type Singer struct {
 	propertiesPath string
 	statePath      string
 
+	streamTableNames map[string]string
+
 	closed bool
 }
 
@@ -75,7 +96,7 @@ func init() {
 //3. in another goroutine: update pip, install singer tap
 func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
 	config := &SingerConfig{}
-	err := unmarshalConfig(sourceConfig.Config, config)
+	err := UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -104,6 +125,23 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 		return nil, fmt.Errorf("Error parsing singer catalog [%v]: %v", config.Catalog, err)
 	}
 
+	// ** Table names mapping **
+	tableNameMappings := config.StreamTableNames
+	//extract table names mapping from catalog.json
+	tableNameMappingsFromCatalog, err := extractTableNamesMapping(catalogPath)
+	if err != nil {
+		logging.Errorf("[%s] Error parsing destination table names from Singer catalog.json: %v", sourceConfig.SourceID, err)
+	}
+	//override configuration
+	for stream, tableName := range tableNameMappingsFromCatalog {
+		tableNameMappings[stream] = tableName
+	}
+
+	if len(tableNameMappings) > 0 {
+		b, _ := json.MarshalIndent(tableNameMappings, "", "    ")
+		logging.Infof("[%s] configured Singer stream - table names mapping: %s", sourceConfig.SourceID, string(b))
+	}
+
 	//parse singer properties as file path
 	propertiesPath, err := parseJSONAsFile(path.Join(pathToConfigs, "properties.json"), config.Properties)
 	if err != nil {
@@ -117,14 +155,15 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 	}
 
 	s := &Singer{
-		ctx:            ctx,
-		commands:       map[string]*exec.Cmd{},
-		sourceID:       sourceConfig.SourceID,
-		tap:            config.Tap,
-		configPath:     configPath,
-		catalogPath:    catalogPath,
-		propertiesPath: propertiesPath,
-		statePath:      statePath,
+		ctx:              ctx,
+		commands:         map[string]*exec.Cmd{},
+		sourceID:         sourceConfig.SourceID,
+		tap:              config.Tap,
+		configPath:       configPath,
+		catalogPath:      catalogPath,
+		propertiesPath:   propertiesPath,
+		statePath:        statePath,
+		streamTableNames: tableNameMappings,
 	}
 
 	singer.Instance.EnsureTap(config.Tap)
@@ -304,6 +343,15 @@ func (s *Singer) Close() (multiErr error) {
 	return multiErr
 }
 
+func (s *Singer) GetStreamTableNameMapping() map[string]string {
+	result := map[string]string{}
+	for name, value := range s.streamTableNames {
+		result[name] = value
+	}
+
+	return result
+}
+
 //parse value and write it to a json file
 //return path to created json file or return value if it is already path to json file
 //or empty string if value is nil
@@ -332,4 +380,34 @@ func parseJSONAsFile(newPath string, value interface{}) (string, error) {
 	default:
 		return "", errors.New("Unknown type. Value must be path to json file or raw json")
 	}
+}
+
+func extractTableNamesMapping(catalogPath string) (map[string]string, error) {
+	catalogBytes, err := ioutil.ReadFile(catalogPath)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading catalog file: %v", err)
+	}
+
+	catalog := &SingerCatalog{}
+	err = json.Unmarshal(catalogBytes, catalog)
+	if err != nil {
+		return nil, err
+	}
+
+	streamTableNamesMapping := map[string]string{}
+
+	for _, stream := range catalog.Streams {
+		if stream.DestinationTableName != "" {
+			//add mapping stream
+			if stream.Stream != "" {
+				streamTableNamesMapping[stream.Stream] = stream.DestinationTableName
+			}
+			//add mapping tap_stream_id
+			if stream.TapStreamID != "" {
+				streamTableNamesMapping[stream.TapStreamID] = stream.DestinationTableName
+			}
+		}
+	}
+
+	return streamTableNamesMapping, nil
 }

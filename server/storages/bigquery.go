@@ -75,7 +75,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString, config.streamMode, config.maxColumns)
+	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString, config.maxColumns)
 
 	bq := &BigQuery{
 		gcsAdapter:           gcsAdapter,
@@ -153,7 +153,7 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 //and store data into one table via google cloud storage
 func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
 	_, tableHelper := bq.getAdapters()
-	dbTable, err := tableHelper.EnsureTable(bq.ID(), table)
+	dbTable, err := tableHelper.EnsureTableWithoutCaching(bq.ID(), table)
 	if err != nil {
 		return err
 	}

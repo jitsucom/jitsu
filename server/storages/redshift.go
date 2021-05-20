@@ -75,7 +75,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.streamMode, config.maxColumns)
+	tableHelper := NewTableHelper(redshiftAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToRedshift, config.maxColumns)
 
 	ar := &AwsRedshift{
 		s3Adapter:                     s3Adapter,
@@ -154,7 +154,7 @@ func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, 
 //and store data into one table via s3
 func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
 	_, tableHelper := ar.getAdapters()
-	dbTable, err := tableHelper.EnsureTable(ar.ID(), table)
+	dbTable, err := tableHelper.EnsureTableWithoutCaching(ar.ID(), table)
 	if err != nil {
 		return err
 	}
@@ -190,7 +190,7 @@ func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 
 	table := tableHelper.MapTableSchema(batchHeader)
 
-	dbSchema, err := tableHelper.EnsureTable(ar.ID(), table)
+	dbSchema, err := tableHelper.EnsureTableWithoutCaching(ar.ID(), table)
 	if err != nil {
 		return err
 	}
