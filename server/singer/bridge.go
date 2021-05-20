@@ -118,6 +118,7 @@ func (b *Bridge) EnsureTap(tap string) {
 
 //ExecCmd executes command with args and uses stdOutWriter and stdErrWriter to pipe the result
 func (b *Bridge) ExecCmd(cmd string, stdOutWriter, stdErrWriter io.Writer, args ...string) error {
+	logging.Debugf("Running Singer command: %s with args [%s]", cmd, strings.Join(args, ", "))
 	execCmd := exec.Command(cmd, args...)
 
 	stdout, _ := execCmd.StdoutPipe()

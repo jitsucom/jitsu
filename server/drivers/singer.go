@@ -311,13 +311,9 @@ func (s *Singer) TestConnection() error {
 	command := path.Join(singer.Instance.VenvDir, s.tap, "bin", s.tap)
 
 	err := singer.Instance.ExecCmd(command, outWriter, errWriter, "-c", s.configPath, "--discover")
-	errStr := errWriter.String()
+	logging.Debugf("Singer command %s with args [-c %s --discover] stderr: %s", command, s.configPath, errWriter.String())
 	if err != nil {
-		return fmt.Errorf("Error singer --discover: %v. %s", err, errStr)
-	}
-
-	if errStr != "" {
-		return fmt.Errorf("Error singer --dicsover: %s", errStr)
+		return fmt.Errorf("Error singer --discover: %v. %s", err, errWriter.String())
 	}
 
 	return nil
