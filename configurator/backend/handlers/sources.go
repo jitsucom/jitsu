@@ -129,22 +129,68 @@ func mapSourceConfig(source *entities.Source, destinationIDs []string) (endriver
 		Schedule:     source.Schedule,
 	}
 
-	collections, err := endrivers.ParseCollections(&enSource)
-	if err != nil {
-		return endrivers.SourceConfig{}, err
-	}
-
-	for _, col := range collections {
-		if col.TableName == "" {
-			col.TableName = source.SourceID + "_" + col.Name
+	if source.SourceType == endrivers.SingerType {
+		if err := enrichWithSingerTableNamesMapping(&enSource); err != nil {
+			return endrivers.SourceConfig{}, err
 		}
-	}
+	} else {
+		//process collections if not Singer
+		collections, err := endrivers.ParseCollections(&enSource)
+		if err != nil {
+			return endrivers.SourceConfig{}, err
+		}
 
-	var collectionsInterface []interface{}
-	for _, col := range collections {
-		collectionsInterface = append(collectionsInterface, col)
+		//enrich with table names = source (without project + collection name)
+		for _, col := range collections {
+			if col.TableName == "" {
+				col.TableName = source.SourceID + "_" + col.Name
+			}
+		}
+
+		var collectionsInterface []interface{}
+		for _, col := range collections {
+			collectionsInterface = append(collectionsInterface, col)
+		}
+		enSource.Collections = collectionsInterface
 	}
-	enSource.Collections = collectionsInterface
 
 	return enSource, nil
+}
+
+//enrichWithSingerTableNamesMapping enriches with table names = source (without project + singer stream)
+// - gets stream names from JSON
+// - puts it with sourceID prefix into mapping map
+func enrichWithSingerTableNamesMapping(enSource *endrivers.SourceConfig) error {
+	config := &endrivers.SingerConfig{}
+	if err := endrivers.UnmarshalConfig(enSource.Config, config); err != nil {
+		return err
+	}
+
+	var catalogBytes []byte
+	switch config.Catalog.(type) {
+	case string:
+		catalogBytes = []byte(config.Catalog.(string))
+	default:
+		catalogBytes, _ = json.Marshal(config.Catalog)
+	}
+
+	catalog := &endrivers.SingerCatalog{}
+	if err := json.Unmarshal(catalogBytes, catalog); err != nil {
+		return err
+	}
+
+	streamNameTableNameMapping := map[string]string{}
+	for _, stream := range catalog.Streams {
+		streamNameTableNameMapping[stream.Stream] = enSource.SourceID + "_" + stream.Stream
+		streamNameTableNameMapping[stream.TapStreamID] = enSource.SourceID + "_" + stream.TapStreamID
+	}
+
+	config.StreamTableNames = streamNameTableNameMapping
+	serializedConfig := map[string]interface{}{}
+	if err := endrivers.UnmarshalConfig(config, &serializedConfig); err != nil {
+		return err
+	}
+
+	enSource.Config = serializedConfig
+	return nil
 }

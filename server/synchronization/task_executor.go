@@ -301,7 +301,7 @@ func (te *TaskExecutor) syncSinger(task *meta.Task, taskLogger *TaskLogger, sing
 		taskLogger.INFO("Running synchronization")
 	}
 
-	rs := NewResultSaver(task, singerDriver.GetTap(), taskLogger, destinationStorages, te.metaStorage)
+	rs := NewResultSaver(task, singerDriver.GetTap(), taskLogger, destinationStorages, te.metaStorage, singerDriver.GetStreamTableNameMapping())
 
 	err = singerDriver.Load(singerState, taskLogger, rs)
 	if err != nil {
