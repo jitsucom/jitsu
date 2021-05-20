@@ -1,11 +1,12 @@
 // @Libs
-import React, { useCallback } from 'react';
-import { Col, Form, Input, Row, Select, Switch } from 'antd';
+import React, { useCallback, useState } from 'react';
+import { Col, Form, Input, Modal, Row, Select, Switch } from 'antd';
 import debounce from 'lodash/debounce';
 import get from 'lodash/get';
 import cn from 'classnames';
 // @Components
 import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
+import { CodeDebugger } from '@component/CodeDebugger/CodeDebugger';
 import { EditableList } from '@./lib/components/EditableList/EditableList';
 import { CenteredSpin } from '@./lib/components/components';
 // @Types
@@ -19,8 +20,12 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
 import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
 import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
+import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
+// @Serviecs
+import ApplicationServices from '@service/ApplicationServices';
+import Marshal from '@./lib/commons/marshalling';
 
 const JsonEditor = React.lazy(() => import('@component/JsonEditor/JsonEditor'));
 
@@ -32,7 +37,9 @@ export interface Props {
   handleTouchAnyField: VoidFunc;
 }
 
-const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePrefix, handleTouchAnyField }: Props) => {
+const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleTouchAnyField }: Props) => {
+  const [tableNameModal, switchTableNameModal] = useState<boolean>(false);
+
   const handleTouchField = debounce(handleTouchAnyField, 1000);
 
   const forceUpdate = useForceUpdate();
@@ -55,7 +62,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
     handleTouchField();
   };
 
-  const getFieldComponent = useCallback((type: ParameterType<any>, id: string, additionalProps?: AnyObject) => {
+  const getFieldComponent = useCallback((type: ParameterType<any>, id: string) => {
     const fieldsValue = form.getFieldsValue();
 
     switch (type?.typeName) {
@@ -79,7 +86,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
       </Select>;
 
     case 'array/string':
-      return <EditableList {...additionalProps} />;
+      return <EditableList />;
 
     case 'json':
       return <React.Suspense fallback={<CenteredSpin/>}>
@@ -91,7 +98,12 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
 
     case 'string':
     default:
-      return <Input autoComplete="off" />;
+      return <Input
+        autoComplete="off"
+        suffix={
+          id === '_formData.tableName' ? <CaretRightOutlined onClick={() => switchTableNameModal(true)} /> : undefined
+        }
+      />;
     }
   }, [handleJsonChange, form, handleChangeSwitch, handleChangeIntInput, forceUpdate]);
 
@@ -117,8 +129,34 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
       : calcValue;
   }, [initialValues]);
 
+  const handleDebuggerRun = (values: any) => {
+    const random = Math.floor(Math.random() * 2);
+
+    if (random === 0) {
+      return Promise.reject({
+        error: 'Some error',
+        message: 'Error description'
+      });
+    }
+
+    return Promise.resolve({
+      output: 'Some output',
+      message: 'Output'
+    });
+  };
+
   return (
     <>
+      <Modal
+        destroyOnClose
+        visible={tableNameModal}
+        width="70%"
+        onCancel={() => switchTableNameModal(false)}
+        className="max-w-3xl"
+      >
+        <CodeDebugger run={handleDebuggerRun} className="p-5" codeFieldLabel="Expression" />
+      </Modal>
+
       {
         fieldsParamsList.map((param: Parameter) => {
           const { id, documentation, displayName, type, defaultValue, required, constant } = param;
@@ -127,8 +165,6 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
             ? constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {}))
             : constant;
           const isHidden = constantValue !== undefined;
-
-          const additionalProps: AnyObject = {};
 
           return (
             <Row key={id} className={cn(isHidden && 'hidden')}>
@@ -153,7 +189,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
                       : undefined
                   }
                 >
-                  {getFieldComponent(type, id, additionalProps)}
+                  {getFieldComponent(type, id)}
                 </Form.Item>
               </Col>
             </Row>
