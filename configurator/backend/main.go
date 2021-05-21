@@ -8,6 +8,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/jitsucom/jitsu/configurator/appconfig"
 	"github.com/jitsucom/jitsu/configurator/authorization"
+	"github.com/jitsucom/jitsu/configurator/cors"
 	"github.com/jitsucom/jitsu/configurator/destinations"
 	"github.com/jitsucom/jitsu/configurator/emails"
 	"github.com/jitsucom/jitsu/configurator/handlers"
@@ -194,10 +195,7 @@ func main() {
 		logging.Fatalf("Error creating emails service: %v", err)
 	}
 
-	serverDomain := viper.GetString("server.domain")
-	if serverDomain == "" {
-		logging.Fatal("'server.domain' is required configuration parameter (format: 'domain.com'). It is used in CORS filter.")
-	}
+	cors.Init(viper.GetString("server.domain"), viper.GetStringSlice("server.allowed_domains"))
 
 	router := SetupRouter(jitsuService, configurationsStorage, configurationsService,
 		authService, s3Config, sslUpdateExecutor, emailsService)
@@ -205,7 +203,7 @@ func main() {
 	logging.Info("Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
-		Handler:           middleware.Cors(router, serverDomain),
+		Handler:           middleware.Cors(router),
 		ReadTimeout:       time.Second * 60,
 		ReadHeaderTimeout: time.Second * 60,
 		IdleTimeout:       time.Second * 65,

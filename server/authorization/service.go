@@ -13,7 +13,7 @@ import (
 
 const (
 	serviceName            = "authorization"
-	viperApiKeysKey        = "server.api_keys"
+	viperApiKeysKey        = "api_keys"
 	deprecatedViperAuthKey = "server.auth"
 	deprecatedViperS2SKey  = "server.s2s_auth"
 
@@ -41,6 +41,10 @@ func NewService() (*Service, error) {
 		return nil, errors.New("server.api_keys_reload_sec can't be empty")
 	}
 
+	//if api_keys is used => strict tokens
+	if viper.IsSet(viperApiKeysKey) {
+		viper.SetDefault("server.strict_auth_tokens", true)
+	}
 	viperKey := viperApiKeysKey
 	if !viper.IsSet(viperKey) && viper.IsSet(deprecatedViperAuthKey) {
 		viperKey = deprecatedViperAuthKey
@@ -93,7 +97,7 @@ func NewService() (*Service, error) {
 		}
 
 		service.tokensHolder = reformat([]Token{generatedToken})
-		logging.Info("Empty authorization 'server.api_keys' config. Auto generate API Key:", generatedTokenSecret)
+		logging.Info("Empty authorization 'api_keys' config. Auto generate API Key:", generatedTokenSecret)
 	}
 
 	return service, nil

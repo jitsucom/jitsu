@@ -117,7 +117,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
 	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, 0)
-	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
 

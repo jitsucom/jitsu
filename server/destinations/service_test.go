@@ -48,7 +48,7 @@ func TestServiceInit(t *testing.T) {
 }`
 	authPayload := &payloadHolder{payload: []byte(initialAuth)}
 	mockAuthServer := startTestServer(authPayload)
-	viper.Set("server.api_keys", mockAuthServer.URL)
+	viper.Set("server.auth", mockAuthServer.URL)
 	appconfig.Init(false, "")
 
 	initialDestinations := `{
@@ -100,7 +100,7 @@ func TestServiceInit(t *testing.T) {
 
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
 	destinationsMockFactory := storages.NewMockFactory()
-	service, err := NewService(nil, mockDestinationsServer.URL, destinationsMockFactory, loggerFactory)
+	service, err := NewService(nil, mockDestinationsServer.URL, destinationsMockFactory, loggerFactory, false)
 	require.NoError(t, err)
 	require.NotNil(t, service)
 

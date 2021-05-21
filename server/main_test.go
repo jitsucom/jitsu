@@ -36,7 +36,7 @@ import (
 
 func SetTestDefaultParams() {
 	viper.Set("log.path", "")
-	viper.Set("server.api_keys", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
+	viper.Set("api_keys", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
 	viper.Set("server.log.path", "")
 }
 
@@ -510,7 +510,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 
 	telemetry.InitTest()
 	viper.Set("log.path", "")
-	viper.Set("server.api_keys", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
+	viper.Set("api_keys", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
 
 	destinationConfig := fmt.Sprintf(pgDestinationConfigTemplate, container.Host, container.Port, container.Database, container.Schema, container.Username, container.Password)
 
@@ -532,7 +532,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
 	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, metaStorage, 0)
-	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	defer destinationService.Close()
 
@@ -644,7 +644,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
 	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, metaStorage, 0)
-	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
 

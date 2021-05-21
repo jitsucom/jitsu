@@ -18,7 +18,7 @@ sources:
 ```
 <br/>
 
-<APIMethod method="POST" path="/api/v1/tasks" title="Running sync task"/>
+<APIMethod method="POST" path="/api/v1/tasks?source=sourceID&collection=collectionName" title="Running sync task"/>
 
 Since there can be only one task per source - collection pair in the task queue, EventNative returns ID of an existing task, or a new one.
 (HTTP responses will have different HTTP codes - see example below)

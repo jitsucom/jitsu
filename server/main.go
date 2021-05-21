@@ -162,6 +162,8 @@ func main() {
 		notifications.Close()
 		time.Sleep(5 * time.Second)
 		telemetry.Close()
+		//we should close it in the end
+		appconfig.Instance.CloseEventsConsumers()
 		os.Exit(0)
 	}()
 
@@ -248,7 +250,7 @@ func main() {
 	destinationsFactory := storages.NewFactory(ctx, logEventPath, coordinationService, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, maxColumns)
 
 	//Create event destinations
-	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory)
+	destinationsService, err := destinations.NewService(viper.Sub(destinationsKey), viper.GetString(destinationsKey), destinationsFactory, loggerFactory, viper.GetBool("server.strict_auth_tokens"))
 	if err != nil {
 		logging.Fatal(err)
 	}
