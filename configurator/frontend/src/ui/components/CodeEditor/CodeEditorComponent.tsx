@@ -1,5 +1,7 @@
+import React from 'react';
 import * as monacoEditor from 'monaco-editor';
 import MonacoEditor from 'react-monaco-editor';
+import { Props } from './CodeEditor.types';
 
 monacoEditor.editor.defineTheme('own-theme', {
   base: 'vs-dark',
@@ -22,14 +24,7 @@ monacoEditor.editor.defineTheme('own-theme', {
   }
 });
 
-interface Props {
-  handleChange: (value: string) => void;
-  initialValue?: object | string;
-  height?: number;
-  monacoRef?: { current: MonacoEditor };
-}
-
-const JsonEditor = ({ handleChange: handleChangeProp, initialValue, height = 300, monacoRef }: Props) => {
+const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, height = 300, monacoRef, language = 'json' }: Props) => {
   const value = !initialValue
     ? ''
     : typeof initialValue === 'string'
@@ -42,7 +37,7 @@ const JsonEditor = ({ handleChange: handleChangeProp, initialValue, height = 300
     <MonacoEditor
       ref={monacoRef || null}
       height={height}
-      language="json"
+      language={language}
       theme="own-theme"
       onChange={handleChange}
       value={value}
@@ -70,6 +65,6 @@ const JsonEditor = ({ handleChange: handleChangeProp, initialValue, height = 300
   )
 };
 
-JsonEditor.displayName = 'JsonEditor';
+CodeEditorComponent.displayName = 'CodeEditor';
 
-export default JsonEditor;
+export default CodeEditorComponent;

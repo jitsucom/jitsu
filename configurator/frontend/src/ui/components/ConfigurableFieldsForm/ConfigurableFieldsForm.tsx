@@ -8,7 +8,7 @@ import cn from 'classnames';
 import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
 import { CodeDebugger } from '@component/CodeDebugger/CodeDebugger';
 import { EditableList } from '@./lib/components/EditableList/EditableList';
-import { CenteredSpin } from '@./lib/components/components';
+import { CodeEditor } from '@component/CodeEditor/CodeEditor';
 // @Types
 import { Parameter, ParameterType } from '@catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
@@ -23,11 +23,8 @@ import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlin
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
-// @Serviecs
+// @Services
 import ApplicationServices from '@service/ApplicationServices';
-import Marshal from '@./lib/commons/marshalling';
-
-const JsonEditor = React.lazy(() => import('@component/JsonEditor/JsonEditor'));
 
 export interface Props {
   fieldsParamsList: Parameter[];
@@ -38,7 +35,9 @@ export interface Props {
 }
 
 const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleTouchAnyField }: Props) => {
-  const [tableNameModal, switchTableNameModal] = useState<boolean>(false);
+  const services = ApplicationServices.get();
+
+  const [tableNameModal, switchTableNameModal] = useState<boolean>(true);
 
   const handleTouchField = debounce(handleTouchAnyField, 1000);
 
@@ -89,19 +88,19 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
       return <EditableList />;
 
     case 'json':
-      return <React.Suspense fallback={<CenteredSpin/>}>
-        <JsonEditor handleChange={handleJsonChange(id)} initialValue={form.getFieldValue(id)} />
-      </React.Suspense>;
+      return <CodeEditor handleChange={handleJsonChange(id)} initialValue={form.getFieldValue(id)}/>;
 
     case 'boolean':
-      return <Switch onChange={handleChangeSwitch(id)} checked={get(fieldsValue, id)} />
+      return <Switch onChange={handleChangeSwitch(id)} checked={get(fieldsValue, id)}/>
 
     case 'string':
     default:
       return <Input
         autoComplete="off"
         suffix={
-          id === '_formData.tableName' ? <CaretRightOutlined onClick={() => switchTableNameModal(true)} /> : undefined
+          id === '_formData.tableName' ?
+            <CaretRightOutlined onClick={() => switchTableNameModal(true)}/> :
+            undefined
         }
       />;
     }
@@ -129,20 +128,40 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
       : calcValue;
   }, [initialValues]);
 
-  const handleDebuggerRun = (values: any) => {
-    const random = Math.floor(Math.random() * 2);
+  const handleDebuggerRun = async(values: any) => {
+    const data = {
+      expression: '{{if .metric_type }}{{ .metric_type }}{{else}}{{ .app }}_web_prod{{end}}',
+      object: {
+        _timestamp: '2021-05-21T11:19:59.677503Z',
+        api_key: 'ttttd50c-d8f2-414c-bf3d-9902a5031fd2',
+        eventn_ctx_event_id: 'f95e340a-8fa8-4e97-b4bf-7f2f1bacc5d6',
+        instance_info: {
+          built_at: '2021-01-29T16:37:07.000000Z',
+          commit: '3427c9f',
+          id: 'f9959bbcc353a88eccc84370e2e64997',
+          tag: 'v1.27.0'
+        },
+        metric_type: 'usage',
+        source_ip: '81.171.21.86',
+        src: 'api',
+        timestamp: '2021-05-21T11:19:59.128043Z',
+        usage: {
+          events: 329
+        }
+      }
+    };
 
-    if (random === 0) {
-      return Promise.reject({
-        error: 'Some error',
-        message: 'Error description'
-      });
+    try {
+      const query = new URLSearchParams();
+      query.set('project_id', services.activeProject.id);
+      query.set('reformat', 'false');
+
+      const result = await services.backendApiClient.post(`/templates/evaluate?${query.toString()}`, data, { proxy: true });
+
+      console.log('result: ', result);
+    } catch (error) {
+      console.log('error: ', error);
     }
-
-    return Promise.resolve({
-      output: 'Some output',
-      message: 'Output'
-    });
   };
 
   return (
@@ -150,9 +169,8 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
       <Modal
         destroyOnClose
         visible={tableNameModal}
-        width="70%"
+        width="80%"
         onCancel={() => switchTableNameModal(false)}
-        className="max-w-3xl"
       >
         <CodeDebugger run={handleDebuggerRun} className="p-5" codeFieldLabel="Expression" />
       </Modal>
