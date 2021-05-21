@@ -31,6 +31,8 @@ type AppConfig struct {
 	GlobalUniqueIDField *identifiers.UniqueID
 
 	closeMe []io.Closer
+
+	eventsConsumers []io.Closer
 }
 
 var (
@@ -196,6 +198,21 @@ func (a *AppConfig) Close() {
 	for _, cl := range a.closeMe {
 		if err := cl.Close(); err != nil {
 			logging.Error(err)
+		}
+	}
+}
+
+//ScheduleEventsConsumerClosing adds events consumer closer into slice for closing
+func (a *AppConfig) ScheduleEventsConsumerClosing(c io.Closer) {
+	a.eventsConsumers = append(a.eventsConsumers, c)
+}
+
+//CloseEventsConsumers closes events queues(streaming) and loggers(batch) in the last call
+//for preventing losing events
+func (a *AppConfig) CloseEventsConsumers() {
+	for _, ec := range a.eventsConsumers {
+		if err := ec.Close(); err != nil {
+			logging.Errorf("[EventsConsumer] %v", err)
 		}
 	}
 }

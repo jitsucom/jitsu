@@ -1,18 +1,23 @@
 package middleware
 
 import (
+	"github.com/jitsucom/jitsu/configurator/cors"
 	"net/http"
 	"net/url"
 	"strings"
 )
 
-func Cors(h http.Handler, allowedDomainSuffix string) http.Handler {
+func Cors(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		reqOrigin := r.Header.Get("Origin")
+		host := r.Header.Get("X-Forwarded-Host")
+		if host == "" {
+			host = r.Header.Get("Host")
+		}
 		u, err := url.Parse(reqOrigin)
 		if err == nil {
 			reqOriginWithoutPort := strings.Split(u.Host, ":")[0]
-			if strings.HasSuffix(reqOriginWithoutPort, allowedDomainSuffix) {
+			if cors.Instance.IsAllowedByRules(host, reqOriginWithoutPort) {
 				w.Header().Add("Access-Control-Allow-Origin", reqOrigin)
 			}
 		}

@@ -60,7 +60,7 @@ func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedCons
 }
 
 //NewService returns loaded Service instance and call resources.Watcher() if destinations source is http url or file path
-func NewService(destinations *viper.Viper, destinationsSource string, storageFactory storages.Factory, loggerFactory *logging.Factory) (*Service, error) {
+func NewService(destinations *viper.Viper, destinationsSource string, storageFactory storages.Factory, loggerFactory *logging.Factory, strictAuth bool) (*Service, error) {
 	service := &Service{
 		storageFactory: storageFactory,
 		loggerFactory:  loggerFactory,
@@ -72,7 +72,7 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 		batchStoragesByTokenID:  map[string]map[string]storages.StorageProxy{},
 		destinationsIDByTokenID: map[string]map[string]bool{},
 
-		strictAuth: viper.GetBool("server.strict_auth_tokens"),
+		strictAuth: strictAuth,
 	}
 
 	reloadSec := viper.GetInt("server.destinations_reload_sec")
@@ -185,16 +185,16 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 
 	//close and remove non-existent (in new config)
 	toDelete := map[string]*Unit{}
-	for name, unit := range s.unitsByID {
-		_, ok := dc[name]
+	for unitID, unit := range s.unitsByID {
+		_, ok := dc[unitID]
 		if !ok {
-			toDelete[name] = unit
+			toDelete[unitID] = unit
 		}
 	}
 	if len(toDelete) > 0 {
 		s.Lock()
-		for name, unit := range toDelete {
-			s.remove(name, unit)
+		for unitID, unit := range toDelete {
+			s.removeAndClose(unitID, unit)
 		}
 		s.Unlock()
 	}
@@ -230,7 +230,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 			}
 			//remove old (for recreation)
 			s.Lock()
-			s.remove(id, unit)
+			s.removeAndClose(id, unit)
 			s.Unlock()
 		}
 
@@ -246,6 +246,10 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 		if err != nil {
 			logging.Errorf("[%s] Error initializing destination of type %s: %v", id, destinationConfig.Type, err)
 			continue
+		}
+
+		if eventQueue != nil {
+			appconfig.Instance.ScheduleEventsConsumerClosing(eventQueue)
 		}
 
 		s.unitsByID[id] = &Unit{
@@ -276,6 +280,7 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 				loggerUsage, ok := s.loggersUsageByTokenID[tokenID]
 				if !ok {
 					incomeLogger := s.loggerFactory.CreateIncomingLogger(tokenID)
+					appconfig.Instance.ScheduleEventsConsumerClosing(incomeLogger)
 					loggerUsage = &LoggerUsage{logger: incomeLogger, usage: 0}
 					s.loggersUsageByTokenID[tokenID] = loggerUsage
 				}
@@ -301,9 +306,9 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	StatusInstance.Reloading = false
 }
 
-//remove destination from all collections and close it
+//removeAndClose removes and closes destination from all collections and close it
 //method must be called with locks
-func (s *Service) remove(destinationID string, unit *Unit) {
+func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 	//remove from other collections: queue or logger(if needed) + storage
 	for _, tokenID := range unit.tokenIDs {
 		oldConsumers := s.consumersByTokenID[tokenID]
@@ -344,23 +349,18 @@ func (s *Service) remove(destinationID string, unit *Unit) {
 	}
 
 	if err := unit.Close(); err != nil {
-		logging.Errorf("[%s] Error closing destination unit: %v", destinationID, err)
+		logging.Errorf("[%s] Error closing unit: %v", destinationID, err)
 	}
 
 	delete(s.unitsByID, destinationID)
 	logging.Infof("[%s] destination has been removed!", destinationID)
 }
 
+//Close closes destination storages
 func (s *Service) Close() (multiErr error) {
-	for token, loggerUsage := range s.loggersUsageByTokenID {
-		if err := loggerUsage.logger.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("Error closing logger for token [%s]: %v", token, err))
-		}
-	}
-
 	for id, unit := range s.unitsByID {
-		if err := unit.Close(); err != nil {
-			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing destination unit: %v", id, err))
+		if err := unit.CloseStorage(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing destination unit storage: %v", id, err))
 		}
 	}
 
