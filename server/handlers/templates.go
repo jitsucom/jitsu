@@ -73,7 +73,7 @@ func evaluate(req *EvaluateTemplateRequest) (result string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			result = ""
-			err = fmt.Errorf("Error: %v", req.Expression, r)
+			err = fmt.Errorf("Error: %v", r)
 		}
 	}()
 
@@ -85,7 +85,7 @@ func evaluate(req *EvaluateTemplateRequest) (result string, err error) {
 
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, req.Object); err != nil {
-		return "", fmt.Errorf("Error evaluating template: %v", req.Expression, err)
+		return "", fmt.Errorf("Error evaluating template: %v", err)
 	}
 
 	return buf.String(), nil
