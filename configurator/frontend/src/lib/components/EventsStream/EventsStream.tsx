@@ -19,17 +19,11 @@ type State = {
   events?: Event[];
 };
 
-interface Props {
-  withTop?: boolean;
-  handleEventClick?: (event: Event) => (e: React.SyntheticEvent) => void;
-  dataLoadCb?: (count: number) => void;
-}
-
-export default class EventsStream extends LoadableComponent<Props, State> {
+export default class EventsStream extends LoadableComponent<{}, State> {
   private readonly services: ApplicationServices;
   private timeInUTC: boolean;
 
-  constructor(props: Props, context: any) {
+  constructor(props: any, context: any) {
     super(props, context);
     this.timeInUTC = withDefaultVal(undefined, true);
     this.services = ApplicationServices.get();
@@ -38,22 +32,15 @@ export default class EventsStream extends LoadableComponent<Props, State> {
 
   async componentDidMount(): Promise<void> {
     await super.componentDidMount();
-  }
 
-  componentDidUpdate(prevProps: Readonly<Props>, prevState: Readonly<State>, snapshot?: any) {
-    if (this.state.events?.length !== prevState.events?.length && this.props.dataLoadCb) {
-      this.props.dataLoadCb(this.state.events.length);
-    }
   }
 
   eventHeader(event: Event) {
-    const { handleEventClick = () => null } = this.props;
-
     return (
-      <span onClick={handleEventClick(event)}>
+      <>
         <span className="events-stream-event-time">{event.time.utc().format()}</span>
         <span className="events-stream-event-preview">{JSON.stringify(event.data)}</span>
-      </span>
+      </>
     );
   }
 
@@ -66,8 +53,6 @@ export default class EventsStream extends LoadableComponent<Props, State> {
   }
 
   protected renderReady(): React.ReactNode {
-    const { withTop = true } = this.props;
-
     let top = (
       <div className="status-and-events-panel">
         <NavLink to="/dahsboard" className="status-and-events-panel-main">
@@ -86,14 +71,15 @@ export default class EventsStream extends LoadableComponent<Props, State> {
     if (!this.state.events || this.state.events.length == 0) {
       return (
         <>
-          {withTop && top}
+          {top}
           <Align horizontal="center">No Data</Align>
         </>
       );
     }
+
     return (
       <>
-        {withTop && top}
+        {top}
         <Collapse
           className="events-stream-events"
           bordered={false}
