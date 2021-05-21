@@ -1,10 +1,10 @@
 // @Libs
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { Button, Col, Collapse, Form, Input, Row } from 'antd';
+import React, { useRef, useState } from 'react';
+import { Button, Col, Form, Row } from 'antd';
 import MonacoEditor from 'react-monaco-editor';
 import cn from 'classnames';
 // @Components
-import { CenteredSpin, CodeSnippet } from '@./lib/components/components';
+import { CodeSnippet } from '@./lib/components/components';
 import { CodeEditor } from '@component/CodeEditor/CodeEditor';
 // @Types
 import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStream';
@@ -12,9 +12,6 @@ import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStrea
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
-import { find } from 'lodash-es';
-
-// const JsonEditor = React.lazy(() => import('@component/CodeEditor/CodeEditor'));
 
 interface Props {
   /***/
@@ -59,8 +56,6 @@ const CodeDebugger = ({
 
   const monacoJsonRef = useRef<MonacoEditor>();
   const monacoGoRef = useRef<MonacoEditor>();
-
-  const [eventsCount, setEventsCount] = useState<number>(-1);
 
   const [resultType, setResultType] = useState<ResultType>();
   const [result, setResult] = useState();
@@ -109,7 +104,7 @@ const CodeDebugger = ({
     <div className={cn(className)}>
       <Form form={form} onFinish={handleFinish}>
         <Row>
-          <Col span={codeFieldVisible ? 12 : 24}>
+          <Col span={codeFieldVisible ? 12 : 24} className={cn(codeFieldVisible && 'pr-2')}>
             <Form.Item
               className={styles.field}
               colon
@@ -123,7 +118,7 @@ const CodeDebugger = ({
 
           {
             codeFieldVisible && (
-              <Col span={12}>
+              <Col span={12} className="pl-2">
                 <Form.Item
                   className={styles.field}
                   colon

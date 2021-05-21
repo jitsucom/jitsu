@@ -172,7 +172,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
         width="80%"
         onCancel={() => switchTableNameModal(false)}
       >
-        <CodeDebugger run={handleDebuggerRun} className="p-5" codeFieldLabel="Expression" />
+        <CodeDebugger run={handleDebuggerRun} className="py-5" codeFieldLabel="Expression" />
       </Modal>
 
       {
@@ -180,8 +180,10 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
           const { id, documentation, displayName, type, defaultValue, required, constant } = param;
 
           const constantValue = typeof constant === 'function'
-            ? constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {}))
-            : constant;
+            ?
+            constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {}))
+            :
+            constant;
           const isHidden = constantValue !== undefined;
 
           return (
