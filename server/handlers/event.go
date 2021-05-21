@@ -24,7 +24,7 @@ const (
 	noDestinationsErrTemplate = "No destination is configured for token [%s] (or only staged ones)"
 )
 
-//CachedEvent dto for events cache
+//CachedEvent is a dto for events cache
 type CachedEvent struct {
 	Original json.RawMessage `json:"original,omitempty"`
 	Success  json.RawMessage `json:"success,omitempty"`

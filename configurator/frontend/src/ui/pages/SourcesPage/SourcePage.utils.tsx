@@ -81,7 +81,7 @@ const sourcePageUtils = {
       };
     } catch(error) {
       if (!hideMessage) {
-        handleError(error, 'Unable to test connection with filled data');
+        handleError(error, 'Connection test failed');
       }
 
       return {

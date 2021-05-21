@@ -96,4 +96,4 @@ USER $EVENTNATIVE_USER
 VOLUME ["/home/$EVENTNATIVE_USER/data"]
 EXPOSE 8001
 
-ENTRYPOINT ["./eventnative", "-cfg=../data/config/eventnative.yaml", "-cr=true"]
+ENTRYPOINT ./eventnative -cfg=../data/config/eventnative.yaml -cr=true -dhid="$DOCKER_HUB_ID"

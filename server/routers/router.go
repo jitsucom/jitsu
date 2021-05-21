@@ -60,6 +60,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
 		apiV1.POST("/sources/test", adminTokenMiddleware.AdminAuth(handlers.SourcesHandler))
+		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.EventTemplateHandler))
 
 		apiV1.GET("/statistics", adminTokenMiddleware.AdminAuth(statisticsHandler.GetHandler))
 
