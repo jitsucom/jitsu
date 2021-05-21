@@ -20,6 +20,7 @@ type Configuration struct {
 	SupportTrackingDomains bool   `json:"support_tracking_domains"`
 	TelemetryUsageDisabled bool   `json:"telemetry_usage_disabled"`
 	ShowBecomeUser         bool   `json:"show_become_user"`
+	DockerHubID            string `json:"docker_hub_id"`
 }
 
 type SystemHandler struct {
@@ -27,14 +28,22 @@ type SystemHandler struct {
 	configurationService *storages.ConfigurationsService
 	smtp                 bool
 	selfHosted           bool
+	dockerHubID          string
 }
 
 type ConfigurationResponse struct {
 	ProjectID string `json:"projectID"`
 }
 
-func NewSystemHandler(authService *authorization.Service, configurationService *storages.ConfigurationsService, smtp, selfHosted bool) *SystemHandler {
-	return &SystemHandler{authService: authService, configurationService: configurationService, smtp: smtp, selfHosted: selfHosted}
+func NewSystemHandler(authService *authorization.Service, configurationService *storages.ConfigurationsService,
+	smtp, selfHosted bool, dockerHubID string) *SystemHandler {
+	return &SystemHandler{
+		authService:          authService,
+		configurationService: configurationService,
+		smtp:                 smtp,
+		selfHosted:           selfHosted,
+		dockerHubID:          dockerHubID,
+	}
 }
 
 //GetHandler returns JSON with current authorization type and users existence
@@ -69,6 +78,7 @@ func (sh *SystemHandler) GetHandler(c *gin.Context) {
 		SupportTrackingDomains: !sh.selfHosted,
 		TelemetryUsageDisabled: telemetryUsageDisabled,
 		ShowBecomeUser:         !sh.selfHosted,
+		DockerHubID:            sh.dockerHubID,
 	}
 
 	c.JSON(http.StatusOK, currentConfiguration)
