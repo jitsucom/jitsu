@@ -282,17 +282,24 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 		}
 	})
 
+	stdErrWriter := logging.NewStringWriter()
+
 	//writing process logs (singer writes process logs to stderr)
 	wg.Add(1)
 	safego.Run(func() {
 		defer wg.Done()
-		io.Copy(singer.Instance.LogWriter, stderr)
+		io.Copy(stdErrWriter, stderr)
 	})
 
 	wg.Wait()
 
 	err = syncCmd.Wait()
 	if err != nil {
+		errMsg := stdErrWriter.String()
+		if errMsg != "" {
+			return fmt.Errorf("%v:\n%s", err, errMsg)
+		}
+
 		return err
 	}
 
@@ -311,13 +318,9 @@ func (s *Singer) TestConnection() error {
 	command := path.Join(singer.Instance.VenvDir, s.tap, "bin", s.tap)
 
 	err := singer.Instance.ExecCmd(command, outWriter, errWriter, "-c", s.configPath, "--discover")
-	errStr := errWriter.String()
+	logging.Debugf("Singer command %s with args [-c %s --discover] stderr: %s", command, s.configPath, errWriter.String())
 	if err != nil {
-		return fmt.Errorf("Error singer --discover: %v. %s", err, errStr)
-	}
-
-	if errStr != "" {
-		return fmt.Errorf("Error singer --dicsover: %s", errStr)
+		return fmt.Errorf("Error singer --discover: %v. %s", err, errWriter.String())
 	}
 
 	return nil
