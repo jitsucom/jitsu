@@ -1,6 +1,8 @@
 # BASE STAGE
 FROM alpine:3.13
 
+ARG dhid
+ENV DOCKER_HUB_ID=$dhid
 ENV CONFIGURATOR_USER=configurator
 ENV TZ=UTC
 
@@ -30,4 +32,4 @@ WORKDIR /home/$CONFIGURATOR_USER/app
 VOLUME ["/home/$CONFIGURATOR_USER/data"]
 EXPOSE 7000
 
-ENTRYPOINT ["./configurator", "-cfg=../data/config/configurator.yaml", "-cr=true"]
+ENTRYPOINT ./configurator -cfg=../data/config/configurator.yaml -cr=true -dhid="$DOCKER_HUB_ID"

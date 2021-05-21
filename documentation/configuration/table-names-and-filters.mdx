@@ -38,8 +38,8 @@ destinations:
 
 `table_name_template` might be used for filtering certain events from the destination.
 <Hint>
-    If <code inline={true}>table_name_template</code> returns an empty string then the event will be skipped.
-    <code inline={true}>table_name_template</code>
+    If <code inline={true}>table_name_template</code> returns an empty string or null then the event will be skipped.
+    Use <a href="/docs/other-features/admin-endpoints#apiv1templatesevaluate">Jitsu Template Evaluation endpoint</a> for testing GO text/template expression.
 </Hint>
 
 For example all `pageview` events might be skipped:

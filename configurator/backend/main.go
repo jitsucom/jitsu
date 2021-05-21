@@ -43,6 +43,7 @@ const (
 var (
 	configSource     = flag.String("cfg", "", "config file path")
 	containerizedRun = flag.Bool("cr", false, "containerised run marker")
+	dockerHubID      = flag.String("dhid", "", "ID of docker Hub")
 
 	//ldflags
 	commit  string
@@ -290,7 +291,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 		apiV1.GET("/configurations/:collection", authenticatorMiddleware.ClientProjectAuth(enConfigurationsHandler.GetConfig))
 		apiV1.POST("/configurations/:collection", authenticatorMiddleware.ClientProjectAuth(enConfigurationsHandler.StoreConfig))
 
-		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted")).GetHandler)
+		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted"), *dockerHubID).GetHandler)
 
 		usersAPIGroup := apiV1.Group("/users")
 		{
