@@ -5,7 +5,7 @@ import MonacoEditor from 'react-monaco-editor';
 import cn from 'classnames';
 // @Components
 import { CenteredSpin, CodeSnippet } from '@./lib/components/components';
-import EventsStream from '@./lib/components/EventsStream/EventsStream';
+import { CodeEditor } from '@component/CodeEditor/CodeEditor';
 // @Types
 import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStream';
 // @Icons
@@ -14,7 +14,7 @@ import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import styles from './CodeDebugger.module.less';
 import { find } from 'lodash-es';
 
-const JsonEditor = React.lazy(() => import('@component/JsonEditor/JsonEditor'));
+// const JsonEditor = React.lazy(() => import('@component/CodeEditor/CodeEditor'));
 
 interface Props {
   /***/
@@ -57,7 +57,8 @@ const CodeDebugger = ({
     debug: 'Debug log'
   };
 
-  const monacoRef = useRef<MonacoEditor>();
+  const monacoJsonRef = useRef<MonacoEditor>();
+  const monacoGoRef = useRef<MonacoEditor>();
 
   const [eventsCount, setEventsCount] = useState<number>(-1);
 
@@ -68,8 +69,8 @@ const CodeDebugger = ({
 
   const [form] = Form.useForm();
 
-  const handleChange = (value: string) => {
-    form.setFieldsValue({ object: value ? value : '' });
+  const handleChange = (name: 'object' | 'expression') => (value: string) => {
+    form.setFieldsValue({ [name]: value ? value : '' });
   };
 
   const handleFinish = async(values: FormValues) => {
@@ -92,59 +93,62 @@ const CodeDebugger = ({
     }
   };
 
-  const handleEventClick = (event: RecentEvent) => (e: React.SyntheticEvent) => {
-    e.stopPropagation();
-
-    const monacoModel = monacoRef.current.editor.getModel();
-
-    monacoModel.setValue(JSON.stringify(event));
-
-    form.setFieldsValue({ object: event ? event : '' });
-  };
-
-  const handleEventsLoaded = (count: number) => setEventsCount(count);
-  console.log('RENDER');
+  // const handleEventClick = (event: RecentEvent) => (e: React.SyntheticEvent) => {
+  //   e.stopPropagation();
+  //
+  //   const monacoModel = monacoJsonRef.current.editor.getModel();
+  //
+  //   monacoModel.setValue(JSON.stringify(event));
+  //
+  //   form.setFieldsValue({ object: event ? event : '' });
+  // };
+  //
+  // const handleEventsLoaded = (count: number) => setEventsCount(count);
 
   return (
     <div className={cn(className)}>
       <Form form={form} onFinish={handleFinish}>
-        <Form.Item
-          className={styles.field}
-          colon
-          label="Object (fill in this field or just click on the event below the field)"
-          labelAlign="left"
-          name="object"
-        >
-          <React.Suspense fallback={<CenteredSpin/>}>
-            <JsonEditor handleChange={handleChange} monacoRef={monacoRef} height={200} />
-          </React.Suspense>
-        </Form.Item>
-
-        {
-          eventsCount !== 0 && <div className="mb-6">
-            <Collapse>
-              <Collapse.Panel header="Recent Events" key="1" className={styles.panel} forceRender>
-                <div className={cn(styles.events, 'max-h-48')}>
-                  <EventsStream dataLoadCb={handleEventsLoaded} withTop={false} handleEventClick={handleEventClick} />
-                </div>
-              </Collapse.Panel>
-            </Collapse>
-          </div>
-        }
-
-        {
-          codeFieldVisible && (
+        <Row>
+          <Col span={codeFieldVisible ? 12 : 24}>
             <Form.Item
               className={styles.field}
               colon
-              label={codeFieldLabel}
+              label="Object"
               labelAlign="left"
-              name="code"
+              name="object"
             >
-              <Input className={styles.input} />
+              <CodeEditor handleChange={handleChange('object')} monacoRef={monacoJsonRef} height={200} />
             </Form.Item>
-          )
-        }
+          </Col>
+
+          {
+            codeFieldVisible && (
+              <Col span={12}>
+                <Form.Item
+                  className={styles.field}
+                  colon
+                  label={codeFieldLabel}
+                  labelAlign="left"
+                  name="code"
+                >
+                  <CodeEditor handleChange={handleChange('expression')} monacoRef={monacoGoRef} height={200} language="go" />
+                </Form.Item>
+              </Col>
+            )
+          }
+        </Row>
+
+        {/*{*/}
+        {/*  eventsCount !== 0 && <div className="mb-6">*/}
+        {/*    <Collapse>*/}
+        {/*      <Collapse.Panel header="Recent Events" key="1" className={styles.panel} forceRender>*/}
+        {/*        <div className={cn(styles.events, 'max-h-48')}>*/}
+        {/*          <EventsStream dataLoadCb={handleEventsLoaded} withTop={false} handleEventClick={handleEventClick} />*/}
+        {/*        </div>*/}
+        {/*      </Collapse.Panel>*/}
+        {/*    </Collapse>*/}
+        {/*  </div>*/}
+        {/*}*/}
 
         {
           result && <div className="mb-6">
