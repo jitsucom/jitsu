@@ -1,6 +1,6 @@
 // @Libs
 import React, { useRef, useState } from 'react';
-import { Button, Col, Form, Row } from 'antd';
+import { Button, Col, Dropdown, Form, Row } from 'antd';
 import MonacoEditor from 'react-monaco-editor';
 import cn from 'classnames';
 // @Components
@@ -40,68 +40,36 @@ interface FormValues {
   expression: string;
 }
 
-type ResultType = 'output' | 'debug';
-
 const CodeDebugger = ({
   className,
-  run,
   codeFieldVisible = true,
   codeFieldLabel = 'Code',
   hideRunButton
 }: Props) => {
-  const resultHeader: Record<ResultType, string> = {
-    output: 'Response',
-    debug: 'Debug log'
-  };
-
   const monacoJsonRef = useRef<MonacoEditor>();
   const monacoGoRef = useRef<MonacoEditor>();
 
-  const [resultType, setResultType] = useState<ResultType>();
-  const [result, setResult] = useState();
-
-  const [runButtonIsLoading, setRunButtonIsLoading] = useState<boolean>(false);
-
   const [form] = Form.useForm();
 
-  const handleChange = (name: 'object' | 'expression') => (value: string) => {
-    form.setFieldsValue({ [name]: value ? value : '' });
+  const handleChange = (name: 'object' | 'expression') => async(value: string) => {
+    // form.setFieldsValue({ [name]: value ? value : '' });
+    console.log('value: ', value);
+
+    // const monacoModel = monacoJsonRef.current.editor.getModel();
+    //
+    // monacoModel.setValue(JSON.stringify(event));
   };
 
   const handleFinish = async(values: FormValues) => {
-    setRunButtonIsLoading(true);
-
-    try {
-      const codeDebugResult = await run(values);
-
-      setResultType('output');
-      setResult(codeDebugResult);
-
-      return codeDebugResult;
-    } catch(error) {
-      setResultType('debug');
-      setResult(error);
-
-      return error;
-    } finally {
-      setRunButtonIsLoading(false);
-    }
+    console.log('values: ', values);
   };
-
-  // const handleEventClick = (event: RecentEvent) => (e: React.SyntheticEvent) => {
-  //   e.stopPropagation();
-  //
-  //   const monacoModel = monacoJsonRef.current.editor.getModel();
-  //
-  //   monacoModel.setValue(JSON.stringify(event));
-  //
-  //   form.setFieldsValue({ object: event ? event : '' });
-  // };
-  //
-  // const handleEventsLoaded = (count: number) => setEventsCount(count);
+  console.log('RENDER');
 
   return (
     <div className={cn(className)}>
+      <div>
+
+      </div>
       <Form form={form} onFinish={handleFinish}>
         <Row>
           <Col span={codeFieldVisible ? 12 : 24} className={cn(codeFieldVisible && 'pr-2')}>
@@ -133,34 +101,9 @@ const CodeDebugger = ({
           }
         </Row>
 
-        {/*{*/}
-        {/*  eventsCount !== 0 && <div className="mb-6">*/}
-        {/*    <Collapse>*/}
-        {/*      <Collapse.Panel header="Recent Events" key="1" className={styles.panel} forceRender>*/}
-        {/*        <div className={cn(styles.events, 'max-h-48')}>*/}
-        {/*          <EventsStream dataLoadCb={handleEventsLoaded} withTop={false} handleEventClick={handleEventClick} />*/}
-        {/*        </div>*/}
-        {/*      </Collapse.Panel>*/}
-        {/*    </Collapse>*/}
-        {/*  </div>*/}
-        {/*}*/}
-
-        {
-          result && <div className="mb-6">
-            <CodeSnippet
-              toolbarPosition="top"
-              language="json"
-              size="large"
-              extra={<span className={styles.resultHeader}>{resultHeader[resultType]}</span>}
-            >
-              {JSON.stringify(result)}
-            </CodeSnippet>
-          </div>
-        }
-
         {
           !hideRunButton && <div className={styles.buttonContainer}>
-            <Button loading={runButtonIsLoading} type="primary" htmlType="submit" icon={<CaretRightOutlined />}>Run</Button>
+            <Button type="primary" htmlType="submit" icon={<CaretRightOutlined />}>Run</Button>
           </div>
         }
       </Form>
