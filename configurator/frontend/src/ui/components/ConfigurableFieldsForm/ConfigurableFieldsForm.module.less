@@ -1,7 +1,30 @@
+@import './src/theme';
+@import './src/assets/mixins/custom-scrollbar';
+
 .field {
   :global {
     .ant-form-item-control-input {
       max-width: 800px;
+    }
+  }
+}
+
+.modal {
+  max-height: calc(100% - 200px);
+  display: flex;
+
+  :global {
+    .ant-modal-content {
+      flex: 1 1 auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .ant-modal-body {
+      flex: 1 1 auto;
+      height: 100%;
+
+      .custom-scrollbar();
     }
   }
 }

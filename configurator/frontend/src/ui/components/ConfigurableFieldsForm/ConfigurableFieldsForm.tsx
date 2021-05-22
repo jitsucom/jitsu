@@ -171,6 +171,8 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
         visible={tableNameModal}
         width="80%"
         onCancel={() => switchTableNameModal(false)}
+        className={styles.modal}
+        wrapClassName={styles.modalWrap}
       >
         <CodeDebugger run={handleDebuggerRun} className="py-5" codeFieldLabel="Expression" />
       </Modal>
