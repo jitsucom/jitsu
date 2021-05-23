@@ -192,6 +192,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
             okText="Save table name template"
             className={styles.modal}
             wrapClassName={styles.modalWrap}
+            maskClosable={false}
           >
             <CodeDebugger
               className="py-5"
