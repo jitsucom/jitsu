@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { Col, Form, Input, Modal, Row, Select, Switch } from 'antd';
 import debounce from 'lodash/debounce';
 import get from 'lodash/get';
@@ -42,6 +42,8 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
   const handleTouchField = debounce(handleTouchAnyField, 1000);
 
   const forceUpdate = useForceUpdate();
+
+  const tableNameDetected = useMemo(() => fieldsParamsList.some(param => param.id === '_formData.tableName'), [fieldsParamsList]);
 
   const handleChangeIntInput = useCallback((id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
@@ -166,16 +168,24 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
 
   return (
     <>
-      <Modal
-        destroyOnClose
-        visible={tableNameModal}
-        width="80%"
-        onCancel={() => switchTableNameModal(false)}
-        className={styles.modal}
-        wrapClassName={styles.modalWrap}
-      >
-        <CodeDebugger run={handleDebuggerRun} className="py-5" codeFieldLabel="Expression" />
-      </Modal>
+      {
+        tableNameDetected && (
+          <Modal
+            visible={tableNameModal}
+            width="80%"
+            onCancel={() => switchTableNameModal(false)}
+            className={styles.modal}
+            wrapClassName={styles.modalWrap}
+          >
+            <CodeDebugger
+              className="py-5"
+              codeFieldLabel="Expression"
+              defaultCodeValue={get(initialValues, '_formData.tableName')}
+              run={handleDebuggerRun}
+            />
+          </Modal>
+        )
+      }
 
       {
         fieldsParamsList.map((param: Parameter) => {
