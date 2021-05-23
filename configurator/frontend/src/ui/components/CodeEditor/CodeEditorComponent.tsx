@@ -25,7 +25,7 @@ monacoEditor.editor.defineTheme('own-theme', {
 });
 
 const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, height = 300, monacoRef, language = 'json' }: Props) => {
-  const value = !initialValue
+  const defaultValue = !initialValue
     ? ''
     : typeof initialValue === 'string'
       ? initialValue
@@ -40,7 +40,7 @@ const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, hei
       language={language}
       theme="own-theme"
       onChange={handleChange}
-      value={value}
+      defaultValue={defaultValue}
       options={{
         glyphMargin: false,
         folding: false,
