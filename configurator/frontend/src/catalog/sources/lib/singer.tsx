@@ -300,7 +300,7 @@ export const allSingerTaps: SingerTap[] = [
     parameters: customParameters('tap-intercom', {
       customConfig: [
         {
-          displayName: 'Intercom API Access Token',
+          displayName: 'API Access Token',
           id: 'access_token',
           type: stringType,
           required: true,
