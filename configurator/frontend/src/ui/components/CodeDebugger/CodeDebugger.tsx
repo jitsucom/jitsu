@@ -12,6 +12,7 @@ import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStrea
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
+import CodeEditorComponent from '@component/CodeEditor/CodeEditorComponent';
 
 interface Props {
   /***/
@@ -46,24 +47,18 @@ const CodeDebugger = ({
   codeFieldLabel = 'Code',
   hideRunButton
 }: Props) => {
-  const monacoJsonRef = useRef<MonacoEditor>();
-  const monacoGoRef = useRef<MonacoEditor>();
+  const objectMonacoRef = useRef<MonacoEditor>();
+  const codeMonacoRef = useRef<MonacoEditor>();
 
   const [form] = Form.useForm();
 
-  const handleChange = (name: 'object' | 'expression') => async(value: string) => {
-    // form.setFieldsValue({ [name]: value ? value : '' });
-    console.log('value: ', value);
-
-    // const monacoModel = monacoJsonRef.current.editor.getModel();
-    //
-    // monacoModel.setValue(JSON.stringify(event));
+  const handleChange = (name: 'object' | 'code') => (value: string) => {
+    form.setFieldsValue({ [name]: value ? value : '' });
   };
 
   const handleFinish = async(values: FormValues) => {
     console.log('values: ', values);
   };
-  console.log('RENDER');
 
   return (
     <div className={cn(className)}>
@@ -80,7 +75,7 @@ const CodeDebugger = ({
               labelAlign="left"
               name="object"
             >
-              <CodeEditor handleChange={handleChange('object')} monacoRef={monacoJsonRef} height={200} />
+              <CodeEditorComponent handleChange={handleChange('object')} monacoRef={objectMonacoRef} height={200} />
             </Form.Item>
           </Col>
 
@@ -94,7 +89,7 @@ const CodeDebugger = ({
                   labelAlign="left"
                   name="code"
                 >
-                  <CodeEditor handleChange={handleChange('expression')} monacoRef={monacoGoRef} height={200} language="go" />
+                  <CodeEditor handleChange={handleChange('code')} monacoRef={codeMonacoRef} height={200} language="go" />
                 </Form.Item>
               </Col>
             )
