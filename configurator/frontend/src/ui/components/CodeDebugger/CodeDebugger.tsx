@@ -12,6 +12,7 @@ import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStrea
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
+import debounce from 'lodash/debounce';
 
 interface Props {
   /**
@@ -38,7 +39,7 @@ interface Props {
 
 export interface FormValues {
   event: RecentEvent;
-  expression: string;
+  code: string;
 }
 
 const CodeDebugger = ({
@@ -53,8 +54,14 @@ const CodeDebugger = ({
 
   const [form] = Form.useForm();
 
+  const formatObjectField = debounce(() => objectMonacoRef.current.editor.getAction('editor.action.formatDocument').run(), 1000);
+
   const handleChange = (name: 'object' | 'code') => (value: string) => {
     form.setFieldsValue({ [name]: value ? value : '' });
+
+    if (name === 'object') {
+      formatObjectField();
+    }
   };
 
   const handleFinish = async(values: FormValues) => {
