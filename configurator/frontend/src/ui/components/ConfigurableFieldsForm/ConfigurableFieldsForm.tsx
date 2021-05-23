@@ -6,7 +6,7 @@ import get from 'lodash/get';
 import cn from 'classnames';
 // @Components
 import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
-import { CodeDebugger } from '@component/CodeDebugger/CodeDebugger';
+import { CodeDebugger, FormValues as DebuggerFormValues } from '@component/CodeDebugger/CodeDebugger';
 import { EditableList } from '@./lib/components/EditableList/EditableList';
 import { CodeEditor } from '@component/CodeEditor/CodeEditor';
 // @Types
@@ -132,7 +132,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
       : calcValue;
   }, [initialValues]);
 
-  const handleDebuggerRun = async(values: any) => {
+  const handleDebuggerRun = async(values: DebuggerFormValues) => {
     const data = {
       expression: '{{if .metric_type }}{{ .metric_type }}{{else}}{{ .app }}_web_prod{{end}}',
       object: {
