@@ -12,10 +12,11 @@ import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStrea
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
-import CodeEditorComponent from '@component/CodeEditor/CodeEditorComponent';
 
 interface Props {
-  /***/
+  /**
+   * Run handler, async thata function takes form values and returns response or error
+   * */
   run?: (values: FormValues) => any;
   /**
    * Prop to make code field hidden, visible by default
@@ -26,14 +27,13 @@ interface Props {
    * */
   codeFieldLabel?: string;
   /**
-   * Pass this as true if you want to use custom button and control its state by yourself
-   * */
-  hideRunButton?: boolean;
-
-  /**
    * Additional className for wrap div
    * */
   className?: string;
+  /**
+   * InitialValue for code field
+   * */
+  defaultCodeValue?: string;
 }
 
 interface FormValues {
@@ -45,7 +45,7 @@ const CodeDebugger = ({
   className,
   codeFieldVisible = true,
   codeFieldLabel = 'Code',
-  hideRunButton
+  defaultCodeValue
 }: Props) => {
   const objectMonacoRef = useRef<MonacoEditor>();
   const codeMonacoRef = useRef<MonacoEditor>();
@@ -75,7 +75,11 @@ const CodeDebugger = ({
               labelAlign="left"
               name="object"
             >
-              <CodeEditorComponent handleChange={handleChange('object')} monacoRef={objectMonacoRef} height={200} />
+              <CodeEditor
+                handleChange={handleChange('object')}
+                height={200}
+                monacoRef={objectMonacoRef}
+              />
             </Form.Item>
           </Col>
 
@@ -89,18 +93,22 @@ const CodeDebugger = ({
                   labelAlign="left"
                   name="code"
                 >
-                  <CodeEditor handleChange={handleChange('code')} monacoRef={codeMonacoRef} height={200} language="go" />
+                  <CodeEditor
+                    initialValue={defaultCodeValue}
+                    handleChange={handleChange('code')}
+                    height={200}
+                    language="go"
+                    monacoRef={codeMonacoRef}
+                  />
                 </Form.Item>
               </Col>
             )
           }
         </Row>
 
-        {
-          !hideRunButton && <div className={styles.buttonContainer}>
-            <Button type="primary" htmlType="submit" icon={<CaretRightOutlined />}>Run</Button>
-          </div>
-        }
+        <div className={styles.buttonContainer}>
+          <Button type="primary" htmlType="submit" icon={<CaretRightOutlined />}>Run</Button>
+        </div>
       </Form>
     </div>
   )
