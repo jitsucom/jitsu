@@ -36,7 +36,7 @@ interface Props {
   defaultCodeValue?: string;
 }
 
-interface FormValues {
+export interface FormValues {
   event: RecentEvent;
   expression: string;
 }
@@ -45,7 +45,8 @@ const CodeDebugger = ({
   className,
   codeFieldVisible = true,
   codeFieldLabel = 'Code',
-  defaultCodeValue
+  defaultCodeValue,
+  run
 }: Props) => {
   const objectMonacoRef = useRef<MonacoEditor>();
   const codeMonacoRef = useRef<MonacoEditor>();
@@ -58,6 +59,9 @@ const CodeDebugger = ({
 
   const handleFinish = async(values: FormValues) => {
     console.log('values: ', values);
+    if (run) {
+      run(values);
+    }
   };
 
   return (
