@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Col, Form, Input, Modal, Row, Select, Switch } from 'antd';
 import debounce from 'lodash/debounce';
 import get from 'lodash/get';
@@ -38,6 +38,8 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
   const services = ApplicationServices.get();
 
   const [tableNameModal, switchTableNameModal] = useState<boolean>(true);
+
+  const codeValue = useRef<string>();
 
   const handleTouchField = debounce(handleTouchAnyField, 1000);
 
@@ -160,10 +162,22 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
 
       const result = await services.backendApiClient.post(`/templates/evaluate?${query.toString()}`, data, { proxy: true });
 
+      if (values.code) {
+        codeValue.current = values.code;
+      }
+
       console.log('result: ', result);
     } catch (error) {
       console.log('error: ', error);
     }
+  };
+
+  const handleCloseDebugger = () => switchTableNameModal(false);
+
+  const handleSaveTableName = () => {
+    form.setFieldsValue({ '_formData.tableName': codeValue.current });
+
+    handleCloseDebugger();
   };
 
   return (
@@ -173,7 +187,9 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
           <Modal
             visible={tableNameModal}
             width="80%"
-            onCancel={() => switchTableNameModal(false)}
+            onCancel={handleCloseDebugger}
+            onOk={handleSaveTableName}
+            okText="Save table name template"
             className={styles.modal}
             wrapClassName={styles.modalWrap}
           >
