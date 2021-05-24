@@ -30,6 +30,7 @@ func TestDefault(t *testing.T) {
 
 	require.NoError(t, appconfig.Init(false, ""))
 	defer appconfig.Instance.Close()
+	defer appconfig.Instance.CloseEventsConsumers()
 
 	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
 

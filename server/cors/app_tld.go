@@ -6,7 +6,9 @@ import (
 )
 
 const (
-	AppTopLevelDomainTemplate    = "{{APP_TLD}}"
+	//AppTopLevelDomainTemplate matches when host top level domain == origin top level domain (abc.com == abc.com)
+	AppTopLevelDomainTemplate = "{{APP_TLD}}"
+	//AppSecondLevelDomainTemplate matches any origin domain if host top level domain == origin top level domain (app.abc.com == noapp.abc.com)
 	AppSecondLevelDomainTemplate = "*.{{APP_TLD}}"
 )
 
@@ -34,7 +36,7 @@ func (adr *AppDomainRule) IsAllowed(host, reqOrigin string) bool {
 	}
 
 	//analyze only domain
-	return hostTopLevelDomain == originTopLevelDomain && NewPrefixSuffixRule(expressionDomain).IsAllowed(hostDomain, originDomain)
+	return hostTopLevelDomain == originTopLevelDomain && originDomain != "" && NewPrefixSuffixRule(expressionDomain).IsAllowed(hostDomain, originDomain)
 
 }
 

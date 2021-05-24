@@ -191,6 +191,7 @@ func TestCors(t *testing.T) {
 			err := appconfig.Init(false, "")
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
+			defer appconfig.Instance.CloseEventsConsumers()
 
 			mockStorageFactory := storages.NewMockFactory()
 			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
@@ -344,6 +345,7 @@ func TestAPIEvent(t *testing.T) {
 			err := appconfig.Init(false, "")
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
+			defer appconfig.Instance.CloseEventsConsumers()
 
 			mockStorageFactory := storages.NewMockFactory()
 			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
@@ -518,6 +520,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
+	defer appconfig.Instance.CloseEventsConsumers()
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
@@ -637,6 +640,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
+	defer appconfig.Instance.CloseEventsConsumers()
 
 	metaStorage := &meta.Dummy{}
 
