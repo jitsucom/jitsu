@@ -543,13 +543,14 @@ func (r *Redis) GetTask(taskID string) (*Task, error) {
 }
 
 //AppendTaskLog appends log record into task logs sorted set
-func (r *Redis) AppendTaskLog(taskID string, now time.Time, message, level string) error {
+func (r *Redis) AppendTaskLog(taskID string, now time.Time, system, message, level string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
 	taskLogsKey := "sync_tasks#" + taskID + ":logs"
 	logRecord := TaskLogRecord{
 		Time:    now.Format(timestamp.Layout),
+		System:  system,
 		Message: message,
 		Level:   level,
 	}

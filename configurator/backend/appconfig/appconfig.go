@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	jcors "github.com/jitsucom/jitsu/server/cors"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/spf13/viper"
 	"io"
@@ -21,6 +22,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.domain", ".jitsu.com")
 	viper.SetDefault("server.self_hosted", true)
 	viper.SetDefault("server.log.level", "info")
+	viper.SetDefault("server.allowed_domains", []string{"localhost", jcors.AppTopLevelDomainTemplate})
 
 	if containerized {
 		viper.SetDefault("server.log.path", "/home/configurator/data/logs")

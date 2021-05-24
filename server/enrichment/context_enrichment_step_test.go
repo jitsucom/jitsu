@@ -21,6 +21,7 @@ func TestWithJsPreprocess(t *testing.T) {
 
 	require.NoError(t, appconfig.Init(false, ""))
 	defer appconfig.Instance.Close()
+	defer appconfig.Instance.CloseEventsConsumers()
 
 	tests := []struct {
 		name     string

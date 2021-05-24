@@ -34,35 +34,44 @@ Authorization can be configured via YAML array of objects.
 
 ```yaml
 server:
-  api_keys:
-   -
-    id: unique_tokenId
+  ...
+
+api_keys:
+  - id: unique_tokenId
     client_secret: bd33c5fa-d69f-11ea-87d0-0242ac130003
     server_secret: 5f15eba2-db58-11ea-87d0-0242ac130003
     origins:
       - '*abc.com'
       - 'efg.com'
-   -
-    id: unique_tokenId2
+  - id: unique_tokenId2
     client_secret: 123jsy213c5fa-c20765a0-d69f003
-   -
-    id: unique_tokenId3
+  - id: unique_tokenId3
     server_secret: 231dasds-3211kb3rdf-412dkjnabf
+
+destinations: ...
 ```
 
 Also, API Keys can be configured via plain string. In this case, plain string will be parsed as client secret.
 
 ```yaml
 server:
-  api_keys: 193b6281-f211-47a9-b384-102cf4cd2d55 #client secret
+  ...
+
+api_keys: 193b6281-f211-47a9-b384-102cf4cd2d55 #client secret
+
+destinations: ...
 ```
 
 ## HTTP URL
 
 ```yaml
 server:
-  api_keys: 'https://token-source.com/path'
   api_keys_reload_sec: 30
+  ...
+
+api_keys: 'https://token-source.com/path'
+
+destinations: ...
 ```
 <Hint>
     Authorization will be reloaded every <b>api_keys_reload_sec</b> seconds. Default value is <b>3</b> seconds.
@@ -92,10 +101,13 @@ Tokens file must have the same payload as the HTTP response body above.
 
 ```yaml
 server:
-  api_keys: 'file:///home/eventnative/data/config/tokens.json'
   api_keys_reload_sec: 30
+
+api_keys: 'file:///home/eventnative/data/config/tokens.json'
+
+destinations: ...
 ```
 
 ## Admin token authorization
 
-<LargeLink href="/docs/other-features/admin-endpoints" title="Read more about administrative token auth" />
+<LargeLink href="/docs/other-features/admin-endpoints" title="Read more about administrative token authorization" />

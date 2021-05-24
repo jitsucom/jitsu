@@ -52,7 +52,7 @@ type Storage interface {
 	GetTask(taskID string) (*Task, error)
 
 	//task logs
-	AppendTaskLog(taskID string, now time.Time, message, level string) error
+	AppendTaskLog(taskID string, now time.Time, system, message, level string) error
 	GetTaskLogs(taskID string, start, end time.Time) ([]TaskLogRecord, error)
 
 	//task queue
