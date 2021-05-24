@@ -584,7 +584,7 @@ func (p *Postgres) columnDDL(name string, column Column, pkFields map[string]boo
 		notNullClause = " not null " + p.getDefaultValueStatement(sqlType)
 	}
 
-	return fmt.Sprintf(`%s %s%s`, name, sqlType, notNullClause)
+	return fmt.Sprintf(`"%s" %s%s`, name, sqlType, notNullClause)
 }
 
 //getCastClause returns ::SQL_TYPE clause or empty string
