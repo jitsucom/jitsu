@@ -1,10 +1,11 @@
 // @Libs
-import React, { useRef, useState } from 'react';
-import { Button, Col, Dropdown, Form, Row } from 'antd';
+import React, { useEffect, useRef, useState } from 'react';
+import { Button, Col, Dropdown, Form, Row, Tabs } from 'antd';
 import MonacoEditor from 'react-monaco-editor';
 import cn from 'classnames';
+import debounce from 'lodash/debounce';
 // @Components
-import { CodeSnippet } from '@./lib/components/components';
+import { DebugEvents } from '@component/CodeDebugger/DebugEvents';
 import { CodeEditor } from '@component/CodeEditor/CodeEditor';
 // @Types
 import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStream';
@@ -12,7 +13,7 @@ import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStrea
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
-import debounce from 'lodash/debounce';
+import moment from 'moment';
 
 interface Props {
   /**
@@ -38,8 +39,14 @@ interface Props {
 }
 
 export interface FormValues {
-  event: RecentEvent;
+  object: string;
   code: string;
+}
+
+interface Debug {
+  code: 'debug' | 'output';
+  message: string;
+  key: number;
 }
 
 const CodeDebugger = ({
@@ -52,11 +59,15 @@ const CodeDebugger = ({
   const objectMonacoRef = useRef<MonacoEditor>();
   const codeMonacoRef = useRef<MonacoEditor>();
 
+  const [activeTab, setActiveTab] = useState<'debug' | 'output'>('debug');
+  const [outputValue, setOutputValue] = useState();
+  const [debug, setDebug] = useState<Debug[]>([]);
+
   const [form] = Form.useForm();
 
   const formatObjectField = debounce(() => objectMonacoRef.current.editor.getAction('editor.action.formatDocument').run(), 1000);
 
-  const handleChange = (name: 'object' | 'code') => (value: string) => {
+  const handleChange = (name: 'object' | 'code') => (value: string | object) => {
     form.setFieldsValue({ [name]: value ? value : '' });
 
     if (name === 'object') {
@@ -65,18 +76,62 @@ const CodeDebugger = ({
   };
 
   const handleFinish = async(values: FormValues) => {
-    console.log('values: ', values);
     if (run) {
-      run(values);
+      try {
+        const response = await run(values);
+
+        setActiveTab('output');
+
+        setOutputValue(response.result);
+
+        setDebug([
+          ...debug,
+          {
+            code: 'output',
+            message: response.result,
+            key: (new Date()).getTime()
+          }
+        ]);
+      } catch(error) {
+        setActiveTab('debug');
+
+        setDebug([
+          ...debug,
+          {
+            code: 'debug',
+            message: error?.message ?? 'Error',
+            key: (new Date()).getTime()
+          }
+        ]);
+      } finally {
+        const tabScrollingEl = document.querySelector('#addDebugRow');
+
+        setTimeout(() => tabScrollingEl.scrollIntoView(), 200);
+      }
     }
   };
 
+  const handleEventClick = (event: RecentEvent) => () => {
+    const monacoModel = objectMonacoRef.current.editor.getModel();
+    monacoModel.setValue(JSON.stringify(event));
+
+    handleChange('object')(JSON.stringify(event));
+  };
+
+  useEffect(() => {
+    if (defaultCodeValue) {
+      form.setFieldsValue({ code: defaultCodeValue });
+    }
+  }, [defaultCodeValue]);
+
   return (
     <div className={cn(className)}>
-      <div>
-
-      </div>
       <Form form={form} onFinish={handleFinish}>
+        <div className={styles.buttonContainer}>
+          {/*<DebugEvents handleClick={handleEventClick} />*/}
+          <Button type="primary" htmlType="submit" icon={<CaretRightOutlined />} />
+        </div>
+
         <Row>
           <Col span={codeFieldVisible ? 12 : 24} className={cn(codeFieldVisible && 'pr-2')}>
             <Form.Item
@@ -117,9 +172,33 @@ const CodeDebugger = ({
           }
         </Row>
 
-        <div className={styles.buttonContainer}>
-          <Button type="primary" htmlType="submit" icon={<CaretRightOutlined />}>Run</Button>
-        </div>
+        {
+          debug.length > 0 && (
+            <Tabs
+              activeKey={activeTab}
+              className={styles.tabs}
+              onChange={(activeTab: 'output' | 'debug') => setActiveTab(activeTab)}
+              tabPosition="left"
+            >
+              <Tabs.TabPane key="output" tab="Output" forceRender>
+                <p className={styles.output}>Result: <em>{outputValue}</em></p>
+              </Tabs.TabPane>
+              <Tabs.TabPane key="debug" tab="Debug" forceRender className={styles.debugTab}>
+                <ul className={styles.debug}>
+                  {
+                    debug.map((msg: Debug) => (
+                      <li className={cn(styles.item, msg.code === 'debug' && styles.error)} key={msg.key}>
+                        <span className={styles.status}>{msg.code} <em className={styles.time}>{moment(msg.key).format('HH:MM:ss.SSS')}</em></span>
+                        <span className={styles.message}>{msg.message}</span>
+                      </li>
+                    ))
+                  }
+                  <li id="addDebugRow" />
+                </ul>
+              </Tabs.TabPane>
+            </Tabs>
+          )
+        }
       </Form>
     </div>
   )
