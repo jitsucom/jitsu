@@ -88,6 +88,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
+	defer appconfig.Instance.CloseEventsConsumers()
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
