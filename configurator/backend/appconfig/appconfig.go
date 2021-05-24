@@ -19,7 +19,6 @@ var Instance *AppConfig
 
 func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.port", "7000")
-	viper.SetDefault("server.domain", ".jitsu.com")
 	viper.SetDefault("server.self_hosted", true)
 	viper.SetDefault("server.log.level", "info")
 	viper.SetDefault("server.allowed_domains", []string{"localhost", jcors.AppTopLevelDomainTemplate})

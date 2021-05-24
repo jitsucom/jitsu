@@ -83,6 +83,13 @@ func TestRule(t *testing.T) {
 			"http://app.mydomain.com",
 			true,
 		},
+		{
+			"App TLD second Origin matches 2",
+			"*.{{APP_TLD}}",
+			"app-api.jitsu.com",
+			"https://cloud.jitsu.com",
+			true,
+		},
 	}
 
 	for _, tt := range tests {

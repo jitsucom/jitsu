@@ -1,6 +1,8 @@
 package cors
 
-import jcors "github.com/jitsucom/jitsu/server/cors"
+import (
+	jcors "github.com/jitsucom/jitsu/server/cors"
+)
 
 //Instance is a CORS rule slice singleton
 var Instance *Service
@@ -19,7 +21,7 @@ func Init(allowedDomain string, rules []string) {
 
 	for _, rule := range rules {
 		if rule != "" {
-			corsRules = append(corsRules, jcors.NewRule(allowedDomain))
+			corsRules = append(corsRules, jcors.NewRule(rule))
 		}
 	}
 
