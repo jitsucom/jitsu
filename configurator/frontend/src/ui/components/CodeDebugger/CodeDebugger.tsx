@@ -19,7 +19,7 @@ interface Props {
   /**
    * Run handler, async thata function takes form values and returns response or error
    * */
-  run?: (values: FormValues) => any;
+  run: (values: FormValues) => any;
   /**
    * Prop to make code field hidden, visible by default
    * */
@@ -63,6 +63,8 @@ const CodeDebugger = ({
   const [outputValue, setOutputValue] = useState();
   const [debug, setDebug] = useState<Debug[]>([]);
 
+  const [runIsLoading, setRunIsLoading] = useState<boolean>();
+
   const [form] = Form.useForm();
 
   const formatObjectField = debounce(() => objectMonacoRef.current.editor.getAction('editor.action.formatDocument').run(), 1000);
@@ -76,38 +78,40 @@ const CodeDebugger = ({
   };
 
   const handleFinish = async(values: FormValues) => {
-    if (run) {
-      try {
-        const response = await run(values);
+    setRunIsLoading(true);
 
-        setActiveTab('output');
+    try {
+      const response = await run(values);
 
-        setOutputValue(response.result);
+      setActiveTab('output');
 
-        setDebug([
-          ...debug,
-          {
-            code: 'output',
-            message: response.result,
-            key: (new Date()).getTime()
-          }
-        ]);
-      } catch(error) {
-        setActiveTab('debug');
+      setOutputValue(response.result);
 
-        setDebug([
-          ...debug,
-          {
-            code: 'debug',
-            message: error?.message ?? 'Error',
-            key: (new Date()).getTime()
-          }
-        ]);
-      } finally {
-        const tabScrollingEl = document.querySelector('#addDebugRow');
+      setDebug([
+        ...debug,
+        {
+          code: 'output',
+          message: response.result,
+          key: (new Date()).getTime()
+        }
+      ]);
+    } catch(error) {
+      setActiveTab('debug');
 
-        setTimeout(() => tabScrollingEl.scrollIntoView(), 200);
-      }
+      setDebug([
+        ...debug,
+        {
+          code: 'debug',
+          message: error?.message ?? 'Error',
+          key: (new Date()).getTime()
+        }
+      ]);
+    } finally {
+      setRunIsLoading(false);
+
+      const tabScrollingEl = document.querySelector('#addDebugRow');
+
+      setTimeout(() => tabScrollingEl.scrollIntoView(), 200);
     }
   };
 
@@ -129,7 +133,7 @@ const CodeDebugger = ({
       <Form form={form} onFinish={handleFinish}>
         <div className={styles.buttonContainer}>
           {/*<DebugEvents handleClick={handleEventClick} />*/}
-          <Button type="primary" htmlType="submit" icon={<CaretRightOutlined />} />
+          <Button type="primary" htmlType="submit" icon={<CaretRightOutlined />} loading={runIsLoading} />
         </div>
 
         <Row>
