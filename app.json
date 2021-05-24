@@ -2,7 +2,7 @@
   "name": "Jitsu",
   "description": "The easiest real-time data collection in the world. Please, read the guide before deploying: https://jitsu.com/docs/deployment/deploy-on-heroku",
   "success_url": "/configurator",
-  "repository": "https://github.com/jitsucom/jitsu",
+  "repository": "https://github.com/jitsucom/jitsu/tree/hotfix/362-support-configurable-cors",
   "logo": "https://jitsu.com/img/jitsu-light.svg",
   "keywords": ["jitsu", "events", "pixel", "golang", "tracking"],
   "stack": "container",

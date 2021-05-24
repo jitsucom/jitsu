@@ -59,6 +59,13 @@ func TestRule(t *testing.T) {
 			"App TLD Origin matches",
 			"{{APP_TLD}}",
 			"mydomain.com",
+			"http://mydomain.com",
+			true,
+		},
+		{
+			"App TLD Origin matches with domain",
+			"{{APP_TLD}}",
+			"mydomain.com",
 			"http://app.mydomain.com",
 			true,
 		},
