@@ -6,7 +6,6 @@ export function initIntercom(key, data) {
     app_id: key,
     ...(data || {})
   };
-  console.log('Intercom', window.intercomSettings);
   (function() {
     var w = window;
     var ic = w.Intercom;

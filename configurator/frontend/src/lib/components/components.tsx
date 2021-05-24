@@ -522,6 +522,7 @@ export async function withProgressBar<T>(props: IWithProgressProps<T>): Promise<
     message.info('Completed successfully!');
     return res;
   } catch (e) {
+    console.log("Failed", e)
     modal.update({
       className: 'estimated-progress-bar',
       icon: null,

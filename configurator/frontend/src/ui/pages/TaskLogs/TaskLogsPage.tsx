@@ -103,7 +103,7 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
               setFilter('collection', val === 'ALL' ? undefined : val, setFilterCollection);
             }}>
             <Select.Option value="ALL">ALL</Select.Option>
-            {source.collections.map(({ name }) =>
+            {(source.collections ?? []).map(({ name }) =>
               <Select.Option value={name}>{name}</Select.Option>)
             }
           </Select>

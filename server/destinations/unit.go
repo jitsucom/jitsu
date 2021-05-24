@@ -16,7 +16,13 @@ type Unit struct {
 	hash     uint64
 }
 
-//Close eventsQueue if exists and storage
+//CloseStorage runs storages.StorageProxy Close()
+//returns err if occurred
+func (u *Unit) CloseStorage() error {
+	return u.storage.Close()
+}
+
+//Close closes storage and eventsQueue if exists
 func (u *Unit) Close() (multiErr error) {
 	if err := u.storage.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, err)

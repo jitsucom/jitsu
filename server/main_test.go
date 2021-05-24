@@ -36,7 +36,7 @@ import (
 
 func SetTestDefaultParams() {
 	viper.Set("log.path", "")
-	viper.Set("server.api_keys", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
+	viper.Set("api_keys", `{"tokens":[{"id":"id1","client_secret":"c2stoken","server_secret":"s2stoken","origins":["whiteorigin*"]}]}`)
 	viper.Set("server.log.path", "")
 }
 
@@ -191,6 +191,7 @@ func TestCors(t *testing.T) {
 			err := appconfig.Init(false, "")
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
+			defer appconfig.Instance.CloseEventsConsumers()
 
 			mockStorageFactory := storages.NewMockFactory()
 			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
@@ -344,6 +345,7 @@ func TestAPIEvent(t *testing.T) {
 			err := appconfig.Init(false, "")
 			require.NoError(t, err)
 			defer appconfig.Instance.Close()
+			defer appconfig.Instance.CloseEventsConsumers()
 
 			mockStorageFactory := storages.NewMockFactory()
 			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
@@ -510,7 +512,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 
 	telemetry.InitTest()
 	viper.Set("log.path", "")
-	viper.Set("server.api_keys", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
+	viper.Set("api_keys", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
 
 	destinationConfig := fmt.Sprintf(pgDestinationConfigTemplate, container.Host, container.Port, container.Database, container.Schema, container.Username, container.Password)
 
@@ -518,6 +520,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
+	defer appconfig.Instance.CloseEventsConsumers()
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
@@ -532,7 +535,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
 	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, metaStorage, 0)
-	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	defer destinationService.Close()
 
@@ -637,6 +640,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	err = appconfig.Init(false, "")
 	require.NoError(t, err)
 	defer appconfig.Instance.Close()
+	defer appconfig.Instance.CloseEventsConsumers()
 
 	metaStorage := &meta.Dummy{}
 
@@ -644,7 +648,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
 	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, metaStorage, 0)
-	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory)
+	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
 

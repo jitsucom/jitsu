@@ -39,6 +39,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0
 	go.opencensus.io v0.22.4 // indirect
 	go.uber.org/atomic v1.6.0
+	golang.org/x/net v0.0.0-20201224014010-6772e930b67b
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 	google.golang.org/api v0.20.0
 	google.golang.org/appengine v1.6.6 // indirect
