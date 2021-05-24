@@ -43,6 +43,10 @@ export class ApplicationConfiguration {
     );
   }
 
+  get buildId(): string {
+    return this._buildId;
+  }
+
   get firebaseConfig(): any {
     return this._firebaseConfig;
   }

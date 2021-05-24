@@ -45,7 +45,9 @@ func (d *Dummy) GetAllTasks(sourceID, collection string, from, to time.Time, lim
 func (d *Dummy) GetLastTask(sourceID, collection string) (*Task, error) { return nil, nil }
 func (d *Dummy) GetTask(taskID string) (*Task, error)                   { return nil, nil }
 
-func (d *Dummy) AppendTaskLog(taskID string, now time.Time, message, level string) error { return nil }
+func (d *Dummy) AppendTaskLog(taskID string, now time.Time, system, message, level string) error {
+	return nil
+}
 func (d *Dummy) GetTaskLogs(taskID string, from, to time.Time) ([]TaskLogRecord, error) {
 	return nil, nil
 }

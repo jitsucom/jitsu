@@ -2,13 +2,14 @@ package middleware
 
 import (
 	"encoding/json"
+	"github.com/jitsucom/jitsu/server/cors"
 	"net/http"
 	"strings"
 )
 
-//Cors handle OPTIONS requests and check if request /event or dynamic event endpoint or static endpoint (/t /s /p)
+//Cors handles OPTIONS requests and check if request /event or dynamic event endpoint or static endpoint (/t /s /p)
 //if token ok => check origins - if matched write origin to acao header otherwise don't write it
-//if not return 401
+//if not returns 401
 func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/v1/event" || strings.Contains(r.URL.Path, "/api.") {
@@ -20,7 +21,7 @@ func Cors(h http.Handler, isAllowedOriginsFunc func(string) ([]string, bool)) ht
 				reqOrigin := r.Header.Get("Origin")
 				if len(origins) > 0 {
 					for _, allowedOrigin := range origins {
-						if checkOrigin(allowedOrigin, reqOrigin) {
+						if cors.NewPrefixSuffixRule(allowedOrigin).IsAllowed("", reqOrigin) {
 							w.Header().Add("Access-Control-Allow-Origin", reqOrigin)
 							break
 						}
@@ -56,42 +57,4 @@ func writeDefaultCorsHeaders(w http.ResponseWriter) {
 	w.Header().Add("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, UPDATE")
 	w.Header().Add("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, Host")
 	w.Header().Add("Access-Control-Allow-Credentials", "true")
-}
-
-func checkOrigin(allowedOrigin, reqOrigin string) bool {
-	var prefix, suffix bool
-	//reformat req origin
-	if strings.HasPrefix(reqOrigin, "http://") {
-		reqOrigin = strings.Replace(reqOrigin, "http://", "", 1)
-	}
-	if strings.HasPrefix(reqOrigin, "https://") {
-		reqOrigin = strings.Replace(reqOrigin, "https://", "", 1)
-	}
-
-	//check
-	if strings.HasPrefix(allowedOrigin, "*") {
-		allowedOrigin = strings.Replace(allowedOrigin, "*", "", 1)
-		prefix = true
-	}
-
-	if strings.HasSuffix(allowedOrigin, "*") {
-		allowedOrigin = strings.Replace(allowedOrigin, "*", "", 1)
-		suffix = true
-	}
-
-	if prefix && suffix {
-		return strings.Contains(reqOrigin, allowedOrigin)
-	}
-
-	//prefix means '*abc.ru' and we need to check if abc.ru is the suffix of origin
-	if prefix {
-		return strings.HasSuffix(reqOrigin, allowedOrigin)
-	}
-
-	//prefix means 'abc*' and we need to check if abc is the prefix of origin
-	if suffix {
-		return strings.HasPrefix(reqOrigin, allowedOrigin)
-	}
-
-	return reqOrigin == allowedOrigin
 }

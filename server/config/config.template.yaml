@@ -6,32 +6,7 @@ server:
   #name: event-us-01.domain.com #Optional. This parameter is required in cluster deployments. If not set - will be default (unnamed-server)
   #port: 8001 #Optional
 
-  ### Authorization configuration. https://jitsu.com/docs/configuration/authorization
-  ### If not configured - UUID will be generated and will be written in logs
-  ### It might be http url of file source
-  #api_keys: https://source_of_api_keys
-
-  ###or might be full configured API Key object
-  #api_keys:
-  #  -
-  #    id: unique_tokenId
-  #    client_secret: bd33c5fa-d69f-11ea-87d0-0242ac130003
-  #    server_secret: 5f15eba2-db58-11ea-87d0-0242ac130003
-  #    origins:
-  #      - *abc.com
-  #      - efg.com
-  #  -
-  #    id: unique_tokenId2
-  #    client_secret: 123jsy213c5fa-c20765a0-d69f003
-  #  -
-  #    id: unique_tokenId3
-  #    server_secret: 231dasds-3211kb3rdf-412dkjnabf
-
-  ### or plain strings - client_secrets
-  api_keys:
-      - client_secret1
-      - client_secret2
-  ### Authorization reloading. If 'server.api_keys' is http or file:/// source than it will be reloaded every api_keys_reload_sec
+  ### API Keys reloading. If 'api_keys' is http or file:/// source than it will be reloaded every api_keys_reload_sec
   #api_keys_reload_sec: 3 #Optional. Default value is 3.
 
   ### Admin endpoint authorization
@@ -84,6 +59,33 @@ server:
 #    path: global #'/tmp/logs' or 'global' constant to write logs to a file or to main logger
 #    rotation_min: 10 #Optional. Default  value is 5 minutes. If set 0, 24 hours would be kept
 #    max_backups: 20  #Optional. Log files won't be deleted if not set
+
+### Authorization configuration. https://jitsu.com/docs/configuration/authorization
+### If not configured - UUID will be generated and will be written in logs
+### It might be http url of file source
+#api_keys: https://source_of_api_keys
+
+###or might be full configured API Key object
+#api_keys:
+#  -
+#    id: unique_tokenId
+#    client_secret: bd33c5fa-d69f-11ea-87d0-0242ac130003
+#    server_secret: 5f15eba2-db58-11ea-87d0-0242ac130003
+#    origins:
+#      - *abc.com
+#      - efg.com
+#  -
+#    id: unique_tokenId2
+#    client_secret: 123jsy213c5fa-c20765a0-d69f003
+#  -
+#    id: unique_tokenId3
+#    server_secret: 231dasds-3211kb3rdf-412dkjnabf
+
+### or plain strings - client_secrets
+api_keys:
+  - client_secret1
+  - client_secret2
+
 
 ### Destinations configuration https://jitsu.com/docs/destinations-configuration
 ### It might be http url of file source

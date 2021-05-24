@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Modal, Progress } from 'antd';
+import { Button, Input, Modal, Progress } from 'antd';
 import cn from 'classnames';
 import { PaymentPlan, paymentPlans } from '@service/billing';
 import { useServices } from '@hooks/useServices';
@@ -44,6 +44,7 @@ export const PlanUpgradeDialog: React.FC<{visible: boolean, hide: () => void, cu
   const [selectedPlan, setSelectedPlan] = useState(currentPlanId);
   const [buttonLoading, setLoading] = useState(false);
   const [dataSent, setDataSent] = useState(false);
+  const [promoCode, setPromoCode] = useState('')
   const services = useServices();
 
   const buttonProps = (plan: PaymentPlan) => {
@@ -87,17 +88,19 @@ export const PlanUpgradeDialog: React.FC<{visible: boolean, hide: () => void, cu
         <div {...buttonProps(paymentPlans.enterprise)}>Enterprise</div>
         <div className={styles.planPrice}>custom</div>
       </div>
-
+    </div>
+    <div className="flex flex-row items-center justify-start pt-6">
+      <div className="whitespace-nowrap pr-4 text-secondaryText">Promo Code: </div><Input size="small" onChange={(val) => setPromoCode(val.target.value)} />
     </div>
     <div className="flex justify-center pt-6">
       <Button
         onClick={async() => {
           setLoading(true);
           try {
-            await services.analyticsService.track('upgrade_plan', { plan: selectedPlan });
-            await services.backendApiClient.post('/notify', {
+            await services.analyticsService.track('upgrade_plan', {
               event: 'upgrade_plan',
               plan: selectedPlan,
+              promo_code: promoCode || '',
               user: services.userService.getUser().email
             });
             setDataSent(true)

@@ -131,6 +131,7 @@ export default class AnalyticsService {
   private consoleInterceptor: ConsoleLogInterceptor = new ConsoleLogInterceptor();
   private _anonymizeUsers = false;
   private _appName = 'unknown';
+  private buildId: string;
 
   constructor(appConfig: ApplicationConfiguration) {
     this.appConfig = appConfig;
@@ -143,7 +144,8 @@ export default class AnalyticsService {
         randomize_url: true
       });
       this.jitsu.set({
-        app: this._appName
+        app: this._appName,
+        buildId: appConfig.buildId
       }, {});
     }
     this.setupGlobalErrorHandler();
@@ -218,10 +220,12 @@ export default class AnalyticsService {
 
   public configure(features: FeatureSettings) {
     this._anonymizeUsers = features.anonymizeUsers;
-    this._appName = features.appName;
+    const {appName, ...otherFeatures} = features;
+    this._appName = appName;
     if (this.jitsu) {
       this.jitsu.set({
-        app: this._appName
+        app: this._appName,
+        sysFeatures: otherFeatures
       }, {});
     }
   }

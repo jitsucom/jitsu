@@ -3,10 +3,10 @@ server:
   log:
     level: info
   name: demo-jitsu
-  api_keys: 'http://localhost:7000/api/v1/apikeys?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
   admin_token: '${env.SERVER_ADMIN_TOKEN}'
   telemetry: 'http://localhost:7000/api/v1/telemetry?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
-  strict_auth_tokens: true
+
+api_keys: 'http://localhost:7000/api/v1/apikeys?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
 
 destinations: 'http://localhost:7000/api/v1/destinations?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
 

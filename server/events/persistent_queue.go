@@ -87,8 +87,15 @@ func (pq *PersistentQueue) DequeueBlock() (Event, time.Time, string, error) {
 	return fact, wrappedFact.DequeuedTime, wrappedFact.TokenID, nil
 }
 
+//Close closes underlying queue and returns err if occurred
+// *Note: dque.ErrQueueClosed will be ignored
 func (pq *PersistentQueue) Close() error {
-	return pq.queue.Close()
+	err := pq.queue.Close()
+	if err == dque.ErrQueueClosed {
+		return nil
+	}
+
+	return err
 }
 
 func logSkippedEvent(event Event, err error) {
