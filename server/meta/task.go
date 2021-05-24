@@ -2,6 +2,7 @@ package meta
 
 import "encoding/json"
 
+//Task is a Redis entity
 type Task struct {
 	ID         string `json:"id,omitempty" redis:"id"`
 	Source     string `json:"source,omitempty" redis:"source"`
@@ -13,12 +14,15 @@ type Task struct {
 	Status     string `json:"status,omitempty" redis:"status"`
 }
 
+//TaskLogRecord is a Redis entity
 type TaskLogRecord struct {
 	Time    string `json:"time,omitempty" redis:"time"`
+	System  string `json:"system,omitempty" redis:"system"`
 	Message string `json:"message,omitempty" redis:"message"`
 	Level   string `json:"level,omitempty" redis:"level"`
 }
 
+//Marshal returns serialized JSON object string
 func (tlr *TaskLogRecord) Marshal() string {
 	b, _ := json.Marshal(tlr)
 	return string(b)
