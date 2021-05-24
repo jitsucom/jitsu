@@ -1,7 +1,8 @@
 server:
   log:
     level: info
-  domain: herokuapp.com
+  allowed_domains:
+    - '*.{{APP_TLD}}'
   name: demo-jitsu
   auth: '${env.CONFIGURATOR_ADMIN_TOKEN}'
 

@@ -12,10 +12,11 @@ import (
 )
 
 const (
-	serviceName            = "authorization"
-	viperApiKeysKey        = "api_keys"
-	deprecatedViperAuthKey = "server.auth"
-	deprecatedViperS2SKey  = "server.s2s_auth"
+	serviceName                     = "authorization"
+	viperApiKeysKey                 = "api_keys"
+	deprecatedViperServerApiKeysKey = "server.api_keys"
+	deprecatedViperAuthKey          = "server.auth"
+	deprecatedViperS2SKey           = "server.s2s_auth"
 
 	defaultTokenID = "defaultid"
 )
@@ -42,10 +43,15 @@ func NewService() (*Service, error) {
 	}
 
 	//if api_keys is used => strict tokens
-	if viper.IsSet(viperApiKeysKey) {
+	if viper.IsSet(viperApiKeysKey) || viper.IsSet(deprecatedViperServerApiKeysKey) {
 		viper.SetDefault("server.strict_auth_tokens", true)
 	}
+
 	viperKey := viperApiKeysKey
+	if viper.IsSet(deprecatedViperServerApiKeysKey) {
+		viperKey = deprecatedViperServerApiKeysKey
+	}
+
 	if !viper.IsSet(viperKey) && viper.IsSet(deprecatedViperAuthKey) {
 		viperKey = deprecatedViperAuthKey
 	}

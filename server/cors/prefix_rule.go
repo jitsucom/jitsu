@@ -1,6 +1,9 @@
 package cors
 
-import "strings"
+import (
+	"net/url"
+	"strings"
+)
 
 //Rule is a CORS rule
 type Rule interface {
@@ -51,11 +54,8 @@ func (psr *PrefixSuffixRule) IsAllowed(host, reqOrigin string) bool {
 		return true
 	}
 
+	reqOrigin = removePort(reqOrigin)
 	reqOrigin = removeSchema(reqOrigin)
-
-	if psr.prefix && psr.suffix {
-		return strings.Contains(reqOrigin, psr.value)
-	}
 
 	//prefix means '*abc.ru' and we need to check if abc.ru is the suffix of origin
 	if psr.prefix {
@@ -76,6 +76,17 @@ func removeSchema(adr string) string {
 	}
 	if strings.HasPrefix(adr, "https://") {
 		adr = strings.Replace(adr, "https://", "", 1)
+	}
+
+	return adr
+}
+
+func removePort(adr string) string {
+	if strings.Contains(adr, ":") {
+		u, err := url.Parse(adr)
+		if err == nil {
+			return strings.Split(u.Host, ":")[0]
+		}
 	}
 
 	return adr

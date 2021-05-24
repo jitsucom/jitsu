@@ -1,7 +1,6 @@
 package cors
 
 import (
-	"github.com/jitsucom/jitsu/server/logging"
 	"golang.org/x/net/publicsuffix"
 	"strings"
 )
@@ -18,16 +17,11 @@ type AppDomainRule struct {
 
 //IsAllowed returns true if reqOrigin matches the rule
 func (adr *AppDomainRule) IsAllowed(host, reqOrigin string) bool {
-	hostPort := strings.Split(host, ":")
-	hostWithoutPort := hostPort[0]
+	host = removePort(host)
+	reqOrigin = removePort(reqOrigin)
+	reqOrigin = removeSchema(reqOrigin)
 
-	hostTldPlus, err := publicsuffix.EffectiveTLDPlusOne(hostWithoutPort)
-	if err != nil {
-		logging.SystemErrorf("Error parsing top level domain from Host %s: %v", host, err)
-		return false
-	}
-
-	hostTopLevelDomain, hostDomain := extractTopLevelAndDomain(hostTldPlus)
+	hostTopLevelDomain, hostDomain := extractTopLevelAndDomain(host)
 
 	originTopLevelDomain, originDomain := extractTopLevelAndDomain(reqOrigin)
 
@@ -40,17 +34,36 @@ func (adr *AppDomainRule) IsAllowed(host, reqOrigin string) bool {
 	}
 
 	//analyze only domain
-	return hostDomain == originDomain && NewPrefixSuffixRule(expressionDomain).IsAllowed(hostDomain, originDomain)
+	return hostTopLevelDomain == originTopLevelDomain && NewPrefixSuffixRule(expressionDomain).IsAllowed(hostDomain, originDomain)
 
 }
 
 //extractTopLevelAndDomain returns top level domain and domain
 //e.g. abc.efg.com returns "efg.com", "abc"
-func extractTopLevelAndDomain(host string) (string, string) {
-	domains := strings.Split(host, ".")
-	if len(domains) == 1 {
-		return domains[0], ""
+func extractTopLevelAndDomain(adr string) (string, string) {
+	var icann, topLevelDomain, domain string
+
+	for i := 0; i < 3; i++ {
+		if adr == "" {
+			break
+		}
+
+		adr = strings.TrimSuffix(adr, ".")
+		publicSuffix, isIcann := publicsuffix.PublicSuffix(adr)
+		if isIcann && topLevelDomain == "" {
+			icann = publicSuffix
+		} else if topLevelDomain == "" {
+			topLevelDomain = publicSuffix
+		} else {
+			domain = publicSuffix
+		}
+
+		adr = strings.TrimSuffix(adr, publicSuffix)
 	}
 
-	return domains[1], domains[0]
+	if icann != "" {
+		topLevelDomain += "." + icann
+	}
+
+	return topLevelDomain, domain
 }
