@@ -7,6 +7,7 @@
 
 .buttonContainer {
   display: flex;
+  //justify-content: space-between;
   justify-content: flex-end;
 }
 
@@ -32,5 +33,50 @@
     position: relative;
     top: -0.5px;
     margin: 0 8px 0 2px;
+  }
+}
+
+.events {
+  .item {}
+}
+
+.output {
+  font-weight: bold;
+}
+
+.debug {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  .item {
+    @apply table;
+
+    &.error {
+      color: @error-color;
+    }
+
+    .status,
+    .message {
+      @apply table-cell align-top;
+    }
+
+    .status {
+      @apply w-14 font-medium whitespace-nowrap pr-3;
+
+      .time {
+        font-size: 0.75em;
+      }
+    }
+  }
+}
+
+.tabs {
+  border: 1px solid @border-color-base;
+  @apply h-40;
+
+  .debugTab {
+    @apply p-3 !important;
+    .custom-scrollbar();
   }
 }
