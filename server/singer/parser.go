@@ -177,7 +177,7 @@ func parseProperties(prefix string, properties map[string]*Property, resultField
 				types = append(types, fmt.Sprint(typeValue))
 			}
 		default:
-			logging.Errorf("Unknown singer property [%s] type: %T", originName, property.Type)
+			logging.Warnf("Unknown singer property [%s] type: %T", originName, property.Type)
 		}
 
 		for _, t := range types {

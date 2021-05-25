@@ -16,7 +16,7 @@ import (
 func TestBulkInsert(t *testing.T) {
 	table := &Table{
 		Name:    "test_insert",
-		Columns: Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}},
+		Columns: Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
 	}
 	container, pg := setupDatabase(t, table)
 	defer container.Close()
@@ -30,7 +30,7 @@ func TestBulkInsert(t *testing.T) {
 func TestBulkMerge(t *testing.T) {
 	table := &Table{
 		Name:     "test_merge",
-		Columns:  Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}},
+		Columns:  Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
 		PKFields: map[string]bool{"field1": true},
 	}
 	container, pg := setupDatabase(t, table)
@@ -70,6 +70,7 @@ func createObjects(num int) []map[string]interface{} {
 		object["field1"] = fmt.Sprint(rand.Int())
 		object["field2"] = fmt.Sprint(rand.Int())
 		object["field3"] = rand.Int()
+		object["user"] = fmt.Sprint(rand.Int())
 		objects = append(objects, object)
 	}
 	return objects

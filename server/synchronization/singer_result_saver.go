@@ -10,10 +10,12 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/singer"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"strings"
 )
@@ -56,6 +58,9 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 
 		//Note: we assume that destinations connected to 1 source can't have different unique ID configuration
 		uniqueIDField := rs.destinations[0].GetUniqueIDField()
+		stream.BatchHeader.Fields[uniqueIDField.GetFlatFieldName()] = schema.NewField(typing.STRING)
+		stream.BatchHeader.Fields[events.SrcKey] = schema.NewField(typing.STRING)
+		stream.BatchHeader.Fields[timestamp.Key] = schema.NewField(typing.TIMESTAMP)
 
 		for _, object := range stream.Objects {
 			//enrich with system fields values

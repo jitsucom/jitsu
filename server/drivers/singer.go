@@ -20,7 +20,6 @@ import (
 
 const (
 	stateFileName = "state.json"
-	singerSystem  = "Singer"
 )
 
 var errNotReady = errors.New("Singer driver isn't ready yet. Tap is being installed..")
@@ -283,8 +282,7 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 		}
 	})
 
-	stdErrWriter := logging.NewStringWriter()
-	dualWriter := logging.Dual{FileWriter: stdErrWriter, Stdout: singer.Instance.LogWriter}
+	dualWriter := logging.Dual{FileWriter: taskLogger, Stdout: singer.Instance.LogWriter}
 
 	//writing process logs (singer writes process logs to stderr)
 	wg.Add(1)
@@ -296,9 +294,12 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 	wg.Wait()
 
 	err = syncCmd.Wait()
-	taskLogger.OUTPUT(singerSystem, stdErrWriter.String())
 	if err != nil {
 		return err
+	}
+
+	if parsingErr != nil {
+		return parsingErr
 	}
 
 	return nil
