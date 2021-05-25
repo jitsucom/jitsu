@@ -4,7 +4,6 @@
 
 * `yarn install` - get all dependencies (run before any script)
 * `yarn start` - dev application (with hot reload) will be started on [http://localhost:9876](http://localhost:9876)
-    or ([http://localhost.jitsu.com:9876](http://localhost.jitsu.com:9876) (see [Local Debug](#local-debug) section below)
 * `yarn build` - build prod app, see build/ folder for results
 * `yarn add (-D)` - install and add package (-D - optional, use for install devDependency)
 * `yarn prettier:check` - check all *.ts|tsx files in src directory for compliance
@@ -43,7 +42,7 @@ before building the app (or running it with `yarn start`)
     </tr>
     <tr>
         <td><code>DEV_HOST</code></td>
-        <td><code>localhost.jitsu.com</code></td>
+        <td><code>localhost</code></td>
         <td>Specify a host to use</td>
     </tr>
     <tr>
@@ -57,14 +56,6 @@ before building the app (or running it with `yarn start`)
 **Note**: for adding new environment varialbles please list them in _webpack.config.js
 (look for `webpack.DefinePlugin`) and in env.js (look for `getClientEnvironment`)
 
-## Local debug
-
-If you want to debug local build with production API, you'll need to run app on *.jitsu.com domain in order
-to pass CORS check. At the moment, app.jitsu.com accepts validates CORS from all *.jitsu.com subdomains.
-
-* Open `/etc/hosts`
-* Add `127.0.0.1 localhost.jitsu.com`
-* Open browser on http://localhost.jitsu.com:3000
 
 
 ## Troubleshooting
