@@ -1,6 +1,6 @@
 // @Libs
 import moment from 'moment';
-import { Collapse } from 'antd';
+import { Card, Collapse, Input } from 'antd';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Hooks
@@ -9,6 +9,8 @@ import useLoader from '@hooks/useLoader';
 import { Event } from '@./lib/components/EventsStream/EventsStream';
 // @Styles
 import styles from './CodeDebugger.module.less';
+import { useMemo, useState } from 'react';
+import debounce from 'lodash/debounce';
 
 interface Props {
   handleClick: (ev: Event) => () => void;
@@ -19,7 +21,7 @@ const DebugEvents = ({ handleClick }: Props) => {
 
   const [, eventsData] = useLoader(async() => await services.backendApiClient.get(`/events/cache?project_id=${services.activeProject.id}&limit=100000`, { proxy: true }));
 
-  const events = (eventsData?.events ?? []).map(event => ({
+  const allEvents = useMemo(() => (eventsData?.events ?? []).map(event => ({
     data: event,
     time: moment(event.original._timestamp)
   })).sort((e1: Event, e2: Event) => {
@@ -29,18 +31,22 @@ const DebugEvents = ({ handleClick }: Props) => {
       return 1;
     }
     return 0;
-  });
+  }), [eventsData?.events]);
 
   return (
-    <Collapse className={styles.events} ghost>
+    <Card className={styles.events}>
       {
-        events.slice(0, 10).map(ev => (
-          <Collapse.Panel className={styles.item} header={ev.time.utc().format()} key={Math.random()}>
-            <p onClick={handleClick(ev)}>EVENT</p>
-          </Collapse.Panel>
+        allEvents.slice(0, 100).map(ev => (
+          <p
+            className="cursor-pointer"
+            onClick={handleClick(ev.data.original)}
+            key={Math.random()}
+          >
+            {ev.time.utc().format()}, {ev.data.original.event_type}
+          </p>
         ))
       }
-    </Collapse>
+    </Card>
   );
 };
 
