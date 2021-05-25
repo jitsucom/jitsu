@@ -111,14 +111,13 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 
 //Insert provided object in AwsRedshift
 func (ar *AwsRedshift) Insert(eventContext *EventContext) error {
-	header, placeholders, values := ar.dataSourceProxy.buildQueryPayload(eventContext.ProcessedEvent)
+	statement, values := ar.dataSourceProxy.buildInsertStatement(eventContext.Table, eventContext.ProcessedEvent)
 
-	query := fmt.Sprintf(insertTemplate, ar.dataSourceProxy.config.Schema, eventContext.Table.Name, header, "("+placeholders+")")
+	ar.dataSourceProxy.queryLogger.LogQueryWithValues(statement, values)
 
-	ar.dataSourceProxy.queryLogger.LogQueryWithValues(query, values)
-	_, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, query, values...)
+	_, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, statement, values...)
 	if err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, query, values, err)
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, statement, values, err)
 	}
 
 	return nil
