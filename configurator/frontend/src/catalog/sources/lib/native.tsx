@@ -203,8 +203,29 @@ export const googleAnalytics: SourceConnector = {
         'ga:quantityRemovedFromCart', 'ga:refundAmount', 'ga:revenuePerUser', 'ga:sessionsPerUser', 'ga:totalRefunds', 'ga:transactionsPerUser'
       ], 10)
     }
-
   ],
+  collectionTemplates: [
+    {
+      templateName: 'Acquisition Overview',
+      collectionName: 'report',
+      config: {
+        dimensions: [
+          'ga:date',
+          'ga:acquisitionMedium',
+          'ga:acquisitionSource',
+          'ga:acquisitionSourceMedium',
+          'ga:acquisitionTrafficChannel'
+        ],
+        metrics: [
+          'ga:avgSessionDuration',
+          'ga:bounceRate',
+          'ga:pageviewsPerSession',
+          'ga:sessions'
+        ]
+      }
+    }
+  ],
+
   displayName: 'Google Analytics',
   id: 'google_analytics',
   collectionTypes: ['report'],
