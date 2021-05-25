@@ -126,6 +126,11 @@ export type FeatureSettings = {
    * If billing is enabled
    */
   billingEnabled: boolean
+
+  /**
+   * Environment in which Jitsu runs
+   */
+  environment: 'heroku' | 'docker' | 'jitsu_cloud' | 'custom'
 };
 
 function parseJson(envVar, defaultValue) {
@@ -249,7 +254,19 @@ export default class ApplicationServices {
       transformResponse: JSON_FORMAT
     };
 
+
+
+
+
     let response = await axios(request);
+
+    let environment = response.data.selfhosted ? 'custom' : 'jitsu_cloud';
+    if (response.data.docker_hub_id === 'heroku') {
+      environment = 'heroku';
+    } else if (response.data.docker_hub_id === 'ksense' || response.data.docker_hub_id === 'jitsucom') {
+      environment = 'docker';
+    }
+
     if (response.status == 200) {
       return {
         ...(response.data),
@@ -259,7 +276,8 @@ export default class ApplicationServices {
         anonymizeUsers: !!response.data.selfhosted,
         appName: response.data.selfhosted ? 'selfhosted' : 'jitsu_cloud',
         chatSupportType: response.data.selfhosted ? 'slack' : 'chat',
-        billingEnabled: !response.data.selfhosted
+        billingEnabled: !response.data.selfhosted,
+        environment: environment
       };
     } else {
       throw new APIError(response, request);
