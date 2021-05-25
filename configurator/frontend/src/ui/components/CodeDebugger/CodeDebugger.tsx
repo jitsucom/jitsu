@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Col, Dropdown, Form, Row, Tabs } from 'antd';
 import MonacoEditor from 'react-monaco-editor';
+import moment from 'moment';
 import cn from 'classnames';
 import debounce from 'lodash/debounce';
 // @Components
@@ -13,11 +14,12 @@ import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStrea
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
-import moment from 'moment';
+import { UnorderedListOutlined } from '@ant-design/icons';
 
 interface Props {
   /**
-   * Run handler, async thata function takes form values and returns response or error
+   * Run handler, async thata
+   * function takes form values and returns response or error
    * */
   run: (values: FormValues) => any;
   /**
@@ -132,8 +134,20 @@ const CodeDebugger = ({
     <div className={cn(className)}>
       <Form form={form} onFinish={handleFinish}>
         <div className={styles.buttonContainer}>
-          {/*<DebugEvents handleClick={handleEventClick} />*/}
-          <Button type="primary" htmlType="submit" icon={<CaretRightOutlined />} loading={runIsLoading} />
+          <Dropdown
+            trigger={['click']}
+            overlay={<DebugEvents handleClick={handleEventClick} />}
+            forceRender
+          >
+            <Button icon={<UnorderedListOutlined />} className="ml-8">Events</Button>
+          </Dropdown>
+          <Button
+            className="ml-8"
+            htmlType="submit"
+            icon={<CaretRightOutlined />}
+            loading={runIsLoading}
+            type="primary"
+          />
         </div>
 
         <Row>

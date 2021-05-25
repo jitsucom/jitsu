@@ -133,30 +133,10 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
   }, [initialValues]);
 
   const handleDebuggerRun = async(values: DebuggerFormValues) => {
-    console.log('values: ', values);
     const data = {
       reformat: true,
       expression: values.code,
       object: JSON.parse(values.object)
-      // expression: '{{if .metric_type }}{{ .metric_type }}{{else}}{{ .app }}_web_prod{{end}}',
-      // object: {
-      //   _timestamp: '2021-05-21T11:19:59.677503Z',
-      //   api_key: 'ttttd50c-d8f2-414c-bf3d-9902a5031fd2',
-      //   eventn_ctx_event_id: 'f95e340a-8fa8-4e97-b4bf-7f2f1bacc5d6',
-      //   instance_info: {
-      //     built_at: '2021-01-29T16:37:07.000000Z',
-      //     commit: '3427c9f',
-      //     id: 'f9959bbcc353a88eccc84370e2e64997',
-      //     tag: 'v1.27.0'
-      //   },
-      //   metric_type: 'usage',
-      //   source_ip: '81.171.21.86',
-      //   src: 'api',
-      //   timestamp: '2021-05-21T11:19:59.128043Z',
-      //   usage: {
-      //     events: 329
-      //   }
-      // }
     };
 
     return services.backendApiClient.post(`/templates/evaluate?project_id=${services.activeProject.id}`, data, { proxy: true });
