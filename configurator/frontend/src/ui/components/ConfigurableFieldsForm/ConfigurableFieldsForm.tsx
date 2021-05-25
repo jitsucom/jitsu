@@ -37,7 +37,7 @@ export interface Props {
 const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleTouchAnyField }: Props) => {
   const services = ApplicationServices.get();
 
-  const [tableNameModal, switchTableNameModal] = useState<boolean>(true);
+  const [tableNameModal, switchTableNameModal] = useState<boolean>(false);
 
   const codeValue = useRef<string>();
 
@@ -171,7 +171,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
             maskClosable={false}
           >
             <CodeDebugger
-              className="py-8"
+              className="py-2"
               codeFieldLabel="Expression"
               defaultCodeValue={get(initialValues, '_formData.tableName')}
               handleCodeChange={handleCodeChange}

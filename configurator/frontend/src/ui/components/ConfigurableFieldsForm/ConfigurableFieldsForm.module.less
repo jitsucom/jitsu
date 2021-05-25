@@ -11,18 +11,15 @@
 
 .modal {
   max-height: calc(100% - 200px);
-  display: flex;
+  @apply flex;
 
   :global {
     .ant-modal-content {
-      flex: 1 1 auto;
-      display: flex;
-      flex-direction: column;
+      @apply flex flex-auto flex-col;
     }
 
     .ant-modal-body {
-      flex: 1 1 auto;
-      height: 100%;
+      @apply flex-auto h-full pb-0 !important;
 
       .custom-scrollbar();
     }

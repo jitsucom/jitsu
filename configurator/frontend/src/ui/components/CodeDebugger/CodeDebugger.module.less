@@ -6,7 +6,7 @@
 }
 
 .buttonContainer {
-  @apply flex justify-end;
+  @apply flex flex-col flex-shrink-0 pt-8 pl-2;
 }
 
 .events {
@@ -72,10 +72,25 @@
 
 .tabs {
   border: 1px solid @border-color-base;
-  @apply h-40;
+  @apply h-40 mr-10;
 
   .debugTab {
     @apply p-3 !important;
     .custom-scrollbar();
+  }
+
+  :global {
+    .ant-tabs-nav {
+      min-width: auto !important;
+    }
+
+    .ant-tabs-tab {
+      @apply m-0 p-3 !important;
+      border-bottom: 1px solid @border-color-base;
+    }
+
+    .anticon {
+      margin-right: 2px !important;
+    }
   }
 }

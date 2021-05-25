@@ -12,9 +12,11 @@ import { CodeEditor } from '@component/CodeEditor/CodeEditor';
 import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStream';
 // @Icons
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
+import UnorderedListOutlined from '@ant-design/icons/lib/icons/UnorderedListOutlined';
+import CheckOutlined from '@ant-design/icons/lib/icons/CheckOutlined';
+import BugOutlined from '@ant-design/icons/lib/icons/BugOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
-import { UnorderedListOutlined } from '@ant-design/icons';
 
 interface Props {
   /**
@@ -74,13 +76,17 @@ const CodeDebugger = ({
 
   const [form] = Form.useForm();
 
-  const formatObjectField = debounce(() => objectMonacoRef.current.editor.getAction('editor.action.formatDocument').run(), 1000);
+  const formatObjectField = () => objectMonacoRef.current.editor.getAction('editor.action.formatDocument').run();
 
-  const handleChange = (name: 'object' | 'code') => (value: string | object) => {
+  const handleChange = (name: 'object' | 'code', instant?: boolean) => (value: string | object) => {
     form.setFieldsValue({ [name]: value ? value : '' });
 
     if (name === 'object') {
-      formatObjectField();
+      if (!instant) {
+        debounce(formatObjectField, 2000)();
+      } else {
+        formatObjectField();
+      }
     }
 
     if (name === 'code' && handleCodeChange) {
@@ -130,7 +136,7 @@ const CodeDebugger = ({
     const monacoModel = objectMonacoRef.current.editor.getModel();
     monacoModel.setValue(JSON.stringify(event));
 
-    handleChange('object')(JSON.stringify(event));
+    handleChange('object', true)(JSON.stringify(event));
   };
 
   useEffect(() => {
@@ -142,62 +148,64 @@ const CodeDebugger = ({
   return (
     <div className={cn(className)}>
       <Form form={form} onFinish={handleFinish}>
-        <div className={styles.buttonContainer}>
-          <Dropdown
-            trigger={['click']}
-            overlay={<DebugEvents handleClick={handleEventClick} />}
-            forceRender
-          >
-            <Button icon={<UnorderedListOutlined />} className="ml-8">Events</Button>
-          </Dropdown>
-          <Button
-            className="ml-8"
-            htmlType="submit"
-            icon={<CaretRightOutlined />}
-            loading={runIsLoading}
-            type="primary"
-          />
-        </div>
+        <div style={{ display: 'flex' }}>
+          <Row style={{ flex: '1 1 auto' }}>
+            <Col span={codeFieldVisible ? 12 : 24} className={cn(codeFieldVisible && 'pr-2')}>
+              <Form.Item
+                className={styles.field}
+                colon
+                label="Object"
+                labelAlign="left"
+                name="object"
+              >
+                <CodeEditor
+                  handleChange={handleChange('object')}
+                  height={200}
+                  monacoRef={objectMonacoRef}
+                />
+              </Form.Item>
+            </Col>
 
-        <Row>
-          <Col span={codeFieldVisible ? 12 : 24} className={cn(codeFieldVisible && 'pr-2')}>
-            <Form.Item
-              className={styles.field}
-              colon
-              label="Object"
-              labelAlign="left"
-              name="object"
+            {
+              codeFieldVisible && (
+                <Col span={12} className="pl-2">
+                  <Form.Item
+                    className={styles.field}
+                    colon
+                    label={codeFieldLabel}
+                    labelAlign="left"
+                    name="code"
+                  >
+                    <CodeEditor
+                      initialValue={defaultCodeValue}
+                      handleChange={handleChange('code')}
+                      height={200}
+                      language="go"
+                      monacoRef={codeMonacoRef}
+                    />
+                  </Form.Item>
+                </Col>
+              )
+            }
+          </Row>
+
+          <div className={styles.buttonContainer}>
+            <Button
+              className="mb-2"
+              htmlType="submit"
+              icon={<CaretRightOutlined />}
+              loading={runIsLoading}
+              type="primary"
+            />
+            <Dropdown
+              forceRender
+              overlay={<DebugEvents handleClick={handleEventClick} />}
+              trigger={['click']}
             >
-              <CodeEditor
-                handleChange={handleChange('object')}
-                height={200}
-                monacoRef={objectMonacoRef}
-              />
-            </Form.Item>
-          </Col>
-
-          {
-            codeFieldVisible && (
-              <Col span={12} className="pl-2">
-                <Form.Item
-                  className={styles.field}
-                  colon
-                  label={codeFieldLabel}
-                  labelAlign="left"
-                  name="code"
-                >
-                  <CodeEditor
-                    initialValue={defaultCodeValue}
-                    handleChange={handleChange('code')}
-                    height={200}
-                    language="go"
-                    monacoRef={codeMonacoRef}
-                  />
-                </Form.Item>
-              </Col>
-            )
-          }
-        </Row>
+              <Button icon={<UnorderedListOutlined />} className="mb-2" />
+            </Dropdown>
+          </div>
+        </div>
 
         {
           debug.length > 0 && (
@@ -207,10 +215,12 @@ const CodeDebugger = ({
               onChange={(activeTab: 'output' | 'debug') => setActiveTab(activeTab)}
               tabPosition="left"
             >
-              <Tabs.TabPane key="output" tab="Output" forceRender>
-                <p className={styles.output}>Result: <em>{outputValue}</em></p>
+              <Tabs.TabPane key="output" tab={<CheckOutlined />} forceRender>
+                {
+                  outputValue && <p className={styles.output}>Result: <em>{outputValue}</em></p>
+                }
               </Tabs.TabPane>
-              <Tabs.TabPane key="debug" tab="Debug" forceRender className={styles.debugTab}>
+              <Tabs.TabPane key="debug" tab={<BugOutlined />} forceRender className={styles.debugTab}>
                 <ul className={styles.debug}>
                   {
                     debug.map((msg: Debug) => (
