@@ -18,8 +18,8 @@ import { UnorderedListOutlined } from '@ant-design/icons';
 
 interface Props {
   /**
-   * Run handler, async thata
-   * function takes form values and returns response or error
+   * Run handler, async.
+   * That function takes form values and returns response or error
    * */
   run: (values: FormValues) => any;
   /**
@@ -38,6 +38,10 @@ interface Props {
    * InitialValue for code field
    * */
   defaultCodeValue?: string;
+  /**
+   * Code field change handler
+   * */
+  handleCodeChange?: (value: string | object) => void;
 }
 
 export interface FormValues {
@@ -56,6 +60,7 @@ const CodeDebugger = ({
   codeFieldVisible = true,
   codeFieldLabel = 'Code',
   defaultCodeValue,
+  handleCodeChange,
   run
 }: Props) => {
   const objectMonacoRef = useRef<MonacoEditor>();
@@ -76,6 +81,10 @@ const CodeDebugger = ({
 
     if (name === 'object') {
       formatObjectField();
+    }
+
+    if (name === 'code' && handleCodeChange) {
+      handleCodeChange(value);
     }
   };
 

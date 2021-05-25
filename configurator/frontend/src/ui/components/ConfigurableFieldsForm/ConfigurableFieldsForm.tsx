@@ -142,10 +142,16 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
     return services.backendApiClient.post(`/templates/evaluate?project_id=${services.activeProject.id}`, data, { proxy: true });
   };
 
+  const handleCodeChange = (value: string) => {
+    codeValue.current = value.replace(/[\r\n]+/g, '');
+  };
+
   const handleCloseDebugger = () => switchTableNameModal(false);
 
   const handleSaveTableName = () => {
-    form.setFieldsValue({ '_formData.tableName': codeValue.current });
+    if (codeValue.current) {
+      form.setFieldsValue({ '_formData.tableName': codeValue.current });
+    }
 
     handleCloseDebugger();
   };
@@ -168,6 +174,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
               className="py-8"
               codeFieldLabel="Expression"
               defaultCodeValue={get(initialValues, '_formData.tableName')}
+              handleCodeChange={handleCodeChange}
               run={handleDebuggerRun}
             />
           </Modal>
