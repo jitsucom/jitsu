@@ -103,9 +103,9 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
     </div>
 
     const editNote = async(rowIndex, val?) => {
-      let note = prompt('Enter key description', val || '');
+      let note = prompt('Enter key description (set to empty to delete)', val || '');
       if (note !== null && note !== undefined) {
-        this.state.tokens[rowIndex].comment = note;
+        this.state.tokens[rowIndex].comment = note === '' ? undefined : note;
         await this.saveTokens(this.state.tokens, rowIndex);
       }
     }
@@ -122,7 +122,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
               <span className="font-mono text-sm">{text}</span>
               {row.comment ?
                 (
-                  <div className="">
+                  <div className="text-secondaryText">
                     <b>Note</b>: {row.comment} (<a onClick={async () => editNote(index, row.comment)}>edit</a>)
                   </div>
                 ) :

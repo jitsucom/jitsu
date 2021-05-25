@@ -55,7 +55,7 @@ const DestinationEditorConnectors = ({ form, initialValues, destination, handleT
     () => apiKeysData?.keys
       ?
       apiKeysData.keys.map((key: APIKey) => ({
-        title: <code>{key.uid}</code>,
+        title: <><code>{key.uid}</code>{key.comment && <span className="pl-2 text-secondaryText">(<b>Note:</b> {key.comment})</span>}</>,
         id: key.uid,
         description: <div className="align-middle">Server secret: <code>{key.serverAuth}</code> / Client secret: <code>{key.jsAuth}</code></div>
       }))
