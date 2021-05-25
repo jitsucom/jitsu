@@ -1,7 +1,7 @@
 import { Button, Tag } from 'antd';
 import ArrowLeftOutlined from '@ant-design/icons/lib/icons/ArrowLeftOutlined';
 import { generatePath, NavLink, useHistory, useParams } from 'react-router-dom';
-import { CenteredError, CenteredSpin } from '@./lib/components/components';
+import { CenteredError, CenteredSpin, closeableMessage, handleError } from '@./lib/components/components';
 import { Task, TaskId, TaskLogEntry } from './utils';
 import { useLoader } from '@hooks/useLoader';
 import { useServices } from '@hooks/useServices';
@@ -23,7 +23,6 @@ import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
 export const taskLogsViewerRoute = '/sources/logs/:sourceId/:taskId'
 type TaskInfo = {
   task: Task,
-  logs: TaskLogEntry[],
   source: SourceData
 }
 export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
@@ -33,15 +32,23 @@ export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   const [filter, setFilter] = useState('all')
   const history = useHistory();
   const viewerRef = useRef(null)
-  const [error, taskInfo, , reload] = useLoader<TaskInfo>(async() => {
+  const [logsReloading, setLogsReloading] = useState(false);
+
+  async function fetchLogs(): Promise<TaskLogEntry[]> {
+    return (await services.backendApiClient.get(`/tasks/${encodeURIComponent(taskId)}/logs?project_id=${services.activeProject.id}`, { proxy: true }))['logs'];
+  }
+
+  const [taskLogsError, taskLogs, setTaskLogs] = useLoader<TaskLogEntry[]>(async() => {
+    return await fetchLogs();
+  });
+  const [error, taskInfo] = useLoader<TaskInfo>(async() => {
     const data: CollectionSourceData = await services.storageService.get('sources', services.activeProject.id);
     if (!data.sources) {
       throw new Error(`Invalid response of "sources" collection: ${JSON.stringify(data)}`);
     }
     const source = data.sources.find((source: SourceData) => source.sourceId === sourceId);
     const task = await services.backendApiClient.get(`/tasks/${encodeURIComponent(taskId)}?project_id=${services.activeProject.id}`, { proxy: true });
-    const logs = (await services.backendApiClient.get(`/tasks/${encodeURIComponent(taskId)}/logs?project_id=${services.activeProject.id}`, { proxy: true }))['logs'];
-    return { task, logs, source }
+    return { task, source }
   });
 
   useEffect(() => {
@@ -94,15 +101,24 @@ export const TaskLogViewer: React.FC<PageProps> = ({ setBreadcrumbs }) => {
           </span>
         </div>
       </div>
-      <Button type="primary" className="mb-4" icon={<ReloadOutlined />} onClick={async() => {
-        reload();
+      <Button type="primary" className="mb-4" icon={<ReloadOutlined />} loading={logsReloading} onClick={async() => {
+        setLogsReloading(true)
+        try {
+          setTaskLogs(await fetchLogs())
+        } catch (e) {
+          handleError(e, 'Failed to reload logs');
+        } finally {
+          setLogsReloading(false);
+        }
       }}>
         Reload
       </Button>
     </div>
     <div className={classNames(styles.logViewerWrapper, 'custom-scrollbar')}>
       <pre ref={viewerRef} className={classNames(styles.logViewer, 'custom-scrollbar', 'text-xs')}>
-        {taskInfo.logs
+        {taskLogsError && ('Failed to load logs: ' + taskLogsError.message)}
+        {!taskLogs && 'Loading logs...'}
+        {taskLogs && taskLogs
           .filter(l => filter === 'all' || (filter === 'errors' && l.level === 'error'))
           .map(l => <span className={classNames(styles['logEntry_' + l.level], styles.logEntry)}><span className={styles.logTime}>
             {moment.utc(l.time).format('YYYY-MM-DD HH:mm:ss')}
