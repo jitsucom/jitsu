@@ -331,6 +331,10 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
   }
 }
 
+function getDomainsSelection(env: string) {
+  return env === 'heroku' ? [location.protocol + '//' + location.host] : []
+}
+
 function KeyDocumentation({ token }: { token: Token }) {
   const [segment, setSegmentEnabled] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState(null);
@@ -346,7 +350,7 @@ function KeyDocumentation({ token }: { token: Token }) {
       setSelectedDomain(newDomains[0]);
       return newDomains;
     }) :
-    [null, []];
+    [null, getDomainsSelection(services.features.environment)];
 
   if (error) {
     handleError(error, 'Failed to load data from server');
@@ -379,7 +383,7 @@ function KeyDocumentation({ token }: { token: Token }) {
       defaultActiveKey="1"
       tabBarExtraContent={
         <>
-          {services.features.enableCustomDomains && <><LabelWithTooltip documentation="Domain" render="Domain"/>:{' '}
+          {domains.length > 0 && <><LabelWithTooltip documentation="Domain" render="Domain"/>:{' '}
             <Select defaultValue={domains[0]} onChange={(value) => setSelectedDomain(value)}>
               {domains.map((domain) => {
                 return <Select.Option value={domain}>{domain}</Select.Option>;
