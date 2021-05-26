@@ -2,7 +2,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Col, Dropdown, Form, Row, Tabs } from 'antd';
 import MonacoEditor from 'react-monaco-editor';
-import moment from 'moment';
 import cn from 'classnames';
 import debounce from 'lodash/debounce';
 // @Components
@@ -210,8 +209,8 @@ const CodeDebugger = ({
           className={styles.tabs}
           tabPosition="left"
         >
-          <Tabs.TabPane key="output" tab={<CheckOutlined />} forceRender className={styles.debugTab}>
-            <ul className={styles.debug}>
+          <Tabs.TabPane key="output" tab={<CheckOutlined />} forceRender className={styles.outputTab}>
+            <ul className={styles.output}>
               {
                 calcResult.map((msg: CalculationResult) => (
                   <li
