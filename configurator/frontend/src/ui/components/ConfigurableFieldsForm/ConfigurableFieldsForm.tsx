@@ -161,17 +161,18 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
       {
         tableNameDetected && (
           <Modal
-            visible={tableNameModal}
-            width="80%"
+            className={styles.modal}
+            closable={false}
+            maskClosable={false}
             onCancel={handleCloseDebugger}
             onOk={handleSaveTableName}
             okText="Save table name template"
-            className={styles.modal}
+            visible={tableNameModal}
             wrapClassName={styles.modalWrap}
-            maskClosable={false}
-            closable={false}
+            width="80%"
           >
             <CodeDebugger
+              className="pb-2"
               codeFieldLabel="Expression"
               defaultCodeValue={get(initialValues, '_formData.tableName')}
               handleClose={handleCloseDebugger}
