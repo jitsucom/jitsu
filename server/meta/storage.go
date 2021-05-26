@@ -21,6 +21,7 @@ type Storage interface {
 	//signatures
 	GetSignature(sourceID, collection, interval string) (string, error)
 	SaveSignature(sourceID, collection, interval, signature string) error
+	DeleteSignature(sourceID, collection string) error
 
 	//** Counters **
 	//events counters

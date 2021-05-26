@@ -208,7 +208,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 	}
 
 	taskLogger.INFO("Total intervals: [%d]", len(intervals))
-	collectionMetaKey := task.Collection + "_" + driver.GetCollectionTable()
+	collectionMetaKey := driver.GetCollectionMetaKey()
 
 	var intervalsToSync []*drivers.TimeInterval
 	for _, interval := range intervals {
@@ -277,7 +277,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 		counters.SuccessSourceEvents(task.Source, len(objects))
 
 		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
-			logging.SystemErrorf("Unable to save source [%s] collection [%s] signature: %v", task.Source, task.Collection, err)
+			logging.SystemErrorf("Unable to save source: [%s] collection: [%s] meta key: [%s] signature: %v", task.Source, task.Collection, collectionMetaKey, err)
 		}
 
 		taskLogger.INFO("Interval [%s] has been synchronized!", intervalToSync.String())
@@ -301,7 +301,7 @@ func (te *TaskExecutor) syncSinger(task *meta.Task, taskLogger *TaskLogger, sing
 		taskLogger.INFO("Running synchronization")
 	}
 
-	rs := NewResultSaver(task, singerDriver.GetTap(), taskLogger, destinationStorages, te.metaStorage, singerDriver.GetStreamTableNameMapping())
+	rs := NewResultSaver(task, singerDriver.GetTap(), singerDriver.GetCollectionMetaKey(), singerDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, singerDriver.GetStreamTableNameMapping())
 
 	err = singerDriver.Load(singerState, taskLogger, rs)
 	if err != nil {
