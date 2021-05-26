@@ -214,35 +214,31 @@ const CodeDebugger = ({
           }
         </Row>
 
-        {
-          debug.length > 0 && (
-            <Tabs
-              activeKey={activeTab}
-              className={styles.tabs}
-              onChange={(activeTab: 'output' | 'debug') => setActiveTab(activeTab)}
-              tabPosition="left"
-            >
-              <Tabs.TabPane key="output" tab={<CheckOutlined />} forceRender>
-                {
-                  outputValue && <p className={styles.output}>Result: <em>{outputValue}</em></p>
-                }
-              </Tabs.TabPane>
-              <Tabs.TabPane key="debug" tab={<BugOutlined />} forceRender className={styles.debugTab}>
-                <ul className={styles.debug}>
-                  {
-                    debug.map((msg: Debug) => (
-                      <li className={cn(styles.item, msg.code === 'debug' && styles.error)} key={msg.key}>
-                        <span className={styles.status}>{msg.code} <em className={styles.time}>{moment(msg.key).format('HH:MM:ss.SSS')}</em></span>
-                        <span className={styles.message}>{msg.message}</span>
-                      </li>
-                    ))
-                  }
-                  <li id="addDebugRow" />
-                </ul>
-              </Tabs.TabPane>
-            </Tabs>
-          )
-        }
+        <Tabs
+          activeKey={activeTab}
+          className={styles.tabs}
+          onChange={(activeTab: 'output' | 'debug') => setActiveTab(activeTab)}
+          tabPosition="left"
+        >
+          <Tabs.TabPane key="output" tab={<CheckOutlined />} forceRender>
+            {
+              outputValue && <p className={styles.output}>Result: <em>{outputValue}</em></p>
+            }
+          </Tabs.TabPane>
+          <Tabs.TabPane key="debug" tab={<BugOutlined />} forceRender className={styles.debugTab}>
+            <ul className={styles.debug}>
+              {
+                debug.map((msg: Debug) => (
+                  <li className={cn(styles.item, msg.code === 'debug' && styles.error)} key={msg.key}>
+                    <span className={styles.status}>{msg.code} <em className={styles.time}>{moment(msg.key).format('HH:MM:ss.SSS')}</em></span>
+                    <span className={styles.message}>{msg.message}</span>
+                  </li>
+                ))
+              }
+              <li id="addDebugRow" />
+            </ul>
+          </Tabs.TabPane>
+        </Tabs>
       </Form>
     </div>
   )
