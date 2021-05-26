@@ -183,9 +183,11 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 		if err != nil {
 			return err
 		}
+		start := time.Now()
 		if err = p.adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
 			return err
 		}
+		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.ID(), len(data), time.Now().Sub(start).Seconds())
 
 		return nil
 	}
