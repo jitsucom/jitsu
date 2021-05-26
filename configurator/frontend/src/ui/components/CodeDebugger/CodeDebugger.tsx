@@ -57,7 +57,6 @@ export interface FormValues {
 interface CalculationResult {
   code: 'error' | 'success';
   message: string;
-  key: number;
 }
 
 const CodeDebugger = ({
@@ -74,7 +73,7 @@ const CodeDebugger = ({
 
   const [isEventsVisible, switchEventsVisible] = useState<boolean>(false);
 
-  const [calcResult, setCalcResult] = useState<CalculationResult[]>([]);
+  const [calcResult, setCalcResult] = useState<CalculationResult>();
 
   const [runIsLoading, setRunIsLoading] = useState<boolean>();
 
@@ -104,29 +103,17 @@ const CodeDebugger = ({
     try {
       const response = await run(values);
 
-      setCalcResult([
-        ...calcResult,
-        {
-          code: 'success',
-          message: response.result,
-          key: (new Date()).getTime()
-        }
-      ]);
+      setCalcResult({
+        code: 'success',
+        message: response.result
+      });
     } catch(error) {
-      setCalcResult([
-        ...calcResult,
-        {
-          code: 'error',
-          message: error?.message ?? 'Error',
-          key: (new Date()).getTime()
-        }
-      ]);
+      setCalcResult({
+        code: 'error',
+        message: error?.message ?? 'Error'
+      });
     } finally {
       setRunIsLoading(false);
-
-      const tabScrollingEl = document.querySelector('#addDebugRow');
-
-      setTimeout(() => tabScrollingEl.scrollIntoView(), 200);
     }
   };
 
@@ -234,22 +221,18 @@ const CodeDebugger = ({
           tabPosition="left"
         >
           <Tabs.TabPane key="output" tab={<CheckOutlined />} forceRender className={styles.outputTab}>
-            <ul className={styles.output}>
+            <div className={styles.output}>
               {
-                calcResult.map((msg: CalculationResult) => (
-                  <li
-                    className={cn(styles.item, {
-                      [styles.itemError]: msg.code === 'error',
-                      [styles.itemSuccess]: msg.code === 'success'
-                    })} key={msg.key}
-                  >
-                    <strong className={styles.status}>{msg.code}</strong>
-                    <span className={styles.message}>{msg.message}</span>
-                  </li>
-                ))
+                calcResult && <p
+                  className={cn(styles.item, {
+                    [styles.itemError]: calcResult.code === 'error',
+                    [styles.itemSuccess]: calcResult.code === 'success'
+                  })}>
+                  <strong className={styles.status}>{calcResult.code}</strong>
+                  <span className={styles.message}>{calcResult.message}</span>
+                </p>
               }
-              <li id="addDebugRow" />
-            </ul>
+            </div>
           </Tabs.TabPane>
         </Tabs>
       </Form>
