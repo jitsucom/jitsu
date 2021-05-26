@@ -210,6 +210,7 @@ func (a *AppConfig) ScheduleEventsConsumerClosing(c io.Closer) {
 //CloseEventsConsumers closes events queues(streaming) and loggers(batch) in the last call
 //for preventing losing events
 func (a *AppConfig) CloseEventsConsumers() {
+	logging.Infof("CloseEventsConsumers")
 	for _, ec := range a.eventsConsumers {
 		if err := ec.Close(); err != nil {
 			logging.Errorf("[EventsConsumer] %v", err)
