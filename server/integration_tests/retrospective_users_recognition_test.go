@@ -59,7 +59,8 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
         		"mode": "stream",
 				"only_tokens": ["c2stoken_ur"],
 				"data_layout":{
-                    "primary_key_fields":["eventn_ctx_event_id"]
+                    "primary_key_fields":["eventn_ctx_event_id"],
+                    "table_name_template": "recognition_events"
                 },
         		"datasource": {
           			"host": "%s",
@@ -209,10 +210,6 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
   }
 }`)
 
-	preobjects, preerr := postgresContainer.GetAllSortedRows("events", "order by eventn_ctx_utc_time")
-	bb, _ := json.Marshal(preobjects)
-	logging.Infof("err: %v objects: %s", preerr, string(bb))
-
 	identifyReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(identifyReqPayload))
 	require.NoError(t, err)
 	resp, err = http.DefaultClient.Do(identifyReq)
@@ -222,7 +219,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 
 	time.Sleep(2 * time.Second)
 
-	objects, err := postgresContainer.GetAllSortedRows("events", "order by eventn_ctx_utc_time")
+	objects, err := postgresContainer.GetAllSortedRows("recognition_events", "order by eventn_ctx_utc_time")
 	require.NoError(t, err, "Error selecting all events")
 	require.Equal(t, 2, len(objects), "Rows count must be 2")
 
