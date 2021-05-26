@@ -15,6 +15,7 @@ import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import UnorderedListOutlined from '@ant-design/icons/lib/icons/UnorderedListOutlined';
 import CheckOutlined from '@ant-design/icons/lib/icons/CheckOutlined';
 import BugOutlined from '@ant-design/icons/lib/icons/BugOutlined';
+import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
 
@@ -44,6 +45,10 @@ interface Props {
    * Code field change handler
    * */
   handleCodeChange?: (value: string | object) => void;
+  /**
+   * Close modal for cases with custom close button
+   * */
+  handleClose?: () => void;
 }
 
 export interface FormValues {
@@ -63,6 +68,7 @@ const CodeDebugger = ({
   codeFieldLabel = 'Code',
   defaultCodeValue,
   handleCodeChange,
+  handleClose,
   run
 }: Props) => {
   const objectMonacoRef = useRef<MonacoEditor>();
@@ -148,64 +154,65 @@ const CodeDebugger = ({
   return (
     <div className={cn(className)}>
       <Form form={form} onFinish={handleFinish}>
-        <div style={{ display: 'flex' }}>
-          <Row style={{ flex: '1 1 auto' }}>
-            <Col span={codeFieldVisible ? 12 : 24} className={cn(codeFieldVisible && 'pr-2')}>
-              <Form.Item
-                className={styles.field}
-                colon
-                label="Object"
-                labelAlign="left"
-                name="object"
-              >
-                <CodeEditor
-                  handleChange={handleChange('object')}
-                  height={200}
-                  monacoRef={objectMonacoRef}
-                />
-              </Form.Item>
-            </Col>
-
-            {
-              codeFieldVisible && (
-                <Col span={12} className="pl-2">
-                  <Form.Item
-                    className={styles.field}
-                    colon
-                    label={codeFieldLabel}
-                    labelAlign="left"
-                    name="code"
-                  >
-                    <CodeEditor
-                      initialValue={defaultCodeValue}
-                      handleChange={handleChange('code')}
-                      height={200}
-                      language="go"
-                      monacoRef={codeMonacoRef}
-                    />
-                  </Form.Item>
-                </Col>
-              )
-            }
-          </Row>
-
-          <div className={styles.buttonContainer}>
-            <Button
-              className="mb-2"
-              htmlType="submit"
-              icon={<CaretRightOutlined />}
-              loading={runIsLoading}
-              type="primary"
-            />
-            <Dropdown
-              forceRender
-              overlay={<DebugEvents handleClick={handleEventClick} />}
-              trigger={['click']}
-            >
-              <Button icon={<UnorderedListOutlined />} className="mb-2" />
-            </Dropdown>
-          </div>
+        <div className={styles.buttonContainer}>
+          <Button
+            className="ml-2"
+            htmlType="submit"
+            icon={<CaretRightOutlined />}
+            loading={runIsLoading}
+            type="primary"
+          />
+          <Dropdown
+            forceRender
+            overlay={<DebugEvents handleClick={handleEventClick} />}
+            trigger={['click']}
+          >
+            <Button icon={<UnorderedListOutlined />} className="ml-2" />
+          </Dropdown>
+          {
+            handleClose && <Button icon={<CloseOutlined />} className="ml-4" onClick={handleClose} />
+          }
         </div>
+
+        <Row>
+          <Col span={codeFieldVisible ? 12 : 24} className={cn(codeFieldVisible && 'pr-2')}>
+            <Form.Item
+              className={styles.field}
+              colon
+              label="Object"
+              labelAlign="left"
+              name="object"
+            >
+              <CodeEditor
+                handleChange={handleChange('object')}
+                height={200}
+                monacoRef={objectMonacoRef}
+              />
+            </Form.Item>
+          </Col>
+
+          {
+            codeFieldVisible && (
+              <Col span={12} className="pl-2">
+                <Form.Item
+                  className={styles.field}
+                  colon
+                  label={codeFieldLabel}
+                  labelAlign="left"
+                  name="code"
+                >
+                  <CodeEditor
+                    initialValue={defaultCodeValue}
+                    handleChange={handleChange('code')}
+                    height={200}
+                    language="go"
+                    monacoRef={codeMonacoRef}
+                  />
+                </Form.Item>
+              </Col>
+            )
+          }
+        </Row>
 
         {
           debug.length > 0 && (
