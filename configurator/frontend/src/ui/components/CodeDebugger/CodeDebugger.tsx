@@ -14,7 +14,6 @@ import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStrea
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import UnorderedListOutlined from '@ant-design/icons/lib/icons/UnorderedListOutlined';
 import CheckOutlined from '@ant-design/icons/lib/icons/CheckOutlined';
-import BugOutlined from '@ant-design/icons/lib/icons/BugOutlined';
 import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
@@ -56,8 +55,8 @@ export interface FormValues {
   code: string;
 }
 
-interface Debug {
-  code: 'debug' | 'output';
+interface CalculationResult {
+  code: 'error' | 'success';
   message: string;
   key: number;
 }
@@ -74,9 +73,7 @@ const CodeDebugger = ({
   const objectMonacoRef = useRef<MonacoEditor>();
   const codeMonacoRef = useRef<MonacoEditor>();
 
-  const [activeTab, setActiveTab] = useState<'debug' | 'output'>('debug');
-  const [outputValue, setOutputValue] = useState();
-  const [debug, setDebug] = useState<Debug[]>([]);
+  const [calcResult, setCalcResult] = useState<CalculationResult[]>([]);
 
   const [runIsLoading, setRunIsLoading] = useState<boolean>();
 
@@ -106,25 +103,19 @@ const CodeDebugger = ({
     try {
       const response = await run(values);
 
-      setActiveTab('output');
-
-      setOutputValue(response.result);
-
-      setDebug([
-        ...debug,
+      setCalcResult([
+        ...calcResult,
         {
-          code: 'output',
+          code: 'success',
           message: response.result,
           key: (new Date()).getTime()
         }
       ]);
     } catch(error) {
-      setActiveTab('debug');
-
-      setDebug([
-        ...debug,
+      setCalcResult([
+        ...calcResult,
         {
-          code: 'debug',
+          code: 'error',
           message: error?.message ?? 'Error',
           key: (new Date()).getTime()
         }
@@ -215,22 +206,21 @@ const CodeDebugger = ({
         </Row>
 
         <Tabs
-          activeKey={activeTab}
+          activeKey={'output'}
           className={styles.tabs}
-          onChange={(activeTab: 'output' | 'debug') => setActiveTab(activeTab)}
           tabPosition="left"
         >
-          <Tabs.TabPane key="output" tab={<CheckOutlined />} forceRender>
-            {
-              outputValue && <p className={styles.output}>Result: <em>{outputValue}</em></p>
-            }
-          </Tabs.TabPane>
-          <Tabs.TabPane key="debug" tab={<BugOutlined />} forceRender className={styles.debugTab}>
+          <Tabs.TabPane key="output" tab={<CheckOutlined />} forceRender className={styles.debugTab}>
             <ul className={styles.debug}>
               {
-                debug.map((msg: Debug) => (
-                  <li className={cn(styles.item, msg.code === 'debug' && styles.error)} key={msg.key}>
-                    <span className={styles.status}>{msg.code} <em className={styles.time}>{moment(msg.key).format('HH:MM:ss.SSS')}</em></span>
+                calcResult.map((msg: CalculationResult) => (
+                  <li
+                    className={cn(styles.item, {
+                      [styles.itemError]: msg.code === 'error',
+                      [styles.itemSuccess]: msg.code === 'success'
+                    })} key={msg.key}
+                  >
+                    <strong className={styles.status}>{msg.code}</strong>
                     <span className={styles.message}>{msg.message}</span>
                   </li>
                 ))

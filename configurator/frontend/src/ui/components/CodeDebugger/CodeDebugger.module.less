@@ -49,24 +49,23 @@
   padding: 0;
 
   .item {
-    @apply table;
-
-    &.error {
-      color: @error-color;
-    }
-
-    .status,
-    .message {
-      @apply table-cell align-top;
-    }
+    @apply flex;
 
     .status {
-      @apply w-14 font-medium whitespace-nowrap pr-3;
+      @apply w-20 whitespace-nowrap pr-3 flex-shrink-0;
 
       .time {
         font-size: 0.75em;
       }
     }
+  }
+
+  .itemError {
+    color: @error-color;
+  }
+
+  .itemSuccess {
+    color: @success-color;
   }
 }
 
