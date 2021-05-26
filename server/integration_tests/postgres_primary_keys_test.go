@@ -54,12 +54,9 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		err = pg.Insert(&adapters.EventContext{
-			ProcessedEvent: data,
-			Table:          ensuredWithMerge,
-		})
+		err = pg.BulkInsert(ensuredWithMerge, []map[string]interface{}{data})
 		if err != nil {
-			t.Fatal("failed to insert", err)
+			t.Fatal("failed to bulk insert", err)
 		}
 	}
 
@@ -78,12 +75,9 @@ func TestPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		err = pg.Insert(&adapters.EventContext{
-			ProcessedEvent: data,
-			Table:          ensuredWithoutMerge,
-		})
+		err = pg.BulkInsert(ensuredWithoutMerge, []map[string]interface{}{data})
 		if err != nil {
-			t.Fatal("failed to insert", err)
+			t.Fatal("failed to bulk insert", err)
 		}
 	}
 	rows, err := container.CountRows("users")

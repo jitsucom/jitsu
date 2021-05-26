@@ -47,7 +47,8 @@ function generateNewKeyWithConfirmation(onConfirm: () => void) {
     okText: 'Generate new key',
     cancelText: 'Cancel',
     onOk: onConfirm,
-    onCancel: () => { }
+    onCancel: () => {
+    }
   });
 }
 
@@ -65,7 +66,11 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
 
   protected async load(): Promise<State> {
     let payload = await this.services.storageService.get('api_keys', this.services.activeProject.id);
-    return { tokens: payload && payload.keys ? payload.keys : [], loading: null };
+    return {
+      tokens: payload && payload.keys ?
+        payload.keys :
+        [], loading: null
+    };
   }
 
   protected renderReady() {
@@ -93,9 +98,17 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
       )}</div>
       <div className="text-secondaryText text-sm ml-4">
         Generate API key to start sending events from your app or website. You can embed tracking code right into you website, use
-        npm package within your webapp. <br />Once key is generated, check out embedding instructions for each key
+        npm package within your webapp. <br/>Once key is generated, check out embedding instructions for each key
       </div>
     </div>
+
+    const editNote = async(rowIndex, val?) => {
+      let note = prompt('Enter key description (set to empty to delete)', val || '');
+      if (note !== null && note !== undefined) {
+        this.state.tokens[rowIndex].comment = note === '' ? undefined : note;
+        await this.saveTokens(this.state.tokens, rowIndex);
+      }
+    }
 
     const columns = [
       {
@@ -106,18 +119,18 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
         render: (text, row: Token, index) => {
           return (
             <>
-              <span className="api-keys-key-id">{text}</span>
-              {row.comment ? (
-                <div className="api-keys-comment">
-                  <b>Note</b>: {row.comment}
-                </div>
-              ) : (
-                ''
-              )}
+              <span className="font-mono text-sm">{text}</span>
+              {row.comment ?
+                (
+                  <div className="text-secondaryText">
+                    <b>Note</b>: {row.comment} (<a onClick={async () => editNote(index, row.comment)}>edit</a>)
+                  </div>
+                ) :
+                (<><div>(<a onClick={async () => editNote(index)}>add note</a>)</div></>)}
             </>
           );
         },
-        title: <LabelWithTooltip documentation={'Unique ID of the key'} render="ID" />
+        title: <LabelWithTooltip documentation={'Unique ID of the key'} render="ID"/>
       },
       {
         width: '250px',
@@ -127,7 +140,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
         render: (text, row, index) => {
           return (
             <span>
-              <Input className={'api-keys-key-input'} type="text" value={text} />
+              <Input className={'api-keys-key-input'} type="text" value={text}/>
               <Space>
                 <ActionLink onClick={() => this.copyToClipboard(text)}>Copy To Clipboard</ActionLink>
                 <ActionLink
@@ -165,7 +178,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
         render: (text, row, index) => {
           return (
             <span>
-              <Input className="api-keys-key-input" type="text" value={text} />
+              <Input className="api-keys-key-input" type="text" value={text}/>
               <Space>
                 <ActionLink onClick={() => this.copyToClipboard(text)}>Copy To Clipboard</ActionLink>
                 <ActionLink
@@ -236,16 +249,16 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
             <>
               <Tooltip trigger={['hover']} title={'Show integration documentation'}>
                 <a
-                  onClick={async () => {
+                  onClick={async() => {
                     Modal.info({
-                      content: <KeyDocumentation token={row} />,
+                      content: <KeyDocumentation token={row}/>,
                       title: null,
                       icon: null,
                       className: 'api-keys-documentation-modal'
                     });
                   }}
                 >
-                  <CodeFilled />
+                  <CodeFilled/>
                 </a>
               </Tooltip>
               <Tooltip trigger={['hover']} title="Delete key">
@@ -259,11 +272,12 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
                         newTokens.splice(index, 1);
                         this.saveTokens(newTokens, index);
                       },
-                      onCancel: () => {}
+                      onCancel: () => {
+                      }
                     });
                   }}
                 >
-                  <DeleteFilled />
+                  <DeleteFilled/>
                 </a>
               </Tooltip>
             </>
@@ -290,6 +304,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
     nodes.forEach((node, idx) => (node.key = idx));
     return nodes;
   }
+
   private async saveTokens(newTokens: Token[], loading: LoadingEntity) {
     this.setState({
       loading: loading
@@ -298,7 +313,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
       await this.services.storageService.save('api_keys', { keys: newTokens }, this.services.activeProject.id);
       this.setState({ tokens: newTokens, loading: null });
     } catch (e) {
-      message.error("Can't generate new token: " + e.message);
+      message.error('Can\'t generate new token: ' + e.message);
       console.log(e);
     }
   }
@@ -310,8 +325,14 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
 
   private newToken(type: string, len?: number) {
     let postfix = `${this.services.activeProject.id}.${randomId(len)}`;
-    return type.length > 0 ? `${type}.${postfix}` : postfix;
+    return type.length > 0 ?
+      `${type}.${postfix}` :
+      postfix;
   }
+}
+
+function getDomainsSelection(env: string) {
+  return env === 'heroku' ? [location.protocol + '//' + location.host] : []
 }
 
 function KeyDocumentation({ token }: { token: Token }) {
@@ -319,19 +340,23 @@ function KeyDocumentation({ token }: { token: Token }) {
   const [selectedDomain, setSelectedDomain] = useState(null);
   const services = ApplicationServices.get();
 
-  const [error, domains] = services.features.enableCustomDomains ? useLoader(async () => {
-    let result = await services.storageService.get('custom_domains', services.activeProject.id);
-    let customDomains = result && result.domains ? result.domains.map((domain) => domain.name) : [];
-    let newDomains = [...customDomains, "t.jitsu.com"];
-    setSelectedDomain(newDomains[0]);
-    return newDomains;
-  }) : [null, []];
+  const [error, domains] = services.features.enableCustomDomains ?
+    useLoader(async() => {
+      let result = await services.storageService.get('custom_domains', services.activeProject.id);
+      let customDomains = result && result.domains ?
+        result.domains.map((domain) => domain.name) :
+        [];
+      let newDomains = [...customDomains, 't.jitsu.com'];
+      setSelectedDomain(newDomains[0]);
+      return newDomains;
+    }) :
+    [null, getDomainsSelection(services.features.environment)];
 
   if (error) {
     handleError(error, 'Failed to load data from server');
-    return <CenteredError error={error} />;
+    return <CenteredError error={error}/>;
   } else if (!domains) {
-    return <CenteredSpin />;
+    return <CenteredSpin/>;
   }
 
   let exampleSwitches = (
@@ -346,24 +371,24 @@ function KeyDocumentation({ token }: { token: Token }) {
           }
           render="Intercept Segment events"
         />
-        <Switch size="small" checked={segment} onChange={() => setSegmentEnabled(!segment)} />
+        <Switch size="small" checked={segment} onChange={() => setSegmentEnabled(!segment)}/>
       </Space>
     </div>
   );
 
-  const documentationDomain = selectedDomain || services.features.jitsuBaseUrl || "REPLACE_WITH_JITSU_DOMAIN";
+  const documentationDomain = selectedDomain || services.features.jitsuBaseUrl || 'REPLACE_WITH_JITSU_DOMAIN';
   return (
     <Tabs
       className="api-keys-documentation-tabs"
       defaultActiveKey="1"
       tabBarExtraContent={
         <>
-          {services.features.enableCustomDomains && <><LabelWithTooltip documentation="Domain" render="Domain" />:{' '}
-          <Select defaultValue={domains[0]} onChange={(value) => setSelectedDomain(value)}>
-            {domains.map((domain) => {
-              return <Select.Option value={domain}>{domain}</Select.Option>;
-            })}
-          </Select></>}
+          {domains.length > 0 && <><LabelWithTooltip documentation="Domain" render="Domain"/>:{' '}
+            <Select defaultValue={domains[0]} onChange={(value) => setSelectedDomain(value)}>
+              {domains.map((domain) => {
+                return <Select.Option value={domain}>{domain}</Select.Option>;
+              })}
+            </Select></>}
         </>
       }
     >

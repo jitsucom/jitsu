@@ -204,6 +204,30 @@ export const allSingerTaps: SingerTap[] = [
     pic: logos.tap_github,
     displayName: 'GitHub',
     tap: 'tap-github',
+    parameters: customParameters('tap-github', {
+      customConfig: [
+        {
+          displayName: 'Access Token',
+          id: 'access_token',
+          type: stringType,
+          required: true,
+          documentation: <>
+            Access Token. Generate it <a href="https://github.com/settings/tokens">here</a>
+          </>
+        },
+        {
+          displayName: 'Repository',
+          id: 'repository',
+          type: stringType,
+          required: true,
+          documentation: <>
+            Repository as org/repo such as jitsucom/jitsu
+          </>
+        }
+
+      ]
+    }),
+
     stable: true,
     hasNativeEquivalent: false
   },

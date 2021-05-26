@@ -99,6 +99,10 @@ func (gp *GooglePlay) GetCollectionTable() string {
 	return gp.collection.GetTableName()
 }
 
+func (gp *GooglePlay) GetCollectionMetaKey() string {
+	return gp.collection.Name + "_" + gp.GetCollectionTable()
+}
+
 func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	bucketName := bucketPrefix + gp.config.AccountID
 	bucket := gp.client.Bucket(bucketName)
