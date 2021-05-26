@@ -150,26 +150,27 @@ const CodeDebugger = ({
     <div className={cn(className)}>
       <Form form={form} onFinish={handleFinish}>
         <div className={styles.buttonContainer}>
-          <Button
-            className="ml-2"
-            htmlType="submit"
-            icon={<CaretRightOutlined />}
-            loading={runIsLoading}
-            type="primary"
-          />
-          <Dropdown
-            forceRender
-            overlay={<DebugEvents handleClick={handleEventClick} />}
-            trigger={['click']}
-            visible={isEventsVisible}
-          >
+          <div>
             <Button
-              className="ml-2"
-              icon={<UnorderedListOutlined />}
-              id="events-button"
-              onClick={handleSwitchEventsVisible}
-            />
-          </Dropdown>
+              className="mr-2"
+              htmlType="submit"
+              icon={<CaretRightOutlined />}
+              loading={runIsLoading}
+              type="primary"
+            >Run</Button>
+            <Dropdown
+              forceRender
+              overlay={<DebugEvents handleClick={handleEventClick} />}
+              trigger={['click']}
+              visible={isEventsVisible}
+            >
+              <Button
+                icon={<UnorderedListOutlined />}
+                id="events-button"
+                onClick={handleSwitchEventsVisible}
+              >Events</Button>
+            </Dropdown>
+          </div>
           {
             handleClose && <Button icon={<CloseOutlined />} className="ml-4" onClick={handleClose} />
           }
