@@ -1,5 +1,5 @@
 // @Libs
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Col, Dropdown, Form, Row, Tabs } from 'antd';
 import MonacoEditor from 'react-monaco-editor';
 import cn from 'classnames';
@@ -72,6 +72,8 @@ const CodeDebugger = ({
   const objectMonacoRef = useRef<MonacoEditor>();
   const codeMonacoRef = useRef<MonacoEditor>();
 
+  const [isEventsVisible, switchEventsVisible] = useState<boolean>(false);
+
   const [calcResult, setCalcResult] = useState<CalculationResult[]>([]);
 
   const [runIsLoading, setRunIsLoading] = useState<boolean>();
@@ -133,13 +135,29 @@ const CodeDebugger = ({
     monacoModel.setValue(JSON.stringify(event));
 
     handleChange('object', true)(JSON.stringify(event));
+
+    switchEventsVisible(false);
   };
+
+  const handleSwitchEventsVisible = () => switchEventsVisible(!isEventsVisible);
+
+  const handleCloseEvents = useCallback((e) => {
+    if (!e.target.closest('.ant-dropdown') && !e.target.closest('#events-button')) {
+      switchEventsVisible(false);
+    }
+  }, []);
 
   useEffect(() => {
     if (defaultCodeValue) {
       form.setFieldsValue({ code: defaultCodeValue });
     }
   }, [defaultCodeValue]);
+
+  useEffect(() => {
+    document.body.addEventListener('click', handleCloseEvents);
+
+    return () => document.body.removeEventListener('click', handleCloseEvents);
+  }, [handleCloseEvents]);
 
   return (
     <div className={cn(className)}>
@@ -156,8 +174,14 @@ const CodeDebugger = ({
             forceRender
             overlay={<DebugEvents handleClick={handleEventClick} />}
             trigger={['click']}
+            visible={isEventsVisible}
           >
-            <Button icon={<UnorderedListOutlined />} className="ml-2" />
+            <Button
+              className="ml-2"
+              icon={<UnorderedListOutlined />}
+              id="events-button"
+              onClick={handleSwitchEventsVisible}
+            />
           </Dropdown>
           {
             handleClose && <Button icon={<CloseOutlined />} className="ml-4" onClick={handleClose} />
