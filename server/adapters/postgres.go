@@ -225,8 +225,17 @@ func (p *Postgres) GetTableSchema(tableName string) (*Table, error) {
 }
 
 //Insert provided object in postgres with typecasts
+//uses upsert (merge on conflict) if primary_keys are configured
 func (p *Postgres) Insert(eventContext *EventContext) error {
-	statement, values := p.buildInsertStatement(eventContext.Table, eventContext.ProcessedEvent)
+	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := p.buildInsertPayload(eventContext.ProcessedEvent)
+
+	var statement string
+	if len(eventContext.Table.PKFields) == 0 {
+		statement = fmt.Sprintf(insertTemplate, p.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
+	} else {
+		statement = fmt.Sprintf(mergeTemplate, p.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), placeholders, buildConstraintName(p.config.Schema, eventContext.Table.Name), p.buildUpdateSection(columnsWithoutQuotes))
+	}
+
 	p.queryLogger.LogQueryWithValues(statement, values)
 
 	_, err := p.dataSource.ExecContext(p.ctx, statement, values...)
@@ -630,24 +639,28 @@ func (p *Postgres) getPrimaryKeys(tableName string) (map[string]bool, error) {
 	return primaryKeys, nil
 }
 
-//buildInsertStatement returns
-// 1. insert statement (quoted, comma separated column names with placeholders with typecast ($N::text))
-// 2. values slice
-func (p *Postgres) buildInsertStatement(table *Table, valuesMap map[string]interface{}) (string, []interface{}) {
+//buildInsertPayload returns
+// 1. column names slice
+// 2. quoted column names slice
+// 2. placeholders slice
+// 3. values slice
+func (p *Postgres) buildInsertPayload(valuesMap map[string]interface{}) ([]string, []string, []string, []interface{}) {
 	header := make([]string, len(valuesMap), len(valuesMap))
+	quotedHeader := make([]string, len(valuesMap), len(valuesMap))
 	placeholders := make([]string, len(valuesMap), len(valuesMap))
 	values := make([]interface{}, len(valuesMap), len(valuesMap))
 	i := 0
 	for name, value := range valuesMap {
-		header[i] = fmt.Sprintf(`"%s"`, name)
+		quotedHeader[i] = fmt.Sprintf(`"%s"`, name)
+		header[i] = name
+
 		//$1::type, $2::type, $3, etc ($0 - wrong)
 		placeholders[i] = fmt.Sprintf("$%d%s", i+1, p.getCastClause(name))
 		values[i] = value
 		i++
 	}
 
-	statement := fmt.Sprintf(insertTemplate, p.config.Schema, table.Name, strings.Join(header, ", "), "("+strings.Join(placeholders, ", ")+")")
-	return statement, values
+	return header, quotedHeader, placeholders, values
 }
 
 //buildUpdateSection returns value for merge update statement ("col1"=$1, "col2"=$2)
