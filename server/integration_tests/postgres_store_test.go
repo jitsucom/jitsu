@@ -48,7 +48,7 @@ func TestStreamInsert(t *testing.T) {
 	defer postgresContainer.Close()
 
 	configTemplate := `{"destinations": {
-  			"test_postgres_insert": {
+  			"test_postgres_store": {
         		"type": "postgres",
         		"mode": "stream",
 				"only_tokens": ["c2stoken"],
