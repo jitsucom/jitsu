@@ -51,6 +51,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	dryRunHandler := handlers.NewDryRunHandler(destinations, events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path")))
 	statisticsHandler := handlers.NewStatisticsHandler(metaStorage)
 
+	sourcesHandler := handlers.NewSourcesHandler(sourcesService, metaStorage)
+
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
@@ -59,8 +61,13 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))
-		apiV1.POST("/sources/test", adminTokenMiddleware.AdminAuth(handlers.SourcesHandler))
 		apiV1.POST("/templates/evaluate", adminTokenMiddleware.AdminAuth(handlers.EventTemplateHandler))
+
+		sourcesRoute := apiV1.Group("/sources")
+		{
+			sourcesRoute.POST("/test", adminTokenMiddleware.AdminAuth(sourcesHandler.TestSourcesHandler))
+			sourcesRoute.POST("/clear_cache", adminTokenMiddleware.AdminAuth(sourcesHandler.ClearCacheHandler))
+		}
 
 		apiV1.GET("/statistics", adminTokenMiddleware.AdminAuth(statisticsHandler.GetHandler))
 

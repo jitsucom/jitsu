@@ -143,6 +143,13 @@ The result of synchronization is a replica of data from the data source with som
 * `interval_start` field stores information about start of synchronization interval
 * `interval_end` field stores information about the end of synchronization interval
 
+## Re-sync
+
+Once source is synced, Jitsu writes a sync state in Redis therefore new syncs won't load data that has been already synced.
+For re-sync source use:
+- [Clear Cache endpoint](/docs/other-features/admin-endpoints#apiv1sourcesclear_cache)
+- Once Jitsu's cache is cleared - schedule a new [sync task](/docs/sources-configuration/sync-tasks)
+
 ## All supported sources
 
 ### Services

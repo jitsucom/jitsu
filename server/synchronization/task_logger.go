@@ -25,7 +25,7 @@ func NewTaskLogger(taskID string, metaStorage meta.Storage) *TaskLogger {
 
 //Write writes Singer bytes as a record into meta.Storage
 func (tl *TaskLogger) Write(p []byte) (n int, err error) {
-	tl.log(string(p), singerSystem, logging.INFO.String())
+	tl.log(string(p), singerSystem, logging.DEBUG.String())
 	return len(p), nil
 }
 

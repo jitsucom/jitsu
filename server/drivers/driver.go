@@ -17,6 +17,8 @@ type Driver interface {
 	Type() string
 	//GetCollectionTable returns table name
 	GetCollectionTable() string
+	//GetCollectionMetaKey returns key for storing signature in meta.Storage
+	GetCollectionMetaKey() string
 	//TestConnection returns error if can't do anything
 	TestConnection() error
 }

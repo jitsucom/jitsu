@@ -43,33 +43,33 @@ func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper Map
 
 //ProcessEvent returns table representation, processed flatten object
 func (p *Processor) ProcessEvent(event map[string]interface{}) (*BatchHeader, events.Event, error) {
-	return p.processObject(event, map[string]bool{})
+	return p.processObject(event, map[string]bool{}, true)
 }
 
 //ProcessEvents processes events objects
 //returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //All failed events are moved to separate collection for sending to fallback
 func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*ProcessedFile, *events.FailedEvents, error) {
-	return p.process(fileName, objects, alreadyUploadedTables, false)
+	return p.process(fileName, objects, alreadyUploadedTables, false, true)
 }
 
 //ProcessPulledEvents processes events objects
 //returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //or error if at least 1 was occurred
 func (p *Processor) ProcessPulledEvents(fileName string, objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
-	flatData, _, err := p.process(fileName, objects, map[string]bool{}, true)
+	flatData, _, err := p.process(fileName, objects, map[string]bool{}, true, false)
 	return flatData, err
 }
 
 //ProcessEvents process events objects
 //returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //All failed events are moved to separate collection for sending to fallback
-func (p *Processor) process(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, breakOnErr bool) (map[string]*ProcessedFile, *events.FailedEvents, error) {
+func (p *Processor) process(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, breakOnErr, extractTableName bool) (map[string]*ProcessedFile, *events.FailedEvents, error) {
 	failedEvents := events.NewFailedEvents()
 	filePerTable := map[string]*ProcessedFile{}
 
 	for _, event := range objects {
-		batchHeader, processedObject, err := p.processObject(event, alreadyUploadedTables)
+		batchHeader, processedObject, err := p.processObject(event, alreadyUploadedTables, extractTableName)
 		if err != nil {
 			//handle skip object functionality
 			if err == ErrSkipObject {
@@ -121,19 +121,23 @@ func (p *Processor) process(fileName string, objects []map[string]interface{}, a
 //1. extract table name
 //2. execute enrichment.LookupEnrichmentStep and MappingStep
 //or ErrSkipObject/another error
-func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool) (*BatchHeader, map[string]interface{}, error) {
-	tableName, err := p.tableNameExtractor.Extract(object)
-	if err != nil {
-		return nil, nil, err
-	}
-	if tableName == "" || tableName == "null" {
-		return nil, nil, ErrSkipObject
-	}
+func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool, extractTableName bool) (*BatchHeader, map[string]interface{}, error) {
+	var tableName string
+	var err error
+	if extractTableName {
+		tableName, err = p.tableNameExtractor.Extract(object)
+		if err != nil {
+			return nil, nil, err
+		}
+		if tableName == "" || tableName == "null" {
+			return nil, nil, ErrSkipObject
+		}
 
-	//object has been already processed (storage:table pair might be already processed)
-	_, ok := alreadyUploadedTables[tableName]
-	if ok {
-		return &BatchHeader{}, nil, nil
+		//object has been already processed (storage:table pair might be already processed)
+		_, ok := alreadyUploadedTables[tableName]
+		if ok {
+			return &BatchHeader{}, nil, nil
+		}
 	}
 
 	objectCopy := maputils.CopyMap(object)

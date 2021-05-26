@@ -10,21 +10,39 @@ import (
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/singer"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"go.uber.org/atomic"
 	"io"
 	"io/ioutil"
 	"os/exec"
 	"path"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
-	stateFileName = "state.json"
+	stateFileName      = "state.json"
+	configFileName     = "config.json"
+	catalogFileName    = "catalog.json"
+	propertiesFileName = "properties.json"
 )
 
-var errNotReady = errors.New("Singer driver isn't ready yet. Tap is being installed..")
+var (
+	//taps where we should use properties.json instead of catalog.json
+	outdatedSingerTapsWithProperties = map[string]bool{
+		"tap-facebook": true,
+		"tap-github":   true,
+	}
 
-//SingerCatalog is a dto for Singer catalog serialization
+	errNotReady = errors.New("Singer driver isn't ready yet. Tap is being installed..")
+)
+
+//SingerRawCatalog is a dto for Singer catalog serialization
+type SingerRawCatalog struct {
+	Streams []map[string]interface{} `json:"streams,omitempty"`
+}
+
+//SingerCatalog is a dto for Singer catalog partly serialization (only for extracting destination_table_name)
 type SingerCatalog struct {
 	Streams []SingerStreamCatalog `json:"streams,omitempty"`
 }
@@ -38,12 +56,13 @@ type SingerStreamCatalog struct {
 
 //SingerConfig is a dto for Singer configuration serialization
 type SingerConfig struct {
-	Tap              string            `mapstructure:"tap" json:"tap,omitempty" yaml:"tap,omitempty"`
-	Config           interface{}       `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
-	Catalog          interface{}       `mapstructure:"catalog" json:"catalog,omitempty" yaml:"catalog,omitempty"`
-	Properties       interface{}       `mapstructure:"properties" json:"properties,omitempty" yaml:"properties,omitempty"`
-	InitialState     interface{}       `mapstructure:"initial_state" json:"initial_state,omitempty" yaml:"initial_state,omitempty"`
-	StreamTableNames map[string]string `mapstructure:"stream_table_names" json:"stream_table_names,omitempty" yaml:"stream_table_names,omitempty"`
+	Tap                    string            `mapstructure:"tap" json:"tap,omitempty" yaml:"tap,omitempty"`
+	Config                 interface{}       `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
+	Catalog                interface{}       `mapstructure:"catalog" json:"catalog,omitempty" yaml:"catalog,omitempty"`
+	Properties             interface{}       `mapstructure:"properties" json:"properties,omitempty" yaml:"properties,omitempty"`
+	InitialState           interface{}       `mapstructure:"initial_state" json:"initial_state,omitempty" yaml:"initial_state,omitempty"`
+	StreamTableNames       map[string]string `mapstructure:"stream_table_names" json:"stream_table_names,omitempty" yaml:"stream_table_names,omitempty"`
+	StreamTableNamesPrefix string            `mapstructure:"stream_table_name_prefix" json:"stream_table_name_prefix,omitempty" yaml:"stream_table_name_prefix,omitempty"`
 }
 
 //Validate returns err if configuration is invalid
@@ -79,9 +98,12 @@ type Singer struct {
 	propertiesPath string
 	statePath      string
 
+	pathToConfigs    string
+	tableNamePrefix  string
 	streamTableNames map[string]string
 
-	closed bool
+	catalogDiscovered *atomic.Bool
+	closed            bool
 }
 
 func init() {
@@ -90,10 +112,11 @@ func init() {
 	}
 }
 
-//NewSinger return Singer driver and
-//1. write json files (config, catalog, properties, state) if string/raw json was provided
-//2. create venv
-//3. in another goroutine: update pip, install singer tap
+//NewSinger returns Singer driver and
+//1. writes json files (config, catalog, properties, state) if string/raw json was provided
+//2. runs discover and collects catalog.json
+//2. creates venv
+//3. in another goroutine: updates pip, install singer tap
 func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
 	config := &SingerConfig{}
 	err := UnmarshalConfig(sourceConfig.Config, config)
@@ -114,27 +137,29 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 	}
 
 	//parse singer config as file path
-	configPath, err := parseJSONAsFile(path.Join(pathToConfigs, "config.json"), config.Config)
+	configPath, err := parseJSONAsFile(path.Join(pathToConfigs, configFileName), config.Config)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer config [%v]: %v", config.Config, err)
 	}
 
 	//parse singer catalog as file path
-	catalogPath, err := parseJSONAsFile(path.Join(pathToConfigs, "catalog.json"), config.Catalog)
+	catalogPath, err := parseJSONAsFile(path.Join(pathToConfigs, catalogFileName), config.Catalog)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer catalog [%v]: %v", config.Catalog, err)
 	}
 
 	// ** Table names mapping **
 	tableNameMappings := config.StreamTableNames
-	//extract table names mapping from catalog.json
-	tableNameMappingsFromCatalog, err := extractTableNamesMapping(catalogPath)
-	if err != nil {
-		logging.Errorf("[%s] Error parsing destination table names from Singer catalog.json: %v", sourceConfig.SourceID, err)
-	}
-	//override configuration
-	for stream, tableName := range tableNameMappingsFromCatalog {
-		tableNameMappings[stream] = tableName
+	if catalogPath != "" {
+		//extract table names mapping from catalog.json
+		tableNameMappingsFromCatalog, err := extractTableNamesMapping(catalogPath)
+		if err != nil {
+			logging.Errorf("[%s] Error parsing destination table names from Singer catalog.json: %v", sourceConfig.SourceID, err)
+		}
+		//override configuration
+		for stream, tableName := range tableNameMappingsFromCatalog {
+			tableNameMappings[stream] = tableName
+		}
 	}
 
 	if len(tableNameMappings) > 0 {
@@ -143,37 +168,102 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 	}
 
 	//parse singer properties as file path
-	propertiesPath, err := parseJSONAsFile(path.Join(pathToConfigs, "properties.json"), config.Properties)
+	propertiesPath, err := parseJSONAsFile(path.Join(pathToConfigs, propertiesFileName), config.Properties)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer properties [%v]: %v", config.Properties, err)
 	}
 
 	//parse singer state as file path
-	statePath, err := parseJSONAsFile(path.Join(pathToConfigs, "state.json"), config.InitialState)
+	statePath, err := parseJSONAsFile(path.Join(pathToConfigs, stateFileName), config.InitialState)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing singer initial state [%v]: %v", config.InitialState, err)
 	}
 
-	s := &Singer{
-		ctx:              ctx,
-		commands:         map[string]*exec.Cmd{},
-		sourceID:         sourceConfig.SourceID,
-		tap:              config.Tap,
-		configPath:       configPath,
-		catalogPath:      catalogPath,
-		propertiesPath:   propertiesPath,
-		statePath:        statePath,
-		streamTableNames: tableNameMappings,
+	catalogDiscovered := atomic.NewBool(false)
+	if catalogPath != "" || propertiesPath != "" {
+		catalogDiscovered.Store(true)
 	}
 
-	singer.Instance.EnsureTap(config.Tap)
+	s := &Singer{
+		ctx:               ctx,
+		commands:          map[string]*exec.Cmd{},
+		sourceID:          sourceConfig.SourceID,
+		tap:               config.Tap,
+		configPath:        configPath,
+		catalogPath:       catalogPath,
+		propertiesPath:    propertiesPath,
+		statePath:         statePath,
+		tableNamePrefix:   config.StreamTableNamesPrefix,
+		pathToConfigs:     pathToConfigs,
+		streamTableNames:  tableNameMappings,
+		catalogDiscovered: catalogDiscovered,
+	}
+
+	safego.Run(s.EnsureTapAndCatalog)
 
 	return s, nil
+}
+
+//EnsureTapAndCatalog ensures Singer tap via singer.Instance
+// and does discover if catalog wasn't provided
+func (s *Singer) EnsureTapAndCatalog() {
+	singer.Instance.EnsureTap(s.tap)
+
+	for {
+		if s.closed {
+			break
+		}
+
+		if s.catalogDiscovered.Load() {
+			break
+		}
+
+		if !singer.Instance.IsTapReady(s.tap) {
+			time.Sleep(time.Second)
+			continue
+		}
+
+		discoveredResultFileName := catalogFileName
+		_, outdatedTap := outdatedSingerTapsWithProperties[s.tap]
+		if outdatedTap {
+			discoveredResultFileName = propertiesFileName
+		}
+
+		catalogPath, err := doDiscover(s.sourceID, s.tap, s.pathToConfigs, s.configPath, discoveredResultFileName)
+		if err != nil {
+			logging.Errorf("[%s] Error configuring Singer: %v", s.sourceID, err)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
+		if outdatedTap {
+			s.propertiesPath = catalogPath
+		} else {
+			s.catalogPath = catalogPath
+		}
+
+		s.catalogDiscovered.Store(true)
+		return
+	}
+}
+
+//GetTableNamePrefix returns stream table name prefix or sourceID_
+func (s *Singer) GetTableNamePrefix() string {
+	//put as prefix + stream if prefix exist
+	if s.tableNamePrefix != "" {
+		return s.tableNamePrefix
+	}
+
+	return s.sourceID + "_"
 }
 
 //GetCollectionTable unsupported
 func (s *Singer) GetCollectionTable() string {
 	return ""
+}
+
+func (s *Singer) GetCollectionMetaKey() string {
+	return s.tap
 }
 
 //GetAllAvailableIntervals unsupported
@@ -186,8 +276,9 @@ func (s *Singer) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}
 	return nil, errors.New("Singer driver doesn't support GetObjectsFor() func. Please use SingerTask")
 }
 
+//Ready returns true if catalog is discovered and tap is installed
 func (s *Singer) Ready() (bool, error) {
-	if singer.Instance.IsTapReady(s.tap) {
+	if s.catalogDiscovered.Load() && singer.Instance.IsTapReady(s.tap) {
 		return true, nil
 	}
 
@@ -282,7 +373,7 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 		}
 	})
 
-	dualWriter := logging.Dual{FileWriter: taskLogger, Stdout: singer.Instance.LogWriter}
+	dualWriter := logging.Dual{FileWriter: taskLogger, Stdout: logging.NewPrefixDateTimeProxy(fmt.Sprintf("[%s]", s.sourceID), singer.Instance.LogWriter)}
 
 	//writing process logs (singer writes process logs to stderr)
 	wg.Add(1)
@@ -317,7 +408,6 @@ func (s *Singer) TestConnection() error {
 	command := path.Join(singer.Instance.VenvDir, s.tap, "bin", s.tap)
 
 	err := singer.Instance.ExecCmd(command, outWriter, errWriter, "-c", s.configPath, "--discover")
-	logging.Debugf("Singer command %s with args [-c %s --discover] stderr: %s", command, s.configPath, errWriter.String())
 	if err != nil {
 		return fmt.Errorf("Error singer --discover: %v. %s", err, errWriter.String())
 	}
@@ -352,6 +442,53 @@ func (s *Singer) GetStreamTableNameMapping() map[string]string {
 	}
 
 	return result
+}
+
+//doDiscover discover tap catalog and returns catalog with all streams {"selected": true}
+func doDiscover(sourceID, tap, pathToConfigs, configFilePath, discoveredResultFileName string) (string, error) {
+	if !singer.Instance.IsTapReady(tap) {
+		return "", errNotReady
+	}
+
+	outWriter := logging.NewStringWriter()
+	errStrWriter := logging.NewStringWriter()
+	dualStdErrWriter := logging.Dual{FileWriter: errStrWriter, Stdout: logging.NewPrefixDateTimeProxy(fmt.Sprintf("[%s]", sourceID), singer.Instance.LogWriter)}
+
+	command := path.Join(singer.Instance.VenvDir, tap, "bin", tap)
+
+	err := singer.Instance.ExecCmd(command, outWriter, dualStdErrWriter, "-c", configFilePath, "--discover")
+	if err != nil {
+		return "", fmt.Errorf("Error singer --discover: %v. %s", err, errStrWriter.String())
+	}
+
+	catalog := &SingerRawCatalog{}
+	if err := json.Unmarshal(outWriter.Bytes(), &catalog); err != nil {
+		return "", fmt.Errorf("Error unmarshalling catalog %s output: %v", outWriter.String(), err)
+	}
+
+	for _, stream := range catalog.Streams {
+		schemaStruct, ok := stream["schema"]
+		if !ok {
+			return "", fmt.Errorf("Malformed discovered catalog structure %s: key 'schema' doesn't exist", outWriter.String())
+		}
+
+		schemaObj, ok := schemaStruct.(map[string]interface{})
+		if !ok {
+			return "", fmt.Errorf("Malformed discovered catalog structure %s: value under key 'schema' must be object: %T", outWriter.String(), schemaStruct)
+		}
+
+		schemaObj["selected"] = true
+	}
+
+	b, _ := json.MarshalIndent(catalog, "", "    ")
+
+	//write singer catalog as file path
+	catalogPath, err := parseJSONAsFile(path.Join(pathToConfigs, discoveredResultFileName), string(b))
+	if err != nil {
+		return "", fmt.Errorf("Error writing discovered singer catalog [%v]: %v", string(b), err)
+	}
+
+	return catalogPath, nil
 }
 
 //parse value and write it to a json file
