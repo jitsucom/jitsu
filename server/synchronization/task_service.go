@@ -38,6 +38,7 @@ type LogRecordDto struct {
 	Time    string `json:"time,omitempty"`
 	Message string `json:"message,omitempty"`
 	Level   string `json:"level,omitempty"`
+	System  string `json:"system,omitempty"`
 }
 
 //TaskService handle get all tasks/ task logs requests
@@ -293,6 +294,7 @@ func (ts *TaskService) GetTaskLogs(taskID string, start, end time.Time) ([]LogRe
 			Time:    lr.Time,
 			Message: lr.Message,
 			Level:   lr.Level,
+			System:  lr.System,
 		})
 	}
 

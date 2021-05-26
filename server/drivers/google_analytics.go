@@ -149,6 +149,10 @@ func (g *GoogleAnalytics) GetCollectionTable() string {
 	return g.collection.GetTableName()
 }
 
+func (g *GoogleAnalytics) GetCollectionMetaKey() string {
+	return g.collection.Name + "_" + g.GetCollectionTable()
+}
+
 func (g *GoogleAnalytics) TestConnection() error {
 	now := time.Now().UTC()
 	startDate := now.AddDate(0, 0, -1)
@@ -202,6 +206,7 @@ func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, 
 		if err != nil {
 			return nil, err
 		}
+
 		report := response.Reports[0]
 		header := report.ColumnHeader
 		dimHeaders := header.Dimensions
@@ -251,9 +256,11 @@ func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall, f
 		if err == nil {
 			return response, nil
 		}
+
 		if failFast {
 			return nil, err
 		}
+
 		time.Sleep(time.Duration(attempt+1) * time.Second)
 		attempt++
 	}

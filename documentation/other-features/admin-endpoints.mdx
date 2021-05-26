@@ -158,3 +158,27 @@ or HTTP 400
   "message": "Error description"
 }
 ```
+
+<APIMethod method="POST" path="/api/v1/sources/clear_cache"/>
+
+Clears Jitsu API connector cache (state) for re-sync. [More information about re-sync](/docs/sources-configuration#re-sync).
+
+<APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header" description="Authorization token (see above)"/>
+<APIParam name={"source"} dataType="string" required={true} type="jsonBody" description="ID of source to clear cache (from configuration)"/>
+<APIParam name={"collection"} dataType="JSON object" required={false} type="jsonBody" description="Name of collection to clear cache. If empty - all collection's caches will be cleared"/>
+
+<h4>Response</h4>
+
+HTTP 200
+```yaml
+{
+  "status": "ok"
+}
+```
+
+or HTTP 400
+```yaml
+{
+  "message": "Error description"
+}
+```

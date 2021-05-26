@@ -166,26 +166,31 @@ func enrichWithSingerTableNamesMapping(enSource *endrivers.SourceConfig) error {
 		return err
 	}
 
-	var catalogBytes []byte
-	switch config.Catalog.(type) {
-	case string:
-		catalogBytes = []byte(config.Catalog.(string))
-	default:
-		catalogBytes, _ = json.Marshal(config.Catalog)
+	//enrich with table name mapping or table name prefix
+	if config.Catalog != nil {
+		var catalogBytes []byte
+		switch config.Catalog.(type) {
+		case string:
+			catalogBytes = []byte(config.Catalog.(string))
+		default:
+			catalogBytes, _ = json.Marshal(config.Catalog)
+		}
+
+		catalog := &endrivers.SingerCatalog{}
+		if err := json.Unmarshal(catalogBytes, catalog); err != nil {
+			return err
+		}
+
+		streamNameTableNameMapping := map[string]string{}
+		for _, stream := range catalog.Streams {
+			streamNameTableNameMapping[stream.Stream] = enSource.SourceID + "_" + stream.Stream
+			streamNameTableNameMapping[stream.TapStreamID] = enSource.SourceID + "_" + stream.TapStreamID
+		}
+		config.StreamTableNames = streamNameTableNameMapping
+	} else {
+		config.StreamTableNamesPrefix = enSource.SourceID + "_"
 	}
 
-	catalog := &endrivers.SingerCatalog{}
-	if err := json.Unmarshal(catalogBytes, catalog); err != nil {
-		return err
-	}
-
-	streamNameTableNameMapping := map[string]string{}
-	for _, stream := range catalog.Streams {
-		streamNameTableNameMapping[stream.Stream] = enSource.SourceID + "_" + stream.Stream
-		streamNameTableNameMapping[stream.TapStreamID] = enSource.SourceID + "_" + stream.TapStreamID
-	}
-
-	config.StreamTableNames = streamNameTableNameMapping
 	serializedConfig := map[string]interface{}{}
 	if err := endrivers.UnmarshalConfig(config, &serializedConfig); err != nil {
 		return err

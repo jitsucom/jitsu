@@ -151,6 +151,10 @@ func (r *Redis) GetCollectionTable() string {
 	return r.collection.GetTableName()
 }
 
+func (r *Redis) GetCollectionMetaKey() string {
+	return r.collection.Name + "_" + r.GetCollectionTable()
+}
+
 func (r *Redis) Close() error {
 	return r.connectionPool.Close()
 }
