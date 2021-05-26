@@ -37,7 +37,7 @@ export interface Props {
 const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleTouchAnyField }: Props) => {
   const services = ApplicationServices.get();
 
-  const [tableNameModal, switchTableNameModal] = useState<boolean>(true);
+  const [tableNameModal, switchTableNameModal] = useState<boolean>(false);
 
   const codeValue = useRef<string>();
 
