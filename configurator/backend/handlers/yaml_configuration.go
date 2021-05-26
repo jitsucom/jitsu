@@ -76,7 +76,9 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 	}
 	mappedDestinations := make(map[string]*enstorages.DestinationConfig)
 	for _, destination := range projectDestinations {
-		destinationID := projectID + "." + destination.UID
+		//dots can't be serialized in yaml configuration
+		//destinationID := projectID + "." + destination.UID
+		destinationID := destination.UID
 		config, err := destinations.MapConfig(destinationID, destination, ch.defaultS3)
 
 		if err != nil {
@@ -94,11 +96,15 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 	}
 	mappedSources := make(map[string]*endrivers.SourceConfig)
 	for _, source := range projectSources {
-		sourceID := projectID + "." + source.SourceID
+		//dots can't be serialized in yaml configuration
+		//sourceID := projectID + "." + source.SourceID
+		sourceID := source.SourceID
 
 		var destinationIDs []string
 		for _, destinationID := range source.Destinations {
-			destinationIDs = append(destinationIDs, projectID+"."+destinationID)
+			//dots can't be serialized in yaml configuration
+			//destinationIDs = append(destinationIDs, projectID+"."+destinationID)
+			destinationIDs = append(destinationIDs, destinationID)
 		}
 
 		mappedConfig, err := mapSourceConfig(source, destinationIDs)

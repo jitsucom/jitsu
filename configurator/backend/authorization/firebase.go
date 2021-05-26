@@ -38,11 +38,12 @@ type Provider interface {
 type FirebaseProvider struct {
 	ctx             context.Context
 	adminDomain     string
+	adminUsers      map[string]bool
 	authClient      *auth.Client
 	firestoreClient *firestore.Client
 }
 
-func NewFirebaseProvider(ctx context.Context, projectID, credentialsFile, adminDomain string) (*FirebaseProvider, error) {
+func NewFirebaseProvider(ctx context.Context, projectID, credentialsFile, adminDomain string, adminUsers []string) (*FirebaseProvider, error) {
 	logging.Infof("Initializing firebase authorization storage..")
 	app, err := firebase.NewApp(ctx, &firebase.Config{ProjectID: projectID}, option.WithCredentialsFile(credentialsFile))
 	if err != nil {
@@ -59,9 +60,15 @@ func NewFirebaseProvider(ctx context.Context, projectID, credentialsFile, adminD
 		return nil, err
 	}
 
+	adminUsersMap := map[string]bool{}
+	for _, user := range adminUsers {
+		adminUsersMap[user] = true
+	}
+
 	return &FirebaseProvider{
 		ctx:             ctx,
 		adminDomain:     adminDomain,
+		adminUsers:      adminUsersMap,
 		authClient:      authClient,
 		firestoreClient: firestoreClient,
 	}, nil
@@ -76,18 +83,24 @@ func (fp *FirebaseProvider) VerifyAccessToken(token string) (string, error) {
 	return verifiedToken.UID, nil
 }
 
-//IsAdmin return true only if the user is admin and auth type is Google
+//IsAdmin return true only if
+// 1. input user is in viper 'auth.admin_users' list
+// 2. input user has admin domain in email and auth type is Google
 func (fp *FirebaseProvider) IsAdmin(userID string) (bool, error) {
 	authUserInfo, err := fp.authClient.GetUser(fp.ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("Failed to get authorization data for user_id [%s]", userID)
 	}
 
-	// email domain validation
-	email := authUserInfo.Email
-	emailSplit := strings.Split(email, "@")
+	//** Check admin_users
+	if _, ok := fp.adminUsers[authUserInfo.Email]; ok {
+		return true, nil
+	}
+
+	//** Check email domain
+	emailSplit := strings.Split(authUserInfo.Email, "@")
 	if len(emailSplit) != 2 {
-		return false, fmt.Errorf("Invalid email string %s: should contain exactly one '@' character", email)
+		return false, fmt.Errorf("Invalid email string %s: should contain exactly one '@' character", authUserInfo.Email)
 	}
 
 	if emailSplit[1] != fp.adminDomain {

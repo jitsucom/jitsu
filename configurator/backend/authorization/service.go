@@ -37,7 +37,7 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 	var authProvider Provider
 	var err error
 	if vp.IsSet("auth.firebase.project_id") {
-		authProvider, err = NewFirebaseProvider(ctx, vp.GetString("auth.firebase.project_id"), vp.GetString("auth.firebase.credentials_file"), vp.GetString("auth.admin_domain"))
+		authProvider, err = NewFirebaseProvider(ctx, vp.GetString("auth.firebase.project_id"), vp.GetString("auth.firebase.credentials_file"), vp.GetString("auth.admin_domain"), vp.GetStringSlice("auth.admin_users"))
 		if err != nil {
 			return nil, err
 		}
