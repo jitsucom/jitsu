@@ -60,7 +60,6 @@ func (sw *StreamingWorker) start() {
 
 			fact, dequeuedTime, tokenID, err := sw.eventQueue.DequeueBlock()
 			if err != nil {
-				logging.Errorf("%v %v %T", sw.closed, err, err)
 				if err == events.ErrQueueClosed && sw.closed {
 					continue
 				}
