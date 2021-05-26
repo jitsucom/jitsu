@@ -1,6 +1,7 @@
 import { DependencyList, Dispatch, SetStateAction, useEffect, useState } from 'react';
 
 export type Loader<T> = () => Promise<T>;
+export type Reloader = () => Promise<void>
 
 /**
  * React hook for loading the data from remote component. Use it like this:
@@ -22,7 +23,7 @@ export type Loader<T> = () => Promise<T>;
  *
  *
  */
-function useLoader<T>(loader: Loader<T>, deps?: DependencyList): [Error, T, Dispatch<SetStateAction<T>>] {
+function useLoader<T>(loader: Loader<T>, deps?: DependencyList): [Error, T, Dispatch<SetStateAction<T>>, Reloader] {
   const [data, setData] = useState(undefined);
   const [error, setError] = useState(undefined);
   const loaderWrapper = async() => {
@@ -36,7 +37,9 @@ function useLoader<T>(loader: Loader<T>, deps?: DependencyList): [Error, T, Disp
   useEffect(() => {
     loaderWrapper();
   }, deps ?? [])
-  return [error, data, setData];
+  return [error, data, setData, () => {
+    return loaderWrapper();
+  }];
 }
 
 export default useLoader;
