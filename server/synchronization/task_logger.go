@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
-	"strings"
 	"time"
 )
 
-const jitsuSystem = "Jitsu"
+const (
+	jitsuSystem  = "Jitsu"
+	singerSystem = "Singer"
+)
 
 //TaskLogger is a logger for writing logs to underlying Redis (meta.Storage)
 type TaskLogger struct {
@@ -21,11 +23,10 @@ func NewTaskLogger(taskID string, metaStorage meta.Storage) *TaskLogger {
 	return &TaskLogger{taskID: taskID, metaStorage: metaStorage}
 }
 
-//OUTPUT splits stdErrOutput by line and writes into meta.storage (used in singer tasks) with log level DEBUG
-func (tl *TaskLogger) OUTPUT(system, stdErrOutput string) {
-	for _, logRecord := range strings.Split(stdErrOutput, "\n") {
-		tl.log(logRecord, system, logging.DEBUG.String())
-	}
+//Write writes Singer bytes as a record into meta.Storage
+func (tl *TaskLogger) Write(p []byte) (n int, err error) {
+	tl.log(string(p), singerSystem, logging.DEBUG.String())
+	return len(p), nil
 }
 
 //INFO writes record into meta.storage with log level INFO

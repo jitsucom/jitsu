@@ -188,6 +188,20 @@ func (r *Redis) SaveSignature(sourceID, collection, interval, signature string) 
 	return nil
 }
 
+//DeleteSignature deletes source collection signature from Redis
+func (r *Redis) DeleteSignature(sourceID, collection string) error {
+	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
+	connection := r.pool.Get()
+	defer connection.Close()
+	_, err := connection.Do("DEL", key)
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
 //SuccessEvents ensures that id is in the index and increments success events counter
 func (r *Redis) SuccessEvents(id, namespace string, now time.Time, value int) error {
 	err := r.ensureIDInIndex(id, namespace)

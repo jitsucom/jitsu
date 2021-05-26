@@ -136,6 +136,10 @@ func (f *Firebase) GetCollectionTable() string {
 	return f.collection.GetTableName()
 }
 
+func (f *Firebase) GetCollectionMetaKey() string {
+	return f.collection.Name + "_" + f.GetCollectionTable()
+}
+
 func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	return []*TimeInterval{NewTimeInterval(ALL, time.Time{})}, nil
 }
