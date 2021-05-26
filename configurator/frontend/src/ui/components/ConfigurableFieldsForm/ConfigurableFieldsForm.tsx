@@ -1,6 +1,6 @@
 // @Libs
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { Col, Form, Input, Modal, Row, Select, Switch } from 'antd';
+import { Col, Form, Input, Modal, Row, Select, Switch, Tooltip } from 'antd';
 import debounce from 'lodash/debounce';
 import get from 'lodash/get';
 import cn from 'classnames';
@@ -25,6 +25,8 @@ import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import styles from './ConfigurableFieldsForm.module.less';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
+import BugIcon from '@./icons/bug';
+import BugOutlined from '@ant-design/icons/lib/icons/BugOutlined';
 
 export interface Props {
   fieldsParamsList: Parameter[];
@@ -103,7 +105,9 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
         autoComplete="off"
         suffix={
           id === '_formData.tableName' ?
-            <CaretRightOutlined onClick={() => switchTableNameModal(true)}/> :
+            <Tooltip title="Debug expression">
+              <span><BugIcon className={styles.bugIcon} onClick={() => switchTableNameModal(true)} /></span>
+            </Tooltip>:
             undefined
         }
       />;
