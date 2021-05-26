@@ -40,13 +40,7 @@
 }
 
 .output {
-  font-weight: bold;
-}
-
-.debug {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+  @apply p-0 m-0 font-mono list-none;
 
   .item {
     @apply flex;
@@ -73,7 +67,7 @@
   border: 1px solid @border-color-base;
   @apply h-40;
 
-  .debugTab {
+  .outputTab {
     @apply p-3 !important;
     .custom-scrollbar();
   }
