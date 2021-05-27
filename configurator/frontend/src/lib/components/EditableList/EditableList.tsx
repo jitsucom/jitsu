@@ -29,6 +29,9 @@ export function EditableList({
   newItemLabel = 'New Item',
   validator = emptyValidator
 }: EditableListProps) {
+  if (typeof value === "string") {
+    value = []
+  }
   const [items, setItems] = useState(
     value.map((str) => {
       return {
