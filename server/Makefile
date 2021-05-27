@@ -9,6 +9,8 @@ tag=`git describe --tags`
 
 all: clean assemble
 
+js_release: js assemble_js copy_new_jitsu_sdk
+
 docker_assemble: clean build_backend assemble_backend
 
 assemble: backend assemble_backend js copy_new_jitsu_sdk assemble_js
