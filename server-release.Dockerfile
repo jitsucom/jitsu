@@ -37,16 +37,16 @@ RUN go mod tidy && go mod download
 ADD server/. ./.
 ADD .git ./.git
 
-# Build backend and copy builded files
+# Build backend and copy binary
 RUN make docker_assemble &&\
-    cp -r ./build/dist/* /app
+    cp ./build/dist/eventnative /app/
 
 #######################################
 # FINAL STAGE
 FROM main as final
 
 ADD server/build/dist/ /home/$EVENTNATIVE_USER/app/
-COPY --from=builder /app/eventnative ./eventnative
+COPY --from=builder /app/eventnative /home/$EVENTNATIVE_USER/app/
 
 WORKDIR /home/$EVENTNATIVE_USER/app
 
