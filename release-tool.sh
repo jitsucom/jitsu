@@ -8,8 +8,8 @@ function build_server() {
 function build_configurator() {
   echo "Building Configurator UI locally.."
   rm -f configurator/backend/build/dist/configurator && \
-  cd ../frontend/ && yarn clean && yarn install && CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build && \
-  cd ../
+  cd configurator/frontend/ && yarn clean && yarn install && CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build && \
+  cd ../../
 }
 
 function release_server() {
