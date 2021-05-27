@@ -24,7 +24,7 @@ monacoEditor.editor.defineTheme('own-theme', {
   }
 });
 
-const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, height = 300, monacoRef, language = 'json' }: Props) => {
+const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, height = 300, monacoRef, language = 'json', dynamicHeight }: Props) => {
   const defaultValue = !initialValue
     ? ''
     : typeof initialValue === 'string'
@@ -36,7 +36,7 @@ const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, hei
   return (
     <MonacoEditor
       ref={monacoRef || null}
-      height={height}
+      height={typeof dynamicHeight === 'function' ? dynamicHeight() : height}
       language={language}
       theme="own-theme"
       onChange={handleChange}

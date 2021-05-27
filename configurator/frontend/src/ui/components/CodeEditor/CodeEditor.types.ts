@@ -6,4 +6,5 @@ export interface Props {
   height?: number;
   monacoRef?: { current: MonacoEditor };
   language?: string;
+  dynamicHeight?: () => number;
 }
