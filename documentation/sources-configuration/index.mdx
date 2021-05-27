@@ -147,7 +147,7 @@ The result of synchronization is a replica of data from the data source with som
 
 Once source is synced, Jitsu writes a sync state in Redis therefore new syncs won't load data that has been already synced.
 For re-sync source use:
-- [Clear Cache endpoint](/docs/other-features/admin-endpoints#apiv1sourcesclear_cache)
+- [Clear Cache endpoint](/docs/other-features/admin-endpoints#apiv1sourcesclearcache)
 - Once Jitsu's cache is cleared - schedule a new [sync task](/docs/sources-configuration/sync-tasks)
 
 ## All supported sources

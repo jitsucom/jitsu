@@ -10,7 +10,7 @@ import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import './EventsSteam.less';
 import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
 
-type Event = {
+export type Event = {
   time: Moment;
   data: any;
 };
@@ -32,6 +32,7 @@ export default class EventsStream extends LoadableComponent<{}, State> {
 
   async componentDidMount(): Promise<void> {
     await super.componentDidMount();
+
   }
 
   eventHeader(event: Event) {
@@ -75,6 +76,7 @@ export default class EventsStream extends LoadableComponent<{}, State> {
         </>
       );
     }
+
     return (
       <>
         {top}
@@ -86,7 +88,7 @@ export default class EventsStream extends LoadableComponent<{}, State> {
           {this.state.events.map((event: Event) => {
             return (
               <Collapse.Panel className="events-stream-panel" header={this.eventHeader(event)} key={Math.random()}>
-                <p>{this.eventContent(event)}</p>
+                <span>{this.eventContent(event)}</span>
               </Collapse.Panel>
             );
           })}
@@ -97,7 +99,7 @@ export default class EventsStream extends LoadableComponent<{}, State> {
 
   protected async load(): Promise<State> {
     let events: Event[] = (
-      await this.services.backendApiClient.get(`/events/cache?project_id=${this.services.activeProject.id}&limit=100`, {proxy: true })
+      await this.services.backendApiClient.get(`/events/cache?project_id=${this.services.activeProject.id}&limit=100000`, {proxy: true })
     )['events'].map((rawEvent) => {
       return { time: moment(rawEvent['original']['_timestamp']), data: rawEvent };
     });

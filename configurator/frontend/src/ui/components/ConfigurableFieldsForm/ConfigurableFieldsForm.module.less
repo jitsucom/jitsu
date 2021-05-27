@@ -1,7 +1,43 @@
+@import './src/theme';
+@import './src/assets/mixins/custom-scrollbar';
+
 .field {
   :global {
     .ant-form-item-control-input {
       max-width: 800px;
+    }
+  }
+}
+
+.modal {
+  height: calc(100% - 200px);
+  @apply flex;
+
+  :global {
+    .ant-modal-content {
+      @apply flex flex-auto flex-col;
+    }
+
+    .ant-modal-body {
+      @apply flex-auto h-full py-0 !important;
+
+      .custom-scrollbar();
+    }
+
+    .ant-modal-footer {
+      border-top: none !important;
+    }
+  }
+}
+
+.bugIcon {
+  color: @success-color;
+  @apply cursor-pointer w-4 h-4;
+
+  :global {
+    svg {
+      width: 100%;
+      height: 100%;
     }
   }
 }
