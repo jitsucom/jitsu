@@ -62,12 +62,13 @@ interface CalculationResult {
 const CodeDebugger = ({
   className,
   codeFieldVisible = true,
-  codeFieldLabel = 'Code',
+  codeFieldLabel = 'Table Name expression',
   defaultCodeValue,
   handleCodeChange,
   handleClose,
   run
 }: Props) => {
+  const rowWrapRef = useRef<HTMLDivElement>();
   const objectMonacoRef = useRef<MonacoEditor>();
   const codeMonacoRef = useRef<MonacoEditor>();
 
@@ -146,8 +147,10 @@ const CodeDebugger = ({
     return () => document.body.removeEventListener('click', handleCloseEvents);
   }, [handleCloseEvents]);
 
+  const getHeight = () => rowWrapRef.current?.getBoundingClientRect()?.height - 56;
+
   return (
-    <div className={cn(className)}>
+    <div className={cn(className, styles.wrap)}>
       <Form form={form} onFinish={handleFinish}>
         <div className={styles.buttonContainer}>
           <div>
@@ -168,7 +171,7 @@ const CodeDebugger = ({
                 icon={<UnorderedListOutlined />}
                 id="events-button"
                 onClick={handleSwitchEventsVisible}
-              >Events</Button>
+              >Copy Recent Event</Button>
             </Dropdown>
           </div>
           {
@@ -176,18 +179,19 @@ const CodeDebugger = ({
           }
         </div>
 
-        <Row>
+        <Row style={{ height: 'calc(100% - 240px)' }} ref={rowWrapRef}>
           <Col span={codeFieldVisible ? 12 : 24} className={cn(codeFieldVisible && 'pr-2')}>
             <Form.Item
               className={styles.field}
               colon
-              label="Object"
+              label="Event JSON"
               labelAlign="left"
               name="object"
             >
               <CodeEditor
                 handleChange={handleChange('object')}
                 height={200}
+                dynamicHeight={getHeight}
                 monacoRef={objectMonacoRef}
               />
             </Form.Item>
@@ -207,6 +211,7 @@ const CodeDebugger = ({
                     initialValue={defaultCodeValue}
                     handleChange={handleChange('code')}
                     height={200}
+                    dynamicHeight={getHeight}
                     language="go"
                     monacoRef={codeMonacoRef}
                   />
