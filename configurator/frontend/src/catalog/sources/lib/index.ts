@@ -4,5 +4,5 @@ import {makeSingerSource} from "./helper";
 
 export const allSources = [
     ...allNativeConnectors,
-    ...allSingerTaps.filter(tap => !tap.hasNativeEquivalent && tap.pic).map(tap => makeSingerSource(tap))
+    ...allSingerTaps.filter(tap => !tap.hasNativeEquivalent && tap.pic && tap.stable).map(tap => makeSingerSource(tap))
 ]
