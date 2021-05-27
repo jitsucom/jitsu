@@ -59,6 +59,7 @@ export default class LoginForm extends React.Component<Props, State> {
   }
 
   private async passwordLogin(values) {
+    this.setState({ loading: true });
     try {
       await this.services.userService.login(values['username'].trim(), values['password'].trim())
       await this.services.analyticsService.track('app_login', {user: {email: values['username'].trim()}, login_type: 'password'});
