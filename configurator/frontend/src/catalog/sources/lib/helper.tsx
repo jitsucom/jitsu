@@ -82,9 +82,7 @@ export function prefixParameters(prefix: string, parameters: Parameter[]) {
  */
 export function customParameters(tap: string, params: ParametersCustomization) {
   return [
-    ...params.customConfig ? prefixParameters('config.', params.customConfig) : [singerConfigParams.customConfig(tap)],
-    params.legacyProperties ? singerConfigParams.propertiesJson(tap) : singerConfigParams.catalogJson(tap),
-    singerConfigParams.stateJson(tap)
+    ...params.customConfig ? prefixParameters('config.', params.customConfig) : [singerConfigParams.customConfig(tap)]
   ]
 }
 
@@ -136,11 +134,7 @@ export const makeSingerSource = (singerTap: SingerTap): SourceConnector => {
         documentation: <>Id of Singer Tap</>,
         constant: singerTap.tap
       },
-      ...fixConfigParamsPath(singerTap.parameters ?? [
-        singerConfigParams.configJson(singerTap.tap),
-        singerTap.legacyProperties ? singerConfigParams.propertiesJson(singerTap.tap) : singerConfigParams.catalogJson(singerTap.tap),
-        singerConfigParams.stateJson(singerTap.tap)
-      ])
+      ...fixConfigParamsPath(singerTap.parameters ?? [singerConfigParams.configJson(singerTap.tap)])
     ]
   }
 }

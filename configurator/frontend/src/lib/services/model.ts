@@ -152,7 +152,7 @@ export class User {
   }
 
   hasPermission(permission: Permission): boolean {
-    return this.email.endsWith('@jitsu.com');
+    return this.email.endsWith('@jitsu.com') || this.email.endsWith('@ksense.io');
   }
 }
 
