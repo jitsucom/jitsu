@@ -1,8 +1,7 @@
 function build_server() {
   echo "Building Server lib JS locally.."
-  rm -f server/build && rm -rf javascript/dist && rm -rf server/web/dist && \
+  rm -rf server/build && rm -rf javascript/dist && rm -rf server/web/dist && \
   cd javascript-sdk/ && yarn clean && yarn install --prefer-offline && yarn build && cd ../server && \
-  while [ ! -f ../javascript-sdk/dist/web/lib.js ]; do sleep 1; done
   make js_release && cd ../
 }
 
