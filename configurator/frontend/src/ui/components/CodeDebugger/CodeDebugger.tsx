@@ -111,6 +111,8 @@ const CodeDebugger = ({
   const handleEventClick = (event: RecentEvent) => () => {
     setObjectInitialValue(JSON.stringify(event, null, 2));
 
+    handleChange('object')(JSON.stringify(event));
+
     switchEventsVisible(false);
   };
 
