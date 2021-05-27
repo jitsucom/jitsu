@@ -19,19 +19,21 @@ const DestinationEditorConfig = ({ destinationData, destinationReference, form, 
   const handleChange = debounce(handleTouchAnyField, 500);
 
   return (
-    <Form
-      name="destination-config"
-      form={form}
-      autoComplete="off"
-      onChange={handleChange}
-    >
-      <ConfigurableFieldsForm
-        handleTouchAnyField={handleTouchAnyField}
-        fieldsParamsList={destinationReference.parameters}
+    <>
+      <Form
+        name="destination-config"
         form={form}
-        initialValues={destinationData}
-      />
-    </Form>
+        autoComplete="off"
+        onChange={handleChange}
+      >
+        <ConfigurableFieldsForm
+          handleTouchAnyField={handleTouchAnyField}
+          fieldsParamsList={destinationReference.parameters}
+          form={form}
+          initialValues={destinationData}
+        />
+      </Form>
+    </>
   )
 };
 

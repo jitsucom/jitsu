@@ -56,7 +56,7 @@ export const tableName = (customDocs?: ReactNode): Parameter => {
     id: `_formData.tableName`,
     displayName: 'Table Name',
     documentation: customDocs ?? <>
-      Table name (or table name template)
+      Table name (or table name template). You can test expression by clicking on the 'play' icon
     </>,
     required: true,
     defaultValue: 'events',
