@@ -20,13 +20,11 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
 import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
 import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
-import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
+import BugIcon from '@./icons/bug';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
-import BugIcon from '@./icons/bug';
-import BugOutlined from '@ant-design/icons/lib/icons/BugOutlined';
 
 export interface Props {
   fieldsParamsList: Parameter[];
