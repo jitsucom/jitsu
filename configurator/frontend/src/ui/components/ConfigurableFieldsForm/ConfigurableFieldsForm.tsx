@@ -200,7 +200,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
             <Row key={id} className={cn(isHidden && 'hidden')}>
               <Col span={24}>
                 <Form.Item
-                  className={cn('form-field_fixed-label', styles.field)}
+                  className={cn('form-field_fixed-label', styles.field, type?.typeName === 'json' && styles.jsonField)}
                   initialValue={getInitialValue(id, defaultValue, constantValue, type?.typeName)}
                   name={id}
                   hidden={isHidden}
