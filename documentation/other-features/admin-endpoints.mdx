@@ -143,12 +143,29 @@ Evaluates input [GO text/template](https://golang.org/pkg/text/template/) expres
 <APIParam name={"object"} dataType="JSON object" required={true} type="jsonBody" description="Event JSON object for evaluating expression"/>
 <APIParam name={"reformat"} dataType="boolean" required={false} type="jsonBody" description="If true - result will be reformatted like in table name evaluating (special chars will be replaced)"/>
 
+<h4>Request</h4>
+
+```yaml
+{
+  "object": {
+    "app": "jitsu_cloud",
+    "user": {
+      "anonymous_id": "anonym_id",
+      "internal_id": "internal_id"
+    },
+    "src": "jitsu",
+    "event_type": "site_page"
+  },
+  "expression": "{{.event_type}}"
+}
+```
+
 <h4>Response</h4>
 
 HTTP 200
 ```yaml
 {
-  "result": "result of evaluation"
+  "result": "site_page"
 }
 ```
 
@@ -166,6 +183,15 @@ Clears Jitsu API connector cache (state) for re-sync. [More information about re
 <APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header" description="Authorization token (see above)"/>
 <APIParam name={"source"} dataType="string" required={true} type="jsonBody" description="ID of source to clear cache (from configuration)"/>
 <APIParam name={"collection"} dataType="JSON object" required={false} type="jsonBody" description="Name of collection to clear cache. If empty - all collection's caches will be cleared"/>
+
+<h4>Request</h4>
+
+```yaml
+{
+  "source": "google_analytics",
+  "collection": "acquisition_overview"
+}
+```
 
 <h4>Response</h4>
 
