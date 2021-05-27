@@ -658,21 +658,18 @@ export const allSingerTaps: SingerTap[] = [
         {
           displayName: 'Exclude Archive Channels',
           id: 'exclude_archived',
-          required: true,
           type: booleanType,
           defaultValue: false
         },
         {
           displayName: 'Join Public Channels',
           id: 'join_public_channels',
-          required: true,
           type: booleanType,
           defaultValue: false
         },
         {
           displayName: 'Join Private Channels',
           id: 'private_channels',
-          required: true,
           type: booleanType,
           defaultValue: false
         }
