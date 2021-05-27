@@ -1,14 +1,15 @@
 function build_server() {
   echo "Building Server lib JS locally.."
-  rm -f server/build/dist/eventnative && \
-  cd javascript-sdk/ && yarn clean && yarn install && yarn build && \
-  cd ../
+  rm -f server/build && rm -rf javascript/dist && rm -rf server/web/dist && \
+  cd javascript-sdk/ && yarn clean && yarn install --prefer-offline && yarn build && cd ../server && \
+  while [ ! -f ../javascript-sdk/dist/web/lib.js ]; do sleep 1; done
+  make js_release && cd ../
 }
 
 function build_configurator() {
   echo "Building Configurator UI locally.."
   rm -f configurator/backend/build/dist/configurator && \
-  cd configurator/frontend/ && yarn clean && yarn install && CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build && \
+  cd configurator/frontend/ && yarn clean && yarn install --prefer-offline && CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build && \
   cd ../../
 }
 
@@ -42,13 +43,15 @@ function release_heroku() {
 SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
 echo ""
-read -r -p "What service would you like to release? ['server', 'configurator', 'both', 'heroku']: " subsystem
-
-echo ""
 read -r -p "What version would you like to release? ['beta', certain version e.g. '1.30.1' ] Note: latest version has been released with certain version by default: " version
 
-if [[ $version =~ $SEMVER_EXPRESSION ]] || [[ $version = "beta" ]]; then
- echo "Release version: $version"
+echo "Release version: $version"
+
+if [[ $version =~ $SEMVER_EXPRESSION ]]; then
+ echo "Service to release: all"
+ subsystem='all'
+elif [[ $version == "beta" ]]; then
+  read -r -p "What service would you like to release? ['server', 'configurator', 'all', 'heroku']: " subsystem
 else
   echo "Invalid version: $version. Only 'beta' or certain version e.g. '1.30.1' are supported"
   exit 1
@@ -70,14 +73,15 @@ case $subsystem in
         build_configurator
         release_configurator $version
         ;;
-    [b][o][t][h])
+    [a][l][l])
        build_server
        build_configurator
        release_server $version
        release_configurator $version
+       release_heroku
        ;;
     *)
-        echo "Invalid input service..."
+        echo "Invalid input service [$subsystem]..."
         exit 1
         ;;
 esac

@@ -38,7 +38,7 @@ ADD server/. ./.
 ADD .git ./.git
 
 # Build backend and copy builded files
-RUN make all docker_assemble &&\
+RUN make docker_assemble &&\
     cp -r ./build/dist/* /app
 
 #######################################
