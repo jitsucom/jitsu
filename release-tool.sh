@@ -30,11 +30,19 @@ function release_configurator() {
   fi
 }
 
+function release_heroku() {
+  echo "**** Heroku release ****"
+  cd heroku && \
+  docker build -t jitsucom/heroku -f heroku.Dockerfile . && \
+  docker push jitsucom/heroku && \
+  cd ../
+}
+
 
 SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
 echo ""
-read -r -p "What service would you like to release? ['server', 'configurator', 'both']: " subsystem
+read -r -p "What service would you like to release? ['server', 'configurator', 'both', 'heroku']: " subsystem
 
 echo ""
 read -r -p "What version would you like to release? ['beta', certain version e.g. '1.30.1' ] Note: latest version has been released with certain version by default: " version
@@ -47,6 +55,13 @@ else
 fi
 
 case $subsystem in
+    [h][e][r][o][k][u])
+        build_server
+        build_configurator
+        release_server $version
+        release_configurator $version
+        release_heroku
+        ;;
     [s][e][r][v][e][r])
         build_server
         release_server $version
@@ -60,7 +75,7 @@ case $subsystem in
        build_configurator
        release_server $version
        release_configurator $version
-        ;;
+       ;;
     *)
         echo "Invalid input service..."
         exit 1
