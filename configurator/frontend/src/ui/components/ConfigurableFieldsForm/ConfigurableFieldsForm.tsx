@@ -102,13 +102,19 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
       return initial;
     }
 
-    const calcValue = (defaultValue || constantValue) ?? {};
+    const calcValue = typeof defaultValue !== 'undefined'
+      ? defaultValue
+      : typeof constantValue !== 'undefined'
+        ? constantValue
+        : type === 'json'
+          ? {}
+          : '';
 
     return type === 'json'
       ? Object.keys(calcValue).length > 0
         ? JSON.stringify(calcValue)
         : ''
-      : defaultValue || constantValue;
+      : calcValue;
   }, [initialValues]);
 
   return (

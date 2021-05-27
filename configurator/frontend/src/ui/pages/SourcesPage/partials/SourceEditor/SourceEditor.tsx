@@ -160,8 +160,6 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
           ...sourceData.current,
           ...testConnectionResults
         };
-
-        console.log('sourceData.current: ', sourceData.current);
       })
       .finally(() => {
         setTestConnecting(false);
