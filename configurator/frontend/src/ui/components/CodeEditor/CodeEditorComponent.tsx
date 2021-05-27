@@ -1,5 +1,7 @@
+import React from 'react';
 import * as monacoEditor from 'monaco-editor';
 import MonacoEditor from 'react-monaco-editor';
+import { Props } from './CodeEditor.types';
 
 monacoEditor.editor.defineTheme('own-theme', {
   base: 'vs-dark',
@@ -22,13 +24,8 @@ monacoEditor.editor.defineTheme('own-theme', {
   }
 });
 
-interface Props {
-  handleChange: (value: string) => void;
-  initialValue: object | string;
-}
-
-const JsonEditor = ({ handleChange: handleChangeProp, initialValue }: Props) => {
-  const value = !initialValue
+const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, height = 300, monacoRef, language = 'json', dynamicHeight }: Props) => {
+  const defaultValue = !initialValue
     ? ''
     : typeof initialValue === 'string'
       ? initialValue
@@ -38,11 +35,12 @@ const JsonEditor = ({ handleChange: handleChangeProp, initialValue }: Props) => 
 
   return (
     <MonacoEditor
-      height="300"
-      language="json"
+      ref={monacoRef || null}
+      height={typeof dynamicHeight === 'function' ? dynamicHeight() : height}
+      language={language}
       theme="own-theme"
       onChange={handleChange}
-      value={value}
+      defaultValue={defaultValue}
       options={{
         glyphMargin: false,
         folding: false,
@@ -67,6 +65,6 @@ const JsonEditor = ({ handleChange: handleChangeProp, initialValue }: Props) => 
   )
 };
 
-JsonEditor.displayName = 'JsonEditor';
+CodeEditorComponent.displayName = 'CodeEditor';
 
-export default JsonEditor;
+export default CodeEditorComponent;

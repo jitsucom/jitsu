@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import * as logos  from './logos'
-import { stringType, isoUtcDateType, jsonType } from '../types';
+import { stringType, isoUtcDateType, jsonType, booleanType } from '../types';
 import { customParameters, SingerTap } from './helper';
 
 export const allSingerTaps: SingerTap[] = [
@@ -228,7 +228,7 @@ export const allSingerTaps: SingerTap[] = [
       ]
     }),
 
-    stable: true,
+    stable: false,
     hasNativeEquivalent: false
   },
   {
@@ -633,7 +633,48 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'Slack',
     tap: 'tap-slack',
     stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: false,
+    parameters: customParameters('tap-slack', {
+      customConfig: [
+        {
+          displayName: 'Access Token',
+          id: 'token',
+          type: stringType,
+          required: true,
+          documentation: <>
+            You can obtain a token for a single workspace by creating a new{' '}
+            <a href="https://api.slack.com/apps?new_app=1">Slack App</a> in your workspace and assigning it the relevant{' '}
+            <a href="https://api.slack.com/docs/oauth-scopes">scopes</a>. As of right now, the minimum required scopes for this App are:{' '}
+            channels:history, channels:join, channels:read, files:read, groups:read, reactions:read, remote_files:read, team:read, usergroups:read, users.profile:read, users:read, users:read.email
+          </>
+        },
+        {
+          displayName: 'Start Date',
+          id: 'start_date',
+          required: true,
+          type: isoUtcDateType,
+          defaultValue: '2018-01-01T00:00:00.000Z'
+        },
+        {
+          displayName: 'Exclude Archive Channels',
+          id: 'exclude_archived',
+          type: booleanType,
+          defaultValue: false
+        },
+        {
+          displayName: 'Join Public Channels',
+          id: 'join_public_channels',
+          type: booleanType,
+          defaultValue: false
+        },
+        {
+          displayName: 'Join Private Channels',
+          id: 'private_channels',
+          type: booleanType,
+          defaultValue: false
+        }
+      ]
+    })
   },
   // {
   //     pic: logos.tap_square,

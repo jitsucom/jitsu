@@ -396,10 +396,11 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 	return nil
 }
 
+//TestConnection tests singer connection (runs discover) if tap has been installed otherwise returns nil
 func (s *Singer) TestConnection() error {
-	ready, notReadyError := s.Ready()
+	ready, _ := s.Ready()
 	if !ready {
-		return notReadyError
+		return nil
 	}
 
 	outWriter := logging.NewStringWriter()

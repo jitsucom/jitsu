@@ -1,0 +1,101 @@
+@import './src/theme';
+@import './src/assets/mixins/custom-scrollbar';
+
+.input {
+  background-color: @primary-background;
+}
+
+.buttonContainer {
+  @apply flex justify-between flex-shrink-0 pt-8 mb-4;
+}
+
+.events {
+  .custom-scrollbar();
+}
+
+.panel {
+  :global {
+    .ant-collapse-content-box {
+      padding: 0 !important;
+    }
+  }
+}
+
+.field {
+  height: 100%;
+  flex-direction: column;
+}
+
+.resultHeader {
+  &::after {
+    content: ':';
+    position: relative;
+    top: -0.5px;
+    margin: 0 8px 0 2px;
+  }
+}
+
+.events {
+  @apply h-40;
+  .custom-scrollbar();
+}
+
+.output {
+  @apply p-0 m-0 font-mono list-none;
+
+  .item {
+    @apply flex;
+
+    .status {
+      @apply w-20 whitespace-nowrap pr-3 flex-shrink-0;
+
+      .time {
+        font-size: 0.75em;
+      }
+    }
+  }
+
+  .itemError {
+    color: @error-color;
+  }
+
+  .itemSuccess {
+    color: @success-color;
+  }
+}
+
+.tabs {
+  border: 1px solid @border-color-base;
+  border-radius: @border-radius-base;
+  @apply h-40;
+
+  .outputTab {
+    @apply p-3 !important;
+    .custom-scrollbar();
+  }
+
+  :global {
+    .ant-tabs-nav {
+      min-width: auto !important;
+    }
+
+    .ant-tabs-tab {
+      @apply m-0 p-3 !important;
+      border-bottom: 1px solid @border-color-base;
+    }
+
+    .anticon {
+      margin-right: 2px !important;
+    }
+  }
+}
+
+.wrap {
+  height: 100%;
+
+  :global {
+    .ant-form {
+      height: 100%;
+    }
+  }
+}

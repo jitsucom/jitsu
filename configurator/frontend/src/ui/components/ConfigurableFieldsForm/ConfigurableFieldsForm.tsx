@@ -1,13 +1,14 @@
 // @Libs
-import React, { useCallback } from 'react';
-import { Col, Form, Input, Row, Select, Switch } from 'antd';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Col, Form, Input, Modal, Row, Select, Switch, Tooltip } from 'antd';
 import debounce from 'lodash/debounce';
 import get from 'lodash/get';
 import cn from 'classnames';
 // @Components
 import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
+import { CodeDebugger, FormValues as DebuggerFormValues } from '@component/CodeDebugger/CodeDebugger';
 import { EditableList } from '@./lib/components/EditableList/EditableList';
-import { CenteredSpin } from '@./lib/components/components';
+import { CodeEditor } from '@component/CodeEditor/CodeEditor';
 // @Types
 import { Parameter, ParameterType } from '@catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
@@ -19,10 +20,13 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
 import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
 import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
+import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
-
-const JsonEditor = React.lazy(() => import('@component/JsonEditor/JsonEditor'));
+// @Services
+import ApplicationServices from '@service/ApplicationServices';
+import BugIcon from '@./icons/bug';
+import BugOutlined from '@ant-design/icons/lib/icons/BugOutlined';
 
 export interface Props {
   fieldsParamsList: Parameter[];
@@ -32,10 +36,18 @@ export interface Props {
   handleTouchAnyField: VoidFunc;
 }
 
-const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePrefix, handleTouchAnyField }: Props) => {
+const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleTouchAnyField }: Props) => {
+  const services = ApplicationServices.get();
+
+  const [tableNameModal, switchTableNameModal] = useState<boolean>(false);
+
+  const codeValue = useRef<string>();
+
   const handleTouchField = debounce(handleTouchAnyField, 1000);
 
   const forceUpdate = useForceUpdate();
+
+  const tableNameDetected = useMemo(() => fieldsParamsList.some(param => param.id === '_formData.tableName'), [fieldsParamsList]);
 
   const handleChangeIntInput = useCallback((id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
@@ -55,7 +67,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
     handleTouchField();
   };
 
-  const getFieldComponent = useCallback((type: ParameterType<any>, id: string, additionalProps?: AnyObject) => {
+  const getFieldComponent = useCallback((type: ParameterType<any>, id: string) => {
     const fieldsValue = form.getFieldsValue();
 
     switch (type?.typeName) {
@@ -79,19 +91,26 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
       </Select>;
 
     case 'array/string':
-      return <EditableList {...additionalProps} />;
+      return <EditableList />;
 
     case 'json':
-      return <React.Suspense fallback={<CenteredSpin/>}>
-        <JsonEditor handleChange={handleJsonChange(id)} initialValue={form.getFieldValue(id)} />
-      </React.Suspense>;
+      return <CodeEditor handleChange={handleJsonChange(id)} initialValue={form.getFieldValue(id)}/>;
 
     case 'boolean':
-      return <Switch onChange={handleChangeSwitch(id)} checked={get(fieldsValue, id)} />
+      return <Switch onChange={handleChangeSwitch(id)} checked={get(fieldsValue, id)}/>
 
     case 'string':
     default:
-      return <Input autoComplete="off" />;
+      return <Input
+        autoComplete="off"
+        suffix={
+          id === '_formData.tableName' ?
+            <Tooltip title="Debug expression">
+              <span><BugIcon className={styles.bugIcon} onClick={() => switchTableNameModal(true)} /></span>
+            </Tooltip>:
+            undefined
+        }
+      />;
     }
   }, [handleJsonChange, form, handleChangeSwitch, handleChangeIntInput, forceUpdate]);
 
@@ -102,27 +121,82 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
       return initial;
     }
 
-    const calcValue = (defaultValue || constantValue) ?? {};
+    const calcValue = typeof defaultValue !== 'undefined'
+      ? defaultValue
+      : typeof constantValue !== 'undefined'
+        ? constantValue
+        : type === 'json'
+          ? {}
+          : '';
 
     return type === 'json'
       ? Object.keys(calcValue).length > 0
         ? JSON.stringify(calcValue)
         : ''
-      : defaultValue || constantValue;
+      : calcValue;
   }, [initialValues]);
+
+  const handleDebuggerRun = async(values: DebuggerFormValues) => {
+    const data = {
+      reformat: true,
+      expression: values.code,
+      object: JSON.parse(values.object)
+    };
+
+    return services.backendApiClient.post(`/templates/evaluate?project_id=${services.activeProject.id}`, data, { proxy: true });
+  };
+
+  const handleCodeChange = (value: string) => {
+    codeValue.current = value.replace(/[\r\n]+/g, '');
+  };
+
+  const handleCloseDebugger = () => switchTableNameModal(false);
+
+  const handleSaveTableName = () => {
+    if (codeValue.current) {
+      form.setFieldsValue({ '_formData.tableName': codeValue.current });
+    }
+
+    handleCloseDebugger();
+  };
 
   return (
     <>
+      {
+        tableNameDetected && (
+          <Modal
+            className={styles.modal}
+            closable={false}
+            maskClosable={false}
+            onCancel={handleCloseDebugger}
+            onOk={handleSaveTableName}
+            okText="Save table name template"
+            visible={tableNameModal}
+            wrapClassName={styles.modalWrap}
+            width="80%"
+          >
+            <CodeDebugger
+              className="pb-2"
+              codeFieldLabel="Expression"
+              defaultCodeValue={get(initialValues, '_formData.tableName')}
+              handleClose={handleCloseDebugger}
+              handleCodeChange={handleCodeChange}
+              run={handleDebuggerRun}
+            />
+          </Modal>
+        )
+      }
+
       {
         fieldsParamsList.map((param: Parameter) => {
           const { id, documentation, displayName, type, defaultValue, required, constant } = param;
 
           const constantValue = typeof constant === 'function'
-            ? constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {}))
-            : constant;
+            ?
+            constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {}))
+            :
+            constant;
           const isHidden = constantValue !== undefined;
-
-          const additionalProps: AnyObject = {};
 
           return (
             <Row key={id} className={cn(isHidden && 'hidden')}>
@@ -147,7 +221,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, namePre
                       : undefined
                   }
                 >
-                  {getFieldComponent(type, id, additionalProps)}
+                  {getFieldComponent(type, id)}
                 </Form.Item>
               </Col>
             </Row>
