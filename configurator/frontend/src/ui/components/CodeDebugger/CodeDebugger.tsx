@@ -69,8 +69,8 @@ const CodeDebugger = ({
   run
 }: Props) => {
   const rowWrapRef = useRef<HTMLDivElement>();
-  const objectMonacoRef = useRef<MonacoEditor>();
-  const codeMonacoRef = useRef<MonacoEditor>();
+
+  const [objectInitialValue, setObjectInitialValue] = useState<string>();
 
   const [isEventsVisible, switchEventsVisible] = useState<boolean>(false);
 
@@ -80,18 +80,8 @@ const CodeDebugger = ({
 
   const [form] = Form.useForm();
 
-  const formatObjectField = () => objectMonacoRef.current.editor.getAction('editor.action.formatDocument').run();
-
-  const handleChange = (name: 'object' | 'code', instant?: boolean) => (value: string | object) => {
+  const handleChange = (name: 'object' | 'code') => (value: string | object) => {
     form.setFieldsValue({ [name]: value ? value : '' });
-
-    if (name === 'object') {
-      if (!instant) {
-        debounce(formatObjectField, 2000)();
-      } else {
-        formatObjectField();
-      }
-    }
 
     if (name === 'code' && handleCodeChange) {
       handleCodeChange(value);
@@ -119,10 +109,9 @@ const CodeDebugger = ({
   };
 
   const handleEventClick = (event: RecentEvent) => () => {
-    const monacoModel = objectMonacoRef.current.editor.getModel();
-    monacoModel.setValue(JSON.stringify(event));
+    setObjectInitialValue(JSON.stringify(event, null, 2));
 
-    handleChange('object', true)(JSON.stringify(event));
+    handleChange('object')(JSON.stringify(event));
 
     switchEventsVisible(false);
   };
@@ -146,8 +135,6 @@ const CodeDebugger = ({
 
     return () => document.body.removeEventListener('click', handleCloseEvents);
   }, [handleCloseEvents]);
-
-  const getHeight = () => rowWrapRef.current?.getBoundingClientRect()?.height - 56;
 
   return (
     <div className={cn(className, styles.wrap)}>
@@ -179,7 +166,7 @@ const CodeDebugger = ({
           }
         </div>
 
-        <Row style={{ height: 'calc(100% - 240px)' }} ref={rowWrapRef}>
+        <Row className={styles.editorsRow} ref={rowWrapRef}>
           <Col span={codeFieldVisible ? 12 : 24} className={cn(codeFieldVisible && 'pr-2')}>
             <Form.Item
               className={styles.field}
@@ -189,10 +176,8 @@ const CodeDebugger = ({
               name="object"
             >
               <CodeEditor
+                initialValue={objectInitialValue}
                 handleChange={handleChange('object')}
-                height={200}
-                dynamicHeight={getHeight}
-                monacoRef={objectMonacoRef}
               />
             </Form.Item>
           </Col>
@@ -210,10 +195,7 @@ const CodeDebugger = ({
                   <CodeEditor
                     initialValue={defaultCodeValue}
                     handleChange={handleChange('code')}
-                    height={200}
-                    dynamicHeight={getHeight}
                     language="go"
-                    monacoRef={codeMonacoRef}
                   />
                 </Form.Item>
               </Col>

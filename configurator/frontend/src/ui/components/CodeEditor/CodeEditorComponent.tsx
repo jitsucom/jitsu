@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import * as monacoEditor from 'monaco-editor';
 import MonacoEditor from 'react-monaco-editor';
 import { Props } from './CodeEditor.types';
+import { IKeyboardEvent } from 'monaco-editor';
 
 monacoEditor.editor.defineTheme('own-theme', {
   base: 'vs-dark',
@@ -24,22 +25,36 @@ monacoEditor.editor.defineTheme('own-theme', {
   }
 });
 
-const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, height = 300, monacoRef, language = 'json', dynamicHeight }: Props) => {
+const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, language = 'json' }: Props) => {
   const defaultValue = !initialValue
     ? ''
     : typeof initialValue === 'string'
       ? initialValue
       : JSON.stringify(initialValue);
 
-  const handleChange = (value: string) => handleChangeProp(value);
+  const handleChange = (e: IKeyboardEvent) => {
+    handleChangeProp((e.target as any).value);
+  }
+
+  const ref = useRef<MonacoEditor>();
+
+  useEffect(() => {
+    if (ref.current?.editor) {
+      if (initialValue) {
+        const model = ref.current.editor.getModel();
+
+        model.setValue(defaultValue);
+      }
+
+      ref.current.editor.onKeyUp(handleChange);
+    }
+  }, [initialValue]);
 
   return (
     <MonacoEditor
-      ref={monacoRef || null}
-      height={typeof dynamicHeight === 'function' ? dynamicHeight() : height}
+      ref={ref}
       language={language}
       theme="own-theme"
-      onChange={handleChange}
       defaultValue={defaultValue}
       options={{
         glyphMargin: false,

@@ -54,11 +54,12 @@ const destination: Destination = {
       id: '_formData.snowflakeAccount',
       displayName: 'Account',
       required: true,
-      type: stringType
+      type: stringType,
+      documentation: <>Snowflake Account from URL https://"SNOWFLAKE_ACCOUNT".snowflakecomputing.com/</>
     },
     {
       id: '_formData.snowflakeWarehouse',
-      displayName: 'Host',
+      displayName: 'Warehouse',
       required: true,
       type: stringType
     },
@@ -72,7 +73,8 @@ const destination: Destination = {
       id: '_formData.snowflakeSchema',
       displayName: 'Schema',
       required: true,
-      type: stringType
+      type: stringType,
+      defaultValue: 'PUBLIC'
     },
     {
       id: '_formData.snowflakeUsername',
@@ -82,7 +84,7 @@ const destination: Destination = {
     },
     {
       id: '_formData.snowflakePassword',
-      displayName: 'Host',
+      displayName: 'Password',
       required: true,
       type: passwordType
     },
@@ -90,12 +92,13 @@ const destination: Destination = {
       id: '_formData.snowflakeStageName',
       displayName: 'Stage name',
       constant: displayForBatchOnly(''),
+      required: true,
       type: stringType
     },
     {
       id: '_formData.snowflakeStageType',
       displayName: 'Stage type',
-      constant: displayForBatchOnly(''),
+      constant: displayForBatchOnly('s3'),
       type: singleSelectionType(['s3', 'gcs'])
     },
     ...s3Credentials(
@@ -103,12 +106,12 @@ const destination: Destination = {
       '_formData.snowflakeS3Bucket',
       '_formData.snowflakeS3AccessKey',
       '_formData.snowflakeS3SecretKey',
-      (cfg) => cfg._formData?.mode === 'batch' && cfg._formData?.snowflakeStageType === 's3'
+      (cfg) => cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 's3')
     ),
     ...googleGCSCredentials(
       '_formData.snowflakeJSONKey',
       '_formData.snowflakeGCSBucket',
-      (cfg) => cfg._formData?.mode === 'batch' && cfg._formData?.snowflakeStageType === 'gcs'
+      (cfg) => cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 'gcs')
     )
   ]
 };

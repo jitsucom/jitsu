@@ -21,9 +21,23 @@
   }
 }
 
+.editorsRow {
+  height: calc(100% - 264px);
+}
+
 .field {
-  height: 100%;
-  flex-direction: column;
+  @apply flex flex-col h-full;
+
+  :global {
+    .ant-form-item-control-input,
+    .ant-form-item-control-input-content {
+      height: 100%;
+    }
+
+    .react-monaco-editor-container {
+      @apply absolute top-0 left-0 w-full h-full max-h-full m-0 p-0 overflow-hidden;
+    }
+  }
 }
 
 .resultHeader {
@@ -67,7 +81,7 @@
 .tabs {
   border: 1px solid @border-color-base;
   border-radius: @border-radius-base;
-  @apply h-40;
+  @apply h-40 mt-6;
 
   .outputTab {
     @apply p-3 !important;

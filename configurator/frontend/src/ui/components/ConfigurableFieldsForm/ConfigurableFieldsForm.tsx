@@ -20,13 +20,11 @@ import { useForceUpdate } from '@hooks/useForceUpdate';
 // @Icons
 import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
 import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
-import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
+import BugIcon from '@./icons/bug';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
-import BugIcon from '@./icons/bug';
-import BugOutlined from '@ant-design/icons/lib/icons/BugOutlined';
 
 export interface Props {
   fieldsParamsList: Parameter[];
@@ -202,7 +200,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
             <Row key={id} className={cn(isHidden && 'hidden')}>
               <Col span={24}>
                 <Form.Item
-                  className={cn('form-field_fixed-label', styles.field)}
+                  className={cn('form-field_fixed-label', styles.field, type?.typeName === 'json' && styles.jsonField)}
                   initialValue={getInitialValue(id, defaultValue, constantValue, type?.typeName)}
                   name={id}
                   hidden={isHidden}
