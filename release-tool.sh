@@ -7,7 +7,7 @@ function build_server() {
 
 function build_configurator() {
   echo "Building Configurator UI locally.."
-  rm -f configurator/backend/build/dist/configurator && rm -f configurator/frontend/build \
+  rm -f configurator/backend/build/dist/configurator && rm -rf configurator/frontend/build && \
   cd configurator/frontend/ && yarn clean && yarn install --prefer-offline && CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build && \
   cd ../../
 }
