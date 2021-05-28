@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+const defaultPrimaryKey = "eventn_ctx_event_id"
+
 func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config) (*enstorages.DestinationConfig, error) {
 	var config *enstorages.DestinationConfig
 	var err error
@@ -47,9 +49,19 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		}
 
 		config.DataLayout.PrimaryKeyFields = destination.PrimaryKeyFields
+	} else {
+		//default primary keys for enabling users recognition
+		//for disabling this feature set destination.DisableDefaultPrimaryKeyFields on a certain destination
+		if !destination.DisableDefaultPrimaryKeyFields && (destination.Type == enstorages.PostgresType || destination.Type == enstorages.RedshiftType) {
+			if config.DataLayout == nil {
+				config.DataLayout = &enstorages.DataLayout{}
+			}
+
+			config.DataLayout.PrimaryKeyFields = []string{defaultPrimaryKey}
+		}
 	}
 
-	//default user recognition is disabled
+	//overriding user recognition settings
 	if destination.UsersRecognition != nil {
 		config.UsersRecognition = &enstorages.UsersRecognition{
 			Enabled:         destination.UsersRecognition.Enabled,

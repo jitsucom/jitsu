@@ -4,16 +4,17 @@ import "github.com/jitsucom/jitsu/server/enrichment"
 
 //Destination entity is stored in main storage (Firebase or Redis)
 type Destination struct {
-	ID                   string                   `firestore:"_id" json:"_id"`
-	UID                  string                   `firestore:"_uid" json:"_uid"`
-	Type                 string                   `firestore:"_type"  json:"_type"`
-	Data                 interface{}              `firestore:"_formData" json:"_formData"`
-	Mappings             *Mappings                `firestore:"_mappings" json:"_mappings"`
-	Enrichment           []*enrichment.RuleConfig `firestore:"_enrichment" json:"_enrichment"`
-	UsersRecognition     *UsersRecognition        `firestore:"_users_recognition" json:"_users_recognition"`
-	OnlyKeys             []string                 `firestore:"_onlyKeys" json:"_onlyKeys"`
-	PrimaryKeyFields     []string                 `firestore:"_primary_key_fields" json:"_primary_key_fields"`
-	CachingConfiguration *CachingConfiguration    `firestore:"_caching_configuration" json:"_caching_configuration"`
+	ID                             string                   `firestore:"_id" json:"_id"`
+	UID                            string                   `firestore:"_uid" json:"_uid"`
+	Type                           string                   `firestore:"_type"  json:"_type"`
+	Data                           interface{}              `firestore:"_formData" json:"_formData"`
+	Mappings                       *Mappings                `firestore:"_mappings" json:"_mappings"`
+	Enrichment                     []*enrichment.RuleConfig `firestore:"_enrichment" json:"_enrichment"`
+	UsersRecognition               *UsersRecognition        `firestore:"_users_recognition" json:"_users_recognition"`
+	OnlyKeys                       []string                 `firestore:"_onlyKeys" json:"_onlyKeys"`
+	PrimaryKeyFields               []string                 `firestore:"_primary_key_fields" json:"_primary_key_fields"`
+	CachingConfiguration           *CachingConfiguration    `firestore:"_caching_configuration" json:"_caching_configuration"`
+	DisableDefaultPrimaryKeyFields bool                     `firestore:"_disable_default_primary_key_fields" json:"_disable_default_primary_key_fields"`
 }
 
 //Destinations entity is stored in main storage (Firebase or Redis)
