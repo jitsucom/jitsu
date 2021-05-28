@@ -85,7 +85,8 @@ export function googleGCSCredentials(jsonKeyField, bucketField, hide?: Function<
       displayName: 'Access Key',
       documentation: <>JSON access credentials</>,
       required: true,
-      type: jsonType
+      type: jsonType,
+      constant: hiddenValue('', hide)
     },
     {
       id: bucketField,
