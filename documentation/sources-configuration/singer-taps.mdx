@@ -7,7 +7,7 @@ import {Hint} from "../../../components/documentationComponents";
 | Name | Description |
 | :--- | :--- |
 | [Config](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#config) (required) | JSON payload contains authorization keys, account ids, start date (date for downloading since). JSON structure depends on the tap. |
-| [Catalog](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#catalog) (required) | JSON payload contains all streams (object types) and fields to download. JSON structure is standardized, but stream and field names depend on the tap. |
+| [Catalog](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#catalog) | JSON payload contains all streams (object types) and fields to download. JSON structure is standardized, but stream and field names depend on the tap. Jitsu does auto --discover and gathers JSON if this parameter is absent.|
 | [State](https://github.com/singer-io/getting-started/blob/master/docs/SPEC.md#state) | JSON payload contains bookmarks that specify an initial state. It is used when you need to download not all data. |
 | Properties | `Deprecated`. JSON payload contains streams and fields schema like Catalog. Used by some legacy taps (e.g. [Facebook tap](https://github.com/singer-io/tap-facebook)) |
 
@@ -47,7 +47,7 @@ sources:
 Singer source might write logs to `global` Jitsu Server application logs or to a dedicated file.
 
 <Hint>
-    JSON configuration parameters such as <code inline="true">config</code>, <code inline="true">catalog</code>, <code inline="true">state</code> and <code inline="true">properties</code> might be a raw JSON or JSON string or path to local JSON file
+    JSON configuration parameters such as <code inline="true">config</code>, <code inline="true">catalog</code>, <code inline="true">state</code> and <code inline="true">properties</code> might be a raw JSON or JSON string or path to local JSON file.
 </Hint>
 
 ### Table Names
