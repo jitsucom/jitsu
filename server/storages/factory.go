@@ -444,8 +444,10 @@ func enrichAndLogMappings(destinationID, destinationType string, uniqueIDField *
 
 		if !configuredEventId {
 			eventIdMapping := schema.MappingField{Src: uniqueIDFieldName, Dst: uniqueIDFieldName, Action: schema.MOVE}
-			mapping.Fields = append(mapping.Fields, eventIdMapping)
+			flatEventIdMapping := schema.MappingField{Src: uniqueIDFieldFlatName, Dst: uniqueIDFieldFlatName, Action: schema.MOVE}
+			mapping.Fields = append(mapping.Fields, eventIdMapping, flatEventIdMapping)
 			logging.Warnf("[%s] Added default system field mapping: %s", destinationID, eventIdMapping.String())
+			logging.Warnf("[%s] Added default system field mapping: %s", destinationID, flatEventIdMapping.String())
 		}
 
 		if !configuredTimestamp {
