@@ -125,11 +125,14 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		if err := config.Snowflake.Validate(); err != nil {
 			return err
 		}
-		snowflake, err := adapters.NewSnowflake(context.Background(), config.Snowflake, nil, nil, typing.SQLTypes{})
+
+		snowflake, err := storages.CreateSnowflakeAdapter(context.Background(), nil, *config.Snowflake, logging.NewQueryLogger("snowflake_test_connection", nil, nil), typing.SQLTypes{})
 		if err != nil {
 			return err
 		}
+
 		defer snowflake.Close()
+
 		if config.Mode == storages.BatchMode {
 			if config.S3 != nil && config.S3.Bucket != "" {
 				if err := config.S3.Validate(); err != nil {
