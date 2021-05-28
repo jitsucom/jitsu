@@ -33,6 +33,7 @@ function release_configurator() {
 function release_heroku() {
   echo "**** Heroku release ****"
   cd heroku && \
+  docker image rm jitsucom/heroku && \
   docker build -t jitsucom/heroku -f heroku.Dockerfile . && \
   docker push jitsucom/heroku && \
   cd ../
