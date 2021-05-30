@@ -6,4 +6,5 @@ type SQLAdapter interface {
 	GetTableSchema(tableName string) (*Table, error)
 	CreateTable(schemaToCreate *Table) error
 	PatchTableSchema(schemaToAdd *Table) error
+	BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error
 }
