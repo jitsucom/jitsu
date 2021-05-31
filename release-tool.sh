@@ -33,7 +33,8 @@ function release_configurator() {
 function release_heroku() {
   echo "**** Heroku release ****"
   cd heroku && \
-  docker image rm jitsucom/heroku && \
+  docker pull jitsucom/configurator && \
+  docker pull jitsucom/server && \
   docker build -t jitsucom/heroku -f heroku.Dockerfile . && \
   docker push jitsucom/heroku && \
   cd ../
@@ -64,10 +65,6 @@ fi
 
 case $subsystem in
     [h][e][r][o][k][u])
-        build_server
-        build_configurator
-        release_server $version
-        release_configurator $version
         release_heroku
         ;;
     [s][e][r][v][e][r])
