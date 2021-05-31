@@ -186,7 +186,7 @@ func (h *HTTPAdapter) doRetry(retryableRequest *RetryableRequest, sendErr error)
 	}
 
 	headersJSON, _ := json.Marshal(retryableRequest.Request.Headers)
-	logging.Errorf("[%s] Error sending HTTP request URL: [%s] Method: [%s] Body: [%s] Headers: [%s] %s: %v", h.destinationID, retryableRequest.Request.URL, retryableRequest.Request.Method, string(retryableRequest.Request.Body), headersJSON, sendErr)
+	logging.Errorf("[%s] Error sending HTTP request URL: [%s] Method: [%s] Body: [%s] Headers: [%s]: %v", h.destinationID, retryableRequest.Request.URL, retryableRequest.Request.Method, string(retryableRequest.Request.Body), headersJSON, sendErr)
 
 	h.errorHandler(true, retryableRequest.EventContext, sendErr)
 }
