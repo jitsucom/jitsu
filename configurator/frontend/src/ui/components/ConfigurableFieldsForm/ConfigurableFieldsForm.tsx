@@ -215,7 +215,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
                     !isHidden
                       ? type?.typeName === 'isoUtcDate'
                         ? [isoDateValidator(`${displayName} field is required.`)]
-                        : [{ required, message: `${displayName} field is required.` }]
+                        : [{ required: typeof required === 'boolean' ? required : required?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {})), message: `${displayName} field is required.` }]
                       : undefined
                   }
                 >

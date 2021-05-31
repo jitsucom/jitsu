@@ -129,8 +129,9 @@ export type Parameter = {
 
   /**
    *  Flag describes required/optional nature of the field. IF empty - field is optional
+   *  Either constant or function of current config
    */
-  required?: boolean;
+  required?: ConstantOrFunction<any, any>;
 
   /**
    * Documentation
