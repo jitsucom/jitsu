@@ -196,7 +196,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
             constant;
           const isHidden = constantValue !== undefined;
 
-          return (
+          return !isHidden ? (
             <Row key={id} className={cn(isHidden && 'hidden')}>
               <Col span={24}>
                 <Form.Item
@@ -223,7 +223,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
                 </Form.Item>
               </Col>
             </Row>
-          );
+          ) : null;
         })
       }
     </>
