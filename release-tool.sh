@@ -45,7 +45,7 @@ SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
 git pull
 echo ""
-read -r -p "What version would you like to release? ['beta', certain version e.g. '1.30.1' ] Note: latest version has been released with certain version by default: " version
+read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
 
 echo "Release version: $version"
 
