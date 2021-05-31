@@ -37,9 +37,9 @@ destinations:
 
 ### Google Cloud Storage
 
-[Create](https://cloud.google.com/storage/docs/creating-buckets) your Google Cloud Storage bucket
-and give `Storage Object Admin` permission to your Google Service Account in created bucket.
+For using BigQuery in batch mode you should configure custom Google Service Account with permissions on Google Cloud Storage bucket and BigQuery:
 
-<Hint>
-    Read more information about <a href="https://jitsu.com/docs/configuration/google-authorization">How to create Google Service Account</a>
-</Hint>
+1. [Create](/docs/configuration/google-authorization) Google Service Account
+2. Set IAM Permissions (`BigQuery Data Owner` and `BigQuery Job User`) to created Google Service Account.
+3. [Create](https://cloud.google.com/storage/docs/creating-buckets) Google Cloud Storage bucket
+4. Give `Storage Object Admin` permission to your Google Service Account in created bucket.
