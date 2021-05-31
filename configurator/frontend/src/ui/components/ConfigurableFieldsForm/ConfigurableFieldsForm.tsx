@@ -65,7 +65,29 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
     handleTouchField();
   };
 
-  const getFieldComponent = useCallback((type: ParameterType<any>, id: string) => {
+  const getInitialValue = useCallback((id: string, defaultValue: any, constantValue: any, type: string) => {
+    const initial = get(initialValues, id);
+
+    if (initial) {
+      return initial;
+    }
+
+    const calcValue = typeof defaultValue !== 'undefined'
+      ? defaultValue
+      : typeof constantValue !== 'undefined'
+        ? constantValue
+        : type === 'json'
+          ? {}
+          : '';
+
+    return type === 'json'
+      ? Object.keys(calcValue).length > 0
+        ? JSON.stringify(calcValue)
+        : ''
+      : calcValue;
+  }, [initialValues]);
+
+  const getFieldComponent = useCallback((type: ParameterType<any>, id: string, defaultValue?: any, constantValue?: any) => {
     const fieldsValue = form.getFieldsValue();
 
     switch (type?.typeName) {
@@ -91,8 +113,10 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
     case 'array/string':
       return <EditableList />;
 
-    case 'json':
-      return <CodeEditor handleChange={handleJsonChange(id)} initialValue={form.getFieldValue(id)}/>;
+    case 'json': {
+      const value = form.getFieldValue(id);
+      return <CodeEditor handleChange={handleJsonChange(id)} initialValue={value ? value : getInitialValue(id, defaultValue, constantValue, type?.typeName)}/>;
+    }
 
     case 'boolean':
       return <Switch onChange={handleChangeSwitch(id)} checked={get(fieldsValue, id)}/>
@@ -111,28 +135,6 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
       />;
     }
   }, [handleJsonChange, form, handleChangeSwitch, handleChangeIntInput, forceUpdate]);
-
-  const getInitialValue = useCallback((id: string, defaultValue: any, constantValue: any, type: string) => {
-    const initial = get(initialValues, id);
-
-    if (initial) {
-      return initial;
-    }
-
-    const calcValue = typeof defaultValue !== 'undefined'
-      ? defaultValue
-      : typeof constantValue !== 'undefined'
-        ? constantValue
-        : type === 'json'
-          ? {}
-          : '';
-
-    return type === 'json'
-      ? Object.keys(calcValue).length > 0
-        ? JSON.stringify(calcValue)
-        : ''
-      : calcValue;
-  }, [initialValues]);
 
   const handleDebuggerRun = async(values: DebuggerFormValues) => {
     const data = {
@@ -219,7 +221,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
                       : undefined
                   }
                 >
-                  {getFieldComponent(type, id)}
+                  {getFieldComponent(type, id, defaultValue, constantValue)}
                 </Form.Item>
               </Col>
             </Row>
