@@ -2,7 +2,8 @@ server:
   log:
     level: info
   allowed_domains:
-    - '*.{{APP_TLD}}'
+    - '{{APP_TLD}}'
+    - 'localhost'
   name: demo-jitsu
   auth: '${env.CONFIGURATOR_ADMIN_TOKEN}'
 
