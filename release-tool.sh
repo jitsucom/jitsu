@@ -50,7 +50,9 @@ function release_heroku() {
 
   cd heroku && \
   docker pull jitsucom/configurator:"$1" && \
+  docker pull jitsucom/configurator:latest && \
   docker pull jitsucom/server:"$1" && \
+  docker pull jitsucom/server:latest && \
   docker build $heroku_tags -f heroku.Dockerfile . && \
   cd ../ || { echo 'Heroku docker build failed' ; exit 1; }
 
