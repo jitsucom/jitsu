@@ -33,7 +33,10 @@ const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, lan
       : JSON.stringify(initialValue);
 
   const handleChange = (e: IKeyboardEvent) => {
-    handleChangeProp((e.target as any).value);
+    const model = ref.current.editor.getModel();
+    const value = model.getValue();
+
+    handleChangeProp(value);
   }
 
   const ref = useRef<MonacoEditor>();

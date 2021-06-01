@@ -177,7 +177,7 @@ func main() {
 
 	//** SMTP (email service) **
 	var smtp *emails.SMTPConfiguration
-	if viper.IsSet("smtp") {
+	if viper.IsSet("smtp.host") {
 		smtp = &emails.SMTPConfiguration{
 			Host:     viper.GetString("smtp.host"),
 			Port:     viper.GetInt("smtp.port"),

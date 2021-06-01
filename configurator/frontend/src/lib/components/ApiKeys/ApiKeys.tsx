@@ -24,6 +24,7 @@ import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCi
 import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
 import useLoader from '@hooks/useLoader';
 import { randomId } from '@util/numbers';
+import { useServices } from '@hooks/useServices';
 
 type Token = {
   uid: string;
@@ -337,20 +338,20 @@ function getDomainsSelection(env: string) {
 
 function KeyDocumentation({ token }: { token: Token }) {
   const [segment, setSegmentEnabled] = useState(false);
-  const [selectedDomain, setSelectedDomain] = useState(null);
-  const services = ApplicationServices.get();
-
+  const services = useServices();
+  const staticDomains = getDomainsSelection(services.features.environment);
+  const [selectedDomain, setSelectedDomain] = useState(staticDomains.length > 0 ? staticDomains[0] : null);
   const [error, domains] = services.features.enableCustomDomains ?
     useLoader(async() => {
       let result = await services.storageService.get('custom_domains', services.activeProject.id);
       let customDomains = result && result.domains ?
-        result.domains.map((domain) => domain.name) :
+        result.domains.map((domain) => "https://" + domain.name) :
         [];
-      let newDomains = [...customDomains, 't.jitsu.com'];
+      let newDomains = [...customDomains, 'https://t.jitsu.com'];
       setSelectedDomain(newDomains[0]);
       return newDomains;
     }) :
-    [null, getDomainsSelection(services.features.environment)];
+    [null, staticDomains];
 
   if (error) {
     handleError(error, 'Failed to load data from server');
