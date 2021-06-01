@@ -120,6 +120,7 @@ const fixConfigParamsPath = (params: Parameter[]) => params.map((p: Parameter) =
 export const makeSingerSource = (singerTap: SingerTap): SourceConnector => {
   return {
     isSingerType: true,
+    expertMode: !singerTap.parameters,
     pic: singerTap.pic,
     displayName: singerTap.displayName,
     id: `singer-${singerTap.tap}`,
