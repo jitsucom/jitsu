@@ -1,17 +1,3 @@
-build_ksense: &build_ksense
-  run:
-    name: Build and Push DEPRECATED ksense EventNative Docker image
-    command: |
-      DOCKER_BUILDKIT=1 docker build --build-arg dhid=ksense -t $IMAGE_NAME:$IMAGE_VERSION -f $DOCKER_FILE .
-      echo $DOCKER_PWD | docker login -u $DOCKER_LOGIN --password-stdin
-      docker push $IMAGE_NAME
-
-setup_image_version: &setup_image_version
-  run:
-    name: Set up IMAGE_VERSION env var
-    command: |
-      echo 'export IMAGE_VERSION=${CIRCLE_TAG//v}' >> $BASH_ENV
-
 version: 2.1
 
 jobs:
@@ -82,48 +68,6 @@ jobs:
           paths:
             - "/go/pkg/mod"
 
-  build-latest-en-docker:
-    environment:
-      IMAGE_NAME: ksense/eventnative
-      DOCKER_FILE: server.Dockerfile
-      IMAGE_VERSION: latest
-    docker:
-      - image: cimg/go:1.14.15
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-          docker_layer_caching: true
-      - <<: *build_ksense
-
-  build-beta-en-docker:
-    environment:
-      IMAGE_NAME: ksense/eventnative
-      DOCKER_FILE: server.Dockerfile
-      IMAGE_VERSION: beta
-    docker:
-      - image: cimg/go:1.14.15
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-          docker_layer_caching: true
-      - <<: *build_ksense
-
-  build-tagged-en-docker:
-    environment:
-      IMAGE_NAME: ksense/eventnative
-      DOCKER_FILE: server.Dockerfile
-    docker:
-      - image: cimg/go:1.14.15
-    steps:
-      - checkout
-      - setup_remote_docker:
-          version: 19.03.13
-          docker_layer_caching: true
-      - <<: *setup_image_version
-      - <<: *build_ksense
-
 workflows:
   version: 2.1
   build-docker:
@@ -143,26 +87,3 @@ workflows:
               only: /.*/
             branches:
               only: /.*/
-      - build-latest-en-docker:
-          context: eventnative
-          requires:
-            - server-test
-          filters:
-            branches:
-              only: master
-      - build-beta-en-docker:
-          context: eventnative
-          requires:
-            - server-test
-          filters:
-            branches:
-              only: beta
-      - build-tagged-en-docker:
-          context: eventnative
-          requires:
-            - server-test
-          filters:
-            tags:
-              only: /^v.*/
-            branches:
-              ignore: /.*/
