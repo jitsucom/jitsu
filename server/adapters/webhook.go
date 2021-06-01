@@ -2,6 +2,8 @@ package adapters
 
 import (
 	"errors"
+	"fmt"
+
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
@@ -75,6 +77,10 @@ func (wh *WebHook) GetTableSchema(tableName string) (*Table, error) {
 	}, nil
 }
 
+func (wh *WebHook) CreateDB(databaseName string) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
+}
+
 //CreateTable returns nil
 func (wh *WebHook) CreateTable(schemaToCreate *Table) error {
 	return nil
@@ -83,6 +89,14 @@ func (wh *WebHook) CreateTable(schemaToCreate *Table) error {
 //PatchTableSchema returns nil
 func (wh *WebHook) PatchTableSchema(schemaToAdd *Table) error {
 	return nil
+}
+
+func (wh *WebHook) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
+}
+
+func (wh *WebHook) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
 }
 
 //Close closes underlying HTTPAdapter

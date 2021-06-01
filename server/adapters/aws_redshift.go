@@ -3,11 +3,12 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	_ "github.com/lib/pq"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -190,6 +191,10 @@ func (ar *AwsRedshift) GetTableSchema(tableName string) (*Table, error) {
 	return table, nil
 }
 
+func (ar *AwsRedshift) CreateDB(databaseName string) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
+}
+
 //CreateTable create database table with name,columns provided in Table representation
 func (ar *AwsRedshift) CreateTable(tableSchema *Table) error {
 	wrappedTx, err := ar.OpenTx()
@@ -296,6 +301,14 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 	}
 
 	return nil
+}
+
+func (ar *AwsRedshift) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
+}
+
+func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
 }
 
 //Close underlying sql.DB

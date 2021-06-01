@@ -3,8 +3,9 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -21,7 +22,6 @@ type AwsRedshift struct {
 
 	s3Adapter                     *adapters.S3
 	redshiftAdapter               *adapters.AwsRedshift
-	processor                     *schema.Processor
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 	uniqueIDField                 *identifiers.UniqueID
@@ -80,7 +80,6 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	ar := &AwsRedshift{
 		s3Adapter:                     s3Adapter,
 		redshiftAdapter:               redshiftAdapter,
-		processor:                     config.processor,
 		usersRecognitionConfiguration: config.usersRecognition,
 		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
@@ -89,6 +88,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 
 	//Abstract
 	ar.destinationID = config.destinationID
+	ar.processor = config.processor
 	ar.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	ar.eventsCache = config.eventsCache
 	ar.tableHelpers = []*TableHelper{tableHelper}

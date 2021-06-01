@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	sf "github.com/snowflakedb/gosnowflake"
-	"sort"
-	"strings"
 )
 
 const (
@@ -131,6 +132,10 @@ func (s *Snowflake) OpenTx() (*Transaction, error) {
 	}
 
 	return &Transaction{tx: tx, dbType: s.Type()}, nil
+}
+
+func (s *Snowflake) CreateDB(databaseName string) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
 }
 
 //CreateDbSchema create database schema instance if doesn't exist
@@ -299,6 +304,14 @@ func (s *Snowflake) Insert(eventContext *EventContext) error {
 	}
 
 	return wrappedTx.DirectCommit()
+}
+
+func (s *Snowflake) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
+}
+
+func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
 }
 
 //Close underlying sql.DB

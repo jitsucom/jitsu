@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
-	_ "github.com/lib/pq"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -171,6 +172,11 @@ func (p *Postgres) OpenTx() (*Transaction, error) {
 	}
 
 	return &Transaction{tx: tx, dbType: p.Type()}, nil
+}
+
+// CreateDB creates database instance if doesn't exist
+func (p *Postgres) CreateDB(databaseName string) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
 }
 
 //CreateDbSchema creates database schema instance if doesn't exist

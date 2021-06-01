@@ -2,6 +2,8 @@ package storages
 
 import (
 	"fmt"
+	"math/rand"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -9,8 +11,8 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/telemetry"
-	"math/rand"
 )
 
 //Abstract is an Abstract destination storage
@@ -20,6 +22,7 @@ type Abstract struct {
 	destinationID  string
 	fallbackLogger *logging.AsyncLogger
 	eventsCache    *caching.EventsCache
+	processor      *schema.Processor
 
 	tableHelpers []*TableHelper
 	sqlAdapters  []adapters.SQLAdapter
@@ -30,6 +33,11 @@ type Abstract struct {
 //ID returns destination ID
 func (a *Abstract) ID() string {
 	return a.destinationID
+}
+
+// Processor returns processor
+func (a *Abstract) Processor() *schema.Processor {
+	return a.processor
 }
 
 //ErrorEvent writes error to metrics/counters/telemetry/events cache
