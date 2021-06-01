@@ -33,9 +33,8 @@ Read more about [our features](https://jitsu.com/#features) and check out the [p
 Two easiest ways to start Jitsu are Heroku deployment and local docker-compose. 
 
 ### 1-click Heroku deploy
-It may take up to 5 minutes for Heroku to install environment. After that you can visit:
-- Jitsu Server welcome page on `your_app.herokuapp.com`
-- Jitsu Configurator UI on `your_app.herokuapp.com/configurator`
+It may take up to 5 minutes for Heroku to install environment. 
+After that you can visit `<your_app_name>.herokuapp.com`
 
 <a href="https://heroku.com/deploy?template=https://github.com/jitsucom/jitsu"><img src="https://www.herokucdn.com/deploy/button.svg" width="250px" /></a>
 
@@ -67,18 +66,18 @@ Also, we maintain a [Jitsu.Cloud](https://cloud.jitsu.com) — a hosted version 
 project comes with demo PostgresSQL Database (up 10,000 records).
 
 
-<a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/eventnative/master/artwork/doc-n.png" width="40px"/></a>
+<a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/doc-n.png" width="40px"/></a>
 ## Documentation
 
 Please see our extensive documentation [here](https://jitsu.com/docs). Key sections include:
 
-* [Deployment](https://jitsu.com/docs/deployment) - Getting EventNative running on Heroku, Docker, and building from source.
-* [Configuration](https://jitsu.com/docs/configuration) - How to modify EventNative's `yaml` file.
+* [Deployment](https://jitsu.com/docs/deployment) - Getting Jitsu running on Heroku, Docker, and building from source.
+* [Configuration](https://jitsu.com/docs/configuration) - How to modify Jitsu Server's `yaml` file.
 * [Geo Data](https://jitsu.com/docs/geo-data-resolution) - Configuring data enrichment with [MaxMind](https://www.maxmind.com/en/home).
-* [Scaling](https://jitsu.com/docs/other-features/scaling-eventnative) - How to setup a distributed deployment of EventNative.
+* [Scaling](https://jitsu.com/docs/other-features/scaling-eventnative) - How to setup a distributed deployment of Jitsu.
 
 
-<a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/eventnative/master/artwork/com-n.png" width="40px"/></a>
+<a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/com-n.png" width="40px"/></a>
 ## Reporting Bugs and Contributing Code
 
 * Want to report a bug or request a feature? Please open [an issue](https://github.com/jitsucom/jitsu/issues/new).

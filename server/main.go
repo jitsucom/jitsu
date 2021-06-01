@@ -363,8 +363,13 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 	//configured
 	if coordinationRedisConfiguration != nil {
 		telemetry.Coordination("redis")
-		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, coordinationRedisConfiguration.GetString("host"),
-			coordinationRedisConfiguration.GetInt("port"), coordinationRedisConfiguration.GetString("password"))
+		redisConfig := &meta.RedisConfiguration{
+			Host:          coordinationRedisConfiguration.GetString("host"),
+			Port:          coordinationRedisConfiguration.GetInt("port"),
+			Password:      coordinationRedisConfiguration.GetString("password"),
+			TLSSkipVerify: coordinationRedisConfiguration.GetBool("tls_skip_verify"),
+		}
+		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, redisConfig)
 	}
 
 	return nil, errors.New("Unknown coordination configuration. Currently only [redis, etcd] are supported. " +
