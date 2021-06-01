@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 function build_server() {
   echo "Building Server lib JS locally.."
   rm -rf server/build && rm -rf javascript/dist && rm -rf server/web/dist && \
@@ -16,6 +18,7 @@ function release_server() {
   echo "**** Server amd64/arm64 release [$1] ****"
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -t jitsucom/server:latest -f server-release.Dockerfile --build-arg dhid=jitsucom .
+    #TODO build ksensehq/eventnative:latest image
   else
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  .
   fi
@@ -31,12 +34,19 @@ function release_configurator() {
 }
 
 function release_heroku() {
-  echo "**** Heroku release ****"
+  echo "**** Heroku release [$1] ****"
+  heroku_tags="-t jitsucom/heroku:$1"
+  heroku_push_tags="jitsucom/heroku:$1"
+  if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
+    heroku_tags="-t jitsucom/heroku:$1 -t jitsucom/heroku:latest"
+    heroku_push_tags="jitsucom/heroku:$1 jitsucom/heroku:latest"
+  fi
+
   cd heroku && \
-  docker pull jitsucom/configurator && \
-  docker pull jitsucom/server && \
-  docker build -t jitsucom/heroku -f heroku.Dockerfile . && \
-  docker push jitsucom/heroku && \
+  docker pull jitsucom/configurator:"$1" && \
+  docker pull jitsucom/server:"$1" && \
+  docker build $heroku_tags -f heroku.Dockerfile . && \
+  docker push $heroku_push_tags && \
   cd ../
 }
 
@@ -80,7 +90,7 @@ case $subsystem in
        build_configurator
        release_server $version
        release_configurator $version
-       release_heroku
+       release_heroku $version
        ;;
     *)
         echo "Invalid input service [$subsystem]..."
