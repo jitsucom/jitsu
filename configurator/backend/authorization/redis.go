@@ -6,7 +6,6 @@ import (
 	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
-	"strings"
 )
 
 const (
@@ -27,14 +26,10 @@ type RedisProvider struct {
 	pool            *redis.Pool
 }
 
-func NewRedisProvider(host, password, accessSecret, refreshSecret string, port int) (*RedisProvider, error) {
-	connectionStr := fmt.Sprintf("%s:%d", host, port)
-	if strings.HasPrefix(host, "redis://") || strings.HasPrefix(host, "rediss://") {
-		connectionStr = host
-	}
-	logging.Infof("Initializing redis authorization storage [%s]...", connectionStr)
+func NewRedisProvider(accessSecret, refreshSecret string, config *meta.RedisConfiguration) (*RedisProvider, error) {
+	logging.Infof("Initializing redis authorization storage [%s]...", config.String())
 
-	pool, err := meta.NewRedisPool(host, port, password)
+	pool, err := meta.NewRedisPool(config)
 	if err != nil {
 		return nil, err
 	}

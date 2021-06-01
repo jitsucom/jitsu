@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/bcrypt"
@@ -48,12 +49,20 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 		}
 
 		port := vp.GetInt("auth.redis.port")
-		if port == 0 {
-			port = 6379
-			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", port)
+		redisPassword := vp.GetString("auth.redis.password")
+		tlsSkipVerify := vp.GetBool("auth.redis.tls_skip_verify")
+
+		redisConfig := &meta.RedisConfiguration{
+			Host:          host,
+			Port:          port,
+			Password:      redisPassword,
+			TLSSkipVerify: tlsSkipVerify,
 		}
 
-		redisPassword := vp.GetString("auth.redis.password")
+		if redisConfig.Port == 0 && !redisConfig.IsURL() && !redisConfig.IsSecuredURL() {
+			redisConfig.Port = 6379
+			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", redisConfig.Port)
+		}
 
 		accessSecret := vp.GetString("auth.redis.access_secret")
 		if accessSecret == "" {
@@ -75,7 +84,7 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 			logging.Infof("'auth.redis.refresh_secret' has been generated: %q. For keeping UI authorization sessions between application restarts - replace 'auth.redis.refresh_secret' in configurator.yaml with any random string or uuid.", refreshSecret)
 		}
 
-		authProvider, err = NewRedisProvider(host, redisPassword, accessSecret, refreshSecret, port)
+		authProvider, err = NewRedisProvider(accessSecret, refreshSecret, redisConfig)
 		if err != nil {
 			return nil, err
 		}

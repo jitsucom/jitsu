@@ -130,7 +130,16 @@ func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string
 }
 
 func (fm *FacebookMarketing) TestConnection() error {
-	_, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/insights", fm.reportConfig.Fields, nil, 0, true)
+	var path string
+	if fm.collection.Type == InsightsCollection {
+		path = "/insights"
+	} else if fm.collection.Type == AdsCollection {
+		path = "/ads"
+	} else {
+		return fmt.Errorf("Unknown collection type [%s]. Only [%s] and [%s] are supported now", fm.collection.Type, AdsCollection, InsightsCollection)
+	}
+
+	_, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+path, fm.reportConfig.Fields, nil, 0, true)
 	if err != nil {
 		return err
 	}

@@ -2,31 +2,71 @@
 sort: 1
 ---
 
-
-import {CodeInTabs, CodeTab} from "../../../components/Code";
 import {Hint} from "../../../components/documentationComponents";
 
 # Deploy to Heroku
 
-![Heroku Dialog](/img/docs/deployment-heroku.png)
-
-[Heroku](https://www.heroku.com/) is the easiest way to get started with **Jitsu**. If you don't have an active Heroku account you can [signup here](https://signup.heroku.com/)!
+[Heroku](https://www.heroku.com/about) is the easiest way to get started with **Jitsu**. If you don't have an active Heroku account you can [signup here](https://signup.heroku.com/)!
 
 ### Getting Running on Heroku
 
-* Pick a destination for your event data, we recommend starting with [Postgres](https://devcenter.heroku.com/articles/heroku-postgresql).
-* Click our [Deploy](https://heroku.com/deploy?template=https://github.com/jitsucom/jitsu) to Heroku link.
-* Fill `GEO_MAXMIND_PATH` (optional) - if you are using maxmind for [geo data resolution](/docs/other-features/geo-data-resolution).
+<a href="https://heroku.com/deploy?template=https://github.com/jitsucom/jitsu"><img src="https://www.herokucdn.com/deploy/button.svg" width="250px" /></a>
 
-![Configuration Parameters](/img/docs/heroku-jitsu-configuration.png)
+- Click on the "Deploy to Heroku" button to go to app creation screen.
+- Enter name of your Jitsu app
+- All configuration parameters are optional
+- Click on the "Deploy app" at the bottom of the screen
 
-* Click **Deploy App** and you're alive!
-* After your app is deployed, you can set up your API keys, Destinations and Source connectors on Jitsu Configurator UI [https://your_app.herokuapp.com/configurator](https://your-app.herokuapp.com/)
+<Hint>
+    It may take up to 5 minutes for Heroku to install environment. Please don't refresh you page.
+</Hint>
+
+Once completed, you will see two buttons at the bottom of the screen: `Manage App` and `View App`.
+
+- For visit Jitsu, click `View App`. Also, your can visit Jitsu via `<your_app_name>.herokuapp.com` link or
+`Open App` button in the right corner on of the `https://dashboard.heroku.com/apps/<your_app_name>` page.
+
+- For checking your app details, click `Manage App`.
+
+After your app is deployed, you can set up your API keys, Destinations and Source connectors on Jitsu UI.
 
 Once Jitsu is set up, place the following code on your web-app. (See our [JavaScript SDK 2.0 guide](/docs/sending-data/js-sdk) for fine-tuning):
 
 ```html
-<script src="https://[your_app].herokuapp.com/s/lib.js" data-key="<YOUR_API_KEY_FROM_CONFIGURATOR_UI>" defer>
+<script src="https://[your_app_name].herokuapp.com/s/lib.js" data-key="<YOUR_API_KEY_FROM_CONFIGURATOR_UI>" defer>
 </script>
 ```
 
+### Upgrade Jitsu version
+
+Once a new [Jitsu heroku docker](https://hub.docker.com/repository/docker/jitsucom/heroku) version is created you can update
+your Heroku app with the following command set:
+
+- git clone https://github.com/jitsucom/jitsu.git
+- cd jitsu
+- git remote add heroku https://git.heroku.com/<your_heroku_jitsu_app_name>.git
+- git push -f heroku master
+
+### Upgrade Heroku App (Recommended)
+
+By default, Heroku creates app with a free plan. It means that the app is going to sleep if there hasn't been any activity for 30 minutes.
+If you are using Jitsu constantly, once free hours will be exceeded and Heroku will put your app to sleep.
+
+For using Jitsu constantly, we **strongly** recommend upgrading to at least a `Hobby` plan:
+
+- visit your Heroku app resources page `https://dashboard.heroku.com/apps/<your_app_name>/resources`
+- click `Change Dyno Type` button
+
+### Upgrade Heroku Redis plan (Recommended)
+
+By default, Jitsu installs free `hobby-dev` [Heroku Redis add-on](https://elements.heroku.com/addons/heroku-redis) to the app.
+It can be found on the `Manage App` screen -> `Installed add-ons` on the `https://dashboard.heroku.com/apps/<your_app_name>` page.
+
+For upgrading Redis plan:
+- visit your Heroku app resources page `https://dashboard.heroku.com/apps/<your_app>/resources`
+- click ↕️ button in the right corner of `Heroku Redis` in Add-ons section row
+- click Modify Plan
+
+<Hint>
+    Upgrading process might take some time. Check the status by clicking on the `Heroku Redis` in Add-ons section.
+</Hint>
