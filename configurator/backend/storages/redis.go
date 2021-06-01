@@ -7,7 +7,6 @@ import (
 	entime "github.com/jitsucom/jitsu/configurator/time"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
-	"strings"
 	"time"
 )
 
@@ -17,14 +16,10 @@ type Redis struct {
 	pool *redis.Pool
 }
 
-func NewRedis(host string, port int, password string) (*Redis, error) {
-	connectionStr := fmt.Sprintf("%s:%d", host, port)
-	if strings.HasPrefix(host, "redis://") || strings.HasPrefix(host, "rediss://") {
-		connectionStr = host
-	}
-	logging.Infof("Initializing redis configuration storage [%s]...", connectionStr)
+func NewRedis(config *meta.RedisConfiguration) (*Redis, error) {
+	logging.Infof("Initializing redis configuration storage [%s]...", config.String())
 
-	pool, err := meta.NewRedisPool(host, port, password)
+	pool, err := meta.NewRedisPool(config)
 	if err != nil {
 		return nil, err
 	}

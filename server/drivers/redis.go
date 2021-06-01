@@ -18,9 +18,10 @@ const (
 
 //RedisConfig is a Redis configuration dto for serialization
 type RedisConfig struct {
-	Host     string      `mapstructure:"host" json:"host,omitempty" yaml:"host,omitempty"`
-	Port     json.Number `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
-	Password string      `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
+	Host          string      `mapstructure:"host" json:"host,omitempty" yaml:"host,omitempty"`
+	Port          json.Number `mapstructure:"port" json:"port,omitempty" yaml:"port,omitempty"`
+	Password      string      `mapstructure:"password" json:"password,omitempty" yaml:"password,omitempty"`
+	TLSSkipVerify bool        `mapstructure:"tls_skip_verify" json:"tls_skip_verify,omitempty" yaml:"tls_skip_verify,omitempty"`
 }
 
 //Validate returns err if configuration is invalid
@@ -82,17 +83,24 @@ func NewRedis(ctx context.Context, sourceConfig *SourceConfig, collection *Colle
 		return nil, err
 	}
 
-	if config.Port.String() == "" {
-		config.Port = "6379"
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", sourceConfig.SourceID, config.Port.String())
-	}
-
 	intPort, err := config.Port.Int64()
 	if err != nil {
 		return nil, fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	pool, err := meta.NewRedisPool(config.Host, int(intPort), config.Password)
+	redisConfig := &meta.RedisConfiguration{
+		Host:          config.Host,
+		Port:          int(intPort),
+		Password:      config.Password,
+		TLSSkipVerify: config.TLSSkipVerify,
+	}
+
+	if redisConfig.Port == 0 && !redisConfig.IsURL() && !redisConfig.IsSecuredURL() {
+		redisConfig.Port = 6379
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", sourceConfig.SourceID, redisConfig.Port)
+	}
+
+	pool, err := meta.NewRedisPool(redisConfig)
 	if err != nil {
 		return nil, err
 	}

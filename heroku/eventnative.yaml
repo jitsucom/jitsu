@@ -16,3 +16,4 @@ meta:
   storage:
     redis:
       host: '${env.REDIS_URL}'
+      tls_skip_verify: true
