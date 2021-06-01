@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/viper"
 	"time"
@@ -44,13 +45,24 @@ func NewConfigurationsStorage(ctx context.Context, vp *viper.Viper) (Configurati
 		if host == "" {
 			return nil, errors.New("storage.redis.host must not be empty")
 		}
+
 		port := vp.GetInt("storage.redis.port")
-		if port == 0 {
-			port = 6379
-			logging.Infof("storage.redis.port isn't configured. Will be used default: %d", port)
-		}
 		password := vp.GetString("storage.redis.password")
-		return NewRedis(host, port, password)
+		tlsSkipVerify := vp.GetBool("storage.redis.tls_skip_verify")
+
+		redisConfig := &meta.RedisConfiguration{
+			Host:          host,
+			Port:          port,
+			Password:      password,
+			TLSSkipVerify: tlsSkipVerify,
+		}
+
+		if redisConfig.Port == 0 && !redisConfig.IsURL() && !redisConfig.IsSecuredURL() {
+			redisConfig.Port = 6379
+			logging.Infof("storage.redis.port isn't configured. Will be used default: %d", redisConfig.Port)
+		}
+
+		return NewRedis(redisConfig)
 	} else {
 		return nil, errors.New("Unknown 'storage' section type. Supported: firebase, redis")
 	}
