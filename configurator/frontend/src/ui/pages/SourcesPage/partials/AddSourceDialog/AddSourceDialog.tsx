@@ -16,6 +16,18 @@ import { StarOutlined, StarFilled, ExclamationCircleOutlined } from '@ant-design
 import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 import { useServices } from '@hooks/useServices';
 
+/**
+ * All sources which are available for adding. Some filtering & sorting is applied
+ */
+const allAvailableSources = allSources.sort((a, b) => {
+  if (a.expertMode && !b.expertMode) {
+    return 1;
+  } else if (!a.expertMode && b.expertMode) {
+    return -1;
+  }
+  return a.displayName.localeCompare(b.displayName);
+});
+
 const AddSourceDialogComponent = () => {
   const history = useHistory();
 
@@ -23,7 +35,7 @@ const AddSourceDialogComponent = () => {
   const services = useServices();
 
   const handleClick = (src: SourceConnector) => (e: React.MouseEvent) => {
-    if (src.isSingerType) {
+    if (src.expertMode) {
       e.stopPropagation();
       e.preventDefault();
       services.analyticsService.track('singer_connector_attempt', {
@@ -62,8 +74,8 @@ const AddSourceDialogComponent = () => {
 
   const filteredSourcesList = useMemo<SourceConnector[]>(
     () => filterParam
-      ? allSources.filter((src: SourceConnector) => src.displayName.toLowerCase().includes(filterParam.toLowerCase()) || src.id.toLowerCase().includes(filterParam.toLowerCase()))
-      : allSources,
+      ? allAvailableSources.filter((src: SourceConnector) => src.displayName.toLowerCase().includes(filterParam.toLowerCase()) || src.id.toLowerCase().includes(filterParam.toLowerCase()))
+      : allAvailableSources,
     [filterParam]
   );
 
@@ -92,7 +104,7 @@ const AddSourceDialogComponent = () => {
               <span className={styles.title}>{src.displayName}</span>
 
               {
-                src.isSingerType
+                src.expertMode
                   ? <Badge.Ribbon text="Expert mode" className={styles.expertLabel} />
                   : <span className={styles.star}>
                     <StarOutlined className={cn(styles.starIcon, styles.strokeStar)} />
