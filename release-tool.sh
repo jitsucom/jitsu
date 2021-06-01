@@ -30,6 +30,8 @@ function release_server() {
 
 function release_configurator() {
   echo "**** Configurator amd64/arm64 release [$1] ****"
+  docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || { echo 'Docker jitsu login failed' ; exit 1; }
+
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/configurator:"$1" -t jitsucom/configurator:latest --build-arg dhid=jitsucom -f configurator-release.Dockerfile . || { echo 'Configurator dockerx build semver failed' ; exit 1; }
   else
@@ -39,6 +41,8 @@ function release_configurator() {
 
 function release_heroku() {
   echo "**** Heroku release [$1] ****"
+  docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || { echo 'Docker jitsu login failed' ; exit 1; }
+
   heroku_tags="-t jitsucom/heroku:$1"
   heroku_push_tags="jitsucom/heroku:$1"
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
