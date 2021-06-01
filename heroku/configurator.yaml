@@ -10,6 +10,7 @@ server:
 storage:
   redis:
     host: '${env.REDIS_URL}'
+    tls_skip_verify: true
 
 jitsu:
   base_url: 'http://localhost:8001'
@@ -18,5 +19,6 @@ jitsu:
 auth:
   redis:
     host: '${env.REDIS_URL}'
+    tls_skip_verify: true
     access_secret: '${env.UI_AUTH_ACCESS_SECRET}'
     refresh_secret: '${env.UI_AUTH_REFRESH_SECRET}'

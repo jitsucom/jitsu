@@ -58,14 +58,14 @@ func (mp *MutexProxy) Unlock(context context.Context) error {
 }
 
 //NewRedisService returns configured RedisService instance
-func NewRedisService(ctx context.Context, serverName string, host string, port int, password string) (Service, error) {
-	logging.Infof("🛫 Initializing redis coordination service [%s:%d]...", host, port)
+func NewRedisService(ctx context.Context, serverName string, config *meta.RedisConfiguration) (Service, error) {
+	logging.Infof("🛫 Initializing redis coordination service [%s]...", config.String())
 
-	if port == 0 {
-		port = 6379
+	if config.Port == 0 {
+		config.Port = 6379
 	}
 
-	redigoPool, err := meta.NewRedisPool(host, port, password)
+	redigoPool, err := meta.NewRedisPool(config)
 	if err != nil {
 		return nil, err
 	}
