@@ -139,7 +139,7 @@ func (fm *FacebookMarketing) TestConnection() error {
 		return fmt.Errorf("Unknown collection type [%s]. Only [%s] and [%s] are supported now", fm.collection.Type, AdsCollection, InsightsCollection)
 	}
 
-	_, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+path, fm.reportConfig.Fields, nil, 0, true)
+	_, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+path, fm.reportConfig.Fields, nil, 10, true)
 	if err != nil {
 		return err
 	}
