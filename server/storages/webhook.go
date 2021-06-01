@@ -3,13 +3,13 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"net/http"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
@@ -29,7 +29,6 @@ type WebHook struct {
 	Abstract
 
 	tableHelper          *TableHelper
-	processor            *schema.Processor
 	streamingWorker      *StreamingWorker
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
@@ -62,7 +61,6 @@ func NewWebHook(config *Config) (Storage, error) {
 	}
 
 	wh := &WebHook{
-		processor:            config.processor,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
@@ -89,6 +87,7 @@ func NewWebHook(config *Config) (Storage, error) {
 
 	//Abstract (SQLAdapters and tableHelpers are omitted)
 	wh.destinationID = config.destinationID
+	wh.processor = config.processor
 	wh.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	wh.eventsCache = config.eventsCache
 	wh.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)

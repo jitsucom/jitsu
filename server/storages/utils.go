@@ -37,12 +37,12 @@ func isConnectionError(err error) bool {
 }
 
 // syncStoreImpl implements common behaviour used to storing chunk of pulled data to any storages with processing
-func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	adapter, tableHelper := storage.getAdapters()
 
 	processor := storage.Processor()
 	if processor == nil {
-		return fmt.Errorf("Storage '%v' of '%v' type was badly configured")
+		return fmt.Errorf("Storage '%v' of '%v' type was badly configured", storage.ID(), storage.Type())
 	}
 
 	flatData, err := processor.ProcessPulledEvents(timeIntervalValue, objects)
@@ -66,7 +66,7 @@ func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, ob
 
 		table := tableHelper.MapTableSchema(overriddenDataSchema)
 
-		dbSchema, err := tableHelper.EnsureTableWithoutCaching(storage.ID(), table)
+		dbSchema, err := tableHelper.EnsureTable(storage.ID(), table, cacheTable)
 		if err != nil {
 			return err
 		}
@@ -89,7 +89,7 @@ func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, ob
 			table.Name = overriddenDataSchema.TableName
 		}
 
-		dbSchema, err := tableHelper.EnsureTableWithoutCaching(storage.ID(), table)
+		dbSchema, err := tableHelper.EnsureTable(storage.ID(), table, cacheTable)
 		if err != nil {
 			return err
 		}

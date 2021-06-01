@@ -1,15 +1,16 @@
 package adapters
 
 import (
-	"cloud.google.com/go/bigquery"
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strings"
+
+	"cloud.google.com/go/bigquery"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/googleapi"
-	"net/http"
-	"strings"
 )
 
 var (
@@ -78,6 +79,10 @@ func (bq *BigQuery) Insert(eventContext *EventContext) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
 	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
 	return inserter.Put(bq.ctx, BQItem{values: eventContext.ProcessedEvent})
+}
+
+func (bq *BigQuery) CreateDB(databaseName string) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
@@ -178,6 +183,28 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	}
 
 	return nil
+}
+
+func (bq *BigQuery) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
+}
+
+func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	if !deleteConditions.IsEmpty() {
+		if err := bq.deleteWithConditions(table, deleteConditions); err != nil {
+			return err
+		}
+	}
+
+	if err := bq.BulkInsert(table, objects); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (bq *BigQuery) deleteWithConditions(table *Table, deleteCondition *DeleteConditions) error {
+	return fmt.Errorf("NOT IMPLEMENTED")
 }
 
 func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl bool) {
