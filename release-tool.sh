@@ -7,7 +7,7 @@ function build_server() {
 
 function build_configurator() {
   echo "Building Configurator UI locally.."
-  rm -f configurator/backend/build/dist/configurator && \
+  rm -f configurator/backend/build/dist/configurator && rm -rf configurator/frontend/build && \
   cd configurator/frontend/ && yarn clean && yarn install --prefer-offline && CI=false NODE_ENV=production ANALYTICS_KEYS='{"eventnative": "js.gpon6lmpwquappfl07tuq.ka5sxhsm08cmblny72tevi"}' yarn build && \
   cd ../../
 }
@@ -33,6 +33,8 @@ function release_configurator() {
 function release_heroku() {
   echo "**** Heroku release ****"
   cd heroku && \
+  docker pull jitsucom/configurator && \
+  docker pull jitsucom/server && \
   docker build -t jitsucom/heroku -f heroku.Dockerfile . && \
   docker push jitsucom/heroku && \
   cd ../
@@ -41,15 +43,20 @@ function release_heroku() {
 
 SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
+git pull
 echo ""
-read -r -p "What version would you like to release? ['beta', certain version e.g. '1.30.1' ] Note: latest version has been released with certain version by default: " version
+read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
 
 echo "Release version: $version"
 
 if [[ $version =~ $SEMVER_EXPRESSION ]]; then
+   echo "Checkouting master ..."
+ git checkout master
  echo "Service to release: all"
  subsystem='all'
 elif [[ $version == "beta" ]]; then
+  echo "Checkouting beta ..."
+  git checkout beta
   read -r -p "What service would you like to release? ['server', 'configurator', 'all', 'heroku']: " subsystem
 else
   echo "Invalid version: $version. Only 'beta' or certain version e.g. '1.30.1' are supported"
@@ -58,10 +65,6 @@ fi
 
 case $subsystem in
     [h][e][r][o][k][u])
-        build_server
-        build_configurator
-        release_server $version
-        release_configurator $version
         release_heroku
         ;;
     [s][e][r][v][e][r])

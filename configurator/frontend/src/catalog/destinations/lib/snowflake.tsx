@@ -92,12 +92,13 @@ const destination: Destination = {
       id: '_formData.snowflakeStageName',
       displayName: 'Stage name',
       constant: displayForBatchOnly(''),
-      required: true,
+      required: (cfg) => cfg._formData?.snowflakeStageType === 'gcs',
       type: stringType
     },
     {
       id: '_formData.snowflakeStageType',
       displayName: 'Stage type',
+      defaultValue: 's3',
       constant: displayForBatchOnly('s3'),
       type: singleSelectionType(['s3', 'gcs'])
     },

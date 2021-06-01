@@ -36,7 +36,7 @@ function findIndent(str: string) {
 
 export function getEmbeddedHtml(segment: boolean,  key: string, host: string) {
   return formatCode(`
-    <script src="https://${host}/s/lib.js"
+    <script src="${host}/s/lib.js"
             data-key="${key}"${segment ? '\n            data-segment-hook="true"' : ''}
             data-init-only="${segment ? 'true' : 'false'}"${!segment ? '\n            defer' : ''}></script>
     `);
@@ -48,7 +48,7 @@ export function getNPMDocumentation(key: string, host: string) {
     //init
     const jitsu = jitsuClient({
         key: "${key}",
-        tracking_host: "https://${host}"
+        tracking_host: "${host}"
     });
     //identify user
     jitsu.id({
@@ -63,6 +63,6 @@ export function getNPMDocumentation(key: string, host: string) {
 export function getCurlDocumentation(key: string, host: string) {
   return formatCode(`
     curl -i -X POST -H "Content-Type: application/json" -H 'X-Auth-Token: ${key}' \\
-     --data-binary '{"test_str_field": "str", "test_int_field": 42}' 'https://${host}/api/v1/s2s/event'
+     --data-binary '{"test_str_field": "str", "test_int_field": 42}' '${host}/api/v1/s2s/event'
     `);
 }

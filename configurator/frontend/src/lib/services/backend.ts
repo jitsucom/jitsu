@@ -5,7 +5,8 @@ import 'firebase/firestore';
 import Marshal from '../commons/marshalling';
 import { BackendApiClient, LoginFeatures, ServerStorage, UserLoginStatus, UserService } from './ApplicationServices';
 import { randomId } from '@util/numbers';
-import { cleanAuthorizationLocalStorage } from "@./lib/commons/utils";
+import { cleanAuthorizationLocalStorage, concatenateURLs } from "@./lib/commons/utils";
+import { getBaseUIPath } from "@./lib/commons/pathHelper";
 
 export const LS_ACCESS_KEY = 'en_access';
 export const LS_REFRESH_KEY = 'en_refresh';
@@ -217,9 +218,16 @@ export class BackendUserService implements UserService {
     if (!email) {
       email = this.getUser().email;
     }
+
+    let appPath = ''
+    let baseUIPath = getBaseUIPath()
+    if (baseUIPath !== undefined){
+      appPath = baseUIPath
+    }
+
     return this.backendApi.post('/users/password/reset', {
       email: email,
-      callback: `${window.location.protocol}//${window.location.host}/reset_password/{{token}}`
+      callback: concatenateURLs(`${window.location.protocol}//${window.location.host}`, concatenateURLs(appPath, `/reset_password/{{token}}`)),
     }, { noauth: true });
   }
 
