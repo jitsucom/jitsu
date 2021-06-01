@@ -163,6 +163,13 @@ export interface SourceConnector {
    * Is it singer source or not, optional parameter.
    * */
   isSingerType?: boolean;
+
+  /**
+   * If connector requires expert-level knowledge (such as JSON editing)
+   *
+   * Undefined means false
+   */
+  expertMode?: boolean
   /**
    * Name of connector that should be displayed
    */

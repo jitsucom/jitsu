@@ -340,6 +340,7 @@ function KeyDocumentation({ token }: { token: Token }) {
   const [segment, setSegmentEnabled] = useState(false);
   const services = useServices();
   const staticDomains = getDomainsSelection(services.features.environment);
+  console.log(`As per ${services.features.environment} available static domains are: ` + staticDomains)
   const [selectedDomain, setSelectedDomain] = useState(staticDomains.length > 0 ? staticDomains[0] : null);
   const [error, domains] = services.features.enableCustomDomains ?
     useLoader(async() => {
@@ -359,6 +360,7 @@ function KeyDocumentation({ token }: { token: Token }) {
   } else if (!domains) {
     return <CenteredSpin/>;
   }
+  console.log(`Currently selected domain is: ${selectedDomain}`)
 
   let exampleSwitches = (
     <div className="api-keys-doc-embed-switches">
