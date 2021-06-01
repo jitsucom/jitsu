@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 function build_server() {
   echo "Building Server lib JS locally.."
   rm -rf server/build && rm -rf javascript/dist && rm -rf server/web/dist && \
