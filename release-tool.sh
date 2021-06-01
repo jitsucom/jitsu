@@ -44,18 +44,21 @@ function release_heroku() {
   docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || { echo 'Docker jitsu login failed' ; exit 1; }
 
   heroku_tags="-t jitsucom/heroku:$1"
-  heroku_push_tags="jitsucom/heroku:$1"
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     heroku_tags="-t jitsucom/heroku:$1 -t jitsucom/heroku:latest"
-    heroku_push_tags="jitsucom/heroku:$1 jitsucom/heroku:latest"
   fi
 
   cd heroku && \
   docker pull jitsucom/configurator:"$1" && \
   docker pull jitsucom/server:"$1" && \
   docker build $heroku_tags -f heroku.Dockerfile . && \
-  docker push $heroku_push_tags && \
-  cd ../
+  cd ../ || { echo 'Heroku docker build failed' ; exit 1; }
+
+  docker push jitsucom/heroku:"$1"  || { echo 'Heroku docker push failed' ; exit 1; }
+
+  if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
+    docker push jitsucom/heroku:latest  || { echo 'Heroku latest docker push failed' ; exit 1; }
+  fi
 }
 
 
