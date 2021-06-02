@@ -54,8 +54,7 @@ export const TasksTable: React.FC<TasksTableProps> = (props) => {
       })
     }
   }
-
-  if (props.source.destinations.length === 0) {
+  if (!props.source?.destinations || props.source.destinations.length === 0) {
     return <div className="text-center text-secondaryText pt-8">
       No destinations is configured for this source. Synchronization tasks will not run. Configure destinations on <NavLink to={generatePath(sourcesPageRoutes.editExact, { sourceId: props.source.sourceId })}>
       Linked Destinations tab
