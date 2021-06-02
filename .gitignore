@@ -7,7 +7,7 @@ compose-data/server/data/logs
 compose-data/server/data/venv
 
 ui-dev-compose/redis/data/*
-ui-dev-compose/redis/data/.gitkeep
+!ui-dev-compose/redis/data/.gitkeep
 ui-dev-compose/redis-insights
 
 .idea/
