@@ -64,7 +64,7 @@ export const tableName = (customDocs?: ReactNode): Parameter => {
   }
 };
 
-const hiddenValue: ConstantOrFunction<any, any> = (value, hide) => {
+export const hiddenValue: ConstantOrFunction<any, any> = (value, hide) => {
   if (!hide) {
     return undefined;
   } else {
@@ -77,27 +77,6 @@ const hiddenValue: ConstantOrFunction<any, any> = (value, hide) => {
     }
   }
 };
-
-export function googleGCSCredentials(jsonKeyField, bucketField, hide?: Function<any, boolean>): Parameter[] {
-  return [
-    {
-      id: jsonKeyField,
-      displayName: 'Access Key',
-      documentation: <>JSON access credentials</>,
-      required: true,
-      type: jsonType,
-      constant: hiddenValue('', hide)
-    },
-    {
-      id: bucketField,
-      documentation: <>Name of GCS Bucket. The bucket should be accessible with the same Access Key as dataset</>,
-      displayName: 'GCS Bucket',
-      required: true,
-      type: stringType,
-      constant: hiddenValue('', hide)
-    }
-  ]
-}
 
 export function s3Credentials(regionField, bucketField, s3AccessKey, s3SecretKey, hide?: Function<any, boolean>): Parameter[] {
   return [
