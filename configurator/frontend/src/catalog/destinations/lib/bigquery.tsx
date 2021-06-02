@@ -1,6 +1,6 @@
 import { Destination } from '../types';
-import { googleGCSCredentials, modeParameter, tableName } from './common';
-import { stringType } from '../../sources/types';
+import { hiddenValue, modeParameter, tableName } from './common';
+import { jsonType, stringType } from '../../sources/types';
 
 const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.633235433328256 7.0326093303156565 131.26574682416876 114.63439066968435">
   <linearGradient id="bgq" gradientUnits="userSpaceOnUse" x1="64" x2="64" y1="7.034" y2="120.789">
@@ -52,9 +52,23 @@ const bigQueryDestination: Destination = {
       defaultValue: 'default',
       type: stringType
     },
-    ...googleGCSCredentials('_formData.bqJSONKey', '_formData.bqGCSBucket', (cfg) => {
-      return cfg?._formData?.mode !== 'batch';
-    })
+    {
+      id: '_formData.bqJSONKey',
+      displayName: 'Access Key',
+      documentation: <>Google Service Account JSON for BigQuery. <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">Read more about Google Authorization</a></>,
+      required: true,
+      type: jsonType
+    },
+    {
+      id: '_formData.bqGCSBucket',
+      documentation: <>Name of GCS Bucket. The bucket should be accessible with the same Access Key as dataset</>,
+      displayName: 'GCS Bucket',
+      required: true,
+      type: stringType,
+      constant: hiddenValue('', (cfg) => {
+        return cfg?._formData?.mode !== 'batch'
+      })
+    }
   ]
 
 }

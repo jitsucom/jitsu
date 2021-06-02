@@ -1,6 +1,6 @@
 import { Destination } from '../types';
-import { googleGCSCredentials, modeParameter, s3Credentials, tableName } from './common';
-import { Function, passwordType, singleSelectionType, stringType } from '../../sources/types';
+import { hiddenValue, modeParameter, s3Credentials, tableName } from './common';
+import { Function, jsonType, passwordType, singleSelectionType, stringType } from '../../sources/types';
 
 const icon = <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path
@@ -102,17 +102,32 @@ const destination: Destination = {
       constant: displayForBatchOnly('s3'),
       type: singleSelectionType(['s3', 'gcs'])
     },
+    {
+      id: '_formData.snowflakeJSONKey',
+      displayName: 'Access Key',
+      documentation: <>Google Service Account JSON credentials for GCS Bucket. <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">Read more about Google Authorization</a></>,
+      required: true,
+      type: jsonType,
+      constant: hiddenValue('', (cfg) => {
+        return cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 'gcs')
+      })
+    },
+    {
+      id: '_formData.snowflakeGCSBucket',
+      documentation: <>Name of GCS Bucket. The bucket should be accessible with the same Access Key as dataset</>,
+      displayName: 'GCS Bucket',
+      required: true,
+      type: stringType,
+      constant: hiddenValue('', (cfg) => {
+        return cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 'gcs')
+      })
+    },
     ...s3Credentials(
       '_formData.snowflakeS3Region',
       '_formData.snowflakeS3Bucket',
       '_formData.snowflakeS3AccessKey',
       '_formData.snowflakeS3SecretKey',
       (cfg) => cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 's3')
-    ),
-    ...googleGCSCredentials(
-      '_formData.snowflakeJSONKey',
-      '_formData.snowflakeGCSBucket',
-      (cfg) => cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 'gcs')
     )
   ]
 };
