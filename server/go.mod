@@ -34,7 +34,7 @@ require (
 	github.com/spf13/cast v1.3.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
-	github.com/testcontainers/testcontainers-go v0.10.0
+	github.com/testcontainers/testcontainers-go v0.11.0
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0
 	go.opencensus.io v0.22.4 // indirect
