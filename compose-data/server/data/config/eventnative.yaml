@@ -12,9 +12,6 @@ destinations: 'http://configurator:7000/api/v1/destinations?token=${env.CONFIGUR
 
 sources: 'http://configurator:7000/api/v1/sources?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
 
-users_recognition:
-  enabled: true
-
 meta:
   storage:
     redis:
