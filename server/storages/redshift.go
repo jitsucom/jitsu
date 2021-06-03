@@ -95,10 +95,9 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	ar.sqlAdapters = []adapters.SQLAdapter{redshiftAdapter}
 	ar.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
-	if config.streamMode {
-		ar.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ar, tableHelper)
-		ar.streamingWorker.start()
-	}
+	//streaming worker (queue reading)
+	ar.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ar, tableHelper)
+	ar.streamingWorker.start()
 
 	return ar, nil
 }

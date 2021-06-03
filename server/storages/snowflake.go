@@ -105,10 +105,9 @@ func NewSnowflake(config *Config) (Storage, error) {
 	snowflake.sqlAdapters = []adapters.SQLAdapter{snowflakeAdapter}
 	snowflake.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
-	if config.streamMode {
-		snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
-		snowflake.streamingWorker.start()
-	}
+	//streaming worker (queue reading)
+	snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
+	snowflake.streamingWorker.start()
 
 	return snowflake, nil
 }

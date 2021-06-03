@@ -72,6 +72,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	ga.eventsCache = config.eventsCache
 	ga.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
+	//streaming worker (queue reading)
 	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, tableHelper)
 	ga.streamingWorker.start()
 

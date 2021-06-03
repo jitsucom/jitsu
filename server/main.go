@@ -309,7 +309,7 @@ func main() {
 		logging.Errorf("\n\t*** Please replace server.admin_token with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
 
-	fallbackService, err := fallback.NewService(logEventPath, destinationsService)
+	fallbackService, err := fallback.NewService(logEventPath, destinationsService, usersRecognitionService)
 	if err != nil {
 		logging.Fatal("Error creating fallback service:", err)
 	}

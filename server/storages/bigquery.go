@@ -94,10 +94,9 @@ func NewBigQuery(config *Config) (Storage, error) {
 	bq.sqlAdapters = []adapters.SQLAdapter{bigQueryAdapter}
 	bq.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
-	if config.streamMode {
-		bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
-		bq.streamingWorker.start()
-	}
+	//streaming worker (queue reading)
+	bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
+	bq.streamingWorker.start()
 
 	return bq, nil
 }

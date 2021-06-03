@@ -84,10 +84,9 @@ func NewPostgres(config *Config) (Storage, error) {
 	p.sqlAdapters = []adapters.SQLAdapter{adapter}
 	p.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
-	if config.streamMode {
-		p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
-		p.streamingWorker.start()
-	}
+	//streaming worker (queue reading)
+	p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
+	p.streamingWorker.start()
 
 	return p, nil
 }
