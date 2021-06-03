@@ -94,10 +94,9 @@ func NewBigQuery(config *Config) (Storage, error) {
 	bq.sqlAdapters = []adapters.SQLAdapter{bigQueryAdapter}
 	bq.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
-	if config.streamMode {
-		bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
-		bq.streamingWorker.start()
-	}
+	//streaming worker (queue reading)
+	bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
+	bq.streamingWorker.start()
 
 	return bq, nil
 }
@@ -180,7 +179,7 @@ func (bq *BigQuery) Update(object map[string]interface{}) error {
 }
 
 //SyncStore isn't supported
-func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("BigQuery doesn't support sync store")
 }
 

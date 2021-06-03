@@ -84,10 +84,9 @@ func NewPostgres(config *Config) (Storage, error) {
 	p.sqlAdapters = []adapters.SQLAdapter{adapter}
 	p.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
-	if config.streamMode {
-		p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
-		p.streamingWorker.start()
-	}
+	//streaming worker (queue reading)
+	p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
+	p.streamingWorker.start()
 
 	return p, nil
 }
@@ -158,7 +157,7 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 }
 
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
-func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	_, tableHelper := p.getAdapters()
 	flatData, err := p.processor.ProcessPulledEvents(timeIntervalValue, objects)
 	if err != nil {
@@ -179,7 +178,7 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 
 		table := tableHelper.MapTableSchema(overriddenDataSchema)
 
-		dbSchema, err := tableHelper.EnsureTableWithoutCaching(p.ID(), table)
+		dbSchema, err := tableHelper.EnsureTable(p.ID(), table, cacheTable)
 		if err != nil {
 			return err
 		}
@@ -201,7 +200,7 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 			table.Name = overriddenDataSchema.TableName
 		}
 
-		dbSchema, err := tableHelper.EnsureTableWithoutCaching(p.ID(), table)
+		dbSchema, err := tableHelper.EnsureTable(p.ID(), table, cacheTable)
 		if err != nil {
 			return err
 		}
@@ -217,7 +216,7 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 
 //Update uses SyncStore under the hood
 func (p *Postgres) Update(object map[string]interface{}) error {
-	return p.SyncStore(nil, []map[string]interface{}{object}, "")
+	return p.SyncStore(nil, []map[string]interface{}{object}, "", true)
 }
 
 //GetUsersRecognition returns users recognition configuration

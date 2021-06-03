@@ -3,11 +3,10 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
@@ -73,6 +72,7 @@ func NewFacebook(config *Config) (Storage, error) {
 	fb.eventsCache = config.eventsCache
 	fb.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
+	//streaming worker (queue reading)
 	fb.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, fb, tableHelper)
 	fb.streamingWorker.start()
 
@@ -94,7 +94,7 @@ func (fb *Facebook) Store(fileName string, objects []map[string]interface{}, alr
 }
 
 //SyncStore isn't supported
-func (fb *Facebook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (fb *Facebook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("Facebook Conversion doesn't support SyncStore() func")
 }
 

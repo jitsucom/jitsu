@@ -261,7 +261,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 		}
 		rowsCount := len(objects)
 		for _, storage := range destinationStorages {
-			err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTable}, objects, intervalToSync.String())
+			err := storage.SyncStore(&schema.BatchHeader{TableName: reformattedTable}, objects, intervalToSync.String(), false)
 			if err != nil {
 				metrics.ErrorSourceEvents(task.Source, storage.ID(), rowsCount)
 				metrics.ErrorObjects(task.Source, rowsCount)
