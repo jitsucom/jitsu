@@ -55,8 +55,7 @@ type DestinationConfig struct {
 	ClickHouse      *adapters.ClickHouseConfig            `mapstructure:"clickhouse" json:"clickhouse,omitempty" yaml:"clickhouse,omitempty"`
 	Snowflake       *adapters.SnowflakeConfig             `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
 	Facebook        *adapters.FacebookConversionAPIConfig `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
-
-	WebHook *adapters.WebHookConfig `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
+	WebHook         *adapters.WebHookConfig               `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
 }
 
 //DataLayout is used for configure mappings/table names and other data layout parameters
@@ -291,12 +290,9 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		return nil, nil, err
 	}
 
-	var eventQueue *events.PersistentQueue
-	if destination.Mode == StreamMode {
-		eventQueue, err = events.NewPersistentQueue(destinationID, "queue.dst="+destinationID, f.logEventPath)
-		if err != nil {
-			return nil, nil, err
-		}
+	eventQueue, err := events.NewPersistentQueue(destinationID, "queue.dst="+destinationID, f.logEventPath)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	//override debug sql (ddl, queries) loggers from the destination config

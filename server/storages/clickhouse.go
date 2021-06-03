@@ -102,10 +102,9 @@ func NewClickHouse(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	if config.streamMode {
-		ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, chTableHelpers...)
-		ch.streamingWorker.start()
-	}
+	//streaming worker (queue reading)
+	ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, chTableHelpers...)
+	ch.streamingWorker.start()
 
 	return ch, nil
 }

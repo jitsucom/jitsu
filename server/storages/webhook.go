@@ -93,6 +93,7 @@ func NewWebHook(config *Config) (Storage, error) {
 	wh.eventsCache = config.eventsCache
 	wh.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
+	//streaming worker (queue reading)
 	wh.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, wh, tableHelper)
 	wh.streamingWorker.start()
 
