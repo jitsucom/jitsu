@@ -13,6 +13,7 @@ require (
 	github.com/gomodule/redigo v1.8.2
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/jitsucom/jitsu/server v1.31.9
+	github.com/lib/pq v1.10.2
 	github.com/prometheus/common v0.15.0 // indirect
 	github.com/satori/go.uuid v1.2.0
 	github.com/spf13/viper v1.7.1
@@ -21,7 +22,6 @@ require (
 	google.golang.org/grpc v1.36.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/mail.v2 v2.3.1
-	gopkg.in/square/go-jose.v2 v2.5.1 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
 )
 
