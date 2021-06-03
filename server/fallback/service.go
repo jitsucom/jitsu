@@ -1,16 +1,17 @@
 package fallback
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logfiles"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/parsers"
-	"github.com/jitsucom/jitsu/server/telemetry"
 	"io/ioutil"
 	"os"
 	"path"
@@ -33,6 +34,7 @@ type Service struct {
 	fileMask           string
 	statusManager      *logfiles.StatusManager
 	destinationService *destinations.Service
+	usersRecognition   events.Recognition
 	archiver           *logfiles.Archiver
 
 	locks sync.Map
@@ -44,7 +46,7 @@ func NewTestService() *Service {
 }
 
 //NewService returns configured Service
-func NewService(logEventsPath string, destinationService *destinations.Service) (*Service, error) {
+func NewService(logEventsPath string, destinationService *destinations.Service, usersRecognition events.Recognition) (*Service, error) {
 	fallbackPath := path.Join(logEventsPath, logging.FailedDir)
 	logArchiveEventPath := path.Join(logEventsPath, logging.ArchiveDir)
 	statusManager, err := logfiles.NewStatusManager(fallbackPath)
@@ -56,6 +58,7 @@ func NewService(logEventsPath string, destinationService *destinations.Service) 
 		statusManager:      statusManager,
 		fileMask:           path.Join(fallbackPath, fallbackFileMaskPostfix),
 		destinationService: destinationService,
+		usersRecognition:   usersRecognition,
 		archiver:           logfiles.NewArchiver(fallbackPath, logArchiveEventPath),
 	}, nil
 }
@@ -81,16 +84,16 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 	}
 	defer s.locks.Delete(fileName)
 
-	b, err := ioutil.ReadFile(filePath)
+	b, err := s.readFileBytes(filePath)
 	if err != nil {
-		return fmt.Errorf("Error reading fallback file [%s]: %v", fileName, err)
+		return err
 	}
 
 	if destinationID == "" {
 		//get destinationID from filename
 		regexResult := destinationIDExtractRegexp.FindStringSubmatch(fileName)
 		if len(regexResult) != 2 {
-			return fmt.Errorf("Error processing fallback file %s: Malformed name", fileName)
+			return fmt.Errorf("Malformed file name: %s. Please provide destination_id or fileName must be a fallback file name with destination_id", fileName)
 		}
 
 		destinationID = regexResult[1]
@@ -110,12 +113,11 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 			"cannot be used to store data (only available for dry-run)", destinationID)
 	}
 
-	alreadyUploadedTables := map[string]bool{}
-	tableStatuses := s.statusManager.GetTablesStatuses(fileName, storage.ID())
-	for tableName, status := range tableStatuses {
-		if status.Uploaded {
-			alreadyUploadedTables[tableName] = true
-		}
+	eventsConsumer, ok := s.destinationService.GetEventsConsumerByDestinationID(destinationID)
+	if !ok {
+		errMsg := fmt.Sprintf("Unable to find events consumer by destinationID: %s", destinationID)
+		logging.SystemError(errMsg)
+		return errors.New(errMsg)
 	}
 
 	parserFunc := parsers.ParseFallbackJSON
@@ -128,56 +130,24 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 		return fmt.Errorf("Error parsing fallback file %s: %v", fileName, err)
 	}
 
-	resultPerTable, failedEvents, err := storage.Store(fileName, objects, alreadyUploadedTables)
-
-	if err != nil {
-		metrics.ErrorTokenEvents(fallbackIdentifier, storage.ID(), len(objects))
-
-		//extract src
-		eventsSrc := map[string]int{}
-		for _, obj := range objects {
-			eventsSrc[events.ExtractSrc(obj)]++
+	for _, object := range objects {
+		var apiKey string
+		apiTokenKey, ok := object[enrichment.ApiTokenKey]
+		if ok {
+			apiKey = fmt.Sprint(apiTokenKey)
 		}
 
-		telemetry.ErrorsPerSrc(fallbackIdentifier, storage.ID(), eventsSrc)
-
-		return fmt.Errorf("[%s] Error storing fallback file %s in destination: %v", storage.ID(), fileName, err)
-	}
-
-	//events which are failed to process
-	if !failedEvents.IsEmpty() {
-		storage.Fallback(failedEvents.Events...)
-
-		telemetry.ErrorsPerSrc(fallbackIdentifier, storage.ID(), failedEvents.Src)
-	}
-
-	var multiErr error
-	for tableName, result := range resultPerTable {
-		if result.Err != nil {
-			multiErr = multierror.Append(multiErr, result.Err)
-			logging.Errorf("[%s] Error storing table %s from fallback file %s: %v", storage.ID(), tableName, filePath, result.Err)
-			metrics.ErrorTokenEvents(fallbackIdentifier, storage.ID(), result.RowsCount)
-			telemetry.ErrorsPerSrc(fallbackIdentifier, storage.ID(), result.EventsSrc)
-		} else {
-			metrics.SuccessTokenEvents(fallbackIdentifier, storage.ID(), result.RowsCount)
-			telemetry.EventsPerSrc(fallbackIdentifier, storage.ID(), result.EventsSrc)
+		eventID := storage.GetUniqueIDField().Extract(object)
+		if eventID == "" {
+			b, _ := json.MarshalIndent(object, "", "  ")
+			logging.SystemErrorf("[%s] Empty extracted unique identifier in fallback event: %s", storage.GetUniqueIDField().GetFieldName(), string(b))
 		}
 
-		s.statusManager.UpdateStatus(fileName, storage.ID(), tableName, result.Err)
+		eventsConsumer.Consume(object, apiKey)
+		s.usersRecognition.Event(object, eventID, []string{destinationID})
 	}
 
-	if multiErr == nil {
-		archiveErr := s.archiver.ArchiveByPath(filePath)
-		if archiveErr != nil {
-			logging.SystemErrorf("Error archiving [%s] fallback file: %v", filePath, err)
-		} else {
-			s.statusManager.CleanUp(fileName)
-		}
-
-		return nil
-	} else {
-		return multiErr
-	}
+	return nil
 }
 
 //GetFileStatuses returns all fallback files with their statuses
@@ -228,4 +198,30 @@ func (s *Service) GetFileStatuses(destinationsFilter map[string]bool) []*FileSta
 	}
 
 	return fileStatuses
+}
+
+//readFileBytes reads file from the file system and returns byte payload or err if occurred
+//does unzip if file has been compressed
+func (s *Service) readFileBytes(filePath string) ([]byte, error) {
+	b, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("Error reading file [%s] for replay: %v", filePath, err)
+	}
+
+	if !strings.HasSuffix(filePath, ".gz") {
+		return b, nil
+	}
+
+	reader, err := gzip.NewReader(bytes.NewBuffer(b))
+	if err != nil {
+		return nil, err
+	}
+
+	var resB bytes.Buffer
+	_, err = resB.ReadFrom(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return resB.Bytes(), nil
 }

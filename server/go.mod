@@ -21,7 +21,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/huandu/facebook/v2 v2.5.3
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
-	github.com/lib/pq v1.8.0
+	github.com/lib/pq v1.10.2
 	github.com/mailru/easyjson v0.7.7
 	github.com/mailru/go-clickhouse v1.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
@@ -34,7 +34,7 @@ require (
 	github.com/spf13/cast v1.3.0
 	github.com/spf13/viper v1.7.1
 	github.com/stretchr/testify v1.7.0
-	github.com/testcontainers/testcontainers-go v0.10.0
+	github.com/testcontainers/testcontainers-go v0.11.0
 	github.com/ua-parser/uap-go v0.0.0-20200325213135-e1c09f13e2fe
 	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0
 	go.opencensus.io v0.22.4 // indirect
