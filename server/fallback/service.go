@@ -140,7 +140,7 @@ func (s *Service) Replay(fileName, destinationID string, rawFile bool) error {
 		eventID := storage.GetUniqueIDField().Extract(object)
 		if eventID == "" {
 			b, _ := json.MarshalIndent(object, "", "  ")
-			logging.SystemErrorf("[%s] Empty extracted unique identifier in fallback event: %s", storage.GetUniqueIDField(), string(b))
+			logging.SystemErrorf("[%s] Empty extracted unique identifier in fallback event: %s", storage.GetUniqueIDField().GetFieldName(), string(b))
 		}
 
 		eventsConsumer.Consume(object, apiKey)
