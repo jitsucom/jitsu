@@ -102,10 +102,9 @@ func NewClickHouse(config *Config) (Storage, error) {
 		return nil, err
 	}
 
-	if config.streamMode {
-		ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, chTableHelpers...)
-		ch.streamingWorker.start()
-	}
+	//streaming worker (queue reading)
+	ch.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ch, chTableHelpers...)
+	ch.streamingWorker.start()
 
 	return ch, nil
 }
@@ -178,7 +177,7 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 }
 
 //SyncStore is used in storing chunk of pulled data to ClickHouse with processing
-func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	flatData, err := ch.processor.ProcessPulledEvents(timeIntervalValue, objects)
 	if err != nil {
 		return err
@@ -200,7 +199,7 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 
 		table := tableHelper.MapTableSchema(overriddenDataSchema)
 
-		dbSchema, err := tableHelper.EnsureTableWithoutCaching(ch.ID(), table)
+		dbSchema, err := tableHelper.EnsureTable(ch.ID(), table, cacheTable)
 		if err != nil {
 			return err
 		}
@@ -221,7 +220,7 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 			table.Name = overriddenDataSchema.TableName
 		}
 
-		dbSchema, err := tableHelper.EnsureTableWithoutCaching(ch.ID(), table)
+		dbSchema, err := tableHelper.EnsureTable(ch.ID(), table, cacheTable)
 		if err != nil {
 			return err
 		}
@@ -236,7 +235,7 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 
 //Update uses SyncStore under the hood
 func (ch *ClickHouse) Update(object map[string]interface{}) error {
-	return ch.SyncStore(nil, []map[string]interface{}{object}, "")
+	return ch.SyncStore(nil, []map[string]interface{}{object}, "", true)
 }
 
 //GetUsersRecognition returns users recognition configuration

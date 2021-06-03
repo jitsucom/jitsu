@@ -107,7 +107,7 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 }
 
 //SyncStore isn't supported
-func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("S3 doesn't support sync store")
 }
 

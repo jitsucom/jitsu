@@ -46,16 +46,21 @@ type Service struct {
 	batchStoragesByTokenID  TokenizedStorages
 	destinationsIDByTokenID TokenizedIDs
 
+	//events queues by destination ID
+	queueConsumerByDestinationID map[string]events.Consumer
+
 	strictAuth bool
 }
 
 //NewTestService returns test instance. It is used only for tests
-func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedConsumers, storagesByTokenID TokenizedStorages, destinationsIDByTokenID TokenizedIDs) *Service {
+func NewTestService(unitsByID map[string]*Unit, consumersByTokenID TokenizedConsumers, storagesByTokenID TokenizedStorages,
+	destinationsIDByTokenID TokenizedIDs, queueConsumerByDestinationID map[string]events.Consumer) *Service {
 	return &Service{
-		unitsByID:               unitsByID,
-		consumersByTokenID:      consumersByTokenID,
-		batchStoragesByTokenID:  storagesByTokenID,
-		destinationsIDByTokenID: destinationsIDByTokenID,
+		unitsByID:                    unitsByID,
+		consumersByTokenID:           consumersByTokenID,
+		batchStoragesByTokenID:       storagesByTokenID,
+		destinationsIDByTokenID:      destinationsIDByTokenID,
+		queueConsumerByDestinationID: queueConsumerByDestinationID,
 	}
 }
 
@@ -71,6 +76,8 @@ func NewService(destinations *viper.Viper, destinationsSource string, storageFac
 		consumersByTokenID:      map[string]map[string]events.Consumer{},
 		batchStoragesByTokenID:  map[string]map[string]storages.StorageProxy{},
 		destinationsIDByTokenID: map[string]map[string]bool{},
+
+		queueConsumerByDestinationID: map[string]events.Consumer{},
 
 		strictAuth: strictAuth,
 	}
@@ -164,6 +171,19 @@ func (s *Service) GetDestinationIDs(tokenID string) map[string]bool {
 	return ids
 }
 
+func (s *Service) GetEventsConsumerByDestinationID(destinationID string) (events.Consumer, bool) {
+	s.RLock()
+	defer s.RUnlock()
+
+	eventsConsumer, ok := s.queueConsumerByDestinationID[destinationID]
+	if !ok {
+		return nil, false
+	}
+
+	return eventsConsumer, true
+
+}
+
 func (s *Service) updateDestinations(payload []byte) {
 	dc, err := parseFromBytes(payload)
 	if err != nil {
@@ -203,6 +223,8 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	newConsumers := TokenizedConsumers{}
 	newStorages := TokenizedStorages{}
 	newIDs := TokenizedIDs{}
+	queueConsumerByDestinationID := map[string]events.Consumer{}
+
 	for destinationID, d := range dc {
 		//common case
 		destinationConfig := d
@@ -247,11 +269,9 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 			logging.Errorf("[%s] Error initializing destination of type %s: %v", id, destinationConfig.Type, err)
 			continue
 		}
+		appconfig.Instance.ScheduleEventsConsumerClosing(eventQueue)
 
-		if eventQueue != nil {
-			appconfig.Instance.ScheduleEventsConsumerClosing(eventQueue)
-		}
-
+		queueConsumerByDestinationID[id] = eventQueue
 		s.unitsByID[id] = &Unit{
 			eventQueue: eventQueue,
 			storage:    newStorageProxy,
@@ -301,6 +321,10 @@ func (s *Service) init(dc map[string]storages.DestinationConfig) {
 	s.consumersByTokenID.AddAll(newConsumers)
 	s.batchStoragesByTokenID.AddAll(newStorages)
 	s.destinationsIDByTokenID.AddAll(newIDs)
+
+	for destinationID, eventsQueueConsumer := range queueConsumerByDestinationID {
+		s.queueConsumerByDestinationID[destinationID] = eventsQueueConsumer
+	}
 	s.Unlock()
 
 	StatusInstance.Reloading = false
@@ -346,6 +370,9 @@ func (s *Service) removeAndClose(destinationID string, unit *Unit) {
 				delete(s.destinationsIDByTokenID, tokenID)
 			}
 		}
+
+		//queue consumer
+		delete(s.queueConsumerByDestinationID, destinationID)
 	}
 
 	if err := unit.Close(); err != nil {

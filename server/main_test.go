@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/events"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -197,8 +198,9 @@ func TestCors(t *testing.T) {
 			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
 
 			inmemWriter := logging.InitInMemoryWriter()
-			destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)}, destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
-				destinations.TokenizedStorages{}, destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}})
+			consumer := logging.NewAsyncLogger(inmemWriter, false)
+			destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)}, destinations.TokenizedConsumers{"id1": {"id1": consumer}},
+				destinations.TokenizedStorages{}, destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}}, map[string]events.Consumer{"dest1": consumer})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
 			metaStorage := &meta.Dummy{}
@@ -351,8 +353,9 @@ func TestAPIEvent(t *testing.T) {
 			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
 
 			inmemWriter := logging.InitInMemoryWriter()
-			destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)}, destinations.TokenizedConsumers{"id1": {"id1": logging.NewAsyncLogger(inmemWriter, false)}},
-				destinations.TokenizedStorages{}, destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}})
+			consumer := logging.NewAsyncLogger(inmemWriter, false)
+			destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)}, destinations.TokenizedConsumers{"id1": {"id1": consumer}},
+				destinations.TokenizedStorages{}, destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}}, map[string]events.Consumer{"dest1": consumer})
 			appconfig.Instance.ScheduleClosing(destinationService)
 
 			metaStorage := &meta.Dummy{}

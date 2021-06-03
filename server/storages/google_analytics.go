@@ -72,6 +72,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	ga.eventsCache = config.eventsCache
 	ga.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
+	//streaming worker (queue reading)
 	ga.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ga, tableHelper)
 	ga.streamingWorker.start()
 
@@ -94,7 +95,7 @@ func (ga *GoogleAnalytics) Store(fileName string, objects []map[string]interface
 }
 
 //SyncStore isn't supported
-func (ga *GoogleAnalytics) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (ga *GoogleAnalytics) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("GoogleAnalytics doesn't support SyncStore() func")
 }
 

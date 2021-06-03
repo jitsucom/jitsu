@@ -105,10 +105,9 @@ func NewSnowflake(config *Config) (Storage, error) {
 	snowflake.sqlAdapters = []adapters.SQLAdapter{snowflakeAdapter}
 	snowflake.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
-	if config.streamMode {
-		snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
-		snowflake.streamingWorker.start()
-	}
+	//streaming worker (queue reading)
+	snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
+	snowflake.streamingWorker.start()
 
 	return snowflake, nil
 }
@@ -236,7 +235,7 @@ func (s *Snowflake) IsCachingDisabled() bool {
 }
 
 //SyncStore isn't supported
-func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("Snowflake doesn't support sync store")
 }
 
