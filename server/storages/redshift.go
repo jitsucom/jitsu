@@ -175,7 +175,7 @@ func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.T
 }
 
 //SyncStore isn't supported
-func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("RedShift doesn't support sync store")
 }
 
@@ -189,7 +189,7 @@ func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 
 	table := tableHelper.MapTableSchema(batchHeader)
 
-	dbSchema, err := tableHelper.EnsureTableWithoutCaching(ar.ID(), table)
+	dbSchema, err := tableHelper.EnsureTableWithCaching(ar.ID(), table)
 	if err != nil {
 		return err
 	}

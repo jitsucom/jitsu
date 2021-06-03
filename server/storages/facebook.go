@@ -94,7 +94,7 @@ func (fb *Facebook) Store(fileName string, objects []map[string]interface{}, alr
 }
 
 //SyncStore isn't supported
-func (fb *Facebook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (fb *Facebook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("Facebook Conversion doesn't support SyncStore() func")
 }
 
