@@ -45,7 +45,7 @@ const destination: Destination = {
     {
       id: '_formData.ch_cluster',
       displayName: 'Cluster',
-      required: true,
+      required: (cfg) => cfg._formData?.ch_dsns_list?.length > 1,
       type: stringType,
       documentation: <>
         <p>
