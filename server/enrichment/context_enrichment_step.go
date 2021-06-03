@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	apiTokenKey = "api_key"
+	ApiTokenKey = "api_key"
 	ipKey       = "source_ip"
 )
 
@@ -42,7 +42,7 @@ func ContextEnrichmentStep(payload events.Event, token string, r *http.Request, 
 	}
 
 	//4. timestamp & api key
-	payload[apiTokenKey] = token
+	payload[ApiTokenKey] = token
 	payload[timestamp.Key] = timestamp.NowUTC()
 }
 

@@ -93,6 +93,7 @@ func NewWebHook(config *Config) (Storage, error) {
 	wh.eventsCache = config.eventsCache
 	wh.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
+	//streaming worker (queue reading)
 	wh.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, wh, tableHelper)
 	wh.streamingWorker.start()
 
@@ -114,7 +115,7 @@ func (wh *WebHook) Store(fileName string, objects []map[string]interface{}, alre
 }
 
 //SyncStore isn't supported
-func (wh *WebHook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (wh *WebHook) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("WebHook doesn't support Store() func")
 }
 
