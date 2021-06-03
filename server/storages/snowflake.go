@@ -235,7 +235,7 @@ func (s *Snowflake) IsCachingDisabled() bool {
 }
 
 //SyncStore isn't supported
-func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("Snowflake doesn't support sync store")
 }
 

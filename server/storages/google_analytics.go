@@ -95,7 +95,7 @@ func (ga *GoogleAnalytics) Store(fileName string, objects []map[string]interface
 }
 
 //SyncStore isn't supported
-func (ga *GoogleAnalytics) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) error {
+func (ga *GoogleAnalytics) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("GoogleAnalytics doesn't support SyncStore() func")
 }
 

@@ -68,23 +68,23 @@ func (th *TableHelper) MapTableSchema(batchHeader *schema.BatchHeader) *adapters
 	return table
 }
 
-//EnsureTableWithCaching calls ensureTable with cacheTable = true
+//EnsureTableWithCaching calls EnsureTable with cacheTable = true
 //it is used in stream destinations (because we don't have time to select table schema, but there is retry on error)
 func (th *TableHelper) EnsureTableWithCaching(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
-	return th.ensureTable(destinationID, dataSchema, true)
+	return th.EnsureTable(destinationID, dataSchema, true)
 }
 
-//EnsureTableWithoutCaching calls ensureTable with cacheTable = true
+//EnsureTableWithoutCaching calls EnsureTable with cacheTable = true
 //it is used in batch destinations and syncStore (because we have time to select table schema)
 func (th *TableHelper) EnsureTableWithoutCaching(destinationID string, dataSchema *adapters.Table) (*adapters.Table, error) {
-	return th.ensureTable(destinationID, dataSchema, false)
+	return th.EnsureTable(destinationID, dataSchema, false)
 }
 
-//ensureTable returns DB table schema and err if occurred
+//EnsureTable returns DB table schema and err if occurred
 //if table doesn't exist - create a new one and increment version
 //if exists - calculate diff, patch existing one with diff and increment version
 //returns actual db table schema (with actual db types)
-func (th *TableHelper) ensureTable(destinationID string, dataSchema *adapters.Table, cacheTable bool) (*adapters.Table, error) {
+func (th *TableHelper) EnsureTable(destinationID string, dataSchema *adapters.Table, cacheTable bool) (*adapters.Table, error) {
 	var dbSchema *adapters.Table
 	var err error
 
