@@ -216,7 +216,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 
 	if tableName == "" {
 		tableName = defaultTableName
-		logging.Infof("[%s] uses default table destinationID: %s", destinationID, tableName)
+		logging.Infof("[%s] uses default table: %s", destinationID, tableName)
 	}
 
 	if len(pkFields) > 0 {
