@@ -37,7 +37,7 @@ plugins/
 
 Inside your `jitsu.js` plugin file you should import jitsu and initialize it
 
-```
+```javascript
 const { jitsuClient } = require('@jitsu/sdk-js')
 const jitsu = jitsuClient({
   key: "[CLIENT_KEY]",
@@ -50,7 +50,7 @@ export default (context, inject) => {
 
 Now you need to add your newly created plugin to you project configuration
 
-```
+```javascript
 // nuxt.config.js
 
   plugins: [
@@ -65,7 +65,7 @@ Make sure the Jitsu plugin is set to [client mode](https://nuxtjs.org/docs/2.x/d
 
 Jitsu should now be available globally in your project, here's an example of accessing the jitsu client in a Nuxt page
 
-```
+```html
 <template>
     <button @click="trackClick">
         Buy Now
