@@ -115,7 +115,7 @@ func (ga *GoogleAnalytics) GetTableSchema(tableName string) (*Table, error) {
 }
 
 func (ga *GoogleAnalytics) CreateDB(databaseName string) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("FacebookConversionAPI doesn't support CreateDB() func")
 }
 
 //CreateTable GA doesn't use tables
@@ -129,11 +129,11 @@ func (ga *GoogleAnalytics) PatchTableSchema(schemaToAdd *Table) error {
 }
 
 func (ga *GoogleAnalytics) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("FacebookConversionAPI doesn't support BulkInsert() func")
 }
 
 func (ga *GoogleAnalytics) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("FacebookConversionAPI doesn't support BulkUpdate() func")
 }
 
 //Close closes HTTPAdapter

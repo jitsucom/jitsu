@@ -3,18 +3,19 @@ package drivers
 import (
 	"archive/zip"
 	"bytes"
-	"cloud.google.com/go/storage"
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
+	"strings"
+	"time"
+
+	"cloud.google.com/go/storage"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"io/ioutil"
-	"strings"
-	"time"
 )
 
 const (
@@ -57,6 +58,11 @@ func (gpc *GooglePlayConfig) Validate() error {
 	if gpc.AccountID == "" {
 		return errors.New("GooglePlay account_id is required")
 	}
+
+	if gpc.AccountKey == nil {
+		return errors.New("GooglePlay auth is required")
+	}
+
 	return gpc.AccountKey.Validate()
 }
 

@@ -157,7 +157,7 @@ func (fc *FacebookConversionAPI) GetTableSchema(tableName string) (*Table, error
 }
 
 func (fc *FacebookConversionAPI) CreateDB(databaseName string) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("FacebookConversionAPI doesn't support CreateDB() func")
 }
 
 //CreateTable Facebook doesn't use tables
@@ -171,11 +171,11 @@ func (fc *FacebookConversionAPI) PatchTableSchema(schemaToAdd *Table) error {
 }
 
 func (fc *FacebookConversionAPI) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("FacebookConversionAPI doesn't support BulkInsert() func")
 }
 
 func (fc *FacebookConversionAPI) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("FacebookConversionAPI doesn't support BulkUpdate() func")
 }
 
 //Close closes underlying HTTPAdapter

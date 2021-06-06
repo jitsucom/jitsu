@@ -192,7 +192,7 @@ func (ar *AwsRedshift) GetTableSchema(tableName string) (*Table, error) {
 }
 
 func (ar *AwsRedshift) CreateDB(databaseName string) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("AwsRedshift doesn't support CreateDB() func")
 }
 
 //CreateTable create database table with name,columns provided in Table representation

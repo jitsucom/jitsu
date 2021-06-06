@@ -82,7 +82,7 @@ func (bq *BigQuery) Insert(eventContext *EventContext) error {
 }
 
 func (bq *BigQuery) CreateDB(databaseName string) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("BigQuery doesn't support CreateDB() func")
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
@@ -215,7 +215,7 @@ func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, d
 }
 
 func (bq *BigQuery) deleteWithConditions(table *Table, deleteConditions *DeleteConditions) error {
-	return fmt.Errorf("Not IMPLEMENTED")
+	return fmt.Errorf("BigQuery doesn't support deleteWithConditions() func")
 }
 
 func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl bool) {

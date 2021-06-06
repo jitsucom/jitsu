@@ -179,7 +179,7 @@ func (bq *BigQuery) Update(object map[string]interface{}) error {
 
 //SyncStore isn't supported
 func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return errors.New("BigQuery doesn't support sync store")
+	return fmt.Errorf("BigQuery doesn't support SyncStore() func")
 }
 
 //GetUsersRecognition returns disabled users recognition configuration
