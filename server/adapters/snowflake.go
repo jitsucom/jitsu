@@ -136,7 +136,7 @@ func (s *Snowflake) OpenTx() (*Transaction, error) {
 }
 
 func (s *Snowflake) CreateDB(databaseName string) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("Snowflake doesn't support CreateDB() func")
 }
 
 //CreateDbSchema create database schema instance if doesn't exist
@@ -316,7 +316,24 @@ func (s *Snowflake) insertInTransaction(wrappedTx *Transaction, eventContext *Ev
 }
 
 func (s *Snowflake) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	wrappedTx, err := s.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	eventContext := &EventContext{
+		Table: table,
+	}
+
+	for _, event := range objects {
+		eventContext.ProcessedEvent = event
+		if err := s.insertInTransaction(wrappedTx, eventContext); err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
+	}
+
+	return wrappedTx.DirectCommit()
 }
 
 func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {

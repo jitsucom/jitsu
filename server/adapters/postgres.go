@@ -176,7 +176,7 @@ func (p *Postgres) OpenTx() (*Transaction, error) {
 
 // CreateDB creates database instance if doesn't exist
 func (p *Postgres) CreateDB(databaseName string) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("Postgres doesn't support CreateDB() func")
 }
 
 //CreateDbSchema creates database schema instance if doesn't exist

@@ -78,7 +78,7 @@ func (wh *WebHook) GetTableSchema(tableName string) (*Table, error) {
 }
 
 func (wh *WebHook) CreateDB(databaseName string) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("WebHook doesn't support CreateDB() func")
 }
 
 //CreateTable returns nil
@@ -92,11 +92,11 @@ func (wh *WebHook) PatchTableSchema(schemaToAdd *Table) error {
 }
 
 func (wh *WebHook) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("WebHook doesn't support BulkInsert() func")
 }
 
 func (wh *WebHook) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	return fmt.Errorf("WebHook doesn't support BulkUpdate() func")
 }
 
 //Close closes underlying HTTPAdapter
