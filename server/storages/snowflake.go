@@ -234,9 +234,9 @@ func (s *Snowflake) IsCachingDisabled() bool {
 	return s.cachingConfiguration != nil && s.cachingConfiguration.Disabled
 }
 
-//SyncStore isn't supported
+// SyncStore is used in storing chunk of pulled data to Snowflake with processing
 func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return errors.New("Snowflake doesn't support sync store")
+	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //Update isn't supported

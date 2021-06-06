@@ -304,11 +304,43 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 }
 
 func (ar *AwsRedshift) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	eventContext := &EventContext{
+		Table: table,
+	}
+
+	for _, event := range objects {
+		eventContext.ProcessedEvent = event
+		if err := ar.Insert(eventContext); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if !deleteConditions.IsEmpty() {
+		if err := ar.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
+	}
+
+	if err := ar.BulkInsert(table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+func (ar *AwsRedshift) deleteWithConditions(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+	return ar.dataSourceProxy.deleteWithConditions(wrappedTx, table, deleteConditions)
 }
 
 //Close underlying sql.DB

@@ -1,7 +1,6 @@
 package storages
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
@@ -174,9 +173,9 @@ func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.T
 	return nil
 }
 
-//SyncStore isn't supported
+// SyncStore is used in storing chunk of pulled data to AwsRedshift with processing
 func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return errors.New("RedShift doesn't support sync store")
+	return syncStoreImpl(ar, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //Update updates record in Redshift
