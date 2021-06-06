@@ -186,7 +186,18 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 }
 
 func (bq *BigQuery) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+	eventContext := &EventContext{
+		Table: table,
+	}
+
+	for _, event := range objects {
+		eventContext.ProcessedEvent = event
+		if err := bq.Insert(eventContext); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
@@ -203,8 +214,8 @@ func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, d
 	return nil
 }
 
-func (bq *BigQuery) deleteWithConditions(table *Table, deleteCondition *DeleteConditions) error {
-	return fmt.Errorf("NOT IMPLEMENTED")
+func (bq *BigQuery) deleteWithConditions(table *Table, deleteConditions *DeleteConditions) error {
+	return fmt.Errorf("Not IMPLEMENTED")
 }
 
 func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl bool) {
