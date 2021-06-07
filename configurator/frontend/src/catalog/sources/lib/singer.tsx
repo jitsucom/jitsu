@@ -240,24 +240,48 @@ export const allSingerTaps: SingerTap[] = [
   },
   {
     pic: logos.tap_google_ads,
-    displayName: 'Google Ads',
+    displayName: 'Google Ads (AdWords)',
     tap: 'tap-adwords',
     stable: true,
-    hasNativeEquivalent: true
-  },
-  {
-    pic: logos.tap_google_analytics,
-    displayName: 'Google Analytics',
-    tap: 'tap-google-analytics',
-    stable: true,
-    hasNativeEquivalent: false
-  },
-  {
-    pic: null,
-    displayName: 'Google Analytics 360',
-    tap: 'tap-ga360',
-    stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: false,
+    parameters: customParameters('tap-intercom', {
+      customConfig: [
+        {
+          displayName: 'Developer Token',
+          id: 'developer_token',
+          required: true,
+          documentation: <>API Developer token. <a href="https://services.google.com/fb/forms/newtoken/">Apply here</a></>
+        },
+        {
+          displayName: 'OAuth Client ID',
+          id: 'oauth_client_id',
+          required: true
+        },
+        {
+          displayName: 'OAuth Client Secret',
+          id: 'oauth_client_secret',
+          required: true
+        },
+        {
+          displayName: 'Refresh Token',
+          id: 'refresh_token',
+          required: true
+        },
+        {
+          displayName: 'Start Date',
+          id: 'start_date',
+          type: isoUtcDateType,
+          defaultValue: '2018-01-01T00:00:00.000Z',
+          required: true
+        },
+        {
+          displayName: 'User Agent',
+          id: 'user_agent',
+          type: stringType,
+          constant: 'Jitsu Bot (https://jitsu.com)'
+        }
+      ]
+    })
   },
   {
     pic: logos.tap_google_search_console,
