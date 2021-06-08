@@ -9,12 +9,19 @@ import (
 	"strings"
 )
 
+const (
+	usageMetricType  = "usage"
+	errorsMetricType = "errors"
+	usersMetricType  = "users"
+)
+
 //RequestFactory is a factory for telemetry requests
 type RequestFactory struct {
-	iInfo *InstanceInfo
+	dockerHubID string
+	iInfo       *InstanceInfo
 }
 
-func newRequestFactory(serviceName, commit, tag, buildAt string) *RequestFactory {
+func newRequestFactory(serviceName, commit, tag, buildAt, dockerHubID string) *RequestFactory {
 	instanceID, err := getServerMacAddrHash()
 	if err != nil {
 		//TODO errors.New().GettingInstanceID()
@@ -22,6 +29,7 @@ func newRequestFactory(serviceName, commit, tag, buildAt string) *RequestFactory
 	}
 
 	return &RequestFactory{
+		dockerHubID: dockerHubID,
 		iInfo: &InstanceInfo{
 			ID:          instanceID,
 			Commit:      commit,
@@ -34,10 +42,11 @@ func newRequestFactory(serviceName, commit, tag, buildAt string) *RequestFactory
 }
 
 func (rf *RequestFactory) fromUsage(usage *Usage) *Request {
+	usage.DockerHubID = rf.dockerHubID
 	return &Request{
 		Timestamp:    timestamp.NowUTC(),
 		InstanceInfo: rf.iInfo,
-		MetricType:   "usage",
+		MetricType:   usageMetricType,
 		Usage:        usage,
 	}
 }
@@ -46,7 +55,7 @@ func (rf *RequestFactory) fromErrors(error *Errors) *Request {
 	return &Request{
 		Timestamp:    timestamp.NowUTC(),
 		InstanceInfo: rf.iInfo,
-		MetricType:   "errors",
+		MetricType:   errorsMetricType,
 		Errors:       error,
 	}
 }
@@ -55,7 +64,7 @@ func (rf *RequestFactory) fromUser(user *UserData) *Request {
 	return &Request{
 		Timestamp:    timestamp.NowUTC(),
 		InstanceInfo: rf.iInfo,
-		MetricType:   "users",
+		MetricType:   usersMetricType,
 		User:         user,
 	}
 }
