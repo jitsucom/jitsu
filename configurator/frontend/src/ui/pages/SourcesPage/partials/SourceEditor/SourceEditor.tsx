@@ -207,7 +207,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
           history.push(sourcesPageRoutes.root);
 
           if (sourceData.current.connected) {
-            message.success('New destination has been added!');
+            message.success('New source has been added!');
           } else {
             closeableMessage.warn(`Source has been saved, but test has failed with '${firstToLower(
               sourceData.current.connectedErrorMessage

@@ -116,6 +116,22 @@ func (b *Bridge) EnsureTap(tap string) {
 	}
 }
 
+//UpdateTap runs sync update singer tap and returns err if occurred
+func (b *Bridge) UpdateTap(tap string) error {
+	if b.installTaps {
+		return nil
+	}
+
+	pathToTap := path.Join(b.VenvDir, tap)
+
+	err := b.ExecCmd(path.Join(pathToTap, "/bin/pip3"), b.LogWriter, b.LogWriter, "install", tap, "--upgrade")
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 //ExecCmd executes command with args and uses stdOutWriter and stdErrWriter to pipe the result
 func (b *Bridge) ExecCmd(cmd string, stdOutWriter, stdErrWriter io.Writer, args ...string) error {
 	logging.Debugf("Running Singer command: %s with args [%s]", cmd, strings.Join(args, ", "))
