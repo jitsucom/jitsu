@@ -28,10 +28,10 @@ const (
 )
 
 var (
-	//taps where we should use properties.json instead of catalog.json
-	outdatedSingerTapsWithProperties = map[string]bool{
-		"tap-facebook": true,
-		"tap-github":   true,
+	blacklistStreamsByTap = map[string]map[string]bool{
+		"tap-slack": {
+			"messages": true,
+		},
 	}
 
 	errNotReady = errors.New("Singer driver isn't ready yet. Tap is being installed..")
@@ -223,24 +223,15 @@ func (s *Singer) EnsureTapAndCatalog() {
 			continue
 		}
 
-		discoveredResultFileName := catalogFileName
-		_, outdatedTap := outdatedSingerTapsWithProperties[s.tap]
-		if outdatedTap {
-			discoveredResultFileName = propertiesFileName
-		}
-
-		catalogPath, err := doDiscover(s.sourceID, s.tap, s.pathToConfigs, s.configPath, discoveredResultFileName)
+		catalogPath, propertiesPath, err := doDiscover(s.sourceID, s.tap, s.pathToConfigs, s.configPath)
 		if err != nil {
 			logging.Errorf("[%s] Error configuring Singer: %v", s.sourceID, err)
 			time.Sleep(5 * time.Second)
 			continue
 		}
 
-		if outdatedTap {
-			s.propertiesPath = catalogPath
-		} else {
-			s.catalogPath = catalogPath
-		}
+		s.catalogPath = catalogPath
+		s.propertiesPath = propertiesPath
 
 		s.catalogDiscovered.Store(true)
 		return
@@ -297,6 +288,11 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 	ready, readyErr := s.Ready()
 	if !ready {
 		return readyErr
+	}
+
+	//update tap
+	if err := singer.Instance.UpdateTap(s.tap); err != nil {
+		return fmt.Errorf("Error updating singer tap [%s]: %v", s.tap, err)
 	}
 
 	//override initial state with existing one and put it to a file
@@ -445,10 +441,11 @@ func (s *Singer) GetStreamTableNameMapping() map[string]string {
 	return result
 }
 
-//doDiscover discover tap catalog and returns catalog with all streams {"selected": true}
-func doDiscover(sourceID, tap, pathToConfigs, configFilePath, discoveredResultFileName string) (string, error) {
+//doDiscover discovers tap catalog and returns catalog and properties paths
+//applies blacklist streams to taps and make other streams {"selected": true}
+func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, string, error) {
 	if !singer.Instance.IsTapReady(tap) {
-		return "", errNotReady
+		return "", "", errNotReady
 	}
 
 	outWriter := logging.NewStringWriter()
@@ -459,23 +456,37 @@ func doDiscover(sourceID, tap, pathToConfigs, configFilePath, discoveredResultFi
 
 	err := singer.Instance.ExecCmd(command, outWriter, dualStdErrWriter, "-c", configFilePath, "--discover")
 	if err != nil {
-		return "", fmt.Errorf("Error singer --discover: %v. %s", err, errStrWriter.String())
+		return "", "", fmt.Errorf("Error singer --discover: %v. %s", err, errStrWriter.String())
 	}
 
 	catalog := &SingerRawCatalog{}
 	if err := json.Unmarshal(outWriter.Bytes(), &catalog); err != nil {
-		return "", fmt.Errorf("Error unmarshalling catalog %s output: %v", outWriter.String(), err)
+		return "", "", fmt.Errorf("Error unmarshalling catalog %s output: %v", outWriter.String(), err)
+	}
+
+	blackListStreams, ok := blacklistStreamsByTap[tap]
+	if !ok {
+		blackListStreams = map[string]bool{}
 	}
 
 	for _, stream := range catalog.Streams {
+		streamName, ok := stream["stream"]
+		if ok {
+			if _, ok := blackListStreams[fmt.Sprint(streamName)]; ok {
+				continue
+			}
+		} else {
+			logging.Warnf("Stream [%v] doesn't have 'stream' name", stream)
+		}
+
 		schemaStruct, ok := stream["schema"]
 		if !ok {
-			return "", fmt.Errorf("Malformed discovered catalog structure %s: key 'schema' doesn't exist", outWriter.String())
+			return "", "", fmt.Errorf("Malformed discovered catalog structure %s: key 'schema' doesn't exist", outWriter.String())
 		}
 
 		schemaObj, ok := schemaStruct.(map[string]interface{})
 		if !ok {
-			return "", fmt.Errorf("Malformed discovered catalog structure %s: value under key 'schema' must be object: %T", outWriter.String(), schemaStruct)
+			return "", "", fmt.Errorf("Malformed discovered catalog structure %s: value under key 'schema' must be object: %T", outWriter.String(), schemaStruct)
 		}
 
 		schemaObj["selected"] = true
@@ -484,12 +495,18 @@ func doDiscover(sourceID, tap, pathToConfigs, configFilePath, discoveredResultFi
 	b, _ := json.MarshalIndent(catalog, "", "    ")
 
 	//write singer catalog as file path
-	catalogPath, err := parseJSONAsFile(path.Join(pathToConfigs, discoveredResultFileName), string(b))
+	catalogPath, err := parseJSONAsFile(path.Join(pathToConfigs, catalogFileName), string(b))
 	if err != nil {
-		return "", fmt.Errorf("Error writing discovered singer catalog [%v]: %v", string(b), err)
+		return "", "", fmt.Errorf("Error writing discovered singer catalog [%v]: %v", string(b), err)
 	}
 
-	return catalogPath, nil
+	//write singer properties as file path
+	propertiesPath, err := parseJSONAsFile(path.Join(pathToConfigs, propertiesFileName), string(b))
+	if err != nil {
+		return "", "", fmt.Errorf("Error writing discovered singer properties [%v]: %v", string(b), err)
+	}
+
+	return catalogPath, propertiesPath, nil
 }
 
 //parse value and write it to a json file

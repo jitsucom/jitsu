@@ -89,7 +89,7 @@ func main() {
 		os.Exit(0)
 	}()
 
-	telemetry.InitFromViper(serviceName, commit, tag, builtAt)
+	telemetry.InitFromViper(serviceName, commit, tag, builtAt, *dockerHubID)
 
 	safego.GlobalRecoverHandler = func(value interface{}) {
 		logging.Error("panic")
