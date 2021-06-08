@@ -114,7 +114,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	logging.Debugf("[TASK %s] Getting sync lock source [%s] collection [%s]...", task.ID, task.Source, task.Collection)
 	collectionLock, err := te.monitorKeeper.Lock(task.Source, task.Collection)
 	if err != nil {
-		msg := fmt.Sprintf("Error getting lock source [%s] collection [%s] task [%s]", task.Source, task.Collection, task.ID)
+		msg := fmt.Sprintf("Error getting lock source [%s] collection [%s] task [%s]: %v", task.Source, task.Collection, task.ID, err)
 		te.handleError(task, taskLogger, msg, true)
 		return
 	}
