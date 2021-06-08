@@ -162,16 +162,16 @@ func (rs *RedisService) IsLocked(system string, collection string) (bool, error)
 	return false, nil
 }
 
-//Lock creates mutex and locks it with 3 minutes expiration
+//Lock creates mutex and locks it with 3 hours expiration
 //waits 2 minutes if locked
 func (rs *RedisService) Lock(system string, collection string) (storages.Lock, error) {
-	return rs.doLock(system, collection, redsync.WithExpiry(3*time.Minute), redsync.WithRetryDelay(5*time.Second), redsync.WithTries(24))
+	return rs.doLock(system, collection, redsync.WithExpiry(3*time.Hour), redsync.WithRetryDelay(5*time.Second), redsync.WithTries(24))
 }
 
-//TryLock creates mutex and locks it with 3 minutes expiration
+//TryLock creates mutex and locks it with 3 hours expiration
 //doesn't wait if locked
 func (rs *RedisService) TryLock(system string, collection string) (storages.Lock, error) {
-	lock, err := rs.doLock(system, collection, redsync.WithExpiry(3*time.Minute), redsync.WithRetryDelay(0), redsync.WithTries(1))
+	lock, err := rs.doLock(system, collection, redsync.WithExpiry(3*time.Hour), redsync.WithRetryDelay(0), redsync.WithTries(1))
 	if err != nil {
 		if err == redsync.ErrFailed {
 			return nil, ErrAlreadyLocked
