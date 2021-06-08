@@ -299,6 +299,11 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 		return readyErr
 	}
 
+	//update tap
+	if err := singer.Instance.UpdateTap(s.tap); err != nil {
+		return fmt.Errorf("Error updating singer tap [%s]: %v", s.tap, err)
+	}
+
 	//override initial state with existing one and put it to a file
 	var statePath string
 	var err error
