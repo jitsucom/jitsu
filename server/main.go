@@ -223,8 +223,12 @@ func main() {
 	// ** Closing Meta Storage and Coordination SErvice
 	// Close after all for saving last task statuses
 	defer func() {
-		metaStorage.Close()
-		coordinationService.Close()
+		if err := coordinationService.Close(); err != nil {
+			logging.Errorf("Error closing coordination service: %v", err)
+		}
+		if err := metaStorage.Close(); err != nil {
+			logging.Errorf("Error closing meta storage: %v", err)
+		}
 	}()
 
 	// ** Destinations **
