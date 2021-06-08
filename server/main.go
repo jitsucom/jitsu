@@ -139,7 +139,7 @@ func main() {
 		notifications.SystemErrorf("Panic:\n%s\n%s", value, string(debug.Stack()))
 	}
 
-	telemetry.InitFromViper(notifications.ServiceName, commit, tag, builtAt)
+	telemetry.InitFromViper(notifications.ServiceName, commit, tag, builtAt, *dockerHubID)
 	metrics.Init(viper.GetBool("server.metrics.prometheus.enabled"))
 
 	slackNotificationsWebHook := viper.GetString("notifications.slack.url")
@@ -190,8 +190,6 @@ func main() {
 	if err != nil {
 		logging.Fatalf("Error initializing meta storage: %v", err)
 	}
-	// Close after all for saving last task statuses
-	defer metaStorage.Close()
 
 	// ** Coordination Service **
 	var coordinationService coordination.Service
@@ -222,7 +220,16 @@ func main() {
 		}
 	}
 
-	appconfig.Instance.ScheduleClosing(coordinationService)
+	// ** Closing Meta Storage and Coordination SErvice
+	// Close after all for saving last task statuses
+	defer func() {
+		if err := coordinationService.Close(); err != nil {
+			logging.Errorf("Error closing coordination service: %v", err)
+		}
+		if err := metaStorage.Close(); err != nil {
+			logging.Errorf("Error closing meta storage: %v", err)
+		}
+	}()
 
 	// ** Destinations **
 	//events counters
@@ -324,7 +331,7 @@ func main() {
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
 		coordinationService, eventsCache)
 
-	telemetry.ServerStart(*dockerHubID)
+	telemetry.ServerStart()
 	notifications.ServerStart()
 	logging.Info("🚀 Started server: " + appconfig.Instance.Authority)
 	server := &http.Server{
