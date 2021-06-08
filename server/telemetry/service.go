@@ -42,8 +42,8 @@ func InitTest() {
 
 //InitFromViper creates telemetry instance, starts goroutine
 //if configuration is provided as a url - starts another goroutine (see resources.Watch)
-func InitFromViper(serviceName, commit, tag, builtAt string) {
-	Init(serviceName, commit, tag, builtAt)
+func InitFromViper(serviceName, commit, tag, builtAt, dockerHubID string) {
+	Init(serviceName, commit, tag, builtAt, dockerHubID)
 
 	telemetrySourceURL := viper.GetString("server.telemetry")
 	if telemetrySourceURL != "" {
@@ -54,9 +54,9 @@ func InitFromViper(serviceName, commit, tag, builtAt string) {
 }
 
 //Init creates telemetry instance and starts goroutine
-func Init(serviceName, commit, tag, builtAt string) {
+func Init(serviceName, commit, tag, builtAt, dockerHubID string) {
 	instance = Service{
-		reqFactory: newRequestFactory(serviceName, commit, tag, builtAt),
+		reqFactory: newRequestFactory(serviceName, commit, tag, builtAt, dockerHubID),
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 			Transport: &http.Transport{
@@ -99,8 +99,8 @@ func reInit(payload []byte) {
 }
 
 //ServerStart puts server start event into the queue
-func ServerStart(dockerHubID string) {
-	instance.usage(&Usage{DockerHubID: dockerHubID, ServerStart: 1})
+func ServerStart() {
+	instance.usage(&Usage{ServerStart: 1})
 }
 
 //ServerStop puts server stop event into the queue

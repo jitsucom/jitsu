@@ -105,8 +105,8 @@ func (ts *TaskService) ScheduleSyncFunc(source, collection string, retryCount in
 	logging.Infof("[%s_%s] sync has been scheduled! task id: %s", source, collection, taskID)
 }
 
-//Sync create task and return its ID
-//return error if task has been already scheduled or has been already in progress (lock in coordination service)
+//Sync creates task and return its ID
+//returns error if task has been already scheduled or has been already in progress (lock in coordination service)
 func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (string, error) {
 	if ts.metaStorage == nil {
 		return "", ErrMetaStorageRequired
