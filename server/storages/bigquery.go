@@ -177,9 +177,9 @@ func (bq *BigQuery) Update(object map[string]interface{}) error {
 	return errors.New("BigQuery doesn't support updates")
 }
 
-//SyncStore isn't supported
+// SyncStore is used in storing chunk of pulled data to BigQuery with processing
 func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return fmt.Errorf("BigQuery doesn't support SyncStore() func")
+	return syncStoreImpl(bq, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //GetUsersRecognition returns disabled users recognition configuration

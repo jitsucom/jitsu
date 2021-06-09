@@ -23,6 +23,8 @@ var (
 		typing.BOOL:      string(bigquery.BooleanFieldType),
 		typing.UNKNOWN:   string(bigquery.StringFieldType),
 	}
+
+	deleteBigQueryTemplate = "DELETE FROM `%s.%s.%s` WHERE %s"
 )
 
 //BigQuery adapter for creating,patching (schema or table), inserting and copying data from gcs to BigQuery
@@ -214,8 +216,29 @@ func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, d
 	return nil
 }
 
+// deleteWithConditions tries to remove rows with specific conditions.
+// Note that rows that were written to a table recently by using streaming
+// (the tabledata.insertall method or the Storage Write API)
+// cannot be modified with UPDATE, DELETE, or MERGE statements.
+// Recent writes are typically those that occur within the last 30 minutes.
+// https://cloud.google.com/bigquery/docs/reference/standard-sql/data-manipulation-language#limitations
 func (bq *BigQuery) deleteWithConditions(table *Table, deleteConditions *DeleteConditions) error {
-	return fmt.Errorf("BigQuery doesn't support deleteWithConditions() func")
+	deleteCondition := bq.toDeleteQuery(deleteConditions)
+	query := fmt.Sprintf(deleteBigQueryTemplate, bq.config.Project, bq.config.Dataset, table.Name, deleteCondition)
+	bq.queryLogger.LogQuery(query)
+	_, err := bq.client.Query(query).Read(bq.ctx)
+	return err
+}
+
+func (bq *BigQuery) toDeleteQuery(conditions *DeleteConditions) string {
+	var queryConditions []string
+
+	for _, condition := range conditions.Conditions {
+		conditionString := fmt.Sprintf("%v %v %q", condition.Field, condition.Clause, condition.Value)
+		queryConditions = append(queryConditions, conditionString)
+	}
+
+	return strings.Join(queryConditions, conditions.JoinCondition)
 }
 
 func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl bool) {
