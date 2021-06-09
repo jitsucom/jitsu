@@ -1,18 +1,6 @@
-import { intType, jsonType, passwordType, selectionType, SourceConnector, stringType } from '@catalog/sources/types';
+import { intType, jsonType, Parameter, passwordType, selectionType, SourceConnector, stringType } from '@catalog/sources/types';
 import * as React from 'react';
-
-const googleAuthConfigParameters = [
-  {
-    displayName: 'Auth (Service account key JSON)',
-    id: 'config.auth.service_account_key',
-    type: jsonType,
-    required: true,
-    documentation:
-        <>
-          Read about <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">how to create Google Service Account</a>
-        </>
-  }
-];
+import { googleAuthConfigParameters } from '@catalog/sources/lib/commonParams';
 
 export const facebook: SourceConnector = {
   pic: <svg viewBox="0 0 36 36" fill="url(#gradient)">
@@ -230,6 +218,7 @@ export const googleAnalytics: SourceConnector = {
   id: 'google_analytics',
   collectionTypes: ['report'],
   configParameters: [
+    ...googleAuthConfigParameters({}),
     {
       displayName: 'View ID',
       id: 'config.view_id',
@@ -239,8 +228,7 @@ export const googleAnalytics: SourceConnector = {
           <>
             Read about <a href="https://jitsu.com/docs/sources-configuration/google-analytics#how-to-find-google-analytics-view-id">how to find Google Analytics View ID</a>
           </>
-    },
-    ...googleAuthConfigParameters
+    }
   ]
 }
 
@@ -266,7 +254,7 @@ export const googlePlay: SourceConnector = {
             Identifier of Google Play account
           </>
     },
-    ...googleAuthConfigParameters
+    ...googleAuthConfigParameters({ disableOauth: true })
   ]
 }
 
