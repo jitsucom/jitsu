@@ -105,9 +105,13 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 				return fmt.Errorf("Error parsing singer record line %s: %v", string(lineBytes), err)
 			}
 
+			streamName = schema.Reformat(streamName)
+
 			outputPortion.Streams[streamName].Objects = append(outputPortion.Streams[streamName].Objects, object)
 		default:
-			return fmt.Errorf("Unknown output line type: %s", objectType)
+			msg := fmt.Sprintf("Unknown Singer output line type: %s [%v]", objectType, lineObject)
+			logging.Error(msg)
+			logger.ERROR(msg)
 		}
 	}
 
