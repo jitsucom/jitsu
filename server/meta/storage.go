@@ -59,7 +59,6 @@ type Storage interface {
 	//task queue
 	PushTask(task *Task) error
 	PollTask() (*Task, error)
-	IsTaskInQueue(sourceID, collection string) (string, bool, error)
 
 	Type() string
 }
