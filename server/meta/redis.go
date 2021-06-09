@@ -674,35 +674,6 @@ func (r *Redis) PushTask(task *Task) error {
 	return nil
 }
 
-//IsTaskInQueue returns task ID and true if a task is already in queue
-func (r *Redis) IsTaskInQueue(sourceID, collection string) (string, bool, error) {
-	conn := r.pool.Get()
-	defer conn.Close()
-
-	iter := 0
-	var taskID string
-	for {
-		values, err := redis.Values(conn.Do("ZSCAN", syncTasksPriorityQueueKey, iter, "MATCH", fmt.Sprintf("%s_%s_*", sourceID, collection)))
-		noticeError(err)
-		if err != nil {
-			return "", false, err
-		}
-
-		iter, _ = redis.Int(values[0], nil)
-		resultArr, _ := redis.Strings(values[1], nil)
-		if len(resultArr) > 0 {
-			taskID = resultArr[0]
-			break
-		}
-
-		if iter == 0 {
-			break
-		}
-	}
-
-	return taskID, len(taskID) > 0, nil
-}
-
 //GetProjectEventsWithGranularity returns project's events amount with time criteria by granularity
 func (r *Redis) GetProjectEventsWithGranularity(projectID string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
 	conn := r.pool.Get()

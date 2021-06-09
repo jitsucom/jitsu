@@ -15,6 +15,7 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"path"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -356,16 +357,18 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 	wg.Add(1)
 	safego.Run(func() {
 		defer wg.Done()
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Error("panic in singer task")
+				logging.Error(string(debug.Stack()))
+				s.logAndKill(taskLogger, syncCmd, r)
+				return
+			}
+		}()
+
 		parsingErr = singer.StreamParseOutput(stdout, portionConsumer, taskLogger)
 		if parsingErr != nil {
-			taskLogger.ERROR("Parse output error: %v. Process will be killed", parsingErr)
-			logging.Errorf("[%s_%s] parse output error: %v. Process will be killed", s.sourceID, s.tap, parsingErr)
-
-			killErr := syncCmd.Process.Kill()
-			if killErr != nil {
-				taskLogger.ERROR("Error killing process: %v", killErr)
-				logging.Errorf("[%s_%s] error killing process: %v", s.sourceID, s.tap, killErr)
-			}
+			s.logAndKill(taskLogger, syncCmd, parsingErr)
 		}
 	})
 
@@ -439,6 +442,17 @@ func (s *Singer) GetStreamTableNameMapping() map[string]string {
 	}
 
 	return result
+}
+
+func (s *Singer) logAndKill(taskLogger logging.TaskLogger, syncCmd *exec.Cmd, parsingErr interface{}) {
+	taskLogger.ERROR("Parse output error: %v. Process will be killed", parsingErr)
+	logging.Errorf("[%s_%s] parse output error: %v. Process will be killed", s.sourceID, s.tap, parsingErr)
+
+	killErr := syncCmd.Process.Kill()
+	if killErr != nil {
+		taskLogger.ERROR("Error killing process: %v", killErr)
+		logging.Errorf("[%s_%s] error killing process: %v", s.sourceID, s.tap, killErr)
+	}
 }
 
 //doDiscover discovers tap catalog and returns catalog and properties paths
