@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import * as logos  from './logos'
-import { stringType, isoUtcDateType, jsonType, booleanType } from '../types';
+import { stringType, isoUtcDateType, jsonType, booleanType, intType } from '../types';
 import { customParameters, SingerTap } from './helper';
 
 export const allSingerTaps: SingerTap[] = [
@@ -244,7 +244,7 @@ export const allSingerTaps: SingerTap[] = [
     tap: 'tap-adwords',
     stable: true,
     hasNativeEquivalent: false,
-    parameters: customParameters('tap-intercom', {
+    parameters: customParameters('tap-adwords', {
       customConfig: [
         {
           displayName: 'Developer Token',
@@ -295,7 +295,48 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'Google Sheets',
     tap: 'tap-google-sheets',
     stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: false,
+    parameters: customParameters('tap-google-sheets', {
+      customConfig: [
+        {
+          displayName: 'OAuth Client ID',
+          id: 'client_id',
+          type: stringType,
+          required: true
+        },
+        {
+          displayName: 'OAuth Client Secret',
+          id: 'client_secret',
+          type: stringType,
+          required: true
+        },
+        {
+          displayName: 'Refresh Token',
+          id: 'refresh_token',
+          type: stringType,
+          required: true
+        },
+        {
+          displayName: 'Google Spreadsheet ID',
+          id: 'spreadsheet_id',
+          type: stringType,
+          required: true
+        },
+        {
+          displayName: 'Start Date',
+          id: 'start_date',
+          type: isoUtcDateType,
+          defaultValue: '2018-01-01T00:00:00.000Z',
+          required: true
+        },
+        {
+          displayName: 'User Agent',
+          id: 'user_agent',
+          type: stringType,
+          constant: 'Jitsu Bot (https://jitsu.com)'
+        }
+      ]
+    })
   },
   {
     pic: logos.tap_harvest,
@@ -468,7 +509,62 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'Mixpanel',
     tap: 'tap-mixpanel',
     stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: false,
+    parameters: customParameters('tap-mixpanel', {
+      customConfig: [
+        {
+          displayName: 'API Secret',
+          id: 'api_secret',
+          required: true,
+          documentation: <>MixPanel API Secret. Obtain it in MixPanel UI project settings.</>
+        },
+        {
+          displayName: 'Date Window Size',
+          id: 'date_window_size',
+          type: intType,
+          required: true,
+          defaultValue: 30,
+          documentation: <>Number of days for date window looping through transactional endpoints with from_date and to_date. Clients with large volumes of events may want to decrease this to 14, 7, or even down to 1-2 days.</>
+        },
+        {
+          displayName: 'Attribution Window',
+          id: 'attribution_window',
+          type: intType,
+          required: true,
+          defaultValue: 5,
+          documentation: <>Latency minimum number of days to look-back to account for delays in attributing accurate results.</>
+        },
+        {
+          displayName: 'Project Timezone',
+          id: 'project_timezone',
+          type: stringType,
+          required: true,
+          defaultValue: 'UTC',
+          documentation: <>Time zone in which integer date times are stored. The project timezone may be found in the project settings in the Mixpanel console. <a href="https://help.mixpanel.com/hc/en-us/articles/115004547203-Manage-Timezones-for-Projects-in-Mixpanel">More info about timezones</a>.</>
+        },
+        {
+          displayName: 'Select properties by default',
+          id: 'select_properties_by_default',
+          type: booleanType,
+          defaultValue: true,
+          required: true,
+          documentation: <>Setting this config parameter to true ensures that new properties on events and engage records are captured. Otherwise new properties will be ignored.</>
+        },
+        {
+          displayName: 'Start Date',
+          id: 'start_date',
+          type: isoUtcDateType,
+          defaultValue: '2018-01-01T00:00:00.000Z',
+          required: true
+        },
+        {
+          displayName: 'User Agent',
+          id: 'user_agent',
+          type: stringType,
+          constant: 'Jitsu Bot (https://jitsu.com)'
+        }
+      ]
+    })
   },
   {
     pic: logos.tap_mysql,
