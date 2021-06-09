@@ -118,7 +118,7 @@ func (b *Bridge) EnsureTap(tap string) {
 
 //UpdateTap runs sync update singer tap and returns err if occurred
 func (b *Bridge) UpdateTap(tap string) error {
-	if b.installTaps {
+	if !b.installTaps {
 		return nil
 	}
 
