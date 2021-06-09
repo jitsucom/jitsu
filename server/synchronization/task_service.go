@@ -129,33 +129,16 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 	}
 	defer ts.monitorKeeper.Unlock(creationTaskLock)
 
-	locked, err := ts.monitorKeeper.IsLocked(sourceID, collection)
-	if err != nil {
-		return "", err
-	}
-
-	if locked {
-		//get last task
-		task, getTaskErr := ts.metaStorage.GetLastTask(sourceID, collection)
-		if getTaskErr != nil {
-			return "", fmt.Errorf("Collection sync task is in progress (unable to get last task: %v)", getTaskErr)
+	//get and check last task - if it has already been created
+	lastTask, getTaskErr := ts.metaStorage.GetLastTask(sourceID, collection)
+	if getTaskErr != nil {
+		if getTaskErr != meta.ErrTaskNotFound {
+			return "", fmt.Errorf("Unable to get last task: %v", getTaskErr)
 		}
-
-		if task.Status == RUNNING.String() {
-			return task.ID, ErrSourceCollectionIsSyncing
-		}
-
-		logging.SystemErrorf("Error sync source [%s] collection [%s]: locked and last task has wrong status: %s", sourceID, collection, task.Status)
-		return "", fmt.Errorf("Collection sync task is in progress (last task has wrong status: %s)", task.Status)
 	}
 
-	//check if in the queue
-	taskID, ok, err := ts.metaStorage.IsTaskInQueue(sourceID, collection)
-	if err != nil {
-		return "", fmt.Errorf("Unable to check if task is in the queue: %v", err)
-	}
-	if ok {
-		return taskID, ErrSourceCollectionIsSyncing
+	if lastTask != nil && lastTask.Status != FAILED.String() && lastTask.Status != SUCCESS.String() {
+		return lastTask.ID, ErrSourceCollectionIsSyncing
 	}
 
 	sourceUnit, err := ts.sourceService.GetSource(sourceID)
@@ -164,7 +147,7 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 	}
 
 	//check if collection exists
-	_, ok = sourceUnit.DriverPerCollection[collection]
+	_, ok := sourceUnit.DriverPerCollection[collection]
 	if !ok {
 		return "", fmt.Errorf("Collection with id [%s] wasn't found in source [%s]", collection, sourceID)
 	}
