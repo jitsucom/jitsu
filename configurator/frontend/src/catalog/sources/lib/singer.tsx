@@ -228,7 +228,7 @@ export const allSingerTaps: SingerTap[] = [
       ]
     }),
 
-    stable: false,
+    stable: true,
     hasNativeEquivalent: false
   },
   {
