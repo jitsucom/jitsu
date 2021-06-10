@@ -25,6 +25,8 @@ import BugIcon from '@./icons/bug';
 import styles from './ConfigurableFieldsForm.module.less';
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
+import { random } from 'lodash-es';
+import { randomId } from '@util/numbers';
 
 export interface Props {
   fieldsParamsList: Parameter[];
@@ -32,6 +34,12 @@ export interface Props {
   initialValues: any;
   namePrefix?: string;
   handleTouchAnyField: VoidFunc;
+}
+
+export const FormItemName = {
+  serialize: (id) => {
+    return id;
+  }
 }
 
 const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleTouchAnyField }: Props) => {
@@ -69,7 +77,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
     handleTouchField();
   };
 
-  const getInitialValue = useCallback((id: string, defaultValue: any, constantValue: any, type: string) => {
+  const getInitialValue = (id: string, defaultValue: any, constantValue: any, type: string) => {
     const initial = get(initialValues, id);
 
     if (initial) {
@@ -99,7 +107,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
         ''
       :
       calcValue;
-  }, [initialValues]);
+  };
 
   const getFieldComponent = useCallback((type: ParameterType<any>, id: string, defaultValue?: any, constantValue?: any) => {
     const fieldsValue = form.getFieldsValue();
@@ -211,10 +219,19 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
         fieldsParamsList.map((param: Parameter) => {
           const { id, documentation, displayName, type, defaultValue, required, constant } = param;
 
+          const currentFormValues = makeObjectFromFieldsValues(form.getFieldsValue() ?? {});
+          console.log('Current form values', currentFormValues)
           const constantValue = typeof param.constant === 'function' ?
-            param.constant?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {})) :
+            param.constant?.(currentFormValues) :
             param.constant;
           const isHidden = constantValue !== undefined;
+          const initialValue = getInitialValue(id, defaultValue, constantValue, type?.typeName);
+          console.log('Render param', param)
+          console.log('constantValue=', constantValue);
+          console.log('isHidden=', isHidden);
+          console.log('Initial value=', initialValue)
+          const formItemName = id;
+          console.log('name=', formItemName);
 
           return !isHidden ?
             (
@@ -222,8 +239,8 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
                 <Col span={24}>
                   <Form.Item
                     className={cn('form-field_fixed-label', styles.field, type?.typeName === 'json' && styles.jsonField)}
-                    initialValue={getInitialValue(id, defaultValue, constantValue, type?.typeName)}
-                    name={id}
+                    initialValue={initialValue}
+                    name={formItemName}
                     label={
                       documentation ?
                         <LabelWithTooltip documentation={documentation} render={displayName}/> :
@@ -237,7 +254,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
                         [{
                           required: typeof required === 'boolean' ?
                             required :
-                            required?.(makeObjectFromFieldsValues(form.getFieldsValue() ?? {})), message: `${displayName} field is required.`
+                            required?.(currentFormValues), message: `${displayName} field is required.`
                         }]
                     }
                   >
@@ -247,7 +264,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
               </Row>
             ) :
             <Form.Item
-              name={id}
+              name={formItemName}
               hidden={true}
               initialValue={constantValue}
             />;

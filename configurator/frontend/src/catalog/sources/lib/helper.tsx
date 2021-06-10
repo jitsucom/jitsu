@@ -128,6 +128,7 @@ export const makeSingerSource = (singerTap: SingerTap): SourceConnector => {
     displayName: singerTap.displayName,
     id: `singer-${singerTap.tap}`,
     collectionTypes: [],
+    documentation: singerTap.documentation,
     collectionParameters: [],
     configParameters: [
       {
