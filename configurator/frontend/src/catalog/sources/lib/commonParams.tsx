@@ -27,7 +27,7 @@ function removeNulls(arr: any[]) {
   return arr.filter(el => !!el);
 }
 
-export const googleAuthConfigParameters: (GoogleParametersNodes) => Parameter[] = ({
+export const googleAuthConfigParameters: (param?: GoogleParametersNodes) => Parameter[] = ({
   clientId = 'config.auth.client_id',
   clientSecret = 'config.auth.client_secret',
   refreshToken = 'config.auth.refresh_token',
@@ -35,7 +35,7 @@ export const googleAuthConfigParameters: (GoogleParametersNodes) => Parameter[] 
   disableOauth = false,
   disableServiceAccount = false,
   serviceAccountKey = 'config.auth.service_account_key'
-}: GoogleParametersNodes) => removeNulls([
+}: GoogleParametersNodes = {}) => removeNulls([
   {
     displayName: 'Authorization Type',
     id: type,
@@ -82,7 +82,7 @@ export const googleAuthConfigParameters: (GoogleParametersNodes) => Parameter[] 
     displayName: 'Auth (Service account key JSON)',
     id: serviceAccountKey,
     type: jsonType,
-    constant: (config) => resolve(config, type) !== 'Service Account' ? '' : undefined,
+    constant: (config) => resolve(config, type) !== 'Service Account' ? {} : undefined,
     required: true,
     documentation:
       <>

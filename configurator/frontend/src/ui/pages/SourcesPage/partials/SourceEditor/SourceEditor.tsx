@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, Redirect, useHistory, useParams } from 'react-router-dom';
-import { Form, message } from 'antd';
+import { Button, Drawer, Form, message } from 'antd';
 import cn from 'classnames';
 import snakeCase from 'lodash/snakeCase';
 // @Page
@@ -32,6 +32,7 @@ import { closeableMessage, handleError } from '@./lib/components/components';
 import { firstToLower } from '@./lib/commons/utils';
 // @Styles
 import styles from './SourceEditor.module.less';
+import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
 
 export type SourceTabKey = 'config' | 'collections' | 'destinations';
 
@@ -51,6 +52,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
 
   const [activeTabKey, setActiveTabKey] = useState<SourceTabKey>('config');
+
+  const [documentationVisible, setDocumentationVisible] = useState(false);
 
   const connectorSource = useMemo<SourceConnector>(
     () => {
@@ -246,10 +249,15 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         <div className={cn('flex-grow')}>
           <TabsConfigurator
             type="card"
-            className={styles.tabCard}
+            className={cn(styles.tabCard)}
             tabsList={sourcesTabs.current}
             activeTabKey={activeTabKey}
             onTabChange={setActiveTabKey}
+            tabBarExtraContent={connectorSource?.documentation &&
+            <Button type="link" icon={<QuestionCircleOutlined />}
+              onClick={() => setDocumentationVisible(true)}>
+              Documentation
+            </Button>}
           />
         </div>
 
@@ -277,6 +285,15 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       </div>
 
       <Prompt message={sourcePageUtils.getPromptMessage(sourcesTabs.current)}/>
+
+      {connectorSource?.documentation && <Drawer
+        title={<h2>{connectorSource.displayName} documentation</h2>}
+        placement="right"
+        closable={true}
+        onClose={() => setDocumentationVisible(false)}
+        width="70%"
+        visible={documentationVisible}
+      ><div className={styles.documentation}>{connectorSource?.documentation}</div></Drawer>}
     </>
   );
 };

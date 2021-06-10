@@ -1,6 +1,6 @@
 # Compose for setting up local dev environment. For developing UI. This includes:
 #    - Configurator
-#    - Postgres and Clickhouse (optional; todo) to test destinations configurations
+#    - Postgres to test destinations configurations
 # Configurator is started at localhost:9875
 # Run UI with BACKEND_API_BASE=http://localhost:9875 to use local backend
 
@@ -9,6 +9,15 @@ networks:
   main:
 
 services:
+  db:
+    image: postgres
+    volumes:
+      - ./ui-dev-compose/configurator/postgres/data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
   configurator:
     container_name: jitsu_configurator
     build:
