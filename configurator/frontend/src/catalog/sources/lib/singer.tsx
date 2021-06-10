@@ -2,6 +2,12 @@ import { ReactNode } from 'react';
 import * as logos  from './logos'
 import { stringType, isoUtcDateType, jsonType, booleanType, intType } from '../types';
 import { customParameters, SingerTap } from './helper';
+import {
+  getEnableGoogleAPIDocumentation,
+  getOauthCliDocumentation,
+  googleOAuthDocumentation
+} from '@catalog/sources/lib/documentation';
+import * as React from 'react';
 
 export const allSingerTaps: SingerTap[] = [
   {
@@ -336,7 +342,13 @@ export const allSingerTaps: SingerTap[] = [
           constant: 'Jitsu Bot (https://jitsu.com)'
         }
       ]
-    })
+    }),
+    documentation: <>
+      {'The Google Sheets Connector pulls data from a single Google Spreadsheet. This connector uses'} <a href="https://github.com/singer-io/tap-google-sheets">Singer Tap</a> {'.'}
+      {googleOAuthDocumentation}
+      {getOauthCliDocumentation('https://www.googleapis.com/auth/drive.metadata.readonly', 'https://www.googleapis.com/auth/spreadsheets.readonly')}
+      {getEnableGoogleAPIDocumentation('Google Sheets API', 'Google Drive API')}
+    </>
   },
   {
     pic: logos.tap_harvest,
