@@ -10,7 +10,7 @@ import {Hint} from "../../../components/documentationComponents";
 | :--- | :--- | :--- |
 | **event1** | 1 |  |
 | **event2** | 1 |  |
-| **event2** | 1 | a@b.com |
+| **event3** | 1 | a@b.com |
 | **event4** | 1 | a@b.com |
 
 Right after **event3** **Jitsu** amends **event1** and **event2** and adds email=[a@b.com](mailto:a@b.com). As a result, there will be the following events in DWH:
@@ -19,7 +19,7 @@ Right after **event3** **Jitsu** amends **event1** and **event2** and adds email
 | :--- | :--- | :--- |
 | **event1** | 1 | **a@b.com** |
 | **event2** | 1 | **a@b.com** |
-| **event2** | 1 | a@b.com |
+| **event3** | 1 | a@b.com |
 | **event4** | 1 | a@b.com |
 
 <Hint>
@@ -32,10 +32,10 @@ In case if Retrospective Users Recognition feature is enabled - all incoming ano
 Events are saved under Redis key that contains user anonymous ID. Once any event with filled `identification_nodes` is received (identification event) - Jitsu updates these events in Data Warehouse and removes them from Redis.
 
 <Hint>
-    Redis can take up a significant amount of RAM. It can be reduced by adding <code inline="true">ttl_minutes.anonymous_events</code> to <code inline="true">meta.storage</code> configuration (see below). 
+    Redis can take up a significant amount of RAM. It can be reduced by adding <code inline="true">ttl_minutes.anonymous_events</code> to <code inline="true">meta.storage</code> configuration (see below).
     TTL (time to live) is applied to Redis keys. It means that events from anonymous users that no longer visit your web pages will be deleted from Redis at the expiration time.
 </Hint>
- 
+
 There is an approximate formula for RAM size prediction:
 
 ```text
@@ -69,16 +69,16 @@ destinations:
       ...
     data_layout:
       primary_key_fields: #Required for Postgres, Redshift users recognition feature
-        - eventn_ctx_event_id  
+        - eventn_ctx_event_id
     #override global configuration completely (all fields)
     #omit this for applying global configuration
     users_recognition: #Optional
       enabled: true #set false for disabling
       anonymous_id_node: /user/anonymous_id #Required if enabled
-      identification_nodes: #Required if enabled 
+      identification_nodes: #Required if enabled
         - /user/internal_id
         - /user/email
-      
+
 meta:
   storage:
     redis:
@@ -87,14 +87,14 @@ meta:
       password: secret_password
       ttl_minutes: #Optional. Anonymous events TTL in minutes. Default value: no TTL
         anonymous_events: 10080 #7 days
- 
+
 #Global configuration is applied to all destinations
 #Example of compatible JS SDK 2.0 format
 #For using with old format - just configure enabled flag:
 #users_recognition:
 #  enabled: true
 users_recognition:
-  enabled: true #Disabled by default.      
+  enabled: true #Disabled by default.
   anonymous_id_node: /user/anonymous_id #Optional. Default value: /eventn_ctx/user/anonymous_id||/user/anonymous_id
   identification_nodes: #Optional. Default value: /eventn_ctx/user/internal_id||/user/internal_id
     - /user/internal_id
