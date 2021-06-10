@@ -103,7 +103,10 @@ export interface SingerTap {
      * default singer params
      */
     parameters?: Parameter[]
-
+    /**
+     * API Connector documentation
+     */
+    documentation?: ReactNode
 }
 
 /**

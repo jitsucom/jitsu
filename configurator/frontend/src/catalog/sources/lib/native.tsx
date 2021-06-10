@@ -1,5 +1,9 @@
 import { intType, jsonType, passwordType, selectionType, SourceConnector, stringType } from '@catalog/sources/types';
 import * as React from 'react';
+import {
+  getEnableGoogleAPIDocumentation,
+  googleServiceAccountJSONDocumentation
+} from '@catalog/sources/lib/documentation';
 
 const googleAuthConfigParameters = [
   {
@@ -241,7 +245,19 @@ export const googleAnalytics: SourceConnector = {
           </>
     },
     ...googleAuthConfigParameters
-  ]
+  ],
+  documentation: <>
+    {'The Google Analytics Connector pulls data from Google Analytics account.'}
+    {googleServiceAccountJSONDocumentation}
+    {getEnableGoogleAPIDocumentation('Google Analytics Reporting API')}
+    {'Give Google Analytics permissions to your Service Account:'}
+    <ul>
+      <li>Get email from created Google Service Account JSON (it looks like name@PROJECT_ID.iam.gserviceaccount.com)</li>
+      <li>Sign in to the Google Account you are using for managing Google Analytics (you must have Manage Users permission at the account, property, or view level)</li>
+      <li><a href="https://support.google.com/analytics/answer/1009702">Add user</a> with the email from previous step to Google Analytics view to pull data</li>
+      <li>Give Read & Analyze permissions to the user</li>
+    </ul>
+  </>
 }
 
 export const googlePlay: SourceConnector = {
