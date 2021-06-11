@@ -1,6 +1,6 @@
 import { Destination } from '../types';
 import { modeParameter, tableName } from './common';
-import { intType, stringType, passwordType } from '../../sources/types';
+import { intType, stringType, passwordType, booleanType } from '../../sources/types';
 
 const icon = <svg viewBox="0 0 25.6 25.6" xmlns="http://www.w3.org/2000/svg">
   <g fill="none" stroke="#fff">
@@ -90,6 +90,16 @@ const postgresDestination: Destination = {
       displayName: 'Password',
       required: true,
       type: passwordType
+    },
+    {
+      id: '_formData.pgdisablessl',
+      displayName: 'Disable SSL',
+      required: true,
+      type: booleanType,
+      defaultValue: false,
+      documentation: <>
+        All connections to Postgres will be unsecured (non-SSL). We do not recommend to disable SSL. Disabled SSL can be used with Postgres that is installed on the local machine.
+      </>
     }
   ]
 
