@@ -1,7 +1,12 @@
-import { ReactNode } from 'react';
-import * as logos  from './logos'
-import { stringType, isoUtcDateType, jsonType, booleanType, intType } from '../types';
+import * as React from 'react';
+import * as logos from './logos'
+import { booleanType, dashDateType, intType, isoUtcDateType, stringType } from '../types';
 import { customParameters, SingerTap } from './helper';
+import {
+  getEnableGoogleAPIDocumentation,
+  getOauthCliDocumentation,
+  googleOAuthDocumentation
+} from '@catalog/sources/lib/documentation';
 
 export const allSingerTaps: SingerTap[] = [
   {
@@ -228,8 +233,28 @@ export const allSingerTaps: SingerTap[] = [
       ]
     }),
 
-    stable: false,
-    hasNativeEquivalent: false
+    stable: true,
+    hasNativeEquivalent: false,
+    documentation: <>
+      {'The GitHub Connector pulls the following data from a single GitHub repository using'} <a href="https://developer.github.com/v3/">GitHub REST API</a> {':'}
+      <ul>
+        <li><a href="https://developer.github.com/v3/issues/assignees/#list-assignees">Assignees</a></li>
+        <li><a href="https://developer.github.com/v3/repos/collaborators/#list-collaborators">Collaborators</a></li>
+        <li><a href="https://developer.github.com/v3/repos/commits/#list-commits-on-a-repository">Commits</a></li>
+        <li><a href="https://developer.github.com/v3/issues/#list-issues-for-a-repository">Issues</a></li>
+        <li><a href="https://developer.github.com/v3/pulls/#list-pull-requests">Pull Requests</a></li>
+        <li><a href="https://developer.github.com/v3/issues/comments/#list-comments-in-a-repository">Comments</a></li>
+        <li><a href="https://developer.github.com/v3/pulls/reviews/#list-reviews-on-a-pull-request">Reviews</a></li>
+        <li><a href="https://developer.github.com/v3/pulls/comments/">Review Comments</a></li>
+        <li><a href="https://developer.github.com/v3/activity/starring/#list-stargazers">Stargazers</a></li>
+      </ul>
+      <h3>Getting Started</h3>
+      <ul>
+        <li>Go to the <a href="https://github.com/settings/tokens">GitHub tokens</a> page</li>
+        <li>Create a new token with at least "repo" scope.</li>
+        <li>Save created token. It is used as Access Token in Jitsu UI</li>
+      </ul>
+    </>
   },
   {
     pic: logos.tap_gitlab,
@@ -336,7 +361,13 @@ export const allSingerTaps: SingerTap[] = [
           constant: 'Jitsu Bot (https://jitsu.com)'
         }
       ]
-    })
+    }),
+    documentation: <>
+      {'The Google Sheets Connector pulls data from a single Google Spreadsheet (that can contain multiple pages).'}
+      {googleOAuthDocumentation}
+      {getOauthCliDocumentation('https://www.googleapis.com/auth/drive.metadata.readonly', 'https://www.googleapis.com/auth/spreadsheets.readonly')}
+      {getEnableGoogleAPIDocumentation('Google Sheets API', 'Google Drive API')}
+    </>
   },
   {
     pic: logos.tap_harvest,
@@ -394,7 +425,7 @@ export const allSingerTaps: SingerTap[] = [
           type: stringType,
           required: true,
           documentation: <>
-                        Intercom API Access Token. <a href="https://developers.intercom.com/building-apps/docs/authentication-types#section-access-tokens">Read how to get it</a>
+            Intercom API Access Token. <a href="https://developers.intercom.com/building-apps/docs/authentication-types#section-access-tokens">Read how to get it</a>
           </>
         },
         {
@@ -411,7 +442,34 @@ export const allSingerTaps: SingerTap[] = [
           constant: 'Jitsu Bot (https://jitsu.com)'
         }
       ]
-    })
+    }),
+    documentation: <>
+      {'The Intercom Connector pulls the following data via Intercom App from '} <a href="https://developers.intercom.com/intercom-api-reference/v2.0/reference">Intercom v2.0 API</a> {':'}
+      <ul>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-admins">Admins</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-companies">Companies</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-conversations">Conversations</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#get-a-single-conversation">Conversation Parts</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#data-attributes">Data Attributes</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-customer-data-attributes">Customer Attributes</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-company-data-attributes">Company Attributes</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-leads">Leads</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-segments">Segments</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-segments">Company Segments</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-tags-for-an-app">Tags</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-teams">Teams</a></li>
+        <li><a href="https://developers.intercom.com/intercom-api-reference/reference#list-users">Users</a></li>
+      </ul>
+      <h3>Getting Started</h3>
+      <ul>
+        <li>Go to the <a href="https://app.intercom.com/a/developer-signup">Intercom Apps</a> page</li>
+        <li>Click "New app"</li>
+        <li>Select a clear name e.g. "Jitsu Connector"</li>
+        <li>Select "Internal integration"</li>
+        <li>Click "Create app"</li>
+        <li>Go to the "Configure" tab and save Access Token value from "Authentication" section. It is used as API Access Token in Jitsu UI</li>
+      </ul>
+    </>
   },
   {
     pic: logos.tap_invoiced,
@@ -564,7 +622,24 @@ export const allSingerTaps: SingerTap[] = [
           constant: 'Jitsu Bot (https://jitsu.com)'
         }
       ]
-    })
+    }),
+    documentation: <>
+      {'The MixPanel Connector pulls the following data from '} <a href="https://mixpanel.com">MixPanel</a> {':'}
+      <ul>
+        <li><a href="https://developer.mixpanel.com/docs/exporting-raw-data#section-export-api-reference">Export (Events)</a></li>
+        <li><a href="https://developer.mixpanel.com/docs/data-export-api#section-engage">Engage (People/Users)</a></li>
+        <li><a href="https://developer.mixpanel.com/docs/data-export-api#section-funnels">Funnels</a></li>
+        <li><a href="https://developer.mixpanel.com/docs/data-export-api#section-annotations">Annotations</a></li>
+        <li><a href="https://developer.mixpanel.com/docs/cohorts#section-list-cohorts">Cohorts</a></li>
+        <li><a href="https://developer.mixpanel.com/docs/data-export-api#section-engage">Cohort Members</a></li>
+        <li><a href="https://developer.mixpanel.com/docs/data-export-api#section-hr-span-style-font-family-courier-revenue-span">Revenue</a></li>
+      </ul>
+      <h3>Getting Started</h3>
+      <ul>
+        <li>Go to the <a href="https://mixpanel.com/report">MixPanel Project settings</a> page</li>
+        <li>Save API Secret value from "Access Keys" section of Overview tab. It is used as API Secret in Jitsu UI</li>
+      </ul>
+    </>
   },
   {
     pic: logos.tap_mysql,
@@ -746,7 +821,51 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'Shopify',
     tap: 'tap-shopify',
     stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: false,
+    parameters: customParameters('tap-shopify', {
+      customConfig: [
+        {
+          displayName: 'API Key',
+          id: 'api_key',
+          type: stringType,
+          required: true,
+          documentation: <>
+            Read more about <a href="https://shopify.dev/tutorials/generate-api-credentials">How to obtain API Key</a>
+          </>
+        },
+        {
+          displayName: 'Start Date',
+          id: 'start_date',
+          required: true,
+          type: dashDateType,
+          defaultValue: '2018-01-01'
+        },
+        {
+          displayName: 'Shop',
+          id: 'shop',
+          type: stringType,
+          required: true,
+          documentation: <>
+            Name of your Shopify shop from URL: https://{'<YOUR_SHOP_NAME>'}.myshopify.com
+          </>
+        }
+      ]
+    }),
+    documentation: <>
+      {'The Shopify Connector pulls the following data from'} <a href="https://help.shopify.com/en/api/reference">Shopify API</a> {':'}
+      <ul>
+        <li><a href="https://help.shopify.com/en/api/reference/orders/abandoned_checkouts">Abandoned Checkouts</a></li>
+        <li><a href="https://help.shopify.com/en/api/reference/products/collect">Collects</a></li>
+        <li><a href="https://help.shopify.com/en/api/reference/products/customcollection">Custom Collections</a></li>
+        <li><a href="https://help.shopify.com/en/api/reference/customers">Customers</a></li>
+        <li><a href="https://help.shopify.com/en/api/reference/metafield">Metafields</a></li>
+        <li><a href="https://help.shopify.com/en/api/reference/orders">Orders</a></li>
+        <li><a href="https://help.shopify.com/en/api/reference/products">Products</a></li>
+        <li><a href="https://help.shopify.com/en/api/reference/orders/transaction">Transactions</a></li>
+      </ul>
+      <h3>Getting Started</h3>
+      {'For using Shopify Connector you should obtain API Key. Read more about '} <a href="https://shopify.dev/tutorials/generate-api-credentials">How to obtain API Key</a>
+    </>
   },
   {
     pic: logos.tap_slack,
@@ -794,7 +913,30 @@ export const allSingerTaps: SingerTap[] = [
           defaultValue: false
         }
       ]
-    })
+    }),
+    documentation: <>
+      {'The Slack Connector pulls the following data via Slack App (Slack bot) from'} <a href="https://api.slack.com/">Slack API</a> {':'}
+      <ul>
+        <li><a href="https://api.slack.com/methods/conversations.list">Channels</a></li>
+        <li><a href="https://api.slack.com/methods/conversations.members">Channel Members</a></li>
+        <li><a href="https://api.slack.com/methods/users.list">Users</a></li>
+        <li><a href="https://api.slack.com/methods/conversations.replies">Threads (Channel replies)</a></li>
+        <li><a href="https://api.slack.com/methods/usergroups.list">User Groups</a></li>
+        <li><a href="https://api.slack.com/methods/files.list">Files</a></li>
+        <li><a href="https://api.slack.com/methods/files.remote.list">Remote Files</a></li>
+      </ul>
+      {'Slack app can gather data only if it has joined channel. You can add your bot to certain channels or select Join Channels option in Jitsu UI for auto-joining in all channels.'}
+      <h3>Getting Started</h3>
+      <ul>
+        <li>Go to the <a href="https://api.slack.com/apps?new_app=1">creating Slack Apps</a> page</li>
+        <li>Choose clear app name (e.g. "Jitsu Sync") and select Slack workspace to download data from</li>
+        <li>Go to the "OAuth & Permissions" page of created Slack app</li>
+        <li>Add the following Bot Token <a href="https://api.slack.com/docs/oauth-scopes">Scopes</a>:
+          channels:history, channels:join, channels:read, files:read, groups:read, reactions:read, remote_files:read, team:read, usergroups:read, users.profile:read, users:read, users:read.email</li>
+        <li>Click "Install to Workspace" in the top of of the OAuth & Permissions page and click "Confirm"</li>
+        <li>Save Bot User OAuth Token. It is used as Access Token in Jitsu UI</li>
+      </ul>
+    </>
   },
   // {
   //     pic: logos.tap_square,

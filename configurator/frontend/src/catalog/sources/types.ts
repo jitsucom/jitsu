@@ -205,6 +205,10 @@ export interface SourceConnector {
    * Collection templates
    */
   collectionTemplates?: CollectionTemplate[]
+  /**
+   * API Connector documentation
+   */
+  documentation?: ReactNode
 
 }
 
