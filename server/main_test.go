@@ -357,6 +357,15 @@ func TestEventEndpoint(t *testing.T) {
 			http.StatusOK,
 			"",
 		},
+		{
+			"Mobile API events with template",
+			"/api/v1/event",
+			"test_data/mobile_events_template_input.json",
+			"test_data/mobile_facts_template_output.json",
+			"c2stoken",
+			http.StatusOK,
+			"",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {

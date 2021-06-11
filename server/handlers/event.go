@@ -13,6 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"io/ioutil"
@@ -245,7 +246,7 @@ func parseTemplateEvents(event events.Event) ([]events.Event, bool) {
 		return nil, false
 	}
 
-	partialEvents, ok := partialEventsIface.([]map[string]interface{})
+	partialEventsIfaces, ok := partialEventsIface.([]interface{})
 	if !ok {
 		return nil, false
 	}
@@ -256,9 +257,20 @@ func parseTemplateEvents(event events.Event) ([]events.Event, bool) {
 	}
 
 	var completeEvents []events.Event
-	for _, partialEvent := range partialEvents {
+	for _, partialEventIface := range partialEventsIfaces {
+		partialEvent, ok := partialEventIface.(map[string]interface{})
+		if !ok {
+			return nil, false
+		}
+
 		for k, v := range eventTemplate {
-			partialEvent[k] = v
+			vMap, ok := v.(map[string]interface{})
+			if ok {
+				//prevent maps with the same pointer in different events
+				partialEvent[k] = maputils.CopyMap(vMap)
+			} else {
+				partialEvent[k] = v
+			}
 		}
 
 		completeEvents = append(completeEvents, partialEvent)
