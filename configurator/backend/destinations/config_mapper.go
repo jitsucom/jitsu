@@ -116,6 +116,11 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 		return nil, fmt.Errorf("Error unmarshaling postgres form data: %v", err)
 	}
 
+	var parameters map[string]string
+	if pgFormData.DisableSSL {
+		parameters = map[string]string{"sslmode": "disable"}
+	}
+
 	return &enstorages.DestinationConfig{
 		Type: enstorages.PostgresType,
 		Mode: pgFormData.Mode,
@@ -124,12 +129,13 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 			PrimaryKeyFields:  pgFormData.PKFields,
 		},
 		DataSource: &enadapters.DataSourceConfig{
-			Host:     pgFormData.Host,
-			Port:     pgFormData.Port,
-			Db:       pgFormData.Db,
-			Schema:   pgFormData.Schema,
-			Username: pgFormData.Username,
-			Password: pgFormData.Password,
+			Host:       pgFormData.Host,
+			Port:       pgFormData.Port,
+			Db:         pgFormData.Db,
+			Schema:     pgFormData.Schema,
+			Username:   pgFormData.Username,
+			Password:   pgFormData.Password,
+			Parameters: parameters,
 		},
 	}, nil
 }
