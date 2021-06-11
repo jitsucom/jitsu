@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
 	"io/ioutil"
@@ -238,7 +239,7 @@ func TestCors(t *testing.T) {
 				optReq.Header.Add("Origin", tt.ReqOrigin)
 			}
 			if tt.XAuthToken != "" {
-				optReq.Header.Add("X-Auth-Token", tt.XAuthToken)
+				optReq.Header.Add(middleware.TokenHeaderName, tt.XAuthToken)
 			}
 			optResp, err := http.DefaultClient.Do(optReq)
 			require.NoError(t, err)
@@ -251,7 +252,7 @@ func TestCors(t *testing.T) {
 	}
 }
 
-func TestAPIEvent(t *testing.T) {
+func TestEventEndpoint(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
 
@@ -309,7 +310,7 @@ func TestAPIEvent(t *testing.T) {
 			"",
 			"s2stoken",
 			http.StatusBadRequest,
-			`{"message":"Failed to parse body: invalid character 'a' looking for beginning of object key string","error":""}`,
+			`{"message":"Error parsing events body: error parsing HTTP body: invalid character 'a' looking for beginning of object key string","error":""}`,
 		},
 		{
 			"Randomized c2s endpoint 1.0",
@@ -335,6 +336,24 @@ func TestAPIEvent(t *testing.T) {
 			"test_data/api_event_input_2.0.json",
 			"test_data/api_fact_output_2.0.json",
 			"s2stoken",
+			http.StatusOK,
+			"",
+		},
+		{
+			"Mobile API single event",
+			"/api/v1/event",
+			"test_data/mobile_event_input.json",
+			"test_data/mobile_fact_output.json",
+			"c2stoken",
+			http.StatusOK,
+			"",
+		},
+		{
+			"Mobile API events array",
+			"/api/v1/event",
+			"test_data/mobile_events_array_input.json",
+			"test_data/mobile_facts_array_output.json",
+			"c2stoken",
 			http.StatusOK,
 			"",
 		},
@@ -393,7 +412,7 @@ func TestAPIEvent(t *testing.T) {
 			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+tt.ReqUrn, bytes.NewBuffer(b))
 			require.NoError(t, err)
 			if tt.XAuthToken != "" {
-				apiReq.Header.Add("x-auth-token", tt.XAuthToken)
+				apiReq.Header.Add(middleware.TokenHeaderName, tt.XAuthToken)
 			}
 			apiReq.Header.Add("x-real-ip", "95.82.232.185")
 			resp, err = http.DefaultClient.Do(apiReq)
@@ -416,12 +435,28 @@ func TestAPIEvent(t *testing.T) {
 				require.Equal(t, `{"status":"ok"}`, string(b))
 
 				time.Sleep(200 * time.Millisecond)
-				data := logging.InstanceMock.Data
-				require.Equal(t, 1, len(data))
 
-				fBytes, err := ioutil.ReadFile(tt.ExpectedJSONPath)
+				expectedAllBytes, err := ioutil.ReadFile(tt.ExpectedJSONPath)
 				require.NoError(t, err)
-				test.JSONBytesEqual(t, fBytes, data[0], "Logged facts aren't equal")
+
+				actualBytes := logging.InstanceMock.Data
+
+				if expectedAllBytes[0] == '{' {
+					require.Equal(t, 1, len(actualBytes))
+					test.JSONBytesEqual(t, expectedAllBytes, actualBytes[0], "Logged facts aren't equal")
+				} else {
+					//array
+					expectedEvents := []interface{}{}
+					require.NoError(t, json.Unmarshal(expectedAllBytes, &expectedEvents))
+
+					require.Equal(t, len(expectedEvents), len(actualBytes), "Logged facts count isn't equal with actual one")
+					for i, expected := range expectedEvents {
+						actualEvent := actualBytes[i]
+						expectedBytes, err := json.Marshal(expected)
+						require.NoError(t, err)
+						test.JSONBytesEqual(t, expectedBytes, actualEvent, "Logged facts aren't equal")
+					}
+				}
 			}
 		})
 	}

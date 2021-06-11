@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -13,6 +15,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -56,10 +59,10 @@ func NewEventHandler(destinationService *destinations.Service, processor events.
 
 //PostHandler accepts all events according to token
 func (eh *EventHandler) PostHandler(c *gin.Context) {
-	payload := events.Event{}
-	if err := c.BindJSON(&payload); err != nil {
-		logging.Errorf("Error parsing event body: %v", err)
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
+	eventsArray, err := parseEventsBody(c)
+	if err != nil {
+		msg := fmt.Sprintf("Error parsing events body: %v", err)
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(msg, nil))
 		return
 	}
 
@@ -74,52 +77,56 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	destinationStorages := eh.destinationService.GetDestinations(tokenID)
 	if len(destinationStorages) == 0 {
 		noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
-		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
+		reqBody, _ := json.Marshal(eventsArray)
+		logging.Warnf("%s. Event: %s", noConsumerMessage, string(reqBody))
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(noConsumerMessage, nil))
 		return
 	}
 
-	//** Context enrichment **
-	//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
-	enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.processor, destinationStorages[0].GetUniqueIDField())
+	for _, payload := range eventsArray {
+		//** Context enrichment **
+		//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
+		enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.processor, destinationStorages[0].GetUniqueIDField())
 
-	//** Caching **
-	//clone payload for preventing concurrent changes while serialization
-	cachingEvent := payload.Clone()
+		//** Caching **
+		//clone payload for preventing concurrent changes while serialization
+		cachingEvent := payload.Clone()
 
-	//Persisted cache
-	//extract unique identifier
-	eventID := destinationStorages[0].GetUniqueIDField().Extract(payload)
-	if eventID == "" {
-		logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.Serialize())
+		//Persisted cache
+		//extract unique identifier
+		eventID := destinationStorages[0].GetUniqueIDField().Extract(payload)
+		if eventID == "" {
+			logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.Serialize())
+		}
+		var destinationIDs []string
+		for _, destinationProxy := range destinationStorages {
+			destinationIDs = append(destinationIDs, destinationProxy.ID())
+			eh.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, cachingEvent)
+		}
+
+		//** Multiplexing **
+		consumers := eh.destinationService.GetConsumers(tokenID)
+		if len(consumers) == 0 {
+			noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
+			logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse(noConsumerMessage, nil))
+			return
+		}
+
+		for _, consumer := range consumers {
+			consumer.Consume(payload, tokenID)
+		}
+
+		//Retrospective users recognition
+		eh.processor.Postprocess(payload, eventID, destinationIDs)
+
+		counters.SuccessSourceEvents(tokenID, 1)
 	}
-	var destinationIDs []string
-	for _, destinationProxy := range destinationStorages {
-		destinationIDs = append(destinationIDs, destinationProxy.ID())
-		eh.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, cachingEvent)
-	}
-
-	//** Multiplexing **
-	consumers := eh.destinationService.GetConsumers(tokenID)
-	if len(consumers) == 0 {
-		noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
-		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(noConsumerMessage, nil))
-		return
-	}
-
-	for _, consumer := range consumers {
-		consumer.Consume(payload, tokenID)
-	}
-
-	//Retrospective users recognition
-	eh.processor.Postprocess(payload, eventID, destinationIDs)
-
-	counters.SuccessSourceEvents(tokenID, 1)
 
 	c.JSON(http.StatusOK, middleware.OKResponse())
 }
 
+//GetHandler returns cached events by destination_ids
 func (eh *EventHandler) GetHandler(c *gin.Context) {
 	var err error
 	destinationIDs, ok := c.GetQuery("destination_ids")
@@ -183,4 +190,79 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+func parseEventsBody(c *gin.Context) ([]events.Event, error) {
+	body, err := ioutil.ReadAll(c.Request.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading HTTP body: %v", err)
+	}
+
+	if len(body) == 0 {
+		return nil, errors.New("empty JSON body")
+	}
+
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.UseNumber()
+
+	switch body[0] {
+	case '{':
+		event := events.Event{}
+		if err := decoder.Decode(&event); err != nil {
+			return nil, fmt.Errorf("error parsing HTTP body: %v", err)
+		}
+
+		eventsArray, ok := parseTemplateEvents(event)
+		if ok {
+			return eventsArray, nil
+		}
+
+		return []events.Event{event}, nil
+	case '[':
+		inputEvents := []events.Event{}
+		if err := decoder.Decode(&inputEvents); err != nil {
+			return nil, fmt.Errorf("error parsing HTTP body: %v", err)
+		}
+
+		return inputEvents, nil
+	default:
+		return nil, fmt.Errorf("malformed JSON body begins with: %q", string(body[0]))
+	}
+}
+
+//parseTemplateEvents parse
+// {template : {}, events: [{},{}]} structure
+//return false if event doesn't have this structure
+func parseTemplateEvents(event events.Event) ([]events.Event, bool) {
+	//check 'template' and 'events' in event
+	eventTemplateIface, ok := event["template"]
+	if !ok {
+		return nil, false
+	}
+
+	partialEventsIface, ok := event["events"]
+	if !ok {
+		return nil, false
+	}
+
+	partialEvents, ok := partialEventsIface.([]map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+
+	eventTemplate, ok := eventTemplateIface.(map[string]interface{})
+	if !ok {
+		return nil, false
+	}
+
+	var completeEvents []events.Event
+	for _, partialEvent := range partialEvents {
+		for k, v := range eventTemplate {
+			partialEvent[k] = v
+		}
+
+		completeEvents = append(completeEvents, partialEvent)
+	}
+
+	return completeEvents, true
 }
