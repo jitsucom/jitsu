@@ -1,8 +1,9 @@
 // @Libs
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Col, Form, Input, Modal, Row, Select, Switch, Tooltip } from 'antd';
 import debounce from 'lodash/debounce';
 import get from 'lodash/get';
+import set from 'lodash/set';
 import cn from 'classnames';
 // @Components
 import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
@@ -98,30 +99,34 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
           :
           '';
 
-    return type === 'json'
-      ?
-      Object.keys(calcValue).length > 0
-        ?
-        JSON.stringify(calcValue)
-        :
-        ''
-      :
-      calcValue;
+    return type === 'json' ? JSON.stringify(calcValue) : calcValue
   };
+  useEffect(() => {
+    //First pass - fill fixed parameter (not const and not defined by function)
+    let formValues = {}
+    fieldsParamsList.forEach((param: Parameter) => {
+      if (typeof param.constant !== 'function') {
+        const initialValue = getInitialValue(param.id, param.defaultValue, param.constant, param.type?.typeName);
+        formValues[param.id] = initialValue;
+      }
+    });
+    //second pass - fill dynamic values
+    fieldsParamsList.forEach((param: Parameter) => {
+      if (typeof param.constant === 'function') {
+        const constantVal = param.constant(makeObjectFromFieldsValues(formValues));
+        const initialValue = getInitialValue(param.id, param.defaultValue, constantVal, param.type?.typeName);
+        formValues[param.id] = initialValue;
+      }
+    });
+    form.setFieldsValue(formValues);
+  }, [fieldsParamsList, form, initialValues])
 
   const getFieldComponent = useCallback((type: ParameterType<any>, id: string, defaultValue?: any, constantValue?: any) => {
     const fieldsValue = form.getFieldsValue();
 
     switch (type?.typeName) {
     case 'password':
-      return <Input.Password
-        autoComplete="off"
-        iconRender={visible => visible
-          ?
-          <EyeTwoTone/>
-          :
-          <EyeInvisibleOutlined/>}
-      />;
+      return <Input.Password autoComplete="off" iconRender={visible => visible ? <EyeTwoTone/> : <EyeInvisibleOutlined/>}/>;
 
     case 'int':
       return <Input autoComplete="off" onChange={handleChangeIntInput(id)}/>;
@@ -153,13 +158,9 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
     default:
       return <Input
         autoComplete="off"
-        suffix={
-          id === '_formData.tableName' ?
-            <Tooltip title="Debug expression">
-              <span><BugIcon className={styles.bugIcon} onClick={() => switchTableNameModal(true)}/></span>
-            </Tooltip> :
-            undefined
-        }
+        suffix={id === '_formData.tableName' && <Tooltip title="Debug expression">
+          <span><BugIcon className={styles.bugIcon} onClick={() => switchTableNameModal(true)}/></span>
+        </Tooltip>}
       />;
     }
   }, [handleJsonChange, form, handleChangeSwitch, handleChangeIntInput, forceUpdate]);
@@ -220,54 +221,44 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
           const { id, documentation, displayName, type, defaultValue, required, constant } = param;
 
           const currentFormValues = makeObjectFromFieldsValues(form.getFieldsValue() ?? {});
-          console.log('Current form values', currentFormValues)
           const constantValue = typeof param.constant === 'function' ?
             param.constant?.(currentFormValues) :
             param.constant;
           const isHidden = constantValue !== undefined;
-          const initialValue = getInitialValue(id, defaultValue, constantValue, type?.typeName);
-          console.log('Render param', param)
-          console.log('constantValue=', constantValue);
-          console.log('isHidden=', isHidden);
-          console.log('Initial value=', initialValue)
           const formItemName = id;
-          console.log('name=', formItemName);
 
-          return !isHidden ?
-            (
-              <Row key={id} className={cn(isHidden && 'hidden')}>
-                <Col span={24}>
-                  <Form.Item
-                    className={cn('form-field_fixed-label', styles.field, type?.typeName === 'json' && styles.jsonField)}
-                    initialValue={initialValue}
-                    name={formItemName}
-                    label={
-                      documentation ?
-                        <LabelWithTooltip documentation={documentation} render={displayName}/> :
-                        <span>{displayName}:</span>
-                    }
-                    labelCol={{ span: 4 }}
-                    wrapperCol={{ span: 20 }}
-                    rules={
-                      type?.typeName === 'isoUtcDate' ?
-                        [isoDateValidator(`${displayName} field is required.`)] :
-                        [{
-                          required: typeof required === 'boolean' ?
-                            required :
-                            required?.(currentFormValues), message: `${displayName} field is required.`
-                        }]
-                    }
-                  >
-                    {getFieldComponent(type, id, defaultValue, constantValue)}
-                  </Form.Item>
-                </Col>
-              </Row>
-            ) :
-            <Form.Item
-              name={formItemName}
-              hidden={true}
-              initialValue={constantValue}
-            />;
+          return !isHidden ?  <Row key={id} className={cn(isHidden && 'hidden')}>
+            <Col span={24}>
+              <Form.Item
+                //key={formItemName}
+                className={cn('form-field_fixed-label', styles.field, type?.typeName === 'json' && styles.jsonField)}
+                //                initialValue={initialValue}
+                name={formItemName}
+                label={documentation ?
+                  <LabelWithTooltip documentation={documentation} render={displayName}/> :
+                  <span>{displayName}:</span>
+                }
+                labelCol={{ span: 4 }}
+                wrapperCol={{ span: 20 }}
+                rules={
+                  type?.typeName === 'isoUtcDate' ?
+                    [isoDateValidator(`${displayName} field is required.`)] :
+                    [{
+                      required: typeof required === 'boolean' ?
+                        required :
+                        required?.(currentFormValues), message: `${displayName} field is required.`
+                    }]
+                }
+              >
+                {getFieldComponent(type, id, defaultValue, constantValue)}
+              </Form.Item>
+            </Col>
+          </Row> : <Form.Item
+            key={formItemName}
+            name={formItemName}
+            hidden={true}
+            initialValue={constantValue}
+          />;
         })
       }
     </>
