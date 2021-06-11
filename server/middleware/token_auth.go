@@ -8,6 +8,7 @@ import (
 
 const (
 	TokenName        = "token"
+	TokenHeaderName  = "x-auth-token"
 	ErrTokenNotFound = "The token is not found"
 )
 
@@ -20,7 +21,7 @@ func extractToken(r *http.Request) string {
 	token := queryValues.Get(TokenName)
 
 	if token == "" {
-		token = r.Header.Get("x-auth-token")
+		token = r.Header.Get(TokenHeaderName)
 	}
 
 	if token == "" {
