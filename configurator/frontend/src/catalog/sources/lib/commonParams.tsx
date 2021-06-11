@@ -82,7 +82,7 @@ export const googleAuthConfigParameters: (param?: GoogleParametersNodes) => Para
     displayName: 'Auth (Service account key JSON)',
     id: serviceAccountKey,
     type: jsonType,
-    constant: (config) => resolve(config, type) !== 'Service Account' ? {} : undefined,
+    constant: (config) => resolve(config, type) !== 'Service Account' ? null : undefined,
     required: true,
     documentation:
       <>

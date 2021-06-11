@@ -3,10 +3,8 @@ import set from 'lodash/set';
 
 const makeObjectFromFieldsValues = <F = any>(fields: any): F => Object.keys(fields).reduce((accumulator: any, current: string) => {
   const value = fields[current];
-  // console.log('Making object', fields)
-  // console.log('Setting' + current + '=', value, typeof value);
   if (['string', 'number', 'boolean'].includes(typeof value)) {
-    set(accumulator, current, value);
+    set(accumulator, current, value === 'null' ? null : value);
   } else if (typeof value === 'object') {
     if (isArray(value)) {
       set(
@@ -19,7 +17,5 @@ const makeObjectFromFieldsValues = <F = any>(fields: any): F => Object.keys(fiel
 
   return accumulator;
 }, {} as F);
-
-
 
 export { makeObjectFromFieldsValues }

@@ -5,9 +5,6 @@ const DESTINATIONS_CONNECTED_SOURCES = <>
   {' '}
   <a href="https://jitsu.com/docs/sources-configuration" target="_blank" rel="noreferrer">documentation</a>.
 </>;
-
 const DESTINATIONS_CONNECTED_API_KEYS = '';
 
-const DESTINATIONS_EMPTY_CONNECTORS = 'This destination is not linked to any API keys or Connector. You can link the destination here.';
-
-export { DESTINATIONS_CONNECTED_SOURCES, DESTINATIONS_CONNECTED_API_KEYS, DESTINATIONS_EMPTY_CONNECTORS };
+export { DESTINATIONS_CONNECTED_SOURCES, DESTINATIONS_CONNECTED_API_KEYS };
