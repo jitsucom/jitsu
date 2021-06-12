@@ -3,12 +3,10 @@ package adapters
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"strconv"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	_ "github.com/lib/pq"
 )
@@ -314,37 +312,4 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 //Close underlying sql.DB
 func (ar *AwsRedshift) Close() error {
 	return ar.dataSourceProxy.Close()
-}
-
-func (ar *AwsRedshift) ValidateWritePermission() error {
-	tableName := fmt.Sprintf("test_%v_%v", timestamp.NowUTC(), rand.Int())
-	columnName := "field"
-	table := &Table{
-		Name:    tableName,
-		Columns: Columns{columnName: Column{"text"}},
-	}
-	event := map[string]interface{}{
-		columnName: "value 42",
-	}
-	eventContext := &EventContext{
-		ProcessedEvent: event,
-		Table:          table,
-	}
-
-	if err := ar.CreateTable(table); err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := ar.DeleteTable(table); err != nil {
-			// Suppressing error because we need to check only write permission
-			logging.Warnf("Cannot remove table [%s] from Redshift: %v", tableName, err)
-		}
-	}()
-
-	if err := ar.Insert(eventContext); err != nil {
-		return err
-	}
-
-	return nil
 }

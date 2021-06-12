@@ -5,12 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math/rand"
 	"sort"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	sf "github.com/snowflakedb/gosnowflake"
 )
@@ -354,39 +352,6 @@ func (s *Snowflake) columnDDL(name string, column Column) string {
 	}
 
 	return fmt.Sprintf(`%s %s`, reformatValue(name), sqlColumnTypeDDL)
-}
-
-func (s *Snowflake) ValidateWritePermission() error {
-	tableName := fmt.Sprintf("test_%v_%v", timestamp.NowUTC(), rand.Int())
-	columnName := "field"
-	table := &Table{
-		Name:    tableName,
-		Columns: Columns{columnName: Column{"text"}},
-	}
-	event := map[string]interface{}{
-		columnName: "value 42",
-	}
-	eventContext := &EventContext{
-		ProcessedEvent: event,
-		Table:          table,
-	}
-
-	if err := s.CreateTable(table); err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := s.DeleteTable(table); err != nil {
-			// Suppressing error because we need to check only write permission
-			logging.Warnf("Cannot remove table [%s] from Snowflake: %v", tableName, err)
-		}
-	}()
-
-	if err := s.Insert(eventContext); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 //Snowflake has table with schema, table names and there

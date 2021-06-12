@@ -8,13 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/mailru/go-clickhouse"
 )
@@ -644,42 +642,6 @@ func (ch *ClickHouse) reformatValue(v interface{}) interface{} {
 	}
 
 	return v
-}
-
-func (ch *ClickHouse) ValidateWritePermission() error {
-	tableName := fmt.Sprintf("test_%v_%v", timestamp.NowUTC(), rand.Int())
-	columnName := defaultOrderByColumn
-	table := &Table{
-		Name: tableName,
-		Columns: Columns{
-			"_timestamp": Column{"DateTime"},
-			columnName:   Column{"Int64"},
-		},
-	}
-	event := map[string]interface{}{
-		columnName: 42,
-	}
-	eventContext := &EventContext{
-		ProcessedEvent: event,
-		Table:          table,
-	}
-
-	if err := ch.CreateTable(table); err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := ch.DeleteTable(table); err != nil {
-			// Suppressing error because we need to check only write permission
-			logging.Warnf("Cannot remove table [%s] from ClickHouse: %v", tableName, err)
-		}
-	}()
-
-	if err := ch.Insert(eventContext); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func extractStatement(fieldConfigs []FieldConfig) string {

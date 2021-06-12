@@ -4,14 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"strings"
-	"time"
 
 	"cloud.google.com/go/bigquery"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/googleapi"
 )
@@ -210,39 +207,6 @@ func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl boo
 
 func (bq *BigQuery) Close() error {
 	return bq.client.Close()
-}
-
-func (bq *BigQuery) ValidateWritePermission() error {
-	tableName := fmt.Sprintf("test_%v_%v", time.Now().Format(timestamp.DayLayout), rand.Int())
-	columnName := "field"
-	table := &Table{
-		Name:    tableName,
-		Columns: Columns{columnName: Column{"STRING"}},
-	}
-	event := map[string]interface{}{
-		columnName: "value 42",
-	}
-	eventContext := &EventContext{
-		ProcessedEvent: event,
-		Table:          table,
-	}
-
-	if err := bq.CreateTable(table); err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := bq.DeleteTable(table); err != nil {
-			// Suppressing error because we need to check only write permission
-			logging.Warnf("Cannot remove table [%s] from BigQuery: %v", tableName, err)
-		}
-	}()
-
-	if err := bq.Insert(eventContext); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 //Return true if google err is 404

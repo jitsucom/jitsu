@@ -47,7 +47,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 		defer postgres.Close()
 
-		if err = postgres.ValidateWritePermission(); err != nil {
+		if err = storages.TestBatchProcessing(config); err != nil {
 			return err
 		}
 
@@ -83,11 +83,11 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 				continue
 			}
 
-			defer ch.Close()
+			ch.Close()
+		}
 
-			if err := ch.ValidateWritePermission(); err != nil {
-				multiErr = multierror.Append(multiErr, err)
-			}
+		if err = storages.TestBatchProcessing(config); err != nil {
+			multiErr = multierror.Append(err)
 		}
 
 		return multiErr
@@ -121,10 +121,6 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 		defer redshift.Close()
 
-		if err := redshift.ValidateWritePermission(); err != nil {
-			return err
-		}
-
 		if err := storages.TestBatchProcessing(config); err != nil {
 			return err
 		}
@@ -157,10 +153,6 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		}
 
 		if err := bq.Test(); err != nil {
-			return err
-		}
-
-		if err := bq.ValidateWritePermission(); err != nil {
 			return err
 		}
 
@@ -216,10 +208,6 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			} else {
 				return fmt.Errorf("Snowflake in batch mode needs Google or S3 configuration section")
 			}
-		}
-
-		if err = snowflake.ValidateWritePermission(); err != nil {
-			return err
 		}
 
 		if err = storages.TestBatchProcessing(config); err != nil {

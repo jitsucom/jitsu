@@ -6,14 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 	_ "github.com/lib/pq"
 )
@@ -722,39 +720,6 @@ func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, st
 	}
 
 	return wrappedTx.tx.Commit()
-}
-
-func (p *Postgres) ValidateWritePermission() error {
-	tableName := fmt.Sprintf("test_%v_%v", timestamp.NowUTC(), rand.Int())
-	columnName := "field"
-	table := &Table{
-		Name:    tableName,
-		Columns: Columns{columnName: Column{"text"}},
-	}
-	event := map[string]interface{}{
-		columnName: "value 42",
-	}
-	eventContext := &EventContext{
-		ProcessedEvent: event,
-		Table:          table,
-	}
-
-	if err := p.CreateTable(table); err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := p.DeleteTable(table); err != nil {
-			// Suppressing error because we need to check only write permission
-			logging.Warnf("Cannot remove table [%s] from Postgres: %v", tableName, err)
-		}
-	}()
-
-	if err := p.Insert(eventContext); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 //reformatMappings handles old (deprecated) mapping types //TODO remove someday
