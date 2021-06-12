@@ -93,7 +93,30 @@ func TestBatchProcessing(config *DestinationConfig) error {
 		event,
 	}
 
-	if err = storage.TestBatchProcessing(testName, events); err != nil {
+	stageAdapter := storage.getStageAdapter()
+
+	defer func() {
+		if stageAdapter != nil {
+			stageAdapter.DeleteObject(testName)
+		}
+	}()
+
+	table := &adapters.Table{
+		Name: testName,
+	}
+
+	adapter, _ := storage.getAdapters()
+
+	defer func() {
+		if err := adapter.DeleteTable(table); err != nil {
+			// Suppressing error because we need to check only write permission
+			logging.Warnf("Cannot remove table [%s] from $q: %v", testName, storage.Type(), err)
+		}
+	}()
+
+	alreadyUploadedTables := map[string]bool{}
+	_, _, err = storage.Store(testName, events, alreadyUploadedTables)
+	if err != nil {
 		return err
 	}
 

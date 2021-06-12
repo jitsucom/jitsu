@@ -146,7 +146,3 @@ func (s3 *S3) IsStaging() bool {
 func (s3 *S3) Close() error {
 	return s3.close()
 }
-
-func (s3 *S3) TestBatchProcessing(testName string, events []map[string]interface{}) error {
-	return fmt.Errorf("S3 does not support TestBatchProcessing")
-}

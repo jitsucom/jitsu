@@ -30,7 +30,6 @@ type Storage interface {
 	SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error
 	Update(object map[string]interface{}) error
 	Fallback(events ...*events.FailedEvent)
-	TestBatchProcessing(testName string, events []map[string]interface{}) error
 
 	GetUsersRecognition() *UserRecognitionConfiguration
 	GetUniqueIDField() *identifiers.UniqueID

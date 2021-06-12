@@ -261,7 +261,3 @@ func (p *Postgres) Close() (multiErr error) {
 
 	return
 }
-
-func (p *Postgres) TestBatchProcessing(testName string, events []map[string]interface{}) error {
-	return fmt.Errorf("Postgres does not support TestBatchProcessing() func")
-}

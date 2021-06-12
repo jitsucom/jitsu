@@ -283,7 +283,3 @@ func (ch *ClickHouse) getAdapters() (*adapters.ClickHouse, *TableHelper) {
 	num := rand.Intn(len(ch.adapters))
 	return ch.adapters[num], ch.chTableHelpers[num]
 }
-
-func (ch *ClickHouse) TestBatchProcessing(testName string, events []map[string]interface{}) error {
-	return fmt.Errorf("ClickHouse does not support TestBatchProcessing() func")
-}

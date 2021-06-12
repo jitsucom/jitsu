@@ -146,7 +146,3 @@ func (ga *GoogleAnalytics) Close() (multiErr error) {
 
 	return
 }
-
-func (ga *GoogleAnalytics) TestBatchProcessing(testName string, events []map[string]interface{}) error {
-	return fmt.Errorf("GoogleAnalytics does not support TestBatchProcessing() func")
-}

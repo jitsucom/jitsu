@@ -146,7 +146,3 @@ func (fb *Facebook) Close() (multiErr error) {
 
 	return
 }
-
-func (fb *Facebook) TestBatchProcessing(testName string, events []map[string]interface{}) error {
-	return fmt.Errorf("Facebook does not support TestBatchProcessing() func")
-}

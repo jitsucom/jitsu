@@ -246,27 +246,3 @@ func (ar *AwsRedshift) Close() (multiErr error) {
 
 	return
 }
-
-func (ar *AwsRedshift) TestBatchProcessing(testName string, events []map[string]interface{}) error {
-	defer func() {
-		table := &adapters.Table{
-			Name: testName,
-		}
-		if err := ar.redshiftAdapter.DeleteTable(table); err != nil {
-			// Suppressing error because we need to check only write permission
-			logging.Warnf("Cannot remove table [%s] from Redshift: %v", testName, err)
-		}
-	}()
-
-	defer func() {
-		ar.s3Adapter.DeleteObject(testName)
-	}()
-
-	alreadyUploadedTables := map[string]bool{}
-	_, _, err := ar.Store(testName, events, alreadyUploadedTables)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
