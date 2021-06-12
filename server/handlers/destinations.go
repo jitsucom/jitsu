@@ -3,22 +3,16 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
@@ -131,7 +125,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		if err := TestProcessing(config); err != nil {
+		if err := storages.TestBatchProcessing(config); err != nil {
 			return err
 		}
 
@@ -170,7 +164,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		if err := TestProcessing(config); err != nil {
+		if err := storages.TestBatchProcessing(config); err != nil {
 			return err
 		}
 
@@ -228,7 +222,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		if err = TestProcessing(config); err != nil {
+		if err = storages.TestBatchProcessing(config); err != nil {
 			return err
 		}
 
@@ -260,62 +254,4 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 	default:
 		return fmt.Errorf("Unsupported destination type: '%v'", config.Type)
 	}
-}
-
-func TestProcessing(config *storages.DestinationConfig) error {
-	if config.Mode != storages.BatchMode {
-		return nil
-	}
-
-	ctx := context.Background()
-
-	monitor := coordination.NewInMemoryService([]string{})
-	defer monitor.Close()
-
-	metaStorage, _ := meta.NewStorage(nil)
-	defer metaStorage.Close()
-
-	eventsCache := caching.NewEventsCache(metaStorage, 100)
-	defer eventsCache.Close()
-
-	factory := storages.NewFactory(ctx, "", monitor, eventsCache, nil, nil, metaStorage, 0)
-
-	randomValue := rand.Int()
-	testName := fmt.Sprintf("test_%v_%v", time.Now().Format(timestamp.DayLayout), randomValue)
-	config.DataLayout = &storages.DataLayout{
-		TableNameTemplate: testName,
-		UniqueIDField:     "id",
-	}
-	config.CachingConfiguration = &storages.CachingConfiguration{
-		Disabled: true,
-	}
-
-	storageProxy, _, err := factory.Create(testName, *config)
-	if err != nil {
-		logging.Errorf("[%s] Error initializing destination of type %s: %v", testName, config.Type, err)
-		return err
-	}
-
-	defer storageProxy.Close()
-
-	storage, err := storageProxy.Create()
-	if err != nil {
-		return err
-	}
-
-	defer storage.Close()
-
-	event := map[string]interface{}{
-		"id":    randomValue,
-		"field": testName,
-	}
-	events := []map[string]interface{}{
-		event,
-	}
-
-	if err = storage.TestBatchProcessing(testName, events); err != nil {
-		return err
-	}
-
-	return nil
 }
