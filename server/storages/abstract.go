@@ -2,6 +2,8 @@ package storages
 
 import (
 	"fmt"
+	"math/rand"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -10,7 +12,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/telemetry"
-	"math/rand"
 )
 
 //Abstract is an Abstract destination storage
@@ -23,6 +24,7 @@ type Abstract struct {
 
 	tableHelpers []*TableHelper
 	sqlAdapters  []adapters.SQLAdapter
+	stageAdapter adapters.Stage
 
 	archiveLogger *logging.AsyncLogger
 }
@@ -155,4 +157,8 @@ func (a *Abstract) close() (multiErr error) {
 func (a *Abstract) getAdapters() (adapters.SQLAdapter, *TableHelper) {
 	num := rand.Intn(len(a.sqlAdapters))
 	return a.sqlAdapters[num], a.tableHelpers[num]
+}
+
+func (a *Abstract) getStageAdapter() adapters.Stage {
+	return a.stageAdapter
 }

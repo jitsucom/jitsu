@@ -93,6 +93,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	ar.eventsCache = config.eventsCache
 	ar.tableHelpers = []*TableHelper{tableHelper}
 	ar.sqlAdapters = []adapters.SQLAdapter{redshiftAdapter}
+	ar.stageAdapter = s3Adapter
 	ar.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
 	//streaming worker (queue reading)

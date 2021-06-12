@@ -34,6 +34,7 @@ type Storage interface {
 
 	GetUsersRecognition() *UserRecognitionConfiguration
 	GetUniqueIDField() *identifiers.UniqueID
+	getStageAdapter() adapters.Stage
 	ID() string
 	Type() string
 	IsStaging() bool

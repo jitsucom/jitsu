@@ -104,6 +104,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 	snowflake.eventsCache = config.eventsCache
 	snowflake.tableHelpers = []*TableHelper{tableHelper}
 	snowflake.sqlAdapters = []adapters.SQLAdapter{snowflakeAdapter}
+	snowflake.stageAdapter = stageAdapter
 	snowflake.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
 	//streaming worker (queue reading)

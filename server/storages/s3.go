@@ -58,6 +58,7 @@ func NewS3(config *Config) (Storage, error) {
 	s3.destinationID = config.destinationID
 	s3.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	s3.eventsCache = config.eventsCache
+	s3.stageAdapter = s3Adapter
 
 	return s3, nil
 }

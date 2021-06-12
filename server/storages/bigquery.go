@@ -92,6 +92,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 	bq.eventsCache = config.eventsCache
 	bq.tableHelpers = []*TableHelper{tableHelper}
 	bq.sqlAdapters = []adapters.SQLAdapter{bigQueryAdapter}
+	bq.stageAdapter = gcsAdapter
 	bq.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
 	//streaming worker (queue reading)
