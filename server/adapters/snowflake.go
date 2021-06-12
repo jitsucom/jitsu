@@ -195,15 +195,8 @@ func (s *Snowflake) DeleteTable(table *Table) error {
 
 	query := fmt.Sprintf(deleteSFTableTemplate, s.config.Schema, reformatValue(table.Name))
 	s.queryLogger.LogDDL(query)
-	createStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing delete table [%s] statement: %v", table.Name, err)
-	}
 
-	_, err = createStmt.ExecContext(s.ctx)
-
-	if err != nil {
+	if _, err = wrappedTx.tx.ExecContext(s.ctx, query); err != nil {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error deleting [%s] table: %v", table.Name, err)
 	}
