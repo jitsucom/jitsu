@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -18,7 +19,7 @@ type TableHelper struct {
 	sync.RWMutex
 
 	sqlAdapter    adapters.SQLAdapter
-	monitorKeeper MonitorKeeper
+	monitorKeeper coordination.MonitorKeeper
 	tables        map[string]*adapters.Table
 
 	pkFields           map[string]bool
@@ -30,7 +31,7 @@ type TableHelper struct {
 
 //NewTableHelper returns configured TableHelper instance
 //Note: columnTypesMapping must be not empty (or fields will be ignored)
-func NewTableHelper(sqlAdapter adapters.SQLAdapter, monitorKeeper MonitorKeeper, pkFields map[string]bool,
+func NewTableHelper(sqlAdapter adapters.SQLAdapter, monitorKeeper coordination.MonitorKeeper, pkFields map[string]bool,
 	columnTypesMapping map[typing.DataType]string, maxColumns int) *TableHelper {
 
 	return &TableHelper{

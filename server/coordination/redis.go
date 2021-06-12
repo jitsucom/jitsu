@@ -2,19 +2,18 @@ package coordination
 
 import (
 	"context"
-	"github.com/gomodule/redigo/redis"
-	"github.com/jitsucom/jitsu/server/meta"
-	"github.com/jitsucom/jitsu/server/metrics"
-	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-redsync/redsync/v4"
 	rsyncpool "github.com/go-redsync/redsync/v4/redis/redigo"
+	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 //redis key [variables] - description
@@ -38,7 +37,7 @@ type RedisService struct {
 	ctx        context.Context
 	serverName string
 	selfmutex  sync.RWMutex
-	unlockMe   map[string]*storages.RetryableLock
+	unlockMe   map[string]*RetryableLock
 
 	pool    *redis.Pool
 	redsync *redsync.Redsync
@@ -76,7 +75,7 @@ func NewRedisService(ctx context.Context, serverName string, config *meta.RedisC
 		ctx:        ctx,
 		selfmutex:  sync.RWMutex{},
 		serverName: serverName,
-		unlockMe:   map[string]*storages.RetryableLock{},
+		unlockMe:   map[string]*RetryableLock{},
 		pool:       redigoPool,
 		redsync:    redisSync,
 	}
@@ -164,13 +163,13 @@ func (rs *RedisService) IsLocked(system string, collection string) (bool, error)
 
 //Lock creates mutex and locks it with 3 hours expiration
 //waits 2 minutes if locked
-func (rs *RedisService) Lock(system string, collection string) (storages.Lock, error) {
+func (rs *RedisService) Lock(system string, collection string) (Lock, error) {
 	return rs.doLock(system, collection, redsync.WithExpiry(3*time.Hour), redsync.WithRetryDelay(5*time.Second), redsync.WithTries(24))
 }
 
 //TryLock creates mutex and locks it with 3 hours expiration
 //doesn't wait if locked
-func (rs *RedisService) TryLock(system string, collection string) (storages.Lock, error) {
+func (rs *RedisService) TryLock(system string, collection string) (Lock, error) {
 	lock, err := rs.doLock(system, collection, redsync.WithExpiry(3*time.Hour), redsync.WithRetryDelay(0), redsync.WithTries(1))
 	if err != nil {
 		if err == redsync.ErrFailed {
@@ -184,7 +183,7 @@ func (rs *RedisService) TryLock(system string, collection string) (storages.Lock
 }
 
 //Unlock unlocks mutex and removes it from unlockMe
-func (rs *RedisService) Unlock(lock storages.Lock) error {
+func (rs *RedisService) Unlock(lock Lock) error {
 	lock.Unlock()
 
 	rs.selfmutex.Lock()
@@ -209,7 +208,7 @@ func (rs *RedisService) Close() error {
 }
 
 //doLock locks mutex with system + collection identifier with input expiration, retries configuration
-func (rs *RedisService) doLock(system string, collection string, options ...redsync.Option) (storages.Lock, error) {
+func (rs *RedisService) doLock(system string, collection string, options ...redsync.Option) (Lock, error) {
 	identifier := rs.getMutexName(system, collection)
 
 	mutex := rs.redsync.NewMutex(identifier, options...)
@@ -218,7 +217,7 @@ func (rs *RedisService) doLock(system string, collection string, options ...reds
 	}
 
 	proxy := &MutexProxy{mutex: mutex}
-	lock := storages.NewRetryableLock(identifier, proxy, nil, nil, 5)
+	lock := NewRetryableLock(identifier, proxy, nil, nil, 5)
 
 	rs.selfmutex.Lock()
 	rs.unlockMe[identifier] = lock

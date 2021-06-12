@@ -5,8 +5,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/jitsucom/jitsu/server/storages"
 )
 
 type InMemoryLock struct {
@@ -45,15 +43,15 @@ func (ims *InMemoryService) GetInstances() ([]string, error) {
 }
 
 //Lock try to get a lock and wait 5 seconds if failed
-func (ims *InMemoryService) Lock(system, collection string) (storages.Lock, error) {
+func (ims *InMemoryService) Lock(system, collection string) (Lock, error) {
 	return ims.lockWithRetry(system, collection, 0)
 }
 
-func (ims *InMemoryService) TryLock(system string, collection string) (storages.Lock, error) {
+func (ims *InMemoryService) TryLock(system string, collection string) (Lock, error) {
 	return ims.lockWithRetry(system, collection, 3)
 }
 
-func (ims *InMemoryService) Unlock(lock storages.Lock) error {
+func (ims *InMemoryService) Unlock(lock Lock) error {
 	ims.locks.Delete(lock.Identifier())
 	return nil
 }
@@ -99,7 +97,7 @@ func (ims *InMemoryService) Close() error {
 }
 
 //try to get a lock 3 times with every time 1 second delay
-func (ims *InMemoryService) lockWithRetry(system, collection string, retryCount int) (storages.Lock, error) {
+func (ims *InMemoryService) lockWithRetry(system, collection string, retryCount int) (Lock, error) {
 	identifier := getIdentifier(system, collection)
 	_, loaded := ims.locks.LoadOrStore(identifier, true)
 	if loaded {

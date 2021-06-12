@@ -3,16 +3,16 @@ package synchronization
 import (
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
-	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	uuid "github.com/satori/go.uuid"
-	"time"
 )
 
 var (
@@ -46,7 +46,7 @@ type TaskService struct {
 	sourceService      *sources.Service
 	destinationService *destinations.Service
 	metaStorage        meta.Storage
-	monitorKeeper      storages.MonitorKeeper
+	monitorKeeper      coordination.MonitorKeeper
 
 	configured bool
 }
@@ -58,7 +58,7 @@ func NewTestTaskService() *TaskService {
 
 //NewTaskService returns configured TaskService instance
 func NewTaskService(sourceService *sources.Service, destinationService *destinations.Service,
-	metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper) *TaskService {
+	metaStorage meta.Storage, monitorKeeper coordination.MonitorKeeper) *TaskService {
 	if !sourceService.IsConfigured() {
 		return &TaskService{}
 	}

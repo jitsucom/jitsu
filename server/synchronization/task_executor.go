@@ -3,6 +3,9 @@ package synchronization
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/drivers"
@@ -18,7 +21,6 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/panjf2000/ants/v2"
-	"time"
 )
 
 const srcSource = "source"
@@ -28,13 +30,13 @@ type TaskExecutor struct {
 	sourceService      *sources.Service
 	destinationService *destinations.Service
 	metaStorage        meta.Storage
-	monitorKeeper      storages.MonitorKeeper
+	monitorKeeper      coordination.MonitorKeeper
 
 	closed bool
 }
 
 //NewTaskExecutor returns TaskExecutor and starts 2 goroutines (monitoring and queue observer)
-func NewTaskExecutor(poolSize int, sourceService *sources.Service, destinationService *destinations.Service, metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper) (*TaskExecutor, error) {
+func NewTaskExecutor(poolSize int, sourceService *sources.Service, destinationService *destinations.Service, metaStorage meta.Storage, monitorKeeper coordination.MonitorKeeper) (*TaskExecutor, error) {
 	executor := &TaskExecutor{sourceService: sourceService, destinationService: destinationService, metaStorage: metaStorage, monitorKeeper: monitorKeeper}
 	pool, err := ants.NewPoolWithFunc(poolSize, executor.execute)
 	if err != nil {

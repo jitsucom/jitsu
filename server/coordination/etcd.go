@@ -12,7 +12,6 @@ import (
 	"github.com/jitsucom/jitsu/server/cluster"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/jitsucom/jitsu/server/storages"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 )
@@ -26,7 +25,7 @@ var ErrAlreadyLocked = errors.New("Resource has been already locked")
 type Service interface {
 	io.Closer
 
-	storages.MonitorKeeper
+	MonitorKeeper
 	cluster.Manager
 }
 
@@ -37,7 +36,7 @@ type EtcdService struct {
 	client     *clientv3.Client
 
 	mutex    sync.RWMutex
-	unlockMe map[string]*storages.RetryableLock
+	unlockMe map[string]*RetryableLock
 	closed   bool
 }
 
@@ -61,7 +60,7 @@ func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTim
 		return nil, err
 	}
 
-	es := &EtcdService{ctx: ctx, serverName: serverName, client: client, unlockMe: map[string]*storages.RetryableLock{}}
+	es := &EtcdService{ctx: ctx, serverName: serverName, client: client, unlockMe: map[string]*RetryableLock{}}
 	es.startHeartBeating()
 
 	return es, nil
@@ -69,7 +68,7 @@ func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTim
 
 //Lock try to get Etcd monitor with timeout (2 minutes)
 //wait if lock has been already acquired
-func (es *EtcdService) Lock(system string, collection string) (storages.Lock, error) {
+func (es *EtcdService) Lock(system string, collection string) (Lock, error) {
 	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
 
 	//the session depends on the context. We can't cancel() before unlock.
@@ -86,7 +85,7 @@ func (es *EtcdService) Lock(system string, collection string) (storages.Lock, er
 		return nil, err
 	}
 
-	lock := storages.NewRetryableLock(identifier, l, session, cancel, 5)
+	lock := NewRetryableLock(identifier, l, session, cancel, 5)
 
 	es.mutex.Lock()
 	es.unlockMe[identifier] = lock
@@ -97,7 +96,7 @@ func (es *EtcdService) Lock(system string, collection string) (storages.Lock, er
 
 //TryLock try to get Etcd monitor with timeout (2 minutes)
 //err if locked immediately
-func (es *EtcdService) TryLock(system string, collection string) (storages.Lock, error) {
+func (es *EtcdService) TryLock(system string, collection string) (Lock, error) {
 	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
 
 	//the session depends on the context. We can't cancel() before unlock.
@@ -118,7 +117,7 @@ func (es *EtcdService) TryLock(system string, collection string) (storages.Lock,
 		return nil, err
 	}
 
-	lock := storages.NewRetryableLock(identifier, l, session, cancel, 5)
+	lock := NewRetryableLock(identifier, l, session, cancel, 5)
 
 	es.mutex.Lock()
 	es.unlockMe[identifier] = lock
@@ -127,7 +126,7 @@ func (es *EtcdService) TryLock(system string, collection string) (storages.Lock,
 	return lock, nil
 }
 
-func (es *EtcdService) Unlock(lock storages.Lock) error {
+func (es *EtcdService) Unlock(lock Lock) error {
 	lock.Unlock()
 
 	es.mutex.Lock()

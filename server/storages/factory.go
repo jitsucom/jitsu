@@ -4,17 +4,18 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/jsonutils"
-	"github.com/jitsucom/jitsu/server/meta"
 	"strings"
 
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/typing"
 )
@@ -117,7 +118,7 @@ type Config struct {
 	processor        *schema.Processor
 	streamMode       bool
 	maxColumns       int
-	monitorKeeper    MonitorKeeper
+	monitorKeeper    coordination.MonitorKeeper
 	eventQueue       *events.PersistentQueue
 	eventsCache      *caching.EventsCache
 	loggerFactory    *logging.Factory
@@ -143,7 +144,7 @@ type Factory interface {
 type FactoryImpl struct {
 	ctx                 context.Context
 	logEventPath        string
-	monitorKeeper       MonitorKeeper
+	monitorKeeper       coordination.MonitorKeeper
 	eventsCache         *caching.EventsCache
 	globalLoggerFactory *logging.Factory
 	globalConfiguration *UsersRecognition
@@ -152,7 +153,7 @@ type FactoryImpl struct {
 }
 
 //NewFactory returns configured Factory
-func NewFactory(ctx context.Context, logEventPath string, monitorKeeper MonitorKeeper, eventsCache *caching.EventsCache,
+func NewFactory(ctx context.Context, logEventPath string, monitorKeeper coordination.MonitorKeeper, eventsCache *caching.EventsCache,
 	globalLoggerFactory *logging.Factory, globalConfiguration *UsersRecognition, metaStorage meta.Storage, maxColumns int) Factory {
 	return &FactoryImpl{
 		ctx:                 ctx,

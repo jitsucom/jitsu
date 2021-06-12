@@ -1,9 +1,10 @@
-package storages
+package coordination
 
 import (
 	"context"
-	"github.com/jitsucom/jitsu/server/logging"
 	"io"
+
+	"github.com/jitsucom/jitsu/server/logging"
 )
 
 type ResourceLock interface {
