@@ -71,6 +71,27 @@ func TestGet(t *testing.T) {
 			123,
 			true,
 		},
+		{
+			"Key is a root path",
+			"/",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+			true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -168,6 +189,28 @@ func TestGetAndRemove(t *testing.T) {
 				},
 			},
 		},
+		{
+			"Key is a root path",
+			"/",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+			true,
+			map[string]interface{}{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -235,6 +278,43 @@ func TestSet(t *testing.T) {
 				},
 			},
 			"",
+		},
+		{
+			"set root path with object",
+			"/",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": 123,
+				},
+			},
+			map[string]interface{}{
+				"key2": map[string]interface{}{
+					"subkey1": 123,
+				},
+			},
+			true,
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": 123,
+				},
+				"key2": map[string]interface{}{
+					"subkey1": 123,
+				},
+			},
+			"",
+		},
+		{
+			"set root path error",
+			"/",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": 123,
+				},
+			},
+			123,
+			true,
+			nil,
+			"root path mapping ('/') works only when source key is an object",
 		},
 		{
 			"set overwrites value",

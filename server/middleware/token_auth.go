@@ -16,6 +16,7 @@ const (
 //1. query parameter
 //2. header
 //3. dynamic query parameter
+//4. basic auth username
 func extractToken(r *http.Request) string {
 	queryValues := r.URL.Query()
 	token := queryValues.Get(TokenName)
@@ -31,6 +32,10 @@ func extractToken(r *http.Request) string {
 				break
 			}
 		}
+	}
+
+	if token == "" {
+		token, _, _ = r.BasicAuth()
 	}
 
 	return token
