@@ -1,9 +1,7 @@
 package handlers
 
 import (
-	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
@@ -13,10 +11,8 @@ import (
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"strings"
@@ -45,14 +41,16 @@ type CachedEventsResponse struct {
 //EventHandler accepts all events
 type EventHandler struct {
 	destinationService *destinations.Service
+	parser             events.Parser
 	processor          events.Processor
 	eventsCache        *caching.EventsCache
 }
 
 //NewEventHandler returns configured EventHandler
-func NewEventHandler(destinationService *destinations.Service, processor events.Processor, eventsCache *caching.EventsCache) (eventHandler *EventHandler) {
+func NewEventHandler(destinationService *destinations.Service, parser events.Parser, processor events.Processor, eventsCache *caching.EventsCache) (eventHandler *EventHandler) {
 	return &EventHandler{
 		destinationService: destinationService,
+		parser:             parser,
 		processor:          processor,
 		eventsCache:        eventsCache,
 	}
@@ -60,7 +58,7 @@ func NewEventHandler(destinationService *destinations.Service, processor events.
 
 //PostHandler accepts all events according to token
 func (eh *EventHandler) PostHandler(c *gin.Context) {
-	eventsArray, err := parseEventsBody(c)
+	eventsArray, err := eh.parser.ParseEventsBody(c)
 	if err != nil {
 		msg := fmt.Sprintf("Error parsing events body: %v", err)
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(msg, nil))
@@ -191,90 +189,4 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
-}
-
-func parseEventsBody(c *gin.Context) ([]events.Event, error) {
-	body, err := ioutil.ReadAll(c.Request.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading HTTP body: %v", err)
-	}
-
-	if len(body) == 0 {
-		return nil, errors.New("empty JSON body")
-	}
-
-	decoder := json.NewDecoder(bytes.NewReader(body))
-	decoder.UseNumber()
-
-	switch body[0] {
-	case '{':
-		event := events.Event{}
-		if err := decoder.Decode(&event); err != nil {
-			return nil, fmt.Errorf("error parsing HTTP body: %v", err)
-		}
-
-		eventsArray, ok := parseTemplateEvents(event)
-		if ok {
-			return eventsArray, nil
-		}
-
-		return []events.Event{event}, nil
-	case '[':
-		inputEvents := []events.Event{}
-		if err := decoder.Decode(&inputEvents); err != nil {
-			return nil, fmt.Errorf("error parsing HTTP body: %v", err)
-		}
-
-		return inputEvents, nil
-	default:
-		return nil, fmt.Errorf("malformed JSON body begins with: %q", string(body[0]))
-	}
-}
-
-//parseTemplateEvents parse
-// {template : {}, events: [{},{}]} structure
-//return false if event doesn't have this structure
-func parseTemplateEvents(event events.Event) ([]events.Event, bool) {
-	//check 'template' and 'events' in event
-	eventTemplateIface, ok := event["template"]
-	if !ok {
-		return nil, false
-	}
-
-	partialEventsIface, ok := event["events"]
-	if !ok {
-		return nil, false
-	}
-
-	partialEventsIfaces, ok := partialEventsIface.([]interface{})
-	if !ok {
-		return nil, false
-	}
-
-	eventTemplate, ok := eventTemplateIface.(map[string]interface{})
-	if !ok {
-		return nil, false
-	}
-
-	var completeEvents []events.Event
-	for _, partialEventIface := range partialEventsIfaces {
-		partialEvent, ok := partialEventIface.(map[string]interface{})
-		if !ok {
-			return nil, false
-		}
-
-		for k, v := range eventTemplate {
-			vMap, ok := v.(map[string]interface{})
-			if ok {
-				//prevent maps with the same pointer in different events
-				partialEvent[k] = maputils.CopyMap(vMap)
-			} else {
-				partialEvent[k] = v
-			}
-		}
-
-		completeEvents = append(completeEvents, partialEvent)
-	}
-
-	return completeEvents, true
 }
