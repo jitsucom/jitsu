@@ -12,7 +12,7 @@ import CaretRightFilled from '@ant-design/icons/lib/icons/CaretRightFilled';
 import CaretUpFilled from '@ant-design/icons/lib/icons/CaretUpFilled';
 import CloseCircleOutlined from '@ant-design/icons/lib/icons/CloseCircleOutlined';
 import CopyOutlined from '@ant-design/icons/lib/icons/CopyOutlined';
-import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
+import CheckCircleOutlined from '@ant-design/icons/lib/icons/CheckCircleOutlined';
 import InfoCircleOutlined from '@ant-design/icons/lib/icons/InfoCircleOutlined';
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
 import plumber from '../../icons/plumber.png';
@@ -149,6 +149,7 @@ export function makeErrorHandler(errorDescription: string) {
 
 function messageFactory(type: string): MessageFunc {
   const iconsByType = {
+    "success": <CheckCircleOutlined className="text-success" />,
     "error": <CloseCircleOutlined className="text-error" />,
     "info":  <InfoCircleOutlined className="text-success" />,
     "warn": <WarningOutlined className="text-warning" />
@@ -171,7 +172,8 @@ function messageFactory(type: string): MessageFunc {
 export type MessageContent = string | ReactNode | ArgsProps;
 export type MessageFunc = (args: MessageContent) => MessageType;
 
-export const closeableMessage: Record<'error' | 'info' | 'warn', MessageFunc> = {
+export const closeableMessage: Record<'success' | 'error' | 'info' | 'warn', MessageFunc> = {
+  success: messageFactory('success'),
   error: messageFactory('error'),
   info: messageFactory('info'),
   warn: messageFactory('warn')
