@@ -41,7 +41,7 @@ export const googleAuthConfigParameters: (param?: GoogleParametersNodes) => Para
     id: type,
     type: selectionType(removeNulls([ !disableOauth && 'OAuth', !disableServiceAccount && 'Service Account'] ), 1),
     required: true,
-    defaultValue: 'Service Account',
+    defaultValue: removeNulls([ !disableOauth && 'OAuth', !disableServiceAccount && 'Service Account'] )[0],
     documentation:
       <>
         Jitsu provides two types for authorizing access to Google Services:

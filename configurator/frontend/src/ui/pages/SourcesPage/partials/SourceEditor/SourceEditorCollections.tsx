@@ -19,6 +19,8 @@ import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Utils
 import { getUniqueAutoIncId } from '@util/numbers';
 import { TabDescription } from '@component/Tabs/TabDescription';
+import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
+import { CodeInline } from '@./lib/components/components';
 
 export interface Props {
   form: FormInstance;
@@ -228,7 +230,9 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
                               <Form.Item
                                 initialValue={generateReportName(0)}
                                 className="form-field_fixed-label"
-                                label={<span>Report name:</span>}
+                                label={<LabelWithTooltip documentation={<>
+                                  Name of the report. Will be used as table name prefixed with source_id. Table name will be: <CodeInline>{initialValues.sourceId}_[Report name]</CodeInline>
+                                </>} render={<>Report name:</>}></LabelWithTooltip>}
                                 name={[field.name, 'name']}
                                 rules={[
                                   { required: true, message: 'Field is required. You can remove this collection.' },
@@ -255,6 +259,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
 
                           {getCollectionParameters(field.name).map((collection: CollectionParameter) => (
                             <SourceFormCollectionsField
+                              documentation={collection.documentation}
                               field={field}
                               key={collection.id}
                               collection={collection}

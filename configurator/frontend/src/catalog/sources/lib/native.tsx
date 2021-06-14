@@ -81,6 +81,7 @@ export const googleAnalytics: SourceConnector = {
   collectionParameters: [
     {
       displayName: 'Dimensions',
+      documentation: <><a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer/">Use this tool to check dimensions compatibility</a></>,
       id: 'dimensions',
       type: selectionType(['ga:userType', 'ga:visitorType', 'ga:sessionCount', 'ga:visitCount', 'ga:daysSinceLastSession',
         'ga:userDefinedValue', 'ga:userBucket', 'ga:sessionDurationBucket', 'ga:visitLength', 'ga:referralPath',
@@ -137,6 +138,7 @@ export const googleAnalytics: SourceConnector = {
     },
     {
       displayName: 'Metrics',
+      documentation: <><a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer/">Use this tool to check metrics compatibility</a></>,
       id: 'metrics',
       type: selectionType([
         'ga:users', 'ga:visitors', 'ga:newUsers', 'ga:newVisits', 'ga:percentNewSessions',
@@ -292,12 +294,6 @@ export const firebase: SourceConnector = {
       displayName: 'Project ID',
       id: 'config.project_id',
       type: stringType,
-      required: true
-    },
-    {
-      displayName: 'Service Account Key',
-      id: 'config.key',
-      type: jsonType,
       required: true
     }
   ]

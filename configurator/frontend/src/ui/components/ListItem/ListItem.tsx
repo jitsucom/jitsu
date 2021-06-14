@@ -6,9 +6,17 @@ import cn from 'classnames';
 import styles from './ListItem.module.less';
 
 export interface ListItemAction {
-  onClick: () => void
-  title: string
-  icon: ReactNode
+  /**
+   * Custom component (as alternative to onClick/title/icon)
+   */
+  component?: ReactNode
+
+  /**
+   * If component is null, specify onClick/title/icon to display default action
+   */
+  onClick?: () => void
+  title?: string
+  icon?: ReactNode
 }
 
 export interface Props {
@@ -42,7 +50,8 @@ const ListItemComponent = ({ className, icon, title, description, additional, pr
             actions.map((action: ListItemAction, index: number) => {
               return (
                 <span key={action.title} className={styles.action}>
-                  <Button icon={action.icon} key="edit" shape="round" type="link" onClick={action.onClick}>{action.title}</Button>
+                  {!action.component &&<Button icon={action.icon} key="edit" shape="round" type="link" onClick={action.onClick}>{action.title}</Button>}
+                  {action.component}
                   {
                     index < actions.length - 1 && <span className={styles.splitter} />
                   }
