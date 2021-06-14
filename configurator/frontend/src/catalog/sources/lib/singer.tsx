@@ -2,11 +2,9 @@ import * as React from 'react';
 import * as logos from './logos'
 import { booleanType, dashDateType, intType, isoUtcDateType, stringType } from '../types';
 import { customParameters, SingerTap } from './helper';
-import {
-  getEnableGoogleAPIDocumentation,
-  getOauthCliDocumentation,
-  googleOAuthDocumentation
-} from '@catalog/sources/lib/documentation';
+import { googleServiceAuthDocumentation } from '@catalog/sources/lib/documentation';
+import * as React from 'react';
+import { googleAuthConfigParameters } from '@catalog/sources/lib/commonParams';
 
 export const allSingerTaps: SingerTap[] = [
   {
@@ -323,24 +321,11 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false,
     parameters: customParameters('tap-google-sheets', {
       customConfig: [
-        {
-          displayName: 'OAuth Client ID',
-          id: 'client_id',
-          type: stringType,
-          required: true
-        },
-        {
-          displayName: 'OAuth Client Secret',
-          id: 'client_secret',
-          type: stringType,
-          required: true
-        },
-        {
-          displayName: 'Refresh Token',
-          id: 'refresh_token',
-          type: stringType,
-          required: true
-        },
+        ...googleAuthConfigParameters({
+          clientId: 'client_id',
+          refreshToken: 'refresh_token',
+          clientSecret: 'client_secret'
+        }),
         {
           displayName: 'Google Spreadsheet ID',
           id: 'spreadsheet_id',
@@ -362,12 +347,13 @@ export const allSingerTaps: SingerTap[] = [
         }
       ]
     }),
-    documentation: <>
-      {'The Google Sheets Connector pulls data from a single Google Spreadsheet (that can contain multiple pages).'}
-      {googleOAuthDocumentation}
-      {getOauthCliDocumentation('https://www.googleapis.com/auth/drive.metadata.readonly', 'https://www.googleapis.com/auth/spreadsheets.readonly')}
-      {getEnableGoogleAPIDocumentation('Google Sheets API', 'Google Drive API')}
-    </>
+    documentation: googleServiceAuthDocumentation({
+      serviceName: 'Google Sheets',
+      scopes: ['https://www.googleapis.com/auth/drive.metadata.readonly', 'https://www.googleapis.com/auth/spreadsheets.readonly'],
+      apis: ['Google Sheets API', 'Google Drive API'],
+      oauthEnabled: true,
+      serviceAccountEnabled: false
+    })
   },
   {
     pic: logos.tap_harvest,
