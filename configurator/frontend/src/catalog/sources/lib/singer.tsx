@@ -3,7 +3,6 @@ import * as logos from './logos'
 import { booleanType, dashDateType, intType, isoUtcDateType, stringType } from '../types';
 import { customParameters, SingerTap } from './helper';
 import { googleServiceAuthDocumentation } from '@catalog/sources/lib/documentation';
-import * as React from 'react';
 import { googleAuthConfigParameters } from '@catalog/sources/lib/commonParams';
 
 export const allSingerTaps: SingerTap[] = [
@@ -234,22 +233,20 @@ export const allSingerTaps: SingerTap[] = [
     stable: true,
     hasNativeEquivalent: false,
     documentation: <>
-      {'The GitHub Connector pulls the following data from a single GitHub repository using'} <a href="https://developer.github.com/v3/">GitHub REST API</a> {':'}
-      <ul>
-        <li><a href="https://developer.github.com/v3/issues/assignees/#list-assignees">Assignees</a></li>
-        <li><a href="https://developer.github.com/v3/repos/collaborators/#list-collaborators">Collaborators</a></li>
-        <li><a href="https://developer.github.com/v3/repos/commits/#list-commits-on-a-repository">Commits</a></li>
-        <li><a href="https://developer.github.com/v3/issues/#list-issues-for-a-repository">Issues</a></li>
-        <li><a href="https://developer.github.com/v3/pulls/#list-pull-requests">Pull Requests</a></li>
-        <li><a href="https://developer.github.com/v3/issues/comments/#list-comments-in-a-repository">Comments</a></li>
-        <li><a href="https://developer.github.com/v3/pulls/reviews/#list-reviews-on-a-pull-request">Reviews</a></li>
-        <li><a href="https://developer.github.com/v3/pulls/comments/">Review Comments</a></li>
-        <li><a href="https://developer.github.com/v3/activity/starring/#list-stargazers">Stargazers</a></li>
-      </ul>
-      <h3>Getting Started</h3>
+      The GitHub Connector pulls the following data{': '}
+      <a href="https://developer.github.com/v3/issues/assignees/#list-assignees">assignees</a>{', '}
+      <a href="https://developer.github.com/v3/repos/collaborators/#list-collaborators">collaborators</a>{', '}
+      <a href="https://developer.github.com/v3/repos/commits/#list-commits-on-a-repository">commits</a>{', '}
+      <a href="https://developer.github.com/v3/issues/#list-issues-for-a-repository">issues</a>{', '}
+      <a href="https://developer.github.com/v3/pulls/#list-pull-requests">pull requests</a>{', '}
+      <a href="https://developer.github.com/v3/issues/comments/#list-comments-in-a-repository">comments</a>{', '}
+      <a href="https://developer.github.com/v3/pulls/reviews/#list-reviews-on-a-pull-request">reviews</a>{', '}
+      <a href="https://developer.github.com/v3/pulls/comments/">review comments</a>{', '}
+      <a href="https://developer.github.com/v3/activity/starring/#list-stargazers">stargazers</a>
+      <h1>Authorizing</h1>
       <ul>
         <li>Go to the <a href="https://github.com/settings/tokens">GitHub tokens</a> page</li>
-        <li>Create a new token with at least "repo" scope.</li>
+        <li>Create a new token with at <code>repo</code> scope.</li>
         <li>Save created token. It is used as Access Token in Jitsu UI</li>
       </ul>
     </>

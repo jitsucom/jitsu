@@ -33,7 +33,7 @@ export function googleServiceAuthDocumentation({ oauthEnabled = false, scopes = 
     {apis.map(api => <b>{api}</b>).join(' and ')} and make sure they are enabled
 
     {oauthEnabled && <>
-      <h1>Obtaining access through <b>OAuth</b></h1>
+      <h1>1. Obtaining access through <b>OAuth</b></h1>
       Jitsu requires 3 parameters for accessing {serviceName}:
       <ul>
         <li><code>client_id</code> - An unique client identifier that is obtained from <a href="https://console.cloud.google.com/">Google Cloud Console</a></li>
@@ -53,7 +53,7 @@ export function googleServiceAuthDocumentation({ oauthEnabled = false, scopes = 
       </p>
     </>}
     {serviceAccountEnabled && <>
-      <h1>Obtaining access through <b>Service Account</b></h1>
+      <h1>2. Obtaining access through <b>Service Account</b></h1>
       <p>At first, create or select Google project. There is a <a href="https://support.google.com/googleapi/answer/6251787?hl=en#zippy=%2Ccreate-a-project">good manual on how to do that</a></p>
       <p>Then create a new <a href="https://cloud.google.com/iam/docs/creating-managing-service-accounts"><b>Google Service Account</b></a>: </p>
       <ul>
