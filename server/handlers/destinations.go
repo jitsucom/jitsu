@@ -34,20 +34,24 @@ func DestinationsHandler(c *gin.Context) {
 }
 
 func testDestinationConnection(config *storages.DestinationConfig) error {
+	switch config.Mode {
+	case "", storages.BatchMode, storages.StreamMode:
+		break
+	default:
+		return fmt.Errorf("Unsupported mode: '%v'", config.Mode)
+	}
+
 	switch config.Type {
 	case storages.PostgresType:
 		if err := config.DataSource.Validate(true); err != nil {
 			return err
 		}
 
-		postgres, err := adapters.NewPostgres(context.Background(), config.DataSource, nil, typing.SQLTypes{})
-		if err != nil {
+		if err := storages.TestBatchProcessing(config); err != nil {
 			return err
 		}
 
-		defer postgres.Close()
-
-		if err = storages.TestBatchProcessing(config); err != nil {
+		if err := storages.TestStreamProcessing(config); err != nil {
 			return err
 		}
 
