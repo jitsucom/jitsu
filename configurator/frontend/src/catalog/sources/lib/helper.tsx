@@ -1,4 +1,4 @@
-import { intType, jsonType, Parameter, selectionType, SourceConnector, stringType } from '../types';
+import { ConnectorDocumentation, intType, jsonType, Parameter, selectionType, SourceConnector, stringType } from '../types';
 import * as React from 'react';
 import { allSingerTaps } from './singer';
 import { ReactNode } from 'react';
@@ -106,7 +106,7 @@ export interface SingerTap {
     /**
      * API Connector documentation
      */
-    documentation?: ReactNode
+    documentation?: ConnectorDocumentation
 }
 
 /**
