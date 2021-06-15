@@ -76,7 +76,7 @@
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
-    "userAgent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+    "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
     "user_language": "en-EU",
     "utm": {
       "campaign": "my_cmp",
@@ -164,7 +164,7 @@
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
-    "userAgent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+    "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
     "user_language": "en-EU",
     "utm": {
       "campaign": "my_cmp",
@@ -248,7 +248,7 @@
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
-    "userAgent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+    "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
     "user_language": "en-EU",
     "utm": {
       "campaign": "my_cmp",
@@ -334,7 +334,7 @@
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
-    "userAgent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+    "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
     "user_language": "en-EU",
     "utm": {
       "campaign": "my_cmp",
@@ -419,7 +419,7 @@
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
-    "userAgent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+    "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
     "user_language": "en-EU",
     "utm": {
       "campaign": "my_cmp",
@@ -509,7 +509,7 @@
       "lastName": "Stark",
       "role": "the Lord of Winterfell"
     },
-    "userAgent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+    "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
     "user_language": "en-EU",
     "utm": {
       "campaign": "my_cmp",
