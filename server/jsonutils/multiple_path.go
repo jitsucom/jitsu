@@ -58,6 +58,23 @@ func (mjp *MultipleJSONPath) GetAndRemove(obj map[string]interface{}) (interface
 	return nil, false
 }
 
+//SetIfNotExist puts value into the object only if JSON path doesn't exist
+//in other words the func DOESN'T overwrite the key with input value
+//{key1:"abc", key2:"qwe"} /key1/key2 -> not set
+//{key1:"abc", key2:"qwe"} /key1/key3 -> set
+func (mjp *MultipleJSONPath) SetIfNotExist(obj map[string]interface{}, value interface{}) error {
+	if obj == nil {
+		return nil
+	}
+
+	_, ok := mjp.Get(obj)
+	if ok {
+		return nil
+	}
+
+	return mjp.Set(obj, value)
+}
+
 //Set puts value to first json path that exists:
 //  {key1:"abc", key2:"qwe"} /key1/key3 -> not set
 //  {key1:{key2: {key3: "qwe"}}} /key1/key3 -> not set
