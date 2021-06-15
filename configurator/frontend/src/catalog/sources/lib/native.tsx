@@ -234,13 +234,18 @@ export const googleAnalytics: SourceConnector = {
           </>
     }
   ],
-  documentation: googleServiceAuthDocumentation({
-    oauthEnabled: true,
-    serviceAccountEnabled: true,
-    scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
-    serviceName: 'Google Analytics',
-    apis: ['Google Analytics API']
-  })
+  documentation: {
+    overview: <>The Google Analytics connector pulls data from <a href="https://developers.google.com/analytics/devguides/reporting/core/v4">Google Analytics API</a>. The connector
+      is  highly configurable and can be used to pull data from Google Ads too (if Google Analytics account is liked to Google Ads). Full list of parameters can be <a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer">found here</a>
+    </>,
+    connection: googleServiceAuthDocumentation({
+      oauthEnabled: true,
+      serviceAccountEnabled: true,
+      scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
+      serviceName: 'Google Analytics',
+      apis: ['Google Analytics API']
+    })
+  }
 }
 
 export const googlePlay: SourceConnector = {
