@@ -56,6 +56,13 @@ func TestUserAgentParse(t *testing.T) {
 			map[string]interface{}{"ua": "mock"},
 			map[string]interface{}{"ua": "mock", "parsed_ua": map[string]interface{}{"device_family": "PK", "os_family": "Windows", "os_version": "95", "ua_family": "Chrome", "ua_version": "1.0.0"}},
 		},
+		{
+			"Object with parsed ua doesn't overwrite",
+			"/ua",
+			"/parsed_ua",
+			map[string]interface{}{"ua": "mock", "parsed_ua": map[string]interface{}{"device_family": "test"}},
+			map[string]interface{}{"ua": "mock", "parsed_ua": map[string]interface{}{"device_family": "test"}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
