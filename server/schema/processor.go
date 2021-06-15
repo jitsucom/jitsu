@@ -23,7 +23,7 @@ type Processor struct {
 	uniqueIDField        *identifiers.UniqueID
 }
 
-func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper Mapper, enrichmentRules []enrichment.Rule,
+func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
 	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID) (*Processor, error) {
 	mappingStep := NewMappingStep(fieldMapper, flattener, typeResolver)
 	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression)

@@ -77,6 +77,44 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
+
+	//segment endpoint mappings
+	//uses remove type mappings (e.g. "/page->") because we have root path mapping "/context -> /"
+	viper.SetDefault("compatibility.segment.endpoint", []string{
+		"/context/page/title -> /page_title",
+		"/context/page -> /doc",
+		"/page->",
+		"/context/traits -> /user",
+		"/traits->",
+		"/anonymousId -> /ids/ajs_anonymous_id",
+		"/anonymousId -> /user/anonymous_id",
+		"/userId -> /ids/ajs_user_id",
+		"/userId -> /user/internal_id",
+		"/context/campaign -> /utm",
+		"/context/campaign/name -> /utm/campaign",
+		"/campaign ->",
+		"/context/location -> /location",
+		"/context/referrer/url -> /referer",
+		"/context/os/name -> /parsed_ua/os_family",
+		"/context/os/version -> /parsed_ua/os_version",
+		"/os ->",
+		"/context/device/manufacturer -> /parsed_ua/device_brand",
+		"/context/device/model -> /parsed_ua/device_model",
+		"/context/device/version -> /parsed_ua/ua_version",
+		"/context/device/advertisingId -> /parsed_ua/device_advertising_id",
+		"/context/device/id -> /parsed_ua/device_id",
+		"/context/device/name -> /parsed_ua/device_name",
+		"/context/device/type -> /parsed_ua/device_type",
+		"/device->",
+		"/context/locale -> /user_language",
+		"/type -> /event_type",
+		"/context/ip -> /source_ip",
+		"/ip -> ",
+		"/locale -> ",
+		"/context/user_agent -> /user_agent",
+		"/context -> /",
+	})
+
 	if containerized {
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
