@@ -86,6 +86,8 @@ func setDefaultParams(containerized bool) {
 		"/page->",
 		"/context/traits -> /user",
 		"/traits->",
+		"/context/userAgent -> /user_agent",
+		"/userAgent->",
 		"/anonymousId -> /ids/ajs_anonymous_id",
 		"/anonymousId -> /user/anonymous_id",
 		"/userId -> /ids/ajs_user_id",

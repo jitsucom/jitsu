@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/fallback"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
@@ -44,6 +45,7 @@ type suite struct {
 
 //SuiteBuilder is a test Suite builder
 type SuiteBuilder interface {
+	WithGeoDataMock() SuiteBuilder
 	WithMetaStorage(t *testing.T) SuiteBuilder
 	WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder
 	WithUserRecognition(t *testing.T) SuiteBuilder
@@ -122,6 +124,28 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		recognitionService:           dummyRecognitionService,
 		destinationService:           destinationService,
 	}
+}
+
+//WithGeoDataMock overrides geo.Data and GeoResolver with mock
+func (sb *suiteBuilder) WithGeoDataMock() SuiteBuilder {
+	geoDataMock := &geo.Data{
+		Country: "US",
+		City:    "New York",
+		Lat:     79.01,
+		Lon:     22.02,
+		Zip:     "14101",
+		Region:  "",
+	}
+	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
+
+	enrichment.InitDefault(
+		viper.GetString("server.fields_configuration.src_source_ip"),
+		viper.GetString("server.fields_configuration.dst_source_ip"),
+		viper.GetString("server.fields_configuration.src_ua"),
+		viper.GetString("server.fields_configuration.dst_ua"),
+	)
+
+	return sb
 }
 
 //WithMetaStorage overrides meta.Storage with configured from viper
