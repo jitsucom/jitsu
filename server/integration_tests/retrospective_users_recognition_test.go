@@ -5,37 +5,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/testsuite"
 	"net/http"
 	"testing"
 	"time"
 
-	"bou.ke/monkey"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/coordination"
-	"github.com/jitsucom/jitsu/server/destinations"
-	"github.com/jitsucom/jitsu/server/enrichment"
-	"github.com/jitsucom/jitsu/server/fallback"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/meta"
-	"github.com/jitsucom/jitsu/server/middleware"
-	"github.com/jitsucom/jitsu/server/routers"
-	"github.com/jitsucom/jitsu/server/sources"
-	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/synchronization"
-	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/test"
-	"github.com/jitsucom/jitsu/server/users"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRetrospectiveUsersRecognition(t *testing.T) {
 	viper.Set("server.log.path", "")
-
-	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
-	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
-	defer patch.Unpatch()
+	viper.Set("log.path", "")
+	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken_ur"}]}`)
+	viper.Set("users_recognition.enabled", true)
 
 	ctx := context.Background()
 
@@ -52,6 +36,9 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 		t.Fatalf("failed to initialize container: %v", err)
 	}
 	defer postgresContainer.Close()
+
+	viper.Set("meta.storage.redis.host", redisContainer.Host)
+	viper.Set("meta.storage.redis.port", redisContainer.Port)
 
 	configTemplate := `{"destinations": {
   			"test_postgres_user_recognition": {
@@ -76,77 +63,10 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
       		}
     	}}`
 
-	telemetry.InitTest()
-	viper.Set("log.path", "")
-	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken_ur"}]}`)
-	viper.Set("meta.storage.redis.host", redisContainer.Host)
-	viper.Set("meta.storage.redis.port", redisContainer.Port)
-	viper.Set("users_recognition.enabled", true)
-
 	destinationConfig := fmt.Sprintf(configTemplate, postgresContainer.Host, postgresContainer.Port, postgresContainer.Database, postgresContainer.Schema, postgresContainer.Username, postgresContainer.Password)
 
-	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init(false, "")
-	require.NoError(t, err)
-	defer func() {
-		appconfig.Instance.Close()
-		appconfig.Instance.CloseEventsConsumers()
-	}()
-
-	enrichment.InitDefault(
-		viper.GetString("server.fields_configuration.src_source_ip"),
-		viper.GetString("server.fields_configuration.dst_source_ip"),
-		viper.GetString("server.fields_configuration.src_ua"),
-		viper.GetString("server.fields_configuration.dst_ua"),
-	)
-
-	monitor := coordination.NewInMemoryService([]string{})
-
-	metaStorage, err := meta.NewStorage(viper.Sub("meta.storage"))
-	require.NoError(t, err)
-
-	eventsCache := caching.NewEventsCache(metaStorage, 100)
-
-	// ** Retrospective users recognition
-	globalRecognitionConfiguration := &storages.UsersRecognition{
-		Enabled:             viper.GetBool("users_recognition.enabled"),
-		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),
-		IdentificationNodes: viper.GetStringSlice("users_recognition.identification_nodes"),
-		UserIDNode:          viper.GetString("users_recognition.user_id_node"),
-	}
-
-	if err := globalRecognitionConfiguration.Validate(); err != nil {
-		logging.Fatalf("Invalid global users recognition configuration: %v", err)
-	}
-
-	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, 0)
-	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
-	require.NoError(t, err)
-	appconfig.Instance.ScheduleClosing(destinationService)
-
-	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationService, globalRecognitionConfiguration, "/tmp")
-	require.NoError(t, err)
-	appconfig.Instance.ScheduleClosing(usersRecognitionService)
-
-	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
-		usersRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}), eventsCache)
-
-	server := &http.Server{
-		Addr:              httpAuthority,
-		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
-		ReadTimeout:       time.Second * 60,
-		ReadHeaderTimeout: time.Second * 60,
-		IdleTimeout:       time.Second * 65,
-	}
-	go func() {
-		logging.Fatal(server.ListenAndServe())
-	}()
-
-	logging.Info("Started listen and serve " + httpAuthority)
-
-	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
-	require.NoError(t, err)
+	testSuite := testsuite.NewSuiteBuilder(t).WithMetaStorage(t).WithDestinationService(t, destinationConfig).WithUserRecognition(t).Build(t)
+	defer testSuite.Close()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -177,7 +97,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
     "click_id": {}
   }
 }`)
-	pageviewReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(pageviewReqPayload))
+	pageviewReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(pageviewReqPayload))
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(pageviewReq)
 	require.NoError(t, err)
@@ -210,7 +130,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
   }
 }`)
 
-	identifyReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(identifyReqPayload))
+	identifyReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken_ur", bytes.NewBuffer(identifyReqPayload))
 	require.NoError(t, err)
 	resp, err = http.DefaultClient.Do(identifyReq)
 	require.NoError(t, err)

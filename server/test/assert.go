@@ -23,6 +23,8 @@ func JSONBytesEqual(t *testing.T, expected, actual []byte, msgAndArgs ...interfa
 //ObjectsEqual uses reflect.DeepEqual under the hood
 func ObjectsEqual(t *testing.T, expected, actual interface{}, msgAndArgs ...interface{}) {
 	if !reflect.DeepEqual(expected, actual) {
-		assert.Fail(t, fmt.Sprintf("Objects aren't equal \n Expected: %v \n Actual:   %v", expected, actual), msgAndArgs...)
+		a, _ := json.Marshal(actual)
+		e, _ := json.Marshal(expected)
+		assert.Fail(t, fmt.Sprintf("Objects aren't equal \n Expected: %s \n Actual: %s", string(e), string(a)), msgAndArgs...)
 	}
 }

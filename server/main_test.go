@@ -3,36 +3,25 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/testsuite"
 	"io/ioutil"
-	"log"
+	"net"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
-	"bou.ke/monkey"
 	"github.com/gin-gonic/gin/binding"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/coordination"
-	"github.com/jitsucom/jitsu/server/destinations"
-	"github.com/jitsucom/jitsu/server/enrichment"
-	"github.com/jitsucom/jitsu/server/fallback"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
-	"github.com/jitsucom/jitsu/server/routers"
-	"github.com/jitsucom/jitsu/server/sources"
-	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/test"
-	"github.com/jitsucom/jitsu/server/users"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/segmentio/analytics-go.v3"
 )
 
 func SetTestDefaultParams() {
@@ -186,59 +175,17 @@ func TestCors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
-			telemetry.InitTest()
-			httpAuthority, _ := test.GetLocalAuthority()
-
-			err := appconfig.Init(false, "")
-			require.NoError(t, err)
-			defer appconfig.Instance.Close()
-			defer appconfig.Instance.CloseEventsConsumers()
-
-			mockStorageFactory := storages.NewMockFactory()
-			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
-
-			inmemWriter := logging.InitInMemoryWriter()
-			consumer := logging.NewAsyncLogger(inmemWriter, false)
-			destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)}, destinations.TokenizedConsumers{"id1": {"id1": consumer}},
-				destinations.TokenizedStorages{}, destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}}, map[string]events.Consumer{"dest1": consumer})
-			appconfig.Instance.ScheduleClosing(destinationService)
-
-			metaStorage := &meta.Dummy{}
-
-			dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
-			router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
-				dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-				caching.NewEventsCache(metaStorage, 100))
-
-			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
-			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
-			defer patch.Unpatch()
-
-			server := &http.Server{
-				Addr:              httpAuthority,
-				Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
-				ReadTimeout:       time.Second * 60,
-				ReadHeaderTimeout: time.Second * 60,
-				IdleTimeout:       time.Second * 65,
-			}
-			go func() {
-				log.Fatal(server.ListenAndServe())
-			}()
-
-			logging.Info("Started listen and serve " + httpAuthority)
-
-			//check ping endpoint
-			_, err = test.RenewGet("http://" + httpAuthority + "/ping")
-			require.NoError(t, err)
+			testSuite := testsuite.NewSuiteBuilder(t).Build(t)
+			defer testSuite.Close()
 
 			//check http OPTIONS
-			optReq, err := http.NewRequest(http.MethodOptions, "http://"+httpAuthority+tt.ReqUrn, nil)
+			optReq, err := http.NewRequest(http.MethodOptions, "http://"+testSuite.HTTPAuthority()+tt.ReqUrn, nil)
 			require.NoError(t, err)
 			if tt.ReqOrigin != "" {
 				optReq.Header.Add("Origin", tt.ReqOrigin)
 			}
 			if tt.XAuthToken != "" {
-				optReq.Header.Add("X-Auth-Token", tt.XAuthToken)
+				optReq.Header.Add(middleware.TokenHeaderName, tt.XAuthToken)
 			}
 			optResp, err := http.DefaultClient.Do(optReq)
 			require.NoError(t, err)
@@ -251,7 +198,7 @@ func TestCors(t *testing.T) {
 	}
 }
 
-func TestAPIEvent(t *testing.T) {
+func TestEventEndpoint(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
 
@@ -309,7 +256,7 @@ func TestAPIEvent(t *testing.T) {
 			"",
 			"s2stoken",
 			http.StatusBadRequest,
-			`{"message":"Failed to parse body: invalid character 'a' looking for beginning of object key string","error":""}`,
+			`{"message":"Error parsing events body: error parsing HTTP body: invalid character 'a' looking for beginning of object key string","error":""}`,
 		},
 		{
 			"Randomized c2s endpoint 1.0",
@@ -338,65 +285,50 @@ func TestAPIEvent(t *testing.T) {
 			http.StatusOK,
 			"",
 		},
+		{
+			"Mobile API single event",
+			"/api/v1/event",
+			"test_data/mobile_event_input.json",
+			"test_data/mobile_fact_output.json",
+			"c2stoken",
+			http.StatusOK,
+			"",
+		},
+		{
+			"Mobile API events array",
+			"/api/v1/event",
+			"test_data/mobile_events_array_input.json",
+			"test_data/mobile_facts_array_output.json",
+			"c2stoken",
+			http.StatusOK,
+			"",
+		},
+		{
+			"Mobile API events with template",
+			"/api/v1/event",
+			"test_data/mobile_events_template_input.json",
+			"test_data/mobile_facts_template_output.json",
+			"c2stoken",
+			http.StatusOK,
+			"",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
-			telemetry.InitTest()
-			httpAuthority, _ := test.GetLocalAuthority()
-
-			err := appconfig.Init(false, "")
-			require.NoError(t, err)
-			defer appconfig.Instance.Close()
-			defer appconfig.Instance.CloseEventsConsumers()
-
-			mockStorageFactory := storages.NewMockFactory()
-			mockStorage, _, _ := mockStorageFactory.Create("test", storages.DestinationConfig{})
-
-			inmemWriter := logging.InitInMemoryWriter()
-			consumer := logging.NewAsyncLogger(inmemWriter, false)
-			destinationService := destinations.NewTestService(map[string]*destinations.Unit{"dest1": destinations.NewTestUnit(mockStorage)}, destinations.TokenizedConsumers{"id1": {"id1": consumer}},
-				destinations.TokenizedStorages{}, destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}}, map[string]events.Consumer{"dest1": consumer})
-			appconfig.Instance.ScheduleClosing(destinationService)
-
-			metaStorage := &meta.Dummy{}
-
-			dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
-			router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
-				dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-				caching.NewEventsCache(metaStorage, 100))
-
-			freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
-			patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
-			defer patch.Unpatch()
-
-			server := &http.Server{
-				Addr:              httpAuthority,
-				Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
-				ReadTimeout:       time.Second * 60,
-				ReadHeaderTimeout: time.Second * 60,
-				IdleTimeout:       time.Second * 65,
-			}
-			go func() {
-				log.Fatal(server.ListenAndServe())
-			}()
-
-			logging.Info("Started listen and serve " + httpAuthority)
-
-			//check ping endpoint
-			resp, err := test.RenewGet("http://" + httpAuthority + "/ping")
-			require.NoError(t, err)
+			testSuite := testsuite.NewSuiteBuilder(t).Build(t)
+			defer testSuite.Close()
 
 			b, err := ioutil.ReadFile(tt.ReqBodyPath)
 			require.NoError(t, err)
 
 			//check http POST
-			apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+tt.ReqUrn, bytes.NewBuffer(b))
+			apiReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+tt.ReqUrn, bytes.NewBuffer(b))
 			require.NoError(t, err)
 			if tt.XAuthToken != "" {
-				apiReq.Header.Add("x-auth-token", tt.XAuthToken)
+				apiReq.Header.Add(middleware.TokenHeaderName, tt.XAuthToken)
 			}
 			apiReq.Header.Add("x-real-ip", "95.82.232.185")
-			resp, err = http.DefaultClient.Do(apiReq)
+			resp, err := http.DefaultClient.Do(apiReq)
 			require.NoError(t, err)
 
 			if tt.ExpectedHTTPCode != 200 {
@@ -416,14 +348,196 @@ func TestAPIEvent(t *testing.T) {
 				require.Equal(t, `{"status":"ok"}`, string(b))
 
 				time.Sleep(200 * time.Millisecond)
-				data := logging.InstanceMock.Data
-				require.Equal(t, 1, len(data))
 
-				fBytes, err := ioutil.ReadFile(tt.ExpectedJSONPath)
+				expectedAllBytes, err := ioutil.ReadFile(tt.ExpectedJSONPath)
 				require.NoError(t, err)
-				test.JSONBytesEqual(t, fBytes, data[0], "Logged facts aren't equal")
+
+				actualBytes := logging.InstanceMock.Data
+
+				if expectedAllBytes[0] == '{' {
+					require.Equal(t, 1, len(actualBytes))
+					test.JSONBytesEqual(t, expectedAllBytes, actualBytes[0], "Logged facts aren't equal")
+				} else {
+					//array
+					expectedEvents := []interface{}{}
+					require.NoError(t, json.Unmarshal(expectedAllBytes, &expectedEvents))
+
+					require.Equal(t, len(expectedEvents), len(actualBytes), "Logged facts count isn't equal with actual one")
+					for i, expected := range expectedEvents {
+						actualEvent := actualBytes[i]
+						expectedBytes, err := json.Marshal(expected)
+						require.NoError(t, err)
+						test.JSONBytesEqual(t, expectedBytes, actualEvent, "Logged facts aren't equal")
+					}
+				}
 			}
 		})
+	}
+}
+
+func TestSegmentAPIEvents(t *testing.T) {
+	uuid.InitMock()
+	binding.EnableDecoderUseNumber = true
+
+	SetTestDefaultParams()
+
+	testSuite := testsuite.NewSuiteBuilder(t).Build(t)
+	defer testSuite.Close()
+
+	client, _ := analytics.NewWithConfig("c2stoken", analytics.Config{Endpoint: "http://" + testSuite.HTTPAuthority() + "/api/v1/segment"})
+	analyticsTraits := analytics.NewTraits().SetFirstName("Ned").SetLastName("Stark").Set("role", "the Lord of Winterfell").SetEmail("ned@starkinc.com")
+	analyticsContext := &analytics.Context{
+		App: analytics.AppInfo{
+			Name:      "app1",
+			Version:   "1.0",
+			Build:     "build",
+			Namespace: "namespace",
+		},
+		Campaign: analytics.CampaignInfo{
+			Name:    "my_cmp",
+			Source:  "my_cmp_src",
+			Medium:  "my_cmp_medium",
+			Term:    "my_cmp_term",
+			Content: "my_cmp_content",
+		},
+		Device: analytics.DeviceInfo{
+			Id:            "device1",
+			Manufacturer:  "Apple",
+			Model:         "iPhone",
+			Name:          "iPhone 12",
+			Type:          "mobile",
+			Version:       "12",
+			AdvertisingID: "an_advertising_id",
+		},
+		Library: analytics.LibraryInfo{
+			Name:    "lib1",
+			Version: "1.0",
+		},
+		Location: analytics.LocationInfo{
+			City:      "San Francisco",
+			Country:   "US",
+			Latitude:  1.0,
+			Longitude: 2.0,
+			Region:    "CA",
+			Speed:     100,
+		},
+		Network: analytics.NetworkInfo{
+			WIFI: true,
+		},
+		OS: analytics.OSInfo{
+			Name:    "iOS",
+			Version: "14.0",
+		},
+		Page: analytics.PageInfo{
+			Hash:     "page_hash",
+			Path:     "page_path",
+			Referrer: "page_referrer",
+			Search:   "page_search",
+			Title:    "page_title",
+			URL:      "page_url",
+		},
+		Referrer: analytics.ReferrerInfo{
+			Type: "ref_type",
+			Name: "ref_name",
+			URL:  "ref_url",
+			Link: "ref_link",
+		},
+		Screen: analytics.ScreenInfo{
+			Density: 10,
+			Width:   1024,
+			Height:  768,
+		},
+		IP:        net.IPv4(1, 1, 1, 1),
+		Locale:    "en-EU",
+		Timezone:  "UTC",
+		UserAgent: "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+		Traits:    analyticsTraits,
+		Extra:     map[string]interface{}{"extra": true},
+	}
+	analyticsProperties := analytics.NewProperties().SetRevenue(10.0).SetCurrency("USD")
+	integrations := analytics.NewIntegrations().EnableAll().Disable("Salesforce").Disable("Marketo")
+
+	err := client.Enqueue(analytics.Track{
+		MessageId:    "track1",
+		AnonymousId:  "anonym1",
+		Event:        "test_track",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Properties:   analyticsProperties,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Screen{
+		MessageId:    "screen1",
+		AnonymousId:  "anonym1",
+		Name:         "home screen",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Properties:   analyticsProperties,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Alias{
+		MessageId:    "alias1",
+		PreviousId:   "previousId",
+		UserId:       "user1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Group{
+		MessageId:    "group1",
+		AnonymousId:  "anonym1",
+		UserId:       "user1",
+		GroupId:      "group1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Traits:       analyticsTraits,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Identify{
+		MessageId:    "identify1",
+		AnonymousId:  "anonym1",
+		UserId:       "user1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Traits:       analyticsTraits,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Page{
+		MessageId:    "page1",
+		AnonymousId:  "anonym1",
+		Name:         "page",
+		UserId:       "user1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Properties:   analyticsProperties,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+
+	err = client.Close()
+	require.NoError(t, err)
+
+	time.Sleep(1 * time.Second)
+
+	actualBytes := logging.InstanceMock.Data
+
+	expectedAllBytes, err := ioutil.ReadFile("test_data/segment_api_events_output.json")
+	require.NoError(t, err)
+
+	expectedEvents := []interface{}{}
+	require.NoError(t, json.Unmarshal(expectedAllBytes, &expectedEvents))
+
+	require.Equal(t, len(expectedEvents), len(actualBytes), "Logged facts count isn't equal with actual one")
+	for i, expected := range expectedEvents {
+		actualEvent := actualBytes[i]
+		expectedBytes, err := json.Marshal(expected)
+		require.NoError(t, err)
+		test.JSONBytesEqual(t, expectedBytes, actualEvent, "Logged facts aren't equal")
 	}
 }
 
@@ -513,61 +627,16 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	}
 	defer container.Close()
 
-	telemetry.InitTest()
-	viper.Set("log.path", "")
-	viper.Set("api_keys", `{"tokens":[{"id":"id1","server_secret":"s2stoken"}]}`)
-
+	SetTestDefaultParams()
 	destinationConfig := fmt.Sprintf(pgDestinationConfigTemplate, container.Host, container.Port, container.Database, container.Schema, container.Username, container.Password)
 
-	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init(false, "")
-	require.NoError(t, err)
-	defer appconfig.Instance.Close()
-	defer appconfig.Instance.CloseEventsConsumers()
-
-	enrichment.InitDefault(
-		viper.GetString("server.fields_configuration.src_source_ip"),
-		viper.GetString("server.fields_configuration.dst_source_ip"),
-		viper.GetString("server.fields_configuration.src_ua"),
-		viper.GetString("server.fields_configuration.dst_ua"),
-	)
-
-	metaStorage := &meta.Dummy{}
-
-	monitor := coordination.NewInMemoryService([]string{})
-	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
-	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, metaStorage, 0)
-	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
-	require.NoError(t, err)
-	defer destinationService.Close()
-
-	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
-	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
-		dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-		caching.NewEventsCache(metaStorage, 100))
-
-	server := &http.Server{
-		Addr:              httpAuthority,
-		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
-		ReadTimeout:       time.Second * 60,
-		ReadHeaderTimeout: time.Second * 60,
-		IdleTimeout:       time.Second * 65,
-	}
-	go func() {
-		log.Fatal(server.ListenAndServe())
-	}()
-
-	logging.Info("Started listen and serve " + httpAuthority)
-	time.Sleep(200 * time.Millisecond)
-
-	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
-	require.NoError(t, err)
+	testSuite := testsuite.NewSuiteBuilder(t).WithDestinationService(t, destinationConfig).Build(t)
+	defer testSuite.Close()
 
 	time.Sleep(500 * time.Millisecond)
 	requestValue := []byte(`{"email": "test@domain.com"}`)
 	for i := 0; i < sendEventsCount; i++ {
-		apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+endpoint, bytes.NewBuffer(requestValue))
+		apiReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+endpoint, bytes.NewBuffer(requestValue))
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(apiReq)
 		require.NoError(t, err)
@@ -639,45 +708,12 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	}
 	destinationConfig := fmt.Sprintf(configTemplate, strings.Join(dsns, ","), container.Database)
 
-	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init(false, "")
-	require.NoError(t, err)
-	defer appconfig.Instance.Close()
-	defer appconfig.Instance.CloseEventsConsumers()
+	testSuite := testsuite.NewSuiteBuilder(t).WithDestinationService(t, destinationConfig).Build(t)
+	defer testSuite.Close()
 
-	metaStorage := &meta.Dummy{}
-
-	monitor := coordination.NewInMemoryService([]string{})
-	eventsCache := caching.NewEventsCache(&meta.Dummy{}, 100)
-	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, metaStorage, 0)
-	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
-	require.NoError(t, err)
-	appconfig.Instance.ScheduleClosing(destinationService)
-
-	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
-	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
-		dummyRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-		caching.NewEventsCache(metaStorage, 100))
-
-	server := &http.Server{
-		Addr:              httpAuthority,
-		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
-		ReadTimeout:       time.Second * 60,
-		ReadHeaderTimeout: time.Second * 60,
-		IdleTimeout:       time.Second * 65,
-	}
-	go func() {
-		log.Fatal(server.ListenAndServe())
-	}()
-
-	logging.Info("Started listen and serve " + httpAuthority)
-
-	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
-	require.NoError(t, err)
 	requestValue := []byte(`{"email": "test@domain.com", "key": 1}`)
 	for i := 0; i < sendEventsCount; i++ {
-		apiReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
+		apiReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/s2s/event?token=s2stoken", bytes.NewBuffer(requestValue))
 		require.NoError(t, err)
 		resp, err := http.DefaultClient.Do(apiReq)
 		require.NoError(t, err)

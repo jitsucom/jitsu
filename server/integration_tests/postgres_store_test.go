@@ -1,27 +1,12 @@
 package integration_tests
 
 import (
-	"bou.ke/monkey"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/coordination"
-	"github.com/jitsucom/jitsu/server/destinations"
-	"github.com/jitsucom/jitsu/server/enrichment"
-	"github.com/jitsucom/jitsu/server/fallback"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/meta"
-	"github.com/jitsucom/jitsu/server/middleware"
-	"github.com/jitsucom/jitsu/server/routers"
-	"github.com/jitsucom/jitsu/server/sources"
-	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/synchronization"
-	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/test"
-	"github.com/jitsucom/jitsu/server/users"
+	"github.com/jitsucom/jitsu/server/testsuite"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"net/http"
@@ -34,13 +19,8 @@ func TestStreamInsert(t *testing.T) {
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken"}]}`)
 
-	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
-	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
-	defer patch.Unpatch()
-
-	ctx := context.Background()
-
 	//create postgres
+	ctx := context.Background()
 	postgresContainer, err := test.NewPostgresContainer(ctx)
 	if err != nil {
 		t.Fatalf("failed to initialize container: %v", err)
@@ -66,61 +46,10 @@ func TestStreamInsert(t *testing.T) {
       		}
     	}}`
 
-	telemetry.InitTest()
-
 	destinationConfig := fmt.Sprintf(configTemplate, postgresContainer.Host, postgresContainer.Port, postgresContainer.Database, postgresContainer.Schema, postgresContainer.Username, postgresContainer.Password)
 
-	httpAuthority, _ := test.GetLocalAuthority()
-	err = appconfig.Init(false, "")
-	require.NoError(t, err)
-	defer func() {
-		appconfig.Instance.Close()
-		appconfig.Instance.CloseEventsConsumers()
-	}()
-
-	enrichment.InitDefault(
-		viper.GetString("server.fields_configuration.src_source_ip"),
-		viper.GetString("server.fields_configuration.dst_source_ip"),
-		viper.GetString("server.fields_configuration.src_ua"),
-		viper.GetString("server.fields_configuration.dst_ua"),
-	)
-
-	monitor := coordination.NewInMemoryService([]string{})
-
-	metaStorage := &meta.Dummy{}
-	eventsCache := caching.NewEventsCache(metaStorage, 100)
-
-	// ** Retrospective users recognition
-	globalRecognitionConfiguration := &storages.UsersRecognition{Enabled: false}
-
-	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, globalRecognitionConfiguration, metaStorage, 0)
-	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
-	require.NoError(t, err)
-	appconfig.Instance.ScheduleClosing(destinationService)
-
-	usersRecognitionService, err := users.NewRecognitionService(metaStorage, destinationService, globalRecognitionConfiguration, "/tmp")
-	require.NoError(t, err)
-	appconfig.Instance.ScheduleClosing(usersRecognitionService)
-
-	router := routers.SetupRouter("", metaStorage, destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
-		usersRecognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}), eventsCache)
-
-	server := &http.Server{
-		Addr:              httpAuthority,
-		Handler:           middleware.Cors(router, appconfig.Instance.AuthorizationService.GetClientOrigins),
-		ReadTimeout:       time.Second * 60,
-		ReadHeaderTimeout: time.Second * 60,
-		IdleTimeout:       time.Second * 65,
-	}
-	go func() {
-		logging.Fatal(server.ListenAndServe())
-	}()
-
-	logging.Info("Started listen and serve " + httpAuthority)
-
-	_, err = test.RenewGet("http://" + httpAuthority + "/ping")
-	require.NoError(t, err)
+	testSuite := testsuite.NewSuiteBuilder(t).WithDestinationService(t, destinationConfig).Build(t)
+	defer testSuite.Close()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -145,7 +74,7 @@ func TestStreamInsert(t *testing.T) {
   "utm": {},
   "click_id": {}
 }`)
-	pageviewReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/event?token=c2stoken", bytes.NewBuffer(pageviewReqPayload))
+	pageviewReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken", bytes.NewBuffer(pageviewReqPayload))
 	require.NoError(t, err)
 	resp, err := http.DefaultClient.Do(pageviewReq)
 	require.NoError(t, err)
@@ -172,7 +101,7 @@ func TestStreamInsert(t *testing.T) {
   "utm": {},
   "click_id": {}
 }`)
-	identifyReq, err := http.NewRequest("POST", "http://"+httpAuthority+"/api/v1/event?token=c2stoken", bytes.NewBuffer(identifyReqPayload))
+	identifyReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+"/api/v1/event?token=c2stoken", bytes.NewBuffer(identifyReqPayload))
 	require.NoError(t, err)
 	resp, err = http.DefaultClient.Do(identifyReq)
 	require.NoError(t, err)
