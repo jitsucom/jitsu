@@ -34,7 +34,7 @@ export const OnboardingTour: React.FC = () => {
 
   const config = useMemo<OnboardingConfig>(() => ({
     showUserAndCompanyNamesStep: true,
-    showDestinationsSetupSteps: false
+    showDestinationsSetupSteps: true
   }), [])
 
   const steps = useMemo<ReactourStep[]>(() => {
@@ -104,6 +104,7 @@ export const OnboardingTour: React.FC = () => {
       steps={steps}
       isOpen={showTour}
       showButtons={false}
+      closeWithMask={false}
       // showCloseButton={false}
       showNumber={false}
       showNavigation={false}
