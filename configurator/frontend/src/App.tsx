@@ -161,7 +161,9 @@ export default class App extends React.Component<{}, AppState> {
         });
         routes.push(<Redirect key="dashboardRedirect" to="/dashboard"/>);
         // let extraForms = null;
+
         let extraForms = <OnboardingTour />;
+
         // extraForms = (
         //         <OnboardingForm
         //             user={this.state.user}
