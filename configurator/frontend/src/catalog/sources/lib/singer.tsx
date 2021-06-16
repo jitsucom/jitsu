@@ -319,10 +319,11 @@ export const allSingerTaps: SingerTap[] = [
     parameters: customParameters('tap-google-sheets', {
       customConfig: [
         ...googleAuthConfigParameters({
+          type: 'type',
           clientId: 'client_id',
           refreshToken: 'refresh_token',
           clientSecret: 'client_secret',
-          disableOauth: true
+          disableServiceAccount: true
         }),
         {
           displayName: 'Google Spreadsheet ID',
