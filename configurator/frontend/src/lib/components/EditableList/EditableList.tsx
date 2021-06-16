@@ -17,29 +17,28 @@ const emptyValidator = (str) => {
 };
 
 export type EditableListProps = {
-  value?: ListValue;
+  initialValue?: ListValue;
   onChange?: (val: ListValue) => void;
   newItemLabel?: string;
   validator?: (string) => string;
 };
 
 export function EditableList({
-  value = [],
+  initialValue = [],
   onChange,
   newItemLabel = 'New Item',
   validator = emptyValidator
 }: EditableListProps) {
-  if (typeof value === "string") {
-    value = []
+  if (typeof initialValue === "string") {
+    initialValue = []
   }
-  const [items, setItems] = useState(
-    value.map((str) => {
-      return {
-        value: str,
-        error: validator(str)
-      };
-    })
-  );
+  const initialItems = initialValue.map((str) => {
+    return {
+      value: str,
+      error: validator(str)
+    };
+  });
+  const [items, setItems] = useState(initialItems);
 
   const triggerChange = (changedValue) => {
     if (onChange) {
@@ -68,11 +67,10 @@ export function EditableList({
     setItems(newItems);
   };
 
-  return (
-    <div className="editable-list">
+  return <div className="editable-list">
       {items.map((item, index) => {
         return (
-          <Row>
+          <Row key={index}>
             <Col span={22}>
               <Input value={item.value} onChange={(e) => changeVal(index, e.target.value)} />
               <div className="editable-list-validation-error">{item.error ? item.error : ' '}</div>
@@ -85,13 +83,12 @@ export function EditableList({
           </Row>
         );
       })}
-      <Row>
+      <Row key="add">
         <Col span={24}>
           <Align horizontal="right">
             <Button className="editable-list-new-item" type="ghost" onClick={() => addItem()} icon={<PlusOutlined />} />
           </Align>
         </Col>
       </Row>
-    </div>
-  );
+    </div>;
 }

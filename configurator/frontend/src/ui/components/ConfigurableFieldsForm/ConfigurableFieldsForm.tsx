@@ -142,7 +142,10 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
       </Select>;
 
     case 'array/string':
-      return <EditableList/>;
+      const value = form.getFieldValue(id);
+      return <EditableList initialValue={value ?
+        value :
+        getInitialValue(id, defaultValue, constantValue, type?.typeName)} />;
 
     case 'json': {
       const value = form.getFieldValue(id);
