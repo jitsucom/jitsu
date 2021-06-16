@@ -1,6 +1,6 @@
 
 // @libraries
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Tour, { ReactourStep } from 'reactour';
 
 // @components
@@ -10,48 +10,104 @@ import { OnboardingTourAddDestination } from './steps/OnboardingTourAddDestinati
 import { OnboardingTourReceiveEvent } from './steps/OnboardingTourReceiveEvent/OnboardingTourReceiveEvent';
 import { OnboardingTourSuccess } from './steps/OnboardingTourSuccess/OnboardingTourSuccess';
 
-// @styles
+// @services
+import ApplicationServices from '@./lib/services/ApplicationServices';
+
+// @Hooks
+import useLoader from '@./hooks/useLoader';
+
+// @Styles
 import styles from './OnboardingTour.module.less'
 
+type OnboardingConfig = {
+  showUserAndCompanyNamesStep: boolean;
+  showDestinationsSetupSteps: boolean;
+}
+
 export const OnboardingTour: React.FC = () => {
+  // const services = ApplicationServices.get();
+
+  const [showTour, setShowTour] = useState<boolean>(false)
+
+  // const [sourcesError, sourcesData, updateSources] = useLoader(async() => await services.storageService.get('sources', services.activeProject.id));
+  // const [destinationsError, destinations, updateDestinations] = useLoader(async() => await services.storageService.get('destinations', services.activeProject.id));
+
+  const config = useMemo<OnboardingConfig>(() => ({
+    showUserAndCompanyNamesStep: true,
+    showDestinationsSetupSteps: false
+  }), [])
+
   const steps = useMemo<ReactourStep[]>(() => {
-    return ([
-      {
-        content: ({ goTo }) => {
-          return <OnboardingTourGreeting handleGoNext={() => goTo(1)}/>;
-        }
-      },
-      {
-        content: ({ goTo }) => {
-          return <OnboardingTourNames handleGoNext={() => goTo(2)}/>;
-        }
-      },
-      {
-        content: ({ goTo }) => {
-          return <OnboardingTourAddDestination handleGoNext={() => goTo(3)} handleGoBack={() => goTo(1)}/>;
-        }
-      },
-      {
-        content: ({ goTo }) => {
-          return <OnboardingTourReceiveEvent handleGoNext={() => goTo(4)} handleGoBack={() => goTo(2)}/>;
-        }
-      },
-      {
-        content: ({ goTo }) => {
-          return <OnboardingTourSuccess handleFinishOnboarding={() => goTo(0)}/>;
-        }
+    let steps: ReactourStep[] = [];
+
+    // Greeting Step
+    const next = steps.length + 1;
+    steps.push({
+      content: ({ goTo }) => {
+        return <OnboardingTourGreeting handleGoNext={() => goTo(next) }/>;
       }
-    ]);
-  }, []);
+    })
+
+    // User and Company Names Step
+    if (config.showUserAndCompanyNamesStep) {
+      const next = steps.length + 1;
+      steps.push({
+        content: ({ goTo }) => {
+          return <OnboardingTourNames handleGoNext={() => goTo(next)}/>;
+        }
+      })
+    }
+
+    // Add Destinations and Test Events
+    if (config.showDestinationsSetupSteps) {
+      const next = steps.length + 1;
+      const prev = steps.length - 1;
+      steps.push({
+        content: ({ goTo }) => {
+          return (
+            <OnboardingTourAddDestination
+              handleGoNext={() => goTo(next)}
+              handleGoBack={() => goTo(prev)}
+            />
+          );
+        }
+      })
+      steps.push({
+        content: ({ goTo }) => {
+          return (
+            <OnboardingTourReceiveEvent
+              handleGoNext={() => goTo(next + 1)}
+              handleGoBack={() => goTo(prev + 1)}
+            />
+          );
+        }
+      })
+    }
+
+    // Success Screen
+    steps.push({
+      content: ({ goTo }) => {
+        return <OnboardingTourSuccess handleFinishOnboarding={() => goTo(0)}/>;
+      }
+    })
+
+    return steps;
+  }, [config.showUserAndCompanyNamesStep, config.showDestinationsSetupSteps]);
+
+  useEffect(() => {
+    const show = config.showUserAndCompanyNamesStep || config.showDestinationsSetupSteps
+    setShowTour(show);
+  }, [config.showUserAndCompanyNamesStep, config.showDestinationsSetupSteps])
+
   return <>
     <Tour
       steps={steps}
-      isOpen={true}
+      isOpen={showTour}
       showButtons={false}
-      showCloseButton={false}
+      // showCloseButton={false}
       showNumber={false}
       showNavigation={false}
-      onRequestClose={() => {}}
+      onRequestClose={() => setShowTour(false)}
       className={styles.reactourDialogCard}
     />
   </>;
