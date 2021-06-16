@@ -16,6 +16,7 @@ import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import { ApplicationPage, SlackChatWidget } from './Layout';
 import { PaymentPlanStatus } from '@service/billing';
+import { OnboardingTour } from './lib/components/OnboardingTour/OnboardingTour';
 
 enum AppLifecycle {
     LOADING, //Application is loading
@@ -159,17 +160,27 @@ export default class App extends React.Component<{}, AppState> {
             }
         });
         routes.push(<Redirect key="dashboardRedirect" to="/dashboard"/>);
-        let extraForms = null;
+        // let extraForms = null;
+        let extraForms = <OnboardingTour />;
+        // extraForms = (
+        //         <OnboardingForm
+        //             user={this.state.user}
+        //             onCompleted={async () => {
+        //                 await this.services.userService.waitForUser();
+        //                 this.setState({showOnboardingForm: false});
+        //             }}
+        //         />
+        //     );
         if (this.state.showOnboardingForm) {
-            extraForms = (
-                <OnboardingForm
-                    user={this.state.user}
-                    onCompleted={async () => {
-                        await this.services.userService.waitForUser();
-                        this.setState({showOnboardingForm: false});
-                    }}
-                />
-            );
+            // extraForms = (
+            //     <OnboardingForm
+            //         user={this.state.user}
+            //         onCompleted={async () => {
+            //             await this.services.userService.waitForUser();
+            //             this.setState({showOnboardingForm: false});
+            //         }}
+            //     />
+            // );
         } else if (this.services.userService.getUser().forcePasswordChange) {
             return (
                 <SetNewPassword
