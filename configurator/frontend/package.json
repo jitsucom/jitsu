@@ -17,7 +17,6 @@
     "react-monaco-editor": "^0.43.0",
     "react-router-dom": "^5.2.0",
     "react-syntax-highlighter": "^15.4.3",
-    "reactour": "^1.18.4",
     "recharts": "^2.0.8",
     "styled-components": "^5.3.0",
     "uuid": "^8.3.2"
@@ -59,7 +58,6 @@
     "@types/react": "^17.0.0",
     "@types/react-dom": "^17.0.0",
     "@types/react-router-dom": "^5.1.7",
-    "@types/reactour": "^1.18.1",
     "autoprefixer": "^9",
     "craco-antd": "^1.19.0",
     "craco-less": "^1.17.1",

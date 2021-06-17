@@ -1,9 +1,9 @@
 
 // @libraries
 import React, { useEffect, useMemo, useState } from 'react';
-import Tour, { ReactourStep } from 'reactour';
 
 // @components
+import { Tour, TourStep } from './Tour/Tour';
 import { OnboardingTourGreeting } from './steps/OnboardingTourGreeting/OnboardingTourGreeting';
 import { OnboardingTourNames } from './steps/OnboardingTourNames/OnboardingTourNames';
 import { OnboardingTourAddDestination } from './steps/OnboardingTourAddDestination/OnboardingTourAddDestination';
@@ -17,7 +17,6 @@ import ApplicationServices from '@./lib/services/ApplicationServices';
 import useLoader from '@./hooks/useLoader';
 
 // @Styles
-import styles from './OnboardingTour.module.less'
 
 type OnboardingConfig = {
   showUserAndCompanyNamesStep: boolean;
@@ -37,8 +36,8 @@ export const OnboardingTour: React.FC = () => {
     showDestinationsSetupSteps: true
   }), [])
 
-  const steps = useMemo<ReactourStep[]>(() => {
-    let steps: ReactourStep[] = [];
+  const steps = useMemo<TourStep[]>(() => {
+    let steps: TourStep[] = [];
 
     // Greeting Step
     const next = steps.length + 1;
@@ -97,20 +96,8 @@ export const OnboardingTour: React.FC = () => {
   useEffect(() => {
     const show = config.showUserAndCompanyNamesStep || config.showDestinationsSetupSteps
     setShowTour(show);
-  }, [config.showUserAndCompanyNamesStep, config.showDestinationsSetupSteps])
+  }, [config.showUserAndCompanyNamesStep, config.showDestinationsSetupSteps]);
 
-  return <>
-    <Tour
-      steps={steps}
-      isOpen={showTour}
-      showButtons={false}
-      closeWithMask={false}
-      // showCloseButton={false}
-      showNumber={false}
-      showNavigation={false}
-      onRequestClose={() => setShowTour(false)}
-      className={styles.reactourDialogCard}
-    />
-  </>;
+  return <Tour showTour={showTour} steps={steps} />
 };
 
