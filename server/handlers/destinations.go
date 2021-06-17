@@ -94,6 +94,10 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			multiErr = multierror.Append(err)
 		}
 
+		if err = storages.TestStreamProcessing(config); err != nil {
+			multiErr = multierror.Append(err)
+		}
+
 		return multiErr
 
 	case storages.RedshiftType:
@@ -125,7 +129,11 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 		defer redshift.Close()
 
-		if err := storages.TestBatchProcessing(config); err != nil {
+		if err = storages.TestBatchProcessing(config); err != nil {
+			return err
+		}
+
+		if err = storages.TestStreamProcessing(config); err != nil {
 			return err
 		}
 
@@ -160,7 +168,11 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		if err := storages.TestBatchProcessing(config); err != nil {
+		if err = storages.TestBatchProcessing(config); err != nil {
+			return err
+		}
+
+		if err = storages.TestStreamProcessing(config); err != nil {
 			return err
 		}
 
@@ -215,6 +227,10 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		}
 
 		if err = storages.TestBatchProcessing(config); err != nil {
+			return err
+		}
+
+		if err = storages.TestStreamProcessing(config); err != nil {
 			return err
 		}
 
