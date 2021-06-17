@@ -1,32 +1,18 @@
-import { intType, jsonType, passwordType, selectionType, SourceConnector, stringType } from '@catalog/sources/types';
+import { intType, jsonType, Parameter, passwordType, selectionType, SourceConnector, stringType } from '@catalog/sources/types';
 import * as React from 'react';
-import {
-  getEnableGoogleAPIDocumentation,
-  googleServiceAccountJSONDocumentation
-} from '@catalog/sources/lib/documentation';
+import { googleServiceAuthDocumentation } from '@catalog/sources/lib/documentation';
 
-const googleAuthConfigParameters = [
-  {
-    displayName: 'Auth (Service account key JSON)',
-    id: 'config.auth.service_account_key',
-    type: jsonType,
-    required: true,
-    documentation:
-        <>
-          Read about <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">how to create Google Service Account</a>
-        </>
-  }
-];
+import { googleAuthConfigParameters } from '@catalog/sources/lib/commonParams';
 
 export const facebook: SourceConnector = {
   pic: <svg viewBox="0 0 36 36" fill="url(#gradient)">
     <defs>
       <linearGradient x1="50%" x2="50%" y1="97.0782153%" y2="0%" id="gradient">
-        <stop offset="0%" stopColor="#0062E0" />
-        <stop offset="100%" stopColor="#19AFFF" />
+        <stop offset="0%" stopColor="#0062E0"/>
+        <stop offset="100%" stopColor="#19AFFF"/>
       </linearGradient>
     </defs>
-    <path d="M15 35.8C6.5 34.3 0 26.9 0 18 0 8.1 8.1 0 18 0s18 8.1 18 18c0 8.9-6.5 16.3-15 17.8l-1-.8h-4l-1 .8z" />
+    <path d="M15 35.8C6.5 34.3 0 26.9 0 18 0 8.1 8.1 0 18 0s18 8.1 18 18c0 8.9-6.5 16.3-15 17.8l-1-.8h-4l-1 .8z"/>
     <path fill="white" d="M25 23l.8-5H21v-3.5c0-1.4.5-2.5 2.7-2.5H26V7.4c-1.3-.2-2.7-.4-4-.4-4.1 0-7 2.5-7 7v4h-4.5v5H15v12.7c1 .2 2 .3 3 .3s2-.1 3-.3V23h4z"/>
   </svg>,
   collectionParameters: [
@@ -50,9 +36,9 @@ export const facebook: SourceConnector = {
       defaultValue: 'ad',
       type: selectionType(['ad', 'adset', 'campaign', 'account'], 1),
       documentation:
-                <>
-                    One of [ad, adset, campaign, account]. <a href="https://developers.facebook.com/docs/marketing-api/reference/adgroup/insights/">Read more about level</a>
-                </>
+        <>
+          One of [ad, adset, campaign, account]. <a href="https://developers.facebook.com/docs/marketing-api/reference/adgroup/insights/">Read more about level</a>
+        </>
     }
 
   ],
@@ -76,7 +62,7 @@ export const facebook: SourceConnector = {
       required: true,
       documentation: <>
         <a target="_blank" href="https://developers.facebook.com/docs/pages/access-tokens/#get-a-long-lived-user-access-token" rel="noreferrer">How
-                    to get Facebook Access Token</a>
+          to get Facebook Access Token</a>
       </>
     }
   ]
@@ -95,6 +81,7 @@ export const googleAnalytics: SourceConnector = {
   collectionParameters: [
     {
       displayName: 'Dimensions',
+      documentation: <><a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer/">Use this tool to check dimensions compatibility</a></>,
       id: 'dimensions',
       type: selectionType(['ga:userType', 'ga:visitorType', 'ga:sessionCount', 'ga:visitCount', 'ga:daysSinceLastSession',
         'ga:userDefinedValue', 'ga:userBucket', 'ga:sessionDurationBucket', 'ga:visitLength', 'ga:referralPath',
@@ -151,6 +138,7 @@ export const googleAnalytics: SourceConnector = {
     },
     {
       displayName: 'Metrics',
+      documentation: <><a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer/">Use this tool to check metrics compatibility</a></>,
       id: 'metrics',
       type: selectionType([
         'ga:users', 'ga:visitors', 'ga:newUsers', 'ga:newVisits', 'ga:percentNewSessions',
@@ -234,6 +222,7 @@ export const googleAnalytics: SourceConnector = {
   id: 'google_analytics',
   collectionTypes: ['report'],
   configParameters: [
+    ...googleAuthConfigParameters({}),
     {
       displayName: 'View ID',
       id: 'config.view_id',
@@ -243,21 +232,20 @@ export const googleAnalytics: SourceConnector = {
           <>
             Read about <a href="https://jitsu.com/docs/sources-configuration/google-analytics#how-to-find-google-analytics-view-id">how to find Google Analytics View ID</a>
           </>
-    },
-    ...googleAuthConfigParameters
+    }
   ],
-  documentation: <>
-    {'The Google Analytics Connector pulls data from Google Analytics account.'}
-    {googleServiceAccountJSONDocumentation}
-    {getEnableGoogleAPIDocumentation('Google Analytics Reporting API')}
-    {'Give Google Analytics permissions to your Service Account:'}
-    <ul>
-      <li>Get email from created Google Service Account JSON (it looks like name@PROJECT_ID.iam.gserviceaccount.com)</li>
-      <li>Sign in to the Google Account you are using for managing Google Analytics (you must have Manage Users permission at the account, property, or view level)</li>
-      <li><a href="https://support.google.com/analytics/answer/1009702">Add user</a> with the email from previous step to Google Analytics view to pull data</li>
-      <li>Give Read & Analyze permissions to the user</li>
-    </ul>
-  </>
+  documentation: {
+    overview: <>The Google Analytics connector pulls data from <a href="https://developers.google.com/analytics/devguides/reporting/core/v4">Google Analytics API</a>. The connector
+      is  highly configurable and can be used to pull data from Google Ads too (if Google Analytics account is liked to Google Ads). Full list of parameters can be <a href="https://ga-dev-tools.appspot.com/dimensions-metrics-explorer">found here</a>
+    </>,
+    connection: googleServiceAuthDocumentation({
+      oauthEnabled: true,
+      serviceAccountEnabled: true,
+      scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
+      serviceName: 'Google Analytics',
+      apis: ['Google Analytics API']
+    })
+  }
 }
 
 export const googlePlay: SourceConnector = {
@@ -278,11 +266,11 @@ export const googlePlay: SourceConnector = {
       type: stringType,
       required: true,
       documentation:
-          <>
-            Identifier of Google Play account
-          </>
+        <>
+          Identifier of Google Play account
+        </>
     },
-    ...googleAuthConfigParameters
+    ...googleAuthConfigParameters({})
   ]
 }
 
@@ -306,16 +294,11 @@ export const firebase: SourceConnector = {
     }
   ],
   configParameters: [
+    ...googleAuthConfigParameters({ serviceAccountKey: 'config.key', disableOauth: true }),
     {
       displayName: 'Project ID',
       id: 'config.project_id',
       type: stringType,
-      required: true
-    },
-    {
-      displayName: 'Service Account Key',
-      id: 'config.key',
-      type: jsonType,
       required: true
     }
   ]
@@ -323,26 +306,32 @@ export const firebase: SourceConnector = {
 
 export const redis: SourceConnector = {
   pic:
-        <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
-          <defs>
-            <path id="a" d="m45.536 38.764c-2.013 1.05-12.44 5.337-14.66 6.494s-3.453 1.146-5.207.308-12.85-5.32-14.85-6.276c-1-.478-1.524-.88-1.524-1.26v-3.813s14.447-3.145 16.78-3.982 3.14-.867 5.126-.14 13.853 2.868 15.814 3.587v3.76c0 .377-.452.8-1.477 1.324z"/>
-            <path id="b" d="m45.536 28.733c-2.013 1.05-12.44 5.337-14.66 6.494s-3.453 1.146-5.207.308-12.85-5.32-14.85-6.276-2.04-1.613-.077-2.382l15.332-5.935c2.332-.837 3.14-.867 5.126-.14s12.35 4.853 14.312 5.57 2.037 1.31.024 2.36z"/>
-          </defs>
-          <g transform="matrix(.848327 0 0 .848327 -7.883573 -9.449691)">
-            <use fill="#a41e11" xlinkHref="#a"/>
-            <path d="m45.536 34.95c-2.013 1.05-12.44 5.337-14.66 6.494s-3.453 1.146-5.207.308-12.85-5.32-14.85-6.276-2.04-1.613-.077-2.382l15.332-5.936c2.332-.836 3.14-.867 5.126-.14s12.35 4.852 14.31 5.582 2.037 1.31.024 2.36z" fill="#d82c20"/>
-            <use fill="#a41e11" xlinkHref="#a" y="-6.218"/>
-            <use fill="#d82c20" xlinkHref="#b"/>
-            <path d="m45.536 26.098c-2.013 1.05-12.44 5.337-14.66 6.495s-3.453 1.146-5.207.308-12.85-5.32-14.85-6.276c-1-.478-1.524-.88-1.524-1.26v-3.815s14.447-3.145 16.78-3.982 3.14-.867 5.126-.14 13.853 2.868 15.814 3.587v3.76c0 .377-.452.8-1.477 1.324z" fill="#a41e11"/>
-            <use fill="#d82c20" xlinkHref="#b" y="-6.449"/>
-            <g fill="#fff">
-              <path d="m29.096 20.712-1.182-1.965-3.774-.34 2.816-1.016-.845-1.56 2.636 1.03 2.486-.814-.672 1.612 2.534.95-3.268.34zm-6.296 3.912 8.74-1.342-2.64 3.872z"/>
-              <ellipse cx="20.444" cy="21.402" rx="4.672" ry="1.811"/>
-            </g>
-            <path d="m42.132 21.138-5.17 2.042-.004-4.087z" fill="#7a0c00"/>
-            <path d="m36.963 23.18-.56.22-5.166-2.042 5.723-2.264z" fill="#ad2115"/>
-          </g>
-        </svg>,
+    <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="http://www.w3.org/1999/xlink">
+      <defs>
+        <path id="a"
+          d="m45.536 38.764c-2.013 1.05-12.44 5.337-14.66 6.494s-3.453 1.146-5.207.308-12.85-5.32-14.85-6.276c-1-.478-1.524-.88-1.524-1.26v-3.813s14.447-3.145 16.78-3.982 3.14-.867 5.126-.14 13.853 2.868 15.814 3.587v3.76c0 .377-.452.8-1.477 1.324z"/>
+        <path id="b"
+          d="m45.536 28.733c-2.013 1.05-12.44 5.337-14.66 6.494s-3.453 1.146-5.207.308-12.85-5.32-14.85-6.276-2.04-1.613-.077-2.382l15.332-5.935c2.332-.837 3.14-.867 5.126-.14s12.35 4.853 14.312 5.57 2.037 1.31.024 2.36z"/>
+      </defs>
+      <g transform="matrix(.848327 0 0 .848327 -7.883573 -9.449691)">
+        <use fill="#a41e11" xlinkHref="#a"/>
+        <path
+          d="m45.536 34.95c-2.013 1.05-12.44 5.337-14.66 6.494s-3.453 1.146-5.207.308-12.85-5.32-14.85-6.276-2.04-1.613-.077-2.382l15.332-5.936c2.332-.836 3.14-.867 5.126-.14s12.35 4.852 14.31 5.582 2.037 1.31.024 2.36z"
+          fill="#d82c20"/>
+        <use fill="#a41e11" xlinkHref="#a" y="-6.218"/>
+        <use fill="#d82c20" xlinkHref="#b"/>
+        <path
+          d="m45.536 26.098c-2.013 1.05-12.44 5.337-14.66 6.495s-3.453 1.146-5.207.308-12.85-5.32-14.85-6.276c-1-.478-1.524-.88-1.524-1.26v-3.815s14.447-3.145 16.78-3.982 3.14-.867 5.126-.14 13.853 2.868 15.814 3.587v3.76c0 .377-.452.8-1.477 1.324z"
+          fill="#a41e11"/>
+        <use fill="#d82c20" xlinkHref="#b" y="-6.449"/>
+        <g fill="#fff">
+          <path d="m29.096 20.712-1.182-1.965-3.774-.34 2.816-1.016-.845-1.56 2.636 1.03 2.486-.814-.672 1.612 2.534.95-3.268.34zm-6.296 3.912 8.74-1.342-2.64 3.872z"/>
+          <ellipse cx="20.444" cy="21.402" rx="4.672" ry="1.811"/>
+        </g>
+        <path d="m42.132 21.138-5.17 2.042-.004-4.087z" fill="#7a0c00"/>
+        <path d="m36.963 23.18-.56.22-5.166-2.042 5.723-2.264z" fill="#ad2115"/>
+      </g>
+    </svg>,
   displayName: 'Redis',
   id: 'redis',
   collectionTypes: ['hash'],

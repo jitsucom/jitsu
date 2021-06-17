@@ -12,7 +12,7 @@ module.exports = {
         DEFAULT: 'rgb(31, 41, 55)'
       },
       bgComponent: {
-        DEFAULT: 'rgb(26,35,50)'
+        DEFAULT: 'rgb(26,35,50)' //#1a2332
       },
       bgTableHeader: {
         DEFAULT: '#394e5a'
@@ -21,10 +21,10 @@ module.exports = {
         DEFAULT: '#394e5a'
       },
       primary: {
-        DEFAULT: 'rgb(91, 20, 250)'
+        DEFAULT: 'rgb(91, 20, 250)' //#5b14fa
       },
       primaryHover: {
-        DEFAULT: 'rgb(65, 6, 212)'
+        DEFAULT: 'rgb(65, 6, 212)' //#4106d4
       },
       link: {
         DEFAULT: 'rgb(135, 138, 252)'
