@@ -25,7 +25,7 @@ type Schema struct {
 }
 
 type Property struct {
-	//might be string or []string
+	//might be string or []string or nil
 	Type       interface{}          `json:"type,omitempty"`
 	Format     string               `json:"format,omitempty"`
 	Properties map[string]*Property `json:"properties,omitempty"`

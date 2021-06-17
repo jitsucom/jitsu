@@ -8,6 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/entities"
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/uuid"
 	_ "github.com/lib/pq"
 	"github.com/spf13/viper"
 	"strings"
@@ -66,7 +67,8 @@ func NewPostgres(ctx context.Context, postgresDestinationViper *viper.Viper) (*P
 }
 
 func (p *Postgres) CreateDatabase(projectID string) (*entities.Database, error) {
-	db := "db_" + strings.ToLower(projectID)
+	uuidParts := strings.Split(uuid.New(), "-")
+	db := "db_" + strings.ToLower(projectID) + uuidParts[0]
 	logging.Infof("db " + db)
 	_, err := p.dataSource.Exec("CREATE DATABASE " + db)
 	if err != nil {
@@ -89,6 +91,7 @@ func (p *Postgres) CreateDatabase(projectID string) (*entities.Database, error) 
 	logging.Info("Generated password: " + password)
 
 	var queries []string
+	queries = append(queries, fmt.Sprintf("DROP ROLE IF EXISTS %s;", username))
 	queries = append(queries, fmt.Sprintf("CREATE USER %s WITH PASSWORD '%s';", username, password))
 	queries = append(queries, fmt.Sprintf("GRANT CONNECT ON DATABASE %s TO %s;", db, username))
 	queries = append(queries, fmt.Sprintf("GRANT CREATE ON DATABASE %s TO %s;", db, username))
