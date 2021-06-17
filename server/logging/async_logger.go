@@ -4,9 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-
 	"github.com/jitsucom/jitsu/server/safego"
+	"io"
 )
 
 //AsyncLogger write json logs to file system in different goroutine
@@ -65,10 +64,6 @@ func (al *AsyncLogger) ConsumeAny(object interface{}) {
 
 //Close underlying log file writer
 func (al *AsyncLogger) Close() (resultErr error) {
-	if al == nil {
-		return nil
-	}
-
 	al.closed = true
 
 	if err := al.writer.Close(); err != nil {

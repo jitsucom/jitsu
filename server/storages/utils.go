@@ -58,10 +58,13 @@ func TestBatchProcessing(config *DestinationConfig) error {
 	eventsCache := caching.NewEventsCache(metaStorage, 100)
 	defer eventsCache.Close()
 
-	factory := NewFactory(ctx, "/tmp", monitor, eventsCache, nil, nil, metaStorage, 0)
+	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
+	factory := NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, metaStorage, 0)
 
 	randomValue := rand.Intn(1000000)
 	testName := fmt.Sprintf("jitsu_test_connection_%v_%06v", time.Now().Format(timestamp.DayLayout), randomValue)
+
+	config.Staged = true
 	config.DataLayout = &DataLayout{
 		TableNameTemplate: testName,
 		UniqueIDField:     "id",
@@ -140,10 +143,13 @@ func TestStreamProcessing(config *DestinationConfig) error {
 	eventsCache := caching.NewEventsCache(metaStorage, 100)
 	defer eventsCache.Close()
 
-	factory := NewFactory(ctx, "/tmp", monitor, eventsCache, nil, nil, metaStorage, 0)
+	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
+	factory := NewFactory(ctx, "/tmp", monitor, eventsCache, loggerFactory, nil, metaStorage, 0)
 
 	randomValue := rand.Intn(1000000)
 	testName := fmt.Sprintf("jitsu_test_connection_%v_%06v", time.Now().Format(timestamp.DayLayout), randomValue)
+
+	config.Staged = true
 	config.DataLayout = &DataLayout{
 		TableNameTemplate: testName,
 		UniqueIDField:     "id",
