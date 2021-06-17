@@ -43,7 +43,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 	switch config.Type {
 	case storages.PostgresType:
-		if err := config.DataSource.Validate(true); err != nil {
+		if err := config.DataSource.Validate(); err != nil {
 			return err
 		}
 
@@ -97,7 +97,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		return multiErr
 
 	case storages.RedshiftType:
-		if err := config.DataSource.Validate(true); err != nil {
+		if err := config.DataSource.Validate(); err != nil {
 			return err
 		}
 
@@ -132,7 +132,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		return nil
 
 	case storages.BigQueryType:
-		if err := config.Google.Validate(true, config.Mode != storages.BatchMode); err != nil {
+		if err := config.Google.Validate(config.Mode != storages.BatchMode); err != nil {
 			return err
 		}
 
@@ -167,7 +167,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		return nil
 
 	case storages.SnowflakeType:
-		if err := config.Snowflake.Validate(true); err != nil {
+		if err := config.Snowflake.Validate(); err != nil {
 			return err
 		}
 
@@ -195,7 +195,7 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 					return err
 				}
 			} else if config.Google != nil {
-				if err := config.Google.Validate(false, false); err != nil {
+				if err := config.Google.Validate(false); err != nil {
 					return err
 				}
 

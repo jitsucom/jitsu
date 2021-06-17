@@ -36,7 +36,7 @@ func init() {
 //NewBigQuery returns BigQuery configured instance
 func NewBigQuery(config *Config) (Storage, error) {
 	gConfig := config.destination.Google
-	if err := gConfig.Validate(false, config.streamMode); err != nil {
+	if err := gConfig.Validate(config.streamMode); err != nil {
 		return nil, err
 	}
 

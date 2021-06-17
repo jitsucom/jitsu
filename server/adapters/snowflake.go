@@ -55,7 +55,7 @@ type SnowflakeConfig struct {
 }
 
 //Validate required fields in SnowflakeConfig
-func (sc *SnowflakeConfig) Validate(strict bool) error {
+func (sc *SnowflakeConfig) Validate() error {
 	if sc == nil {
 		return errors.New("Snowflake config is required")
 	}
@@ -65,14 +65,8 @@ func (sc *SnowflakeConfig) Validate(strict bool) error {
 	if sc.Db == "" {
 		return errors.New("Snowflake db is required parameter")
 	}
-	if strict && sc.Schema == "" {
-		return errors.New("Snowflake schema is required parameter")
-	}
 	if sc.Username == "" {
 		return errors.New("Snowflake username is required parameter")
-	}
-	if sc.Password == "" {
-		return errors.New("Snowflake password is required parameter")
 	}
 	if sc.Warehouse == "" {
 		return errors.New("Snowflake warehouse is required parameter")

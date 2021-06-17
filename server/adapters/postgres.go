@@ -82,7 +82,7 @@ type DataSourceConfig struct {
 }
 
 //Validate required fields in DataSourceConfig
-func (dsc *DataSourceConfig) Validate(strict bool) error {
+func (dsc *DataSourceConfig) Validate() error {
 	if dsc == nil {
 		return errors.New("Datasource config is required")
 	}
@@ -91,9 +91,6 @@ func (dsc *DataSourceConfig) Validate(strict bool) error {
 	}
 	if dsc.Db == "" {
 		return errors.New("Datasource db is required parameter")
-	}
-	if strict && dsc.Schema == "" {
-		return errors.New("Datasource schema was not provided")
 	}
 	if dsc.Username == "" {
 		return errors.New("Datasource username is required parameter")

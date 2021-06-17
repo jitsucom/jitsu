@@ -37,7 +37,7 @@ func init() {
 //NewSnowflake returns Snowflake and start goroutine for Snowflake batch storage or for stream consumer depend on destination mode
 func NewSnowflake(config *Config) (Storage, error) {
 	snowflakeConfig := config.destination.Snowflake
-	if err := snowflakeConfig.Validate(false); err != nil {
+	if err := snowflakeConfig.Validate(); err != nil {
 		return nil, err
 	}
 	if snowflakeConfig.Schema == "" {
@@ -52,7 +52,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 	}
 
 	if config.destination.Google != nil {
-		if err := config.destination.Google.Validate(false, config.streamMode); err != nil {
+		if err := config.destination.Google.Validate(config.streamMode); err != nil {
 			return nil, err
 		}
 		//stage is required when gcp integration

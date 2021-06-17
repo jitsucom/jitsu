@@ -36,7 +36,7 @@ func init() {
 //NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(config *Config) (Storage, error) {
 	redshiftConfig := config.destination.DataSource
-	if err := redshiftConfig.Validate(false); err != nil {
+	if err := redshiftConfig.Validate(); err != nil {
 		return nil, err
 	}
 	//enrich with default parameters
