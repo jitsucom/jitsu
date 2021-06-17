@@ -24,15 +24,17 @@ export interface Props {
   className?: string;
   type: TabsType;
   activeTabKey: string;
+  tabBarExtraContent?: React.ReactNode
   onTabChange?: (tabName: any) => void;
 }
 
-const TabsConfiguratorComponent = ({ tabsList, className, type, activeTabKey, onTabChange = () => null }: Props) => (
+const TabsConfiguratorComponent = ({ tabsList, className, type, activeTabKey, onTabChange = () => null, tabBarExtraContent = undefined }: Props) => (
   <Tabs
     type={type}
     className={className}
     activeKey={activeTabKey}
     onChange={onTabChange}
+    tabBarExtraContent={tabBarExtraContent}
   >
     {
       tabsList.map((tab: Tab) => {

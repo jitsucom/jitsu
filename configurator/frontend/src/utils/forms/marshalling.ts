@@ -2,14 +2,15 @@ import isArray from 'lodash/isArray';
 import set from 'lodash/set';
 
 const makeObjectFromFieldsValues = <F = any>(fields: any): F => Object.keys(fields).reduce((accumulator: any, current: string) => {
-  if (['string', 'number', 'boolean'].includes(typeof fields[current])) {
-    set(accumulator, current, fields[current]);
-  } else if (typeof fields[current] === 'object') {
-    if (isArray(fields[current])) {
+  const value = fields[current];
+  if (['string', 'number', 'boolean'].includes(typeof value)) {
+    set(accumulator, current, value === 'null' ? null : value);
+  } else if (typeof value === 'object') {
+    if (isArray(value)) {
       set(
         accumulator,
         current,
-        fields[current].map(f => typeof f === 'object' ? makeObjectFromFieldsValues(f) : f)
+        value.map(f => typeof f === 'object' ? makeObjectFromFieldsValues(f) : f)
       );
     }
   }

@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
-import { Button, message } from 'antd';
+import { Button, Dropdown, Menu, message } from 'antd';
 import snakeCase from 'lodash/snakeCase';
 // @Components
 import { ListItem } from '@component/ListItem/ListItem';
@@ -11,6 +11,8 @@ import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
 import CodeOutlined from '@ant-design/icons/lib/icons/CodeOutlined';
 import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
+import DownOutlined from '@ant-design/icons/lib/icons/DownOutlined';
+
 // @Services
 import ApplicationServices from '@service/ApplicationServices';
 // @Types
@@ -47,6 +49,45 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
 
   const handleAddClick = useCallback(() => history.push(sourcesPageRoutes.add), [history]);
 
+  const scheduleTasks = async(src: SourceData, full = false) => {
+    await withProgressBar({
+      estimatedMs: 200,
+      maxRetries: 2,
+      retryDelayMs: 2000,
+      callback: async() => {
+        if (full) {
+          await services.backendApiClient.post('/sources/clear_cache', {
+            source: `${services.activeProject.id}.${src.sourceId}`,
+            project_id: services.activeProject.id
+          });
+        }
+
+        if (src.collections && src.collections.length > 0) {
+          for (let i = 0; i < src.collections.length; i++) {
+            await services.backendApiClient.post('/tasks', undefined, {
+              proxy: true,
+              urlParams: {
+                source: `${services.activeProject.id}.${src.sourceId}`,
+                collection: src.collections[i].name,
+                project_id: services.activeProject.id }
+            });
+          }
+        } else {
+          //workaround for singer, it doesn't have collections, so we should pass
+          //any value
+          await services.backendApiClient.post('/tasks', undefined, {
+            proxy: true,
+            urlParams: {
+              source: `${services.activeProject.id}.${src.sourceId}`,
+              collection: 'bogus',
+              project_id: services.activeProject.id }
+          });
+        }
+        history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId }));
+      }
+    })
+
+  };
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
@@ -86,36 +127,17 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
             id={src.sourceId}
             key={src.sourceId}
             actions={[
-              { onClick: () => {
-                withProgressBar({
-                  estimatedMs: 1000,
-                  callback: async() => {
-                    if (src.collections && src.collections.length > 0) {
-                      for (let i = 0; i < src.collections.length; i++) {
-                        await services.backendApiClient.post('/tasks', undefined, {
-                          proxy: true,
-                          urlParams: {
-                            source: `${services.activeProject.id}.${src.sourceId}`,
-                            collection: src.collections[i].name,
-                            project_id: services.activeProject.id }
-                        });
-                      }
-                    } else {
-                      //workaround for singer, it doesn't have collections, so we should pass
-                      //any value
-                      await services.backendApiClient.post('/tasks', undefined, {
-                        proxy: true,
-                        urlParams: {
-                          source: `${services.activeProject.id}.${src.sourceId}`,
-                          collection: 'bogus',
-                          project_id: services.activeProject.id }
-                      });
-                    }
-                    history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId }));
-                  }
-                })
+              { component: <Dropdown trigger={['click']} overlay={
+                <Menu>
+                  <Menu.Item key="inc">
+                    <Button type="link" onClick={async() => await scheduleTasks(src, false)}>Sync Now</Button>
+                  </Menu.Item>
+                  <Menu.Item  key="all">
+                    <Button onClick={async() => await scheduleTasks(src, true)}  type="link">Full Re-sync (clear cache)</Button>
+                  </Menu.Item>
+                </Menu>
 
-              }, title: 'Schedule All Tasks', icon: <CodeOutlined /> },
+              }><Button type="link" className="align-bottom">Sync Now <DownOutlined /></Button></Dropdown>, icon: <CodeOutlined /> },
               { onClick: () => history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId })), title: 'View logs', icon: <CodeOutlined /> },
               { onClick: () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })), title: 'Edit', icon: <EditOutlined /> },
               { onClick: () => {
