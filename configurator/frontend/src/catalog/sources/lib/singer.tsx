@@ -2,8 +2,8 @@ import * as React from 'react';
 import * as logos from './logos'
 import { booleanType, dashDateType, intType, isoUtcDateType, stringType } from '../types';
 import { customParameters, SingerTap } from './helper';
-import { googleServiceAuthDocumentation } from '@catalog/sources/lib/documentation';
-import { googleAuthConfigParameters } from '@catalog/sources/lib/commonParams';
+import { googleServiceAuthDocumentation } from '../lib/documentation';
+import { googleAuthConfigParameters } from '../lib/commonParams';
 
 export const allSingerTaps: SingerTap[] = [
   {
@@ -560,6 +560,7 @@ export const allSingerTaps: SingerTap[] = [
         {
           displayName: 'API Secret',
           id: 'api_secret',
+          type: stringType,
           required: true,
           documentation: <>MixPanel API Secret. Obtain it in MixPanel UI project settings.</>
         },

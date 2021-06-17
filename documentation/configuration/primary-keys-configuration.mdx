@@ -1,6 +1,3 @@
-import {Hint} from "../../../components/documentationComponents";
-
-
 # Primary Keys Configuration
 
 Primary keys configuration is available only for [PostgreSQL](/docs/destinations-configuration/postgres)
@@ -21,7 +18,7 @@ destinations:
         username: <USERNAME>
         password: <YOUR_PASSOWORD>
       data_layout:
-        primary_key_fields: 
+        primary_key_fields:
           - email
 ```
 
@@ -33,8 +30,8 @@ following `data_layout` config creates the primary key based on `email` and `nam
 
 ```yaml
 data_layout:
-  primary_key_fields: 
-    - email 
+  primary_key_fields:
+    - email
     - name
 ```
 
