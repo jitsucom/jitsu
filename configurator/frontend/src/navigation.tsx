@@ -84,7 +84,7 @@ export const SELFHOSTED_PAGES: Page[] = [new Page('Jitsu | setup', ['/', '/setup
 export const PUBLIC_PAGES: Page[] = [
   new Page('Jitsu | login', ['/', '/dashboard', '/login'], LoginForm),
   new Page('Jitsu | register', ['/register'], SignupForm),
-  new Page('Jitsu | reset wpassword', ['/reset_password/:resetId'], PasswordForm)
+  new Page('Jitsu | reset password', ['/reset_password/:resetId'], PasswordForm)
 ];
 export const PRIVATE_PAGES: Page[] = [
   new Page('Test Component', '/test', ComponentTest, 'Component Test'),
@@ -134,5 +134,4 @@ export const PRIVATE_PAGES: Page[] = [
     TaskLogViewer,
     'Task Logs'
   )
-
 ];
