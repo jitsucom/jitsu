@@ -13,7 +13,7 @@ export const OnboardingTourSuccess: React.FC<Props> = function({
 }) {
   return (<div className={styles.mainContainer}>
     <h1 className={styles.header}>
-      {'✅ Success!'}
+      {'✨ Success!'}
     </h1>
     <p>
       {'You are all set up and running. Enjoy!'}

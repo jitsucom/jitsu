@@ -25,7 +25,7 @@ export const OnboardingTourReceiveEvent: React.FC<Props> = function({
     </p>
     <div className={styles.controlsContainer}>
       <Button type="text" className={styles.withButtonsMargins} onClick={handleGoNext}>{'Skip Verification'}</Button>
-      <Button type="ghost" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back to Setup'}</Button>
+      <Button type="ghost" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back to Instructions'}</Button>
       {/* <Button type="primary" className={styles.withButtonsMargins} onClick={handleGoNext}>{'Next'}</Button> */}
     </div>
   </div>);
