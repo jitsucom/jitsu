@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	eventsURLTemplate = "https://graph.facebook.com/v9.0/%s/events?access_token=%s&locale=en_EN"
+	eventsURLTemplate = "https://graph.facebook.com/v11.0/%s/events?access_token=%s&locale=en_EN"
 
 	maskedParameterValue = "masked"
 )
