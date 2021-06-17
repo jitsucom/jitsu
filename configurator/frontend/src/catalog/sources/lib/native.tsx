@@ -270,7 +270,7 @@ export const googlePlay: SourceConnector = {
           Identifier of Google Play account
         </>
     },
-    ...googleAuthConfigParameters({ disableOauth: true })
+    ...googleAuthConfigParameters({})
   ]
 }
 
