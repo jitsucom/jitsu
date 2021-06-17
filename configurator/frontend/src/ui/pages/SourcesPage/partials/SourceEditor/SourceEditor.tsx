@@ -1,7 +1,7 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, Redirect, useHistory, useParams } from 'react-router-dom';
-import { Button, Drawer, Form, message } from 'antd';
+import { Button, Collapse, Drawer, Form, message } from 'antd';
 import cn from 'classnames';
 import snakeCase from 'lodash/snakeCase';
 // @Page
@@ -293,7 +293,16 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         onClose={() => setDocumentationVisible(false)}
         width="70%"
         visible={documentationVisible}
-      ><div className={styles.documentation}>{connectorSource?.documentation}</div></Drawer>}
+      ><div className={styles.documentation}>
+          <Collapse defaultActiveKey={['connection']} ghost>
+            <Collapse.Panel header={<div className="uppercase font-bold">{connectorSource.displayName} overview</div>} key="overview" >
+              {connectorSource.documentation.overview}
+            </Collapse.Panel>
+            <Collapse.Panel header={<div className="uppercase font-bold">How to connect</div>} key="connection">
+              {connectorSource.documentation.connection}
+            </Collapse.Panel>
+          </Collapse>
+        </div></Drawer>}
     </>
   );
 };

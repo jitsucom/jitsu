@@ -58,7 +58,11 @@ export const googleAuthConfigParameters: (param?: GoogleParametersNodes) => Para
     displayName: 'OAuth Client ID',
     id: clientId,
     type: stringType,
-    constant: (config) => resolve(config, type) !== 'OAuth' ? '' : undefined,
+    constant: (config) => {
+      //hack to make it work for singer based sources (which prefixes all fields with config. later on)
+      let typeResolved = resolve(config, type) || resolve(config, 'config.config.' + type);
+      return typeResolved  !== 'OAuth' ? '' : undefined
+    },
     required: true,
     documentation: oauthParamDocumentation
   },
@@ -66,7 +70,11 @@ export const googleAuthConfigParameters: (param?: GoogleParametersNodes) => Para
     displayName: 'OAuth Client Secret',
     id: clientSecret,
     type: stringType,
-    constant: (config) => resolve(config, type) !== 'OAuth' ? '' : undefined,
+    constant: (config) => {
+      //hack to make it work for singer based sources (which prefixes all fields with config. later on)
+      let typeResolved = resolve(config, type) || resolve(config, 'config.config.' + type);
+      return typeResolved !== 'OAuth' ? '' : undefined;
+    },
     required: true,
     documentation: oauthParamDocumentation
   },
@@ -74,7 +82,11 @@ export const googleAuthConfigParameters: (param?: GoogleParametersNodes) => Para
     displayName: 'Refresh Token',
     id: refreshToken,
     type: stringType,
-    constant: (config) => resolve(config, type) !== 'OAuth' ? '' : undefined,
+    constant: (config) => {
+      //hack to make it work for singer based sources (which prefixes all fields with config. later on)
+      let typeResolved = resolve(config, type) || resolve(config, 'config.config.' + type);
+      return typeResolved !== 'OAuth' ? '' : undefined;
+    },
     required: true,
     documentation: oauthParamDocumentation
   },
@@ -82,7 +94,11 @@ export const googleAuthConfigParameters: (param?: GoogleParametersNodes) => Para
     displayName: 'Auth (Service account key JSON)',
     id: serviceAccountKey,
     type: jsonType,
-    constant: (config) => resolve(config, type) !== 'Service Account' ? null : undefined,
+    constant: (config) => {
+      //hack to make it work for singer based sources (which prefixes all fields with config. later on)
+      let typeResolved = resolve(config, type) || resolve(config, 'config.config.' + type);
+      return typeResolved !== 'Service Account' ? null : undefined;
+    },
     required: true,
     documentation:
       <>
