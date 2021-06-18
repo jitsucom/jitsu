@@ -1,9 +1,11 @@
-package drivers
+package base
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"strings"
 )
@@ -20,7 +22,14 @@ const (
 	GoogleOAuthAuthorizationType = "OAuth"
 )
 
-var errAccountKeyConfiguration = errors.New("service_account_key must be an object, JSON file path or JSON content string")
+var (
+	DriverConstructors         map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)
+	errAccountKeyConfiguration = errors.New("service_account_key must be an object, JSON file path or JSON content string")
+)
+
+func init() {
+	DriverConstructors = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+}
 
 type GoogleAuthConfig struct {
 	Type              string      `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
@@ -93,4 +102,45 @@ func (gac *GoogleAuthConfig) ToGoogleAuthJSON() GoogleAuthorizedUserJSON {
 		RefreshToken: gac.RefreshToken,
 		AuthType:     "authorized_user",
 	}
+}
+
+//Driver interface must be implemented by every source type
+type Driver interface {
+	io.Closer
+	//GetAllAvailableIntervals return all the available time intervals for data loading. It means, that if you want
+	//your driver to load for the last year by month chunks, you need to return 12 time intervals, each covering one
+	//month. There is drivers/granularity.ALL for data sources that store data which may not be split by date.
+	GetAllAvailableIntervals() ([]*TimeInterval, error)
+	//GetObjectsFor returns slice of objects per time interval. Each slice element is one object from the data source.
+	GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error)
+	//Type returns string type of driver. Should be unique among drivers
+	Type() string
+	//GetCollectionTable returns table name
+	GetCollectionTable() string
+	//GetCollectionMetaKey returns key for storing signature in meta.Storage
+	GetCollectionMetaKey() string
+	//TestConnection returns error if can't do anything
+	TestConnection() error
+}
+
+//RegisterDriver registers function to create new driver instance
+func RegisterDriver(driverType string,
+	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) error {
+	DriverConstructors[driverType] = createDriverFunc
+	return nil
+}
+
+//UnmarshalConfig serializes and deserializes config into the object
+//return error if occurred
+func UnmarshalConfig(config interface{}, object interface{}) error {
+	b, err := json.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("error marshalling object: %v", err)
+	}
+	err = json.Unmarshal(b, object)
+	if err != nil {
+		return fmt.Errorf("Error unmarshalling config: %v", err)
+	}
+
+	return nil
 }
