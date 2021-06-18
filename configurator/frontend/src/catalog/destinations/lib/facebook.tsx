@@ -18,6 +18,7 @@ const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
 const facebookDestination: Destination = {
   syncFromSourcesStatus: 'not_supported',
   id: 'facebook',
+  type: 'other',
   displayName: 'Facebook',
   ui: {
     icon,

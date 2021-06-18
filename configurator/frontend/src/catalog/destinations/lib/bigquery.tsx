@@ -23,6 +23,7 @@ const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.633235433328256
 const bigQueryDestination: Destination = {
   syncFromSourcesStatus: 'coming_soon',
   id: 'bigquery',
+  type: 'database',
   displayName: 'BigQuery',
   ui: {
     icon: icon,

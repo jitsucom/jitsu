@@ -104,7 +104,12 @@ export const OnboardingTour: React.FC = () => {
     // Success Screen
     steps.push({
       content: ({ goTo }) => {
-        return <OnboardingTourSuccess handleFinishOnboarding={() => goTo(0)}/>;
+        return (
+          <OnboardingTourSuccess
+            handleRestartTour={() => goTo(1)}
+            handleFinishOnboarding={() => setShowTour(false)}
+          />
+        );
       }
     })
 
@@ -127,6 +132,6 @@ export const OnboardingTour: React.FC = () => {
     config.showJitsuConfigurationSteps
   ]);
 
-  return <Tour showTour={showTour} steps={steps} />
+  return <Tour showTour={showTour} steps={steps} startAt={2} maskClosable={true} />
 };
 

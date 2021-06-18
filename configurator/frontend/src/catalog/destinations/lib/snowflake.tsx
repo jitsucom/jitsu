@@ -40,13 +40,14 @@ function displayForBatchOnly<T>(defaultValue: T): Function<any, T> {
 
 const destination: Destination = {
   syncFromSourcesStatus: 'coming_soon',
+  id: 'snowflake',
+  type: 'other',
+  displayName: 'Snowflake',
   ui: {
     icon,
     title: (cfg) => cfg._formData?.snowflakeDB,
     connectCmd: (cfg: object) => null
   },
-  id: 'snowflake',
-  displayName: 'Snowflake',
   parameters: [
     modeParameter(),
     tableName(),
