@@ -336,7 +336,15 @@ function getDomainsSelection(env: string) {
   return env === 'heroku' ? [location.protocol + '//' + location.host] : []
 }
 
-function KeyDocumentation({ token }: { token: Token }) {
+type KeyDocumentationProps = {
+  token: Token;
+  displayDomainDropdown?: boolean;
+}
+
+export const KeyDocumentation: React.FC<KeyDocumentationProps> = function({ 
+  token,
+  displayDomainDropdown = true 
+}) {
   const [segment, setSegmentEnabled] = useState(false);
   const services = useServices();
   const staticDomains = getDomainsSelection(services.features.environment);
@@ -386,12 +394,16 @@ function KeyDocumentation({ token }: { token: Token }) {
       defaultActiveKey="1"
       tabBarExtraContent={
         <>
-          {domains.length > 0 && <><LabelWithTooltip documentation="Domain" render="Domain"/>:{' '}
-            <Select defaultValue={domains[0]} onChange={(value) => setSelectedDomain(value)}>
-              {domains.map((domain) => {
-                return <Select.Option value={domain}>{domain}</Select.Option>;
-              })}
-            </Select></>}
+          {domains.length > 0 && displayDomainDropdown && 
+            <>
+              <LabelWithTooltip documentation="Domain" render="Domain"/>:{' '}
+              <Select defaultValue={domains[0]} onChange={(value) => setSelectedDomain(value)}>
+                {domains.map((domain) => {
+                  return <Select.Option value={domain}>{domain}</Select.Option>;
+                })}
+              </Select>
+            </>
+          }
         </>
       }
     >
