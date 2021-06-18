@@ -29,7 +29,10 @@ export const Tour: React.FC<Props> = function({
   const [currentStepIdx, setCurrentStepIdx] = useState<number>(startAt ?? 0);
 
   const currentStepRender = useMemo<React.ReactNode>(() => {
+    if (!steps.length) return null;
+
     const content = steps[currentStepIdx].content;
+
     if (typeof content !== 'function') return content;
     return content({ goTo: setCurrentStepIdx })
   }, [currentStepIdx, setCurrentStepIdx, steps])
