@@ -1,7 +1,5 @@
-
 // @libraries
 import React, { useEffect, useMemo, useState } from 'react';
-
 // @components
 import { Tour, TourStep } from './Tour/Tour';
 import { OnboardingTourGreeting } from './steps/OnboardingTourGreeting/OnboardingTourGreeting';
@@ -10,14 +8,10 @@ import { OnboardingTourAddDestination } from './steps/OnboardingTourAddDestinati
 import { OnboardingTourAddJitsuOnClient } from './steps/OnboardingTourAddJitsuOnClient/OnboardingTourAddJitsuOnClient';
 import { OnboardingTourReceiveEvent } from './steps/OnboardingTourReceiveEvent/OnboardingTourReceiveEvent';
 import { OnboardingTourSuccess } from './steps/OnboardingTourSuccess/OnboardingTourSuccess';
-
 // @services
 import ApplicationServices from '@./lib/services/ApplicationServices';
-
 // @Hooks
 import useLoader from '@./hooks/useLoader';
-
-// @Styles
 
 type OnboardingConfig = {
   showUserAndCompanyNamesStep: boolean;
@@ -26,21 +20,28 @@ type OnboardingConfig = {
 }
 
 export const OnboardingTour: React.FC = () => {
-  // const services = ApplicationServices.get();
+  const services = ApplicationServices.get();
 
-  const [showTour, setShowTour] = useState<boolean>(false)
+  const [config, setConfig] = useState<OnboardingConfig | null>(null);
+  const [userClosedTour, setUserClosedTour] = useState<boolean>(false);
 
-  // const [sourcesError, sourcesData, updateSources] = useLoader(async() => await services.storageService.get('sources', services.activeProject.id));
-  // const [destinationsError, destinations, updateDestinations] = useLoader(async() => await services.storageService.get('destinations', services.activeProject.id));
+  const showTour = useMemo<boolean>(() => {
+    return !!config && !userClosedTour;
+  }, [config, userClosedTour]);
 
-  const config = useMemo<OnboardingConfig>(() => ({
-    showUserAndCompanyNamesStep: true,
-    showDestinationsSetupStep: true,
-    showJitsuConfigurationSteps: true
-  }), [])
+  const [
+    ,destinations,,,
+    isLoadingDestinations
+  ] = useLoader(async() => await services.storageService.get('destinations', services.activeProject.id));
+
+  const handleCloseTour = () => {
+    setUserClosedTour(true);
+  }
 
   const steps = useMemo<TourStep[]>(() => {
     let steps: TourStep[] = [];
+
+    if (!config) return [];
 
     // Greeting Step
     const next = steps.length + 1;
@@ -107,31 +108,67 @@ export const OnboardingTour: React.FC = () => {
         return (
           <OnboardingTourSuccess
             handleRestartTour={() => goTo(1)}
-            handleFinishOnboarding={() => setShowTour(false)}
+            handleFinishOnboarding={handleCloseTour}
           />
         );
       }
     })
 
     return steps;
-  }, [
-    config.showUserAndCompanyNamesStep,
-    config.showDestinationsSetupStep,
-    config.showJitsuConfigurationSteps
-  ]);
+  }, [config]);
 
   useEffect(() => {
-    const show =
-      config.showUserAndCompanyNamesStep ||
-      config.showDestinationsSetupStep ||
-      config.showJitsuConfigurationSteps
-    setShowTour(show);
+    const user = services.userService.getUser();
+
+    const configIsReady =
+      !!user &&
+      !!destinations?.destinations;
+
+    // user already completed the tour previously
+    const userCompletedTheTourPreviously = false;
+
+    // user and company name
+    const userName = user?.suggestedInfo.name;
+    const companyName = user?.suggestedInfo.companyName;
+    const showUserAndCompanyNamesStep = !userName || !companyName;
+
+    // destinations
+    const _destinations: DestinationData[] = destinations?.destinations ?? [];
+    const showDestinationsSetupStep = _destinations.length === 0;
+
+    // jitsu client configuration docs
+    const showJitsuConfigurationSteps = true;
+
+    const needToShowTour =
+      showUserAndCompanyNamesStep ||
+      showDestinationsSetupStep ||
+      showJitsuConfigurationSteps
+
+    if (
+      !userCompletedTheTourPreviously &&
+      configIsReady &&
+      needToShowTour &&
+      !userClosedTour
+    ) {
+      setConfig({
+        showUserAndCompanyNamesStep,
+        showDestinationsSetupStep,
+        showJitsuConfigurationSteps
+      })
+    };
+
   }, [
-    config.showUserAndCompanyNamesStep,
-    config.showDestinationsSetupStep,
-    config.showJitsuConfigurationSteps
+    services.userService,
+    destinations?.destinations,
+    isLoadingDestinations,
+    userClosedTour
   ]);
 
-  return <Tour showTour={showTour} steps={steps} startAt={2} maskClosable={true} />
+  return <Tour
+    showTour={showTour}
+    steps={steps}
+    startAt={0}
+    maskClosable={true}
+  />
 };
 
