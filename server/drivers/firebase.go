@@ -7,7 +7,7 @@ import (
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -64,20 +64,20 @@ type Firebase struct {
 	config                 *FirebaseConfig
 	firestoreClient        *firestore.Client
 	authClient             *auth.Client
-	collection             *Collection
+	collection             *base.Collection
 	firestoreCollectionKey string
 }
 
 func init() {
-	if err := RegisterDriver(FirebaseType, NewFirebase); err != nil {
+	/*if err := RegisterDriver(FirebaseType, NewFirebase); err != nil {
 		logging.Errorf("Failed to register driver %s: %v", FirebaseType, err)
-	}
+	}*/
 }
 
 //NewFirebase returns configured Firebase driver instance
-func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+func NewFirebase(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &FirebaseConfig{}
-	if err := UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 
@@ -93,7 +93,7 @@ func NewFirebase(ctx context.Context, sourceConfig *SourceConfig, collection *Co
 	//check firestore collection Key
 	if collection.Type == FirestoreCollection {
 		parameters := &FirestoreParameters{}
-		if err := UnmarshalConfig(collection.Parameters, parameters); err != nil {
+		if err := base.UnmarshalConfig(collection.Parameters, parameters); err != nil {
 			return nil, err
 		}
 
@@ -140,11 +140,11 @@ func (f *Firebase) GetCollectionMetaKey() string {
 	return f.collection.Name + "_" + f.GetCollectionTable()
 }
 
-func (f *Firebase) GetAllAvailableIntervals() ([]*TimeInterval, error) {
-	return []*TimeInterval{NewTimeInterval(ALL, time.Time{})}, nil
+func (f *Firebase) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
+	return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
 }
 
-func (f *Firebase) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
+func (f *Firebase) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	if f.collection.Type == FirestoreCollection {
 		return f.loadCollection()
 	} else if f.collection.Type == UsersCollection {
@@ -183,7 +183,7 @@ func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 }
 
 func (f *Firebase) Type() string {
-	return FirebaseType
+	return base.FirebaseType
 }
 
 func (f *Firebase) Close() error {

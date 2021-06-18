@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/singer"
@@ -108,9 +109,9 @@ type Singer struct {
 }
 
 func init() {
-	if err := RegisterDriver(SingerType, NewSinger); err != nil {
+	/*if err := RegisterDriver(SingerType, NewSinger); err != nil {
 		logging.Errorf("Failed to register driver %s: %v", SingerType, err)
-	}
+	}*/
 }
 
 //NewSinger returns Singer driver and
@@ -118,9 +119,9 @@ func init() {
 //2. runs discover and collects catalog.json
 //2. creates venv
 //3. in another goroutine: updates pip, install singer tap
-func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &SingerConfig{}
-	err := UnmarshalConfig(sourceConfig.Config, config)
+	err := base.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -259,12 +260,12 @@ func (s *Singer) GetCollectionMetaKey() string {
 }
 
 //GetAllAvailableIntervals unsupported
-func (s *Singer) GetAllAvailableIntervals() ([]*TimeInterval, error) {
+func (s *Singer) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return nil, errors.New("Singer driver doesn't support GetAllAvailableIntervals() func. Please use SingerTask")
 }
 
 //GetObjectsFor unsupported
-func (s *Singer) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
+func (s *Singer) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	return nil, errors.New("Singer driver doesn't support GetObjectsFor() func. Please use SingerTask")
 }
 
@@ -416,7 +417,7 @@ func (s *Singer) TestConnection() error {
 }
 
 func (s *Singer) Type() string {
-	return SingerType
+	return base.SingerType
 }
 
 func (s *Singer) Close() (multiErr error) {

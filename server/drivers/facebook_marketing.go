@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	fb "github.com/huandu/facebook/v2"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	"strings"
@@ -42,7 +43,7 @@ const (
 )
 
 type FacebookMarketing struct {
-	collection   *Collection
+	collection   *base.Collection
 	config       *FacebookMarketingConfig
 	reportConfig *FacebookReportConfig
 }
@@ -67,16 +68,16 @@ func (fmc *FacebookMarketingConfig) Validate() error {
 	return nil
 }
 
-func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &FacebookMarketingConfig{}
-	if err := UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	reportConfig := &FacebookReportConfig{}
-	if err := UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
+	if err := base.UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
 		return nil, err
 	}
 	if reportConfig.Level == "" {
@@ -92,19 +93,19 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, colle
 }
 
 func init() {
-	if err := RegisterDriver(FbMarketingType, NewFacebookMarketing); err != nil {
+	/*	if err := RegisterDriver(FbMarketingType, NewFacebookMarketing); err != nil {
 		logging.Errorf("Failed to register driver %s: %v", FbMarketingType, err)
-	}
+	}*/
 }
 
 //GetAllAvailableIntervals return half a year by default
-func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error) {
+func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	if fm.collection.Type == AdsCollection {
-		return []*TimeInterval{NewTimeInterval(ALL, time.Time{})}, nil
+		return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
 	}
 
 	//insights
-	var intervals []*TimeInterval
+	var intervals []*base.TimeInterval
 	daysBackToLoad := defaultDaysBackToLoad
 	if fm.collection.DaysBackToLoad > 0 {
 		daysBackToLoad = fm.collection.DaysBackToLoad
@@ -113,12 +114,12 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error)
 	now := time.Now().UTC()
 	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
-		intervals = append(intervals, NewTimeInterval(DAY, date))
+		intervals = append(intervals, base.NewTimeInterval(base.DAY, date))
 	}
 	return intervals, nil
 }
 
-func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
+func (fm *FacebookMarketing) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	switch fm.collection.Type {
 	case AdsCollection:
 		return fm.syncAdsReport(interval)
@@ -147,7 +148,7 @@ func (fm *FacebookMarketing) TestConnection() error {
 	return nil
 }
 
-func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
+func (fm *FacebookMarketing) syncInsightsReport(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/insights", fm.reportConfig.Fields, interval, 0, false)
 	if err != nil {
 		return nil, err
@@ -157,7 +158,7 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[s
 	return rows, nil
 }
 
-func (fm *FacebookMarketing) syncAdsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
+func (fm *FacebookMarketing) syncAdsReport(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/ads", fm.reportConfig.Fields, nil, 200, false)
 	if err != nil {
 		return nil, err
@@ -167,14 +168,14 @@ func (fm *FacebookMarketing) syncAdsReport(interval *TimeInterval) ([]map[string
 	return rows, nil
 }
 
-func (fm *FacebookMarketing) buildTimeInterval(interval *TimeInterval) string {
+func (fm *FacebookMarketing) buildTimeInterval(interval *base.TimeInterval) string {
 	dayStart := interval.LowerEndpoint()
-	since := DAY.Format(dayStart)
-	until := DAY.Format(dayStart.AddDate(0, 0, 1))
+	since := base.DAY.Format(dayStart)
+	until := base.DAY.Format(dayStart.AddDate(0, 0, 1))
 	return fmt.Sprintf("{'since': '%s', 'until': '%s'}", since, until)
 }
 
-func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, interval *TimeInterval, pageLimit int, failFast bool) ([]map[string]interface{}, error) {
+func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, interval *base.TimeInterval, pageLimit int, failFast bool) ([]map[string]interface{}, error) {
 	requestParameters := fb.Params{
 		"level":        fm.reportConfig.Level,
 		"fields":       strings.Join(fields, ","),
@@ -284,7 +285,7 @@ func (fm *FacebookMarketing) logUsage(usage *fb.UsageInfo) {
 }
 
 func (fm *FacebookMarketing) Type() string {
-	return FbMarketingType
+	return base.FbMarketingType
 }
 
 func (fm *FacebookMarketing) GetCollectionTable() string {

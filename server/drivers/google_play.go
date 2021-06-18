@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/iterator"
@@ -45,8 +45,8 @@ var (
 )
 
 type GooglePlayConfig struct {
-	AccountID  string            `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
-	AccountKey *GoogleAuthConfig `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
+	AccountID  string                 `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
+	AccountKey *base.GoogleAuthConfig `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
 }
 
 func (gpc *GooglePlayConfig) Validate() error {
@@ -65,18 +65,18 @@ type GooglePlay struct {
 	client *storage.Client
 	ctx    context.Context
 
-	collection *Collection
+	collection *base.Collection
 }
 
 func init() {
-	if err := RegisterDriver(GooglePlayType, NewGooglePlay); err != nil {
+	/*if err := RegisterDriver(GooglePlayType, NewGooglePlay); err != nil {
 		logging.Errorf("Failed to register driver %s: %v", GooglePlayType, err)
-	}
+	}*/
 }
 
-func NewGooglePlay(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &GooglePlayConfig{}
-	err := UnmarshalConfig(sourceConfig.Config, config)
+	err := base.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -103,12 +103,12 @@ func (gp *GooglePlay) GetCollectionMetaKey() string {
 	return gp.collection.Name + "_" + gp.GetCollectionTable()
 }
 
-func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
+func (gp *GooglePlay) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	bucketName := bucketPrefix + gp.config.AccountID
 	bucket := gp.client.Bucket(bucketName)
 
 	it := bucket.Objects(gp.ctx, &storage.Query{Prefix: gp.collection.Name})
-	var intervals []*TimeInterval
+	var intervals []*base.TimeInterval
 	for {
 		attrs, err := it.Next()
 		if err == iterator.Done {
@@ -140,13 +140,13 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 			return nil, fmt.Errorf("GooglePlay file on gcp has wrong interval layout: %s", attrs.Name)
 		}
 
-		intervals = append(intervals, NewTimeInterval(MONTH, t))
+		intervals = append(intervals, base.NewTimeInterval(base.MONTH, t))
 	}
 
 	return intervals, nil
 }
 
-func (gp *GooglePlay) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
+func (gp *GooglePlay) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	bucketName := bucketPrefix + gp.config.AccountID
 	bucket := gp.client.Bucket(bucketName)
 
@@ -250,7 +250,7 @@ func (gp *GooglePlay) getFileObjects(bucket *storage.BucketHandle, key string) (
 }
 
 func (gp *GooglePlay) Type() string {
-	return GooglePlayType
+	return base.GooglePlayType
 }
 
 func (gp *GooglePlay) Close() error {

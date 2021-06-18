@@ -140,8 +140,7 @@ func testSourceConnection(config *drivers.SourceConfig) error {
 			})
 		case drivers.RedisType:
 			collections = append(collections, &drivers.Collection{
-				Name: drivers.HashCollection,
-				Type: drivers.HashCollection,
+				Name: "test",
 				Parameters: map[string]interface{}{
 					"redis_key": "test",
 				},

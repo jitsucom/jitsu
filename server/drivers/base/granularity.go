@@ -1,4 +1,4 @@
-package drivers
+package base
 
 import (
 	"github.com/jitsucom/jitsu/server/logging"
