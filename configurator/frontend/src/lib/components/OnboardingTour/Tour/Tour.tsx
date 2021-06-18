@@ -12,6 +12,7 @@ export type TourStep = {
 type Props = {
   showTour?: boolean;
   steps: TourStep[];
+  startAt?: number;
   closable?: boolean;
   maskClosable?: boolean;
   closeOnEsc?: boolean;
@@ -20,11 +21,12 @@ type Props = {
 export const Tour: React.FC<Props> = function({
   showTour = true,
   steps,
+  startAt,
   closable = false,
   maskClosable = false,
   closeOnEsc = false
 }) {
-  const [currentStepIdx, setCurrentStepIdx] = useState<number>(0);
+  const [currentStepIdx, setCurrentStepIdx] = useState<number>(startAt ?? 0);
 
   const currentStepRender = useMemo<React.ReactNode>(() => {
     const content = steps[currentStepIdx].content;

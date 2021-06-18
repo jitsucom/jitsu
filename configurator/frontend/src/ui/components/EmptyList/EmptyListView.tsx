@@ -14,8 +14,14 @@ type CommonProps = {
   unit: string;
 }
 
-type LayoutCenteringProps = {
+type LayoutProps = {
   centered?: boolean;
+  dropdownOverlayPlacement?: 'bottomLeft'
+    | 'bottomCenter'
+    | 'bottomRight'
+    | 'topLeft'
+    | 'topCenter'
+    | 'topRight'
 }
 
 type FreeDatabaseProps =
@@ -24,7 +30,7 @@ type FreeDatabaseProps =
 
 type Props =
   & CommonProps
-  & LayoutCenteringProps
+  & LayoutProps
   & FreeDatabaseProps;
 
 const EmptyListViewComponent: React.FC<Props> = ({
@@ -32,6 +38,7 @@ const EmptyListViewComponent: React.FC<Props> = ({
   list,
   unit,
   centered = true,
+  dropdownOverlayPlacement = 'bottomCenter',
   showFreeDatabaseSeparateButton = true,
   handleCreateFreeDatabase
 }) => {
@@ -40,7 +47,7 @@ const EmptyListViewComponent: React.FC<Props> = ({
     <h3 className="text-2xl">{title}</h3>
     <div className="flex flex-row justify-center items center">
       <div className={`${centered ? 'h-32' : ''} w-80`}>
-        <Dropdown placement="bottomCenter" trigger={['click']} overlay={list}>
+        <Dropdown placement={dropdownOverlayPlacement} trigger={['click']} overlay={list}>
           <Button type="primary" className="w-80" size="large" icon={<PlusOutlined />}>{`Add ${unit}`}</Button>
         </Dropdown>
       </div>

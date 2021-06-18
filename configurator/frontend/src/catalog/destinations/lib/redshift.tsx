@@ -15,6 +15,7 @@ const icon = <svg enableBackground="new 0 0 1615 1783.7" viewBox="0 0 1615 1783.
 const destination: Destination = {
   syncFromSourcesStatus: 'coming_soon',
   id: 'redshift',
+  type: 'other',
   displayName: 'Redshift',
   ui: {
     title: (cfg) => cfg._formData.redshiftHost,
