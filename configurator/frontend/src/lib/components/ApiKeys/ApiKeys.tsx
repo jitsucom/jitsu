@@ -91,7 +91,10 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
             };
             let newTokens = [...this.state.tokens, newToken];
             await this.saveTokens(newTokens, 'NEW');
-            message.info('New API key has been saved!');
+            const tokenSuccessfullySaved = this.state.tokens.find(
+              token => token.uid === newToken.uid
+            )
+            tokenSuccessfullySaved && message.info('New API key has been saved!');
           }}
         >
           Generate New Key
@@ -312,10 +315,12 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
     });
     try {
       await this.services.storageService.save('api_keys', { keys: newTokens }, this.services.activeProject.id);
-      this.setState({ tokens: newTokens, loading: null });
+      this.setState({ tokens: newTokens });
     } catch (e) {
       message.error('Can\'t generate new token: ' + e.message);
       console.log(e);
+    } finally {
+      this.setState({loading: null});
     }
   }
 
