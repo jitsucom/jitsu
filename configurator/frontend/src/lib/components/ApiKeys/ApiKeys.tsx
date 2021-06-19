@@ -34,6 +34,10 @@ type Token = {
   comment?: string;
 };
 
+type TokensBackendResponse = {
+  keys?: Token[]; 
+}
+
 type LoadingEntity = number | 'NEW' | null;
 type State = {
   loading: LoadingEntity; //what's displayed as loading? number - index of key, "NEW" - new button, null - nothing
@@ -53,6 +57,35 @@ function generateNewKeyWithConfirmation(onConfirm: () => void) {
   });
 }
 
+export function generateNewAPIToken(type: string, len?: number): string {
+  const postfix = `${ApplicationServices.get().activeProject.id}.${randomId(len)}`;
+  return type.length > 0 ?
+    `${type}.${postfix}` :
+    postfix;
+}
+
+export async function fetchUserAPITokens(): Promise<TokensBackendResponse | never> {
+  const services = ApplicationServices.get();
+  return services.storageService.get('api_keys', services.activeProject.id)
+}
+/**
+ * WARNING - this function will re-write all data stored on the backend. 
+ * It is safe to use only if you have merged the previous state in the request.
+ * @param newTokens - Tokens to put to server
+ * @returns Empty promise
+ */
+export async function _unsafeRequestPutUserAPITokens(newTokens: Token[]): Promise<void | never> {
+  const services = ApplicationServices.get();
+  return services.storageService.save('api_keys', { keys: newTokens }, services.activeProject.id);
+}
+
+export async function requestAddNewUserAPIToken(newToken: Token): Promise<void | never> {
+  const services = ApplicationServices.get();
+  const prevState = (await fetchUserAPITokens()).keys;
+  const newState = prevState ? [...prevState, newToken] : [newToken];
+  return services.storageService.save('api_keys', { keys: newState }, services.activeProject.id);
+}
+
 export default class ApiKeys extends LoadableComponent<{}, State> {
   private readonly services: ApplicationServices;
 
@@ -66,11 +99,12 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
   }
 
   protected async load(): Promise<State> {
-    let payload = await this.services.storageService.get('api_keys', this.services.activeProject.id);
+    let payload = await fetchUserAPITokens();
     return {
-      tokens: payload && payload.keys ?
-        payload.keys :
-        [], loading: null
+      tokens: payload && payload.keys 
+          ? payload.keys 
+          : [], 
+      loading: null
     };
   }
 
@@ -84,9 +118,9 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
           loading={'NEW' === this.state.loading}
           onClick={async() => {
             let newToken = {
-              uid: this.newToken('', 6),
-              serverAuth: this.newToken('s2s'),
-              jsAuth: this.newToken('js'),
+              uid: generateNewAPIToken('', 6),
+              serverAuth: generateNewAPIToken('s2s'),
+              jsAuth: generateNewAPIToken('js'),
               origins: []
             };
             let newTokens = [...this.state.tokens, newToken];
@@ -150,7 +184,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
                 <ActionLink
                   onClick={() => {
                     generateNewKeyWithConfirmation(() => {
-                      this.state.tokens[index].jsAuth = this.newToken('js');
+                      this.state.tokens[index].jsAuth = generateNewAPIToken('js');
                       this.saveTokens(this.state.tokens, index);
                       message.info('New key has been generated and saved');
                     })
@@ -188,7 +222,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
                 <ActionLink
                   onClick={() => {
                     generateNewKeyWithConfirmation(() => {
-                      this.state.tokens[index].serverAuth = this.newToken('s2s');
+                      this.state.tokens[index].serverAuth = generateNewAPIToken('s2s');
                       this.saveTokens(this.state.tokens, index);
                       message.info('New key has been generated and saved');
                     })
@@ -314,7 +348,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
       loading: loading
     });
     try {
-      await this.services.storageService.save('api_keys', { keys: newTokens }, this.services.activeProject.id);
+      await _unsafeRequestPutUserAPITokens(newTokens);
       this.setState({ tokens: newTokens });
     } catch (e) {
       message.error('Can\'t generate new token: ' + e.message);
@@ -327,13 +361,6 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
   copyToClipboard(value) {
     copyToClipboard(value);
     message.success('Key copied to clipboard');
-  }
-
-  private newToken(type: string, len?: number) {
-    let postfix = `${this.services.activeProject.id}.${randomId(len)}`;
-    return type.length > 0 ?
-      `${type}.${postfix}` :
-      postfix;
   }
 }
 
