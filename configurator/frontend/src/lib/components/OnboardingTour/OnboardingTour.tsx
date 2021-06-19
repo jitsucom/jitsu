@@ -1,6 +1,7 @@
-// @libraries
+// @Libs
 import React, { useEffect, useMemo, useState } from 'react';
-// @components
+import moment from 'moment';
+// @Components
 import { Tour, TourStep } from './Tour/Tour';
 import { OnboardingTourGreeting } from './steps/OnboardingTourGreeting/OnboardingTourGreeting';
 import { OnboardingTourNames } from './steps/OnboardingTourNames/OnboardingTourNames';
@@ -8,16 +9,19 @@ import { OnboardingTourAddDestination } from './steps/OnboardingTourAddDestinati
 import { OnboardingTourAddJitsuOnClient } from './steps/OnboardingTourAddJitsuOnClient/OnboardingTourAddJitsuOnClient';
 import { OnboardingTourReceiveEvent } from './steps/OnboardingTourReceiveEvent/OnboardingTourReceiveEvent';
 import { OnboardingTourSuccess } from './steps/OnboardingTourSuccess/OnboardingTourSuccess';
-// @services
+// @Services
 import ApplicationServices from '@./lib/services/ApplicationServices';
 // @Hooks
 import useLoader from '@./hooks/useLoader';
+import { formatTimeOfRawUserEvents, getLatestUserEvent, userEventWasTimeAgo } from '@./lib/commons/utils';
 
 type OnboardingConfig = {
   showUserAndCompanyNamesStep: boolean;
   showDestinationsSetupStep: boolean;
-  showJitsuConfigurationSteps: boolean;
+  showJitsuClientConfigurationSteps: boolean;
 }
+
+const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, 'months');
 
 export const OnboardingTour: React.FC = () => {
   const services = ApplicationServices.get();
@@ -30,9 +34,20 @@ export const OnboardingTour: React.FC = () => {
   }, [config, userClosedTour]);
 
   const [
-    ,destinations,,,
+    ,
+    destinations,,,
     isLoadingDestinations
   ] = useLoader(async() => await services.storageService.get('destinations', services.activeProject.id));
+
+  const [
+    ,
+    events,,,
+    isLoadingEvents
+  ] = useLoader<unknown>(
+    async() => await services.backendApiClient.get(
+      `/events/cache?project_id=${services.activeProject.id}&limit=5`, { proxy: true }
+    )
+  )
 
   const handleCloseTour = () => {
     setUserClosedTour(true);
@@ -61,7 +76,7 @@ export const OnboardingTour: React.FC = () => {
       })
     }
 
-    // Add Destinations and Test Events
+    // Add destinations
     if (config.showDestinationsSetupStep) {
       const next = steps.length + 1;
       const prev = steps.length - 1;
@@ -77,7 +92,8 @@ export const OnboardingTour: React.FC = () => {
       })
     }
 
-    if (config.showJitsuConfigurationSteps) {
+    // Show client docs and wait for the firs event
+    if (config.showJitsuClientConfigurationSteps) {
       const next = steps.length + 1;
       const prev = steps.length - 1;
       steps.push({
@@ -122,7 +138,8 @@ export const OnboardingTour: React.FC = () => {
 
     const configIsReady =
       !!user &&
-      !!destinations?.destinations;
+      ! isLoadingDestinations &&
+      ! isLoadingEvents;
 
     // user already completed the tour previously
     const userCompletedTheTourPreviously = false;
@@ -136,13 +153,16 @@ export const OnboardingTour: React.FC = () => {
     const _destinations: DestinationData[] = destinations?.destinations ?? [];
     const showDestinationsSetupStep = _destinations.length === 0;
 
-    // jitsu client configuration docs
-    const showJitsuConfigurationSteps = true;
+    // jitsu client configuration docs and first event detection
+    const showJitsuClientConfigurationSteps: boolean =
+      isLoadingEvents || !events
+        ? false
+        : needShowJitsuClientConfigSteps(events);
 
     const needToShowTour =
       showUserAndCompanyNamesStep ||
       showDestinationsSetupStep ||
-      showJitsuConfigurationSteps
+      showJitsuClientConfigurationSteps
 
     if (
       !userCompletedTheTourPreviously &&
@@ -153,7 +173,7 @@ export const OnboardingTour: React.FC = () => {
       setConfig({
         showUserAndCompanyNamesStep,
         showDestinationsSetupStep,
-        showJitsuConfigurationSteps
+        showJitsuClientConfigurationSteps
       })
     };
 
@@ -161,6 +181,8 @@ export const OnboardingTour: React.FC = () => {
     services.userService,
     destinations?.destinations,
     isLoadingDestinations,
+    events,
+    isLoadingEvents,
     userClosedTour
   ]);
 
@@ -172,3 +194,11 @@ export const OnboardingTour: React.FC = () => {
   />
 };
 
+function needShowJitsuClientConfigSteps(rawEvents: unknown): boolean {
+  const latestUserEvent = getLatestUserEvent(
+    formatTimeOfRawUserEvents(rawEvents)
+  );
+  if (!latestUserEvent) return true;
+  const latestEventWasLongAgo = userEventWasTimeAgo(latestUserEvent, USER_EVENT_EXPIRATION_THRESHOLD);
+  return latestEventWasLongAgo;
+}
