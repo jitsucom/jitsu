@@ -41,6 +41,12 @@ export const OnboardingTour: React.FC = () => {
 
   const [
     ,
+    user,,,
+    isLoadingUser
+  ] = useLoader(async() => await services.userService.getUser());
+
+  const [
+    ,
     destinations,,,
     isLoadingDestinations
   ] = useLoader(async() => await services.storageService.get('destinations', services.activeProject.id));
@@ -77,7 +83,7 @@ export const OnboardingTour: React.FC = () => {
       const next = steps.length + 1;
       steps.push({
         content: ({ goTo }) => {
-          return <OnboardingTourNames handleGoNext={() => goTo(next)}/>;
+          return <OnboardingTourNames user={user} handleGoNext={() => goTo(next)}/>;
         }
       })
     }
@@ -85,13 +91,11 @@ export const OnboardingTour: React.FC = () => {
     // Add destinations
     if (config.showDestinationsSetupStep) {
       const next = steps.length + 1;
-      const prev = steps.length - 1;
       steps.push({
         content: ({ goTo }) => {
           return (
             <OnboardingTourAddDestination
               handleGoNext={() => goTo(next)}
-              handleGoBack={() => goTo(prev)}
             />
           );
         }
@@ -141,10 +145,9 @@ export const OnboardingTour: React.FC = () => {
   }, [config]);
 
   useEffect(() => {
-    const user = services.userService.getUser();
 
     const configIsReady =
-      !!user &&
+      ! isLoadingUser &&
       ! isLoadingDestinations &&
       ! isLoadingEvents;
 
