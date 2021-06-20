@@ -36,12 +36,10 @@ type Lifecycle =
 
 type Props = {
    handleGoNext: () => void;
-   handleGoBack: () => void;
  }
 
 export const OnboardingTourAddDestination: React.FC<Props> = function({
-  handleGoNext,
-  handleGoBack
+  handleGoNext
 }) {
   const services = useServices();
   const [lifecycle, setLifecycle] = useState<Lifecycle>('loading');
