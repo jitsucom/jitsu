@@ -12,7 +12,7 @@ const icon = <svg enableBackground="new 0 0 1615 1783.7" viewBox="0 0 1615 1783.
   <path d="m635.2 0h348.1v1780.1h-348.1z" fill="#2e73b7"/>
 </svg>
 
-const destination: Destination = {
+const destination = {
   syncFromSourcesStatus: 'coming_soon',
   id: 'redshift',
   type: 'other',
@@ -72,6 +72,6 @@ const destination: Destination = {
       (cfg) => cfg?._formData?.mode !== 'batch'
     )
   ]
-}
+} as const;
 
 export default destination;

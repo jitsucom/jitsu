@@ -27,7 +27,7 @@ import styles from './ConfigurableFieldsForm.module.less';
 import ApplicationServices from '@service/ApplicationServices';
 
 export interface Props {
-  fieldsParamsList: Parameter[];
+  fieldsParamsList: readonly Parameter[];
   form: FormInstance;
   initialValues: any;
   namePrefix?: string;

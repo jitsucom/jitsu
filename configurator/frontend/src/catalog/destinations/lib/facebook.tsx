@@ -15,7 +15,7 @@ const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
   />
 </svg>;
 
-const facebookDestination: Destination = {
+const facebookDestination = {
   syncFromSourcesStatus: 'not_supported',
   id: 'facebook',
   type: 'other',
@@ -54,6 +54,6 @@ const facebookDestination: Destination = {
     }
 
   ]
-}
+}  as const;
 
 export default facebookDestination;
