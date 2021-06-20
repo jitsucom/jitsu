@@ -1,7 +1,9 @@
 // @Libs
+import useLoader from '@./hooks/useLoader'
 import { Button } from 'antd'
 // @Components
-import { KeyDocumentation } from 'lib/components/ApiKeys/ApiKeys'
+import { fetchUserAPITokens, KeyDocumentation, UserAPIToken } from 'lib/components/ApiKeys/ApiKeys'
+import { useMemo } from 'react'
 // @Styles
 import styles from './OnboardingTourAddJitsuOnClient.module.less'
 
@@ -14,6 +16,15 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
   handleGoNext,
   handleGoBack
 }) {
+  const [
+    ,
+    apiKeys,,,
+  ] = useLoader(async() => (await fetchUserAPITokens()).keys);
+
+  const key = useMemo<UserAPIToken | null>(() => {
+    return apiKeys?.length ? apiKeys[0] : null;
+  }, [apiKeys]);
+
   return (
     <div className={styles.mainContainer}>
       <h1 className={styles.header}>
@@ -21,12 +32,12 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
       </h1>
       <div className={styles.contentContainer}>
         <KeyDocumentation
-          token={{
-            uid: 'string',
-            jsAuth: 'string',
-            serverAuth: 'string',
-            origins: ['string'],
-            comment: 'string'
+          token={key || {
+            uid: '<your API key>',
+            jsAuth: '<your API key>',
+            serverAuth: '<your API key>',
+            origins: ['<your API key>'],
+            comment: '<your API key>'
           }}
           displayDomainDropdown={false}
         />
