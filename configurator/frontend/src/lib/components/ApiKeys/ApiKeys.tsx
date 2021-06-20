@@ -26,7 +26,7 @@ import useLoader from '@hooks/useLoader';
 import { randomId } from '@util/numbers';
 import { useServices } from '@hooks/useServices';
 
-type Token = {
+export type UserAPIToken = {
   uid: string;
   jsAuth: string;
   serverAuth: string;
@@ -35,13 +35,13 @@ type Token = {
 };
 
 type TokensBackendResponse = {
-  keys?: Token[]; 
+  keys?: UserAPIToken[]; 
 }
 
 type LoadingEntity = number | 'NEW' | null;
 type State = {
   loading: LoadingEntity; //what's displayed as loading? number - index of key, "NEW" - new button, null - nothing
-  tokens: Token[];
+  tokens: UserAPIToken[];
 };
 
 function generateNewKeyWithConfirmation(onConfirm: () => void) {
@@ -74,12 +74,12 @@ export async function fetchUserAPITokens(): Promise<TokensBackendResponse | neve
  * @param newTokens - Tokens to put to server
  * @returns Empty promise
  */
-export async function _unsafeRequestPutUserAPITokens(newTokens: Token[]): Promise<void | never> {
+export async function _unsafeRequestPutUserAPITokens(newTokens: UserAPIToken[]): Promise<void | never> {
   const services = ApplicationServices.get();
   return services.storageService.save('api_keys', { keys: newTokens }, services.activeProject.id);
 }
 
-export async function requestAddNewUserAPIToken(newToken: Token): Promise<void | never> {
+export async function requestAddNewUserAPIToken(newToken: UserAPIToken): Promise<void | never> {
   const services = ApplicationServices.get();
   const prevState = (await fetchUserAPITokens()).keys;
   const newState = prevState ? [...prevState, newToken] : [newToken];
@@ -154,7 +154,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
         className: 'api-keys-column-id',
         dataIndex: 'uid',
         key: 'uid',
-        render: (text, row: Token, index) => {
+        render: (text, row: UserAPIToken, index) => {
           return (
             <>
               <span className="font-mono text-sm">{text}</span>
@@ -282,7 +282,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
         className: 'api-keys-column-actions',
         title: 'Actions',
         dataIndex: 'actions',
-        render: (text, row: Token, index) => {
+        render: (text, row: UserAPIToken, index) => {
           return (
             <>
               <Tooltip trigger={['hover']} title={'Show integration documentation'}>
@@ -343,7 +343,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
     return nodes;
   }
 
-  private async saveTokens(newTokens: Token[], loading: LoadingEntity) {
+  private async saveTokens(newTokens: UserAPIToken[], loading: LoadingEntity) {
     this.setState({
       loading: loading
     });
@@ -369,7 +369,7 @@ function getDomainsSelection(env: string) {
 }
 
 type KeyDocumentationProps = {
-  token: Token;
+  token: UserAPIToken;
   displayDomainDropdown?: boolean;
 }
 
