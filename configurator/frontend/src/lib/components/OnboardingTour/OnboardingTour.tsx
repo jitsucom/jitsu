@@ -180,6 +180,7 @@ export const OnboardingTour: React.FC = () => {
       needToShowTour &&
       !userClosedTour
     ) {
+      debugger;
       generateUserAPIKeyIfNeeded().then(() => {
         setConfig({
           showUserAndCompanyNamesStep,
@@ -196,7 +197,9 @@ export const OnboardingTour: React.FC = () => {
     events,
     isLoadingEvents,
     isLoadingUser,
-    userClosedTour
+    userClosedTour,
+    user?.name,
+    user?.projects
   ]);
 
   return <Tour
