@@ -7,7 +7,7 @@ import styles from './OnboardingTourAddJitsuOnClient.module.less'
 
 type Props = {
    handleGoNext: () => void;
-   handleGoBack: () => void;
+   handleGoBack?: () => void;
  }
 
 export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
@@ -32,7 +32,7 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
         />
       </div>
       <div className={styles.controlsContainer}>
-        <Button type="ghost" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back'}</Button>
+        {!!handleGoBack && <Button type="ghost" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back'}</Button>}
         <Button type="primary" className={styles.withButtonsMargins} onClick={handleGoNext}>{'Got it'}</Button>
       </div>
     </div>

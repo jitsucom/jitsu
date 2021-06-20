@@ -102,12 +102,13 @@ export const OnboardingTour: React.FC = () => {
     if (config.showJitsuClientConfigurationSteps) {
       const next = steps.length + 1;
       const prev = steps.length - 1;
+      const disableGoBack = config.showDestinationsSetupStep;
       steps.push({
         content: ({ goTo }) => {
           return (
             <OnboardingTourAddJitsuOnClient
               handleGoNext={() => goTo(next)}
-              handleGoBack={() => goTo(prev)}
+              handleGoBack={disableGoBack ? undefined : () => goTo(prev)}
             />
           );
         }
@@ -176,7 +177,6 @@ export const OnboardingTour: React.FC = () => {
       needToShowTour &&
       !userClosedTour
     ) {
-      debugger;
       generateUserAPIKeyIfNeeded().then(() => {
         setConfig({
           showUserAndCompanyNamesStep,

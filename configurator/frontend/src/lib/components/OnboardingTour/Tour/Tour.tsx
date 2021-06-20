@@ -43,6 +43,7 @@ export const Tour: React.FC<Props> = function({
       footer={null}
       closable={closable}
       maskClosable={maskClosable}
+      width={'80vw'}
       keyboard={closeOnEsc}
       destroyOnClose
     >
