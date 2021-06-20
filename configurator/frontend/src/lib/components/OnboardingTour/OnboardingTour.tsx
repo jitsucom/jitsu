@@ -142,7 +142,7 @@ export const OnboardingTour: React.FC = () => {
     })
 
     return steps;
-  }, [config]);
+  }, [user, config]);
 
   useEffect(() => {
 
@@ -155,8 +155,8 @@ export const OnboardingTour: React.FC = () => {
     const userCompletedTheTourPreviously = false;
 
     // user and company name
-    const userName = user?.suggestedInfo.name;
-    const companyName = user?.suggestedInfo.companyName;
+    const userName = user?.name;
+    const companyName = user?.projects?.length ? user?.projects[0]?.name : '';
     const showUserAndCompanyNamesStep = !userName || !companyName;
 
     // destinations
@@ -195,6 +195,7 @@ export const OnboardingTour: React.FC = () => {
     isLoadingDestinations,
     events,
     isLoadingEvents,
+    isLoadingUser,
     userClosedTour
   ]);
 
