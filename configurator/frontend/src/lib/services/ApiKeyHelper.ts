@@ -1,3 +1,4 @@
+import { randomId } from '@./utils/numbers';
 import ApplicationServices from '@service/ApplicationServices';
 
 export default class ApiKeyHelper {
@@ -13,13 +14,74 @@ export default class ApiKeyHelper {
     this._destinations = preloaded?.destinations;
   }
 
+  private async fetchKeys(): Promise<APIKey[]> {
+    return (await this._services.storageService.get('api_keys', this._services.activeProject.id))['keys'] || []
+  }
+
+  private async fetchDestinations(): Promise<DestinationData[]> {
+    return (await this._services.storageService.get('destinations', this._services.activeProject.id))['_destinations'] || []
+  }
+
+  private async pullKeys(): Promise<void> {
+    this._keys = await this.fetchKeys();
+  }
+
+  private async pullDestinations(): Promise<void> {
+    this._destinations = await this.fetchDestinations();
+  }
+
+  private async putKeys(keys: APIKey[]): Promise<void> {
+    await this._services.storageService.save('api_keys', { keys }, this._services.activeProject.id);
+  }
+
+  private async putDestinations(destinations: DestinationData[]): Promise<void> {
+    await this._services.storageService.save('destinations', { destinations: destinations }, this._services.activeProject.id);
+  }
+
+  private async syncWithBackend() {
+    await this.pullKeys();
+    await this.pullDestinations();
+  }
+
   public async init() {
-    if (!this._keys) {
-      this._keys = (await this._services.storageService.get('api_keys', this._services.activeProject.id))['keys'] || []
-    }
-    if (!this._destinations) {
-      this._destinations = (await this._services.storageService.get('destinations', this._services.activeProject.id))['_destinations'] || []
-    }
+    if (!this._keys) await this.pullKeys();
+    if (!this._destinations) await this.pullDestinations()
+  }
+
+  public async addKey(key: APIKey): Promise<void> {
+    const keys = await this.fetchKeys();
+    const keyAlreadyExists = keys.findIndex(_key => _key.uid === key.uid) !== -1;
+    if (!keyAlreadyExists) await this.putKeys([...keys, key]);
+    await this.pullKeys();
+  }
+
+  public async addDestination(destination: DestinationData): Promise<void> {
+    const destinations = await this.fetchDestinations();
+    const destinationAlreadyExists = destinations.findIndex(_destination => _destination._uid === destination?._uid) !== -1;
+    if (!destinationAlreadyExists) await this.putDestinations([...destinations, destination]);
+    await this.pullDestinations();
+  }
+
+  private generateToken(type: string, length?: number) {
+    const postfix = `${ApplicationServices.get().activeProject.id}.${randomId(length)}`;
+    return type.length > 0 ?
+      `${type}.${postfix}` :
+      postfix;
+  }
+
+  private generateNewAPIKey(): APIKey {
+    return {
+      uid: this.generateToken('', 6),
+      serverAuth: this.generateToken('s2s'),
+      jsAuth: this.generateToken('js'),
+      origins: []
+    };
+  }
+
+  public async createNewAPIKey(): Promise<APIKey> {
+    const key = this.generateNewAPIKey();
+    await this.addKey(key);
+    return key;
   }
 
   get keys(): APIKey[] {
@@ -43,6 +105,14 @@ export default class ApiKeyHelper {
     return true;
   }
 
+  public async linkKeyToDestination(key: APIKey, destination: DestinationData): Promise<void> {
+    const restDestinations = this._destinations.filter(dest => dest._id !== destination._id);
+    destination._onlyKeys = [...destination._onlyKeys, key.uid];
+    const allDestinations = [...restDestinations, destination];
+    await this.putDestinations(allDestinations);
+    await this.syncWithBackend();
+  }
+
   public async link(): Promise<void> {
     if (this._keys.length !== 1 || this._destinations.length !== 1) {
       //Only simple case is supported
@@ -50,6 +120,6 @@ export default class ApiKeyHelper {
     }
 
     this._destinations[0]._onlyKeys = [this._keys[0].uid];
-    await this._services.storageService.save('destinations', { destinations: this._destinations }, this._services.activeProject.id);
+    await this.putDestinations(this._destinations);
   }
 }
