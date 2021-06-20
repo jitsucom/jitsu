@@ -1,7 +1,7 @@
 /* eslint-disable */
 import moment, { Moment, Duration } from 'moment';
 import {LS_ACCESS_KEY, LS_REFRESH_KEY} from "@service/backend";
-import { assert, assertHasOwnProperty, assertIsArray, assertIsObject } from '@./utils/typeCheck';
+import { assertHasOwnProperty, assertIsArray, assertIsObject } from '@./utils/typeCheck';
 
 export function concatenateURLs(baseUrl: string, url: string) {
   let base = baseUrl.endsWith('/') ? baseUrl.substr(0, baseUrl.length - 1) : baseUrl;
@@ -207,4 +207,6 @@ export function getLatestUserEvent(
   if (!events.length) return null;
   return sortTimeFormattedUserEventsDescending(events)[0];
 }
+
+
 

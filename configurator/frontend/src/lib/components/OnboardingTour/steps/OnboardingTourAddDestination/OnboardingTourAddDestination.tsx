@@ -1,8 +1,9 @@
 // @Libs
-import { Button } from 'antd';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 // @Styles
 import styles from './OnboardingTourAddDestination.module.less';
+// @Commons
+import { createFreeDatabase } from '@./lib/commons/createFreeDatabase';
 // @Components
 import { EmptyListView } from '@./ui/components/EmptyList/EmptyListView';
 import { DropDownList } from '@./ui/components/DropDownList/DropDownList';
@@ -56,7 +57,12 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
 
   const handleCancelDestinationSetup = useCallback<() => void>(() => {
     setLifecycle('setup_choice');
-  }, [])
+  }, []);
+
+  const handleCreateFreeDatabase = useCallback<() => Promise<void>>(async() => {
+    await createFreeDatabase()
+    handleGoNext();
+  }, [handleGoNext])
 
   const render = useMemo<React.ReactElement>(() => {
     switch (lifecycle) {
@@ -86,7 +92,8 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
               unit="destination"
               centered={false}
               dropdownOverlayPlacement="bottomCenter"
-              showFreeDatabaseSeparateButton={false}
+              handleCreateFreeDatabase={handleCreateFreeDatabase}
+              // showFreeDatabaseSeparateButton={false}
             />
           </div>
         </>
