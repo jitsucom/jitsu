@@ -26,7 +26,6 @@ enum AppLifecycle {
 }
 
 type AppState = {
-    showOnboardingForm: boolean;
     lifecycle: AppLifecycle;
     globalErrorDetails?: string;
     extraControls?: React.ReactNode;
@@ -45,7 +44,6 @@ export default class App extends React.Component<{}, AppState> {
         setDebugInfo('applicationServices', this.services, false);
         this.state = {
             lifecycle: AppLifecycle.LOADING,
-            showOnboardingForm: false,
             extraControls: null
         };
     }
@@ -72,7 +70,7 @@ export default class App extends React.Component<{}, AppState> {
             this.setState({
                 lifecycle: loginStatus.user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
                 user: loginStatus.user,
-                showOnboardingForm: loginStatus.user && !loginStatus.user.onboarded,
+                // showOnboardingForm: loginStatus.user && !loginStatus.user.onboarded,
                 paymentPlanStatus: paymentPlanStatus
             });
         } catch (error) {
@@ -139,28 +137,23 @@ export default class App extends React.Component<{}, AppState> {
 
     appLayout() {
         let routes = PRIVATE_PAGES.map((route) => {
-            if (!this.state.showOnboardingForm) {
-                let Component = route.component as ExoticComponent;
-                return <Route
-                        key={route.pageTitle}
-                        path={route.getPrefixedPath()}
-                        exact={true}
-                        render={(routeProps) => {
-                            this.services.analyticsService.onPageLoad({
-                                pagePath: routeProps.location.hash
-                            });
-                            document.title = route.pageTitle;
-                            return route.doNotWrap ?
-                              <Component {...(routeProps as any)} /> :
-                              <ApplicationPage user={this.state.user} plan={this.state.paymentPlanStatus} page={route} {...routeProps} />;
-                        }}
-                    />;
-            } else {
-                return <CenteredSpin/>;
-            }
+        let Component = route.component as ExoticComponent;
+        return <Route
+                key={route.pageTitle}
+                path={route.getPrefixedPath()}
+                exact={true}
+                render={(routeProps) => {
+                    this.services.analyticsService.onPageLoad({
+                        pagePath: routeProps.location.hash
+                    });
+                    document.title = route.pageTitle;
+                    return route.doNotWrap ?
+                        <Component {...(routeProps as any)} /> :
+                        <ApplicationPage user={this.state.user} plan={this.state.paymentPlanStatus} page={route} {...routeProps} />;
+                }}
+            />;
         });
         routes.push(<Redirect key="dashboardRedirect" to="/dashboard"/>);
-        // let extraForms = null;
 
         let extraForms = <OnboardingTour />;
 
@@ -173,7 +166,8 @@ export default class App extends React.Component<{}, AppState> {
         //             }}
         //         />
         //     );
-        if (this.state.showOnboardingForm) {
+
+        // if (this.state.showOnboardingForm) {
             // extraForms = (
             //     <OnboardingForm
             //         user={this.state.user}
@@ -183,7 +177,8 @@ export default class App extends React.Component<{}, AppState> {
             //         }}
             //     />
             // );
-        } else if (this.services.userService.getUser().forcePasswordChange) {
+        // } else if 
+        if (this.services.userService.getUser().forcePasswordChange) {
             return (
                 <SetNewPassword
                     onCompleted={async () => {
