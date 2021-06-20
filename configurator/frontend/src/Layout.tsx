@@ -207,7 +207,6 @@ export type ApplicationPageWrapperProps = {
 
 export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, page, user, ...rest }) => {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(withHome({ elements: [{ title: page.pageHeader }] }));
-  const pageId = usePageLocation().id;
 
   let Component = page.component as React.ExoticComponent;
   let props = { setBreadcrumbs }
@@ -217,7 +216,7 @@ export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, p
     </div>
     <div className={classNames(styles.rightbar)}>
       <PageHeader user={user} plan={plan}><Breadcrumbs {...breadcrumbs} /></PageHeader>
-      <div className="flex-grow">
+      <div className={styles.applicationPageComponent}>
         <Component {...(props as any)} />
       </div>
     </div>
