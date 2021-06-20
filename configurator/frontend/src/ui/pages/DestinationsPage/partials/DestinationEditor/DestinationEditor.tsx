@@ -371,7 +371,7 @@ const DestinationEditor = ({
   return (
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
-        <div className={cn('flex flex-col flex-grow', styles.mainArea)} id="dst-editor-tabs">
+        <div className={styles.mainArea} id="dst-editor-tabs">
           {
             isAbleToConnectItems() && (
               <Card className={styles.linkedWarning}>
