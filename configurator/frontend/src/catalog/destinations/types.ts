@@ -6,7 +6,7 @@ export type Destination = {
     type: 'database' | 'other'
     displayName: string
     ui?: DestinationUI
-    parameters: Parameter[],
+    parameters: readonly Parameter[],
     syncFromSourcesStatus: 'supported' | 'coming_soon' | 'not_supported'
 }
 

@@ -38,7 +38,7 @@ function displayForBatchOnly<T>(defaultValue: T): Function<any, T> {
   }
 }
 
-const destination: Destination = {
+const destination = {
   syncFromSourcesStatus: 'coming_soon',
   id: 'snowflake',
   type: 'other',
@@ -131,6 +131,6 @@ const destination: Destination = {
       (cfg) => cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 's3')
     )
   ]
-};
+} as const;
 
 export default destination;
