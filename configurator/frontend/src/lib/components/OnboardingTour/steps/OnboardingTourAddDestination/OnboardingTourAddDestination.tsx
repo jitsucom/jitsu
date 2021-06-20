@@ -13,8 +13,11 @@ import {
   destinationsReferenceMap,
   DestinationStrictType
 } from '@./ui/pages/DestinationsPage/commons';
+// @Hooks
 import useLoader from '@./hooks/useLoader';
 import { useServices } from '@./hooks/useServices';
+// @Utils
+import ApiKeyHelper from '@./lib/services/ApiKeyHelper';
 
 type ExtractDatabaseOrWebhook<T> = T extends {readonly type: 'database'}
   ? T
@@ -58,6 +61,21 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
   const handleCancelDestinationSetup = useCallback<() => void>(() => {
     setLifecycle('setup_choice');
   }, []);
+
+  const onAfterDestinationCreated = useCallback<() => Promise<void>>(async() => {
+    const helper = new ApiKeyHelper(services);
+    await helper.init();
+
+    // if user created a destination at this step, it is his first destination
+    const destination = helper.destinations[0];
+
+    // user might have multiple keys - we are using the first one
+    let key = helper.keys[0];
+    if (!key) key = await helper.createNewAPIKey();
+    await helper.linkKeyToDestination(key, destination);
+
+    handleGoNext();
+  }, [services, handleGoNext])
 
   const handleCreateFreeDatabase = useCallback<() => Promise<void>>(async() => {
     await createFreeDatabase()
@@ -116,7 +134,7 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
               tabName: 'tab'
             }}
             disableForceUpdateOnSave
-            onAfterSaveSucceded={handleGoNext}
+            onAfterSaveSucceded={onAfterDestinationCreated}
             onCancel={handleCancelDestinationSetup}
           />
         </div>
@@ -129,8 +147,9 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     sourcesError,
     updateDestinations,
     updateSources,
-    handleGoNext,
-    handleCancelDestinationSetup
+    handleCancelDestinationSetup,
+    onAfterDestinationCreated,
+    handleCreateFreeDatabase
   ])
 
   useEffect(() => {
