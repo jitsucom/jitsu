@@ -1,5 +1,6 @@
 // @Libs
 import React, { useEffect, useMemo, useState } from 'react';
+import { message } from 'antd';
 import moment from 'moment';
 // @Components
 import { Tour, TourStep } from './Tour/Tour';
@@ -14,6 +15,7 @@ import ApplicationServices from '@./lib/services/ApplicationServices';
 // @Hooks
 import useLoader from '@./hooks/useLoader';
 import { formatTimeOfRawUserEvents, getLatestUserEvent, userEventWasTimeAgo } from '@./lib/commons/utils';
+import { fetchUserAPITokens, generateNewAPIToken, UserAPIToken, _unsafeRequestPutUserAPITokens } from '../ApiKeys/ApiKeys';
 
 type OnboardingConfig = {
   showUserAndCompanyNamesStep: boolean;
@@ -22,6 +24,10 @@ type OnboardingConfig = {
 }
 
 const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, 'months');
+
+export function showOnboardingError(msg?: string): void {
+  message.error(`Onboarding caught error${msg ? ': ' + msg : ''}`)
+}
 
 export const OnboardingTour: React.FC = () => {
   const services = ApplicationServices.get();
@@ -170,10 +176,13 @@ export const OnboardingTour: React.FC = () => {
       needToShowTour &&
       !userClosedTour
     ) {
-      setConfig({
-        showUserAndCompanyNamesStep,
-        showDestinationsSetupStep,
-        showJitsuClientConfigurationSteps
+      debugger;
+      generateUserAPIKeyIfNeeded().then(() => {
+        setConfig({
+          showUserAndCompanyNamesStep,
+          showDestinationsSetupStep,
+          showJitsuClientConfigurationSteps
+        })
       })
     };
 
@@ -201,4 +210,23 @@ function needShowJitsuClientConfigSteps(rawEvents: unknown): boolean {
   if (!latestUserEvent) return true;
   const latestEventWasLongAgo = userEventWasTimeAgo(latestUserEvent, USER_EVENT_EXPIRATION_THRESHOLD);
   return latestEventWasLongAgo;
+}
+
+async function generateUserAPIKeyIfNeeded(): Promise<void> {
+  try {
+    const keys = (await fetchUserAPITokens()).keys;
+    if (!keys?.length)
+      await _unsafeRequestPutUserAPITokens([createFullAPIToken()]);
+  } catch (error) {
+    showOnboardingError(error.message ?? error);
+  }
+}
+
+function createFullAPIToken(): UserAPIToken {
+  return {
+    uid: generateNewAPIToken('', 6),
+    serverAuth: generateNewAPIToken('s2s'),
+    jsAuth: generateNewAPIToken('js'),
+    origins: []
+  };
 }
