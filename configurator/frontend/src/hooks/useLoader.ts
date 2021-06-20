@@ -8,7 +8,13 @@ type IsLoading = boolean;
  * React hook for loading the data from remote component. Use it like this:
  * ```tsx
  * function TestComponent() {
- *   const [error, data] = useLoader(async () => {
+ *   const [
+ *    error,
+ *    data,
+ *    forceSetData,
+ *    forceReloadData,
+ *    isLoadingData
+ *   ] = useLoader(async () => {
  *     return await getData();
  *   });
  *
