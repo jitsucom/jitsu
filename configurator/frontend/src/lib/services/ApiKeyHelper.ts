@@ -8,18 +8,17 @@ export default class ApiKeyHelper {
 
   private _destinations: DestinationData[];
 
-  constructor(services: ApplicationServices, preloaded: {keys?: APIKey[], destinations?: DestinationData[]}) {
+  constructor(services: ApplicationServices) {
     this._services = services;
-    this._keys = preloaded?.keys;
-    this._destinations = preloaded?.destinations;
   }
 
   private async fetchKeys(): Promise<APIKey[]> {
-    return (await this._services.storageService.get('api_keys', this._services.activeProject.id))['keys'] || []
+    return (await this._services.storageService.get('api_keys', this._services.activeProject.id))['keys'] || [];
   }
 
   private async fetchDestinations(): Promise<DestinationData[]> {
-    return (await this._services.storageService.get('destinations', this._services.activeProject.id))['_destinations'] || []
+    const destinations = (await this._services.storageService.get('destinations', this._services.activeProject.id))['destinations'];
+    return destinations || [];
   }
 
   private async pullKeys(): Promise<void> {
@@ -44,8 +43,7 @@ export default class ApiKeyHelper {
   }
 
   public async init() {
-    if (!this._keys) await this.pullKeys();
-    if (!this._destinations) await this.pullDestinations()
+    await this.syncWithBackend();
   }
 
   public async addKey(key: APIKey): Promise<void> {

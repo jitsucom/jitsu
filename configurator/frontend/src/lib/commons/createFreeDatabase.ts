@@ -11,7 +11,7 @@ export async function createFreeDatabase() {
 
   services.analyticsService.track('create_database');
 
-  const helper = new ApiKeyHelper(services, {});
+  const helper = new ApiKeyHelper(services);
   await helper.init();
 
   let key = helper.keys[0];
