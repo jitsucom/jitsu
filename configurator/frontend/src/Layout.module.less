@@ -4,6 +4,13 @@
   @apply flex flex-row flex-grow border items-stretch;
 }
 
+.applicationPageComponent {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-grow: 1;
+}
+
 .sidebar {
   @apply flex items-stretch;
   width: 12rem;
@@ -27,12 +34,10 @@
   width: 100%;
   min-width: 100%;
   background-color: @secondary-background !important;
-
 }
 .sideBarContent :global .ant-menu {
   background-color: @secondary-background !important;
 }
-
 
 .sideBarContent :global .ant-menu-item-selected {
   border-right: 0 !important;
