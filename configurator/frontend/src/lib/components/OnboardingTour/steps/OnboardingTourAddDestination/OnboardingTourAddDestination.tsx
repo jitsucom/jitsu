@@ -1,13 +1,19 @@
 // @Libs
 import { Button } from 'antd';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 // @Styles
 import styles from './OnboardingTourAddDestination.module.less';
 // @Components
 import { EmptyListView } from '@./ui/components/EmptyList/EmptyListView';
 import { DropDownList } from '@./ui/components/DropDownList/DropDownList';
-import { destinationsReferenceList, DestinationStrictType } from '@./ui/pages/DestinationsPage/commons';
-import { Destination } from '@./catalog/destinations/types';
+import { DestinationEditor } from 'ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor';
+import {
+  destinationsReferenceList,
+  destinationsReferenceMap,
+  DestinationStrictType
+} from '@./ui/pages/DestinationsPage/commons';
+import useLoader from '@./hooks/useLoader';
+import { useServices } from '@./hooks/useServices';
 
 type ExtractDatabaseOrWebhook<T> = T extends {readonly type: 'database'}
   ? T
@@ -24,7 +30,8 @@ const destinationsToOffer = destinationsReferenceList.filter(
 type NamesOfDestinationsToOffer = (typeof destinationsToOffer)[number]['id'];
 
 type Lifecycle =
-  | 'empty_list'
+  | 'loading'
+  | 'setup_choice'
   | NamesOfDestinationsToOffer;
 
 type Props = {
@@ -36,12 +43,30 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
   handleGoNext,
   handleGoBack
 }) {
-  const [lifecycle, setLifecycle] = useState<Lifecycle>('empty_list');
+  const services = useServices();
+  const [lifecycle, setLifecycle] = useState<Lifecycle>('loading');
+
+  const [sourcesError, sources, updateSources,, isLoadingUserSources] = useLoader(
+    async() => await services.storageService.get('sources', services.activeProject.id)
+  );
+  const [, destinations,, updateDestinations, isLoadingUserDestinations ] = useLoader(
+    async() => await services.storageService.get('destinations', services.activeProject.id)
+  );
+
+  const userSources = useMemo(() => sources?.sources ?? [], [sources])
+  const userDestinations = useMemo(() =>  destinations?.destinations ?? [], [destinations])
+
+  const handleCancelDestinationSetup = useCallback<() => void>(() => {
+    setLifecycle('setup_choice');
+  }, [])
 
   const render = useMemo<React.ReactElement>(() => {
     switch (lifecycle) {
 
-    case 'empty_list':
+    case 'loading':
+      return null;
+
+    case 'setup_choice':
       const list = <DropDownList
         hideFilter
         list={destinationsToOffer.map((dst) => ({
@@ -69,29 +94,50 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
         </>
       );
 
-    case 'postgres':
-      return null;
-
-    case 'bigquery':
-      return null;
-
-    case 'clickhouse':
-      return null;
-
-    case 'webhook':
-      return null;
+    default:
+      return (
+        <div className={styles.destinationEditorContainer}>
+          <DestinationEditor
+            destinations={userDestinations}
+            setBreadcrumbs={() => {}}
+            updateDestinations={updateDestinations}
+            editorMode="add"
+            sources={userSources}
+            sourcesError={sourcesError}
+            updateSources={updateSources}
+            paramsByProps={{
+              type: destinationsReferenceMap[lifecycle]['id'],
+              id: '',
+              tabName: 'tab'
+            }}
+            disableForceUpdateOnSave
+            onAfterSaveSucceded={handleGoNext}
+            onCancel={handleCancelDestinationSetup}
+          />
+        </div>
+      );
     }
-  }, [lifecycle])
+  }, [
+    lifecycle,
+    userDestinations,
+    userSources,
+    sourcesError,
+    updateDestinations,
+    updateSources,
+    handleGoNext,
+    handleCancelDestinationSetup
+  ])
+
+  useEffect(() => {
+    if (!isLoadingUserDestinations && !isLoadingUserSources) setLifecycle('setup_choice')
+  }, [isLoadingUserDestinations, isLoadingUserSources])
 
   return (
     <div className={styles.mainContainer}>
       <h1 className={styles.header}>
         {'Destinations Setup'}
       </h1>
-      {/* <div className={styles.controlsContainer}>
-        <Button type="ghost" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back'}</Button>
-        <Button type="primary" className={styles.withButtonsMargins} onClick={handleGoNext}>{'Next'}</Button>
-      </div> */}
+      {render}
     </div>
   );
 }
