@@ -1,7 +1,7 @@
 [
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
-    "api_key": "c2stoken",
+    "api_key": "s2stoken",
     "app": {
       "build": "build",
       "name": "app1",
@@ -89,7 +89,7 @@
   },
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
-    "api_key": "c2stoken",
+    "api_key": "s2stoken",
     "app": {
       "build": "build",
       "name": "app1",
@@ -177,7 +177,7 @@
   },
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
-    "api_key": "c2stoken",
+    "api_key": "s2stoken",
     "app": {
       "build": "build",
       "name": "app1",
@@ -261,7 +261,7 @@
   },
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
-    "api_key": "c2stoken",
+    "api_key": "s2stoken",
     "app": {
       "build": "build",
       "name": "app1",
@@ -347,7 +347,7 @@
   },
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
-    "api_key": "c2stoken",
+    "api_key": "s2stoken",
     "app": {
       "build": "build",
       "name": "app1",
@@ -432,7 +432,7 @@
   },
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
-    "api_key": "c2stoken",
+    "api_key": "s2stoken",
     "app": {
       "build": "build",
       "name": "app1",
