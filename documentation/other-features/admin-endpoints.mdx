@@ -1,8 +1,4 @@
-import {CodeInTabs, CodeTab} from "../../../components/Code";
-import {Hint, APIParam, APIMethod} from "../../../components/documentationComponents";
-
 # Admin Endpoints
-
 
 **Jitsu** has a number system for diagnostics and provisioning (aka admin end-points). All those end-points
 are secured with a configurable token:
@@ -10,9 +6,9 @@ are secured with a configurable token:
 ```yaml
 server:
   admin_token: your_admin_token
-  
+
 destinations:
-...  
+...
 ```
 
 <Hint>
@@ -97,7 +93,7 @@ with original JSON event and error description
       "file_name": "host-errors-destination1-2020-11-25T09-57-10.411.log",
       "destination_id": "destination1",
       "uploaded": false,
-      // error - replaying error 
+      // error - replaying error
       "error": "Error uploading host-errors-destination1-2020-11-25T09-57-10.411.log wrong format"
     }
 }

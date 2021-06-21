@@ -9,6 +9,7 @@ type JSONPath interface {
 	Get(obj map[string]interface{}) (interface{}, bool)
 	GetAndRemove(obj map[string]interface{}) (interface{}, bool)
 	Set(obj map[string]interface{}, value interface{}) error
+	SetIfNotExist(obj map[string]interface{}, value interface{}) error
 	String() string
 	FieldName() string
 }

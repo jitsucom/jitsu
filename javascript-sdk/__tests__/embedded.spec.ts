@@ -31,6 +31,7 @@ test('test segment intercept', async () => {
   server.clearRequestLog();
   const {allRequests} = await runUrl(browser, server.getUrl('/test-case/segment-intercept.html?gclid=1&utm_source=UTM-SOURCE'));
   expect(allRequests.filter(req => req.url().indexOf("https://api.segment.io/v1/") >= 0).length).toBe(server.requestLog.length);
+  console.log(`Request log (${server.requestLog.length})`, JSON.stringify(server.requestLog, null, 2))
   expect(server.requestLog.length).toBe(4);
 });
 

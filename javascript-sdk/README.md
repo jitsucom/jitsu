@@ -1,7 +1,7 @@
 # Jitsu JavaScript SDK (jitsu.js)
 
 Jitsu.js is a JavaScript SDK for [Jitsu](https://jitsu.com). Please, see
-main [Jitsu JavaScript integration docs](https://jitsu.com/docs/jitsu.js) on the website.
+main [Jitsu JavaScript integration docs](https://jitsu.com/docs/sending-data/js-sdk) on the website.
 
 ## Questions?
 

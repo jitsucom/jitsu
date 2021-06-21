@@ -71,6 +71,27 @@ func TestGet(t *testing.T) {
 			123,
 			true,
 		},
+		{
+			"Key is a root path",
+			"/",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+			true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -168,6 +189,28 @@ func TestGetAndRemove(t *testing.T) {
 				},
 			},
 		},
+		{
+			"Key is a root path",
+			"/",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+			true,
+			map[string]interface{}{},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -235,6 +278,43 @@ func TestSet(t *testing.T) {
 				},
 			},
 			"",
+		},
+		{
+			"set root path with object",
+			"/",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": 123,
+				},
+			},
+			map[string]interface{}{
+				"key2": map[string]interface{}{
+					"subkey1": 123,
+				},
+			},
+			true,
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": 123,
+				},
+				"key2": map[string]interface{}{
+					"subkey1": 123,
+				},
+			},
+			"",
+		},
+		{
+			"set root path error",
+			"/",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": 123,
+				},
+			},
+			123,
+			true,
+			nil,
+			"root path mapping ('/') works only when source key is an object",
 		},
 		{
 			"set overwrites value",
@@ -334,6 +414,99 @@ func TestSet(t *testing.T) {
 				require.NoError(t, err)
 				test.ObjectsEqual(t, tt.expectedObject, tt.inputObject, "Values aren't equal")
 			}
+		})
+	}
+}
+
+func TestSetIfNotExist(t *testing.T) {
+	tests := []struct {
+		name           string
+		path           string
+		inputObject    map[string]interface{}
+		inputValue     interface{}
+		expectedObject map[string]interface{}
+	}{
+		{
+			"nil",
+			"abc",
+			nil,
+			nil,
+			nil,
+		},
+		{
+			"Empty",
+			"",
+			map[string]interface{}{},
+			1,
+			map[string]interface{}{},
+		},
+		{
+			"set object",
+			"/key0",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": 123,
+				},
+			},
+			map[string]interface{}{
+				"key2": map[string]interface{}{
+					"subkey1": 123,
+				},
+			},
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": 123,
+				},
+				"key0": map[string]interface{}{
+					"key2": map[string]interface{}{
+						"subkey1": 123,
+					},
+				},
+			},
+		},
+		{
+			"set doesn't overwrite value",
+			"/key1/subkey1",
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+			124,
+			map[string]interface{}{
+				"key1": map[string]interface{}{
+					"subkey1": map[string]interface{}{
+						"subsubkey1": 123,
+						"subsubkey2": 123,
+					},
+				},
+			},
+		},
+		{
+			"set ok",
+			"/key1/subkey1",
+			map[string]interface{}{
+				"key1": map[string]interface{}{},
+			},
+			124,
+			map[string]interface{}{
+				"key1": map[string]interface{}{"subkey1": 124},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jp := NewJSONPath(tt.path)
+
+			sjp, ok := jp.(*SingleJSONPath)
+			require.True(t, ok)
+
+			err := sjp.SetIfNotExist(tt.inputObject, tt.inputValue)
+			require.NoError(t, err)
+			test.ObjectsEqual(t, tt.expectedObject, tt.inputObject, "Values aren't equal")
 		})
 	}
 }

@@ -352,9 +352,11 @@ const DestinationEditor = ({
         setDestinationSaving(false);
         !disableForceUpdateOnSave && forceUpdate();
       });
-  }, [sources, history, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode, services.activeProject.id, services.storageService, updateSources, disableForceUpdateOnSave, onAfterSaveSucceded]);
+  }, [sources, history, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode, services.activeProject.id, services.storageService, updateSources]);
 
-  const isAbleToConnectItems = () => editorMode === 'edit' && !destinationData.current?._sources?.length && !destinationData.current?._onlyKeys?.length;
+  const connectedSourcesNum = sources.filter(src => (src.destinations || []).includes(destinationData.current._uid)).length;
+
+  const isAbleToConnectItems = () => editorMode === 'edit' && connectedSourcesNum === 0 && !destinationData.current?._onlyKeys?.length;
 
   useEffect(() => {
     setBreadcrumbs(withHome({

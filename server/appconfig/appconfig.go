@@ -77,6 +77,86 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
+
+	//Segment API mappings
+	//uses remove type mappings (e.g. "/page->") because we have root path mapping "/context -> /"
+	viper.SetDefault("compatibility.segment.endpoint", []string{
+		"/context/page/title -> /page_title",
+		"/context/page -> /doc",
+		"/page->",
+		"/context/traits -> /user",
+		"/traits->",
+		"/context/userAgent -> /user_agent",
+		"/userAgent->",
+		"/anonymousId -> /ids/ajs_anonymous_id",
+		"/anonymousId -> /user/anonymous_id",
+		"/userId -> /ids/ajs_user_id",
+		"/userId -> /user/internal_id",
+		"/context/campaign -> /utm",
+		"/context/campaign/name -> /utm/campaign",
+		"/campaign ->",
+		"/context/location -> /location",
+		"/context/referrer/url -> /referer",
+		"/context/os/name -> /parsed_ua/os_family",
+		"/context/os/version -> /parsed_ua/os_version",
+		"/os ->",
+		"/context/device/manufacturer -> /parsed_ua/device_brand",
+		"/context/device/model -> /parsed_ua/device_model",
+		"/context/device/version -> /parsed_ua/ua_version",
+		"/context/device/advertisingId -> /parsed_ua/device_advertising_id",
+		"/context/device/id -> /parsed_ua/device_id",
+		"/context/device/name -> /parsed_ua/device_name",
+		"/context/device/type -> /parsed_ua/device_type",
+		"/device->",
+		"/context/locale -> /user_language",
+		"/type -> /event_type",
+		"/context/ip -> /source_ip",
+		"/ip -> ",
+		"/locale -> ",
+		"/context/user_agent -> /user_agent",
+		"/context -> /",
+	})
+
+	//Segment compat API mappings
+	//uses remove type mappings (e.g. "/page->") because we have root path mapping "/context -> /"
+	viper.SetDefault("compatibility.segment_compat.endpoint", []string{
+		"/context/page/title -> /eventn_ctx/page_title",
+		"/context/page -> /eventn_ctx/doc",
+		"/page->",
+		"/context/traits -> /eventn_ctx/user",
+		"/traits->",
+		"/context/userAgent -> /eventn_ctx/user_agent",
+		"/userAgent->",
+		"/anonymousId -> /eventn_ctx/ids/ajs_anonymous_id",
+		"/anonymousId -> /eventn_ctx/user/anonymous_id",
+		"/userId -> /eventn_ctx/ids/ajs_user_id",
+		"/userId -> /eventn_ctx/user/internal_id",
+		"/context/campaign -> /eventn_ctx/utm",
+		"/context/campaign/name -> /eventn_ctx/utm/campaign",
+		"/campaign ->",
+		"/context/location -> /eventn_ctx/location",
+		"/location->",
+		"/context/referrer/url -> /eventn_ctx/referer",
+		"/context/os/name -> /eventn_ctx/parsed_ua/os_family",
+		"/context/os/version -> /eventn_ctx/parsed_ua/os_version",
+		"/os ->",
+		"/context/device/manufacturer -> /eventn_ctx/parsed_ua/device_brand",
+		"/context/device/model -> /eventn_ctx/parsed_ua/device_model",
+		"/context/device/version -> /eventn_ctx/parsed_ua/ua_version",
+		"/context/device/advertisingId -> /eventn_ctx/parsed_ua/device_advertising_id",
+		"/context/device/id -> /eventn_ctx/parsed_ua/device_id",
+		"/context/device/name -> /eventn_ctx/parsed_ua/device_name",
+		"/context/device/type -> /eventn_ctx/parsed_ua/device_type",
+		"/device->",
+		"/context/locale -> /eventn_ctx/user_language",
+		"/type -> /event_type",
+		"/context/ip -> /source_ip",
+		"/ip -> ",
+		"/locale -> ",
+		"/context/user_agent -> /eventn_ctx/user_agent",
+		"/context -> /",
+	})
+
 	if containerized {
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
