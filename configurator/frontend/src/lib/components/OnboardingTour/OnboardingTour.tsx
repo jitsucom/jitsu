@@ -137,7 +137,7 @@ export const OnboardingTour: React.FC = () => {
       content: ({ goTo }) => {
         return (
           <OnboardingTourSuccess
-            handleRestartTour={() => goTo(1)}
+            // handleRestartTour={() => goTo(1)}
             handleFinishOnboarding={handleCloseTour}
           />
         );
@@ -185,7 +185,7 @@ export const OnboardingTour: React.FC = () => {
     ) {
       generateUserAPIKeyIfNeeded().then(() => {
         setConfig({
-          showUserAndCompanyNamesStep: true,
+          showUserAndCompanyNamesStep,
           showDestinationsSetupStep,
           showJitsuClientConfigurationSteps
         })

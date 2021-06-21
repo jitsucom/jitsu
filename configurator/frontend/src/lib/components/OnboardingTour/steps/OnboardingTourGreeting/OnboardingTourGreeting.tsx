@@ -1,6 +1,6 @@
 // @Components
+import ApplicationServices from '@./lib/services/ApplicationServices';
 import { Button } from 'antd';
-
 // @styles
 import styles from './OnboardingTourGreeting.module.less';
 
@@ -8,6 +8,8 @@ type Props = {
   amountOfSteps: number;
   handleGoNext: () => void;
  }
+
+const services = ApplicationServices.get();
 
 const numAmountToString = (num: number): string => {
   switch(num) {
@@ -28,6 +30,10 @@ export const OnboardingTourGreeting: React.FC<Props> = function({
   amountOfSteps,
   handleGoNext
 }) {
+  const handleClickNext = (): void => {
+    services.analyticsService.track('onboarding_started');
+    handleGoNext();
+  };
   return (<div className={styles.mainContainer}>
     <h1 className={styles.header}>
       {'👋 Welcome to Jitsu!\n'}
@@ -36,7 +42,7 @@ export const OnboardingTourGreeting: React.FC<Props> = function({
       {`Use this guide to configure your project in${numAmountToString(amountOfSteps)}.`}
     </p>
     <div className={styles.controlsContainer}>
-      <Button type="primary" size="large" onClick={handleGoNext}>{'Start'}</Button>
+      <Button type="primary" size="large" onClick={handleClickNext}>{'Start'}</Button>
     </div>
   </div>);
 }
