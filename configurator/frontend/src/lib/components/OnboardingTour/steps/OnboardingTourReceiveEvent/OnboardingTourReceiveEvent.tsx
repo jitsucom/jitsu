@@ -14,7 +14,7 @@ type Props = {
 const services = ApplicationServices.get();
 
 const POLLING_INTERVAL_MS = 1000;
-const SHOW_SKIP_BUTTON_AFTER_MS = 3000;
+const SHOW_SKIP_BUTTON_AFTER_MS = 500;
 
 export const OnboardingTourReceiveEvent: React.FC<Props> = function({
   handleGoNext,
