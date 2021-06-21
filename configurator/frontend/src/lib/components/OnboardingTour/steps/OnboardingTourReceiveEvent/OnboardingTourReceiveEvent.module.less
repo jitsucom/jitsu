@@ -1,6 +1,7 @@
 @import "../commons/OnboardingCommonStyles.module.less";
 
 .mainContainer {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -40,6 +41,12 @@
     width: @buttons-width;
     max-width: @buttons-max-width;
   }
+}
+
+.skipButtonContainer {
+  position: absolute;
+  bottom: 0;
+  right: 0;
 }
 
 .withButtonsMargins {
