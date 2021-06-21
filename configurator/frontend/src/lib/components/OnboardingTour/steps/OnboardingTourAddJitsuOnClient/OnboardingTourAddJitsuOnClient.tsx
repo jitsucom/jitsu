@@ -5,7 +5,6 @@ import { useEffect, useState } from 'react'
 import ApplicationServices from '@./lib/services/ApplicationServices'
 // @Components
 import { OnboardingClientDocs } from './OnboardingClientDocs'
-import {  KeyDocumentation } from 'lib/components/ApiKeys/ApiKeys'
 // @Helpers
 import ApiKeyHelper from '@./lib/services/ApiKeyHelper'
 import { showOnboardingError } from '../../OnboardingTour'
@@ -57,16 +56,6 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
         {'🖥 Add Jitsu on Client'}
       </h1>
       <div className={styles.contentContainer}>
-        {/* <KeyDocumentation
-          token={apiKey || {
-            uid: 'loading...',
-            jsAuth: 'loading...',
-            serverAuth: 'loading...',
-            origins: ['loading...'],
-            comment: 'loading...'
-          }}
-          displayDomainDropdown={false}
-        /> */}
         <OnboardingClientDocs
           token={apiKey || {
             uid: 'loading...',

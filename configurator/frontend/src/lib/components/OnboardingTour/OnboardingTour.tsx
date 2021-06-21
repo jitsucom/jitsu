@@ -206,6 +206,9 @@ export const OnboardingTour: React.FC = () => {
     steps={steps}
     startAt={0}
     maskClosable={true}
+    displayStep
+    displayStepStartOffset={1}
+    displayStepEndOffset={1}
   />
 };
 
