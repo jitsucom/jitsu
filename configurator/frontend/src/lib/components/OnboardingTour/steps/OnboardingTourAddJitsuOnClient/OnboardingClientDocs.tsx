@@ -1,4 +1,7 @@
+// @Libs
+import { useMemo, useState } from 'react';
 import { Collapse, Space, Switch } from 'antd';
+// @Icons
 import { CaretRightOutlined } from '@ant-design/icons';
 // @DocsComponents
 import { getCurlDocumentation, getEmbeddedHtml, getNPMDocumentation } from 'lib/commons/api-documentation';
@@ -10,7 +13,7 @@ import {
 } from 'lib/components/components';
 
 import styles from './OnboardingClientDocs.module.less';
-import { useState } from 'react';
+import { useServices } from '@./hooks/useServices';
 
 export type UserAPIToken = {
   uid: string;
@@ -24,12 +27,19 @@ type Props = {
   token: UserAPIToken;
 }
 
-const DOCUMENTATION_DOMAIN = 'https://t.jitsu.com';
-
 export const OnboardingClientDocs: React.FC<Props> = ({
   token
 }) => {
+  const services = useServices();
   const [segmentEnabled, setSegmentEnabled] = useState<boolean>(false);
+
+  const domain = useMemo<string>(() => {
+    const customDomain = services.features.enableCustomDomains ? 'https://t.jitsu.com' : null;
+    return customDomain || services.features.jitsuBaseUrl || 'REPLACE_WITH_JITSU_DOMAIN';
+  },[
+    services.features.enableCustomDomains,
+    services.features.jitsuBaseUrl
+  ]);
 
   const exampleSwitches = (
     <div className="api-keys-doc-embed-switches">
@@ -65,7 +75,7 @@ export const OnboardingClientDocs: React.FC<Props> = ({
             <CodeInline>&lt;head&gt;</CodeInline> section of your html file:
           </p>
           <CodeSnippet size="small" language="html" extra={exampleSwitches}>
-            {getEmbeddedHtml(segmentEnabled, token.jsAuth, DOCUMENTATION_DOMAIN)}
+            {getEmbeddedHtml(segmentEnabled, token.jsAuth, domain)}
           </CodeSnippet>
         </Collapse.Panel>
         <Collapse.Panel header="Use NPM or YARN" key="2" className="site-collapse-custom-panel">
@@ -82,7 +92,7 @@ export const OnboardingClientDocs: React.FC<Props> = ({
             <span className={styles.textBlock}>
           Then just follow this example:
             </span>
-            <CodeSnippet size="small" language="javascript">{getNPMDocumentation(token.jsAuth, DOCUMENTATION_DOMAIN)}</CodeSnippet>
+            <CodeSnippet size="small" language="javascript">{getNPMDocumentation(token.jsAuth, domain)}</CodeSnippet>
           </p>
 
           Read more about configuration properties{' '}<a href="https://jitsu.com/docs/sending-data/js-sdk/package">in documentation</a>.
@@ -90,7 +100,7 @@ export const OnboardingClientDocs: React.FC<Props> = ({
         <Collapse.Panel header="Server to Server" key="3" className="site-collapse-custom-panel">
         Events can be send directly to API end-point. In that case, server secret should be used. Please, see curl
         example:
-          <CodeSnippet size="small" language="bash">{getCurlDocumentation(token.serverAuth, DOCUMENTATION_DOMAIN)}</CodeSnippet>
+          <CodeSnippet size="small" language="bash">{getCurlDocumentation(token.serverAuth, domain)}</CodeSnippet>
         </Collapse.Panel>
       </Collapse>
     </div>
