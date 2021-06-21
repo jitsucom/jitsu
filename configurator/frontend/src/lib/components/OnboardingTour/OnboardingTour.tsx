@@ -182,7 +182,7 @@ export const OnboardingTour: React.FC = () => {
     ) {
       generateUserAPIKeyIfNeeded().then(() => {
         setConfig({
-          showUserAndCompanyNamesStep,
+          showUserAndCompanyNamesStep: true,
           showDestinationsSetupStep,
           showJitsuClientConfigurationSteps
         })

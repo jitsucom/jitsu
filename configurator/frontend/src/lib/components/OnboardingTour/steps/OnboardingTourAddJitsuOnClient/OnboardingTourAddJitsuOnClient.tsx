@@ -53,7 +53,7 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
   return (
     <div className={styles.mainContainer}>
       <h1 className={styles.header}>
-        {'Add Jitsu on Client'}
+        {'🖥 Add Jitsu on Client'}
       </h1>
       <div className={styles.contentContainer}>
         <KeyDocumentation
@@ -68,8 +68,8 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
         />
       </div>
       <div className={styles.controlsContainer}>
-        {!!handleGoBack && <Button type="ghost" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back'}</Button>}
-        <Button type="primary" className={styles.withButtonsMargins} onClick={handleGoNext}>{'Got it'}</Button>
+        {!!handleGoBack && <Button type="ghost" size="large" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back'}</Button>}
+        <Button type="primary" size="large" className={styles.withButtonsMargins} onClick={handleGoNext}>{'Got it'}</Button>
       </div>
     </div>
   );

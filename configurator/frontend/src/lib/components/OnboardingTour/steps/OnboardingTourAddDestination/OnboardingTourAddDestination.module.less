@@ -1,3 +1,5 @@
+@import "../commons/OnboardingCommonStyles.module.less";
+
 .mainContainer {
   display: flex;
   flex-direction: column;
@@ -10,14 +12,15 @@
 }
 
 .header {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: @header-font-size;
+  font-weight: @header-font-weight;
   text-align: center;
-  flex: 0 0 30px;
+  margin-bottom: 20px;
 }
 
-.contentText {
-  margin-bottom: 0;
+.paragraph {
+  font-size: @text-font-size;
+  margin-bottom: 20px;
 }
 
 .addDestinationButtonContainer {
@@ -30,14 +33,6 @@
   align-items: stretch;
   flex: 1 1 100%;
   width: 100%;
-}
-
-.controlsContainer {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  width: 100%;
-  margin-top: 20px;
 }
 
 .withButtonsMargins {
