@@ -12,14 +12,13 @@ import CaretRightFilled from '@ant-design/icons/lib/icons/CaretRightFilled';
 import CaretUpFilled from '@ant-design/icons/lib/icons/CaretUpFilled';
 import CloseCircleOutlined from '@ant-design/icons/lib/icons/CloseCircleOutlined';
 import CopyOutlined from '@ant-design/icons/lib/icons/CopyOutlined';
-import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
+import CheckCircleOutlined from '@ant-design/icons/lib/icons/CheckCircleOutlined';
 import InfoCircleOutlined from '@ant-design/icons/lib/icons/InfoCircleOutlined';
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
 import plumber from '../../icons/plumber.png';
 
 import ApplicationServices from '../services/ApplicationServices';
 import { copyToClipboard, firstToLower, isNullOrUndef, numberFormat, sleep, withDefaults } from '../commons/utils';
-
 
 type IPreloaderProps = {
   text?: string;
@@ -30,12 +29,14 @@ type IPreloaderProps = {
  * parent's component display = block
  */
 export function Preloader(props: IPreloaderProps) {
-  let text = props.text ? props.text : 'Loading user data...';
+  let text = props.text ?
+    props.text :
+    'Loading user data...';
   //do not change img src here. We need to make sure that the image url is the same as
   //in pre-react boot loader
   return (
     <div style={{}} className="preloader-wrapper">
-      <img src="/boot/loading.gif" alt="[loading]" className="preloader-image" />
+      <img src="/boot/loading.gif" alt="[loading]" className="preloader-image"/>
       <div className="preloader-text">{text}</div>
     </div>
   );
@@ -49,10 +50,12 @@ const DEFAULT_ERROR_TEXT = (
 );
 
 export function GlobalError(props) {
-  let text = props.children ? props.children : DEFAULT_ERROR_TEXT;
+  let text = props.children ?
+    props.children :
+    DEFAULT_ERROR_TEXT;
   return (
     <div style={{}} className="error-wrapper">
-      <img src={plumber} alt="[loading]" className="error-image" />
+      <img src={plumber} alt="[loading]" className="error-image"/>
       <div className="error-text">{text}</div>
     </div>
   );
@@ -61,13 +64,15 @@ export function GlobalError(props) {
 export function CenteredSpin() {
   return (
     <div className="common-centered-spin">
-      <Spin size="large" />
+      <Spin size="large"/>
     </div>
   );
 }
 
 export function CenteredError({ error }) {
-  return <div className="common-centered-spin">Error: {error?.message ? error.message : 'Unknown error'}</div>;
+  return <div className="common-centered-spin">Error: {error?.message ?
+    error.message :
+    'Unknown error'}</div>;
 }
 
 function formatPercent(num: number) {
@@ -88,7 +93,9 @@ function valuePresent(val) {
 }
 
 export function StatCard({ value, ...otherProps }) {
-  let formatter = otherProps['format'] ? otherProps['format'] : numberFormat({});
+  let formatter = otherProps['format'] ?
+    otherProps['format'] :
+    numberFormat({});
 
   let extraClassName;
   let icon;
@@ -98,28 +105,34 @@ export function StatCard({ value, ...otherProps }) {
   if (!isNullOrUndef(valuePrev)) {
     if (valuePrev < value) {
       extraClassName = 'stat-card-growth stat-card-comparison';
-      icon = <CaretUpFilled />;
-      percent = valuePrev == 0 ? '' : formatPercent(value / valuePrev - 1) + '%';
+      icon = <CaretUpFilled/>;
+      percent = valuePrev == 0 ?
+        '' :
+        formatPercent(value / valuePrev - 1) + '%';
     } else if (valuePrev > value) {
       extraClassName = 'stat-card-decline stat-card-comparison';
-      icon = <CaretDownFilled />;
-      percent = value == 0 ? '' : formatPercent(valuePrev / value - 1) + '%';
+      icon = <CaretDownFilled/>;
+      percent = value == 0 ?
+        '' :
+        formatPercent(valuePrev / value - 1) + '%';
     } else if (valuePrev == 0 && value === 0) {
       percent = '';
     } else {
       extraClassName = 'stat-card-flat stat-card-comparison';
-      icon = <CaretRightFilled />;
+      icon = <CaretRightFilled/>;
       percent = '0%';
     }
     if (percent === '') {
       icon = null;
     }
   }
-  let title = isNullOrUndef(valuePrev) ? null : (
-    <>
-      Value for previous period: <b>{formatter(valuePrev)}</b>
-    </>
-  );
+  let title = isNullOrUndef(valuePrev) ?
+    null :
+    (
+      <>
+        Value for previous period: <b>{formatter(valuePrev)}</b>
+      </>
+    );
   let extra = (
     <>
       <Tooltip trigger={['click', 'hover']} title={title}>
@@ -149,29 +162,30 @@ export function makeErrorHandler(errorDescription: string) {
 
 function messageFactory(type: string): MessageFunc {
   const iconsByType = {
-    "error": <CloseCircleOutlined className="text-error" />,
-    "info":  <InfoCircleOutlined className="text-success" />,
-    "warn": <WarningOutlined className="text-warning" />
+    'success': <CheckCircleOutlined className="text-success"/>,
+    'error': <CloseCircleOutlined className="text-error"/>,
+    'info': <InfoCircleOutlined className="text-success"/>,
+    'warn': <WarningOutlined className="text-warning"/>
   }
   return (content: MessageContent) => {
-    const key = Math.random() + "";
+    const key = Math.random() + '';
     const customization = {
       icon: <span className="text-error hover:font-bold" onClick={() => message.destroy(key)}>{iconsByType[type]}</span>,
       key,
       duration: 100
     };
 
-    const closeableContent = <span className="closable-message">{content} <CloseOutlined className="close-message-icon" onClick={() => message.destroy(key)} /></span>;
+    const closeableContent = <span className="closable-message">{content} <CloseOutlined className="close-message-icon" onClick={() => message.destroy(key)}/></span>;
 
-    return message[type]({...customization, content: <>{closeableContent}</> });
+    return message[type]({ ...customization, content: <>{closeableContent}</> });
   }
 }
-
 
 export type MessageContent = string | ReactNode | ArgsProps;
 export type MessageFunc = (args: MessageContent) => MessageType;
 
-export const closeableMessage: Record<'error' | 'info' | 'warn', MessageFunc> = {
+export const closeableMessage: Record<'success' | 'error' | 'info' | 'warn', MessageFunc> = {
+  success: messageFactory('success'),
   error: messageFactory('error'),
   info: messageFactory('info'),
   warn: messageFactory('warn')
@@ -222,7 +236,9 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
   }
 
   private getLifecycle(): ComponentLifecycle {
-    return this.state['__lifecycle'] === undefined ? ComponentLifecycle.WAITING : this.state['__lifecycle'];
+    return this.state['__lifecycle'] === undefined ?
+      ComponentLifecycle.WAITING :
+      this.state['__lifecycle'];
   }
 
   emptyState(): S {
@@ -256,13 +272,15 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
   render() {
     let lifecycle = this.getLifecycle();
     if (lifecycle === ComponentLifecycle.WAITING) {
-      return <CenteredSpin />;
+      return <CenteredSpin/>;
     } else if (lifecycle === ComponentLifecycle.ERROR) {
       return this.renderError(this.state['__errorObject'])
     } else {
       try {
         return (
-          <div className={this.state['__doNotFadeIn'] === true ? '' : 'common-component-fadein'}>
+          <div className={this.state['__doNotFadeIn'] === true ?
+            '' :
+            'common-component-fadein'}>
             {this.renderReady()}
           </div>
         );
@@ -291,7 +309,7 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
    */
   protected async reload(callback?: () => Promise<any | void>) {
     if (!callback) {
-      callback = async () => {
+      callback = async() => {
         return this.load();
       };
     }
@@ -320,8 +338,10 @@ export abstract class LoadableComponent<P, S> extends React.Component<P, S> {
     return (
       <div className="common-error-wrapper">
         <div className="common-error-details">
-          <b>Error occurred</b>: {firstToLower(error.message ? error.message : 'Unknown error')}
-          <br />
+          <b>Error occurred</b>: {firstToLower(error.message ?
+          error.message :
+          'Unknown error')}
+          <br/>
           See details in console log
         </div>
       </div>
@@ -359,7 +379,7 @@ export function lazyComponent(importFactory) {
   let LazyComponent = React.lazy(importFactory);
   return (props) => {
     return (
-      <React.Suspense fallback={<CenteredSpin />}>
+      <React.Suspense fallback={<CenteredSpin/>}>
         <LazyComponent {...props} />
       </React.Suspense>
     );
@@ -368,12 +388,14 @@ export function lazyComponent(importFactory) {
 
 export function ActionLink({ children, onClick }: { children: any; onClick?: () => void }) {
   let props = onClick
-    ? {
-        onClick: () => {
-          onClick();
-        }
+    ?
+    {
+      onClick: () => {
+        onClick();
       }
-    : {};
+    }
+    :
+    {};
   return (
     <div className="action-link" {...props}>
       <span>{children}</span>
@@ -391,6 +413,7 @@ import html from 'react-syntax-highlighter/dist/esm/languages/hljs/xml'
 import { ArgsProps, MessageInstance } from 'antd/es/message';
 import { MessageType } from 'antd/lib/message';
 import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
+import { max } from 'lodash-es';
 
 SyntaxHighlighter.registerLanguage('javascript', js);
 SyntaxHighlighter.registerLanguage('json', json);
@@ -410,7 +433,9 @@ type ICodeSnippetProps = {
 };
 
 export function CodeSnippet(props: ICodeSnippetProps) {
-  let toolBarPos = props.toolbarPosition ? props.toolbarPosition : 'bottom';
+  let toolBarPos = props.toolbarPosition ?
+    props.toolbarPosition :
+    'bottom';
 
   let copy = () => {
     copyToClipboard(props.children, true);
@@ -422,13 +447,15 @@ export function CodeSnippet(props: ICodeSnippetProps) {
       <Col span={16}>{props.extra}</Col>
       <Col span={8}>
         <Align horizontal="right">
-          {toolBarPos === 'bottom' ? (
-            <ActionLink onClick={copy}>Copy To Clipboard</ActionLink>
-          ) : (
-            <a onClick={copy}>
-              <CopyOutlined />
-            </a>
-          )}
+          {toolBarPos === 'bottom' ?
+            (
+              <ActionLink onClick={copy}>Copy To Clipboard</ActionLink>
+            ) :
+            (
+              <a onClick={copy}>
+                <CopyOutlined/>
+              </a>
+            )}
         </Align>
       </Col>
     </Row>
@@ -437,7 +464,9 @@ export function CodeSnippet(props: ICodeSnippetProps) {
   let classes = [
     'code-snippet-wrapper-' + toolBarPos,
     'code-snippet-wrapper',
-    props.size === 'large' ? 'code-snippet-large' : 'code-snippet-small'
+    props.size === 'large' ?
+      'code-snippet-large' :
+      'code-snippet-small'
   ];
   if (props.className) {
     classes.push(props.className);
@@ -447,11 +476,15 @@ export function CodeSnippet(props: ICodeSnippetProps) {
 
   return (
     <div className={classes.join(' ')}>
-      {toolBarPos === 'top' ? toolbar : null}
+      {toolBarPos === 'top' ?
+        toolbar :
+        null}
       <SyntaxHighlighterAsync style={dark} language={props.language}>
         {props.children}
       </SyntaxHighlighterAsync>
-      {toolBarPos === 'bottom' ? toolbar : null}
+      {toolBarPos === 'bottom' ?
+        toolbar :
+        null}
     </div>
   );
 }
@@ -463,12 +496,15 @@ export function CodeInline({ children }) {
 export type IEstimatedProgressBarProps = { estimatedMs: number; updateIntervalMs?: number };
 
 type IEstimatedProgressBarState = { progressPercents: number };
+
 export class EstimatedProgressBar extends React.Component<IEstimatedProgressBarProps, IEstimatedProgressBarState> {
   private readonly updateIntervalMs: any;
 
   constructor(props: IEstimatedProgressBarProps) {
     super(props);
-    this.updateIntervalMs = props.updateIntervalMs ? props.updateIntervalMs : 200;
+    this.updateIntervalMs = props.updateIntervalMs ?
+      props.updateIntervalMs :
+      200;
     this.state = { progressPercents: 0 };
   }
 
@@ -494,13 +530,21 @@ export class EstimatedProgressBar extends React.Component<IEstimatedProgressBarP
   }
 
   render() {
-    return <Progress type="circle" percent={this.state.progressPercents} />;
+    return <Progress type="circle" percent={this.state.progressPercents}/>;
   }
 }
 
 export type IWithProgressProps<T> = {
-  estimatedMs: number;
-  callback: () => Promise<T>;
+  estimatedMs: number
+  callback: () => Promise<T>,
+  /**
+   * If not set, no retries. Otherwise retry pause
+   */
+  retryDelayMs?: number
+  /**
+   * Number of retries
+   */
+  maxRetries?: number
 };
 
 export async function withProgressBar<T>(props: IWithProgressProps<T>): Promise<T> {
@@ -511,28 +555,50 @@ export async function withProgressBar<T>(props: IWithProgressProps<T>): Promise<
     content: (
       <Align horizontal="center">
         <h2>Please, wait...</h2>
-        <EstimatedProgressBar estimatedMs={props.estimatedMs} />
+        <EstimatedProgressBar estimatedMs={props.estimatedMs}/>
       </Align>
     ),
     okText: 'Cancel'
   });
-  try {
-    const res = await props.callback();
-    modal.destroy();
-    message.info('Completed successfully!');
-    return res;
-  } catch (e) {
-    console.log("Failed", e)
-    modal.update({
-      className: 'estimated-progress-bar',
-      icon: null,
-      content: (
-        <Align horizontal="center">
-          <h2 className="estimated-progress-bar-op-failed">Operation failed :(</h2>
-          <h3>{e.message ? e.message : 'Unknown error'}</h3>
-        </Align>
-      ),
-      okText: 'Close'
-    });
+  let attempts = 0;
+  let maxAttempts = props.maxRetries || 1;
+  while (true) {
+    try {
+      const res = await props.callback();
+      modal.destroy();
+      message.info('Completed successfully!');
+      return res;
+    } catch (e) {
+      attempts++;
+      console.log(`Progress bar op failed. Attempts (${attempts} / ${maxAttempts})`, e)
+      if (attempts >= maxAttempts) {
+        modal.update({
+          className: 'estimated-progress-bar',
+          icon: null,
+          content: (
+            <Align horizontal="center">
+              <h2 className="estimated-progress-bar-op-failed">Operation failed :(</h2>
+              <h3>{e.message ?
+                e.message :
+                'Unknown error'}</h3>
+            </Align>
+          ),
+          okText: 'Close'
+        });
+        break;
+      } else {
+        const sleepMs = props.retryDelayMs || 1000;
+        modal.update({
+          className: 'estimated-progress-bar',
+          icon: null,
+          content: <Align horizontal="center">
+            <h2>Hang out, it takes a little longer than we expected</h2>
+            <EstimatedProgressBar estimatedMs={props.estimatedMs + sleepMs}/>
+          </Align>,
+          okText: 'Close'
+        });
+        await sleep(sleepMs);
+      }
+    }
   }
 }

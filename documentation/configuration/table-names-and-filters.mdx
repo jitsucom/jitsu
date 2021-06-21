@@ -1,5 +1,3 @@
-import {Hint} from "../../../components/documentationComponents";
-
 # Table Names and Filters
 
 **Jitsu** supports splitting events stream into different tables in DWH based on event JSON payload. It works by applying [GO text template](https://golang.org/pkg/text/template/) expressions to incoming JSON objects. It can select a table name or pass a constant or even filter certain events from the destination. It is configured in the destination section and each destination has its own rules.
@@ -24,10 +22,10 @@ destinations:
   destination_1:
     data_layout:
       #tables will be created with 'event_type' names
-      table_name_template: '{{.event_type}}' 
+      table_name_template: '{{.event_type}}'
       #or
       #tables will have 'event_type_YYYY_MM' format based on 'event_type' and date
-      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' 
+      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}'
 ```
 
 <Hint>

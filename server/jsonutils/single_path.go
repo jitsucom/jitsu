@@ -3,6 +3,7 @@ package jsonutils
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/maputils"
 	"strings"
 )
 
@@ -11,11 +12,16 @@ var ErrNodeNotExist = errors.New("Inner node doesn't exist")
 //SingleJSONPath is a struct for extracting and setting value by JSON path
 type SingleJSONPath struct {
 	//[key1, key2, key3]
-	parts []string
+	parts      []string
+	isRootPath bool
 }
 
 //NewSingleJSONPath return Single JSONPath (Single or Multiple)
 func NewSingleJSONPath(path string) *SingleJSONPath {
+	if strings.ReplaceAll(path, " ", "") == "/" {
+		return &SingleJSONPath{parts: []string{}, isRootPath: true}
+	}
+
 	formatted := strings.ReplaceAll(formatPrefixSuffix(path), " ", "")
 	parts := strings.Split(formatted, "/")
 	if len(parts) == 1 && parts[0] == "" {
@@ -40,7 +46,39 @@ func (jp *SingleJSONPath) GetAndRemove(obj map[string]interface{}) (interface{},
 	return jp.getAndRemove(obj, true)
 }
 
+//SetIfNotExist puts value into the object only if JSON path doesn't exist
+//in other words DOESN'T overwrite key
+//{key1:"abc", key2:"qwe"} /key1/key3 -> set
+//{key1:"abc", key2:"qwe"} /key1/key2 -> not set
+func (jp *SingleJSONPath) SetIfNotExist(obj map[string]interface{}, value interface{}) error {
+	if obj == nil {
+		return nil
+	}
+
+	_, ok := jp.Get(obj)
+	if ok {
+		return nil
+	}
+
+	return jp.Set(obj, value)
+}
+
+//getAndRemove returns source JSON path from object and can remove the key
+//if root path:
+// returns copy of object and delete all keys from input obj (if remove)
 func (jp *SingleJSONPath) getAndRemove(obj map[string]interface{}, remove bool) (interface{}, bool) {
+	if jp.isRootPath {
+		objCopy := maputils.CopyMap(obj)
+
+		if remove {
+			//removes all keys
+			for k := range obj {
+				delete(obj, k)
+			}
+		}
+		return objCopy, true
+	}
+
 	//dive into obj and return last key
 	for i := 0; i < len(jp.parts); i++ {
 		key := jp.parts[i]
@@ -84,6 +122,19 @@ func (jp *SingleJSONPath) Set(obj map[string]interface{}, value interface{}) err
 func (jp *SingleJSONPath) setWithInnerCreation(obj map[string]interface{}, value interface{}, createInnerObjects bool) error {
 	if obj == nil {
 		return nil
+	}
+
+	if jp.isRootPath {
+		valueObj, ok := value.(map[string]interface{})
+		if ok {
+			for k, v := range valueObj {
+				obj[k] = v
+			}
+
+			return nil
+		} else {
+			return fmt.Errorf("root path mapping ('/') works only when source key is an object")
+		}
 	}
 
 	//dive into obj and put value to the last key

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"github.com/jitsucom/jitsu/server/schema"
 	"math/rand"
 	"net/http"
 	"os"
@@ -321,6 +322,27 @@ func main() {
 		logging.Fatal("Error creating fallback service:", err)
 	}
 
+	//** Segment API
+	//field mapper
+	mappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment.endpoint"))
+	if err != nil {
+		logging.Fatal("Error converting Segment endpoint mappings:", err)
+	}
+	segmentRequestFieldsMapper, _, err := schema.NewFieldMapper(mappings)
+	if err != nil {
+		logging.Fatal("Error creating Segment endpoint data mapper:", err)
+	}
+
+	//compat mode field mapper
+	compatMappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment_compat.endpoint"))
+	if err != nil {
+		logging.Fatal("Error converting Segment compat endpoint mappings:", err)
+	}
+	segmentCompatRequestFieldsMapper, _, err := schema.NewFieldMapper(compatMappings)
+	if err != nil {
+		logging.Fatal("Error creating Segment compat endpoint data mapper:", err)
+	}
+
 	//version reminder banner in logs
 	if tag != "" && !viper.GetBool("server.disable_version_reminder") {
 		vn := appconfig.NewVersionReminder(ctx)
@@ -329,7 +351,7 @@ func main() {
 	}
 
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
-		coordinationService, eventsCache)
+		coordinationService, eventsCache, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper)
 
 	telemetry.ServerStart()
 	notifications.ServerStart()

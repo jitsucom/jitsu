@@ -66,20 +66,25 @@ function release_heroku() {
 
 SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
-git pull
 echo ""
 read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
 
 echo "Release version: $version"
 
 if [[ $version =~ $SEMVER_EXPRESSION ]]; then
-   echo "Checkouting master ..."
- git checkout master
- echo "Service to release: all"
- subsystem='all'
+  echo "Checkouting master ..."
+  git checkout master
+  echo "Using git reset --hard"
+  git reset --hard
+  git pull
+  echo "Service to release: all"
+  subsystem='all'
 elif [[ $version == "beta" ]]; then
   echo "Checkouting beta ..."
   git checkout beta
+  echo "Using git reset --hard"
+  git reset --hard
+  git pull
   read -r -p "What service would you like to release? ['server', 'configurator', 'all', 'heroku']: " subsystem
 else
   echo "Invalid version: $version. Only 'beta' or certain version e.g. '1.30.1' are supported"

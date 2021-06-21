@@ -208,7 +208,7 @@ export interface SourceConnector {
   /**
    * API Connector documentation
    */
-  documentation?: ReactNode
+  documentation?: ConnectorDocumentation
 
 }
 
@@ -219,4 +219,18 @@ export interface CollectionTemplate {
   templateName: string
   collectionName: string
   config: any
+}
+
+/**
+ * Structured documentation for connector
+ */
+export type ConnectorDocumentation = {
+  /**
+   * Overview: just a few words about connector
+   */
+  overview: ReactNode
+  /**
+   * Connection properties
+   */
+  connection: ReactNode
 }

@@ -61,7 +61,7 @@ export default class App extends React.Component<{}, AppState> {
                 this.services.analyticsService.onUserKnown(loginStatus.user);
             }
 
-            let paymentPlanStatus: PaymentPlanStatus;
+            let paymentPlanStatus: (PaymentPlanStatus | undefined) = undefined;
             if (loginStatus.user && this.services.features.billingEnabled) {
                 paymentPlanStatus = new PaymentPlanStatus();
                 await paymentPlanStatus.init(this.services.activeProject, this.services.backendApiClient)
@@ -70,7 +70,6 @@ export default class App extends React.Component<{}, AppState> {
             this.setState({
                 lifecycle: loginStatus.user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
                 user: loginStatus.user,
-                // showOnboardingForm: loginStatus.user && !loginStatus.user.onboarded,
                 paymentPlanStatus: paymentPlanStatus
             });
         } catch (error) {
@@ -107,7 +106,7 @@ export default class App extends React.Component<{}, AppState> {
                                     exact
                                     render={(routeProps) => {
                                         this.services.analyticsService.onPageLoad({
-                                            pagePath: routeProps.location.key
+                                            pagePath: routeProps.location.key || '/unknown'
                                         });
                                         document.title = route.pageTitle;
                                         return <Component {...(routeProps as any)} />;
@@ -155,29 +154,7 @@ export default class App extends React.Component<{}, AppState> {
         });
         routes.push(<Redirect key="dashboardRedirect" to="/dashboard"/>);
 
-        let extraForms = <OnboardingTour />;
-
-        // extraForms = (
-        //         <OnboardingForm
-        //             user={this.state.user}
-        //             onCompleted={async () => {
-        //                 await this.services.userService.waitForUser();
-        //                 this.setState({showOnboardingForm: false});
-        //             }}
-        //         />
-        //     );
-
-        // if (this.state.showOnboardingForm) {
-            // extraForms = (
-            //     <OnboardingForm
-            //         user={this.state.user}
-            //         onCompleted={async () => {
-            //             await this.services.userService.waitForUser();
-            //             this.setState({showOnboardingForm: false});
-            //         }}
-            //     />
-            // );
-        // } else if 
+        const extraForms = <OnboardingTour />;
         if (this.services.userService.getUser().forcePasswordChange) {
             return (
                 <SetNewPassword

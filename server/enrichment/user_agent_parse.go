@@ -53,7 +53,8 @@ func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
 		return
 	}
 
-	err = uap.destination.Set(event, result)
+	//don't overwrite existent
+	err = uap.destination.SetIfNotExist(event, result)
 	if err != nil {
 		logging.SystemErrorf("Resolved useragent data wasn't set: %v", err)
 	}
