@@ -109,7 +109,7 @@ export class BackendUserService implements UserService {
       },
       {
         _name: name,
-        _project: new Project(randomId(), null)
+        _project: new Project(randomId(), company)
       }
     );
 
