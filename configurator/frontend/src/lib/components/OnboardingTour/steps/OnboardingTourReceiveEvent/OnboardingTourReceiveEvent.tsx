@@ -1,6 +1,6 @@
 // @Components
 import { Button, Spin } from 'antd'
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 // @Services
 import ApplicationServices from '@./lib/services/ApplicationServices';
 // @Styles
@@ -14,11 +14,13 @@ type Props = {
 const services = ApplicationServices.get();
 
 const POLLING_INTERVAL_MS = 1000;
+const SHOW_SKIP_BUTTON_AFTER_MS = 3000;
 
 export const OnboardingTourReceiveEvent: React.FC<Props> = function({
   handleGoNext,
   handleGoBack
 }) {
+  const [skipIsHidden, setSkipIsHidden] = useState<boolean>(true);
   const intervalRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -35,6 +37,10 @@ export const OnboardingTourReceiveEvent: React.FC<Props> = function({
     return () => {
       window.clearInterval(intervalRef.current);
     }
+  }, []);
+
+  useEffect(() => {
+    setTimeout(() => setSkipIsHidden(false), SHOW_SKIP_BUTTON_AFTER_MS);
   }, [])
 
   return (<div className={styles.mainContainer}>
@@ -48,8 +54,10 @@ export const OnboardingTourReceiveEvent: React.FC<Props> = function({
       {`Waiting for the events to get registered in Jitsu`}
     </p>
     <div className={styles.controlsContainer}>
-      <Button type="text" size="large" className={styles.withButtonsMargins} onClick={handleGoNext}>{'Skip Verification'}</Button>
       <Button type="ghost" size="large" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back to Instructions'}</Button>
+    </div>
+    <div className={styles.skipButtonContainer}>
+      <Button type="text" hidden={skipIsHidden} className={styles.withButtonsMargins} onClick={handleGoNext}>{'Proceed Without the Connection Test'}</Button>
     </div>
   </div>);
 }
