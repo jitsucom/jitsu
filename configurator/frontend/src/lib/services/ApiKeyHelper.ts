@@ -82,6 +82,25 @@ export default class ApiKeyHelper {
     return key;
   }
 
+  public async findFirstLinkedKey(): Promise<APIKey | null> {
+    const linkedDestination = this._destinations.find(dest => dest._onlyKeys?.length > 0);
+    if (!linkedDestination) return null;
+
+    const linkedKeys = this._keys.filter(_key => linkedDestination._onlyKeys.includes(_key.uid));
+    return linkedKeys[0];
+  }
+
+  public async findFirstNotLinkedDestination(): Promise<{
+    destination: DestinationData;
+    keys: APIKey[];
+  } | null> {
+    const destination = this._destinations.find(dest => dest._onlyKeys?.length === 0);
+    if (!destination) return null;
+
+    const keys = this._keys.filter(_key => destination._onlyKeys.includes(_key.uid));
+    return { destination, keys };
+  }
+
   get keys(): APIKey[] {
     return this._keys;
   }

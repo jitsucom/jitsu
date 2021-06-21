@@ -1,9 +1,13 @@
 // @Libs
-import useLoader from '@./hooks/useLoader'
 import { Button } from 'antd'
+import { useEffect, useState } from 'react'
+// @Services
+import ApplicationServices from '@./lib/services/ApplicationServices'
 // @Components
-import { fetchUserAPITokens, KeyDocumentation, UserAPIToken } from 'lib/components/ApiKeys/ApiKeys'
-import { useMemo } from 'react'
+import {  KeyDocumentation } from 'lib/components/ApiKeys/ApiKeys'
+// @Helpers
+import ApiKeyHelper from '@./lib/services/ApiKeyHelper'
+import { showOnboardingError } from '../../OnboardingTour'
 // @Styles
 import styles from './OnboardingTourAddJitsuOnClient.module.less'
 
@@ -16,14 +20,35 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
   handleGoNext,
   handleGoBack
 }) {
-  const [
-    ,
-    apiKeys,,,
-  ] = useLoader(async() => (await fetchUserAPITokens()).keys);
+  const [apiKey, setApiKey] = useState<APIKey | null>(null);
 
-  const key = useMemo<UserAPIToken | null>(() => {
-    return apiKeys?.length ? apiKeys[0] : null;
-  }, [apiKeys]);
+  useEffect(() => {
+    const getLinkedApiKey = async(): Promise<void> => {
+      const services = ApplicationServices.get();
+      const helper = new ApiKeyHelper(services);
+
+      await helper.init();
+
+      const linkedKey = await helper.findFirstLinkedKey();
+      if (linkedKey) setApiKey(linkedKey);
+
+      let unlinkedKey = helper.keys[0];
+      if (!unlinkedKey) unlinkedKey = await helper.createNewAPIKey();
+
+      // at this point, all destinations can only be unlinked (or null)
+      const unlinkedDestination = helper.destinations[0];
+      if (!unlinkedDestination) {
+        // error - user can not arrive here without destinations
+        showOnboardingError(`user should have at least one destination`);
+        return;
+      }
+
+      await helper.linkKeyToDestination(unlinkedKey, unlinkedDestination);
+      setApiKey(unlinkedKey);
+    }
+
+    getLinkedApiKey();
+  }, []);
 
   return (
     <div className={styles.mainContainer}>
@@ -32,12 +57,12 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
       </h1>
       <div className={styles.contentContainer}>
         <KeyDocumentation
-          token={key || {
-            uid: '<your API key>',
-            jsAuth: '<your API key>',
-            serverAuth: '<your API key>',
-            origins: ['<your API key>'],
-            comment: '<your API key>'
+          token={apiKey || {
+            uid: 'loading...',
+            jsAuth: 'loading...',
+            serverAuth: 'loading...',
+            origins: ['loading...'],
+            comment: 'loading...'
           }}
           displayDomainDropdown={false}
         />
