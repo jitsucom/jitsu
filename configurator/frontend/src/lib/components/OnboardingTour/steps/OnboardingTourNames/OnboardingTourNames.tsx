@@ -23,6 +23,8 @@ type OnboardingTourNamesStepProps = {
    emailsOptIn: boolean;
  }
 
+const services = ApplicationServices.get();
+
 export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = function({
   user,
   handleGoNext
@@ -66,8 +68,9 @@ export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = funct
       user.emailOptout = !values.emailsOptIn;
       await ApplicationServices.get().userService.update(user);
       handleGoNext();
-    } catch (e) {
-      handleError(e, "Can't save project data");
+    } catch (error) {
+      handleError(error, "Can't save project data");
+      services.analyticsService.track('onboarding_names_error', { error });
     } finally {
       setIsSubmitting(false)
     }

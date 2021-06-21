@@ -14,7 +14,7 @@ import styles from './OnboardingTourAddJitsuOnClient.module.less'
 type Props = {
    handleGoNext: () => void;
    handleGoBack?: () => void;
- }
+}
 
 export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
   handleGoNext,
@@ -39,7 +39,11 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
       const unlinkedDestination = helper.destinations[0];
       if (!unlinkedDestination) {
         // error - user can not arrive here without destinations
-        showOnboardingError(`user should have at least one destination`);
+        showOnboardingError(`internal error`);
+        services.analyticsService.track(
+          'onboarding_client_docs_error',
+          { error: 'user appeared on Onboarding Client Docs without any destinations set up' }
+        );
         return;
       }
 

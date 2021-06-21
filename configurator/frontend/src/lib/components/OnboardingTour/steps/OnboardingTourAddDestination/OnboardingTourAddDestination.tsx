@@ -15,9 +15,9 @@ import {
 } from '@./ui/pages/DestinationsPage/commons';
 // @Hooks
 import useLoader from '@./hooks/useLoader';
-import { useServices } from '@./hooks/useServices';
 // @Utils
 import ApiKeyHelper from '@./lib/services/ApiKeyHelper';
+import ApplicationServices from '@./lib/services/ApplicationServices';
 
 type ExtractDatabaseOrWebhook<T> = T extends {readonly type: 'database'}
   ? T
@@ -42,10 +42,11 @@ type Props = {
    handleGoNext: () => void;
  }
 
+const services = ApplicationServices.get();
+
 export const OnboardingTourAddDestination: React.FC<Props> = function({
   handleGoNext
 }) {
-  const services = useServices();
   const [lifecycle, setLifecycle] = useState<Lifecycle>('loading');
 
   const [sourcesError, sources, updateSources,, isLoadingUserSources] = useLoader(
@@ -62,12 +63,23 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     setLifecycle('setup_choice');
   }, []);
 
-  const onAfterDestinationCreated = useCallback<() => Promise<void>>(async() => {
+  const onAfterCustomDestinationCreated = useCallback<() => Promise<void>>(async() => {
     const helper = new ApiKeyHelper(services);
     await helper.init();
 
     // if user created a destination at this step, it is his first destination
     const destination = helper.destinations[0];
+    if (!destination) {
+      services.analyticsService.track(
+        'onboarding_destination_error_custom',
+        { error: 'onAfterCustomDestinationCreated failed to extract a destination' }
+      );
+      handleGoNext();
+      return;
+    }
+
+    // track successful destination creation
+    services.analyticsService.track(`onboarding_destination_created_${destination._type}`);
 
     // user might have multiple keys - we are using the first one
     let key = helper.keys[0];
@@ -75,10 +87,15 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     await helper.linkKeyToDestination(key, destination);
 
     handleGoNext();
-  }, [services, handleGoNext])
+  }, [handleGoNext])
 
   const handleCreateFreeDatabase = useCallback<() => Promise<void>>(async() => {
-    await createFreeDatabase()
+    try {
+      await createFreeDatabase();
+    } catch (error) {
+      services.analyticsService.track('onboarding_destination_error_free', { error });
+    }
+    services.analyticsService.track('onboarding_destination_created_free');
     handleGoNext();
   }, [handleGoNext])
 
@@ -134,7 +151,7 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
               tabName: 'tab'
             }}
             disableForceUpdateOnSave
-            onAfterSaveSucceded={onAfterDestinationCreated}
+            onAfterSaveSucceded={onAfterCustomDestinationCreated}
             onCancel={handleCancelDestinationSetup}
           />
         </div>
@@ -148,7 +165,7 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     updateDestinations,
     updateSources,
     handleCancelDestinationSetup,
-    onAfterDestinationCreated,
+    onAfterCustomDestinationCreated,
     handleCreateFreeDatabase
   ])
 
