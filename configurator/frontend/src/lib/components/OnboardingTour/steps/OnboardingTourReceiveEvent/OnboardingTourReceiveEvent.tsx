@@ -57,7 +57,7 @@ export const OnboardingTourReceiveEvent: React.FC<Props> = function({
       <Button type="ghost" size="large" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back to Instructions'}</Button>
     </div>
     <div className={styles.skipButtonContainer}>
-      <Button type="text" hidden={skipIsHidden} className={styles.withButtonsMargins} onClick={handleGoNext}>{'Proceed Without the Connection Test'}</Button>
+      <Button type="text" hidden={skipIsHidden} className={styles.withButtonsMargins} onClick={handleGoNext}>{'I want to test it later '}</Button>
     </div>
   </div>);
 }

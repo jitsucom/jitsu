@@ -1,5 +1,8 @@
-import { Modal } from 'antd'
 import React, { useMemo, useState } from 'react'
+// @Components
+import { Modal } from 'antd'
+// @Styles
+import styles from './Tour.module.less';
 
 type TourStepContentArgs = {
   goTo: (step: number) => void;
@@ -16,6 +19,9 @@ type Props = {
   closable?: boolean;
   maskClosable?: boolean;
   closeOnEsc?: boolean;
+  displayStep?: boolean;
+  displayStepStartOffset?: number;
+  displayStepEndOffset?: number;
 }
 
 export const Tour: React.FC<Props> = function({
@@ -24,7 +30,10 @@ export const Tour: React.FC<Props> = function({
   startAt,
   closable = false,
   maskClosable = false,
-  closeOnEsc = false
+  closeOnEsc = false,
+  displayStep,
+  displayStepStartOffset = 0,
+  displayStepEndOffset = 0
 }) {
   const [currentStepIdx, setCurrentStepIdx] = useState<number>(startAt ?? 0);
 
@@ -37,6 +46,10 @@ export const Tour: React.FC<Props> = function({
     return content({ goTo: setCurrentStepIdx })
   }, [currentStepIdx, setCurrentStepIdx, steps])
 
+  const firstStepToDisplay = 1
+  const amountOfStepsToDisplay = steps.length - displayStepStartOffset - displayStepEndOffset
+  const curretStepToDisplay = currentStepIdx + 1 - displayStepStartOffset;
+
   return (
     <Modal
       visible={showTour}
@@ -47,7 +60,18 @@ export const Tour: React.FC<Props> = function({
       keyboard={closeOnEsc}
       destroyOnClose
     >
-      {currentStepRender}
+      <div className={styles.container}>
+        {currentStepRender}
+        {displayStep
+          && curretStepToDisplay >= firstStepToDisplay
+          && curretStepToDisplay <= amountOfStepsToDisplay
+          && (
+            <div className={styles.stepContainer}>
+              {`Step ${curretStepToDisplay} of ${amountOfStepsToDisplay}`}
+            </div>
+          )
+        }
+      </div>
     </Modal>
   );
 }
