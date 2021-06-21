@@ -24,9 +24,10 @@ type LayoutProps = {
     | 'topRight'
 }
 
-type FreeDatabaseProps =
-  | {hideFreeDatabaseSeparateButton: true, handleCreateFreeDatabase?: undefined;}
-  | {hideFreeDatabaseSeparateButton?: false, handleCreateFreeDatabase: () => Promise<void>}
+type FreeDatabaseProps = {
+  hideFreeDatabaseSeparateButton?: boolean,
+  handleCreateFreeDatabase?: () => Promise<void>
+}
 
 type Props =
   & CommonProps
@@ -39,7 +40,7 @@ const EmptyListViewComponent: React.FC<Props> = ({
   unit,
   centered = true,
   dropdownOverlayPlacement = 'bottomCenter',
-  hideFreeDatabaseSeparateButton = true,
+  hideFreeDatabaseSeparateButton = false,
   handleCreateFreeDatabase
 }) => {
   const [creating, setCreating] = useState(false);
@@ -51,7 +52,7 @@ const EmptyListViewComponent: React.FC<Props> = ({
           <Button type="primary" className="w-80" size="large" icon={<PlusOutlined />}>{`Add ${unit}`}</Button>
         </Dropdown>
       </div>
-      {hideFreeDatabaseSeparateButton && <>
+      {!hideFreeDatabaseSeparateButton && handleCreateFreeDatabase && <>
         <div className={`${centered ? 'h-32' : ''}  px-3 pt-2`}>
         or
         </div>
