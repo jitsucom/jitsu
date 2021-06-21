@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { message } from 'antd';
 import moment from 'moment';
+import { isEmpty } from 'lodash';
 // @Components
 import { Tour, TourStep } from './Tour/Tour';
 import { OnboardingTourGreeting } from './steps/OnboardingTourGreeting/OnboardingTourGreeting';
@@ -13,7 +14,6 @@ import { OnboardingTourSuccess } from './steps/OnboardingTourSuccess/OnboardingT
 // @Services
 import ApplicationServices from '@./lib/services/ApplicationServices';
 // @Hooks
-import useLoader from '@./hooks/useLoader';
 import { formatTimeOfRawUserEvents, getLatestUserEvent, userEventWasTimeAgo } from '@./lib/commons/utils';
 import { fetchUserAPITokens, generateNewAPIToken, UserAPIToken, _unsafeRequestPutUserAPITokens } from '../ApiKeys/ApiKeys';
 
@@ -29,8 +29,9 @@ export function showOnboardingError(msg?: string): void {
   message.error(`Onboarding caught error${msg ? ': ' + msg : ''}`)
 }
 
+const services = ApplicationServices.get();
+
 export const OnboardingTour: React.FC = () => {
-  const services = ApplicationServices.get();
 
   const [config, setConfig] = useState<OnboardingConfig | null>(null);
   const [userClosedTour, setUserClosedTour] = useState<boolean>(false);
@@ -38,28 +39,6 @@ export const OnboardingTour: React.FC = () => {
   const showTour = useMemo<boolean>(() => {
     return !!config && !userClosedTour;
   }, [config, userClosedTour]);
-
-  const [
-    ,
-    user,,,
-    isLoadingUser
-  ] = useLoader(async() => await services.userService.getUser());
-
-  const [
-    ,
-    destinations,,,
-    isLoadingDestinations
-  ] = useLoader(async() => await services.storageService.get('destinations', services.activeProject.id));
-
-  const [
-    ,
-    events,,,
-    isLoadingEvents
-  ] = useLoader<unknown>(
-    async() => await services.backendApiClient.get(
-      `/events/cache?project_id=${services.activeProject.id}&limit=5`, { proxy: true }
-    )
-  )
 
   const handleCloseTour = () => {
     setUserClosedTour(true);
@@ -83,6 +62,7 @@ export const OnboardingTour: React.FC = () => {
 
     // User and Company Names Step
     if (config.showUserAndCompanyNamesStep) {
+      const user = services.userService.getUser();
       const next = steps.length + 1;
       steps.push({
         content: ({ goTo }) => {
@@ -145,64 +125,59 @@ export const OnboardingTour: React.FC = () => {
     })
 
     return steps;
-  }, [user, config]);
+  }, [config]);
 
   useEffect(() => {
+    const prepareConfig = async(): Promise<void> => {
+      const userCompletedOnboardingTourPreviously =
+        (await services.storageService.get('onboarding_tour_completed', services.activeProject.id)).completed;
 
-    const configIsReady =
-      ! isLoadingUser &&
-      ! isLoadingDestinations &&
-      ! isLoadingEvents;
+      if (userCompletedOnboardingTourPreviously) return;
 
-    // user already completed the tour previously
-    const userCompletedTheTourPreviously = false;
+      const [
+        user,
+        destinations,
+        events
+      ] = await Promise.all([
+        services.userService.getUser(),
+        services.storageService.get('destinations', services.activeProject.id),
+        services.backendApiClient.get(
+          `/events/cache?project_id=${services.activeProject.id}&limit=5`, { proxy: true }
+        )
+      ]);
 
-    // user and company name
-    const userName = user?.name;
-    const companyName = user?.projects?.length ? user?.projects[0]?.name : '';
-    const showUserAndCompanyNamesStep = !userName || !companyName;
+      // user and company name
+      const userName = user?.name;
+      const companyName = user?.projects?.length ? user?.projects[0]?.name : '';
+      const showUserAndCompanyNamesStep = !userName || !companyName;
 
-    // destinations
-    const _destinations: DestinationData[] = destinations?.destinations ?? [];
-    const showDestinationsSetupStep = _destinations.length === 0;
+      // destinations
+      const _destinations: DestinationData[] = destinations?.destinations ?? [];
+      const showDestinationsSetupStep = _destinations.length === 0;
 
-    // jitsu client configuration docs and first event detection
-    const showJitsuClientConfigurationSteps: boolean =
-      isLoadingEvents || !events
-        ? false
-        : needShowJitsuClientConfigSteps(events);
+      // jitsu client configuration docs and first event detection
+      const showJitsuClientConfigurationSteps: boolean =
+        !events
+          ? false
+          : needShowJitsuClientConfigSteps(events);
 
-    const needToShowTour =
-      showUserAndCompanyNamesStep ||
-      showDestinationsSetupStep ||
-      showJitsuClientConfigurationSteps
+      const needToShowTour =
+        showUserAndCompanyNamesStep ||
+        showDestinationsSetupStep ||
+        showJitsuClientConfigurationSteps
 
-    if (
-      !userCompletedTheTourPreviously &&
-      configIsReady &&
-      needToShowTour &&
-      !userClosedTour
-    ) {
-      generateUserAPIKeyIfNeeded().then(() => {
-        setConfig({
-          showUserAndCompanyNamesStep,
-          showDestinationsSetupStep,
-          showJitsuClientConfigurationSteps
+      if (needToShowTour) {
+        generateUserAPIKeyIfNeeded().then(() => {
+          setConfig({
+            showUserAndCompanyNamesStep,
+            showDestinationsSetupStep,
+            showJitsuClientConfigurationSteps
+          })
         })
-      })
-    };
-
-  }, [
-    services.userService,
-    destinations?.destinations,
-    isLoadingDestinations,
-    events,
-    isLoadingEvents,
-    isLoadingUser,
-    userClosedTour,
-    user?.name,
-    user?.projects
-  ]);
+      }
+    }
+    prepareConfig();
+  }, []);
 
   return <Tour
     showTour={showTour}
