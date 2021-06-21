@@ -1,6 +1,3 @@
-import {APIParam, APIMethod} from "../../../components/documentationComponents";
-import {Hint, LargeLink} from "../../../components/documentationComponents";
-
 # Sources Configuration
 
 ## Sources
@@ -26,7 +23,7 @@ collections:
     parameters:
       field1: "value"
       field2: ["values"]
-      field3: 
+      field3:
         some_object:
       ...
 ```
@@ -135,7 +132,7 @@ Data may be synchronized by time chunks (if data source supports data loading by
 * time chunk covers the current moment
 * time chunk covers the previous period to the current one (in case some data is loaded after the period ends)
 
-The result of synchronization is a replica of data from the data source with some enriched fields. 
+The result of synchronization is a replica of data from the data source with some enriched fields.
 
 * `collection_id` contains the type of collection (see documentation on collections [below](/docs/sources-configuration#collections))
 * `$server.unique_id_field` column name depends on `server.unique_id_field` configuration. (`eventn_ctx_event_id` by default) - a hash of the synchronized object

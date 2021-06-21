@@ -10,6 +10,15 @@ import bodyParser from 'body-parser';
 
 type Callback = (() => void) | null;
 
+async function sleep(ms: number) {
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      resolve(undefined);
+    }, ms)
+  });
+
+}
+
 async function createServer(app: any, port?: number): Promise<{ port: number, shutdown: Callback }> {
   return new Promise((resolve, reject) => {
     let server = http.createServer(app);
@@ -125,8 +134,7 @@ export async function runUrl(browser: Browser, url: string): Promise<PageResult>
   expect(result?.ok()).toBeTruthy()
 
   console.log("Waiting")
-
-  await page.waitForTimeout(2000)
+  await sleep(4000);
 
   await page.close();
   return {allRequests, consoleErrors, pageResponse: result as Response};

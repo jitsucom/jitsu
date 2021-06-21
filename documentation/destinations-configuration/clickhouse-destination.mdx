@@ -1,5 +1,3 @@
-import {Hint} from "../../../components/documentationComponents";
-
 # ClickHouse
 
 **Jitsu** supports [ClickHouse](https://clickhouse.tech/) as a destination. For more information about
@@ -52,7 +50,7 @@ If **engine** wasn't provided default one \(depends on cluster configuration\) w
 
 ```yaml
 #if ClickHouse single server (dsns = 1)
-ReplacingMergeTree(_timestamp) PARTITION BY toYYYYMM(_timestamp) ORDER BY ($server.unique_id_field) 
+ReplacingMergeTree(_timestamp) PARTITION BY toYYYYMM(_timestamp) ORDER BY ($server.unique_id_field)
 
 #if ClickHouse cluster (dsns > 1)
 ReplicatedReplacingMergeTree('/clickhouse/tables/{shard}/$db/$tablename', '{replica}', _timestamp) PARTITION BY toYYYYMM(_timestamp) ORDER BY ($server.unique_id_field)
