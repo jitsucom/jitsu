@@ -74,7 +74,10 @@ export const OnboardingTour: React.FC = () => {
     const next = steps.length + 1;
     steps.push({
       content: ({ goTo }) => {
-        return <OnboardingTourGreeting handleGoNext={() => goTo(next) }/>;
+        return <OnboardingTourGreeting
+          amountOfSteps={calculateAmountOfSteps(config)}
+          handleGoNext={() => goTo(next)}
+        />;
       }
     })
 
@@ -238,4 +241,12 @@ function createFullAPIToken(): UserAPIToken {
     jsAuth: generateNewAPIToken('js'),
     origins: []
   };
+}
+
+function calculateAmountOfSteps(config: OnboardingConfig): number {
+  let amount: number = 0;
+  if (config.showUserAndCompanyNamesStep) amount++;
+  if (config.showDestinationsSetupStep) amount++;
+  if (config.showJitsuClientConfigurationSteps) amount = amount + 2;
+  return amount;
 }
