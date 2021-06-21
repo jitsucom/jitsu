@@ -165,7 +165,7 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
   };
 
   return (
-    <div className="bg-bgSecondary border rounded-xl mr-2">
+    <div className="bg-bgSecondary">
       <div className="py-5 border-b border-main px-5 flex flex-col items-center">
         <div className="text-center text-text text-lg">{user.name}</div>
         <div className="text-secondaryText text-xs underline">{user.email}</div>

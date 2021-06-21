@@ -1,8 +1,8 @@
-import { intType, jsonType, Parameter, passwordType, selectionType, SourceConnector, stringType } from '@catalog/sources/types';
+import { intType, jsonType, Parameter, passwordType, selectionType, SourceConnector, stringType } from '../types';
 import * as React from 'react';
-import { googleServiceAuthDocumentation } from '@catalog/sources/lib/documentation';
+import { googleServiceAuthDocumentation } from '../lib/documentation';
 
-import { googleAuthConfigParameters } from '@catalog/sources/lib/commonParams';
+import { googleAuthConfigParameters } from '../lib/commonParams';
 
 export const facebook: SourceConnector = {
   pic: <svg viewBox="0 0 36 36" fill="url(#gradient)">

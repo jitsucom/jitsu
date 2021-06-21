@@ -62,7 +62,7 @@ export default class App extends React.Component<{}, AppState> {
                 this.services.analyticsService.onUserKnown(loginStatus.user);
             }
 
-            let paymentPlanStatus: PaymentPlanStatus;
+            let paymentPlanStatus: (PaymentPlanStatus | undefined) = undefined;
             if (loginStatus.user && this.services.features.billingEnabled) {
                 paymentPlanStatus = new PaymentPlanStatus();
                 await paymentPlanStatus.init(this.services.activeProject, this.services.backendApiClient)
@@ -71,7 +71,7 @@ export default class App extends React.Component<{}, AppState> {
             this.setState({
                 lifecycle: loginStatus.user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
                 user: loginStatus.user,
-                showOnboardingForm: loginStatus.user && !loginStatus.user.onboarded,
+                showOnboardingForm: !!loginStatus.user && !loginStatus.user.onboarded,
                 paymentPlanStatus: paymentPlanStatus
             });
         } catch (error) {
@@ -108,7 +108,7 @@ export default class App extends React.Component<{}, AppState> {
                                     exact
                                     render={(routeProps) => {
                                         this.services.analyticsService.onPageLoad({
-                                            pagePath: routeProps.location.key
+                                            pagePath: routeProps.location.key || '/unknown'
                                         });
                                         document.title = route.pageTitle;
                                         return <Component {...(routeProps as any)} />;
