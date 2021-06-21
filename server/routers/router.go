@@ -45,8 +45,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJitsuParser(), events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path")), eventsCache)
 	apiEventHandler := handlers.NewEventHandler(destinations, events.NewJitsuParser(), events.NewAPIProcessor(), eventsCache)
-	segmentHandler := handlers.NewEventHandler(destinations, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewAPIProcessor(), eventsCache)
-	segmentCompatHandler := handlers.NewEventHandler(destinations, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewAPIProcessor(), eventsCache)
+	segmentHandler := handlers.NewEventHandler(destinations, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewSegmentProcessor(usersRecognitionService), eventsCache)
+	segmentCompatHandler := handlers.NewEventHandler(destinations, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewSegmentProcessor(usersRecognitionService), eventsCache)
 
 	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)

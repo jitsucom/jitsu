@@ -86,7 +86,7 @@
       "type": "ref_type"
     },
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z"
   },
   {
@@ -176,7 +176,7 @@
       "type": "ref_type"
     },
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z"
   },
   {
@@ -262,7 +262,7 @@
       "type": "ref_type"
     },
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z"
   },
   {
@@ -350,7 +350,7 @@
       "type": "ref_type"
     },
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z"
   },
   {
@@ -437,7 +437,7 @@
       "type": "ref_type"
     },
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z"
   },
   {
@@ -529,7 +529,7 @@
       "type": "ref_type"
     },
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z"
   }
 ]

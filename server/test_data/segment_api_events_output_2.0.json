@@ -67,7 +67,7 @@
     },
     "screen_resolution": "1024x768",
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z",
     "user": {
       "anonymous_id": "anonym1",
@@ -155,7 +155,7 @@
     },
     "screen_resolution": "1024x768",
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z",
     "user": {
       "anonymous_id": "anonym1",
@@ -239,7 +239,7 @@
     },
     "screen_resolution": "1024x768",
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z",
     "user": {
       "email": "ned@starkinc.com",
@@ -324,7 +324,7 @@
     },
     "screen_resolution": "1024x768",
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z",
     "user": {
       "anonymous_id": "anonym1",
@@ -409,7 +409,7 @@
     },
     "screen_resolution": "1024x768",
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z",
     "user": {
       "anonymous_id": "anonym1",
@@ -499,7 +499,7 @@
     },
     "screen_resolution": "1024x768",
     "source_ip": "1.1.1.1",
-    "src": "api",
+    "src": "segment_api",
     "timestamp": "2020-06-16T23:00:00Z",
     "user": {
       "anonymous_id": "anonym1",
