@@ -16,8 +16,9 @@ export const OnboardingTourSuccess: React.FC<Props> = function({
   handleRestartTour,
   handleFinishOnboarding
 }) {
-  const handleClickFinish = (): void => {
-    services.analyticsService.track('onboarding_finished');
+  const handleClickFinish = async(): Promise<void> => {
+    await services.storageService.save('onboarding_tour_completed', { completed: true }, services.activeProject.id);
+    await services.analyticsService.track('onboarding_finished');
     handleFinishOnboarding();
   }
   return (<div className={styles.mainContainer}>
