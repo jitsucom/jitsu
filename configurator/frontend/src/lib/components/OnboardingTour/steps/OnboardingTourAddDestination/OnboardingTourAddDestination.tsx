@@ -15,9 +15,9 @@ import {
 } from '@./ui/pages/DestinationsPage/commons';
 // @Hooks
 import useLoader from '@./hooks/useLoader';
+import { useServices } from '@./hooks/useServices';
 // @Utils
 import ApiKeyHelper from '@./lib/services/ApiKeyHelper';
-import ApplicationServices from '@./lib/services/ApplicationServices';
 
 type ExtractDatabaseOrWebhook<T> = T extends {readonly type: 'database'}
   ? T
@@ -42,12 +42,15 @@ type Props = {
    handleGoNext: () => void;
  }
 
-const services = ApplicationServices.get();
-
 export const OnboardingTourAddDestination: React.FC<Props> = function({
   handleGoNext
 }) {
+  const services = useServices();
   const [lifecycle, setLifecycle] = useState<Lifecycle>('loading');
+
+  const needShowCreateDemoDatabase = useMemo<boolean>(() => services.features.createDemoDatabase, [
+    services.features.createDemoDatabase
+  ]);
 
   const [sourcesError, sources, updateSources,, isLoadingUserSources] = useLoader(
     async() => await services.storageService.get('sources', services.activeProject.id)
@@ -87,7 +90,7 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     await helper.linkKeyToDestination(key, destination);
 
     handleGoNext();
-  }, [handleGoNext])
+  }, [services, handleGoNext])
 
   const handleCreateFreeDatabase = useCallback<() => Promise<void>>(async() => {
     try {
@@ -97,7 +100,7 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     }
     services.analyticsService.track('onboarding_destination_created_free');
     handleGoNext();
-  }, [handleGoNext])
+  }, [services, handleGoNext])
 
   const render = useMemo<React.ReactElement>(() => {
     switch (lifecycle) {
@@ -127,8 +130,8 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
               unit="destination"
               centered={false}
               dropdownOverlayPlacement="bottomCenter"
+              hideFreeDatabaseSeparateButton={!needShowCreateDemoDatabase}
               handleCreateFreeDatabase={handleCreateFreeDatabase}
-              // showFreeDatabaseSeparateButton={false}
             />
           </div>
         </>
@@ -162,6 +165,7 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     userDestinations,
     userSources,
     sourcesError,
+    needShowCreateDemoDatabase,
     updateDestinations,
     updateSources,
     handleCancelDestinationSetup,
