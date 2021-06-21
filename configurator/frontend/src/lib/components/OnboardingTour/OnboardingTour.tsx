@@ -2,7 +2,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { message } from 'antd';
 import moment from 'moment';
-import { isEmpty } from 'lodash';
 // @Components
 import { Tour, TourStep } from './Tour/Tour';
 import { OnboardingTourGreeting } from './steps/OnboardingTourGreeting/OnboardingTourGreeting';
