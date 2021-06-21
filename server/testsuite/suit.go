@@ -54,11 +54,12 @@ type SuiteBuilder interface {
 
 //suiteBuilder is a test Suite builder implementation
 type suiteBuilder struct {
-	freezeTime                   time.Time
-	patchTime                    *monkey.PatchGuard
-	httpAuthority                string
-	segmentRequestFieldsMapper   events.Mapper
-	globalUsersRecognitionConfig *storages.UsersRecognition
+	freezeTime                       time.Time
+	patchTime                        *monkey.PatchGuard
+	httpAuthority                    string
+	segmentRequestFieldsMapper       events.Mapper
+	segmentCompatRequestFieldsMapper events.Mapper
+	globalUsersRecognitionConfig     *storages.UsersRecognition
 
 	metaStorage        meta.Storage
 	destinationService *destinations.Service
@@ -96,10 +97,16 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		destinations.TokenizedIDs{"id1": map[string]bool{"dest1": true}},
 		map[string]events.Consumer{"dest1": consumer})
 
+	//** Segment API
 	mappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment.endpoint"))
 	require.NoError(t, err)
-
 	segmentRequestFieldsMapper, _, err := schema.NewFieldMapper(mappings)
+	require.NoError(t, err)
+
+	//Segment compat API
+	compatMappings, err := schema.ConvertOldMappings(schema.Default, viper.GetStringSlice("compatibility.segment_compat.endpoint"))
+	require.NoError(t, err)
+	segmentRequestCompatFieldsMapper, _, err := schema.NewFieldMapper(compatMappings)
 	require.NoError(t, err)
 
 	globalRecognitionConfiguration := &storages.UsersRecognition{
@@ -115,14 +122,15 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	dummyRecognitionService, _ := users.NewRecognitionService(metaStorage, nil, nil, "")
 
 	return &suiteBuilder{
-		freezeTime:                   freezeTime,
-		patchTime:                    patch,
-		httpAuthority:                httpAuthority,
-		segmentRequestFieldsMapper:   segmentRequestFieldsMapper,
-		metaStorage:                  metaStorage,
-		globalUsersRecognitionConfig: globalRecognitionConfiguration,
-		recognitionService:           dummyRecognitionService,
-		destinationService:           destinationService,
+		freezeTime:                       freezeTime,
+		patchTime:                        patch,
+		httpAuthority:                    httpAuthority,
+		segmentRequestFieldsMapper:       segmentRequestFieldsMapper,
+		segmentCompatRequestFieldsMapper: segmentRequestCompatFieldsMapper,
+		metaStorage:                      metaStorage,
+		globalUsersRecognitionConfig:     globalRecognitionConfiguration,
+		recognitionService:               dummyRecognitionService,
+		destinationService:               destinationService,
 	}
 }
 
@@ -189,7 +197,7 @@ func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
 func (sb *suiteBuilder) Build(t *testing.T) Suite {
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		sb.recognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-		caching.NewEventsCache(sb.metaStorage, 100), sb.segmentRequestFieldsMapper)
+		caching.NewEventsCache(sb.metaStorage, 100), sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,

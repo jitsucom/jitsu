@@ -118,7 +118,7 @@ func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*Map
 	}
 
 	for _, fieldToRemove := range fieldsToRemove {
-		fieldToRemove.GetAndRemove(sourceObj)
+		fieldToRemove.GetAndRemove(destinationObj)
 	}
 
 	return nil
