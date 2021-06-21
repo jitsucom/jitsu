@@ -15,11 +15,11 @@ export const OnboardingTourGreeting: React.FC<Props> = function({
     <h1 className={styles.header}>
       {'👋 Welcome to Jitsu!\n'}
     </h1>
-    <p>
+    <p className={styles.paragraph}>
       {'Use this guide to configure your project in three simple steps.'}
     </p>
     <div className={styles.controlsContainer}>
-      <Button type="primary" onClick={handleGoNext}>Next</Button>
+      <Button type="primary" size="large" onClick={handleGoNext}>{'Next'}</Button>
     </div>
   </div>);
 }

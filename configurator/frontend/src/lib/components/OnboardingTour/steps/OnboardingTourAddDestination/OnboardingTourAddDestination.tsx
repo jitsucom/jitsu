@@ -100,7 +100,7 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
       />
       return (
         <>
-          <p className={styles.contentText}>
+          <p className={styles.paragraph}>
             {`Looks like you don't have destinations set up. Let's create one.`}
           </p>
           <div className={styles.addDestinationButtonContainer}>
@@ -159,7 +159,7 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
   return (
     <div className={styles.mainContainer}>
       <h1 className={styles.header}>
-        {'Destinations Setup'}
+        {'🔗 Destinations Setup'}
       </h1>
       {render}
     </div>

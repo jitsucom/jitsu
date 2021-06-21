@@ -39,17 +39,17 @@ export const OnboardingTourReceiveEvent: React.FC<Props> = function({
 
   return (<div className={styles.mainContainer}>
     <h1 className={styles.header}>
-      {'Test Your Setup'}
+      {'📡 Listening For Events'}
     </h1>
     <span className={styles.spinnerContainer}>
-      <Spin />
+      <Spin size="large" />
     </span>
-    <p>
+    <p className={styles.paragraph}>
       {`Waiting for the events to get registered in Jitsu`}
     </p>
     <div className={styles.controlsContainer}>
-      <Button type="text" className={styles.withButtonsMargins} onClick={handleGoNext}>{'Skip Verification'}</Button>
-      <Button type="ghost" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back to Instructions'}</Button>
+      <Button type="text" size="large" className={styles.withButtonsMargins} onClick={handleGoNext}>{'Skip Verification'}</Button>
+      <Button type="ghost" size="large" className={styles.withButtonsMargins} onClick={handleGoBack}>{'Back to Instructions'}</Button>
     </div>
   </div>);
 }

@@ -76,9 +76,9 @@ export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = funct
   return (
     <div className={styles.mainContainer}>
       <h1 className={styles.header}>
-        {'Introduce Yourself'}
+        {'🙌 Getting Known'}
       </h1>
-      <p>
+      <p className={styles.paragraph}>
         {'Please tell us more about yourself and your company.'}
       </p>
       <Form
@@ -99,6 +99,7 @@ export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = funct
         >
           <Input
             autoFocus
+            size="large"
             placeholder="Your Name"
             prefix={<UserOutlined className="site-form-item-icon" />}
           />
@@ -113,7 +114,7 @@ export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = funct
             }
           ]}
         >
-          <Input prefix={<BankOutlined className="site-form-item-icon" />} placeholder="Company Name" />
+          <Input size="large" prefix={<BankOutlined className="site-form-item-icon" />} placeholder="Company Name" />
         </Form.Item>
         <Form.Item
           name="emailsOptIn"
@@ -126,7 +127,7 @@ export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = funct
 
         <div className={styles.controlsContainer}>
           <Button
-            type="primary" loading={isSubmitting} onClick={handleSubmit}
+            type="primary" size="large" loading={isSubmitting} onClick={handleSubmit}
           >
             {'Submit'}
           </Button>

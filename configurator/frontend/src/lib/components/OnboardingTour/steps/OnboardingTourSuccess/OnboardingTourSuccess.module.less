@@ -1,3 +1,5 @@
+@import "../commons/OnboardingCommonStyles.module.less";
+
 .mainContainer {
   display: flex;
   flex-direction: column;
@@ -10,9 +12,15 @@
 }
 
 .header {
-  font-size: 20px;
-  font-weight: 700;
+  font-size: @header-font-size;
+  font-weight: @header-font-weight;
   text-align: center;
+  margin-bottom: 30px;
+}
+
+.paragraph {
+  font-size: @text-font-size;
+  margin-bottom: 30px;
 }
 
 .withButtonsMargins {
@@ -25,4 +33,9 @@
   justify-content: center;
   align-items: center;
   width: 100%;
+
+  && > button {
+    width: @buttons-width;
+    max-width: @buttons-max-width;
+  }
 }
