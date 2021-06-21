@@ -22,6 +22,7 @@
       "ids": {
         "ajs_anonymous_id": "anonym1"
       },
+      "local_tz_offset": 0,
       "location": {
         "city": "San Francisco",
         "country": "US",
@@ -86,8 +87,7 @@
     },
     "source_ip": "1.1.1.1",
     "src": "api",
-    "timestamp": "2020-06-16T23:00:00Z",
-    "timezone": "UTC"
+    "timestamp": "2020-06-16T23:00:00Z"
   },
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
@@ -111,6 +111,7 @@
       "ids": {
         "ajs_anonymous_id": "anonym1"
       },
+      "local_tz_offset": 0,
       "location": {
         "city": "San Francisco",
         "country": "US",
@@ -176,8 +177,7 @@
     },
     "source_ip": "1.1.1.1",
     "src": "api",
-    "timestamp": "2020-06-16T23:00:00Z",
-    "timezone": "UTC"
+    "timestamp": "2020-06-16T23:00:00Z"
   },
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
@@ -201,6 +201,7 @@
       "ids": {
         "ajs_user_id": "user1"
       },
+      "local_tz_offset": 0,
       "location": {
         "city": "San Francisco",
         "country": "US",
@@ -262,8 +263,7 @@
     },
     "source_ip": "1.1.1.1",
     "src": "api",
-    "timestamp": "2020-06-16T23:00:00Z",
-    "timezone": "UTC"
+    "timestamp": "2020-06-16T23:00:00Z"
   },
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
@@ -288,6 +288,7 @@
         "ajs_anonymous_id": "anonym1",
         "ajs_user_id": "user1"
       },
+      "local_tz_offset": 0,
       "location": {
         "city": "San Francisco",
         "country": "US",
@@ -350,8 +351,7 @@
     },
     "source_ip": "1.1.1.1",
     "src": "api",
-    "timestamp": "2020-06-16T23:00:00Z",
-    "timezone": "UTC"
+    "timestamp": "2020-06-16T23:00:00Z"
   },
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
@@ -376,6 +376,7 @@
         "ajs_anonymous_id": "anonym1",
         "ajs_user_id": "user1"
       },
+      "local_tz_offset": 0,
       "location": {
         "city": "San Francisco",
         "country": "US",
@@ -437,8 +438,7 @@
     },
     "source_ip": "1.1.1.1",
     "src": "api",
-    "timestamp": "2020-06-16T23:00:00Z",
-    "timezone": "UTC"
+    "timestamp": "2020-06-16T23:00:00Z"
   },
   {
     "_timestamp": "2020-06-16T23:00:00.000000Z",
@@ -463,6 +463,7 @@
         "ajs_anonymous_id": "anonym1",
         "ajs_user_id": "user1"
       },
+      "local_tz_offset": 0,
       "location": {
         "city": "San Francisco",
         "country": "US",
@@ -529,7 +530,6 @@
     },
     "source_ip": "1.1.1.1",
     "src": "api",
-    "timestamp": "2020-06-16T23:00:00Z",
-    "timezone": "UTC"
+    "timestamp": "2020-06-16T23:00:00Z"
   }
 ]

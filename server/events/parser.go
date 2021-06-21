@@ -152,7 +152,7 @@ func NewSegmentCompatParser(mapper Mapper, globalUniqueID *identifiers.UniqueID)
 		globalUniqueID: globalUniqueID,
 		mapper:         mapper,
 
-		timeZone:      jsonutils.NewJSONPath("/eventn_ctx/timezone"),
+		timeZone:      jsonutils.NewJSONPath("/timezone"),
 		localTzOffset: jsonutils.NewJSONPath("/eventn_ctx/local_tz_offset"),
 
 		screenWidth:      jsonutils.NewJSONPath("/screen/width"),

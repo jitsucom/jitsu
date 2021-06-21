@@ -423,10 +423,6 @@ func TestSegmentCompatAPIEvents(t *testing.T) {
 	expectedAllBytes, err := ioutil.ReadFile("test_data/segment_api_events_output_compat.json")
 	require.NoError(t, err)
 
-	for _, a := range actualBytes {
-		fmt.Println(string(a))
-	}
-
 	expectedEvents := []interface{}{}
 	require.NoError(t, json.Unmarshal(expectedAllBytes, &expectedEvents))
 
