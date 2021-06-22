@@ -116,7 +116,6 @@ export const OnboardingTour: React.FC = () => {
       content: ({ goTo }) => {
         return (
           <OnboardingTourSuccess
-            // handleRestartTour={() => goTo(1)}
             handleFinishOnboarding={handleCloseTour}
           />
         );
