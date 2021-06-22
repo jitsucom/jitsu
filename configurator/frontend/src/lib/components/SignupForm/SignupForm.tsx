@@ -44,8 +44,8 @@ export default class SignupForm extends React.Component<any, State> {
   async googleSignup() {
     try{
       const email = await this.services.userService.initiateGoogleLogin();
-      message.destroy();
       await this.trackSignup(email, 'google');
+      message.destroy();
       reloadPage()
     } catch (error) {
       message.destroy();

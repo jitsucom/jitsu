@@ -139,7 +139,7 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
               handleCreateFreeDatabase={handleCreateFreeDatabase}
             />
           </div>
-          {handleSkip && (
+          {!needShowCreateDemoDatabase && handleSkip && (
             <div className="absolute bottom-0 left-50">
               <Button type="text" onClick={handleSkip}>{'Skip'}</Button>
             </div>
