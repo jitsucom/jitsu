@@ -26,6 +26,7 @@ const (
 
 var (
 	DriverConstructors         = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+	DriverTestConnectionFuncs  = make(map[string]func(config *SourceConfig) error)
 	errAccountKeyConfiguration = errors.New("service_account_key must be an object, JSON file path or JSON content string")
 )
 
@@ -117,15 +118,17 @@ type Driver interface {
 	GetCollectionTable() string
 	//GetCollectionMetaKey returns key for storing signature in meta.Storage
 	GetCollectionMetaKey() string
-	//TestConnection returns error if can't do anything
-	TestConnection() error
 }
 
 //RegisterDriver registers function to create new driver instance
 func RegisterDriver(driverType string,
-	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) error {
+	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) {
 	DriverConstructors[driverType] = createDriverFunc
-	return nil
+}
+
+//RegisterTestConnectionFunc registers function to test driver connection
+func RegisterTestConnectionFunc(driverType string, testConnectionFunc func(config *SourceConfig) error) {
+	DriverTestConnectionFuncs[driverType] = testConnectionFunc
 }
 
 //UnmarshalConfig serializes and deserializes config into the object

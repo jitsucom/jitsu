@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
@@ -97,36 +96,10 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 }
 
 func testSourceConnection(config *driversbase.SourceConfig) error {
-	constructor, ok := driversbase.DriverConstructors[config.Type]
+	testConnectionFunc, ok := driversbase.DriverTestConnectionFuncs[config.Type]
 	if !ok {
 		return drivers.ErrUnknownSource
 	}
 
-	collections, err := drivers.ParseCollections(config)
-	if err != nil {
-		return err
-	}
-
-	if config.Type == driversbase.SingerType {
-		collections = []*driversbase.Collection{{Name: drivers.DefaultSingerCollection, Type: drivers.DefaultSingerCollection}}
-	}
-
-	for _, col := range collections {
-		driver, err := constructor(context.Background(), config, col)
-		if err != nil {
-			return err
-		}
-
-		if err := testDriver(driver); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func testDriver(driver driversbase.Driver) error {
-	defer driver.Close()
-
-	return driver.TestConnection()
+	return testConnectionFunc(config)
 }
