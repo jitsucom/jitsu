@@ -24,13 +24,13 @@ export class BackendUserService implements UserService {
     this.smtpConfigured = smtpConfigured;
   }
 
-  initiateGithubLogin(redirect?: string): Promise<string> {
+  initiateGithubLogin(): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       reject(new Error("GitHub authorization isn't supported in BackendUserService"));
     });
   }
 
-  initiateGoogleLogin(redirect?: string): Promise<string> {
+  initiateGoogleLogin(): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       reject(new Error("Google authorization isn't supported in BackendUserService"));
     });

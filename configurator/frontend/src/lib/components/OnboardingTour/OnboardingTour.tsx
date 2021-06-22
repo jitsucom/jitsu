@@ -19,12 +19,14 @@ import { fetchUserAPITokens, generateNewAPIToken, UserAPIToken, _unsafeRequestPu
 type OnboardingConfig = {
   showUserAndCompanyNamesStep: boolean;
   showDestinationsSetupStep: boolean;
-  showJitsuClientConfigurationSteps: boolean;
+  showJitsuClientDocsStep: boolean;
+  showEventListenerStep: boolean;
 }
 
 const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, 'months');
 
 export function showOnboardingError(msg?: string): void {
+  debugger;
   message.error(`Onboarding caught error${msg ? ': ' + msg : ''}`)
 }
 
@@ -73,11 +75,21 @@ export const OnboardingTour: React.FC = () => {
     // Add destinations
     if (config.showDestinationsSetupStep) {
       const next = steps.length + 1;
+      const removeEventListeningStep = () => {
+        setConfig(config => ({
+          ...config,
+          showEventListenerStep: false
+        }))
+      }
       steps.push({
         content: ({ goTo }) => {
           return (
             <OnboardingTourAddDestination
               handleGoNext={() => goTo(next)}
+              handleSkip={() => {
+                removeEventListeningStep();
+                goTo(next);
+              }}
             />
           );
         }
@@ -85,7 +97,7 @@ export const OnboardingTour: React.FC = () => {
     }
 
     // Show client docs and wait for the firs event
-    if (config.showJitsuClientConfigurationSteps) {
+    if (config.showJitsuClientDocsStep) {
       const next = steps.length + 1;
       const prev = steps.length - 1;
       const disableGoBack = config.showDestinationsSetupStep;
@@ -99,12 +111,16 @@ export const OnboardingTour: React.FC = () => {
           );
         }
       })
+    }
+    if (config.showEventListenerStep) {
+      const next = steps.length + 1;
+      const prev = steps.length - 1;
       steps.push({
         content: ({ goTo }) => {
           return (
             <OnboardingTourReceiveEvent
-              handleGoNext={() => goTo(next + 1)}
-              handleGoBack={() => goTo(prev + 1)}
+              handleGoNext={() => goTo(next)}
+              handleGoBack={() => goTo(prev)}
             />
           );
         }
@@ -126,11 +142,11 @@ export const OnboardingTour: React.FC = () => {
   }, [config]);
 
   useEffect(() => {
-    const prepareConfig = async(): Promise<void> => {
-      const userCompletedOnboardingTourPreviously =
-        (await services.storageService.get('onboarding_tour_completed', services.activeProject.id)).completed;
+    const initialPrepareConfig = async(): Promise<void> => {
+      // const userCompletedOnboardingTourPreviously =
+      //   (await services.storageService.get('onboarding_tour_completed', services.activeProject.id)).completed;
 
-      if (userCompletedOnboardingTourPreviously) return;
+      // if (userCompletedOnboardingTourPreviously) return;
 
       const [
         user,
@@ -154,7 +170,7 @@ export const OnboardingTour: React.FC = () => {
       const showDestinationsSetupStep = _destinations.length === 0;
 
       // jitsu client configuration docs and first event detection
-      const showJitsuClientConfigurationSteps: boolean =
+      const showJitsuClientDocsStep: boolean =
         !events
           ? false
           : needShowJitsuClientConfigSteps(events);
@@ -162,19 +178,20 @@ export const OnboardingTour: React.FC = () => {
       const needToShowTour =
         showUserAndCompanyNamesStep ||
         showDestinationsSetupStep ||
-        showJitsuClientConfigurationSteps
+        showJitsuClientDocsStep
 
       if (needToShowTour) {
         generateUserAPIKeyIfNeeded().then(() => {
           setConfig({
             showUserAndCompanyNamesStep,
             showDestinationsSetupStep,
-            showJitsuClientConfigurationSteps
+            showJitsuClientDocsStep,
+            showEventListenerStep: showJitsuClientDocsStep
           })
         })
       }
     }
-    prepareConfig();
+    initialPrepareConfig();
   }, []);
 
   return <Tour
@@ -204,6 +221,7 @@ async function generateUserAPIKeyIfNeeded(): Promise<void> {
       await _unsafeRequestPutUserAPITokens([createFullAPIToken()]);
   } catch (error) {
     showOnboardingError(error.message ?? error);
+    console.error(error);
   }
 }
 
@@ -217,9 +235,9 @@ function createFullAPIToken(): UserAPIToken {
 }
 
 function calculateAmountOfSteps(config: OnboardingConfig): number {
-  let amount: number = 0;
-  if (config.showUserAndCompanyNamesStep) amount++;
-  if (config.showDestinationsSetupStep) amount++;
-  if (config.showJitsuClientConfigurationSteps) amount = amount + 2;
-  return amount;
+  return Object
+    .values(config)
+    .reduce((accumulator, current) => {
+      return accumulator + +current;
+    }, 0);
 }

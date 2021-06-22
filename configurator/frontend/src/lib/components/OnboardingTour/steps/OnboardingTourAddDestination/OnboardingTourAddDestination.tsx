@@ -1,5 +1,6 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Button } from 'antd';
 // @Styles
 import styles from './OnboardingTourAddDestination.module.less';
 // @Commons
@@ -40,10 +41,12 @@ type Lifecycle =
 
 type Props = {
    handleGoNext: () => void;
+   handleSkip?: () => void;
  }
 
 export const OnboardingTourAddDestination: React.FC<Props> = function({
-  handleGoNext
+  handleGoNext,
+  handleSkip
 }) {
   const services = useServices();
   const [lifecycle, setLifecycle] = useState<Lifecycle>('loading');
@@ -73,9 +76,11 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     // if user created a destination at this step, it is his first destination
     const destination = helper.destinations[0];
     if (!destination) {
+      const errorMessage = 'onboarding - silently failed to create a custom destination'
+      console.error(errorMessage)
       services.analyticsService.track(
         'onboarding_destination_error_custom',
-        { error: 'onAfterCustomDestinationCreated failed to extract a destination' }
+        { error: errorMessage }
       );
       handleGoNext();
       return;
@@ -134,6 +139,11 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
               handleCreateFreeDatabase={handleCreateFreeDatabase}
             />
           </div>
+          {handleSkip && (
+            <div className="absolute bottom-0 left-50">
+              <Button type="text" onClick={handleSkip}>{'Skip'}</Button>
+            </div>
+          )}
         </>
       );
 
@@ -166,6 +176,7 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     userSources,
     sourcesError,
     needShowCreateDemoDatabase,
+    handleSkip,
     updateDestinations,
     updateSources,
     handleCancelDestinationSetup,
