@@ -1,4 +1,4 @@
-package drivers
+package singer
 
 import (
 	"context"
@@ -109,9 +109,9 @@ type Singer struct {
 }
 
 func init() {
-	/*if err := RegisterDriver(SingerType, NewSinger); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", SingerType, err)
-	}*/
+	if err := base.RegisterDriver(base.SingerType, NewSinger); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", base.SingerType, err)
+	}
 }
 
 //NewSinger returns Singer driver and

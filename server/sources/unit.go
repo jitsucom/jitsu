@@ -2,12 +2,12 @@ package sources
 
 import (
 	"github.com/hashicorp/go-multierror"
-	"github.com/jitsucom/jitsu/server/drivers"
+	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
 )
 
 type Unit struct {
 	SourceType          string
-	DriverPerCollection map[string]drivers.Driver
+	DriverPerCollection map[string]driversbase.Driver
 	DestinationIDs      []string
 
 	hash uint64

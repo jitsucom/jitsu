@@ -1,4 +1,4 @@
-package drivers
+package google_play
 
 import (
 	"archive/zip"
@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/iterator"
@@ -32,12 +33,9 @@ var (
 		"item_price":      typing.StringWithCommasToFloat,
 		"charged_amount":  typing.StringWithCommasToFloat,
 		"taxes_collected": typing.StringWithCommasToFloat,
-		//"postal_code_of_buyer": typing.StringToInt,
 	}
 
 	earningsTypeCasts = map[string]func(interface{}) (interface{}, error){
-		//"product_type": typing.StringToInt,
-		//"buyer_postal_code": typing.StringToInt,
 		"amount__buyer_currency_":    typing.StringWithCommasToFloat,
 		"currency_conversion_rate":   typing.StringWithCommasToFloat,
 		"amount__merchant_currency_": typing.StringWithCommasToFloat,
@@ -69,9 +67,9 @@ type GooglePlay struct {
 }
 
 func init() {
-	/*if err := RegisterDriver(GooglePlayType, NewGooglePlay); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", GooglePlayType, err)
-	}*/
+	if err := base.RegisterDriver(base.GooglePlayType, NewGooglePlay); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", base.GooglePlayType, err)
+	}
 }
 
 func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
-	_ "github.com/jitsucom/jitsu/server/drivers/redis"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/scheduling"
 	"github.com/olekukonko/tablewriter"
@@ -15,68 +14,75 @@ import (
 )
 
 const (
-	redisDriverConfigVar = "REDIS_DRIVER_CONFIG"
+	testDriverConfigVar = "TEST_DRIVER_CONFIG"
 )
 
 func TestSemiAutoDriver(t *testing.T) {
-	redisConfig := os.Getenv(redisDriverConfigVar)
-	if redisConfig != "" {
-		sc := &base.SourceConfig{}
-		err := json.Unmarshal([]byte(redisConfig), sc)
+	sourceConfig := os.Getenv(testDriverConfigVar)
+	if sourceConfig == "" {
+		logging.Errorf("OS var %q configuration doesn't exist", testDriverConfigVar)
+		return
+	}
+
+	sc := &base.SourceConfig{}
+	err := json.Unmarshal([]byte(sourceConfig), sc)
+	require.NoError(t, err)
+
+	driversMap, err := Create(context.Background(), "test", sc, scheduling.NewCronScheduler())
+	require.NoError(t, err)
+
+	defer func() {
+		for _, d := range driversMap {
+			d.Close()
+		}
+	}()
+
+	for _, driver := range driversMap {
+		intervals, err := driver.GetAllAvailableIntervals()
+		require.NoError(t, err)
+		require.NotEmpty(t, intervals)
+
+		objects, err := driver.GetObjectsFor(intervals[0])
 		require.NoError(t, err)
 
-		driversMap, err := Create(context.Background(), "test", sc, scheduling.NewCronScheduler())
+		resultFile, err := os.Create(fmt.Sprintf("test_output/%s.log", driver.GetCollectionTable()))
 		require.NoError(t, err)
 
-		defer func() {
-			for _, d := range driversMap {
-				d.Close()
+		table := tablewriter.NewWriter(resultFile)
+		table.SetRowLine(true)
+		var header []string
+		headerMap := map[string]bool{}
+
+		//collect header
+		for _, object := range objects {
+			for k := range object {
+				if _, ok := headerMap[k]; !ok {
+					header = append(header, k)
+					headerMap[k] = true
+				}
 			}
-		}()
+		}
+		table.SetHeader(header)
 
-		for collection, driver := range driversMap {
-
-			intervals, err := driver.GetAllAvailableIntervals()
-			require.NoError(t, err)
-			require.NotEmpty(t, intervals)
-
-			objects, err := driver.GetObjectsFor(intervals[0])
-			require.NoError(t, err)
-
-			table := tablewriter.NewWriter(os.Stdout)
-			var header []string
-			headerMap := map[string]bool{}
-
-			for _, object := range objects {
-				//update table header
-				for k := range object {
-					if _, ok := headerMap[k]; !ok {
-						header = append(header, k)
-						headerMap[k] = true
-					}
+		//build row
+		for _, object := range objects {
+			var row []string
+			for _, k := range header {
+				v, ok := object[k]
+				if !ok {
+					v = "null"
 				}
 
-				//build row
-				var row []string
-				for _, k := range header {
-					v, ok := object[k]
-					if !ok {
-						v = "null"
-					}
-					//TODO fix first elements don't know about header quantity
-					row = append(row, fmt.Sprint(v))
-				}
-
-				//append to table
-				table.SetHeader(header)
-				table.Append(row)
+				row = append(row, fmt.Sprint(v))
 			}
 
-			fmt.Println(collection)
-			table.Render()
+			//append to table
+			table.Append(row)
 		}
 
-	} else {
-		logging.Errorf("OS vars configuration doesn't exist")
+		resultFile.WriteString("\nTable name: " + driver.GetCollectionTable() + "\n")
+		table.Render()
+		err = resultFile.Close()
+		require.NoError(t, err)
 	}
 }

@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/drivers"
+	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
@@ -82,7 +82,7 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 
 //TestSourcesHandler tests source connection
 func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
-	sourceConfig := &drivers.SourceConfig{}
+	sourceConfig := &driversbase.SourceConfig{}
 	if err := c.BindJSON(sourceConfig); err != nil {
 		logging.Errorf("Error parsing source body: %v", err)
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
@@ -96,8 +96,8 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-func testSourceConnection(config *drivers.SourceConfig) error {
-	constructor, ok := drivers.DriverConstructors[config.Type]
+func testSourceConnection(config *driversbase.SourceConfig) error {
+	constructor, ok := driversbase.DriverConstructors[config.Type]
 	if !ok {
 		return drivers.ErrUnknownSource
 	}
@@ -107,47 +107,8 @@ func testSourceConnection(config *drivers.SourceConfig) error {
 		return err
 	}
 
-	if len(collections) == 0 {
-		switch config.Type {
-		case drivers.SingerType:
-			collections = append(collections, &drivers.Collection{
-				Name: drivers.DefaultSingerCollection,
-				Type: drivers.DefaultSingerCollection,
-			})
-		case drivers.FbMarketingType:
-			collections = append(collections, &drivers.Collection{
-				Name: drivers.InsightsCollection,
-				Type: drivers.InsightsCollection,
-			})
-		case drivers.FirebaseType:
-			collections = append(collections, &drivers.Collection{
-				Name: drivers.UsersCollection,
-				Type: drivers.UsersCollection,
-			})
-		case drivers.GoogleAnalyticsType:
-			collections = append(collections, &drivers.Collection{
-				Name: drivers.ReportsCollection,
-				Type: drivers.ReportsCollection,
-				Parameters: map[string]interface{}{
-					"metrics":    []string{"test_metric"},
-					"dimensions": []string{"test_dimensions"},
-				},
-			})
-		case drivers.GooglePlayType:
-			collections = append(collections, &drivers.Collection{
-				Name: drivers.SalesCollection,
-				Type: drivers.SalesCollection,
-			})
-		case drivers.RedisType:
-			collections = append(collections, &drivers.Collection{
-				Name: "test",
-				Parameters: map[string]interface{}{
-					"redis_key": "test",
-				},
-			})
-		default:
-			return errors.New("unsupported source type " + config.Type)
-		}
+	if config.Type == driversbase.SingerType {
+		collections = []*driversbase.Collection{{Name: drivers.DefaultSingerCollection, Type: drivers.DefaultSingerCollection}}
 	}
 
 	for _, col := range collections {
@@ -164,7 +125,7 @@ func testSourceConnection(config *drivers.SourceConfig) error {
 	return nil
 }
 
-func testDriver(driver drivers.Driver) error {
+func testDriver(driver driversbase.Driver) error {
 	defer driver.Close()
 
 	return driver.TestConnection()

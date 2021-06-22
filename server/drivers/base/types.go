@@ -20,16 +20,14 @@ const (
 	SingerType = "singer"
 
 	GoogleOAuthAuthorizationType = "OAuth"
+
+	DefaultDaysBackToLoad = 365
 )
 
 var (
-	DriverConstructors         map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)
+	DriverConstructors         = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
 	errAccountKeyConfiguration = errors.New("service_account_key must be an object, JSON file path or JSON content string")
 )
-
-func init() {
-	DriverConstructors = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
-}
 
 type GoogleAuthConfig struct {
 	Type              string      `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`

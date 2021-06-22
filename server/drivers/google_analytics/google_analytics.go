@@ -1,4 +1,4 @@
-package drivers
+package google_analytics
 
 import (
 	"context"
@@ -73,9 +73,9 @@ type GoogleAnalytics struct {
 }
 
 func init() {
-	/*if err := RegisterDriver(GoogleAnalyticsType, NewGoogleAnalytics); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", GoogleAnalyticsType, err)
-	}*/
+	if err := base.RegisterDriver(base.GoogleAnalyticsType, NewGoogleAnalytics); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", base.GoogleAnalyticsType, err)
+	}
 }
 
 func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
@@ -109,7 +109,7 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, co
 
 func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	var intervals []*base.TimeInterval
-	daysBackToLoad := defaultDaysBackToLoad
+	daysBackToLoad := base.DefaultDaysBackToLoad
 	if g.collection.DaysBackToLoad > 0 {
 		daysBackToLoad = g.collection.DaysBackToLoad
 	}

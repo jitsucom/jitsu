@@ -1,4 +1,4 @@
-package drivers
+package firebase
 
 import (
 	"cloud.google.com/go/firestore"
@@ -8,6 +8,7 @@ import (
 	"firebase.google.com/go/v4/auth"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
@@ -69,9 +70,9 @@ type Firebase struct {
 }
 
 func init() {
-	/*if err := RegisterDriver(FirebaseType, NewFirebase); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", FirebaseType, err)
-	}*/
+	if err := base.RegisterDriver(base.FirebaseType, NewFirebase); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", base.FirebaseType, err)
+	}
 }
 
 //NewFirebase returns configured Firebase driver instance
