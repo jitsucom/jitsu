@@ -5,6 +5,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 )
 
+//SourceConfig is a dto for api connector source config serialization
 type SourceConfig struct {
 	SourceID string `json:"source_id" yaml:"-"`
 
@@ -16,6 +17,7 @@ type SourceConfig struct {
 	Config map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
 }
 
+//Collection is a dto for report unit serialization
 type Collection struct {
 	DaysBackToLoad int    `json:"-" yaml:"-"` //without serialization
 	SourceID       string `json:"-" yaml:"-"` //without serialization
@@ -28,6 +30,7 @@ type Collection struct {
 	Parameters   map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
 }
 
+//Validate returns err if collection invalid
 func (c *Collection) Validate() error {
 	if c.Name == "" {
 		return errors.New("name is required collection field")

@@ -5,6 +5,7 @@ import (
 	"time"
 )
 
+//Granularity is a granularity of TimeInterval
 type Granularity string
 
 const (
@@ -14,6 +15,7 @@ const (
 	ALL   Granularity = "ALL"
 )
 
+//Lower returns the lower value of interval
 func (g Granularity) Lower(t time.Time) time.Time {
 	switch g {
 	case DAY:
@@ -30,6 +32,7 @@ func (g Granularity) Lower(t time.Time) time.Time {
 	}
 }
 
+//Upper returns the upper value of interval
 func (g Granularity) Upper(t time.Time) time.Time {
 	switch g {
 	case DAY:
@@ -46,6 +49,7 @@ func (g Granularity) Upper(t time.Time) time.Time {
 	}
 }
 
+//Format returns formatted string value representation
 func (g Granularity) Format(t time.Time) string {
 	switch g {
 	case DAY:
@@ -62,6 +66,7 @@ func (g Granularity) Format(t time.Time) string {
 	}
 }
 
+//String returns string value representation
 func (g Granularity) String() string {
 	switch g {
 	case DAY:

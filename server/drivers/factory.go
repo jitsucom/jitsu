@@ -5,6 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	_ "github.com/jitsucom/jitsu/server/drivers/base"
+	_ "github.com/jitsucom/jitsu/server/drivers/facebook_marketing"
+	_ "github.com/jitsucom/jitsu/server/drivers/firebase"
+	_ "github.com/jitsucom/jitsu/server/drivers/google_analytics"
+	_ "github.com/jitsucom/jitsu/server/drivers/google_play"
+	_ "github.com/jitsucom/jitsu/server/drivers/redis"
+	_ "github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/scheduling"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -21,8 +28,6 @@ const (
 	collectionParametersField = "parameters"
 
 	DefaultSingerCollection = "all"
-
-	defaultDaysBackToLoad = 365
 )
 
 //Create source drivers per collection

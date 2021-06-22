@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	scanChunkSize = 2000
+	scanChunkSize = 50000
 
 	keyField   = "redis_key"
 	valueField = "value"
@@ -188,7 +188,7 @@ func (r *Redis) scanKeys(conn redis.Conn, keyMask string) ([]key, error) {
 			return nil, fmt.Errorf("error len of SCAN result: %v", scannedResult)
 		}
 
-		cursor, _ := redis.Int(scannedResult[0], nil)
+		cursor, _ = redis.Int(scannedResult[0], nil)
 		keyNames, _ := redis.Strings(scannedResult[1], nil)
 
 		for _, keyName := range keyNames {

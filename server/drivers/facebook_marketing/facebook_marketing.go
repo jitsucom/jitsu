@@ -1,4 +1,4 @@
-package drivers
+package facebook_marketing
 
 import (
 	"context"
@@ -93,9 +93,9 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, 
 }
 
 func init() {
-	/*	if err := RegisterDriver(FbMarketingType, NewFacebookMarketing); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", FbMarketingType, err)
-	}*/
+	if err := base.RegisterDriver(base.FbMarketingType, NewFacebookMarketing); err != nil {
+		logging.Errorf("Failed to register driver %s: %v", base.FbMarketingType, err)
+	}
 }
 
 //GetAllAvailableIntervals return half a year by default
@@ -106,7 +106,7 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, e
 
 	//insights
 	var intervals []*base.TimeInterval
-	daysBackToLoad := defaultDaysBackToLoad
+	daysBackToLoad := base.DefaultDaysBackToLoad
 	if fm.collection.DaysBackToLoad > 0 {
 		daysBackToLoad = fm.collection.DaysBackToLoad
 	}
