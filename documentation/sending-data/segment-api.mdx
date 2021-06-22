@@ -33,6 +33,65 @@ analytics.identify({
 });
 ```
 
+## Go example
+```go
+package main
+
+import (
+	"gopkg.in/segmentio/analytics-go.v3"
+	"log"
+	"time"
+)
+
+func main() {
+	//if you are using JS SDK 2.0 events structure
+	client, _ := analytics.NewWithConfig("Jitsu API key server secret", analytics.Config{Endpoint: "https://Jitsu_host/api/v1/segment"})
+
+	//or if you are using deprecated events structure
+	//client, _ := analytics.NewWithConfig("Jitsu API key server secret", analytics.Config{Endpoint: "https://Jitsu_host/api/v1/segment/compat"})
+
+	//sending event
+	analyticsTraits := analytics.NewTraits().
+		SetFirstName("Ned").
+		SetLastName("Stark").
+		Set("role", "the Lord of Winterfell").
+		SetEmail("ned@starkinc.com")
+	analyticsContext := &analytics.Context{
+		App: analytics.AppInfo{
+			Name:      "my_app",
+			Version:   "1.0",
+		},
+		Device: analytics.DeviceInfo{
+			Manufacturer:  "Apple",
+			Model:         "iPhone",
+			Type:          "mobile",
+		},
+		Location: analytics.LocationInfo{
+			City:      "San Francisco",
+			Country:   "US",
+			Latitude:  1.0,
+			Longitude: 2.0,
+			Region:    "CA",
+			Speed:     100,
+		},
+		IP:        net.IPv4(1, 1, 1, 1),
+		Traits:    analyticsTraits,
+	}
+
+	err := client.Enqueue(analytics.Track{
+		MessageId:    "track1",
+		AnonymousId:  "anonym1",
+		Event:        "test_track",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+	})
+
+	if err != nil {
+		//handle error
+	}
+}
+```
+
 <APIMethod method="POST" path="/api/v1/segment" title="Segment API endpoint"/>
 
 For JS SDK 2.0 events structures. Authorization server secret token should be provided via Basic auth or HTTP header or query string parameter.
