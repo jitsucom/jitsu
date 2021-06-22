@@ -2,9 +2,12 @@ package parsers
 
 import (
 	"encoding/json"
+	"errors"
 	"strconv"
 	"strings"
 	"text/template"
+
+	"github.com/jitsucom/jitsu/server/jsonutils"
 )
 
 //JSONSerializeFuncs are additional funcs for using from text/template.
@@ -20,6 +23,10 @@ var JSONSerializeFuncs = template.FuncMap{
 
 	"json_indent_quote": func(v interface{}) (string, error) {
 		return marshal(v, true, true)
+	},
+
+	"get": func(v interface{}, path string, defaultValue interface{}) (interface{}, error) {
+		return get_impl(v, path, defaultValue)
 	},
 }
 
@@ -44,4 +51,24 @@ func marshal(v interface{}, indent, quote bool) (string, error) {
 	}
 
 	return string(b), nil
+}
+
+func get_impl(object interface{}, path string, defaultValue interface{}) (interface{}, error) {
+	pathToElement := jsonutils.NewJSONPath(path)
+
+	if pathToElement.IsEmpty() {
+		return "", errors.New("path is empty")
+	}
+
+	event, ok := object.(map[string]interface{})
+	if !ok {
+		return "", errors.New("object is not a map")
+	}
+
+	value, ok := pathToElement.Get(event)
+	if ok {
+		return value, nil
+	}
+
+	return defaultValue, nil
 }

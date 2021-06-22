@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/identifiers"
+	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/maputils"
 	"io"
 	"io/ioutil"
@@ -16,13 +17,7 @@ import (
 const (
 	batchKey = "batch"
 
-	timezoneKey             = "timezone"
-	localTzOffsetMinutesKey = "local_tz_offset"
-
-	screenKey           = "screen"
-	screenWidthKey      = "width"
-	screenHeightKey     = "height"
-	screenResolutionKey = "screen_resolution"
+	screenKey = "screen"
 
 	messageIDKey = "messageId"
 )
@@ -123,15 +118,47 @@ func (jp *jitsuParser) parseTemplateEvents(event Event) ([]Event, bool) {
 	return completeEvents, true
 }
 
-//segmentParser parses Segment compatibility API events
+//segmentParser parses Segment compatibility API events into JS SDK 2.0 and an old structure (compat=true)
 type segmentParser struct {
 	globalUniqueID *identifiers.UniqueID
 	mapper         Mapper
+
+	timeZone      jsonutils.JSONPath
+	localTzOffset jsonutils.JSONPath
+
+	screenWidth      jsonutils.JSONPath
+	screenHeight     jsonutils.JSONPath
+	screenResolution jsonutils.JSONPath
 }
 
-//NewSegmentParser returns configured Segment Parser
+//NewSegmentParser returns configured Segment Parser for SDK 2.0 data structures
 func NewSegmentParser(mapper Mapper, globalUniqueID *identifiers.UniqueID) Parser {
-	return &segmentParser{globalUniqueID: globalUniqueID, mapper: mapper}
+	return &segmentParser{
+		globalUniqueID: globalUniqueID,
+		mapper:         mapper,
+
+		timeZone:      jsonutils.NewJSONPath("/timezone"),
+		localTzOffset: jsonutils.NewJSONPath("/local_tz_offset"),
+
+		screenWidth:      jsonutils.NewJSONPath("/screen/width"),
+		screenHeight:     jsonutils.NewJSONPath("/screen/height"),
+		screenResolution: jsonutils.NewJSONPath("/screen_resolution"),
+	}
+}
+
+//NewSegmentCompatParser returns configured Segment Parser for old Jitsu data structures
+func NewSegmentCompatParser(mapper Mapper, globalUniqueID *identifiers.UniqueID) Parser {
+	return &segmentParser{
+		globalUniqueID: globalUniqueID,
+		mapper:         mapper,
+
+		timeZone:      jsonutils.NewJSONPath("/timezone"),
+		localTzOffset: jsonutils.NewJSONPath("/eventn_ctx/local_tz_offset"),
+
+		screenWidth:      jsonutils.NewJSONPath("/screen/width"),
+		screenHeight:     jsonutils.NewJSONPath("/screen/height"),
+		screenResolution: jsonutils.NewJSONPath("/eventn_ctx/screen_resolution"),
+	}
 }
 
 //ParseEventsBody extracts batch events from HTTP body
@@ -151,30 +178,21 @@ func (sp *segmentParser) ParseEventsBody(c *gin.Context) ([]Event, error) {
 		}
 
 		//timezone
-		tz, ok := mapped[timezoneKey]
+		tz, ok := sp.timeZone.GetAndRemove(mapped)
 		if ok {
 			l, err := time.LoadLocation(fmt.Sprint(tz))
 			if err == nil {
 				_, offsetSeconds := time.Now().In(l).Zone()
-				mapped[localTzOffsetMinutesKey] = (time.Second * time.Duration(offsetSeconds)).Minutes()
+				sp.localTzOffset.Set(mapped, (time.Second * time.Duration(offsetSeconds)).Minutes())
 			}
-
-			delete(mapped, timezoneKey)
 		}
 
-		//vp_size
-		screen, ok := mapped[screenKey]
-		if ok {
-			screenObj, ok := screen.(map[string]interface{})
-			if ok {
-				width, widthOk := screenObj[screenWidthKey]
-				height, heightOk := screenObj[screenHeightKey]
+		//screen resolution
+		width, widthOk := sp.screenWidth.Get(mapped)
+		height, heightOk := sp.screenHeight.Get(mapped)
 
-				if widthOk && heightOk {
-					mapped[screenResolutionKey] = fmt.Sprintf("%vx%v", width, height)
-				}
-			}
-
+		if widthOk && heightOk {
+			sp.screenResolution.Set(mapped, fmt.Sprintf("%vx%v", width, height))
 			delete(mapped, screenKey)
 		}
 

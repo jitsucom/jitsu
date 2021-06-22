@@ -2,8 +2,8 @@ import * as React from 'react';
 import * as logos from './logos'
 import { booleanType, dashDateType, intType, isoUtcDateType, stringType } from '../types';
 import { customParameters, SingerTap } from './helper';
-import { googleServiceAuthDocumentation } from '@catalog/sources/lib/documentation';
-import { googleAuthConfigParameters } from '@catalog/sources/lib/commonParams';
+import { googleServiceAuthDocumentation } from '../lib/documentation';
+import { googleAuthConfigParameters } from '../lib/commonParams';
 
 export const allSingerTaps: SingerTap[] = [
   {
@@ -560,6 +560,7 @@ export const allSingerTaps: SingerTap[] = [
         {
           displayName: 'API Secret',
           id: 'api_secret',
+          type: stringType,
           required: true,
           documentation: <>MixPanel API Secret. Obtain it in MixPanel UI project settings.</>
         },
@@ -841,17 +842,15 @@ export const allSingerTaps: SingerTap[] = [
     }),
     documentation: {
       overview: <>
-        The Shopify Connector pulls the following entities from <a href="https://help.shopify.com/en/api/reference">Shopify API</a> {':'}
-        <ul>
-          <li><a href="https://help.shopify.com/en/api/reference/orders/abandoned_checkouts">Abandoned Checkouts</a></li>
-          <li><a href="https://help.shopify.com/en/api/reference/products/collect">Collects</a></li>
-          <li><a href="https://help.shopify.com/en/api/reference/products/customcollection">Custom Collections</a></li>
-          <li><a href="https://help.shopify.com/en/api/reference/customers">Customers</a></li>
-          <li><a href="https://help.shopify.com/en/api/reference/metafield">Metafields</a></li>
-          <li><a href="https://help.shopify.com/en/api/reference/orders">Orders</a></li>
-          <li><a href="https://help.shopify.com/en/api/reference/products">Products</a></li>
-          <li><a href="https://help.shopify.com/en/api/reference/orders/transaction">Transactions</a></li>
-        </ul>
+        The Shopify Connector pulls the following entities from <a href="https://help.shopify.com/en/api/reference">Shopify API</a> {': '}
+        <a href="https://help.shopify.com/en/api/reference/orders/abandoned_checkouts">Abandoned Checkouts</a>{', '}
+        <a href="https://help.shopify.com/en/api/reference/products/collect">Collects</a>{', '}
+        <a href="https://help.shopify.com/en/api/reference/products/customcollection">Custom Collections</a>{', '}
+        <a href="https://help.shopify.com/en/api/reference/customers">Customers</a>{', '}
+        <a href="https://help.shopify.com/en/api/reference/metafield">Metafields</a>{', '}
+        <a href="https://help.shopify.com/en/api/reference/orders">Orders</a>{', '}
+        <a href="https://help.shopify.com/en/api/reference/products">Products</a>{', '}
+        <a href="https://help.shopify.com/en/api/reference/orders/transaction">Transactions</a>
       </>,
       connection: <>Follow this instruction to obtain an API key <a href="https://shopify.dev/tutorials/generate-api-credentials">How to obtain API Key</a></>
     }

@@ -375,169 +375,58 @@ func TestEventEndpoint(t *testing.T) {
 	}
 }
 
-func TestSegmentAPIEvents(t *testing.T) {
+func TestSegmentAPIEndpoint(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
 
 	SetTestDefaultParams()
-
-	testSuite := testsuite.NewSuiteBuilder(t).Build(t)
-	defer testSuite.Close()
-
-	client, _ := analytics.NewWithConfig("c2stoken", analytics.Config{Endpoint: "http://" + testSuite.HTTPAuthority() + "/api/v1/segment"})
-	analyticsTraits := analytics.NewTraits().SetFirstName("Ned").SetLastName("Stark").Set("role", "the Lord of Winterfell").SetEmail("ned@starkinc.com")
-	analyticsContext := &analytics.Context{
-		App: analytics.AppInfo{
-			Name:      "app1",
-			Version:   "1.0",
-			Build:     "build",
-			Namespace: "namespace",
+	tests := []struct {
+		Name             string
+		ReqURN           string
+		ExpectedJSONPath string
+	}{
+		{
+			"Segment API 2.0 ok",
+			"/api/v1/segment",
+			"test_data/segment_api_events_output_2.0.json",
 		},
-		Campaign: analytics.CampaignInfo{
-			Name:    "my_cmp",
-			Source:  "my_cmp_src",
-			Medium:  "my_cmp_medium",
-			Term:    "my_cmp_term",
-			Content: "my_cmp_content",
+		{
+			"Segment API compat ok",
+			"/api/v1/segment/compat",
+			"test_data/segment_api_events_output_compat.json",
 		},
-		Device: analytics.DeviceInfo{
-			Id:            "device1",
-			Manufacturer:  "Apple",
-			Model:         "iPhone",
-			Name:          "iPhone 12",
-			Type:          "mobile",
-			Version:       "12",
-			AdvertisingID: "an_advertising_id",
-		},
-		Library: analytics.LibraryInfo{
-			Name:    "lib1",
-			Version: "1.0",
-		},
-		Location: analytics.LocationInfo{
-			City:      "San Francisco",
-			Country:   "US",
-			Latitude:  1.0,
-			Longitude: 2.0,
-			Region:    "CA",
-			Speed:     100,
-		},
-		Network: analytics.NetworkInfo{
-			WIFI: true,
-		},
-		OS: analytics.OSInfo{
-			Name:    "iOS",
-			Version: "14.0",
-		},
-		Page: analytics.PageInfo{
-			Hash:     "page_hash",
-			Path:     "page_path",
-			Referrer: "page_referrer",
-			Search:   "page_search",
-			Title:    "page_title",
-			URL:      "page_url",
-		},
-		Referrer: analytics.ReferrerInfo{
-			Type: "ref_type",
-			Name: "ref_name",
-			URL:  "ref_url",
-			Link: "ref_link",
-		},
-		Screen: analytics.ScreenInfo{
-			Density: 10,
-			Width:   1024,
-			Height:  768,
-		},
-		IP:        net.IPv4(1, 1, 1, 1),
-		Locale:    "en-EU",
-		Timezone:  "UTC",
-		UserAgent: "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
-		Traits:    analyticsTraits,
-		Extra:     map[string]interface{}{"extra": true},
 	}
-	analyticsProperties := analytics.NewProperties().SetRevenue(10.0).SetCurrency("USD")
-	integrations := analytics.NewIntegrations().EnableAll().Disable("Salesforce").Disable("Marketo")
 
-	err := client.Enqueue(analytics.Track{
-		MessageId:    "track1",
-		AnonymousId:  "anonym1",
-		Event:        "test_track",
-		Timestamp:    time.Now(),
-		Context:      analyticsContext,
-		Properties:   analyticsProperties,
-		Integrations: integrations,
-	})
-	require.NoError(t, err)
-	err = client.Enqueue(analytics.Screen{
-		MessageId:    "screen1",
-		AnonymousId:  "anonym1",
-		Name:         "home screen",
-		Timestamp:    time.Now(),
-		Context:      analyticsContext,
-		Properties:   analyticsProperties,
-		Integrations: integrations,
-	})
-	require.NoError(t, err)
-	err = client.Enqueue(analytics.Alias{
-		MessageId:    "alias1",
-		PreviousId:   "previousId",
-		UserId:       "user1",
-		Timestamp:    time.Now(),
-		Context:      analyticsContext,
-		Integrations: integrations,
-	})
-	require.NoError(t, err)
-	err = client.Enqueue(analytics.Group{
-		MessageId:    "group1",
-		AnonymousId:  "anonym1",
-		UserId:       "user1",
-		GroupId:      "group1",
-		Timestamp:    time.Now(),
-		Context:      analyticsContext,
-		Traits:       analyticsTraits,
-		Integrations: integrations,
-	})
-	require.NoError(t, err)
-	err = client.Enqueue(analytics.Identify{
-		MessageId:    "identify1",
-		AnonymousId:  "anonym1",
-		UserId:       "user1",
-		Timestamp:    time.Now(),
-		Context:      analyticsContext,
-		Traits:       analyticsTraits,
-		Integrations: integrations,
-	})
-	require.NoError(t, err)
-	err = client.Enqueue(analytics.Page{
-		MessageId:    "page1",
-		AnonymousId:  "anonym1",
-		Name:         "page",
-		UserId:       "user1",
-		Timestamp:    time.Now(),
-		Context:      analyticsContext,
-		Properties:   analyticsProperties,
-		Integrations: integrations,
-	})
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			uuid.InitMock()
+			binding.EnableDecoderUseNumber = true
 
-	err = client.Close()
-	require.NoError(t, err)
+			SetTestDefaultParams()
 
-	time.Sleep(1 * time.Second)
+			testSuite := testsuite.NewSuiteBuilder(t).WithGeoDataMock().Build(t)
+			defer testSuite.Close()
 
-	actualBytes := logging.InstanceMock.Data
+			sendSegmentRequests(t, "http://"+testSuite.HTTPAuthority()+tt.ReqURN)
 
-	expectedAllBytes, err := ioutil.ReadFile("test_data/segment_api_events_output.json")
-	require.NoError(t, err)
+			time.Sleep(1 * time.Second)
 
-	expectedEvents := []interface{}{}
-	require.NoError(t, json.Unmarshal(expectedAllBytes, &expectedEvents))
+			actualBytes := logging.InstanceMock.Data
 
-	require.Equal(t, len(expectedEvents), len(actualBytes), "Logged facts count isn't equal with actual one")
-	for i, expected := range expectedEvents {
-		actualEvent := actualBytes[i]
-		expectedBytes, err := json.Marshal(expected)
-		require.NoError(t, err)
-		test.JSONBytesEqual(t, expectedBytes, actualEvent, "Logged facts aren't equal")
+			expectedAllBytes, err := ioutil.ReadFile(tt.ExpectedJSONPath)
+			require.NoError(t, err)
+
+			expectedEvents := []interface{}{}
+			require.NoError(t, json.Unmarshal(expectedAllBytes, &expectedEvents))
+
+			require.Equal(t, len(expectedEvents), len(actualBytes), "Logged facts count isn't equal with actual one")
+			for i, expected := range expectedEvents {
+				actualEvent := actualBytes[i]
+				expectedBytes, err := json.Marshal(expected)
+				require.NoError(t, err)
+				test.JSONBytesEqual(t, expectedBytes, actualEvent, "Logged facts aren't equal")
+			}
+		})
 	}
 }
 
@@ -724,4 +613,267 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	rows, err := container.CountRows(tableName)
 	require.NoError(t, err)
 	require.Equal(t, expectedEventsCount, rows)
+}
+
+func sendSegmentRequests(t *testing.T, endpoint string) {
+	client, _ := analytics.NewWithConfig("s2stoken", analytics.Config{Endpoint: endpoint})
+	analyticsTraits := analytics.NewTraits().SetFirstName("Ned").SetLastName("Stark").Set("role", "the Lord of Winterfell").SetEmail("ned@starkinc.com")
+	analyticsContext := &analytics.Context{
+		App: analytics.AppInfo{
+			Name:      "app1",
+			Version:   "1.0",
+			Build:     "build",
+			Namespace: "namespace",
+		},
+		Campaign: analytics.CampaignInfo{
+			Name:    "my_cmp",
+			Source:  "my_cmp_src",
+			Medium:  "my_cmp_medium",
+			Term:    "my_cmp_term",
+			Content: "my_cmp_content",
+		},
+		Device: analytics.DeviceInfo{
+			Id:            "device1",
+			Manufacturer:  "Apple",
+			Model:         "iPhone",
+			Name:          "iPhone 12",
+			Type:          "mobile",
+			Version:       "12",
+			AdvertisingID: "an_advertising_id",
+		},
+		Library: analytics.LibraryInfo{
+			Name:    "lib1",
+			Version: "1.0",
+		},
+		Location: analytics.LocationInfo{
+			City:      "San Francisco",
+			Country:   "US",
+			Latitude:  1.0,
+			Longitude: 2.0,
+			Region:    "CA",
+			Speed:     100,
+		},
+		Network: analytics.NetworkInfo{
+			WIFI: true,
+		},
+		OS: analytics.OSInfo{
+			Name:    "iOS",
+			Version: "14.0",
+		},
+		Page: analytics.PageInfo{
+			Hash:     "page_hash",
+			Path:     "page_path",
+			Referrer: "page_referrer",
+			Search:   "page_search",
+			Title:    "page_title",
+			URL:      "page_url",
+		},
+		Referrer: analytics.ReferrerInfo{
+			Type: "ref_type",
+			Name: "ref_name",
+			URL:  "ref_url",
+			Link: "ref_link",
+		},
+		Screen: analytics.ScreenInfo{
+			Density: 10,
+			Width:   1024,
+			Height:  768,
+		},
+		IP:        net.IPv4(1, 1, 1, 1),
+		Locale:    "en-EU",
+		Timezone:  "UTC",
+		UserAgent: "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+		Traits:    analyticsTraits,
+		Extra:     map[string]interface{}{"extra": true},
+	}
+	analyticsProperties := analytics.NewProperties().SetRevenue(10.0).SetCurrency("USD")
+	integrations := analytics.NewIntegrations().EnableAll().Disable("Salesforce").Disable("Marketo")
+
+	err := client.Enqueue(analytics.Track{
+		MessageId:    "track1",
+		AnonymousId:  "anonym1",
+		Event:        "test_track",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Properties:   analyticsProperties,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Screen{
+		MessageId:    "screen1",
+		AnonymousId:  "anonym1",
+		Name:         "home screen",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Properties:   analyticsProperties,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Alias{
+		MessageId:    "alias1",
+		PreviousId:   "previousId",
+		UserId:       "user1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Group{
+		MessageId:    "group1",
+		AnonymousId:  "anonym1",
+		UserId:       "user1",
+		GroupId:      "group1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Traits:       analyticsTraits,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Identify{
+		MessageId:    "identify1",
+		AnonymousId:  "anonym1",
+		UserId:       "user1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Traits:       analyticsTraits,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Page{
+		MessageId:    "page1",
+		AnonymousId:  "anonym1",
+		Name:         "page",
+		UserId:       "user1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Properties:   analyticsProperties,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+
+	err = client.Close()
+	require.NoError(t, err)
+}
+
+func sendSegmentRequestsWithoutLocationAndUA(t *testing.T, endpoint string) {
+	client, _ := analytics.NewWithConfig("s2stoken", analytics.Config{Endpoint: endpoint})
+	analyticsTraits := analytics.NewTraits().SetFirstName("Ned").SetLastName("Stark").Set("role", "the Lord of Winterfell").SetEmail("ned@starkinc.com")
+	analyticsContext := &analytics.Context{
+		App: analytics.AppInfo{
+			Name:      "app1",
+			Version:   "1.0",
+			Build:     "build",
+			Namespace: "namespace",
+		},
+		Campaign: analytics.CampaignInfo{
+			Name:    "my_cmp",
+			Source:  "my_cmp_src",
+			Medium:  "my_cmp_medium",
+			Term:    "my_cmp_term",
+			Content: "my_cmp_content",
+		},
+		Library: analytics.LibraryInfo{
+			Name:    "lib1",
+			Version: "1.0",
+		},
+		Network: analytics.NetworkInfo{
+			WIFI: true,
+		},
+		OS: analytics.OSInfo{
+			Name:    "iOS",
+			Version: "14.0",
+		},
+		Page: analytics.PageInfo{
+			Hash:     "page_hash",
+			Path:     "page_path",
+			Referrer: "page_referrer",
+			Search:   "page_search",
+			Title:    "page_title",
+			URL:      "page_url",
+		},
+		Referrer: analytics.ReferrerInfo{
+			Type: "ref_type",
+			Name: "ref_name",
+			URL:  "ref_url",
+			Link: "ref_link",
+		},
+		Screen: analytics.ScreenInfo{
+			Density: 10,
+			Width:   1024,
+			Height:  768,
+		},
+		IP:        net.IPv4(10, 10, 10, 10),
+		Locale:    "en-EU",
+		Timezone:  "UTC",
+		UserAgent: "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
+		Traits:    analyticsTraits,
+		Extra:     map[string]interface{}{"extra": true},
+	}
+	analyticsProperties := analytics.NewProperties().SetRevenue(10.0).SetCurrency("USD")
+	integrations := analytics.NewIntegrations().EnableAll().Disable("Salesforce").Disable("Marketo")
+
+	err := client.Enqueue(analytics.Track{
+		MessageId:    "track1",
+		AnonymousId:  "anonym1",
+		Event:        "test_track",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Properties:   analyticsProperties,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Screen{
+		MessageId:    "screen1",
+		AnonymousId:  "anonym1",
+		Name:         "home screen",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Properties:   analyticsProperties,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Alias{
+		MessageId:    "alias1",
+		PreviousId:   "previousId",
+		UserId:       "user1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Group{
+		MessageId:    "group1",
+		AnonymousId:  "anonym1",
+		UserId:       "user1",
+		GroupId:      "group1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Traits:       analyticsTraits,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Identify{
+		MessageId:    "identify1",
+		AnonymousId:  "anonym1",
+		UserId:       "user1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Traits:       analyticsTraits,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+	err = client.Enqueue(analytics.Page{
+		MessageId:    "page1",
+		AnonymousId:  "anonym1",
+		Name:         "page",
+		UserId:       "user1",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+		Properties:   analyticsProperties,
+		Integrations: integrations,
+	})
+	require.NoError(t, err)
+
+	err = client.Close()
+	require.NoError(t, err)
 }

@@ -3,9 +3,10 @@ import { ReactNode } from 'react';
 
 export type Destination = {
     id: string
+    type: 'database' | 'other'
     displayName: string
     ui?: DestinationUI
-    parameters: Parameter[],
+    parameters: readonly Parameter[],
     syncFromSourcesStatus: 'supported' | 'coming_soon' | 'not_supported'
 }
 
