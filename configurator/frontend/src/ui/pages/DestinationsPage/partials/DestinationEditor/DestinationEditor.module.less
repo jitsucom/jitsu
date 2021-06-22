@@ -1,11 +1,15 @@
-@import './src/theme';
-@import './src/assets/mixins/custom-scrollbar';
+@import "./src/theme";
+@import "./src/assets/mixins/custom-scrollbar";
 
 .wrapper {
 }
 
 .mainArea {
-  height: calc(100vh - 150px);
+  // flex flex-col flex-grow'
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 0;
 
   .linkedWarning {
     @apply mb-5;

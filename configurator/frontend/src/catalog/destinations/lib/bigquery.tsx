@@ -20,9 +20,10 @@ const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="-1.633235433328256
 </svg>
 ;
 
-const bigQueryDestination: Destination = {
+const bigQueryDestination = {
   syncFromSourcesStatus: 'coming_soon',
   id: 'bigquery',
+  type: 'database',
   displayName: 'BigQuery',
   ui: {
     icon: icon,
@@ -71,6 +72,6 @@ const bigQueryDestination: Destination = {
     }
   ]
 
-}
+} as const;
 
 export default bigQueryDestination;

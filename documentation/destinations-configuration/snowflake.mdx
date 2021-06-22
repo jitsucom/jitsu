@@ -1,5 +1,3 @@
-import {LargeLink} from "../../../components/documentationComponents";
-
 # Snowflake
 
 **Jitsu** supports [Snowflake](https://www.snowflake.com/) as a destination. For more information about Snowflake [see docs](https://docs.snowflake.com).
@@ -13,7 +11,7 @@ Snowflake destination in batch mode can be configured via S3 or Google Cloud Sto
 ```yaml
 destinations:
   my_snowflake_via_aws_s3_or_gcp:
-    type: snowflake 
+    type: snowflake
     snowflake:
       account: hha56552.us-east-1
       schema: MYSCHEMA
@@ -24,7 +22,7 @@ destinations:
       parameters:
         name: value
       stage: my_stage
-# via s3        
+# via s3
     s3:
       access_key_id: ...
       secret_access_key: ...

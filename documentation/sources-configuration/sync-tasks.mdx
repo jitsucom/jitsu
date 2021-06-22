@@ -1,6 +1,9 @@
-import {APIParam, APIMethod} from "../../../components/documentationComponents";
+---
+sort: 1000
+---
 
-# Sync Tasks
+
+# Synchronization Scheduling
 
 Jitsu supports automatic collection synchronization as well as manual. For using automatic collection synchronization
 there must be configured `schedule` property in the `collection` section of configuration (see above).
@@ -10,7 +13,7 @@ For using manual collection synchronization(HTTP API) there must be admin token 
 ```yaml
 server:
   admin_token: your_admin_token
-  
+
 sources:
   source_id:
     type: ...

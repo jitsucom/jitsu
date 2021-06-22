@@ -23,7 +23,7 @@ import (
 
 func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
 	usersRecognitionService *users.RecognitionService, fallbackService *fallback.Service, clusterManager cluster.Manager,
-	eventsCache *caching.EventsCache, segmentEndpointFieldMapper events.Mapper) *gin.Engine {
+	eventsCache *caching.EventsCache, segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -45,7 +45,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJitsuParser(), events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path")), eventsCache)
 	apiEventHandler := handlers.NewEventHandler(destinations, events.NewJitsuParser(), events.NewAPIProcessor(), eventsCache)
-	segmentHandler := handlers.NewEventHandler(destinations, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewAPIProcessor(), eventsCache)
+	segmentHandler := handlers.NewEventHandler(destinations, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewSegmentProcessor(usersRecognitionService), eventsCache)
+	segmentCompatHandler := handlers.NewEventHandler(destinations, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewSegmentProcessor(usersRecognitionService), eventsCache)
 
 	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
@@ -57,10 +58,17 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
+		//client endpoint
 		apiV1.POST("/event", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
+		//server endpoint
 		apiV1.POST("/s2s/event", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server token. Please use s2s integration token"))
-		apiV1.POST("/segment/v1/batch", middleware.TokenFuncAuth(segmentHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
-		apiV1.POST("/segment", middleware.TokenFuncAuth(segmentHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
+		//Segment API
+		apiV1.POST("/segment/v1/batch", middleware.TokenFuncAuth(segmentHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, ""))
+		apiV1.POST("/segment", middleware.TokenFuncAuth(segmentHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, ""))
+		//Segment compat API
+		apiV1.POST("/segment/compat/v1/batch", middleware.TokenFuncAuth(segmentCompatHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, ""))
+		apiV1.POST("/segment/compat", middleware.TokenFuncAuth(segmentCompatHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, ""))
+		//Dry run
 		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
 		apiV1.POST("/destinations/test", adminTokenMiddleware.AdminAuth(handlers.DestinationsHandler))

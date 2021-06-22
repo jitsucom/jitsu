@@ -7,8 +7,9 @@ import (
 )
 
 const (
-	JSPreprocessorType  = "js"
-	APIPreprocessorType = "api"
+	JSPreprocessorType      = "js"
+	APIPreprocessorType     = "api"
+	SegmentPreprocessorType = "segment"
 )
 
 //Processor is used in preprocessing and postprocessing events before consuming(storing)

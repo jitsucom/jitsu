@@ -165,7 +165,7 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
   };
 
   return (
-    <div className="bg-bgSecondary border rounded-xl mr-2">
+    <div className="bg-bgSecondary">
       <div className="py-5 border-b border-main px-5 flex flex-col items-center">
         <div className="text-center text-text text-lg">{user.name}</div>
         <div className="text-secondaryText text-xs underline">{user.email}</div>
@@ -207,7 +207,6 @@ export type ApplicationPageWrapperProps = {
 
 export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, page, user, ...rest }) => {
   const [breadcrumbs, setBreadcrumbs] = useState<BreadcrumbsProps>(withHome({ elements: [{ title: page.pageHeader }] }));
-  const pageId = usePageLocation().id;
 
   let Component = page.component as React.ExoticComponent;
   let props = { setBreadcrumbs }
@@ -217,7 +216,7 @@ export const ApplicationPage: React.FC<ApplicationPageWrapperProps> = ({ plan, p
     </div>
     <div className={classNames(styles.rightbar)}>
       <PageHeader user={user} plan={plan}><Breadcrumbs {...breadcrumbs} /></PageHeader>
-      <div className="flex-grow">
+      <div className={styles.applicationPageComponent}>
         <Component {...(props as any)} />
       </div>
     </div>

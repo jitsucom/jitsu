@@ -18,6 +18,8 @@ export const destinationsReferenceMap = {
   facebook: facebookDestination,
   google_analytics: googleAnalyticsDestination,
   webhook: webhookDestination
-};
+} as const;
 
-export const destinationsReferenceList = Object.keys(destinationsReferenceMap).map(key => destinationsReferenceMap[key]);
+export const destinationsReferenceList = Object.values(destinationsReferenceMap);
+
+export type DestinationStrictType = typeof destinationsReferenceMap[keyof typeof destinationsReferenceMap];
