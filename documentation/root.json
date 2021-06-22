@@ -18,6 +18,7 @@
       "pages": [
         "sending-data/js-sdk",
         "sending-data/api",
+        "sending-data/segment-api",
         "sending-data/javascript-reference"
       ]
     },
