@@ -1,13 +1,12 @@
-package drivers
+package google_play
 
 import (
 	"archive/zip"
 	"bytes"
 	"cloud.google.com/go/storage"
 	"context"
-	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/iterator"
@@ -32,57 +31,39 @@ var (
 		"item_price":      typing.StringWithCommasToFloat,
 		"charged_amount":  typing.StringWithCommasToFloat,
 		"taxes_collected": typing.StringWithCommasToFloat,
-		//"postal_code_of_buyer": typing.StringToInt,
 	}
 
 	earningsTypeCasts = map[string]func(interface{}) (interface{}, error){
-		//"product_type": typing.StringToInt,
-		//"buyer_postal_code": typing.StringToInt,
 		"amount__buyer_currency_":    typing.StringWithCommasToFloat,
 		"currency_conversion_rate":   typing.StringWithCommasToFloat,
 		"amount__merchant_currency_": typing.StringWithCommasToFloat,
 	}
 )
 
-type GooglePlayConfig struct {
-	AccountID  string            `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
-	AccountKey *GoogleAuthConfig `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
-}
-
-func (gpc *GooglePlayConfig) Validate() error {
-	if gpc == nil {
-		return errors.New("GooglePlay config is required")
-	}
-
-	if gpc.AccountID == "" {
-		return errors.New("GooglePlay account_id is required")
-	}
-	return gpc.AccountKey.Validate()
-}
-
 type GooglePlay struct {
 	config *GooglePlayConfig
 	client *storage.Client
 	ctx    context.Context
 
-	collection *Collection
+	collection *base.Collection
 }
 
 func init() {
-	if err := RegisterDriver(GooglePlayType, NewGooglePlay); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", GooglePlayType, err)
-	}
+	base.RegisterDriver(base.GooglePlayType, NewGooglePlay)
+	base.RegisterTestConnectionFunc(base.GooglePlayType, TestGooglePlay)
 }
 
-func NewGooglePlay(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+//NewGooglePlay returns configured Google Play driver instance
+func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &GooglePlayConfig{}
-	err := UnmarshalConfig(sourceConfig.Config, config)
+	err := base.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+
 	credentialsJSON, err := config.AccountKey.Marshal()
 	if err != nil {
 		return nil, err
@@ -95,6 +76,40 @@ func NewGooglePlay(ctx context.Context, sourceConfig *SourceConfig, collection *
 	return &GooglePlay{client: client, config: config, ctx: ctx, collection: collection}, nil
 }
 
+//TestGooglePlay tests connection to Google Play without creating Driver instance
+func TestGooglePlay(sourceConfig *base.SourceConfig) error {
+	config := &GooglePlayConfig{}
+	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	if err != nil {
+		return err
+	}
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
+	credentialsJSON, err := config.AccountKey.Marshal()
+	if err != nil {
+		return err
+	}
+
+	client, err := storage.NewClient(context.Background(), option.WithCredentialsJSON(credentialsJSON))
+	if err != nil {
+		return fmt.Errorf("GooglePlay error creating google cloud storage client: %v", err)
+	}
+	defer client.Close()
+
+	bucketName := bucketPrefix + config.AccountID
+	bucket := client.Bucket(bucketName)
+
+	it := bucket.Objects(context.Background(), &storage.Query{})
+	_, err = it.Next()
+	if err != nil && err != iterator.Done {
+		return err
+	}
+
+	return nil
+}
+
 func (gp *GooglePlay) GetCollectionTable() string {
 	return gp.collection.GetTableName()
 }
@@ -103,12 +118,12 @@ func (gp *GooglePlay) GetCollectionMetaKey() string {
 	return gp.collection.Name + "_" + gp.GetCollectionTable()
 }
 
-func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
+func (gp *GooglePlay) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	bucketName := bucketPrefix + gp.config.AccountID
 	bucket := gp.client.Bucket(bucketName)
 
 	it := bucket.Objects(gp.ctx, &storage.Query{Prefix: gp.collection.Name})
-	var intervals []*TimeInterval
+	var intervals []*base.TimeInterval
 	for {
 		attrs, err := it.Next()
 		if err == iterator.Done {
@@ -140,13 +155,13 @@ func (gp *GooglePlay) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 			return nil, fmt.Errorf("GooglePlay file on gcp has wrong interval layout: %s", attrs.Name)
 		}
 
-		intervals = append(intervals, NewTimeInterval(MONTH, t))
+		intervals = append(intervals, base.NewTimeInterval(base.MONTH, t))
 	}
 
 	return intervals, nil
 }
 
-func (gp *GooglePlay) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
+func (gp *GooglePlay) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	bucketName := bucketPrefix + gp.config.AccountID
 	bucket := gp.client.Bucket(bucketName)
 
@@ -167,19 +182,6 @@ func (gp *GooglePlay) GetObjectsFor(interval *TimeInterval) ([]map[string]interf
 	}
 
 	return objects, nil
-}
-
-func (gp *GooglePlay) TestConnection() error {
-	bucketName := bucketPrefix + gp.config.AccountID
-	bucket := gp.client.Bucket(bucketName)
-
-	it := bucket.Objects(gp.ctx, &storage.Query{Prefix: gp.collection.Name})
-	_, err := it.Next()
-	if err != nil && err != iterator.Done {
-		return err
-	}
-
-	return nil
 }
 
 func (gp *GooglePlay) getFilesObjects(bucket *storage.BucketHandle, prefix string) ([]map[string]interface{}, error) {
@@ -250,7 +252,7 @@ func (gp *GooglePlay) getFileObjects(bucket *storage.BucketHandle, key string) (
 }
 
 func (gp *GooglePlay) Type() string {
-	return GooglePlayType
+	return base.GooglePlayType
 }
 
 func (gp *GooglePlay) Close() error {

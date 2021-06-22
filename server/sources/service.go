@@ -7,6 +7,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/drivers"
+	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/resources"
@@ -74,7 +75,7 @@ func NewService(ctx context.Context, sources *viper.Viper, sourcesURL string, de
 	service.configured = true
 
 	if sources != nil {
-		sc := map[string]drivers.SourceConfig{}
+		sc := map[string]driversbase.SourceConfig{}
 		if err := sources.Unmarshal(&sc); err != nil {
 			logging.Error(marshallingErrorMsg, err)
 			return service, nil
@@ -114,7 +115,7 @@ func (s *Service) updateSources(payload []byte) {
 	}
 }
 
-func (s *Service) init(sc map[string]drivers.SourceConfig) {
+func (s *Service) init(sc map[string]driversbase.SourceConfig) {
 	StatusInstance.Reloading = true
 
 	//close and remove non-existent (in new config)

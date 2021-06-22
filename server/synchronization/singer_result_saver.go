@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/counters"
-	"github.com/jitsucom/jitsu/server/drivers"
+	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -115,7 +115,7 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 			return errors.New(errMsg)
 		}
 
-		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey, drivers.ALL.String(), string(stateJSON))
+		err = rs.metaStorage.SaveSignature(rs.task.Source, rs.collectionMetaKey, driversbase.ALL.String(), string(stateJSON))
 		if err != nil {
 			errMsg := fmt.Sprintf("Unable to save source [%s] tap [%s] signature [%s]: %v", rs.task.Source, rs.tap, string(stateJSON), err)
 			logging.SystemError(errMsg)
