@@ -15,6 +15,8 @@ import ApplicationServices from '@./lib/services/ApplicationServices';
 // @Hooks
 import { formatTimeOfRawUserEvents, getLatestUserEvent, userEventWasTimeAgo } from '@./lib/commons/utils';
 import { fetchUserAPITokens, generateNewAPIToken, UserAPIToken, _unsafeRequestPutUserAPITokens } from '../ApiKeys/ApiKeys';
+import { Project } from '@./lib/services/model';
+import { randomId } from '@./utils/numbers';
 
 type OnboardingConfig = {
   showUserAndCompanyNamesStep: boolean;
@@ -143,6 +145,14 @@ export const OnboardingTour: React.FC = () => {
 
   useEffect(() => {
     const initialPrepareConfig = async(): Promise<void> => {
+      // temporary hack - project is not created after sign ups with google/github
+      if (!services.activeProject) {
+        const user = services.userService.getUser();
+        debugger;
+        user.projects = [new Project(randomId(), null)];
+        await services.userService.update(user);
+      }
+
       const userCompletedOnboardingTourPreviously =
         (await services.storageService.get('onboarding_tour_completed', services.activeProject.id)).completed;
 
