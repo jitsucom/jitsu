@@ -3,7 +3,6 @@ package facebook_marketing
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	fb "github.com/huandu/facebook/v2"
 	"github.com/jitsucom/jitsu/server/drivers/base"
@@ -40,34 +39,17 @@ const (
 	InsightsCollection = "insights"
 	AdsCollection      = "ads"
 	fbMaxAttempts      = 2
+
+	fbMarketingAPIVersion      = "v9.0"
+	defaultFacebookReportLevel = "ad"
 )
 
-type FacebookMarketing struct {
-	collection   *base.Collection
-	config       *FacebookMarketingConfig
-	reportConfig *FacebookReportConfig
+func init() {
+	base.RegisterDriver(base.FbMarketingType, NewFacebookMarketing)
+	base.RegisterTestConnectionFunc(base.FbMarketingType, TestFacebookMarketingConnection)
 }
 
-type FacebookReportConfig struct {
-	Fields []string `mapstructure:"fields" json:"fields,omitempty" yaml:"fields,omitempty"`
-	Level  string   `mapstructure:"level" json:"level,omitempty" yaml:"level,omitempty"`
-}
-
-type FacebookMarketingConfig struct {
-	AccountID   string `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
-	AccessToken string `mapstructure:"access_token" json:"access_token,omitempty" yaml:"access_token,omitempty"`
-}
-
-func (fmc *FacebookMarketingConfig) Validate() error {
-	if fmc.AccountID == "" {
-		return errors.New("account_id is required")
-	}
-	if fmc.AccessToken == "" {
-		return errors.New("access_token is required")
-	}
-	return nil
-}
-
+//NewFacebookMarketing returns configured Facebook Marketing driver instance
 func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &FacebookMarketingConfig{}
 	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
@@ -81,7 +63,7 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, 
 		return nil, err
 	}
 	if reportConfig.Level == "" {
-		reportConfig.Level = "ad"
+		reportConfig.Level = defaultFacebookReportLevel
 
 		logging.Warnf("[%s_%s] parameters.level wasn't provided. Will be used default one: %s", sourceConfig.SourceID, collection.Name, reportConfig.Level)
 	}
@@ -92,10 +74,24 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, 
 	return &FacebookMarketing{collection: collection, config: config, reportConfig: reportConfig}, nil
 }
 
-func init() {
-	if err := base.RegisterDriver(base.FbMarketingType, NewFacebookMarketing); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", base.FbMarketingType, err)
+//TestFacebookMarketingConnection tests connection to Facebook without creating Driver instance
+func TestFacebookMarketingConnection(sourceConfig *base.SourceConfig) error {
+	config := &FacebookMarketingConfig{}
+	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+		return err
 	}
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
+	fm := &FacebookMarketing{config: config, reportConfig: &FacebookReportConfig{Level: defaultFacebookReportLevel}}
+
+	_, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/insights", fbMarketingAPIVersion, fm.config.AccountID), []string{}, nil, 10, true)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //GetAllAvailableIntervals return half a year by default
@@ -130,26 +126,8 @@ func (fm *FacebookMarketing) GetObjectsFor(interval *base.TimeInterval) ([]map[s
 	}
 }
 
-func (fm *FacebookMarketing) TestConnection() error {
-	var path string
-	if fm.collection.Type == InsightsCollection {
-		path = "/insights"
-	} else if fm.collection.Type == AdsCollection {
-		path = "/ads"
-	} else {
-		return fmt.Errorf("Unknown collection type [%s]. Only [%s] and [%s] are supported now", fm.collection.Type, AdsCollection, InsightsCollection)
-	}
-
-	_, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+path, fm.reportConfig.Fields, nil, 10, true)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
 func (fm *FacebookMarketing) syncInsightsReport(interval *base.TimeInterval) ([]map[string]interface{}, error) {
-	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/insights", fm.reportConfig.Fields, interval, 0, false)
+	rows, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/insights", fbMarketingAPIVersion, fm.config.AccountID), fm.reportConfig.Fields, interval, 0, false)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +137,7 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *base.TimeInterval) ([]
 }
 
 func (fm *FacebookMarketing) syncAdsReport(interval *base.TimeInterval) ([]map[string]interface{}, error) {
-	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/ads", fm.reportConfig.Fields, nil, 200, false)
+	rows, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/ads", fbMarketingAPIVersion, fm.config.AccountID), fm.reportConfig.Fields, nil, 200, false)
 	if err != nil {
 		return nil, err
 	}

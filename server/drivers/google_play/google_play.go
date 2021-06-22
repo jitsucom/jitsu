@@ -5,10 +5,8 @@ import (
 	"bytes"
 	"cloud.google.com/go/storage"
 	"context"
-	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/iterator"
@@ -42,22 +40,6 @@ var (
 	}
 )
 
-type GooglePlayConfig struct {
-	AccountID  string                 `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
-	AccountKey *base.GoogleAuthConfig `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
-}
-
-func (gpc *GooglePlayConfig) Validate() error {
-	if gpc == nil {
-		return errors.New("GooglePlay config is required")
-	}
-
-	if gpc.AccountID == "" {
-		return errors.New("GooglePlay account_id is required")
-	}
-	return gpc.AccountKey.Validate()
-}
-
 type GooglePlay struct {
 	config *GooglePlayConfig
 	client *storage.Client
@@ -67,11 +49,11 @@ type GooglePlay struct {
 }
 
 func init() {
-	if err := base.RegisterDriver(base.GooglePlayType, NewGooglePlay); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", base.GooglePlayType, err)
-	}
+	base.RegisterDriver(base.GooglePlayType, NewGooglePlay)
+	base.RegisterTestConnectionFunc(base.GooglePlayType, TestGooglePlay)
 }
 
+//NewGooglePlay returns configured Google Play driver instance
 func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &GooglePlayConfig{}
 	err := base.UnmarshalConfig(sourceConfig.Config, config)
@@ -81,6 +63,7 @@ func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collect
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+
 	credentialsJSON, err := config.AccountKey.Marshal()
 	if err != nil {
 		return nil, err
@@ -91,6 +74,40 @@ func NewGooglePlay(ctx context.Context, sourceConfig *base.SourceConfig, collect
 	}
 
 	return &GooglePlay{client: client, config: config, ctx: ctx, collection: collection}, nil
+}
+
+//TestGooglePlay tests connection to Google Play without creating Driver instance
+func TestGooglePlay(sourceConfig *base.SourceConfig) error {
+	config := &GooglePlayConfig{}
+	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	if err != nil {
+		return err
+	}
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
+	credentialsJSON, err := config.AccountKey.Marshal()
+	if err != nil {
+		return err
+	}
+
+	client, err := storage.NewClient(context.Background(), option.WithCredentialsJSON(credentialsJSON))
+	if err != nil {
+		return fmt.Errorf("GooglePlay error creating google cloud storage client: %v", err)
+	}
+	defer client.Close()
+
+	bucketName := bucketPrefix + config.AccountID
+	bucket := client.Bucket(bucketName)
+
+	it := bucket.Objects(context.Background(), &storage.Query{})
+	_, err = it.Next()
+	if err != nil && err != iterator.Done {
+		return err
+	}
+
+	return nil
 }
 
 func (gp *GooglePlay) GetCollectionTable() string {
@@ -165,19 +182,6 @@ func (gp *GooglePlay) GetObjectsFor(interval *base.TimeInterval) ([]map[string]i
 	}
 
 	return objects, nil
-}
-
-func (gp *GooglePlay) TestConnection() error {
-	bucketName := bucketPrefix + gp.config.AccountID
-	bucket := gp.client.Bucket(bucketName)
-
-	it := bucket.Objects(gp.ctx, &storage.Query{Prefix: gp.collection.Name})
-	_, err := it.Next()
-	if err != nil && err != iterator.Done {
-		return err
-	}
-
-	return nil
 }
 
 func (gp *GooglePlay) getFilesObjects(bucket *storage.BucketHandle, prefix string) ([]map[string]interface{}, error) {

@@ -3,16 +3,13 @@ package firebase
 import (
 	"cloud.google.com/go/firestore"
 	"context"
-	"errors"
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
-	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
-	"strings"
 	"time"
 )
 
@@ -22,42 +19,6 @@ const (
 	userIDField              = "uid"
 	firestoreDocumentIDField = "_firestore_document_id"
 )
-
-//FirebaseConfig is a Firebase configuration dto for serialization
-type FirebaseConfig struct {
-	ProjectID   string `mapstructure:"project_id" json:"project_id,omitempty" yaml:"project_id,omitempty"`
-	Credentials string `mapstructure:"key" json:"key,omitempty" yaml:"key,omitempty"`
-}
-
-//Validate returns err if configuration is invalid
-func (fc *FirebaseConfig) Validate() error {
-	if fc == nil {
-		return errors.New("firebase config is required")
-	}
-	if fc.ProjectID == "" {
-		return errors.New("project_id is not set")
-	}
-	if fc.Credentials == "" || !strings.HasPrefix(fc.Credentials, "{") {
-		return errors.New("credentials must be a valid JSON")
-	}
-	return nil
-}
-
-//FirestoreParameters is a Firebase Firestore configuration dto for serialization
-type FirestoreParameters struct {
-	FirestoreCollection string `mapstructure:"collection" json:"collection,omitempty" yaml:"collection,omitempty"`
-}
-
-//Validate returns err if configuration is invalid
-func (fp *FirestoreParameters) Validate() error {
-	if fp == nil {
-		return errors.New("'parameters' section is required")
-	}
-	if fp.FirestoreCollection == "" {
-		return errors.New("'collection' is required firebase parameter")
-	}
-	return nil
-}
 
 //Firebase is a Firebase/Firestore driver. It used in syncing data from Firebase/Firestore
 type Firebase struct {
@@ -70,9 +31,8 @@ type Firebase struct {
 }
 
 func init() {
-	if err := base.RegisterDriver(base.FirebaseType, NewFirebase); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", base.FirebaseType, err)
-	}
+	base.RegisterDriver(base.FirebaseType, NewFirebase)
+	base.RegisterTestConnectionFunc(base.FirebaseType, TestFirebase)
 }
 
 //NewFirebase returns configured Firebase driver instance
@@ -133,6 +93,46 @@ func NewFirebase(ctx context.Context, sourceConfig *base.SourceConfig, collectio
 	}, nil
 }
 
+//TestFirebase tests connection to Firebase without creating Driver instance
+func TestFirebase(sourceConfig *base.SourceConfig) error {
+	ctx := context.Background()
+	config := &FirebaseConfig{}
+	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+		return err
+	}
+
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
+	app, err := firebase.NewApp(context.Background(),
+		&firebase.Config{ProjectID: config.ProjectID},
+		option.WithCredentialsJSON([]byte(config.Credentials)))
+	if err != nil {
+		return err
+	}
+
+	firestoreClient, err := app.Firestore(ctx)
+	if err != nil {
+		return err
+	}
+	defer firestoreClient.Close()
+
+	authClient, err := app.Auth(ctx)
+	if err != nil {
+		return err
+	}
+
+	iter := authClient.Users(ctx, "")
+
+	_, err = iter.Next()
+	if err != nil && err != iterator.Done {
+		return err
+	}
+
+	return nil
+}
+
 func (f *Firebase) GetCollectionTable() string {
 	return f.collection.GetTableName()
 }
@@ -152,17 +152,6 @@ func (f *Firebase) GetObjectsFor(interval *base.TimeInterval) ([]map[string]inte
 		return f.loadUsers()
 	}
 	return nil, fmt.Errorf("Unknown collection: %s", f.collection.Type)
-}
-
-func (f *Firebase) TestConnection() error {
-	iter := f.authClient.Users(f.ctx, "")
-
-	_, err := iter.Next()
-	if err != nil && err != iterator.Done {
-		return err
-	}
-
-	return nil
 }
 
 func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {

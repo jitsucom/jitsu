@@ -19,19 +19,6 @@ const (
 	valueField = "value"
 )
 
-var keyConstructors = make(map[string]func(keyName string) key)
-
-//key is a redis key type that gets value with underlying logic depends on key type
-type key interface {
-	get(conn redis.Conn) ([]map[string]interface{}, error)
-	name() string
-}
-
-//registerKey registers function to create new redis key instance
-func registerKey(keyType string, createKeyFunc func(keyName string) key) {
-	keyConstructors[keyType] = createKeyFunc
-}
-
 //Redis is a Redis driver. It is used in syncing data from Redis.
 type Redis struct {
 	collection     *base.Collection
@@ -40,9 +27,8 @@ type Redis struct {
 }
 
 func init() {
-	if err := base.RegisterDriver(base.RedisType, NewRedis); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", base.RedisType, err)
-	}
+	base.RegisterDriver(base.RedisType, NewRedis)
+	base.RegisterTestConnectionFunc(base.RedisType, TestRedis)
 }
 
 //NewRedis returns configured Redis driver instance
@@ -95,6 +81,52 @@ func NewRedis(ctx context.Context, sourceConfig *base.SourceConfig, collection *
 	}, nil
 }
 
+//TestRedis tests connection to Redis without creating Driver instance
+func TestRedis(sourceConfig *base.SourceConfig) error {
+	config := &RedisConfig{}
+	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	if err != nil {
+		return err
+	}
+	err = config.Validate()
+	if err != nil {
+		return err
+	}
+	intPort, err := config.Port.Int64()
+	if err != nil {
+		return fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
+	}
+
+	redisConfig := &meta.RedisConfiguration{
+		Host:          config.Host,
+		Port:          int(intPort),
+		Password:      config.Password,
+		TLSSkipVerify: config.TLSSkipVerify,
+	}
+
+	if redisConfig.Port == 0 && !redisConfig.IsURL() && !redisConfig.IsSecuredURL() {
+		redisConfig.Port = 6379
+	}
+
+	pool, err := meta.NewRedisPool(redisConfig)
+	if err != nil {
+		return err
+	}
+
+	defer pool.Close()
+
+	//test connection
+	connection := pool.Get()
+	defer connection.Close()
+
+	_, err = redis.String(connection.Do("PING"))
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 //GetAllAvailableIntervals returns ALL constant
 func (r *Redis) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
@@ -125,21 +157,6 @@ func (r *Redis) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interfa
 	}
 
 	return result, nil
-}
-
-//TestConnection tests connection to Redis
-//returns err if connection failed
-func (r *Redis) TestConnection() error {
-	//test connection
-	connection := r.connectionPool.Get()
-	defer connection.Close()
-
-	_, err := redis.String(connection.Do("PING"))
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 //Type returns Redis type
