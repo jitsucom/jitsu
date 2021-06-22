@@ -1,6 +1,6 @@
 /* eslint-disable */
 import * as React from 'react';
-import { Button, Card, Checkbox, Col, Form, Grid, Input, message, Row } from 'antd';
+import { Button, Card, Checkbox, Form, message,} from 'antd';
 import './SignupForm.less';
 
 import LockOutlined from '@ant-design/icons/lib/icons/LockOutlined';
@@ -9,7 +9,7 @@ import MailOutlined from '@ant-design/icons/lib/icons/MailOutlined';
 import { NavLink } from 'react-router-dom';
 import { reloadPage } from '../../commons/utils';
 import ApplicationServices from '../../services/ApplicationServices';
-import { Align, handleError } from '../components';
+import { handleError } from '../components';
 import { FloatingLabelInput } from '@component/FloatingLabelInput/FloatingLabelInput';
 import { CheckboxChangeEvent } from 'antd/es/checkbox';
 
@@ -34,33 +34,37 @@ export default class SignupForm extends React.Component<any, State> {
     this.state = { loading: false, tosAgree: true };
   }
 
-  googleSignup() {
-    this.services.userService
-      .initiateGoogleLogin()
-      .then(() => {
-        message.destroy();
-        reloadPage();
-        // this.services.userService.waitForUser().then(() => )
-      })
-      .catch((error) => {
-        message.destroy();
-        console.log('Google auth error', error);
-        message.error('Google signup is unavailable: ' + error.message);
-      });
+  async trackSignup(email: string, signup_type?: string): Promise<void> {
+    return this.services.analyticsService.track('saas_signup', {
+      app: this.services.features.appName,
+      user: { email: email, signup_type}
+    });
   }
 
-  githubSignup() {
-    this.services.userService
-      .initiateGithubLogin()
-      .then(() => {
-        message.destroy();
-        reloadPage();
-      })
-      .catch((error) => {
-        message.destroy();
-        console.log('GitHub auth error', error);
-        message.error('Github signup is unavailable: ' + error.message);
-      });
+  async googleSignup() {
+    try{
+      const email = await this.services.userService.initiateGoogleLogin();
+      message.destroy();
+      await this.trackSignup(email, 'google');
+      reloadPage()
+    } catch (error) {
+      message.destroy();
+      console.log('Google auth error', error);
+      message.error('Google signup is unavailable: ' + error.message);
+    }
+  }
+
+  async githubSignup() {
+    try{
+      const email = await this.services.userService.initiateGithubLogin();
+      message.destroy();
+      await this.trackSignup(email, 'github');
+      reloadPage()
+    } catch (error) {
+      message.destroy();
+      console.log('GitHub auth error', error);
+      message.error('Github signup is unavailable: ' + error.message);
+    }
   }
 
   async passwordSignup(values) {
@@ -71,6 +75,7 @@ export default class SignupForm extends React.Component<any, State> {
     this.setState({ loading: true });
     try {
       await this.services.userService.createUser(values['email'], values['password']);
+      await this.trackSignup(values['email']);
       reloadPage();
     } catch (error) {
       handleError(error);

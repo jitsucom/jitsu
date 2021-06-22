@@ -1,3 +1,6 @@
+@import "./src/theme";
+@import "./src/assets/mixins/custom-scrollbar";
+
 .container {
   display: flex;
   flex-direction: column;
@@ -8,7 +11,10 @@
   max-height: 100%;
   width: 100%;
   margin-bottom: 10px;
+  overflow-x: auto;
   overflow-y: scroll;
+
+  .custom-scrollbar();
 }
 
 .onboardingDocsCustomCollapse {

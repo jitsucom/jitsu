@@ -7,7 +7,6 @@ import ApplicationServices from '@./lib/services/ApplicationServices'
 import { OnboardingClientDocs } from './OnboardingClientDocs'
 // @Helpers
 import ApiKeyHelper from '@./lib/services/ApiKeyHelper'
-import { showOnboardingError } from '../../OnboardingTour'
 // @Styles
 import styles from './OnboardingTourAddJitsuOnClient.module.less'
 
@@ -37,15 +36,21 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = function({
 
       // at this point, all destinations can only be unlinked (or null)
       const unlinkedDestination = helper.destinations[0];
-      if (!unlinkedDestination) {
-        // error - user can not arrive here without destinations
-        showOnboardingError(`internal error`);
+      const appIsCloudHosted = services.features.environment === 'jitsu_cloud';
+
+      if (!unlinkedDestination && appIsCloudHosted) {
+        // error - user can not arrive here without destinations unless he is self-hosted
+        const errorMessage = 'jitsu_cloud user appeared on Onboarding Client Docs without any destinations set up';
+        console.error(errorMessage);
         services.analyticsService.track(
           'onboarding_client_docs_error',
-          { error: 'user appeared on Onboarding Client Docs without any destinations set up' }
+          { error:  errorMessage }
         );
         return;
       }
+
+      // can only happen to self-hosted user who has skipped the database step
+      if (!unlinkedDestination) return;
 
       await helper.linkKeyToDestination(unlinkedKey, unlinkedDestination);
       setApiKey(unlinkedKey);
