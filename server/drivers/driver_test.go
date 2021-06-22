@@ -17,6 +17,10 @@ const (
 	testDriverConfigVar = "TEST_DRIVER_CONFIG"
 )
 
+//TestSemiAutoDriver consumes JSON driver config from testDriverConfigVar
+//creates driver and runs sync of first interval
+//writes result as a table to stdout
+//Note: don't work with Singer drivers
 func TestSemiAutoDriver(t *testing.T) {
 	sourceConfig := os.Getenv(testDriverConfigVar)
 	if sourceConfig == "" {
