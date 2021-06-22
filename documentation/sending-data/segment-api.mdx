@@ -11,7 +11,7 @@ Income events are mapped on JS SDK 2.0 structure automatically.
 
 
 ## Node.js example
-```typescript
+```javascript
 import Analytics from 'analytics-node';
 
 //if you are using JS SDK 2.0 events structure
@@ -41,7 +41,7 @@ For JS SDK 2.0 events structures. Authorization server secret token should be pr
 
 <APIParam name={"X-Auth-Token"} dataType="string" required={true} type="header" description="Server secret token"/>
 <APIParam name={"token"} dataType="string" required={true} type="queryString" description="Server secret token"/>
-<APIParam name={"Authorization"} dataType="string" required={true} type="queryString" description="Basic auth where server secret token is a username (without password)"/>
+<APIParam name={"Authorization"} dataType="string" required={true} type="header" description="Basic auth where server secret token is a username (without password)"/>
 
 <h4>Request Payload</h4>
 
@@ -121,7 +121,7 @@ For deprecated events structures. Authorization server secret token should be pr
 
 <APIParam name={"X-Auth-Token"} dataType="string" required={true} type="header" description="Server secret token"/>
 <APIParam name={"token"} dataType="string" required={true} type="queryString" description="Server secret token"/>
-<APIParam name={"Authorization"} dataType="string" required={true} type="queryString" description="Basic auth where server secret token is a username (without password)"/>
+<APIParam name={"Authorization"} dataType="string" required={true} type="header" description="Basic auth where server secret token is a username (without password)"/>
 
 <h4>Request Payload</h4>
 
@@ -194,5 +194,5 @@ or Segment batch:
 ```
 
 <Hint>
-    Geo data and User-Agent lookup enrichment are applied only if request doesn't have <code inline="true">location</code>, <code inline="true">device</code> and <code inline="true">os</code> fields data respectively.
+    Default Geo data and User-Agent lookup enrichment are applied only if request doesn't have <code inline="true">location</code>, <code inline="true">device</code> and <code inline="true">os</code> fields data respectively.
 </Hint>
