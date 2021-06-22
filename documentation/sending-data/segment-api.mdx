@@ -1,8 +1,9 @@
 # Segment API
 
-Jitsu has a [Segment API](https://segment.com/docs/connections/sources/catalog/libraries/server/http-api/) compatibility endpoint for sending
-events directly from apps or backends using Segment client libraries. Regardless of the programming language you can configure Segment library to send data to Jitsu.
-Just set Jitsu endpoint and API key server secret (as a write key) in Segment lib initialization. Income events are mapped on JS SDK 2.0 structure automatically.
+Jitsu has a [Segment API](https://segment.com/docs/connections/sources/catalog/libraries/server/http-api/) compatibility [endpoint](#apiv1segment) for sending
+events directly from apps or backends using Segment client libraries. You can install and configure Segment library to send data to Jitsu.
+Just set Jitsu endpoint and API key server secret (as a write key) in Segment library instance initialization.
+Income events are mapped on JS SDK 2.0 structure automatically.
 
 <Hint>
   If you are using <a href="/docs/sending-data/javascript-reference">deprecated events API</a> (events structure with <code inline="true">eventn_ctx</code> prefix) please use <code inline="true">/api/v1/segment/compat</code> endpoint.
