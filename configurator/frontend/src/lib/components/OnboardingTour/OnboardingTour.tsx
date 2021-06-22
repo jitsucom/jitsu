@@ -143,10 +143,10 @@ export const OnboardingTour: React.FC = () => {
 
   useEffect(() => {
     const initialPrepareConfig = async(): Promise<void> => {
-      // const userCompletedOnboardingTourPreviously =
-      //   (await services.storageService.get('onboarding_tour_completed', services.activeProject.id)).completed;
+      const userCompletedOnboardingTourPreviously =
+        (await services.storageService.get('onboarding_tour_completed', services.activeProject.id)).completed;
 
-      // if (userCompletedOnboardingTourPreviously) return;
+      if (userCompletedOnboardingTourPreviously) return;
 
       const [
         user,
