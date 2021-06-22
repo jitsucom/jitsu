@@ -1,6 +1,7 @@
 /* eslint-disable */
-import { message } from 'antd';
+import moment, { Moment, Duration } from 'moment';
 import {LS_ACCESS_KEY, LS_REFRESH_KEY} from "@service/backend";
+import { assertHasOwnProperty, assertIsArray, assertIsObject } from '@./utils/typeCheck';
 
 export function concatenateURLs(baseUrl: string, url: string) {
   let base = baseUrl.endsWith('/') ? baseUrl.substr(0, baseUrl.length - 1) : baseUrl;
@@ -116,3 +117,96 @@ export function copyToClipboard(value, unescapeNewLines?: boolean) {
   document.execCommand('copy');
   document.body.removeChild(el);
 }
+
+export type TimeFormattedUserEvent = {
+  time: Moment;
+  data: any;
+};
+
+/**
+ * Formats timestamps from raw user events to Moment.js format 
+ * and brings them to the top level of the object
+ * 
+ * Assumes the following structure of raw events:
+ * 
+ * @example
+ * const rawEvents ={
+ *  events: [
+ *    {
+ *      original: {
+ *        _timestamp: <timestamp>
+ *      }
+ *    }       
+ *  ]
+ * }
+ * 
+ * @param {unknown} rawEvents object with raw user events
+ * @returns array of objects with Moment time and rawEvent data
+ * 
+ * @throws assertion error (if raw event data model is not supported)
+ */
+export function formatTimeOfRawUserEvents(rawEvents: unknown): TimeFormattedUserEvent[] {
+  assertIsObject(rawEvents);
+  assertHasOwnProperty(rawEvents, 'events');
+  const events  = rawEvents.events;
+
+  assertIsArray(events);
+  return events.map((rawEvent: unknown): TimeFormattedUserEvent => {
+    assertIsObject(rawEvent);
+    assertHasOwnProperty(rawEvent, 'original');
+
+    const original = rawEvent.original;
+    assertIsObject(original);
+    assertHasOwnProperty(original, '_timestamp');
+
+    return {
+      time: moment(original._timestamp),
+      data: rawEvent,
+    }
+  })
+}
+
+/**
+ * @param events - array of user events with Momet.js time at the top level
+ * @returns array of same events sorted in descending order by time
+ */
+export function sortTimeFormattedUserEventsDescending(
+  events: TimeFormattedUserEvent[]
+): TimeFormattedUserEvent[] {
+  return events.sort((e1, e2) => {
+    if (e1.time.isAfter(e2.time)) {
+      return -1;
+    } else if (e2.time.isAfter(e1.time)) {
+      return 1;
+    }
+    return 0;
+  });
+}
+
+/**
+ * 
+ * @param event user event with Momet.js time at the top level 
+ * @param timeAgo Moment.Duration period of time from the current date after which the latest event is considered to be 'a long ago'
+ * @returns {boolean} Whether the event was before the (currentDate - timeAgo)
+ */
+export function userEventWasTimeAgo(
+  event: TimeFormattedUserEvent, 
+  timeAgo: Duration
+): boolean {
+  return event.time.isBefore(moment().subtract(timeAgo));
+}
+
+/**
+ * 
+ * @param events Array of user events with Momet.js time at the top level 
+ * @returns the latest user event or null if input is empty array
+ */
+export function getLatestUserEvent(
+  events: TimeFormattedUserEvent[],
+): TimeFormattedUserEvent | null {
+  if (!events.length) return null;
+  return sortTimeFormattedUserEventsDescending(events)[0];
+}
+
+
+

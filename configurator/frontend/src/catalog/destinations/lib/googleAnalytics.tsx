@@ -11,10 +11,12 @@ const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
     </g>
   </g>
 </svg>;
-const googleAnalytics: Destination = {
+
+const googleAnalytics = {
   syncFromSourcesStatus: 'not_supported',
-  displayName: 'GoogleAnalytics',
   id: 'google_analytics',
+  type: 'other',
+  displayName: 'GoogleAnalytics',
   parameters: [
     modeParameter('stream'),
     tableName(filteringExpressionDocumentation),
@@ -31,6 +33,6 @@ const googleAnalytics: Destination = {
     connectCmd: null,
     title: cfg => cfg['_formData']['gaTrackingId']
   }
-}
+} as const;
 
 export default googleAnalytics;

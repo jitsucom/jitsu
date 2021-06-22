@@ -1,7 +1,7 @@
 /* eslint-disable */
 import { Align, CodeSnippet, LoadableComponent } from '../components';
 import ApplicationServices from '../../services/ApplicationServices';
-import { withDefaultVal } from '../../commons/utils';
+import { formatTimeOfRawUserEvents, sortTimeFormattedUserEventsDescending, withDefaultVal } from '../../commons/utils';
 import { Button, Collapse } from 'antd';
 import { NavLink } from 'react-router-dom';
 import React from 'react';
@@ -98,19 +98,17 @@ export default class EventsStream extends LoadableComponent<{}, State> {
   }
 
   protected async load(): Promise<State> {
-    let events: Event[] = (
-      await this.services.backendApiClient.get(`/events/cache?project_id=${this.services.activeProject.id}&limit=100000`, {proxy: true })
-    )['events'].map((rawEvent) => {
-      return { time: moment(rawEvent['original']['_timestamp']), data: rawEvent };
-    });
-    events.sort((e1: Event, e2: Event) => {
-      if (e1.time.isAfter(e2.time)) {
-        return -1;
-      } else if (e2.time.isAfter(e1.time)) {
-        return 1;
-      }
-      return 0;
-    });
+    const rawEvents = await this.services.backendApiClient.get(
+      `/events/cache?project_id=${this.services.activeProject.id}&limit=100000`, 
+      {proxy: true }
+    );
+    const formattedEvents = formatTimeOfRawUserEvents(rawEvents);
+
+    // events are sorted in ascending order (default by api)
+    // sorts them in descending order
+    // (might want to change to events.reverse(), but only if the api always returns asc)
+    const events = sortTimeFormattedUserEventsDescending(formattedEvents);
+
     return { events };
   }
 }

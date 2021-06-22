@@ -39,22 +39,52 @@ import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
 
 type DestinationTabKey = 'config' | 'mappings' | 'sources' | 'settings' | 'statistics';
 
+type DestinationParams = {
+  type?: DestinationType;
+  id?: string;
+  tabName?: string;
+}
+
+type DestinationURLParams = {
+  type?: string;
+  id?: string;
+  tabName?: string;
+}
+
+type ConfigProps = {paramsByProps?: DestinationParams}
+
+type ControlsProps = {
+  disableForceUpdateOnSave?: boolean;
+  onAfterSaveSucceded?: () => void;
+  onCancel?: () => void;
+}
+
+type Props =
+  & CommonDestinationPageProps
+  & ConfigProps
+  & ControlsProps;
+
 const DestinationEditor = ({
   destinations,
-  setBreadcrumbs,
-  updateDestinations,
   editorMode,
   sources,
   sourcesError,
-  updateSources
-}: CommonDestinationPageProps) => {
+  paramsByProps,
+  disableForceUpdateOnSave,
+  updateSources,
+  setBreadcrumbs,
+  updateDestinations,
+  onAfterSaveSucceded,
+  onCancel
+}: Props) => {
   const history = useHistory();
 
   const forceUpdate = useForceUpdate();
 
   const services = ApplicationServices.get();
 
-  const params = useParams<{ type?: string; id?: string; tabName?: string; }>();
+  const urlParams = useParams<DestinationURLParams>();
+  const params = paramsByProps || urlParams;
 
   const [testConnecting, setTestConnecting] = useState<boolean>(false);
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
@@ -176,7 +206,11 @@ const DestinationEditor = ({
     touched: false
   }]);
 
-  const handleCancel = useCallback(() => history.push(destinationPageRoutes.root), [history]);
+  const handleCancel = useCallback(() => {
+    onCancel
+      ? onCancel()
+      : history.push(destinationPageRoutes.root)
+  }, [history, onCancel]);
 
   const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
   const savePopoverClose = useCallback(() => switchSavePopover(false), []);
@@ -305,18 +339,21 @@ const DestinationEditor = ({
             );
           }
 
-          history.push(destinationPageRoutes.root);
+          onAfterSaveSucceded
+            ? onAfterSaveSucceded()
+            : history.push(destinationPageRoutes.root);
         } catch (errors) {
         }
       })
-      .catch((errors) => {
+      .catch(() => {
         switchSavePopover(true);
       })
       .finally(() => {
         setDestinationSaving(false);
-        forceUpdate();
+        !disableForceUpdateOnSave && forceUpdate();
       });
   }, [sources, history, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode, services.activeProject.id, services.storageService, updateSources]);
+
   const connectedSourcesNum = sources.filter(src => (src.destinations || []).includes(destinationData.current._uid)).length;
 
   const isAbleToConnectItems = () => editorMode === 'edit' && connectedSourcesNum === 0 && !destinationData.current?._onlyKeys?.length;
@@ -336,7 +373,7 @@ const DestinationEditor = ({
   return (
     <>
       <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
-        <div className={cn('flex flex-col flex-grow', styles.mainArea)} id="dst-editor-tabs">
+        <div className={styles.mainArea} id="dst-editor-tabs">
           {
             isAbleToConnectItems() && (
               <Card className={styles.linkedWarning}>

@@ -3,7 +3,7 @@ import Marshal from '../commons/marshalling';
 
 export class Project {
   private readonly _id: string;
-  private readonly _name: string;
+  private _name: string;
   private _planId?: string;
 
   constructor(id: string, name: string) {
@@ -17,6 +17,10 @@ export class Project {
 
   get name(): string {
     return this._name;
+  }
+
+  set name(value: string) {
+    this._name = value;
   }
 
   get planId(): string {
