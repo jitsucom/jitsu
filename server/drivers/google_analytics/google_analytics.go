@@ -1,9 +1,10 @@
-package drivers
+package google_analytics
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	ga "google.golang.org/api/analyticsreporting/v4"
@@ -46,54 +47,39 @@ var (
 	}
 )
 
-type GoogleAnalyticsConfig struct {
-	AuthConfig *GoogleAuthConfig `mapstructure:"auth" json:"auth,omitempty" yaml:"auth,omitempty"`
-	ViewID     string            `mapstructure:"view_id" json:"view_id,omitempty" yaml:"view_id,omitempty"`
-}
-
-type GAReportFieldsConfig struct {
-	Dimensions []string `mapstructure:"dimensions" json:"dimensions,omitempty" yaml:"dimensions,omitempty"`
-	Metrics    []string `mapstructure:"metrics" json:"metrics,omitempty" yaml:"metrics,omitempty"`
-}
-
-func (gac *GoogleAnalyticsConfig) Validate() error {
-	if gac.ViewID == "" {
-		return fmt.Errorf("view_id field must not be empty")
-	}
-	return gac.AuthConfig.Validate()
-}
-
 type GoogleAnalytics struct {
 	ctx                context.Context
 	config             *GoogleAnalyticsConfig
 	service            *ga.Service
-	collection         *Collection
+	collection         *base.Collection
 	reportFieldsConfig *GAReportFieldsConfig
 }
 
 func init() {
-	if err := RegisterDriver(GoogleAnalyticsType, NewGoogleAnalytics); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", GoogleAnalyticsType, err)
-	}
+	base.RegisterDriver(base.GoogleAnalyticsType, NewGoogleAnalytics)
+	base.RegisterTestConnectionFunc(base.GoogleAnalyticsType, TestGoogleAnalytics)
 }
 
-func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+//NewGoogleAnalytics returns configured Google Analytics driver instance
+func NewGoogleAnalytics(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &GoogleAnalyticsConfig{}
-	err := UnmarshalConfig(sourceConfig.Config, config)
+	err := base.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
+
 	var reportFieldsConfig GAReportFieldsConfig
-	err = UnmarshalConfig(collection.Parameters, &reportFieldsConfig)
+	err = base.UnmarshalConfig(collection.Parameters, &reportFieldsConfig)
 	if err != nil {
 		return nil, err
 	}
 	if len(reportFieldsConfig.Metrics) == 0 || len(reportFieldsConfig.Dimensions) == 0 {
 		return nil, errors.New("metrics and dimensions must not be empty")
 	}
+
 	credentialsJSON, err := config.AuthConfig.Marshal()
 	if err != nil {
 		return nil, err
@@ -106,9 +92,49 @@ func NewGoogleAnalytics(ctx context.Context, sourceConfig *SourceConfig, collect
 		reportFieldsConfig: &reportFieldsConfig}, nil
 }
 
-func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*TimeInterval, error) {
-	var intervals []*TimeInterval
-	daysBackToLoad := defaultDaysBackToLoad
+//TestGoogleAnalytics tests connection to Google Analytics without creating Driver instance
+func TestGoogleAnalytics(sourceConfig *base.SourceConfig) error {
+	config := &GoogleAnalyticsConfig{}
+	err := base.UnmarshalConfig(sourceConfig.Config, config)
+	if err != nil {
+		return err
+	}
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
+	credentialsJSON, err := config.AuthConfig.Marshal()
+	if err != nil {
+		return err
+	}
+	service, err := ga.NewService(context.Background(), option.WithCredentialsJSON(credentialsJSON))
+	if err != nil {
+		return fmt.Errorf("failed to create GA service: %v", err)
+	}
+
+	now := time.Now().UTC()
+	startDate := now.AddDate(0, 0, -1)
+	req := &ga.GetReportsRequest{
+		ReportRequests: []*ga.ReportRequest{
+			{
+				ViewId: config.ViewID,
+				DateRanges: []*ga.DateRange{
+					{StartDate: startDate.Format(dayLayout),
+						EndDate: now.Format(dayLayout)},
+				},
+				PageToken: "",
+				PageSize:  1,
+			},
+		},
+	}
+
+	_, err = service.Reports.BatchGet(req).Do()
+	return err
+}
+
+func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
+	var intervals []*base.TimeInterval
+	daysBackToLoad := base.DefaultDaysBackToLoad
 	if g.collection.DaysBackToLoad > 0 {
 		daysBackToLoad = g.collection.DaysBackToLoad
 	}
@@ -116,12 +142,12 @@ func (g *GoogleAnalytics) GetAllAvailableIntervals() ([]*TimeInterval, error) {
 	now := time.Now().UTC()
 	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
-		intervals = append(intervals, NewTimeInterval(DAY, date))
+		intervals = append(intervals, base.NewTimeInterval(base.DAY, date))
 	}
 	return intervals, nil
 }
 
-func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
+func (g *GoogleAnalytics) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	logging.Debug("Sync time interval:", interval.String())
 	dateRanges := []*ga.DateRange{
 		{StartDate: interval.LowerEndpoint().Format(dayLayout),
@@ -138,7 +164,7 @@ func (g *GoogleAnalytics) GetObjectsFor(interval *TimeInterval) ([]map[string]in
 }
 
 func (g *GoogleAnalytics) Type() string {
-	return GoogleAnalyticsType
+	return base.GoogleAnalyticsType
 }
 
 func (g *GoogleAnalytics) Close() error {
@@ -151,30 +177,6 @@ func (g *GoogleAnalytics) GetCollectionTable() string {
 
 func (g *GoogleAnalytics) GetCollectionMetaKey() string {
 	return g.collection.Name + "_" + g.GetCollectionTable()
-}
-
-func (g *GoogleAnalytics) TestConnection() error {
-	now := time.Now().UTC()
-	startDate := now.AddDate(0, 0, -1)
-	req := &ga.GetReportsRequest{
-		ReportRequests: []*ga.ReportRequest{
-			{
-				ViewId: g.config.ViewID,
-				DateRanges: []*ga.DateRange{
-					{StartDate: startDate.Format(dayLayout),
-						EndDate: now.Format(dayLayout)},
-				},
-				PageToken: "",
-				PageSize:  1,
-			},
-		},
-	}
-	_, err := g.executeWithRetry(g.service.Reports.BatchGet(req), true)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, dimensions []string, metrics []string) ([]map[string]interface{}, error) {
@@ -202,7 +204,7 @@ func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, 
 				},
 			},
 		}
-		response, err := g.executeWithRetry(g.service.Reports.BatchGet(req), false)
+		response, err := g.executeWithRetry(g.service.Reports.BatchGet(req))
 		if err != nil {
 			return nil, err
 		}
@@ -247,7 +249,7 @@ func (g *GoogleAnalytics) loadReport(viewID string, dateRanges []*ga.DateRange, 
 	return result, nil
 }
 
-func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall, failFast bool) (*ga.GetReportsResponse, error) {
+func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall) (*ga.GetReportsResponse, error) {
 	attempt := 0
 	var response *ga.GetReportsResponse
 	var err error
@@ -255,10 +257,6 @@ func (g *GoogleAnalytics) executeWithRetry(reportCall *ga.ReportsBatchGetCall, f
 		response, err = reportCall.Do()
 		if err == nil {
 			return response, nil
-		}
-
-		if failFast {
-			return nil, err
 		}
 
 		time.Sleep(time.Duration(attempt+1) * time.Second)

@@ -1,11 +1,11 @@
-package drivers
+package facebook_marketing
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	fb "github.com/huandu/facebook/v2"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	"strings"
@@ -39,48 +39,31 @@ const (
 	InsightsCollection = "insights"
 	AdsCollection      = "ads"
 	fbMaxAttempts      = 2
+
+	fbMarketingAPIVersion      = "v9.0"
+	defaultFacebookReportLevel = "ad"
 )
 
-type FacebookMarketing struct {
-	collection   *Collection
-	config       *FacebookMarketingConfig
-	reportConfig *FacebookReportConfig
+func init() {
+	base.RegisterDriver(base.FbMarketingType, NewFacebookMarketing)
+	base.RegisterTestConnectionFunc(base.FbMarketingType, TestFacebookMarketingConnection)
 }
 
-type FacebookReportConfig struct {
-	Fields []string `mapstructure:"fields" json:"fields,omitempty" yaml:"fields,omitempty"`
-	Level  string   `mapstructure:"level" json:"level,omitempty" yaml:"level,omitempty"`
-}
-
-type FacebookMarketingConfig struct {
-	AccountID   string `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
-	AccessToken string `mapstructure:"access_token" json:"access_token,omitempty" yaml:"access_token,omitempty"`
-}
-
-func (fmc *FacebookMarketingConfig) Validate() error {
-	if fmc.AccountID == "" {
-		return errors.New("account_id is required")
-	}
-	if fmc.AccessToken == "" {
-		return errors.New("access_token is required")
-	}
-	return nil
-}
-
-func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+//NewFacebookMarketing returns configured Facebook Marketing driver instance
+func NewFacebookMarketing(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &FacebookMarketingConfig{}
-	if err := UnmarshalConfig(sourceConfig.Config, config); err != nil {
+	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
 		return nil, err
 	}
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	reportConfig := &FacebookReportConfig{}
-	if err := UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
+	if err := base.UnmarshalConfig(collection.Parameters, reportConfig); err != nil {
 		return nil, err
 	}
 	if reportConfig.Level == "" {
-		reportConfig.Level = "ad"
+		reportConfig.Level = defaultFacebookReportLevel
 
 		logging.Warnf("[%s_%s] parameters.level wasn't provided. Will be used default one: %s", sourceConfig.SourceID, collection.Name, reportConfig.Level)
 	}
@@ -91,21 +74,35 @@ func NewFacebookMarketing(ctx context.Context, sourceConfig *SourceConfig, colle
 	return &FacebookMarketing{collection: collection, config: config, reportConfig: reportConfig}, nil
 }
 
-func init() {
-	if err := RegisterDriver(FbMarketingType, NewFacebookMarketing); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", FbMarketingType, err)
+//TestFacebookMarketingConnection tests connection to Facebook without creating Driver instance
+func TestFacebookMarketingConnection(sourceConfig *base.SourceConfig) error {
+	config := &FacebookMarketingConfig{}
+	if err := base.UnmarshalConfig(sourceConfig.Config, config); err != nil {
+		return err
 	}
+	if err := config.Validate(); err != nil {
+		return err
+	}
+
+	fm := &FacebookMarketing{config: config, reportConfig: &FacebookReportConfig{Level: defaultFacebookReportLevel}}
+
+	_, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/insights", fbMarketingAPIVersion, fm.config.AccountID), []string{}, nil, 10, true)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //GetAllAvailableIntervals return half a year by default
-func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error) {
+func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	if fm.collection.Type == AdsCollection {
-		return []*TimeInterval{NewTimeInterval(ALL, time.Time{})}, nil
+		return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
 	}
 
 	//insights
-	var intervals []*TimeInterval
-	daysBackToLoad := defaultDaysBackToLoad
+	var intervals []*base.TimeInterval
+	daysBackToLoad := base.DefaultDaysBackToLoad
 	if fm.collection.DaysBackToLoad > 0 {
 		daysBackToLoad = fm.collection.DaysBackToLoad
 	}
@@ -113,12 +110,12 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*TimeInterval, error)
 	now := time.Now().UTC()
 	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
-		intervals = append(intervals, NewTimeInterval(DAY, date))
+		intervals = append(intervals, base.NewTimeInterval(base.DAY, date))
 	}
 	return intervals, nil
 }
 
-func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
+func (fm *FacebookMarketing) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	switch fm.collection.Type {
 	case AdsCollection:
 		return fm.syncAdsReport(interval)
@@ -129,26 +126,8 @@ func (fm *FacebookMarketing) GetObjectsFor(interval *TimeInterval) ([]map[string
 	}
 }
 
-func (fm *FacebookMarketing) TestConnection() error {
-	var path string
-	if fm.collection.Type == InsightsCollection {
-		path = "/insights"
-	} else if fm.collection.Type == AdsCollection {
-		path = "/ads"
-	} else {
-		return fmt.Errorf("Unknown collection type [%s]. Only [%s] and [%s] are supported now", fm.collection.Type, AdsCollection, InsightsCollection)
-	}
-
-	_, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+path, fm.reportConfig.Fields, nil, 10, true)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
-	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/insights", fm.reportConfig.Fields, interval, 0, false)
+func (fm *FacebookMarketing) syncInsightsReport(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+	rows, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/insights", fbMarketingAPIVersion, fm.config.AccountID), fm.reportConfig.Fields, interval, 0, false)
 	if err != nil {
 		return nil, err
 	}
@@ -157,8 +136,8 @@ func (fm *FacebookMarketing) syncInsightsReport(interval *TimeInterval) ([]map[s
 	return rows, nil
 }
 
-func (fm *FacebookMarketing) syncAdsReport(interval *TimeInterval) ([]map[string]interface{}, error) {
-	rows, err := fm.loadReportWithRetry("/v9.0/act_"+fm.config.AccountID+"/ads", fm.reportConfig.Fields, nil, 200, false)
+func (fm *FacebookMarketing) syncAdsReport(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+	rows, err := fm.loadReportWithRetry(fmt.Sprintf("/%s/act_%s/ads", fbMarketingAPIVersion, fm.config.AccountID), fm.reportConfig.Fields, nil, 200, false)
 	if err != nil {
 		return nil, err
 	}
@@ -167,14 +146,14 @@ func (fm *FacebookMarketing) syncAdsReport(interval *TimeInterval) ([]map[string
 	return rows, nil
 }
 
-func (fm *FacebookMarketing) buildTimeInterval(interval *TimeInterval) string {
+func (fm *FacebookMarketing) buildTimeInterval(interval *base.TimeInterval) string {
 	dayStart := interval.LowerEndpoint()
-	since := DAY.Format(dayStart)
-	until := DAY.Format(dayStart.AddDate(0, 0, 1))
+	since := base.DAY.Format(dayStart)
+	until := base.DAY.Format(dayStart.AddDate(0, 0, 1))
 	return fmt.Sprintf("{'since': '%s', 'until': '%s'}", since, until)
 }
 
-func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, interval *TimeInterval, pageLimit int, failFast bool) ([]map[string]interface{}, error) {
+func (fm *FacebookMarketing) loadReportWithRetry(url string, fields []string, interval *base.TimeInterval, pageLimit int, failFast bool) ([]map[string]interface{}, error) {
 	requestParameters := fb.Params{
 		"level":        fm.reportConfig.Level,
 		"fields":       strings.Join(fields, ","),
@@ -284,7 +263,7 @@ func (fm *FacebookMarketing) logUsage(usage *fb.UsageInfo) {
 }
 
 func (fm *FacebookMarketing) Type() string {
-	return FbMarketingType
+	return base.FbMarketingType
 }
 
 func (fm *FacebookMarketing) GetCollectionTable() string {

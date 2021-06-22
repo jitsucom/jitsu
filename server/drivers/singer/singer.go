@@ -1,4 +1,4 @@
-package drivers
+package singer
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/singer"
@@ -38,55 +39,6 @@ var (
 	errNotReady = errors.New("Singer driver isn't ready yet. Tap is being installed..")
 )
 
-//SingerRawCatalog is a dto for Singer catalog serialization
-type SingerRawCatalog struct {
-	Streams []map[string]interface{} `json:"streams,omitempty"`
-}
-
-//SingerCatalog is a dto for Singer catalog partly serialization (only for extracting destination_table_name)
-type SingerCatalog struct {
-	Streams []SingerStreamCatalog `json:"streams,omitempty"`
-}
-
-//SingerStreamCatalog is a dto for Singer catalog Stream object serialization
-type SingerStreamCatalog struct {
-	Stream               string `json:"stream,omitempty"`
-	TapStreamID          string `json:"tap_stream_id,omitempty"`
-	DestinationTableName string `json:"destination_table_name,omitempty"`
-}
-
-//SingerConfig is a dto for Singer configuration serialization
-type SingerConfig struct {
-	Tap                    string            `mapstructure:"tap" json:"tap,omitempty" yaml:"tap,omitempty"`
-	Config                 interface{}       `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
-	Catalog                interface{}       `mapstructure:"catalog" json:"catalog,omitempty" yaml:"catalog,omitempty"`
-	Properties             interface{}       `mapstructure:"properties" json:"properties,omitempty" yaml:"properties,omitempty"`
-	InitialState           interface{}       `mapstructure:"initial_state" json:"initial_state,omitempty" yaml:"initial_state,omitempty"`
-	StreamTableNames       map[string]string `mapstructure:"stream_table_names" json:"stream_table_names,omitempty" yaml:"stream_table_names,omitempty"`
-	StreamTableNamesPrefix string            `mapstructure:"stream_table_name_prefix" json:"stream_table_name_prefix,omitempty" yaml:"stream_table_name_prefix,omitempty"`
-}
-
-//Validate returns err if configuration is invalid
-func (sc *SingerConfig) Validate() error {
-	if sc == nil {
-		return errors.New("Singer config is required")
-	}
-
-	if sc.Tap == "" {
-		return errors.New("Singer tap is required")
-	}
-
-	if sc.Config == nil {
-		return errors.New("Singer config is required")
-	}
-
-	if sc.StreamTableNames == nil {
-		sc.StreamTableNames = map[string]string{}
-	}
-
-	return nil
-}
-
 type Singer struct {
 	sync.RWMutex
 	commands map[string]*exec.Cmd
@@ -108,9 +60,8 @@ type Singer struct {
 }
 
 func init() {
-	if err := RegisterDriver(SingerType, NewSinger); err != nil {
-		logging.Errorf("Failed to register driver %s: %v", SingerType, err)
-	}
+	base.RegisterDriver(base.SingerType, NewSinger)
+	base.RegisterTestConnectionFunc(base.SingerType, TestSinger)
 }
 
 //NewSinger returns Singer driver and
@@ -118,9 +69,9 @@ func init() {
 //2. runs discover and collects catalog.json
 //2. creates venv
 //3. in another goroutine: updates pip, install singer tap
-func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Collection) (Driver, error) {
+func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &SingerConfig{}
-	err := UnmarshalConfig(sourceConfig.Config, config)
+	err := base.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +156,34 @@ func NewSinger(ctx context.Context, sourceConfig *SourceConfig, collection *Coll
 	return s, nil
 }
 
+//TestSinger tests singer connection (runs discover) if tap has been installed otherwise returns nil
+func TestSinger(sourceConfig *base.SourceConfig) error {
+	driver, err := NewSinger(context.Background(), sourceConfig, nil)
+	if err != nil {
+		return err
+	}
+	defer driver.Close()
+
+	singerDriver, _ := driver.(*Singer)
+
+	ready, _ := singerDriver.Ready()
+	if !ready {
+		return nil
+	}
+
+	outWriter := logging.NewStringWriter()
+	errWriter := logging.NewStringWriter()
+
+	command := path.Join(singer.Instance.VenvDir, singerDriver.tap, "bin", singerDriver.tap)
+
+	err = singer.Instance.ExecCmd(command, outWriter, errWriter, "-c", singerDriver.configPath, "--discover")
+	if err != nil {
+		return fmt.Errorf("Error singer --discover: %v. %s", err, errWriter.String())
+	}
+
+	return nil
+}
+
 //EnsureTapAndCatalog ensures Singer tap via singer.Instance
 // and does discover if catalog wasn't provided
 func (s *Singer) EnsureTapAndCatalog() {
@@ -259,12 +238,12 @@ func (s *Singer) GetCollectionMetaKey() string {
 }
 
 //GetAllAvailableIntervals unsupported
-func (s *Singer) GetAllAvailableIntervals() ([]*TimeInterval, error) {
+func (s *Singer) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	return nil, errors.New("Singer driver doesn't support GetAllAvailableIntervals() func. Please use SingerTask")
 }
 
 //GetObjectsFor unsupported
-func (s *Singer) GetObjectsFor(interval *TimeInterval) ([]map[string]interface{}, error) {
+func (s *Singer) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	return nil, errors.New("Singer driver doesn't support GetObjectsFor() func. Please use SingerTask")
 }
 
@@ -395,28 +374,8 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 	return nil
 }
 
-//TestConnection tests singer connection (runs discover) if tap has been installed otherwise returns nil
-func (s *Singer) TestConnection() error {
-	ready, _ := s.Ready()
-	if !ready {
-		return nil
-	}
-
-	outWriter := logging.NewStringWriter()
-	errWriter := logging.NewStringWriter()
-
-	command := path.Join(singer.Instance.VenvDir, s.tap, "bin", s.tap)
-
-	err := singer.Instance.ExecCmd(command, outWriter, errWriter, "-c", s.configPath, "--discover")
-	if err != nil {
-		return fmt.Errorf("Error singer --discover: %v. %s", err, errWriter.String())
-	}
-
-	return nil
-}
-
 func (s *Singer) Type() string {
-	return SingerType
+	return base.SingerType
 }
 
 func (s *Singer) Close() (multiErr error) {
