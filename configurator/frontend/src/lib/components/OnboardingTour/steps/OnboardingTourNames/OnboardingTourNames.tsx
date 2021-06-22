@@ -58,8 +58,13 @@ export const OnboardingTourNames: React.FC<OnboardingTourNamesStepProps> = funct
       return;
     }
     try {
+      // for rare case if user arrived without a project
       if (!user.projects || !user.projects.length) {
         user.projects = [new Project(randomId(5), values.projectName)];
+      }
+      // user may not have the project name after the sign up
+      else if (!user.projects[0].name) {
+        user.projects[0].name = values.projectName;
       }
       if (!user.created) {
         user.created = new Date();
