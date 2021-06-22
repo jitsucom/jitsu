@@ -1,19 +1,26 @@
 // @Libs
 import React, { memo, useCallback, useMemo, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Input } from 'antd';
+import { Button, Input } from 'antd';
 import debounce from 'lodash/debounce';
 import cn from 'classnames';
 // @Styles
 import styles from './DropDownList.module.less';
 
-export interface DropDownListItem {
+type DropdownListItemCommonFields = {
   id: string;
   title: string;
   icon: React.ReactNode;
-  link: string;
   isSingerType?: boolean;
 }
+
+type DropdownListItemActionsFields =
+  | {link: string, handleClick?: undefined}
+  | {link?: null, handleClick: () => void}
+
+export type DropDownListItem =
+  & DropdownListItemCommonFields
+  & DropdownListItemActionsFields
 
 export interface Props {
   filterPlaceholder?: string;
@@ -45,14 +52,26 @@ const DropDownListComponent = ({ filterPlaceholder, list, hideFilter = false, ge
       }
 
       <ul className={styles.list}>
-        {filteredList.map((item: DropDownListItem, index: number) => (
-          <li key={`${item.id}-${item.title}`} className={cn(styles.item, getClassName && getClassName(filteredList, item, index))}>
-            <NavLink to={item.link} className={styles.link}>
-              <span className={styles.icon}>{item.icon}</span>
-              <span className={styles.name}>{item.title}</span>
-            </NavLink>
-          </li>
-        ))}
+        {filteredList.map((item: DropDownListItem, index: number) => {
+          const iconAdditionalProps = {
+            className: styles.icon
+          }
+          return (
+            <li key={`${item.id}-${item.title}`} className={cn(styles.item, getClassName && getClassName(filteredList, item, index))}>
+              {item.link ? (
+                <NavLink to={item.link} className={styles.link}>
+                  <span className={styles.icon}>{item.icon}</span>
+                  <span className={styles.name}>{item.title}</span>
+                </NavLink>
+              ) : (
+                <span className={styles.clickableItemContainer} onClick={item.handleClick}>
+                  <span className={styles.icon}>{item.icon}</span>
+                  <span className={styles.name}>{item.title}</span>
+                </span>
+              )}
+            </li>
+          )
+        })}
       </ul>
     </div>
   );

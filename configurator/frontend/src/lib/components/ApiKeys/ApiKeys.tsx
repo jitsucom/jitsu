@@ -26,7 +26,7 @@ import useLoader from '@hooks/useLoader';
 import { randomId } from '@util/numbers';
 import { useServices } from '@hooks/useServices';
 
-type Token = {
+export type UserAPIToken = {
   uid: string;
   jsAuth: string;
   serverAuth: string;
@@ -34,10 +34,14 @@ type Token = {
   comment?: string;
 };
 
+type TokensBackendResponse = {
+  keys?: UserAPIToken[]; 
+}
+
 type LoadingEntity = number | 'NEW' | null;
 type State = {
   loading: LoadingEntity; //what's displayed as loading? number - index of key, "NEW" - new button, null - nothing
-  tokens: Token[];
+  tokens: UserAPIToken[];
 };
 
 function generateNewKeyWithConfirmation(onConfirm: () => void) {
@@ -53,6 +57,35 @@ function generateNewKeyWithConfirmation(onConfirm: () => void) {
   });
 }
 
+export function generateNewAPIToken(type: string, len?: number): string {
+  const postfix = `${ApplicationServices.get().activeProject.id}.${randomId(len)}`;
+  return type.length > 0 ?
+    `${type}.${postfix}` :
+    postfix;
+}
+
+export async function fetchUserAPITokens(): Promise<TokensBackendResponse | never> {
+  const services = ApplicationServices.get();
+  return services.storageService.get('api_keys', services.activeProject.id)
+}
+/**
+ * WARNING - this function will re-write all data stored on the backend. 
+ * It is safe to use only if you have merged the previous state in the request.
+ * @param newTokens - Tokens to put to server
+ * @returns Empty promise
+ */
+export async function _unsafeRequestPutUserAPITokens(newTokens: UserAPIToken[]): Promise<void | never> {
+  const services = ApplicationServices.get();
+  return services.storageService.save('api_keys', { keys: newTokens }, services.activeProject.id);
+}
+
+export async function requestAddNewUserAPIToken(newToken: UserAPIToken): Promise<void | never> {
+  const services = ApplicationServices.get();
+  const prevState = (await fetchUserAPITokens()).keys;
+  const newState = prevState ? [...prevState, newToken] : [newToken];
+  return services.storageService.save('api_keys', { keys: newState }, services.activeProject.id);
+}
+
 export default class ApiKeys extends LoadableComponent<{}, State> {
   private readonly services: ApplicationServices;
 
@@ -66,11 +99,12 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
   }
 
   protected async load(): Promise<State> {
-    let payload = await this.services.storageService.get('api_keys', this.services.activeProject.id);
+    let payload = await fetchUserAPITokens();
     return {
-      tokens: payload && payload.keys ?
-        payload.keys :
-        [], loading: null
+      tokens: payload && payload.keys 
+          ? payload.keys 
+          : [], 
+      loading: null
     };
   }
 
@@ -84,14 +118,17 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
           loading={'NEW' === this.state.loading}
           onClick={async() => {
             let newToken = {
-              uid: this.newToken('', 6),
-              serverAuth: this.newToken('s2s'),
-              jsAuth: this.newToken('js'),
+              uid: generateNewAPIToken('', 6),
+              serverAuth: generateNewAPIToken('s2s'),
+              jsAuth: generateNewAPIToken('js'),
               origins: []
             };
             let newTokens = [...this.state.tokens, newToken];
             await this.saveTokens(newTokens, 'NEW');
-            message.info('New API key has been saved!');
+            const tokenSuccessfullySaved = this.state.tokens.find(
+              token => token.uid === newToken.uid
+            )
+            tokenSuccessfullySaved && message.info('New API key has been saved!');
           }}
         >
           Generate New Key
@@ -117,7 +154,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
         className: 'api-keys-column-id',
         dataIndex: 'uid',
         key: 'uid',
-        render: (text, row: Token, index) => {
+        render: (text, row: UserAPIToken, index) => {
           return (
             <>
               <span className="font-mono text-sm">{text}</span>
@@ -147,7 +184,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
                 <ActionLink
                   onClick={() => {
                     generateNewKeyWithConfirmation(() => {
-                      this.state.tokens[index].jsAuth = this.newToken('js');
+                      this.state.tokens[index].jsAuth = generateNewAPIToken('js');
                       this.saveTokens(this.state.tokens, index);
                       message.info('New key has been generated and saved');
                     })
@@ -185,7 +222,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
                 <ActionLink
                   onClick={() => {
                     generateNewKeyWithConfirmation(() => {
-                      this.state.tokens[index].serverAuth = this.newToken('s2s');
+                      this.state.tokens[index].serverAuth = generateNewAPIToken('s2s');
                       this.saveTokens(this.state.tokens, index);
                       message.info('New key has been generated and saved');
                     })
@@ -245,7 +282,7 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
         className: 'api-keys-column-actions',
         title: 'Actions',
         dataIndex: 'actions',
-        render: (text, row: Token, index) => {
+        render: (text, row: UserAPIToken, index) => {
           return (
             <>
               <Tooltip trigger={['hover']} title={'Show integration documentation'}>
@@ -306,16 +343,18 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
     return nodes;
   }
 
-  private async saveTokens(newTokens: Token[], loading: LoadingEntity) {
+  private async saveTokens(newTokens: UserAPIToken[], loading: LoadingEntity) {
     this.setState({
       loading: loading
     });
     try {
-      await this.services.storageService.save('api_keys', { keys: newTokens }, this.services.activeProject.id);
-      this.setState({ tokens: newTokens, loading: null });
+      await _unsafeRequestPutUserAPITokens(newTokens);
+      this.setState({ tokens: newTokens });
     } catch (e) {
       message.error('Can\'t generate new token: ' + e.message);
       console.log(e);
+    } finally {
+      this.setState({loading: null});
     }
   }
 
@@ -323,20 +362,21 @@ export default class ApiKeys extends LoadableComponent<{}, State> {
     copyToClipboard(value);
     message.success('Key copied to clipboard');
   }
-
-  private newToken(type: string, len?: number) {
-    let postfix = `${this.services.activeProject.id}.${randomId(len)}`;
-    return type.length > 0 ?
-      `${type}.${postfix}` :
-      postfix;
-  }
 }
 
 function getDomainsSelection(env: string) {
   return env === 'heroku' ? [location.protocol + '//' + location.host] : []
 }
 
-function KeyDocumentation({ token }: { token: Token }) {
+type KeyDocumentationProps = {
+  token: UserAPIToken;
+  displayDomainDropdown?: boolean;
+}
+
+export const KeyDocumentation: React.FC<KeyDocumentationProps> = function({ 
+  token,
+  displayDomainDropdown = true 
+}) {
   const [segment, setSegmentEnabled] = useState(false);
   const services = useServices();
   const staticDomains = getDomainsSelection(services.features.environment);
@@ -386,12 +426,16 @@ function KeyDocumentation({ token }: { token: Token }) {
       defaultActiveKey="1"
       tabBarExtraContent={
         <>
-          {domains.length > 0 && <><LabelWithTooltip documentation="Domain" render="Domain"/>:{' '}
-            <Select defaultValue={domains[0]} onChange={(value) => setSelectedDomain(value)}>
-              {domains.map((domain) => {
-                return <Select.Option value={domain}>{domain}</Select.Option>;
-              })}
-            </Select></>}
+          {domains.length > 0 && displayDomainDropdown && 
+            <>
+              <LabelWithTooltip documentation="Domain" render="Domain"/>:{' '}
+              <Select defaultValue={domains[0]} onChange={(value) => setSelectedDomain(value)}>
+                {domains.map((domain) => {
+                  return <Select.Option value={domain}>{domain}</Select.Option>;
+                })}
+              </Select>
+            </>
+          }
         </>
       }
     >
