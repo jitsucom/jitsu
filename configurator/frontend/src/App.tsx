@@ -11,7 +11,6 @@ import ApplicationServices, {setDebugInfo} from './lib/services/ApplicationServi
 import {Align, CenteredSpin, GlobalError, handleError, Preloader} from './lib/components/components';
 import {reloadPage} from './lib/commons/utils';
 import {User} from './lib/services/model';
-import OnboardingForm from './lib/components/OnboardingForm/OnboardingForm';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import { ApplicationPage, SlackChatWidget } from './Layout';
