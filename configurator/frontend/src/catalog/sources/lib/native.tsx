@@ -362,7 +362,14 @@ export const redis: SourceConnector = {
       id: 'config.password',
       type: passwordType
     }
-  ]
+  ],
+  documentation: {
+    overview: <>The Redis connector pulls data from <a href="https://redis.io/commands/get">string</a>, <a href="https://redis.io/commands/hscan">hash</a>, <a href="https://redis.io/commands/lrange">list</a>, <a href="https://redis.io/commands/sscan">set</a>, <a href="https://redis.io/commands/zscan">sorted set</a> keys.
+      It works with a certain Redis key configuration as well as key pattern.
+      Jitsu uses <a href="https://redis.io/commands/scan">scan</a> commands which prevent blocking and doesn't affect Redis performance.
+    </>,
+    connection: <></>
+  }
 }
 
 export const allNativeConnectors = [facebook, redis, firebase, googleAnalytics, googlePlay];
