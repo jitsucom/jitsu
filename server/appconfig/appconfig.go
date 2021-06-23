@@ -114,6 +114,7 @@ func setDefaultParams(containerized bool) {
 		"/ip -> ",
 		"/locale -> ",
 		"/context/user_agent -> /user_agent",
+		"/properties -> /",
 		"/context -> /",
 	})
 
@@ -154,6 +155,7 @@ func setDefaultParams(containerized bool) {
 		"/ip -> ",
 		"/locale -> ",
 		"/context/user_agent -> /eventn_ctx/user_agent",
+		"/properties -> /",
 		"/context -> /",
 	})
 

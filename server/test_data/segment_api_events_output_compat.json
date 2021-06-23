@@ -76,10 +76,8 @@
     "network": {
       "wifi": true
     },
-    "properties": {
       "currency": "USD",
-      "revenue": 10
-    },
+      "revenue": 10,
     "referrer": {
       "link": "ref_link",
       "name": "ref_name",
@@ -166,10 +164,8 @@
     "network": {
       "wifi": true
     },
-    "properties": {
       "currency": "USD",
-      "revenue": 10
-    },
+      "revenue": 10,
     "referrer": {
       "link": "ref_link",
       "name": "ref_name",
@@ -519,10 +515,8 @@
     "network": {
       "wifi": true
     },
-    "properties": {
       "currency": "USD",
-      "revenue": 10
-    },
+      "revenue": 10,
     "referrer": {
       "link": "ref_link",
       "name": "ref_name",
