@@ -1,0 +1,34 @@
+---
+sort: 19
+---
+
+
+# 1.32.0 - 23 June 2021
+
+Jitsu `1.32.0` is out! Here are the biggest changes:
+
+### Mobile Endpoint
+Now you can reduce traffic costs and send events to Jitsu in batches! JSON objects arrays and JSON objects with templates are accepted!
+Just send mobile events on the same Jitsu endpoint - `/api/v1/event` with client secret API token!
+
+[**Read more about mobile API** ](/docs/sending-data/mobile-api) »
+
+### Segment API compatibility
+
+Do you have already configured Segment library in your application? Start sending events to Jitsu in several minutes!
+Just set Jitsu endpoint and server secret API token in Segment library initialization.
+Income events are mapped into Jitsu events structure automatically.
+
+[**Read more about Segment API** ](/docs/sending-data/segment-api) »
+
+### Users Onboarding Framework
+We love❤️ our users! We've improved Jitsu setup experience.
+Now you can configure the first destination just in seconds - beautiful dialogs will help you!
+
+### Singer Catalog Auto-Discover
+Now you don't need to configure catalog in Singer sources! Jitsu discovers catalog structure and selects all stream fields
+automatically on Singer source initialization! Just write Singer config credentials and let it work!
+
+<Hint>
+    See more detailed changelog <a href="https://github.com/jitsucom/jitsu/releases"><b>on GitHub</b></a>
+</Hint>
