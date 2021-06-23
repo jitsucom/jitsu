@@ -20,7 +20,7 @@ At the same time Google Analytics has 1 collection - [configurable report](https
 ### Interface
 Every source must implement Driver interface. Every driver implementation should support syncing all collection types.
 Every driver instance is in charge to sync a certain collection. For example `GooglePlayDriver` implementation supports syncing both `sales` and `earnings`.
-For syncing `N` (2 or more) collections there should be created `N` `GooglePlayDriver` instances (1 per collection).
+For syncing N (2 or more) collections there should be created N `GooglePlayDriver` instances (1 per collection).
 
 ```go
 //Driver interface must be implemented by every source type
@@ -45,12 +45,12 @@ Every driver implementation should have:
 
 - constructor func:
 ```go
-func NewGooglePlay(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+func NewGooglePlay(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)
 ```
 
 - test connection func:
 ```go
-func TestGooglePlay()(sourceConfig *base.SourceConfig) error
+func TestGooglePlay(sourceConfig *base.SourceConfig) error
 ```
 
 - package init func for initialization constructor and test connection funcs by source type:
@@ -62,7 +62,7 @@ func init() {
 ```
 
 ### Driver loading
-For driver loading you should add implicit import with newly created driver implementation in `server/drivers/factory.go`
+For driver loading you should add explicit import with newly created driver implementation in `server/drivers/factory.go`
 ```go
 import (
  _ "github.com/jitsucom/jitsu/server/drivers/<YOUR DRIVER PACKAGE>"
@@ -143,5 +143,5 @@ what data structure will be in the datawarehouse.
 ### Troubleshooting
 
 If you've noticed `Unknown source type` error - please make sure that you've added:
-- required funcs from [Interface](#Interface) section to newly created driver package
-- implicit driver loading from [Driver loading](#driverloading) section to `server/drivers/factory.go` imports
+- required funcs from [Interface](#interface) section to newly created driver package
+- explicit driver loading from [Driver loading](#driver-loading) section to `server/drivers/factory.go` imports
