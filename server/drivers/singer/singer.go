@@ -452,17 +452,37 @@ func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, st
 			logging.Warnf("Stream [%v] doesn't have 'stream' name", stream)
 		}
 
+		//put selected=true into 'schema'
 		schemaStruct, ok := stream["schema"]
 		if !ok {
 			return "", "", fmt.Errorf("Malformed discovered catalog structure %s: key 'schema' doesn't exist", outWriter.String())
 		}
-
 		schemaObj, ok := schemaStruct.(map[string]interface{})
 		if !ok {
 			return "", "", fmt.Errorf("Malformed discovered catalog structure %s: value under key 'schema' must be object: %T", outWriter.String(), schemaStruct)
 		}
 
 		schemaObj["selected"] = true
+
+		//put selected=true into every 'metadata' object
+		metadataArrayIface, ok := stream["metadata"]
+		if ok {
+			metadataArray, ok := metadataArrayIface.([]interface{})
+			if ok {
+				for _, metadata := range metadataArray {
+					metadataObj, ok := metadata.(map[string]interface{})
+					if ok {
+						innerMetadata, ok := metadataObj["metadata"]
+						if ok {
+							innerMetadataObj, ok := innerMetadata.(map[string]interface{})
+							if ok {
+								innerMetadataObj["selected"] = true
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 
 	b, _ := json.MarshalIndent(catalog, "", "    ")

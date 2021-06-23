@@ -9,6 +9,8 @@ import (
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	endrivers "github.com/jitsucom/jitsu/server/drivers"
+	endriversbase "github.com/jitsucom/jitsu/server/drivers/base"
+	endriverssinger "github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	ensources "github.com/jitsucom/jitsu/server/sources"
@@ -39,7 +41,7 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 		return
 	}
 
-	idConfig := map[string]endrivers.SourceConfig{}
+	idConfig := map[string]endriversbase.SourceConfig{}
 	for projectID, sourcesEntity := range sourcesMap {
 		if len(sourcesEntity.Sources) == 0 {
 			continue
@@ -119,8 +121,8 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 
 //mapSourceConfig mapped configurator source into server format
 //puts table names if not set
-func mapSourceConfig(source *entities.Source, destinationIDs []string) (endrivers.SourceConfig, error) {
-	enSource := endrivers.SourceConfig{
+func mapSourceConfig(source *entities.Source, destinationIDs []string) (endriversbase.SourceConfig, error) {
+	enSource := endriversbase.SourceConfig{
 		SourceID:     source.SourceID,
 		Type:         source.SourceType,
 		Destinations: destinationIDs,
@@ -129,15 +131,15 @@ func mapSourceConfig(source *entities.Source, destinationIDs []string) (endriver
 		Schedule:     source.Schedule,
 	}
 
-	if source.SourceType == endrivers.SingerType {
+	if source.SourceType == endriversbase.SingerType {
 		if err := enrichWithSingerTableNamesMapping(&enSource); err != nil {
-			return endrivers.SourceConfig{}, err
+			return endriversbase.SourceConfig{}, err
 		}
 	} else {
 		//process collections if not Singer
 		collections, err := endrivers.ParseCollections(&enSource)
 		if err != nil {
-			return endrivers.SourceConfig{}, err
+			return endriversbase.SourceConfig{}, err
 		}
 
 		//enrich with table names = source (without project + collection name)
@@ -160,9 +162,9 @@ func mapSourceConfig(source *entities.Source, destinationIDs []string) (endriver
 //enrichWithSingerTableNamesMapping enriches with table names = source (without project + singer stream)
 // - gets stream names from JSON
 // - puts it with sourceID prefix into mapping map
-func enrichWithSingerTableNamesMapping(enSource *endrivers.SourceConfig) error {
-	config := &endrivers.SingerConfig{}
-	if err := endrivers.UnmarshalConfig(enSource.Config, config); err != nil {
+func enrichWithSingerTableNamesMapping(enSource *endriversbase.SourceConfig) error {
+	config := &endriverssinger.SingerConfig{}
+	if err := endriversbase.UnmarshalConfig(enSource.Config, config); err != nil {
 		return err
 	}
 
@@ -176,7 +178,7 @@ func enrichWithSingerTableNamesMapping(enSource *endrivers.SourceConfig) error {
 			catalogBytes, _ = json.Marshal(config.Catalog)
 		}
 
-		catalog := &endrivers.SingerCatalog{}
+		catalog := &endriverssinger.SingerCatalog{}
 		if err := json.Unmarshal(catalogBytes, catalog); err != nil {
 			return err
 		}
@@ -192,7 +194,7 @@ func enrichWithSingerTableNamesMapping(enSource *endrivers.SourceConfig) error {
 	}
 
 	serializedConfig := map[string]interface{}{}
-	if err := endrivers.UnmarshalConfig(config, &serializedConfig); err != nil {
+	if err := endriversbase.UnmarshalConfig(config, &serializedConfig); err != nil {
 		return err
 	}
 
