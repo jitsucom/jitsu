@@ -126,7 +126,7 @@ Example of URL content:
 
 ## How it works
 
-Data may be synchronized by time chunks (if data source supports data loading by time intervals) or all data is loaded together. This depends on the type of data source and defined at driver implementation (an entity that loads data). EventNative stores information about synchronized chunks at `meta.storage` (meta storage configuration is described at [General Configuration](/docs/configuration)). Time chunk is synchronized if
+Data may be synchronized by time chunks (if data source supports data loading by time intervals) or all data is loaded together. This depends on the type of data source and defined at driver implementation (an entity that loads data). Jitsu stores information about synchronized chunks at `meta.storage` (meta storage configuration is described at [General Configuration](/docs/configuration)). Time chunk is synchronized if
 
 * it is not synchronized yet
 * time chunk covers the current moment
