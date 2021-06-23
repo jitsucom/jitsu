@@ -55,10 +55,9 @@
       "os_version": "14.0",
       "ua_version": "12"
     },
-    "properties": {
+
       "currency": "USD",
-      "revenue": 10
-    },
+      "revenue": 10,
     "referer": "ref_url",
     "referrer": {
       "link": "ref_link",
@@ -143,10 +142,8 @@
       "os_version": "14.0",
       "ua_version": "12"
     },
-    "properties": {
       "currency": "USD",
-      "revenue": 10
-    },
+      "revenue": 10,
     "referer": "ref_url",
     "referrer": {
       "link": "ref_link",
@@ -487,10 +484,9 @@
       "os_version": "14.0",
       "ua_version": "12"
     },
-    "properties": {
+
       "currency": "USD",
-      "revenue": 10
-    },
+      "revenue": 10,
     "referer": "ref_url",
     "referrer": {
       "link": "ref_link",
