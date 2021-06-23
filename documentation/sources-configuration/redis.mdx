@@ -1,36 +1,3 @@
 # Redis
 
-Redis source allows synchronizing Redis hash tables. Other data types synchronization is not implemented yet. Driver synchronizes all data from HASH key at every run.
-
-### Configuration
-
-```yaml
-redis_source_id:
-  type: redis
-  destinations:
-    - "destination_1"
-  collections:
-    - name: "my_data"
-      type: hash
-      parameters:
-        redis_key: users:country#US
-  config:
-    host: localhost
-    port: 6379
-    password: daj$#ba9d7asdg
-```
-
-### Collection parameters:
-
-| Parameter | Description |
-| :--- | :--- |
-| `redis_key` (required) | Redis Key, the one you use at Redis HGET command as first parameter|
-
-### Config parameters:
-
-| Parameter | Description |
-| :--- | :--- |
-| `host` (required) | Redis instance host |
-| `port` | Port where Redis is deployed. Must be a positive integer value. Default value is `6379` |
-| `password` | If AUTH is configured at Redis instance, set up your password here |
-
+<ConnectorDocumentation id="redis" />
