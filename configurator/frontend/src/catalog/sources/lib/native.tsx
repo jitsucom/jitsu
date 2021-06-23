@@ -334,13 +334,17 @@ export const redis: SourceConnector = {
     </svg>,
   displayName: 'Redis',
   id: 'redis',
-  collectionTypes: ['hash'],
+  collectionTypes: [],
   collectionParameters: [
     {
-      displayName: 'Redis Key',
+      displayName: 'Redis Key Pattern',
       id: 'redis_key',
       type: stringType,
-      required: true
+      required: true,
+      documentation: <>
+        Provide a certain Redis key to sync data from or pattern: <b>my_currencies*</b>. Jitsu will search keys by pattern
+        and sync them.
+      </>
     }
   ],
   configParameters: [
