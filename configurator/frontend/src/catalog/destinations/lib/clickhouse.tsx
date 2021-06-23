@@ -14,9 +14,10 @@ let icon: ReactNode = <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 9 8">
   <path d="M8,3.25 h1 v1.5 h-1 z" className="o"/>
 </svg>
 
-const destination: Destination = {
+const destination = {
   syncFromSourcesStatus: 'supported',
   id: 'clickhouse',
+  type: 'database',
   displayName: 'ClickHouse',
   ui: {
     icon,
@@ -70,6 +71,6 @@ const destination: Destination = {
       type: stringType
     }
   ]
-}
+} as const;
 
 export default destination;

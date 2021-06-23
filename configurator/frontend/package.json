@@ -23,6 +23,8 @@
   "scripts": {
     "clean": "rm -rf ./node_modules/ build dist",
     "start": "NODE_ENV=development craco start",
+    "start:local": "NODE_ENV=development BACKEND_API_BASE=http://localhost:7000 craco start",
+    "start:cloud": "NODE_ENV=development BACKEND_API_BASE=https://app-api.jitsu.com FIREBASE_CONFIG='{   \"apiKey\": \"AIzaSyDBm2HqvxleuJyD9xo8rh0vo1TQGp8Vohg\",   \"authDomain\": \"backbase.jitsu.com\",   \"databaseURL\": \"https://tracker-285220.firebaseio.com\",   \"projectId\": \"tracker-285220\",   \"storageBucket\": \"tracker-285220.appspot.com\",   \"messagingSenderId\": \"942257799287\",   \"appId\": \"1:942257799287:web:e3b0bd3435f929d6a00672\",   \"measurementId\": \"G-6ZMG0NSJP8\" }' craco start",
     "build": "NODE_ENV=production craco build",
     "test": "craco test",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",

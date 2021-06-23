@@ -8,6 +8,7 @@ import (
 
 const (
 	TokenName        = "token"
+	TokenHeaderName  = "x-auth-token"
 	ErrTokenNotFound = "The token is not found"
 )
 
@@ -15,12 +16,13 @@ const (
 //1. query parameter
 //2. header
 //3. dynamic query parameter
+//4. basic auth username
 func extractToken(r *http.Request) string {
 	queryValues := r.URL.Query()
 	token := queryValues.Get(TokenName)
 
 	if token == "" {
-		token = r.Header.Get("x-auth-token")
+		token = r.Header.Get(TokenHeaderName)
 	}
 
 	if token == "" {
@@ -30,6 +32,10 @@ func extractToken(r *http.Request) string {
 				break
 			}
 		}
+	}
+
+	if token == "" {
+		token, _, _ = r.BasicAuth()
 	}
 
 	return token

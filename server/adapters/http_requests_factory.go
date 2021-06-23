@@ -3,6 +3,7 @@ package adapters
 import (
 	"bytes"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/parsers"
 	"strings"
 	"text/template"
 )
@@ -27,7 +28,7 @@ func NewWebhookRequestFactory(httpMethod, urlTmplStr, bodyTmplStr string, header
 		return nil, fmt.Errorf("Error parsing URL template [%s]: %v", urlTmplStr, err)
 	}
 
-	bodyTmpl, err := template.New("body").Parse(bodyTmplStr)
+	bodyTmpl, err := template.New("body").Funcs(parsers.JSONSerializeFuncs).Parse(bodyTmplStr)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing body template [%s]: %v", bodyTmplStr, err)
 	}

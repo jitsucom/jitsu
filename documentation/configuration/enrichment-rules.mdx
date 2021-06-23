@@ -1,6 +1,6 @@
 # Enrichment Rules
 
-**Jitsu** supports `ip_lookup` and __`user_agent_parse` enrichment rules per destination. Rules are executed **before** field mappings. Enrichment rule configuration has the following structure:
+**Jitsu** supports `ip_lookup` and `user_agent_parse` enrichment rules per destination. Rules are executed **before** field mappings. Enrichment rule configuration has the following structure:
 
 <table>
   <thead>
@@ -48,7 +48,7 @@ IP lookup resolves address in `from` JSON node into geo data structure and set g
 destinations:
   destination_name:
     enrichment:
-       - 
+       -
           name: ip_lookup
           from: /key1/ip_address
           to: /key2/geo
@@ -66,7 +66,7 @@ User Agent parse decomposes user agent in `from` JSON node and set decomposed in
 destinations:
   destination_name:
     enrichment:
-       - 
+       -
           name: user_agent_parse
           from: /client/device/user_agent
           to: /client/device/parsed_user_agent
@@ -95,7 +95,7 @@ Parsed user agent example:
        - name: ip_lookup
          from: /source_ip
          to: /location
-       - name: user_agent_parse 
+       - name: user_agent_parse
          from: /user_agent
          to: /parsed_ua
 ```

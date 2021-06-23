@@ -59,7 +59,8 @@ func (ir *IPLookupRule) Execute(event map[string]interface{}) {
 		return
 	}
 
-	err = ir.destination.Set(event, result)
+	//don't overwrite existent
+	err = ir.destination.SetIfNotExist(event, result)
 	if err != nil {
 		logging.SystemErrorf("Resolved geo data wasn't set: %v", err)
 	}

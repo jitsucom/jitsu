@@ -41,14 +41,16 @@ type CachedEventsResponse struct {
 //EventHandler accepts all events
 type EventHandler struct {
 	destinationService *destinations.Service
+	parser             events.Parser
 	processor          events.Processor
 	eventsCache        *caching.EventsCache
 }
 
 //NewEventHandler returns configured EventHandler
-func NewEventHandler(destinationService *destinations.Service, processor events.Processor, eventsCache *caching.EventsCache) (eventHandler *EventHandler) {
+func NewEventHandler(destinationService *destinations.Service, parser events.Parser, processor events.Processor, eventsCache *caching.EventsCache) (eventHandler *EventHandler) {
 	return &EventHandler{
 		destinationService: destinationService,
+		parser:             parser,
 		processor:          processor,
 		eventsCache:        eventsCache,
 	}
@@ -56,10 +58,10 @@ func NewEventHandler(destinationService *destinations.Service, processor events.
 
 //PostHandler accepts all events according to token
 func (eh *EventHandler) PostHandler(c *gin.Context) {
-	payload := events.Event{}
-	if err := c.BindJSON(&payload); err != nil {
-		logging.Errorf("Error parsing event body: %v", err)
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to parse body", err))
+	eventsArray, err := eh.parser.ParseEventsBody(c)
+	if err != nil {
+		msg := fmt.Sprintf("Error parsing events body: %v", err)
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(msg, nil))
 		return
 	}
 
@@ -74,52 +76,56 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	destinationStorages := eh.destinationService.GetDestinations(tokenID)
 	if len(destinationStorages) == 0 {
 		noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
-		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
+		reqBody, _ := json.Marshal(eventsArray)
+		logging.Warnf("%s. Event: %s", noConsumerMessage, string(reqBody))
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(noConsumerMessage, nil))
 		return
 	}
 
-	//** Context enrichment **
-	//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
-	enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.processor, destinationStorages[0].GetUniqueIDField())
+	for _, payload := range eventsArray {
+		//** Context enrichment **
+		//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
+		enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.processor, destinationStorages[0].GetUniqueIDField())
 
-	//** Caching **
-	//clone payload for preventing concurrent changes while serialization
-	cachingEvent := payload.Clone()
+		//** Caching **
+		//clone payload for preventing concurrent changes while serialization
+		cachingEvent := payload.Clone()
 
-	//Persisted cache
-	//extract unique identifier
-	eventID := destinationStorages[0].GetUniqueIDField().Extract(payload)
-	if eventID == "" {
-		logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.Serialize())
+		//Persisted cache
+		//extract unique identifier
+		eventID := destinationStorages[0].GetUniqueIDField().Extract(payload)
+		if eventID == "" {
+			logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.Serialize())
+		}
+		var destinationIDs []string
+		for _, destinationProxy := range destinationStorages {
+			destinationIDs = append(destinationIDs, destinationProxy.ID())
+			eh.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, cachingEvent)
+		}
+
+		//** Multiplexing **
+		consumers := eh.destinationService.GetConsumers(tokenID)
+		if len(consumers) == 0 {
+			noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
+			logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
+			c.JSON(http.StatusBadRequest, middleware.ErrResponse(noConsumerMessage, nil))
+			return
+		}
+
+		for _, consumer := range consumers {
+			consumer.Consume(payload, tokenID)
+		}
+
+		//Retrospective users recognition
+		eh.processor.Postprocess(payload, eventID, destinationIDs)
+
+		counters.SuccessSourceEvents(tokenID, 1)
 	}
-	var destinationIDs []string
-	for _, destinationProxy := range destinationStorages {
-		destinationIDs = append(destinationIDs, destinationProxy.ID())
-		eh.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, cachingEvent)
-	}
-
-	//** Multiplexing **
-	consumers := eh.destinationService.GetConsumers(tokenID)
-	if len(consumers) == 0 {
-		noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
-		logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(noConsumerMessage, nil))
-		return
-	}
-
-	for _, consumer := range consumers {
-		consumer.Consume(payload, tokenID)
-	}
-
-	//Retrospective users recognition
-	eh.processor.Postprocess(payload, eventID, destinationIDs)
-
-	counters.SuccessSourceEvents(tokenID, 1)
 
 	c.JSON(http.StatusOK, middleware.OKResponse())
 }
 
+//GetHandler returns cached events by destination_ids
 func (eh *EventHandler) GetHandler(c *gin.Context) {
 	var err error
 	destinationIDs, ok := c.GetQuery("destination_ids")

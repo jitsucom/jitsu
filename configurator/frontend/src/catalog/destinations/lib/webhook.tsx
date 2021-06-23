@@ -10,10 +10,11 @@ const icon = <svg width="32px" height="32px" viewBox="0 0 256 239" version="1.1"
   </g>
 </svg>;
 
-const webhookDestination: Destination = {
+const webhookDestination = {
   syncFromSourcesStatus: 'not_supported',
-  displayName: 'WebHook',
   id: 'webhook',
+  type: 'other',
+  displayName: 'WebHook',
   parameters: [
     modeParameter('stream'),
     tableName(filteringExpressionDocumentation),
@@ -54,6 +55,6 @@ const webhookDestination: Destination = {
     connectCmd: null,
     title: cfg => cfg['_formData']['method'] + ' ' + cfg['_formData']['url']
   }
-}
+} as const;
 
 export default webhookDestination;

@@ -30,7 +30,7 @@ import { random } from 'lodash-es';
 import { randomId } from '@util/numbers';
 
 export interface Props {
-  fieldsParamsList: Parameter[];
+  fieldsParamsList: readonly Parameter[];
   form: FormInstance;
   initialValues: any;
   namePrefix?: string;
