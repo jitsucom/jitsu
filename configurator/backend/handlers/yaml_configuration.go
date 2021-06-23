@@ -8,7 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/random"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	enadapters "github.com/jitsucom/jitsu/server/adapters"
-	endrivers "github.com/jitsucom/jitsu/server/drivers"
+	endriversbase "github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/middleware"
 	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"gopkg.in/yaml.v3"
@@ -47,7 +47,7 @@ type Server struct {
 type Config struct {
 	Server       Server                                   `json:"server" yaml:"server,omitempty"`
 	Destinations map[string]*enstorages.DestinationConfig `json:"destinations" yaml:"destinations,omitempty"`
-	Sources      map[string]*endrivers.SourceConfig       `json:"sources" yaml:"sources,omitempty"`
+	Sources      map[string]*endriversbase.SourceConfig   `json:"sources" yaml:"sources,omitempty"`
 }
 
 func (ch *ConfigHandler) Handler(c *gin.Context) {
@@ -94,7 +94,7 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(SourcesGettingErrMsg, err))
 		return
 	}
-	mappedSources := make(map[string]*endrivers.SourceConfig)
+	mappedSources := make(map[string]*endriversbase.SourceConfig)
 	for _, source := range projectSources {
 		//dots can't be serialized in yaml configuration
 		//sourceID := projectID + "." + source.SourceID
