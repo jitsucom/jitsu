@@ -1,0 +1,257 @@
+# Segment API
+
+Jitsu has a [Segment API](https://segment.com/docs/connections/sources/catalog/libraries/server/http-api/) compatibility [endpoint](#apiv1segment) for sending
+events directly from apps or backends using Segment client libraries. You can install and configure Segment library to send data to Jitsu.
+Just set Jitsu endpoint and API key server secret (as a write key) in Segment library instance initialization.
+Income events are mapped on JS SDK 2.0 structure automatically.
+
+<Hint>
+  If you are using <a href="/docs/sending-data/javascript-reference">deprecated events API</a> (events structure with <code inline="true">eventn_ctx</code> prefix) please use <code inline="true">/api/v1/segment/compat</code> endpoint.
+</Hint>
+
+
+## Node.js example
+```javascript
+import Analytics from 'analytics-node';
+
+//if you are using JS SDK 2.0 events structure
+let analytics = new Analytics(`Jitsu API key server secret`, {
+  host: `https://Jitsu_host/api/v1/segment`
+})
+
+//or if you are using deprecated events structure
+//let analytics = new Analytics(`Jitsu API key server secret`, {
+//  host: `https://Jitsu_host/api/v1/segment/compat`
+//})
+
+analytics.track({...});
+analytics.identify({
+  anonymousId: 'anonym1',
+  traits: {
+    email: 'newuser@gmail.com'
+  }
+});
+```
+
+## Go example
+```go
+package main
+
+import (
+	"gopkg.in/segmentio/analytics-go.v3"
+	"log"
+	"time"
+)
+
+func main() {
+	//if you are using JS SDK 2.0 events structure
+	client, _ := analytics.NewWithConfig("Jitsu API key server secret", analytics.Config{Endpoint: "https://Jitsu_host/api/v1/segment"})
+
+	//or if you are using deprecated events structure
+	//client, _ := analytics.NewWithConfig("Jitsu API key server secret", analytics.Config{Endpoint: "https://Jitsu_host/api/v1/segment/compat"})
+
+	//sending event
+	analyticsTraits := analytics.NewTraits().
+		SetFirstName("Ned").
+		SetLastName("Stark").
+		Set("role", "the Lord of Winterfell").
+		SetEmail("ned@starkinc.com")
+	analyticsContext := &analytics.Context{
+		App: analytics.AppInfo{
+			Name:      "my_app",
+			Version:   "1.0",
+		},
+		Device: analytics.DeviceInfo{
+			Manufacturer:  "Apple",
+			Model:         "iPhone",
+			Type:          "mobile",
+		},
+		Location: analytics.LocationInfo{
+			City:      "San Francisco",
+			Country:   "US",
+			Latitude:  1.0,
+			Longitude: 2.0,
+			Region:    "CA",
+			Speed:     100,
+		},
+		IP:        net.IPv4(1, 1, 1, 1),
+		Traits:    analyticsTraits,
+	}
+
+	err := client.Enqueue(analytics.Track{
+		MessageId:    "track1",
+		AnonymousId:  "anonym1",
+		Event:        "test_track",
+		Timestamp:    time.Now(),
+		Context:      analyticsContext,
+	})
+
+	if err != nil {
+		//handle error
+	}
+}
+```
+
+<APIMethod method="POST" path="/api/v1/segment" title="Segment API endpoint"/>
+
+For JS SDK 2.0 events structures. Authorization server secret token should be provided via Basic auth or HTTP header or query string parameter.
+
+<h4>Parameters</h4>
+
+<APIParam name={"X-Auth-Token"} dataType="string" required={true} type="header" description="Server secret token"/>
+<APIParam name={"token"} dataType="string" required={true} type="queryString" description="Server secret token"/>
+<APIParam name={"Authorization"} dataType="string" required={true} type="header" description="Basic auth where server secret token is a username (without password)"/>
+
+<h4>Request Payload</h4>
+
+The body is a Segment JSON object:
+
+```json
+{
+  "anonymousId": "anonym1",
+  "context": {
+    "app": {
+      "build": "build",
+      "name": "app1",
+      "namespace": "namespace",
+      "version": "1.0"
+    },
+    "device": {
+      "advertisingId": "an_advertising_id",
+      "id": "device1",
+      "manufacturer": "Apple",
+      "model": "iPhone",
+      "name": "iPhone 12",
+      "type": "mobile",
+      "version": "12"
+    },
+    "ip": "1.1.1.1",
+    "library": {
+      "name": "analytics-node",
+      "version": "4.0.1"
+    },
+    "locale": "en-EU",
+    "page": {
+      "referrer": "page_referrer",
+      "search": "page_search",
+      "title": "page_title",
+      "url": "page_url"
+    },
+    "referrer": {
+      "url": "ref_url"
+    },
+    "screen": {
+      "height": 768,
+      "width": 1024
+    },
+    "timezone": "UTC",
+    "traits": {
+      "Role": "the Lord of Winterfell",
+      "firstName": "Ned",
+      "lastName": "Stark"
+    },
+    "userAgent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50"
+  }
+}
+```
+
+or Segment batch:
+
+```json
+{
+  "batch": [
+    {...},
+    {...}
+  ]
+}
+```
+
+<h4>Response</h4>
+
+```json
+{"status": "ok"}
+```
+
+<APIMethod method="POST" path="/api/v1/segment/compat" title="Segment API endpoint with deprecated events structures compatibility"/>
+
+For deprecated events structures. Authorization server secret token should be provided via Basic auth or HTTP header or query string parameter.
+
+<h4>Parameters</h4>
+
+<APIParam name={"X-Auth-Token"} dataType="string" required={true} type="header" description="Server secret token"/>
+<APIParam name={"token"} dataType="string" required={true} type="queryString" description="Server secret token"/>
+<APIParam name={"Authorization"} dataType="string" required={true} type="header" description="Basic auth where server secret token is a username (without password)"/>
+
+<h4>Request Payload</h4>
+
+The body is a Segment JSON object:
+
+```json
+{
+  "anonymousId": "anonym1",
+  "context": {
+    "app": {
+      "build": "build",
+      "name": "app1",
+      "namespace": "namespace",
+      "version": "1.0"
+    },
+    "device": {
+      "advertisingId": "an_advertising_id",
+      "id": "device1",
+      "manufacturer": "Apple",
+      "model": "iPhone",
+      "name": "iPhone 12",
+      "type": "mobile",
+      "version": "12"
+    },
+    "ip": "1.1.1.1",
+    "library": {
+      "name": "analytics-node",
+      "version": "4.0.1"
+    },
+    "locale": "en-EU",
+    "page": {
+      "referrer": "page_referrer",
+      "search": "page_search",
+      "title": "page_title",
+      "url": "page_url"
+    },
+    "referrer": {
+      "url": "ref_url"
+    },
+    "screen": {
+      "height": 768,
+      "width": 1024
+    },
+    "timezone": "UTC",
+    "traits": {
+      "Role": "the Lord of Winterfell",
+      "firstName": "Ned",
+      "lastName": "Stark"
+    },
+    "userAgent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50"
+  }
+}
+```
+
+or Segment batch:
+
+```json
+{
+  "batch": [
+    {...},
+    {...}
+  ]
+}
+```
+
+<h4>Response</h4>
+
+```json
+{"status": "ok"}
+```
+
+<Hint>
+    Default Geo data and User-Agent lookup enrichment are applied only if request doesn't have <code inline="true">location</code>, <code inline="true">device</code> and <code inline="true">os</code> fields data respectively.
+</Hint>
