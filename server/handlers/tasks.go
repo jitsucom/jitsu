@@ -3,6 +3,7 @@ package handlers
 import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/drivers"
+	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/sources"
@@ -224,7 +225,7 @@ func (sh *TaskHandler) SyncHandler(c *gin.Context) {
 }
 
 func extractCollectionID(sourceType string, c *gin.Context) string {
-	if sourceType == drivers.SingerType {
+	if sourceType == driversbase.SingerType {
 		return drivers.DefaultSingerCollection
 	}
 	return c.Query("collection")

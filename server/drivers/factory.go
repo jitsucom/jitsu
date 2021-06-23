@@ -2,9 +2,16 @@ package drivers
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/drivers/base"
+	_ "github.com/jitsucom/jitsu/server/drivers/base"
+	_ "github.com/jitsucom/jitsu/server/drivers/facebook_marketing"
+	_ "github.com/jitsucom/jitsu/server/drivers/firebase"
+	_ "github.com/jitsucom/jitsu/server/drivers/google_analytics"
+	_ "github.com/jitsucom/jitsu/server/drivers/google_play"
+	_ "github.com/jitsucom/jitsu/server/drivers/redis"
+	_ "github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/scheduling"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -13,8 +20,7 @@ import (
 )
 
 var (
-	ErrUnknownSource   = errors.New("Unknown source type")
-	DriverConstructors = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+	ErrUnknownSource = errors.New("Unknown source type")
 )
 
 const (
@@ -22,64 +28,11 @@ const (
 	collectionParametersField = "parameters"
 
 	DefaultSingerCollection = "all"
-
-	defaultDaysBackToLoad = 365
 )
-
-type SourceConfig struct {
-	SourceID string `json:"source_id" yaml:"-"`
-
-	Type         string        `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	Destinations []string      `mapstructure:"destinations" json:"destinations,omitempty" yaml:"destinations,omitempty"`
-	Collections  []interface{} `mapstructure:"collections" json:"collections,omitempty" yaml:"collections,omitempty"`
-	Schedule     string        `mapstructure:"schedule" json:"schedule,omitempty" yaml:"schedule,omitempty"`
-
-	Config map[string]interface{} `mapstructure:"config" json:"config,omitempty" yaml:"config,omitempty"`
-}
-
-type Collection struct {
-	DaysBackToLoad int    `json:"-" yaml:"-"` //without serialization
-	SourceID       string `json:"-" yaml:"-"` //without serialization
-
-	Name         string                 `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
-	Type         string                 `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
-	TableName    string                 `mapstructure:"table_name" json:"table_name,omitempty" yaml:"table_name,omitempty"`
-	StartDateStr string                 `mapstructure:"start_date" json:"start_date,omitempty" yaml:"start_date,omitempty"`
-	Schedule     string                 `mapstructure:"schedule" json:"schedule,omitempty" yaml:"schedule,omitempty"`
-	Parameters   map[string]interface{} `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
-}
-
-func (c *Collection) Validate() error {
-	if c.Name == "" {
-		return errors.New("name is required collection field")
-	}
-
-	if c.SourceID == "" {
-		logging.SystemErrorf("Source ID isn't set in collection: %s of type: %s", c.Name, c.Type)
-	}
-
-	return nil
-}
-
-//GetTableName returns TableName if it's set
-//otherwise SourceID_CollectionName
-func (c *Collection) GetTableName() string {
-	if c.TableName != "" {
-		return c.TableName
-	}
-	return c.SourceID + "_" + c.Name
-}
-
-//RegisterDriver registers function to create new driver instance
-func RegisterDriver(driverType string,
-	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) error {
-	DriverConstructors[driverType] = createDriverFunc
-	return nil
-}
 
 //Create source drivers per collection
 //Enrich incoming configs with default values if needed
-func Create(ctx context.Context, sourceID string, sourceConfig *SourceConfig, cronScheduler *scheduling.CronScheduler) (map[string]Driver, error) {
+func Create(ctx context.Context, sourceID string, sourceConfig *base.SourceConfig, cronScheduler *scheduling.CronScheduler) (map[string]base.Driver, error) {
 	if sourceConfig.Type == "" {
 		sourceConfig.Type = sourceID
 	}
@@ -109,9 +62,9 @@ func Create(ctx context.Context, sourceID string, sourceConfig *SourceConfig, cr
 		}
 	}
 
-	driverPerCollection := map[string]Driver{}
+	driverPerCollection := map[string]base.Driver{}
 
-	createDriverFunc, ok := DriverConstructors[sourceConfig.Type]
+	createDriverFunc, ok := base.DriverConstructors[sourceConfig.Type]
 	if !ok {
 		return nil, ErrUnknownSource
 	}
@@ -142,7 +95,7 @@ func Create(ctx context.Context, sourceID string, sourceConfig *SourceConfig, cr
 
 //schedule pass source and collection to cronScheduler and writes logs
 //returns err if occurred
-func schedule(cronScheduler *scheduling.CronScheduler, sourceID string, sourceConfig *SourceConfig, collection *Collection) error {
+func schedule(cronScheduler *scheduling.CronScheduler, sourceID string, sourceConfig *base.SourceConfig, collection *base.Collection) error {
 	if collection.Schedule == "" {
 		logging.Warnf("[%s_%s] doesn't have schedule cron expression (automatic scheduling disabled)", sourceID, collection.Name)
 		return nil
@@ -166,16 +119,16 @@ func schedule(cronScheduler *scheduling.CronScheduler, sourceID string, sourceCo
 
 //ParseCollections return serialized Collection objects slice
 //or return one default collection with 'schedule' if singer type
-func ParseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
-	if sourceConfig.Type == SingerType {
-		return []*Collection{{SourceID: sourceConfig.SourceID, Name: DefaultSingerCollection, Schedule: sourceConfig.Schedule}}, nil
+func ParseCollections(sourceConfig *base.SourceConfig) ([]*base.Collection, error) {
+	if sourceConfig.Type == base.SingerType {
+		return []*base.Collection{{SourceID: sourceConfig.SourceID, Name: DefaultSingerCollection, Schedule: sourceConfig.Schedule}}, nil
 	}
 
-	var collections []*Collection
+	var collections []*base.Collection
 	for _, collectionI := range sourceConfig.Collections {
 		switch collectionI.(type) {
 		case string:
-			collections = append(collections, &Collection{SourceID: sourceConfig.SourceID, Name: collectionI.(string), Type: collectionI.(string)})
+			collections = append(collections, &base.Collection{SourceID: sourceConfig.SourceID, Name: collectionI.(string), Type: collectionI.(string)})
 		case map[string]interface{}, map[interface{}]interface{}:
 			collectionObjMap := cast.ToStringMap(collectionI)
 
@@ -185,8 +138,8 @@ func ParseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 				collectionObjMap[collectionParametersField] = parametersObjMap
 			}
 
-			collectionObj := &Collection{}
-			if err := UnmarshalConfig(collectionObjMap, collectionObj); err != nil {
+			collectionObj := &base.Collection{}
+			if err := base.UnmarshalConfig(collectionObjMap, collectionObj); err != nil {
 				return nil, fmt.Errorf("error parsing collections: %v", err)
 			}
 
@@ -203,21 +156,6 @@ func ParseCollections(sourceConfig *SourceConfig) ([]*Collection, error) {
 	}
 
 	return collections, nil
-}
-
-//UnmarshalConfig serializes and deserializes config into the object
-//return error if occurred
-func UnmarshalConfig(config interface{}, object interface{}) error {
-	b, err := json.Marshal(config)
-	if err != nil {
-		return fmt.Errorf("error marshalling object: %v", err)
-	}
-	err = json.Unmarshal(b, object)
-	if err != nil {
-		return fmt.Errorf("Error unmarshalling config: %v", err)
-	}
-
-	return nil
 }
 
 //return difference between now and t in DAYS + 1 (current day)

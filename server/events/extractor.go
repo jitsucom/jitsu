@@ -2,6 +2,7 @@ package events
 
 import "fmt"
 
+//ExtractSrc returns 'src' field from input event or an empty string
 func ExtractSrc(event Event) string {
 	if event == nil {
 		return ""

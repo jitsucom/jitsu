@@ -2,15 +2,16 @@ package schema
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/events"
 )
 
 type MappingStep struct {
-	fieldMapper  Mapper
+	fieldMapper  events.Mapper
 	flattener    Flattener
 	typeResolver TypeResolver
 }
 
-func NewMappingStep(fieldMapper Mapper, flattener Flattener, typeResolver TypeResolver) *MappingStep {
+func NewMappingStep(fieldMapper events.Mapper, flattener Flattener, typeResolver TypeResolver) *MappingStep {
 	return &MappingStep{
 		fieldMapper:  fieldMapper,
 		flattener:    flattener,
@@ -18,9 +19,10 @@ func NewMappingStep(fieldMapper Mapper, flattener Flattener, typeResolver TypeRe
 	}
 }
 
-//1. apply mappings
-//2. flatten object
-//3. apply default typecasts
+//Execute
+//1. applies mappings
+//2. flattens object
+//3. applies default typecasts
 func (ms *MappingStep) Execute(tableName string, object map[string]interface{}) (*BatchHeader, map[string]interface{}, error) {
 	mappedObject, err := ms.fieldMapper.Map(object)
 	if err != nil {

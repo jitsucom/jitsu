@@ -3,15 +3,12 @@ package schema
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	"strings"
 )
-
-type Mapper interface {
-	Map(object map[string]interface{}) (map[string]interface{}, error)
-}
 
 type FieldMapper struct {
 	rules              []*MappingRule
@@ -28,7 +25,7 @@ type MappingRule struct {
 }
 
 //NewFieldMapper return FieldMapper, sql typecast and err
-func NewFieldMapper(newStyleMappings *Mapping) (Mapper, typing.SQLTypes, error) {
+func NewFieldMapper(newStyleMappings *Mapping) (events.Mapper, typing.SQLTypes, error) {
 	if newStyleMappings == nil || len(newStyleMappings.Fields) == 0 {
 		return &DummyMapper{}, typing.SQLTypes{}, nil
 	}

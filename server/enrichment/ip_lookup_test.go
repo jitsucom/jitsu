@@ -78,6 +78,13 @@ func TestIPLookup(t *testing.T) {
 			map[string]interface{}{"ip": "10.10.10.10"},
 			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "New York", "country": "US", "latitude": json.Number("79"), "longitude": json.Number("22"), "zip": "14101"}},
 		},
+		{
+			"Object with ip ok doesn't overwrite",
+			"/ip",
+			"/parsed_ip",
+			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "test"}},
+			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "test"}},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

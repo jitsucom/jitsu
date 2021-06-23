@@ -1,9 +1,8 @@
-@import '~antd/lib/style/themes/dark.less';
-@import '~antd/dist/antd.less';
+@import "~antd/lib/style/themes/dark.less";
+@import "~antd/dist/antd.less";
 @import "theme.less";
-@import './src/assets/input';
-@import './src/assets/mixins/custom-scrollbar';
-
+@import "./src/assets/input";
+@import "./src/assets/mixins/custom-scrollbar";
 
 body {
   background: @primary-background;
@@ -18,7 +17,8 @@ body.custom-scroll-body {
   min-height: 100%;
 }
 
-ol, ul {
+ol,
+ul {
   margin: 0;
   padding: 0;
 }
@@ -31,7 +31,10 @@ ol, ul {
   border-color: @splitBorder;
 }
 
-.app-layout-header, .app-layout-content, .app-layout-root, .app-layout-header-and-content {
+.app-layout-header,
+.app-layout-content,
+.app-layout-root,
+.app-layout-header-and-content {
   padding: 0;
 }
 
@@ -49,7 +52,6 @@ ol, ul {
   text-decoration: underline;
   background: @component-background;
 }
-
 
 .ant-table-content table,
 .ant-table,
@@ -75,7 +77,8 @@ ol, ul {
   border-top-right-radius: @large-border-radius !important;
 }
 
-.ant-table-tbody > tr:last-child > td, .ant-table-tbody > tr:last-child {
+.ant-table-tbody > tr:last-child > td,
+.ant-table-tbody > tr:last-child {
   border-bottom: 0 !important;
 }
 
@@ -94,19 +97,22 @@ ol, ul {
   }
 }
 
-.ant-layout-sider, .app-layout-side-bar .ant-menu {
-  background-color: @secondary-background;
+.ant-layout-sider,
+.app-layout-side-bar .ant-menu {
+  background-color: @secondary-background !important;
 }
 
 .app-layout-content {
   background-color: @primary-background;
 }
 
-.ant-table-tbody > tr > td, .ant-table-thead > tr > th {
+.ant-table-tbody > tr > td,
+.ant-table-thead > tr > th {
   border-bottom: 1px solid @table-header-sort-active-bg;
 }
 
-.ant-empty-img-simple-path, .ant-empty-img-simple-g {
+.ant-empty-img-simple-path,
+.ant-empty-img-simple-g {
   fill: @component-background;
   stroke: @disabled-color;
 }
@@ -127,7 +133,7 @@ ol, ul {
       }
 
       &::after {
-        content: '';
+        content: "";
         display: inline-block;
         position: static;
         margin: 0 0 0 2px;
@@ -141,7 +147,7 @@ ol, ul {
     }
 
     &::after {
-      content: '*' !important;
+      content: "*" !important;
       color: @error-color;
     }
   }
@@ -164,7 +170,7 @@ ol, ul {
 
 .ant-tabs-nav .ant-tabs-tab:not(.ant-tabs-tab-active) {
   background: transparent !important;
-  padding: 8px 16px;
+  // padding: 8px 16px;
 }
 
 .ant-tabs-nav .ant-tabs-tab-active {

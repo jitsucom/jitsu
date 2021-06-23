@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
-	"github.com/jitsucom/jitsu/server/drivers"
+	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -165,8 +166,8 @@ func (te *TaskExecutor) execute(i interface{}) {
 	start := time.Now().UTC()
 
 	var taskErr error
-	if driver.Type() == drivers.SingerType {
-		singerDriver, _ := driver.(*drivers.Singer)
+	if driver.Type() == driversbase.SingerType {
+		singerDriver, _ := driver.(*singer.Singer)
 
 		ready, notReadyError := singerDriver.Ready()
 		if !ready {
@@ -199,7 +200,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 }
 
 //sync source. Return error if occurred
-func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver drivers.Driver, destinationStorages []storages.Storage) error {
+func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver driversbase.Driver, destinationStorages []storages.Storage) error {
 	now := time.Now().UTC()
 
 	intervals, err := driver.GetAllAvailableIntervals()
@@ -210,7 +211,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 	taskLogger.INFO("Total intervals: [%d]", len(intervals))
 	collectionMetaKey := driver.GetCollectionMetaKey()
 
-	var intervalsToSync []*drivers.TimeInterval
+	var intervalsToSync []*driversbase.TimeInterval
 	for _, interval := range intervals {
 		storedSignature, err := te.metaStorage.GetSignature(task.Source, collectionMetaKey, interval.String())
 		if err != nil {
@@ -287,9 +288,9 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 }
 
 //syncSinger sync singer source. Return err if occurred
-func (te *TaskExecutor) syncSinger(task *meta.Task, taskLogger *TaskLogger, singerDriver *drivers.Singer, destinationStorages []storages.Storage) error {
+func (te *TaskExecutor) syncSinger(task *meta.Task, taskLogger *TaskLogger, singerDriver *singer.Singer, destinationStorages []storages.Storage) error {
 	//get singer state
-	singerState, err := te.metaStorage.GetSignature(task.Source, singerDriver.GetTap(), drivers.ALL.String())
+	singerState, err := te.metaStorage.GetSignature(task.Source, singerDriver.GetTap(), driversbase.ALL.String())
 	if err != nil {
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
 

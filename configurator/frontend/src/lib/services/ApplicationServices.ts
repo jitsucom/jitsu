@@ -55,9 +55,9 @@ export class ApplicationConfiguration {
     return this._appEnvironment;
   }
 
-  get backendApiBase(): string {
-    return this._backendApiBase;
-  }
+    get backendApiBase(): string {
+        return this._backendApiBase;
+    }
 
   get backendApiProxyBase(): string {
     return this._backendApiProxyBase;
