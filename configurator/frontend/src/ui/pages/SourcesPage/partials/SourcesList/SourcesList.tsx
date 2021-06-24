@@ -57,6 +57,7 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
       callback: async() => {
         if (full) {
           await services.backendApiClient.post('/sources/clear_cache', {
+            proxy: true,
             source: `${services.activeProject.id}.${src.sourceId}`,
             project_id: services.activeProject.id
           });
