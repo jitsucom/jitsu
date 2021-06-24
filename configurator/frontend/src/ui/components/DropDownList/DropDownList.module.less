@@ -1,5 +1,4 @@
 @import "../../../theme";
-@import "../../../assets/mixins/custom-scrollbar";
 
 .dropdown {
   background: @secondary-background;
@@ -17,7 +16,7 @@
     overflow: auto;
     max-height: 480px;
 
-    .custom-scrollbar();
+    overflow-y: auto;
 
     .item {
       .link {

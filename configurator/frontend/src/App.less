@@ -2,14 +2,13 @@
 @import "~antd/dist/antd.less";
 @import "theme.less";
 @import "./src/assets/input";
-@import "./src/assets/mixins/custom-scrollbar";
 
 body {
   background: @primary-background;
 }
 
 body.custom-scroll-body {
-  .custom-scrollbar(scroll);
+  overflow-y: scroll;
 }
 
 #root {
@@ -44,6 +43,33 @@ ul {
   text-decoration: underline;
   background: @component-background;
 }
+
+// Scrollbar
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: @splitBorder;
+  -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.3);
+  -webkit-border-radius: 10px;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  -webkit-border-radius: 10px;
+  border-radius: 10px;
+  background: @secondaryText;
+  -webkit-box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.5);
+}
+
+::-webkit-scrollbar-thumb:window-inactive {
+  background: @text;
+}
+
+// Antd
 
 .ant-table-content table,
 .ant-table,
