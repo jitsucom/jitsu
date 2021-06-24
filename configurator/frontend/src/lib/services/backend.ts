@@ -254,4 +254,22 @@ export class BackendUserService implements UserService {
   getLoginFeatures(): LoginFeatures {
     return { oauth: false, password: true, signupEnabled: false };
   }
+
+  sendLoginLink(email: string): Promise<void> {
+    throw new Error('sendLoginLink() is not implemented')
+  }
+
+  supportsLoginViaLink(): boolean {
+    return false;
+  }
+
+  isEmailLoginLink(href: string): boolean {
+    throw new Error('isEmailLoginLink() is not implemented');
+  }
+
+  loginWithLink(email: string, href: string): Promise<void> {
+    throw new Error('loginWithLink() is not implemented');
+  }
+
+
 }

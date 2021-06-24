@@ -224,6 +224,27 @@ export class FirebaseUserService implements UserService {
   getLoginFeatures(): LoginFeatures {
     return { oauth: true, password: true, signupEnabled: true };
   }
+
+  sendLoginLink(email: string): Promise<void> {
+    return firebase.auth().sendSignInLinkToEmail(email, {
+      url: document.location.protocol + "//" + document.location.host + "/login-link/" + btoa(email),
+      handleCodeInApp: true
+    })
+  }
+
+  supportsLoginViaLink(): boolean {
+    return true;
+  }
+
+  isEmailLoginLink(href: string): boolean {
+    return firebase.auth().isSignInWithEmailLink(href);
+  }
+
+  loginWithLink(email: string, href: string): Promise<void> {
+    return firebase.auth().signInWithEmailLink(email, href).then();
+  }
+
+
 }
 
 export function firebaseInit(config: any) {
