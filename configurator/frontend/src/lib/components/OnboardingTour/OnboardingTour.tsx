@@ -28,7 +28,6 @@ type OnboardingConfig = {
 const USER_EVENT_EXPIRATION_THRESHOLD = moment.duration(1, 'months');
 
 export function showOnboardingError(msg?: string): void {
-  debugger;
   message.error(`Onboarding caught error${msg ? ': ' + msg : ''}`)
 }
 
@@ -148,7 +147,6 @@ export const OnboardingTour: React.FC = () => {
       // temporary hack - project is not created after sign ups with google/github
       if (!services.activeProject) {
         const user = services.userService.getUser();
-        debugger;
         user.projects = [new Project(randomId(), null)];
         await services.userService.update(user);
       }
