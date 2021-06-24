@@ -1,5 +1,4 @@
-@import './src/theme';
-@import './src/assets/mixins/custom-scrollbar';
+@import "./src/theme";
 
 .field {
   :global {
@@ -37,8 +36,7 @@
 
     .ant-modal-body {
       @apply flex-auto h-full py-0 !important;
-
-      .custom-scrollbar();
+      overflow-y: auto;
     }
 
     .ant-modal-footer {
