@@ -8,6 +8,7 @@ import ComponentTest from './lib/components/componentTest';
 import { TaskLogsPage, taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
 import { taskLogsViewerRoute, TaskLogViewer } from '@page/TaskLogs/TaskLogViewer';
 import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
+import { LoginLink } from '@./lib/components/LoginLink/LoginLink';
 // @Components
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
@@ -82,6 +83,7 @@ export class Page {
 export const SELFHOSTED_PAGES: Page[] = [new Page('Jitsu | setup', ['/', '/setup'], SetupForm)];
 
 export const PUBLIC_PAGES: Page[] = [
+  new Page('Jitsu | login with magic link', ['/login-link/:emailEncoded?'], LoginLink),
   new Page('Jitsu | login', ['/', '/dashboard', '/login'], LoginForm),
   new Page('Jitsu | register', ['/register'], SignupForm),
   new Page('Jitsu | reset password', ['/reset_password/:resetId'], PasswordForm)

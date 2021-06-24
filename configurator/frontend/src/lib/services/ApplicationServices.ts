@@ -211,6 +211,8 @@ export default class ApplicationServices {
     return this._userService;
   }
 
+
+
   get activeProject(): Project {
     return this.userService.getUser().projects[0];
   }
@@ -401,6 +403,14 @@ export interface UserService {
   changePassword(value: any, resetId?: string): void;
 
   becomeUser(email: string): Promise<void>;
+
+  supportsLoginViaLink(): boolean;
+
+  sendLoginLink(email: string): Promise<void>
+
+  isEmailLoginLink(href: string): boolean;
+
+  loginWithLink(email: string, href: string): Promise<void>;
 }
 
 /**
