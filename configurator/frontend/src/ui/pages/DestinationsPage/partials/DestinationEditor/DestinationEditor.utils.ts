@@ -36,6 +36,7 @@ const destinationEditorUtils = {
   updateSources: (sources: SourceData[], data: DestinationData, projectId: string) => {
     const result = sources.reduce((accumulator: SourceData[], current: SourceData) => {
       if (data._sources?.includes(current.sourceId)) {
+        if (!current.destinations) current = { ...current, destinations: [] };
         current = {
           ...current,
           destinations: current?.destinations?.find((dst: string) => !data._sources?.includes(data._uid))
@@ -48,7 +49,6 @@ const destinationEditorUtils = {
           destinations: current?.destinations?.filter((dst: string) => dst !== data._uid)
         };
       }
-
       return [
         ...accumulator,
         current

@@ -1,5 +1,4 @@
-@import './src/theme';
-@import './src/assets/mixins/custom-scrollbar';
+@import "./src/theme";
 
 .input {
   background-color: @primary-background;
@@ -10,7 +9,7 @@
 }
 
 .events {
-  .custom-scrollbar();
+  overflow-y: auto;
 }
 
 .panel {
@@ -42,7 +41,7 @@
 
 .resultHeader {
   &::after {
-    content: ':';
+    content: ":";
     position: relative;
     top: -0.5px;
     margin: 0 8px 0 2px;
@@ -51,7 +50,7 @@
 
 .events {
   @apply h-40;
-  .custom-scrollbar();
+  overflow-y: auto;
 }
 
 .output {
@@ -85,7 +84,7 @@
 
   .outputTab {
     @apply p-3 !important;
-    .custom-scrollbar();
+    overflow-y: auto;
   }
 
   :global {
