@@ -7,11 +7,12 @@ sort: 19
 
 Jitsu `1.32.0` is out! Here are the biggest changes:
 
-### Mobile Endpoint
-Now you can reduce traffic costs and send events to Jitsu in batches! JSON objects arrays and JSON objects with templates are accepted!
-Just send mobile events on the same Jitsu endpoint - `/api/v1/event` with client secret API token!
+### WebHook Destination
 
-[**Read more about mobile API** ](/docs/sending-data/mobile-api) »
+Send your data to any HTTP destination with Jitsu! You can easily configure sending important events such as purchases,
+registrations and other conversions into Slack! Also, you can send your data to Customer.io!
+
+[**Read more about WebHook Destination** ](/docs/destinations-configuration/webhook) »
 
 ### Segment API compatibility
 
@@ -21,13 +22,17 @@ Income events are mapped into Jitsu events structure automatically.
 
 [**Read more about Segment API** ](/docs/sending-data/segment-api) »
 
-### Users Onboarding Framework
-We love❤️ our users! We've improved Jitsu setup experience.
-Now you can configure the first destination just in seconds - beautiful dialogs will help you!
 
-### Singer Catalog Auto-Discover
-Now you don't need to configure catalog in Singer sources! Jitsu discovers catalog structure and selects all stream fields
-automatically on Singer source initialization! Just write Singer config credentials and let it work!
+### Improved Setup Experience
+
+We love❤️ our users! When Jitsu is launch for the first time, we'll walk you through all
+steps to collect your first event.
+
+### Simplified configuration for Singer-based connectors
+
+Now it's not required to add `catalog.json` to connectors which are based on Singer. Jitsu
+automatically syncs all available streams and fields. Later on we're going to make Singer streams
+configurable.
 
 <Hint>
     See more detailed changelog <a href="https://github.com/jitsucom/jitsu/releases"><b>on GitHub</b></a>
