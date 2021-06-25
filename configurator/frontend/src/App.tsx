@@ -1,21 +1,23 @@
+import { UserSettings } from 'lib/components/UserSettings/UserSettings'
+
 /* eslint-disable */
 import * as React from 'react';
-import { ExoticComponent, ReactNode, useState } from 'react';
+import { ExoticComponent, useState } from 'react';
 
-import {NavLink, Redirect, Route, Switch} from 'react-router-dom';
-import {Button, Col, Dropdown, Form, Input, Layout, Menu, message, Modal, Row, Tooltip} from 'antd';
+import {Redirect, Route, Switch} from 'react-router-dom';
+import {Button, Form, Input, Modal} from 'antd';
 
 
 import './App.less';
 import ApplicationServices, {setDebugInfo} from './lib/services/ApplicationServices';
-import {Align, CenteredSpin, GlobalError, handleError, Preloader} from './lib/components/components';
+import {CenteredSpin, GlobalError, handleError, Preloader} from './lib/components/components';
 import {reloadPage} from './lib/commons/utils';
 import {User} from './lib/services/model';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import { ApplicationPage, SlackChatWidget } from './Layout';
 import { PaymentPlanStatus } from '@service/billing';
-import { OnboardingTour } from './lib/components/OnboardingTour/OnboardingTour';
+import { OnboardingTour } from 'lib/components/OnboardingTour/OnboardingTour';
 
 enum AppLifecycle {
     LOADING, //Application is loading
@@ -167,6 +169,7 @@ export default class App extends React.Component<{}, AppState> {
             <>
                 <Switch>{routes}</Switch>
                 {extraForms}
+                <UserSettings />
             </>
         );
     }
