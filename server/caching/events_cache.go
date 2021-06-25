@@ -29,7 +29,8 @@ func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCac
 		succeedCh:              make(chan *succeedEvent, 1000000),
 		failedCh:               make(chan *failedEvent, 1000000),
 		capacityPerDestination: capacityPerDestination,
-		done:                   make(chan struct{}),
+
+		done: make(chan struct{}),
 	}
 	c.start()
 	return c
@@ -38,42 +39,27 @@ func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCac
 //start goroutine for reading from newCh/succeedCh/errorCh and put/update cache (async)
 func (ec *EventsCache) start() {
 	safego.RunWithRestart(func() {
-		for {
-			select {
-			case <-ec.done:
-				break
-			case cf := <-ec.originalCh:
-				ec.put(cf.destinationID, cf.eventID, cf.event)
-			}
+		for cf := range ec.originalCh {
+			ec.put(cf.destinationID, cf.eventID, cf.event)
 		}
 	})
 
 	safego.RunWithRestart(func() {
-		for {
-			select {
-			case <-ec.done:
-				break
-			case cf := <-ec.succeedCh:
-				ec.succeed(cf.destinationID, cf.eventID, cf.processed, cf.table)
-			}
+		for cf := range ec.succeedCh {
+			ec.succeed(cf.destinationID, cf.eventID, cf.processed, cf.table)
 		}
 	})
 
 	safego.RunWithRestart(func() {
-		for {
-			select {
-			case <-ec.done:
-				break
-			case cf := <-ec.failedCh:
-				ec.error(cf.destinationID, cf.eventID, cf.error)
-			}
+		for cf := range ec.failedCh {
+			ec.error(cf.destinationID, cf.eventID, cf.error)
 		}
 	})
 }
 
 //Put puts value into channel which will be read and written to storage
 func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value events.Event) {
-	if !disabled {
+	if !disabled && ec.isActive() {
 		select {
 		case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
 		default:
@@ -83,7 +69,7 @@ func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value e
 
 //Succeed puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Succeed(disabled bool, destinationID, eventID string, processed events.Event, table *adapters.Table) {
-	if !disabled {
+	if !disabled && ec.isActive() {
 		select {
 		case ec.succeedCh <- &succeedEvent{destinationID: destinationID, eventID: eventID, processed: processed, table: table}:
 		default:
@@ -93,7 +79,7 @@ func (ec *EventsCache) Succeed(disabled bool, destinationID, eventID string, pro
 
 //Error puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMsg string) {
-	if !disabled {
+	if !disabled && ec.isActive() {
 		select {
 		case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
 		default:
@@ -218,6 +204,19 @@ func (ec *EventsCache) GetTotal(destinationID string) int {
 
 //Close stops all underlying goroutines
 func (ec *EventsCache) Close() error {
+	close(ec.originalCh)
+	close(ec.succeedCh)
+	close(ec.failedCh)
 	close(ec.done)
 	return nil
+}
+
+//isActive indicates if the cache is operating
+func (ec *EventsCache) isActive() bool {
+	select {
+	case <-ec.done:
+		return false
+	default:
+		return true
+	}
 }
