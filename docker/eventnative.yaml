@@ -1,6 +1,7 @@
 server:
   name: jitsu
   disable_welcome_page: true
+  strict_auth_tokens: true
   admin_token: '${env.SERVER_ADMIN_TOKEN}'
   telemetry: 'http://localhost:7000/api/v1/telemetry?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
 
