@@ -77,24 +77,21 @@ if [[ $version =~ $SEMVER_EXPRESSION ]]; then
   echo "Using git reset --hard"
   git reset --hard
   git pull
-  echo "Service to release: all"
-  subsystem='all'
+  echo "Service to release: configurator, server, jitsu"
+  subsystem='jitsu'
 elif [[ $version == "beta" ]]; then
   echo "Checkouting beta ..."
   git checkout beta
   echo "Using git reset --hard"
   git reset --hard
   git pull
-  read -r -p "What service would you like to release? ['server', 'configurator', 'all', 'jitsu']: " subsystem
+  read -r -p "What service would you like to release? ['server', 'configurator', 'jitsu']: " subsystem
 else
   echo "Invalid version: $version. Only 'beta' or certain version e.g. '1.30.1' are supported"
   exit 1
 fi
 
 case $subsystem in
-    [j][i][t][s][u])
-        release_jitsu
-        ;;
     [s][e][r][v][e][r])
         build_server
         release_server $version
@@ -103,7 +100,7 @@ case $subsystem in
         build_configurator
         release_configurator $version
         ;;
-    [a][l][l])
+    [j][i][t][s][u])
        build_server
        build_configurator
        release_server $version
