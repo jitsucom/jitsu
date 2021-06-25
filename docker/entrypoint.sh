@@ -65,13 +65,8 @@ sed "s/NGINX_PORT/$NGINX_PORT_VALUE/g" /etc/nginx/nginx.conf > /etc/nginx/nginx_
 mv /etc/nginx/nginx_replaced.conf /etc/nginx/nginx.conf && \
 nginx -g 'daemon off;' &
 
-# Naive check runs checks once a minute to see if either of the processes exited.
-# This illustrates part of the heavy lifting you need to do if you want to run
-# more than one service in a container. The container exits with an error
-# if it detects that either of the processes has exited.
-# Otherwise it loops forever, waking up every 60 seconds
-
-# wait forever
+### Shutdown loop
+# wait forever and checks every 3 seconds if at least one of services has exited - do shutdown
 while sleep 3; do
   ps aux |grep configurator |grep -q -v grep
   PROCESS_CONFIGURATOR=$?

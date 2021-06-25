@@ -32,18 +32,18 @@ COPY --from=configurator /home/configurator /home/configurator
 COPY --from=server /home/eventnative /home/eventnative
 ADD configurator.yaml /home/configurator/data/config/
 ADD eventnative.yaml /home/eventnative/data/config/
-ADD run.sh /home/eventnative/run.sh
+ADD entrypoint.sh /home/eventnative/entrypoint.sh
 ADD nginx.conf /etc/nginx/nginx.conf
 RUN mv /home/configurator/app/web /home/configurator/web &&\
   touch /var/run/nginx.pid && \
   chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/configurator && \
   chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/eventnative && \
   chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /var/cache/nginx /var/run/nginx.pid /var/log/nginx /etc/nginx &&\
-  chmod +x /home/eventnative/run.sh
+  chmod +x /home/eventnative/entrypoint.sh
 
 USER $EVENTNATIVE_USER
 
 VOLUME ["/home/$EVENTNATIVE_USER/data", "/home/configurator/data"]
 EXPOSE 8000 8001 7000
 
-ENTRYPOINT ["/home/eventnative/run.sh"]
+ENTRYPOINT ["/home/eventnative/entrypoint.sh"]
