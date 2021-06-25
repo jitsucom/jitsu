@@ -75,14 +75,29 @@ func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg st
 				logging.Fatalf("Malformed ${env.VAR} placeholder in config value: %s = %s", k, value)
 			}
 
-			env := values[0]
-			res := os.Getenv(env)
+			var envName, defaultValue string
+			envExpression := values[0]
+			envName = envExpression
+			//check if default value
+			if strings.Contains(envName, "|") {
+				envNameParts := strings.Split(envName, "|")
+				if len(envNameParts) != 2 {
+					logging.Fatalf("Malformed ${env.VAR|default_value} placeholder in config value: %s = %s", k, value)
+				}
+				envName = envNameParts[0]
+				defaultValue = envNameParts[1]
+			}
+			res := os.Getenv(envName)
 			if len(res) == 0 {
-				logging.Fatalf("Mandatory env variable was not found: %s", env)
+				if defaultValue == "" {
+					logging.Fatalf("Mandatory env variable was not found: %s", envName)
+				}
+
+				res = defaultValue
 			}
 
 			valuePath := jsonutils.NewJSONPath(strings.ReplaceAll(k, ".", "/"))
-			err := valuePath.Set(envPlaceholderValues, strings.ToLower(strings.ReplaceAll(value, "${env."+env+"}", res)))
+			err := valuePath.Set(envPlaceholderValues, strings.ReplaceAll(value, "${env."+envExpression+"}", res))
 			if err != nil {
 				logging.Fatalf("Unable to set value in %s config path", k)
 			}

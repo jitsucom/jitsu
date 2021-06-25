@@ -1,16 +1,14 @@
 server:
-  log:
-    level: info
   allowed_domains:
     - '{{APP_TLD}}'
     - 'localhost'
-  name: demo-jitsu
+  name: jitsu
   auth: '${env.CONFIGURATOR_ADMIN_TOKEN}'
 
 storage:
   redis:
     host: '${env.REDIS_URL}'
-    tls_skip_verify: true
+    tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
 
 jitsu:
   base_url: 'http://localhost:8001'
@@ -19,6 +17,6 @@ jitsu:
 auth:
   redis:
     host: '${env.REDIS_URL}'
-    tls_skip_verify: true
+    tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
     access_secret: '${env.UI_AUTH_ACCESS_SECRET}'
     refresh_secret: '${env.UI_AUTH_REFRESH_SECRET}'
