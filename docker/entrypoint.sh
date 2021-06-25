@@ -65,6 +65,12 @@ sed "s/NGINX_PORT/$NGINX_PORT_VALUE/g" /etc/nginx/nginx.conf > /etc/nginx/nginx_
 mv /etc/nginx/nginx_replaced.conf /etc/nginx/nginx.conf && \
 nginx -g 'daemon off;' &
 
+
+echo "=============================================================================="
+echo "                           🌪 Jitsu has started!"
+echo "                    💻 visit localhost:$NGINX_PORT_VALUE/configurator"
+echo "=============================================================================="
+
 ### Shutdown loop
 # wait forever and checks every 3 seconds if at least one of services has exited - do shutdown
 while sleep 3; do
