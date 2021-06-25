@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/system"
 	"math/rand"
 	"net/http"
 	"os"
@@ -117,6 +118,11 @@ func main() {
 		appconfig.Beta = parsed[2] == "beta"
 	}
 
+	environment := os.Getenv("ENVIRONMENT")
+	if environment != "" {
+		dockerHubID = &environment
+	}
+
 	if err := appconfig.Init(*containerizedRun, *dockerHubID); err != nil {
 		logging.Fatal(err)
 	}
@@ -154,7 +160,7 @@ func main() {
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
 	go func() {
 		<-c
-		logging.Info("🤖 * Service is shutting down.. *")
+		logging.Info("🤖 * Server is shutting down.. *")
 		telemetry.ServerStop()
 		appstatus.Instance.Idle = true
 		cancel()
@@ -350,8 +356,10 @@ func main() {
 		appconfig.Instance.ScheduleClosing(vn)
 	}
 
+	systemService := system.NewService(viper.GetString("system"))
+
 	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
-		coordinationService, eventsCache, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper)
+		coordinationService, eventsCache, systemService, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper)
 
 	telemetry.ServerStart()
 	notifications.ServerStart()
