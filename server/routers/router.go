@@ -14,6 +14,7 @@ import (
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/synchronization"
+	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/users"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
@@ -23,7 +24,7 @@ import (
 
 func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
 	usersRecognitionService *users.RecognitionService, fallbackService *fallback.Service, clusterManager cluster.Manager,
-	eventsCache *caching.EventsCache, segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper) *gin.Engine {
+	eventsCache *caching.EventsCache, systemService *system.Service, segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -36,8 +37,9 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	publicURL := viper.GetString("server.public_url")
 	configuratorURL := viper.GetString("server.configurator_url")
 
-	welcomePageHandler := handlers.NewWelcomePageHandler(viper.GetString("server.static_files_dir"), configuratorURL, viper.GetBool("server.disable_welcome_page"))
-	router.GET("/", welcomePageHandler.Handler)
+	rootPathHandler := handlers.NewRootPathHandler(systemService, viper.GetString("server.static_files_dir"), configuratorURL,
+		viper.GetBool("server.disable_welcome_page"), viper.GetBool("server.configurator_redirect_https"))
+	router.GET("/", rootPathHandler.Handler)
 
 	staticHandler := handlers.NewStaticHandler(viper.GetString("server.static_files_dir"), publicURL)
 	router.GET("/s/:filename", staticHandler.Handler)

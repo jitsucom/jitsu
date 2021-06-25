@@ -1,8 +1,6 @@
 server:
-  configurator_url: '/configurator'
-  log:
-    level: info
-  name: demo-jitsu
+  name: jitsu
+  disable_welcome_page: true
   admin_token: '${env.SERVER_ADMIN_TOKEN}'
   telemetry: 'http://localhost:7000/api/v1/telemetry?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
 
@@ -12,8 +10,10 @@ destinations: 'http://localhost:7000/api/v1/destinations?token=${env.CONFIGURATO
 
 sources: 'http://localhost:7000/api/v1/sources?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
 
+system: 'http://localhost:7000/api/v1/system/configuration'
+
 meta:
   storage:
     redis:
       host: '${env.REDIS_URL}'
-      tls_skip_verify: true
+      tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'

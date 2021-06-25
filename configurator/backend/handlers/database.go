@@ -29,7 +29,7 @@ func NewDatabaseHandler(configurationsStorage *storages.ConfigurationsService) *
 func (eh *DatabaseHandler) PostHandler(c *gin.Context) {
 	body := DbCreationRequestBody{}
 	if err := c.BindJSON(&body); err != nil {
-		c.Writer.WriteHeader(http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Invalid input JSON", err))
 		return
 	}
 	projectID := body.ProjectID
