@@ -103,7 +103,7 @@ func (cs *ConfigurationsService) CreateDefaultDestination(projectID string) (*en
 			//create new
 			database, err := cs.defaultDestination.CreateDatabase(projectID)
 			if err != nil {
-				return nil, fmt.Errorf("Error creating postgres default destination for projectID: [%s]: %v", projectID, err)
+				return nil, fmt.Errorf("Error creating database: [%s]: %v", projectID, err)
 			}
 
 			err = cs.storage.Store(defaultDatabaseCredentialsCollection, projectID, database)

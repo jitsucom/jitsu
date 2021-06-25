@@ -58,6 +58,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.cache.events.size", 100)
 	viper.SetDefault("server.strict_auth_tokens", false)
 	viper.SetDefault("server.max_columns", 100)
+	viper.SetDefault("server.configurator_url", "/configurator")
 	//unique IDs
 	viper.SetDefault("server.fields_configuration.unique_id_field", "/eventn_ctx/event_id||/eventn_ctx_event_id||/event_id")
 	viper.SetDefault("server.fields_configuration.user_agent_path", "/eventn_ctx/user_agent||/user_agent")

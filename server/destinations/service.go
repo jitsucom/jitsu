@@ -29,7 +29,7 @@ type LoggerUsage struct {
 	usage  int
 }
 
-//Service is reloadable service of events destinations per token
+//Service is a reloadable service of events destinations per token
 type Service struct {
 	storageFactory storages.Factory
 	loggerFactory  *logging.Factory
