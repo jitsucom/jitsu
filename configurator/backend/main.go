@@ -81,13 +81,20 @@ func main() {
 	signal.Notify(c, syscall.SIGTERM, syscall.SIGINT, syscall.SIGKILL, syscall.SIGHUP)
 	go func() {
 		<-c
+		logging.Info("🤖 * Configurator is shutting down.. *")
 		cancel()
 		appconfig.Instance.Close()
 		telemetry.Flush()
 		time.Sleep(1 * time.Second)
+		notifications.Close()
 		telemetry.Close()
 		os.Exit(0)
 	}()
+
+	environment := os.Getenv("ENVIRONMENT")
+	if environment != "" {
+		dockerHubID = &environment
+	}
 
 	telemetry.InitFromViper(serviceName, commit, tag, builtAt, *dockerHubID)
 
@@ -212,9 +219,8 @@ func main() {
 }
 
 func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.ConfigurationsStorage,
-	configurationsService *storages.ConfigurationsService, authService *authorization.Service, defaultS3 *enadapters.S3Config,
-	sslUpdateExecutor *ssl.UpdateExecutor,
-	emailService *emails.Service) *gin.Engine {
+	configurationsService *storages.ConfigurationsService, authService *authorization.Service,
+	defaultS3 *enadapters.S3Config, sslUpdateExecutor *ssl.UpdateExecutor, emailService *emails.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 	router := gin.New()
 	router.Use(gin.Recovery(), enmiddleware.GinLogErrorBody)

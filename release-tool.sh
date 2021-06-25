@@ -39,27 +39,27 @@ function release_configurator() {
   fi
 }
 
-function release_heroku() {
-  echo "**** Heroku release [$1] ****"
+function release_jitsu() {
+  echo "**** Jitsu release [$1] ****"
   docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || { echo 'Docker jitsu login failed' ; exit 1; }
 
-  heroku_tags="-t jitsucom/heroku:$1"
+  jitsu_tags="-t jitsucom/jitsu:$1"
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
-    heroku_tags="-t jitsucom/heroku:$1 -t jitsucom/heroku:latest"
+    jitsu_tags="-t jitsucom/jitsu:$1 -t jitsucom/jitsu:latest"
   fi
 
-  cd heroku && \
+  cd docker && \
   docker pull jitsucom/configurator:"$1" && \
   docker pull jitsucom/configurator:latest && \
   docker pull jitsucom/server:"$1" && \
   docker pull jitsucom/server:latest && \
-  docker build $heroku_tags -f heroku.Dockerfile . && \
-  cd ../ || { echo 'Heroku docker build failed' ; exit 1; }
+  docker build $jitsu_tags . && \
+  cd ../ || { echo 'Jitsu docker build failed' ; exit 1; }
 
-  docker push jitsucom/heroku:"$1"  || { echo 'Heroku docker push failed' ; exit 1; }
+  docker push jitsucom/jitsu:"$1"  || { echo 'Jitsu docker push failed' ; exit 1; }
 
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
-    docker push jitsucom/heroku:latest  || { echo 'Heroku latest docker push failed' ; exit 1; }
+    docker push jitsucom/jitsu:latest  || { echo 'Jitsu latest docker push failed' ; exit 1; }
   fi
 }
 
@@ -85,15 +85,15 @@ elif [[ $version == "beta" ]]; then
   echo "Using git reset --hard"
   git reset --hard
   git pull
-  read -r -p "What service would you like to release? ['server', 'configurator', 'all', 'heroku']: " subsystem
+  read -r -p "What service would you like to release? ['server', 'configurator', 'all', 'jitsu']: " subsystem
 else
   echo "Invalid version: $version. Only 'beta' or certain version e.g. '1.30.1' are supported"
   exit 1
 fi
 
 case $subsystem in
-    [h][e][r][o][k][u])
-        release_heroku
+    [j][i][t][s][u])
+        release_jitsu
         ;;
     [s][e][r][v][e][r])
         build_server
@@ -108,7 +108,7 @@ case $subsystem in
        build_configurator
        release_server $version
        release_configurator $version
-       release_heroku $version
+       release_jitsu $version
        ;;
     *)
         echo "Invalid input service [$subsystem]..."

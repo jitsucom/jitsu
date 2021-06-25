@@ -1,6 +1,6 @@
 FROM nginx:alpine as main
 
-RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata
+RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata bash
 
 ENV EVENTNATIVE_USER=eventnative
 
@@ -32,17 +32,18 @@ COPY --from=configurator /home/configurator /home/configurator
 COPY --from=server /home/eventnative /home/eventnative
 ADD configurator.yaml /home/configurator/data/config/
 ADD eventnative.yaml /home/eventnative/data/config/
-ADD heroku.sh /home/eventnative/heroku.sh
+ADD run.sh /home/eventnative/run.sh
 ADD nginx.conf /etc/nginx/nginx.conf
 RUN mv /home/configurator/app/web /home/configurator/web &&\
   touch /var/run/nginx.pid && \
   chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/configurator && \
   chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/eventnative && \
-  chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /var/cache/nginx /var/run/nginx.pid /var/log/nginx /etc/nginx
+  chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /var/cache/nginx /var/run/nginx.pid /var/log/nginx /etc/nginx &&\
+  chmod +x /home/eventnative/run.sh
 
 USER $EVENTNATIVE_USER
 
 VOLUME ["/home/$EVENTNATIVE_USER/data", "/home/configurator/data"]
-EXPOSE 80 8001 7000
+EXPOSE 8000 8001 7000
 
-CMD sh /home/eventnative/heroku.sh
+ENTRYPOINT ["/home/eventnative/run.sh"]

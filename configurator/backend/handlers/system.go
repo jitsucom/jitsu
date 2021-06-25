@@ -4,24 +4,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/configurator/authorization"
 	"github.com/jitsucom/jitsu/configurator/storages"
-	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
+	jmiddleware "github.com/jitsucom/jitsu/server/middleware"
+	jsystem "github.com/jitsucom/jitsu/server/system"
 	"net/http"
 )
-
-//Configuration is used for system endpoint
-//current authorization configuration and amount of registered users
-type Configuration struct {
-	Authorization          string `json:"authorization"`
-	Users                  bool   `json:"users"`
-	SMTP                   bool   `json:"smtp"`
-	SelfHosted             bool   `json:"selfhosted"`
-	SupportWidget          bool   `json:"support_widget"`
-	DefaultS3Bucket        bool   `json:"default_s3_bucket"`
-	SupportTrackingDomains bool   `json:"support_tracking_domains"`
-	TelemetryUsageDisabled bool   `json:"telemetry_usage_disabled"`
-	ShowBecomeUser         bool   `json:"show_become_user"`
-	DockerHubID            string `json:"docker_hub_id"`
-}
 
 type SystemHandler struct {
 	authService          *authorization.Service
@@ -50,13 +36,13 @@ func NewSystemHandler(authService *authorization.Service, configurationService *
 func (sh *SystemHandler) GetHandler(c *gin.Context) {
 	exist, err := sh.authService.UsersExist()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse("Error checking users existence", err))
+		c.JSON(http.StatusInternalServerError, jmiddleware.ErrResponse("Error checking users existence", err))
 		return
 	}
 
 	telemetryConfig, err := sh.configurationService.GetParsedTelemetry()
 	if err != nil && err != storages.ErrConfigurationNotFound {
-		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse("Error getting telemetry configuration", err))
+		c.JSON(http.StatusInternalServerError, jmiddleware.ErrResponse("Error getting telemetry configuration", err))
 		return
 	}
 
@@ -68,7 +54,7 @@ func (sh *SystemHandler) GetHandler(c *gin.Context) {
 		}
 	}
 
-	currentConfiguration := Configuration{
+	currentConfiguration := jsystem.Configuration{
 		Authorization:          sh.authService.GetAuthorizationType(),
 		Users:                  exist,
 		SMTP:                   sh.smtp,
