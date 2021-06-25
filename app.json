@@ -55,12 +55,12 @@
     "TLS_SKIP_VERIFY": {
       "required": true,
       "description": "Heroku Redis requires TLS_SKIP_VERIFY=true. Leave it unless you know what you do",
-      "value": true
+      "value": "true"
     },
     "SERVER_CONFIGURATOR_REDIRECT_HTTPS": {
       "required": true,
       "description": "Heroku deployments requires SERVER_CONFIGURATOR_REDIRECT_HTTPS=true. Leave it unless you know what you do",
-      "value": true
+      "value": "true"
     }
   },
   "addons": [

@@ -76,7 +76,8 @@ func (rph *RootPathHandler) Handler(c *gin.Context) {
 		}
 
 		redirectURL := redirectSchema + "://" + redirectHost
-		if redirectPort != "" {
+		//don't add port if https
+		if redirectPort != "" && !rph.redirectToHttps {
 			redirectURL += ":" + redirectPort
 		}
 		c.Redirect(http.StatusTemporaryRedirect, redirectURL+viper.GetString("server.configurator_url"))
