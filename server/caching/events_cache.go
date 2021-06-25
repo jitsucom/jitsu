@@ -18,7 +18,7 @@ type EventsCache struct {
 	failedCh               chan *failedEvent
 	capacityPerDestination int
 
-	closed bool
+	done chan struct{}
 }
 
 //NewEventsCache returns EventsCache and start goroutine for async operations
@@ -29,6 +29,7 @@ func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCac
 		succeedCh:              make(chan *succeedEvent, 1000000),
 		failedCh:               make(chan *failedEvent, 1000000),
 		capacityPerDestination: capacityPerDestination,
+		done:                   make(chan struct{}),
 	}
 	c.start()
 	return c
@@ -38,34 +39,34 @@ func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCac
 func (ec *EventsCache) start() {
 	safego.RunWithRestart(func() {
 		for {
-			if ec.closed {
+			select {
+			case <-ec.done:
 				break
+			case cf := <-ec.originalCh:
+				ec.put(cf.destinationID, cf.eventID, cf.event)
 			}
-
-			cf := <-ec.originalCh
-			ec.put(cf.destinationID, cf.eventID, cf.event)
 		}
 	})
 
 	safego.RunWithRestart(func() {
 		for {
-			if ec.closed {
+			select {
+			case <-ec.done:
 				break
+			case cf := <-ec.succeedCh:
+				ec.succeed(cf.destinationID, cf.eventID, cf.processed, cf.table)
 			}
-
-			cf := <-ec.succeedCh
-			ec.succeed(cf.destinationID, cf.eventID, cf.processed, cf.table)
 		}
 	})
 
 	safego.RunWithRestart(func() {
 		for {
-			if ec.closed {
+			select {
+			case <-ec.done:
 				break
+			case cf := <-ec.failedCh:
+				ec.error(cf.destinationID, cf.eventID, cf.error)
 			}
-
-			cf := <-ec.failedCh
-			ec.error(cf.destinationID, cf.eventID, cf.error)
 		}
 	})
 }
@@ -217,6 +218,6 @@ func (ec *EventsCache) GetTotal(destinationID string) int {
 
 //Close stops all underlying goroutines
 func (ec *EventsCache) Close() error {
-	ec.closed = true
+	close(ec.done)
 	return nil
 }
