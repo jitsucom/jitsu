@@ -1,6 +1,9 @@
 package routers
 
 import (
+	"net/http"
+	"net/http/pprof"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -18,8 +21,6 @@ import (
 	"github.com/jitsucom/jitsu/server/users"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
-	"net/http"
-	"net/http/pprof"
 )
 
 func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
@@ -56,6 +57,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	statisticsHandler := handlers.NewStatisticsHandler(metaStorage)
 
 	sourcesHandler := handlers.NewSourcesHandler(sourcesService, metaStorage)
+	pixelHandler := handlers.NewPixelHandler()
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
@@ -97,6 +99,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler))
 		apiV1.POST("/replay", adminTokenMiddleware.AdminAuth(fallbackHandler.ReplayHandler))
+
+		apiV1.GET("p.gif", pixelHandler.Handle)
 	}
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
