@@ -5,8 +5,9 @@ import (
 )
 
 const (
-	JSPreprocessorType      = "js"
 	APIPreprocessorType     = "api"
+	JSPreprocessorType      = "js"
+	PixelPreprocessorType   = "pixel"
 	SegmentPreprocessorType = "segment"
 )
 
