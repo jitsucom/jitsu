@@ -103,18 +103,19 @@ func (handler *PixelHandler) sendEvent(token string, event events.Event, request
 	}
 
 	// ** Enrichment **
-	// Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
-	enrichment.ContextEnrichmentStep(event, token, request, handler.processor, destinationStorages[0].GetUniqueIDField())
+	// Note: we assume that destinations under 1 token cannot have different unique ID configuration (JS SDK 2.0 or an old one)
+	uniqueIDField := destinationStorages[0].GetUniqueIDField()
+	enrichment.ContextEnrichmentStep(event, token, request, handler.processor, uniqueIDField)
+
+	// Extract unique identifier
+	eventID := uniqueIDField.Extract(event)
+	if eventID == "" {
+		logging.Debugf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), event.Serialize())
+	}
 
 	// ** Caching **
 	// Clone event for preventing concurrent changes while serialization
 	cachingEvent := event.Clone()
-
-	// Extract unique identifier
-	eventID := destinationStorages[0].GetUniqueIDField().Extract(event)
-	if eventID == "" {
-		logging.Debugf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), event.Serialize())
-	}
 
 	var destinationIDs []string
 	for _, destinationProxy := range destinationStorages {

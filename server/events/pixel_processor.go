@@ -16,7 +16,7 @@ func NewPixelProcessor() Processor {
 	return &PixelProcessor{}
 }
 
-// Preprocess set user-agent from request header to configured nodes
+// Preprocess set some values from request header into event
 func (pp *PixelProcessor) Preprocess(event Event, r *http.Request) {
 	compatibility := false
 	if _, ok := event["compat"]; ok {
