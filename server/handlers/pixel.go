@@ -12,11 +12,11 @@ import (
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
-	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 const TRACKING_PIXEL = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAEAOw=="
@@ -25,13 +25,15 @@ type PixelHandler struct {
 	data []byte
 
 	destinationService *destinations.Service
+	processor          events.Processor
 	eventsCache        *caching.EventsCache
 }
 
-func NewPixelHandler(destinationsService *destinations.Service, eventsCache *caching.EventsCache) *PixelHandler {
+func NewPixelHandler(destinationsService *destinations.Service, processor events.Processor, eventsCache *caching.EventsCache) *PixelHandler {
 	var err error
 	handler := &PixelHandler{
 		destinationService: destinationsService,
+		processor:          processor,
 		eventsCache:        eventsCache,
 	}
 
@@ -54,10 +56,8 @@ func (handler *PixelHandler) doTracking(c *gin.Context) {
 
 	token := restoreEvent(event, c)
 
-	enrichEvent(event, c)
-
 	if token != "" {
-		handler.sendEvent(token, event)
+		handler.sendEvent(token, event, c.Request)
 	}
 }
 
@@ -94,78 +94,7 @@ func restoreEvent(event events.Event, c *gin.Context) string {
 	return fmt.Sprint(event[middleware.TokenName])
 }
 
-func enrichEvent(event map[string]interface{}, c *gin.Context) {
-	compatibility := false
-	if _, ok := event["compat"]; ok {
-		compatibility = true
-	}
-
-	urlField := "url"
-	hostField := "doc_host"
-	pathField := "doc_path"
-	searchField := "doc_search"
-	userIdField := "user/anonymous_id"
-	agentField := "user_agent"
-	timeField := "utc_time"
-	if compatibility {
-		urlField = "eventn_ctx/url"
-		hostField = "eventn_ctx/doc_host"
-		pathField = "eventn_ctx/doc_path"
-		searchField = "eventn_ctx/doc_search"
-		userIdField = "eventn_ctx/user/anonymous_id"
-		agentField = "eventn_ctx/user_agent"
-		timeField = "eventn_ctx/utc_time"
-	}
-
-	path := jsonutils.NewJSONPath(urlField)
-	if _, exist := path.Get(event); !exist {
-		path.Set(event, c.Request.RemoteAddr)
-	}
-
-	path = jsonutils.NewJSONPath(hostField)
-	if _, exist := path.Get(event); !exist {
-		path.Set(event, c.Request.Host)
-	}
-
-	path = jsonutils.NewJSONPath(pathField)
-	if _, exist := path.Get(event); !exist {
-		path.Set(event, c.Request.URL.Path)
-	}
-
-	path = jsonutils.NewJSONPath(searchField)
-	if _, exist := path.Get(event); !exist {
-		path.Set(event, c.Request.URL.RawQuery)
-	}
-
-	path = jsonutils.NewJSONPath(userIdField)
-	if _, exist := path.Get(event); !exist {
-		domain, ok := event["cookie_domain"]
-		if !ok {
-			domain = c.Request.Host
-		}
-
-		if domain_str, ok := domain.(string); ok {
-			cookie, err := c.Request.Cookie(domain_str)
-			if err == nil && cookie != nil {
-				path.Set(event, cookie.Value)
-			}
-		}
-	}
-
-	path = jsonutils.NewJSONPath(agentField)
-	if _, exist := path.Get(event); !exist {
-		path.Set(event, c.Request.UserAgent())
-	}
-
-	path = jsonutils.NewJSONPath(timeField)
-	if _, exist := path.Get(event); !exist {
-		path.Set(event, timestamp.NowUTC())
-	}
-
-	event["src"] = "jitsu_gif"
-}
-
-func (handler *PixelHandler) sendEvent(token string, event events.Event) {
+func (handler *PixelHandler) sendEvent(token string, event events.Event, request *http.Request) {
 	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
 	destinationStorages := handler.destinationService.GetDestinations(tokenID)
 	if len(destinationStorages) == 0 {
@@ -175,7 +104,7 @@ func (handler *PixelHandler) sendEvent(token string, event events.Event) {
 
 	// ** Enrichment **
 	// Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
-	// enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.processor, destinationStorages[0].GetUniqueIDField())
+	enrichment.ContextEnrichmentStep(event, token, request, handler.processor, destinationStorages[0].GetUniqueIDField())
 
 	// ** Caching **
 	// Clone event for preventing concurrent changes while serialization
@@ -204,8 +133,8 @@ func (handler *PixelHandler) sendEvent(token string, event events.Event) {
 		consumer.Consume(event, tokenID)
 	}
 
-	// Retrospective users recognition
-	// handler.processor.Postprocess(event, eventID, destinationIDs)
+	// ** Postprocessing **
+	handler.processor.Postprocess(event, eventID, destinationIDs)
 
 	// ** Telemetry **
 	counters.SuccessSourceEvents(tokenID, 1)
