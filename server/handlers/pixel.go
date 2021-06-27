@@ -3,12 +3,19 @@ package handlers
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/counters"
+	"github.com/jitsucom/jitsu/server/destinations"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
@@ -16,11 +23,17 @@ const TRACKING_PIXEL = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAEA
 
 type PixelHandler struct {
 	data []byte
+
+	destinationService *destinations.Service
+	eventsCache        *caching.EventsCache
 }
 
-func NewPixelHandler() *PixelHandler {
+func NewPixelHandler(destinationsService *destinations.Service, eventsCache *caching.EventsCache) *PixelHandler {
 	var err error
-	handler := &PixelHandler{}
+	handler := &PixelHandler{
+		destinationService: destinationsService,
+		eventsCache:        eventsCache,
+	}
 
 	handler.data, err = base64.StdEncoding.DecodeString(TRACKING_PIXEL)
 	if err != nil {
@@ -31,20 +44,24 @@ func NewPixelHandler() *PixelHandler {
 }
 
 func (handler *PixelHandler) Handle(c *gin.Context) {
-	go doTracking(c.Copy())
+	go handler.doTracking(c.Copy())
 
 	c.Data(http.StatusOK, "image/gif", handler.data)
 }
 
-func doTracking(c *gin.Context) {
+func (handler *PixelHandler) doTracking(c *gin.Context) {
 	event := map[string]interface{}{}
 
-	restoreEvent(event, c)
+	token := restoreEvent(event, c)
 
 	enrichEvent(event, c)
+
+	if token != "" {
+		handler.sendEvent(token, event)
+	}
 }
 
-func restoreEvent(event map[string]interface{}, c *gin.Context) {
+func restoreEvent(event events.Event, c *gin.Context) string {
 	parameters := c.Request.URL.Query()
 
 	data := parameters.Get("data")
@@ -67,8 +84,14 @@ func restoreEvent(event map[string]interface{}, c *gin.Context) {
 
 		converted := strings.ReplaceAll(key, ".", "/")
 		path := jsonutils.NewJSONPath(converted)
-		path.Set(event, value)
+		if len(value) == 1 {
+			path.Set(event, value[0])
+		} else {
+			path.Set(event, value)
+		}
 	}
+
+	return fmt.Sprint(event[middleware.TokenName])
 }
 
 func enrichEvent(event map[string]interface{}, c *gin.Context) {
@@ -140,4 +163,50 @@ func enrichEvent(event map[string]interface{}, c *gin.Context) {
 	}
 
 	event["src"] = "jitsu_gif"
+}
+
+func (handler *PixelHandler) sendEvent(token string, event events.Event) {
+	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
+	destinationStorages := handler.destinationService.GetDestinations(tokenID)
+	if len(destinationStorages) == 0 {
+		logging.Debugf(noDestinationsErrTemplate, token)
+		return
+	}
+
+	// ** Enrichment **
+	// Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
+	// enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.processor, destinationStorages[0].GetUniqueIDField())
+
+	// ** Caching **
+	// Clone event for preventing concurrent changes while serialization
+	cachingEvent := event.Clone()
+
+	// Extract unique identifier
+	eventID := destinationStorages[0].GetUniqueIDField().Extract(event)
+	if eventID == "" {
+		logging.Debugf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), event.Serialize())
+	}
+
+	var destinationIDs []string
+	for _, destinationProxy := range destinationStorages {
+		destinationIDs = append(destinationIDs, destinationProxy.ID())
+		handler.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, cachingEvent)
+	}
+
+	// ** Multiplexing **
+	consumers := handler.destinationService.GetConsumers(tokenID)
+	if len(consumers) == 0 {
+		logging.Debugf(noDestinationsErrTemplate, token)
+		return
+	}
+
+	for _, consumer := range consumers {
+		consumer.Consume(event, tokenID)
+	}
+
+	// Retrospective users recognition
+	// handler.processor.Postprocess(event, eventID, destinationIDs)
+
+	// ** Telemetry **
+	counters.SuccessSourceEvents(tokenID, 1)
 }
