@@ -4,14 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/counters"
-	"github.com/jitsucom/jitsu/server/destinations"
-	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"net/http"
 	"strconv"
@@ -20,8 +17,7 @@ import (
 )
 
 const (
-	defaultLimit              = 100
-	noDestinationsErrTemplate = "No destination is configured for token [%s] (or only staged ones)"
+	defaultLimit = 100
 )
 
 //CachedEvent is a dto for events cache
@@ -40,19 +36,20 @@ type CachedEventsResponse struct {
 
 //EventHandler accepts all events
 type EventHandler struct {
-	destinationService *destinations.Service
-	parser             events.Parser
-	processor          events.Processor
-	eventsCache        *caching.EventsCache
+	multiplexingService *multiplexing.Service
+	eventsCache         *caching.EventsCache
+	parser              events.Parser
+	processor           events.Processor
 }
 
 //NewEventHandler returns configured EventHandler
-func NewEventHandler(destinationService *destinations.Service, parser events.Parser, processor events.Processor, eventsCache *caching.EventsCache) (eventHandler *EventHandler) {
+func NewEventHandler(multiplexingService *multiplexing.Service, eventsCache *caching.EventsCache,
+	parser events.Parser, processor events.Processor) (eventHandler *EventHandler) {
 	return &EventHandler{
-		destinationService: destinationService,
-		parser:             parser,
-		processor:          processor,
-		eventsCache:        eventsCache,
+		multiplexingService: multiplexingService,
+		eventsCache:         eventsCache,
+		parser:              parser,
+		processor:           processor,
 	}
 }
 
@@ -72,54 +69,12 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	}
 	token := iface.(string)
 
-	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
-	destinationStorages := eh.destinationService.GetDestinations(tokenID)
-	if len(destinationStorages) == 0 {
-		noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
+	err = eh.multiplexingService.AcceptRequest(eh.processor, c, token, eventsArray)
+	if err != nil {
 		reqBody, _ := json.Marshal(eventsArray)
-		logging.Warnf("%s. Event: %s", noConsumerMessage, string(reqBody))
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(noConsumerMessage, nil))
+		logging.Warnf("%v. Event: %s", err, string(reqBody))
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
-	}
-
-	for _, payload := range eventsArray {
-		//** Context enrichment **
-		//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
-		enrichment.ContextEnrichmentStep(payload, token, c.Request, eh.processor, destinationStorages[0].GetUniqueIDField())
-
-		//** Caching **
-		//clone payload for preventing concurrent changes while serialization
-		cachingEvent := payload.Clone()
-
-		//Persisted cache
-		//extract unique identifier
-		eventID := destinationStorages[0].GetUniqueIDField().Extract(payload)
-		if eventID == "" {
-			logging.SystemErrorf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), payload.Serialize())
-		}
-		var destinationIDs []string
-		for _, destinationProxy := range destinationStorages {
-			destinationIDs = append(destinationIDs, destinationProxy.ID())
-			eh.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, cachingEvent)
-		}
-
-		//** Multiplexing **
-		consumers := eh.destinationService.GetConsumers(tokenID)
-		if len(consumers) == 0 {
-			noConsumerMessage := fmt.Sprintf(noDestinationsErrTemplate, token)
-			logging.Warnf("%s. Event: %s", noConsumerMessage, payload.Serialize())
-			c.JSON(http.StatusBadRequest, middleware.ErrResponse(noConsumerMessage, nil))
-			return
-		}
-
-		for _, consumer := range consumers {
-			consumer.Consume(payload, tokenID)
-		}
-
-		//Retrospective users recognition
-		eh.processor.Postprocess(payload, eventID, destinationIDs)
-
-		counters.SuccessSourceEvents(tokenID, 1)
 	}
 
 	c.JSON(http.StatusOK, middleware.OKResponse())
