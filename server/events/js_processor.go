@@ -1,23 +1,11 @@
 package events
 
 import (
+	"net/http"
+
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
-	"net/http"
 )
-
-const (
-	JSPreprocessorType      = "js"
-	APIPreprocessorType     = "api"
-	SegmentPreprocessorType = "segment"
-)
-
-//Processor is used in preprocessing and postprocessing events before consuming(storing)
-type Processor interface {
-	Preprocess(event Event, r *http.Request)
-	Postprocess(event Event, eventID string, destinationIDs []string)
-	Type() string
-}
 
 //JsProcessor preprocess client integration events
 type JsProcessor struct {
