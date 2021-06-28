@@ -5,6 +5,7 @@ export type Destination = {
     id: string
     type: 'database' | 'other'
     displayName: string
+    description?: ReactNode
     ui?: DestinationUI
     parameters: readonly Parameter[],
     syncFromSourcesStatus: 'supported' | 'coming_soon' | 'not_supported'

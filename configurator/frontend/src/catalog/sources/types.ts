@@ -197,11 +197,6 @@ export interface SourceConnector {
   collectionTypes: string[]
 
   /**
-   * Description
-   */
-  description?: ReactNode
-
-  /**
    * Collection templates
    */
   collectionTemplates?: CollectionTemplate[]

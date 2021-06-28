@@ -34,6 +34,9 @@ const icon = <svg viewBox="0 0 25.6 25.6" xmlns="http://www.w3.org/2000/svg">
 </svg>;
 
 const postgresDestination = {
+  description: <>Postgres SQL is a one of the most popular databases. While it's not suitable for large datasets (more than 100m events),
+  it's probably an easiest way to start collecting data with Jitsu<br/><br />
+  Jitsu works with Postgres both in stream and batch mode</>,
   syncFromSourcesStatus: 'supported',
   id: 'postgres',
   type: 'database',

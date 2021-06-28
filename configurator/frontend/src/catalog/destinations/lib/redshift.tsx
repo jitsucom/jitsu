@@ -13,9 +13,13 @@ const icon = <svg enableBackground="new 0 0 1615 1783.7" viewBox="0 0 1615 1783.
 </svg>
 
 const destination = {
+  description: <>
+    RedShift is a fast and scalable data warehouse provided by AWS. Jitsu can send data to RedShift in both stream,
+    and batch mode. For batch mode you'll need to provide access to S3 bucket where Jitsu will store temporary data batches.
+  </>,
   syncFromSourcesStatus: 'coming_soon',
   id: 'redshift',
-  type: 'other',
+  type: 'database',
   displayName: 'Redshift',
   ui: {
     title: (cfg) => cfg._formData.redshiftHost,

@@ -1,6 +1,7 @@
 import { Destination } from '../types';
 import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
 import { stringType } from '../../sources/types';
+import * as React from "react";
 
 const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <g transform="matrix(.363638 0 0 .363636 -3.272763 -2.909091)">
@@ -13,6 +14,10 @@ const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
 </svg>;
 
 const googleAnalytics = {
+  description: <>
+    Jitsu can send events from JS SDK or Events API to Google Analytics API. The common use-case is to send conversions
+    or/and page views to Google to use that data for targeting and ad optimization
+  </>,
   syncFromSourcesStatus: 'not_supported',
   id: 'google_analytics',
   type: 'other',

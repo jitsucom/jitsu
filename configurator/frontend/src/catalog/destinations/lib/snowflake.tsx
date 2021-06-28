@@ -1,6 +1,7 @@
 import { Destination } from '../types';
 import { hiddenValue, modeParameter, s3Credentials, tableName } from './common';
 import { Function, jsonType, passwordType, singleSelectionType, stringType } from '../../sources/types';
+import * as React from "react";
 
 const icon = <svg viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
   <path
@@ -39,9 +40,13 @@ function displayForBatchOnly<T>(defaultValue: T): Function<any, T> {
 }
 
 const destination = {
+  description: <>
+    Snowflake is a fast and scalable data warehouse. Jitsu can works with Snowflake both in stream and batch modes. For batching, you'll
+    need to provide an access either to Amazon S3 or to Google's Cloud storage bucket
+  </>,
   syncFromSourcesStatus: 'coming_soon',
   id: 'snowflake',
-  type: 'other',
+  type: 'database',
   displayName: 'Snowflake',
   ui: {
     icon,
