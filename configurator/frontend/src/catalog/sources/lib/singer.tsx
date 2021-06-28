@@ -225,8 +225,14 @@ export const allSingerTaps: SingerTap[] = [
           documentation: <>
             Repository as org/repo such as jitsucom/jitsu
           </>
+        },
+        {
+          displayName: 'Start Date',
+          id: 'start_date',
+          type: isoUtcDateType,
+          defaultValue: '2018-01-01T00:00:00.000Z',
+          required: true
         }
-
       ]
     }),
 
