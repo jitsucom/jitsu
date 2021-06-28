@@ -5,7 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/testsuite"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/testsuit"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -175,7 +176,7 @@ func TestCors(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
-			testSuite := testsuite.NewSuiteBuilder(t).Build(t)
+			testSuite := testsuit.NewSuiteBuilder(t).Build(t)
 			defer testSuite.Close()
 
 			//check http OPTIONS
@@ -315,7 +316,7 @@ func TestEventEndpoint(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
-			testSuite := testsuite.NewSuiteBuilder(t).Build(t)
+			testSuite := testsuit.NewSuiteBuilder(t).Build(t)
 			defer testSuite.Close()
 
 			b, err := ioutil.ReadFile(tt.ReqBodyPath)
@@ -404,7 +405,7 @@ func TestSegmentAPIEndpoint(t *testing.T) {
 
 			SetTestDefaultParams()
 
-			testSuite := testsuite.NewSuiteBuilder(t).WithGeoDataMock().Build(t)
+			testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock().Build(t)
 			defer testSuite.Close()
 
 			sendSegmentRequests(t, "http://"+testSuite.HTTPAuthority()+tt.ReqURN)
@@ -425,6 +426,122 @@ func TestSegmentAPIEndpoint(t *testing.T) {
 				expectedBytes, err := json.Marshal(expected)
 				require.NoError(t, err)
 				test.JSONBytesEqual(t, expectedBytes, actualEvent, "Logged facts aren't equal")
+			}
+		})
+	}
+}
+
+func TestPixelEndpoint(t *testing.T) {
+	uuid.InitMock()
+	binding.EnableDecoderUseNumber = true
+
+	SetTestDefaultParams()
+	tests := []struct {
+		Name                string
+		ReqURN              string
+		CookieAnonymIDValue string
+		ExpectedJSONPath    string
+		ExpectedAnonymID    string
+	}{
+		{
+			"Unauthorized shouldn't error",
+			"/api/v1/p.gif?data=ewogIAogICJldmVudF90eXBlIjogIm9wZW5fZW1haWwiLAoidXNlciI6IHsKICAiYW5vbnltb3VzX2lkIjogImRhZG5vbjQxMjQxIgogIH0KfQ==",
+			"",
+			"",
+			"",
+		},
+		{
+			"Event without context data and anonym id",
+			"/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2",
+			"dan3o12ndnsd",
+			"test_data/pixel_event_without_context_output.json",
+			"",
+		},
+		{
+			"Event without context data and anonym id compat",
+			"/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2&compat=true",
+			"",
+			"test_data/pixel_event_without_context_compat_output.json",
+			"mockeduuid",
+		},
+		{
+			"Event with context data and anonym id",
+			"/api/v1/p.gif?data=ewogICJkb2NfaG9zdCI6ICJjbG91ZC5qaXRzdS5jb20iLAogICJkb2NfcGF0aCI6ICIvZGVzdGluYXRpb25zIiwKICAiZG9jX3NlYXJjaCI6ICJpZD0xMjMiLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJ1cmwiOiAiaHR0cHM6Ly9jbG91ZC5qaXRzdS5jb20vZGVzdGluYXRpb25zIiwKICAidXNlciI6IHsKICAgICJhbm9ueW1vdXNfaWQiOiAiMTIzIgogIH0sCiAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTNfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUxIiwKICAidXRjX3RpbWUiOiAiMjAyMS0wNi0xNlQyMzowMDowMC4wMDAwMDBaIgp9&token=c2stoken",
+			"dan3o12ndnsd",
+			"test_data/pixel_event_with_context_output.json",
+			"",
+		},
+		{
+			"Event with context data and anonym id compat",
+			"/api/v1/p.gif?data=ewogICJjb21wYXQiOiB0cnVlLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJldmVudG5fY3R4IjogewogICAgImRvY19ob3N0IjogImFwcC5qaXRzdS5jb20iLAogICAgImRvY19wYXRoIjogIi9hcGkvdjEvcC5naWYiLAogICAgImRvY19zZWFyY2giOiAiYWJjPTEyMyIsCiAgICAidXJsIjogImh0dHBzOi8vaml0c3UuY29tL2RvY3MiLAogICAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTJfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUwIiwKICAgICJ1dGNfdGltZSI6ICIyMDIwLTA2LTE2VDIzOjAwOjAwLjAwMDAwMFoiCiAgfQp9&token=c2stoken",
+			"dan3o12ndnsd",
+			"test_data/pixel_event_with_context_compat_output.json",
+			"",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			testSuite := testsuit.NewSuiteBuilder(t).Build(t)
+			defer testSuite.Close()
+
+			//check http GET
+			req, err := http.NewRequest(http.MethodGet, "http://"+testSuite.HTTPAuthority()+tt.ReqURN, nil)
+			require.NoError(t, err)
+
+			req.Host = "app.jitsu.com"
+			req.Header.Add("user-agent", "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50")
+			req.Header.Add("referer", "https://jitsu.com/docs")
+
+			if tt.CookieAnonymIDValue != "" {
+				req.AddCookie(&http.Cookie{
+					Name:     middleware.JitsuAnonymIDCookie,
+					Value:    "dan3o12ndnsd",
+					Path:     "/",
+					Domain:   "jitsu.com",
+					Expires:  time.Time{},
+					Secure:   true,
+					HttpOnly: false,
+				})
+			}
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+
+			require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
+			require.Equal(t, "image/gif", resp.Header.Get("content-type"))
+			b, err := ioutil.ReadAll(resp.Body)
+			require.NoError(t, err)
+			resp.Body.Close()
+
+			require.Equal(t, string(appconfig.Instance.EmptyGIFPixelOnexOne), string(b))
+
+			time.Sleep(200 * time.Millisecond)
+
+			if tt.ExpectedJSONPath != "" {
+				expectedBytes, err := ioutil.ReadFile(tt.ExpectedJSONPath)
+				require.NoError(t, err)
+
+				actualBytes := logging.InstanceMock.Data
+
+				test.JSONBytesEqual(t, expectedBytes, actualBytes[0], "Logged facts aren't equal")
+			}
+
+			if tt.ExpectedAnonymID != "" {
+				exists := false
+				cookies := resp.Cookies()
+				for _, cookie := range cookies {
+					if cookie.Name == middleware.JitsuAnonymIDCookie {
+						exists = true
+						require.Equal(t, tt.ExpectedAnonymID, cookie.Value)
+						require.Equal(t, "/", cookie.Path)
+						require.Equal(t, true, cookie.Secure)
+						require.Equal(t, false, cookie.HttpOnly)
+						require.Equal(t, http.SameSiteNoneMode, cookie.SameSite)
+						require.Equal(t, "jitsu.com", cookie.Domain)
+						require.Equal(t, time.Time{}, cookie.Expires)
+					}
+				}
+
+				require.True(t, exists, "Expected Jitsu cookie doesn't exist in the response")
 			}
 		})
 	}
@@ -519,7 +636,7 @@ func testPostgresStoreEvents(t *testing.T, pgDestinationConfigTemplate string, e
 	SetTestDefaultParams()
 	destinationConfig := fmt.Sprintf(pgDestinationConfigTemplate, container.Host, container.Port, container.Database, container.Schema, container.Username, container.Password)
 
-	testSuite := testsuite.NewSuiteBuilder(t).WithDestinationService(t, destinationConfig).Build(t)
+	testSuite := testsuit.NewSuiteBuilder(t).WithDestinationService(t, destinationConfig).Build(t)
 	defer testSuite.Close()
 
 	time.Sleep(500 * time.Millisecond)
@@ -597,7 +714,7 @@ func testClickhouseStoreEvents(t *testing.T, configTemplate string, sendEventsCo
 	}
 	destinationConfig := fmt.Sprintf(configTemplate, strings.Join(dsns, ","), container.Database)
 
-	testSuite := testsuite.NewSuiteBuilder(t).WithDestinationService(t, destinationConfig).Build(t)
+	testSuite := testsuit.NewSuiteBuilder(t).WithDestinationService(t, destinationConfig).Build(t)
 	defer testSuite.Close()
 
 	requestValue := []byte(`{"email": "test@domain.com", "key": 1}`)

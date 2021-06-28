@@ -2,6 +2,7 @@ package enrichment
 
 import (
 	"bou.ke/monkey"
+	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/uuid"
@@ -79,8 +80,9 @@ func TestWithJsPreprocess(t *testing.T) {
 			for k, v := range tt.headers {
 				r.Header.Add(k, v)
 			}
+			c := &gin.Context{Request: r}
 
-			ContextEnrichmentStep(tt.input, "token", r, jsPreprocessor, appconfig.Instance.GlobalUniqueIDField)
+			ContextEnrichmentStep(tt.input, "token", c, jsPreprocessor, appconfig.Instance.GlobalUniqueIDField)
 
 			require.Equal(t, tt.expected, tt.input, "Processed events aren't equal")
 		})
@@ -153,7 +155,9 @@ func TestWithAPIPreprocess(t *testing.T) {
 				r.Header.Add(k, v)
 			}
 
-			ContextEnrichmentStep(tt.input, "token", r, jsPreprocessor, appconfig.Instance.GlobalUniqueIDField)
+			c := &gin.Context{Request: r}
+
+			ContextEnrichmentStep(tt.input, "token", c, jsPreprocessor, appconfig.Instance.GlobalUniqueIDField)
 
 			require.Equal(t, tt.expected, tt.input, "Processed events aren't equal")
 		})

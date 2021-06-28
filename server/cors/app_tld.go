@@ -23,11 +23,11 @@ func (adr *AppDomainRule) IsAllowed(host, reqOrigin string) bool {
 	reqOrigin = removePort(reqOrigin)
 	reqOrigin = removeSchema(reqOrigin)
 
-	hostTopLevelDomain, hostDomain := extractTopLevelAndDomain(host)
+	hostTopLevelDomain, hostDomain := ExtractTopLevelAndDomain(host)
 
-	originTopLevelDomain, originDomain := extractTopLevelAndDomain(reqOrigin)
+	originTopLevelDomain, originDomain := ExtractTopLevelAndDomain(reqOrigin)
 
-	expressionTopLevelDomain, expressionDomain := extractTopLevelAndDomain(adr.expression)
+	expressionTopLevelDomain, expressionDomain := ExtractTopLevelAndDomain(adr.expression)
 
 	//analyze only top level domain
 	if expressionDomain == "" {
@@ -40,9 +40,9 @@ func (adr *AppDomainRule) IsAllowed(host, reqOrigin string) bool {
 
 }
 
-//extractTopLevelAndDomain returns top level domain and domain
+//ExtractTopLevelAndDomain returns top level domain and domain
 //e.g. abc.efg.com returns "efg.com", "abc"
-func extractTopLevelAndDomain(adr string) (string, string) {
+func ExtractTopLevelAndDomain(adr string) (string, string) {
 	var icann, topLevelDomain, domain string
 
 	for i := 0; i < 3; i++ {

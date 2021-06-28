@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/test"
-	"github.com/jitsucom/jitsu/server/testsuite"
+	"github.com/jitsucom/jitsu/server/testsuit"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"net/http"
@@ -49,7 +49,7 @@ func TestStreamInsert(t *testing.T) {
 
 	destinationConfig := fmt.Sprintf(configTemplate, postgresContainer.Host, postgresContainer.Port, postgresContainer.Database, postgresContainer.Schema, postgresContainer.Username, postgresContainer.Password)
 
-	testSuite := testsuite.NewSuiteBuilder(t).WithGeoDataMock().WithDestinationService(t, destinationConfig).Build(t)
+	testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock().WithDestinationService(t, destinationConfig).Build(t)
 	defer testSuite.Close()
 
 	time.Sleep(100 * time.Millisecond)

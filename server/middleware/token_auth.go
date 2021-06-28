@@ -8,8 +8,11 @@ import (
 
 const (
 	TokenName        = "token"
+	APIKeyName       = "api_key"
 	TokenHeaderName  = "x-auth-token"
 	ErrTokenNotFound = "The token is not found"
+
+	JitsuAnonymIDCookie = "__eventn_id"
 )
 
 //extractToken return token from

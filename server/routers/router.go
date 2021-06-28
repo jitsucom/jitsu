@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"github.com/jitsucom/jitsu/server/multiplexing"
 	"net/http"
 	"net/http/pprof"
 
@@ -46,10 +47,12 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	jsEventHandler := handlers.NewEventHandler(destinations, events.NewJitsuParser(), events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path")), eventsCache)
-	apiEventHandler := handlers.NewEventHandler(destinations, events.NewJitsuParser(), events.NewAPIProcessor(), eventsCache)
-	segmentHandler := handlers.NewEventHandler(destinations, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewSegmentProcessor(usersRecognitionService), eventsCache)
-	segmentCompatHandler := handlers.NewEventHandler(destinations, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewSegmentProcessor(usersRecognitionService), eventsCache)
+	multiplexingService := multiplexing.NewService(destinations, eventsCache)
+
+	jsEventHandler := handlers.NewEventHandler(multiplexingService, eventsCache, events.NewJitsuParser(), events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path")))
+	apiEventHandler := handlers.NewEventHandler(multiplexingService, eventsCache, events.NewJitsuParser(), events.NewAPIProcessor())
+	segmentHandler := handlers.NewEventHandler(multiplexingService, eventsCache, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewSegmentProcessor(usersRecognitionService))
+	segmentCompatHandler := handlers.NewEventHandler(multiplexingService, eventsCache, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewSegmentProcessor(usersRecognitionService))
 
 	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
@@ -57,7 +60,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	statisticsHandler := handlers.NewStatisticsHandler(metaStorage)
 
 	sourcesHandler := handlers.NewSourcesHandler(sourcesService, metaStorage)
-	pixelHandler := handlers.NewPixelHandler(destinations, events.NewPixelProcessor(), eventsCache)
+	pixelHandler := handlers.NewPixelHandler(multiplexingService, events.NewPixelProcessor())
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
@@ -72,6 +75,9 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		//Segment compat API
 		apiV1.POST("/segment/compat/v1/batch", middleware.TokenFuncAuth(segmentCompatHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, ""))
 		apiV1.POST("/segment/compat", middleware.TokenFuncAuth(segmentCompatHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, ""))
+		//Tracking pixel API
+		apiV1.GET("/p.gif", pixelHandler.Handle)
+
 		//Dry run
 		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 
@@ -99,8 +105,6 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 		apiV1.GET("/fallback", adminTokenMiddleware.AdminAuth(fallbackHandler.GetHandler))
 		apiV1.POST("/replay", adminTokenMiddleware.AdminAuth(fallbackHandler.ReplayHandler))
-
-		apiV1.GET("p.gif", pixelHandler.Handle)
 	}
 
 	router.POST("/api.:ignored", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
