@@ -1,6 +1,7 @@
 import { Destination } from '../types';
 import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
 import { arrayOf, jsonType, selectionType, stringType } from '../../sources/types';
+import * as React from "react";
 
 const icon = <svg width="32px" height="32px" viewBox="0 0 256 239" version="1.1" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid">
   <g>
@@ -11,6 +12,10 @@ const icon = <svg width="32px" height="32px" viewBox="0 0 256 239" version="1.1"
 </svg>;
 
 const webhookDestination = {
+  description: <>
+    Jitsu can send events from JS SDK or Events API to Google Analytics API to any HTTP(s) endpoint. Data format
+    is fully configurable with an easy template language.
+  </>,
   syncFromSourcesStatus: 'not_supported',
   id: 'webhook',
   type: 'other',

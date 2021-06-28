@@ -15,6 +15,10 @@ let icon: ReactNode = <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 9 8">
 </svg>
 
 const destination = {
+  description: <>
+    ClickHouse is a fast and scalable database developed by Yandex. ClickHouse is not easy to mainatain,
+    however the performance is remarkable. Managed services can be obtained from <a href="https://altinity.com/cloud-database/">Altinity.Cloud</a>
+  </>,
   syncFromSourcesStatus: 'supported',
   id: 'clickhouse',
   type: 'database',

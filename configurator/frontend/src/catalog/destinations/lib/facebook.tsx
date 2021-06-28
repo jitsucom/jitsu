@@ -16,6 +16,10 @@ const icon = <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
 </svg>;
 
 const facebookDestination = {
+  description: <>
+    Jitsu can send events from JS SDK or Events API to Facebook Marketing API. The common use-case is to send conversions
+    or/and page views to Facebook to use that data for targeting and ad optimization
+  </>,
   syncFromSourcesStatus: 'not_supported',
   id: 'facebook',
   type: 'other',
