@@ -104,7 +104,7 @@ export type PageHeaderProps = {
 }
 
 function abbr(user: User) {
-  return user.name.split(' ').filter(part => part.length > 0).map(part => part[0]).join('').toUpperCase();
+  return user.name?.split(' ').filter(part => part.length > 0).map(part => part[0]).join('').toUpperCase();
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) => {
@@ -122,7 +122,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
         visible={dropdownVisible}
         overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}>
         <Button className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text" size="large" shape="circle">
-          {abbr(user)}
+          {abbr(user) || <UserOutlined />}
         </Button>
       </Dropdown>
     </div>
