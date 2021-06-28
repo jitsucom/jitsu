@@ -50,10 +50,12 @@ function release_jitsu() {
   docker pull jitsucom/server:latest || { echo 'Jitsu docker pull failed' ; exit 1; }
 
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" -t jitsucom/jitsu:latest --build-arg dhid=jitsu . || { echo 'Jitsu dockerx build semver failed' ; exit 1; }
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" -t jitsucom/jitsu:latest --build-arg dhid=jitsu --build-arg SRC_VERSION=latest . || { echo 'Jitsu dockerx build semver failed' ; exit 1; }
   else
-    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu  . || { echo 'Jitsu dockerx build failed' ; exit 1; }
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu --build-arg SRC_VERSION=beta . || { echo 'Jitsu dockerx build failed' ; exit 1; }
   fi
+
+  cd ../
 }
 
 
