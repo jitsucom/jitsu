@@ -1,4 +1,4 @@
-package testsuite
+package testsuit
 
 import (
 	"bou.ke/monkey"
@@ -30,30 +30,30 @@ import (
 	"time"
 )
 
-//Suite is a common test suite for configuring Jitsu Server and keeping test data
-type Suite interface {
+//Suit is a common test suit for configuring Jitsu Server and keeping test data
+type Suit interface {
 	HTTPAuthority() string
 	Close()
 }
 
-//suite is an immutable test suite implementation of Suite
-type suite struct {
+//suit is an immutable test suit implementation of Suit
+type suit struct {
 	freezeTime time.Time
 	patchTime  *monkey.PatchGuard
 
 	httpAuthority string
 }
 
-//SuiteBuilder is a test Suite builder
+//SuiteBuilder is a test Suit builder
 type SuiteBuilder interface {
 	WithGeoDataMock() SuiteBuilder
 	WithMetaStorage(t *testing.T) SuiteBuilder
 	WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder
 	WithUserRecognition(t *testing.T) SuiteBuilder
-	Build(t *testing.T) Suite
+	Build(t *testing.T) Suit
 }
 
-//suiteBuilder is a test Suite builder implementation
+//suiteBuilder is a test Suit builder implementation
 type suiteBuilder struct {
 	freezeTime                       time.Time
 	patchTime                        *monkey.PatchGuard
@@ -197,9 +197,9 @@ func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
 	return sb
 }
 
-//Build returns Suite and runs HTTP server
+//Build returns Suit and runs HTTP server
 //performs ping check before return
-func (sb *suiteBuilder) Build(t *testing.T) Suite {
+func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
 		sb.recognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
 		caching.NewEventsCache(sb.metaStorage, 100), sb.systemService,
@@ -222,19 +222,19 @@ func (sb *suiteBuilder) Build(t *testing.T) Suite {
 	_, err := test.RenewGet("http://" + sb.httpAuthority + "/ping")
 	require.NoError(t, err)
 
-	return &suite{
+	return &suit{
 		freezeTime:    sb.freezeTime,
 		patchTime:     sb.patchTime,
 		httpAuthority: sb.httpAuthority,
 	}
 }
 
-func (s *suite) HTTPAuthority() string {
+func (s *suit) HTTPAuthority() string {
 	return s.httpAuthority
 }
 
 //Close releases all resources
-func (s *suite) Close() {
+func (s *suit) Close() {
 	s.patchTime.Unpatch()
 	appconfig.Instance.Close()
 	appconfig.Instance.CloseEventsConsumers()
