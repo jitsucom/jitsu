@@ -1,23 +1,10 @@
 package events
 
 import (
+	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
-	"net/http"
 )
-
-const (
-	JSPreprocessorType      = "js"
-	APIPreprocessorType     = "api"
-	SegmentPreprocessorType = "segment"
-)
-
-//Processor is used in preprocessing and postprocessing events before consuming(storing)
-type Processor interface {
-	Preprocess(event Event, r *http.Request)
-	Postprocess(event Event, eventID string, destinationIDs []string)
-	Type() string
-}
 
 //JsProcessor preprocess client integration events
 type JsProcessor struct {
@@ -31,8 +18,8 @@ func NewJsProcessor(usersRecognition Recognition, userAgentPath string) Processo
 }
 
 //Preprocess set user-agent from request header to configured nodes
-func (jp *JsProcessor) Preprocess(event Event, r *http.Request) {
-	clientUserAgent := r.Header.Get("user-agent")
+func (jp *JsProcessor) Preprocess(event Event, c *gin.Context) {
+	clientUserAgent := c.Request.UserAgent()
 	if clientUserAgent != "" {
 		if err := jp.userAgentJSONPath.Set(event, clientUserAgent); err != nil {
 			logging.Warnf("Unable to set user-agent from header to event object: %v", err)

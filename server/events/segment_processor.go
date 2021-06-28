@@ -1,7 +1,7 @@
 package events
 
 import (
-	"net/http"
+	"github.com/gin-gonic/gin"
 )
 
 //SegmentProcessor preprocess client integration events
@@ -15,7 +15,7 @@ func NewSegmentProcessor(usersRecognition Recognition) Processor {
 }
 
 //Preprocess adds src value
-func (sp *SegmentProcessor) Preprocess(event Event, r *http.Request) {
+func (sp *SegmentProcessor) Preprocess(event Event, c *gin.Context) {
 	event[SrcKey] = "segment_api"
 }
 
