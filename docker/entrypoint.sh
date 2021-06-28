@@ -17,6 +17,29 @@ graceful_exit() {
   kill -SIGTERM "$PID_CONFIGURATOR" 2>/dev/null
   exit 143; # 128 + 15 -- SIGTERM
 }
+#if at least one of services has exited - do shutdown
+check_shutdown(){
+  ps aux |grep configurator |grep -q -v grep
+  PROCESS_CONFIGURATOR=$?
+  ps aux |grep eventnative |grep -q -v grep
+  PROCESS_SERVER=$?
+  ps aux |grep nginx |grep -q -v grep
+  PROCESS_NGINX=$?
+  # If the greps above find anything, they exit with 0 status
+  # If they are not both 0, then something is wrong
+  if [ $PROCESS_CONFIGURATOR -ne 0 ]; then
+    echo "Jitsu Configurator has already exited."
+    graceful_exit
+  fi
+  if [ $PROCESS_SERVER -ne 0 ]; then
+    echo "Jitsu Server has already exited."
+    graceful_exit
+  fi
+  if [ $PROCESS_NGINX -ne 0 ]; then
+    echo "Nginx has already exited."
+    graceful_exit
+  fi
+}
 
 ### Parameters
 # Jitsu port
@@ -65,6 +88,7 @@ sed "s/NGINX_PORT/$NGINX_PORT_VALUE/g" /etc/nginx/nginx.conf > /etc/nginx/nginx_
 mv /etc/nginx/nginx_replaced.conf /etc/nginx/nginx.conf && \
 nginx -g 'daemon off;' &
 
+check_shutdown
 
 echo "=============================================================================="
 echo "                           🌪 Jitsu has started!"
@@ -72,26 +96,7 @@ echo "                    💻 visit localhost:$NGINX_PORT_VALUE/configurator"
 echo "=============================================================================="
 
 ### Shutdown loop
-# wait forever and checks every 3 seconds if at least one of services has exited - do shutdown
+# wait forever and checks every 3 seconds check shutdown
 while sleep 3; do
-  ps aux |grep configurator |grep -q -v grep
-  PROCESS_CONFIGURATOR=$?
-  ps aux |grep eventnative |grep -q -v grep
-  PROCESS_SERVER=$?
-  ps aux |grep nginx |grep -q -v grep
-  PROCESS_NGINX=$?
-  # If the greps above find anything, they exit with 0 status
-  # If they are not both 0, then something is wrong
-  if [ $PROCESS_CONFIGURATOR -ne 0 ]; then
-    echo "Jitsu Configurator has already exited."
-    graceful_exit
-  fi
-  if [ $PROCESS_SERVER -ne 0 ]; then
-    echo "Jitsu Server has already exited."
-    graceful_exit
-  fi
-  if [ $PROCESS_NGINX -ne 0 ]; then
-    echo "Nginx has already exited."
-    graceful_exit
-  fi
+  check_shutdown
 done
