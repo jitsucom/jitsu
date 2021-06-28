@@ -2,6 +2,7 @@ package enrichment
 
 import (
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -17,18 +18,18 @@ const (
 )
 
 //ContextEnrichmentStep enriches payload with ip, user-agent, token, unique ID field (event_id) and _timestamp
-func ContextEnrichmentStep(payload events.Event, token string, r *http.Request, preprocessor events.Processor,
+func ContextEnrichmentStep(payload events.Event, token string, c *gin.Context, preprocessor events.Processor,
 	uniqueIDField *identifiers.UniqueID) {
 	//1. source IP (don't override income value)
 	if _, ok := payload[ipKey]; !ok {
-		ip := extractIP(r)
+		ip := extractIP(c.Request)
 		if ip != "" {
 			payload[ipKey] = ip
 		}
 	}
 
 	//2. preprocess
-	preprocessor.Preprocess(payload, r)
+	preprocessor.Preprocess(payload, c)
 
 	//3. unique ID field
 	//extract 1.0 format -> 1.0 flat format -> 2.0 format

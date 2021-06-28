@@ -160,7 +160,7 @@ func TestExtractTopLevelAndDomain(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualTld, actualDomain := extractTopLevelAndDomain(tt.inputAddr)
+			actualTld, actualDomain := ExtractTopLevelAndDomain(tt.inputAddr)
 			require.Equal(t, tt.expectedTopLevelDomain, actualTld, "Actual top level domain [%s] isn't equal to expected one [%s]", actualTld, tt.expectedTopLevelDomain)
 			require.Equal(t, tt.expectedDomain, actualDomain, "Actual domain [%s] isn't equal to expected one [%s]", actualDomain, tt.expectedDomain)
 		})

@@ -1,7 +1,7 @@
 package events
 
 import (
-	"net/http"
+	"github.com/gin-gonic/gin"
 )
 
 //APIProcessor preprocess server 2 server integration events
@@ -14,7 +14,7 @@ func NewAPIProcessor() Processor {
 }
 
 //Preprocess puts src = api
-func (ap *APIProcessor) Preprocess(event Event, r *http.Request) {
+func (ap *APIProcessor) Preprocess(event Event, c *gin.Context) {
 	event[SrcKey] = "api"
 }
 
