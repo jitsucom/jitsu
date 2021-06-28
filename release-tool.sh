@@ -43,23 +43,16 @@ function release_jitsu() {
   echo "**** Jitsu release [$1] ****"
   docker login -u="$JITSU_DOCKER_LOGIN" -p="$JITSU_DOCKER_PASSWORD" || { echo 'Docker jitsu login failed' ; exit 1; }
 
-  jitsu_tags="-t jitsucom/jitsu:$1"
-  if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
-    jitsu_tags="-t jitsucom/jitsu:$1 -t jitsucom/jitsu:latest"
-  fi
-
   cd docker && \
   docker pull jitsucom/configurator:"$1" && \
   docker pull jitsucom/configurator:latest && \
   docker pull jitsucom/server:"$1" && \
-  docker pull jitsucom/server:latest && \
-  docker build $jitsu_tags . && \
-  cd ../ || { echo 'Jitsu docker build failed' ; exit 1; }
-
-  docker push jitsucom/jitsu:"$1"  || { echo 'Jitsu docker push failed' ; exit 1; }
+  docker pull jitsucom/server:latest || { echo 'Jitsu docker pull failed' ; exit 1; }
 
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
-    docker push jitsucom/jitsu:latest  || { echo 'Jitsu latest docker push failed' ; exit 1; }
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" -t jitsucom/jitsu:latest --build-arg dhid=jitsu . || { echo 'Jitsu dockerx build semver failed' ; exit 1; }
+  else
+    docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/jitsu:"$1" --build-arg dhid=jitsu  . || { echo 'Jitsu dockerx build failed' ; exit 1; }
   fi
 }
 
