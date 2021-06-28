@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/events"
@@ -60,7 +61,7 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 		err = ph.multiplexingService.AcceptRequest(ph.processor, c, fmt.Sprint(token), []events.Event{event})
 		if err != nil {
 			reqBody, _ := json.Marshal(event)
-			logging.Warnf("%v. Tracking pixel event: %s", err, string(reqBody))
+			logging.Errorf("%v. Tracking pixel event: %s", err, string(reqBody))
 		}
 	}
 
@@ -118,7 +119,7 @@ func (ph *PixelHandler) extractOrSetAnonymID(c *gin.Context, event events.Event)
 			http.SetCookie(c.Writer, &http.Cookie{
 				Name:     middleware.JitsuAnonymIDCookie,
 				Value:    url.QueryEscape(anonymID),
-				MaxAge:   0,
+				Expires:  time.Now().AddDate(1000, 12, 31),
 				Path:     "/",
 				Domain:   fmt.Sprint(topLevelDomain),
 				SameSite: http.SameSiteNoneMode,

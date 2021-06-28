@@ -537,7 +537,7 @@ func TestPixelEndpoint(t *testing.T) {
 						require.Equal(t, false, cookie.HttpOnly)
 						require.Equal(t, http.SameSiteNoneMode, cookie.SameSite)
 						require.Equal(t, "jitsu.com", cookie.Domain)
-						require.Equal(t, time.Time{}, cookie.Expires)
+						require.Equal(t, "Tue, 17 Jul 3021 23:00:00 GMT", cookie.RawExpires)
 					}
 				}
 
