@@ -1,6 +1,7 @@
 package appconfig
 
 import (
+	"encoding/base64"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"io"
@@ -13,12 +14,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+const emptyGIFOnexOne = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAEAOw=="
+
 //AppConfig is a main Application Global Configuration
 type AppConfig struct {
 	ServerName string
 	Authority  string
 
 	DisableSkipEventsWarn bool
+
+	EmptyGIFPixelOnexOne []byte
 
 	GeoResolver          geo.Resolver
 	UaResolver           useragent.Resolver
@@ -217,6 +222,12 @@ func Init(containerized bool, dockerHubID string) error {
 
 	var appConfig AppConfig
 	appConfig.ServerName = serverName
+
+	emptyGIF, err := base64.StdEncoding.DecodeString(emptyGIFOnexOne)
+	if err != nil {
+		return fmt.Errorf("Error parsing empty GIF: %v", err)
+	}
+	appConfig.EmptyGIFPixelOnexOne = emptyGIF
 
 	// SQL DDL debug writer
 	if viper.IsSet("sql_debug_log.ddl.path") {

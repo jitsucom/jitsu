@@ -4,81 +4,89 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/cors"
+	"github.com/jitsucom/jitsu/server/multiplexing"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/caching"
-	"github.com/jitsucom/jitsu/server/counters"
-	"github.com/jitsucom/jitsu/server/destinations"
-	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 )
 
-const TRACKING_PIXEL = "R0lGODlhAQABAIAAAAAAAP8AACH5BAEAAAEALAAAAAABAAEAAAICTAEAOw=="
+const (
+	dataField = "data"
 
+	cookieDomainField = "cookie_domain"
+)
+
+//PixelHandler is a handler of pixel tracking requests
 type PixelHandler struct {
-	data []byte
+	emptyGIF []byte
 
-	destinationService *destinations.Service
-	processor          events.Processor
-	eventsCache        *caching.EventsCache
+	multiplexingService *multiplexing.Service
+	processor           events.Processor
 }
 
-func NewPixelHandler(destinationsService *destinations.Service, processor events.Processor, eventsCache *caching.EventsCache) *PixelHandler {
-	var err error
-	handler := &PixelHandler{
-		destinationService: destinationsService,
-		processor:          processor,
-		eventsCache:        eventsCache,
+//NewPixelHandler returns configured PixelHandler instance
+func NewPixelHandler(multiplexingService *multiplexing.Service, processor events.Processor) *PixelHandler {
+	return &PixelHandler{
+		emptyGIF:            appconfig.Instance.EmptyGIFPixelOnexOne,
+		multiplexingService: multiplexingService,
+		processor:           processor,
 	}
+}
 
-	handler.data, err = base64.StdEncoding.DecodeString(TRACKING_PIXEL)
+//Handle sets anonymous id cookie if not exist
+//handles request it it another goroutine
+//returns empty gif 1x1
+func (ph *PixelHandler) Handle(c *gin.Context) {
+	event, err := ph.parseEvent(c)
 	if err != nil {
-		logging.Warnf("Cannot decode image for tracking pixel: %v", err)
-	}
+		logging.Error(err)
+	} else {
+		ph.extractOrSetAnonymID(c, event)
 
-	return handler
-}
+		token, ok := event[middleware.TokenName]
+		if !ok {
+			token, _ = event[middleware.APIKeyName]
+		}
 
-func (handler *PixelHandler) Handle(c *gin.Context) {
-	go handler.doTracking(c.Copy())
-
-	c.Data(http.StatusOK, "image/gif", handler.data)
-}
-
-func (handler *PixelHandler) doTracking(c *gin.Context) {
-	event := map[string]interface{}{}
-
-	token := restoreEvent(event, c)
-
-	if token != "" {
-		handler.sendEvent(token, event, c.Request)
-	}
-}
-
-func restoreEvent(event events.Event, c *gin.Context) string {
-	parameters := c.Request.URL.Query()
-
-	data := parameters.Get("data")
-	if data != "" {
-		value, err := base64.StdEncoding.DecodeString(data)
+		err = ph.multiplexingService.AcceptRequest(ph.processor, c, fmt.Sprint(token), []events.Event{event})
 		if err != nil {
-			logging.Debugf("Error decoding string: %v", err)
-		} else {
-			err = json.Unmarshal(value, &event)
-			if err != nil {
-				logging.Debugf("Error parsing JSON event: %v", err)
-			}
+			reqBody, _ := json.Marshal(event)
+			logging.Warnf("%v. Tracking pixel event: %s", err, string(reqBody))
+		}
+	}
+
+	c.Data(http.StatusOK, "image/gif", ph.emptyGIF)
+}
+
+//parseEvent parses event from query parameters (dataField and json paths)
+func (ph *PixelHandler) parseEvent(c *gin.Context) (events.Event, error) {
+	parameters := c.Request.URL.Query()
+	event := events.Event{}
+
+	data := parameters.Get(dataField)
+	if data != "" {
+		dataBytes, err := base64.StdEncoding.DecodeString(data)
+		if err != nil {
+			return nil, fmt.Errorf("Error decoding event from %q field in tracking pixel: %v", dataField, err)
+		}
+
+		err = json.Unmarshal(dataBytes, &event)
+		if err != nil {
+			return nil, fmt.Errorf("Error unmarshalling event from %q: %v", dataField, err)
 		}
 	}
 
 	for key, value := range parameters {
-		if key == "data" {
+		if key == dataField {
 			continue
 		}
 
@@ -91,52 +99,36 @@ func restoreEvent(event events.Event, c *gin.Context) string {
 		}
 	}
 
-	return fmt.Sprint(event[middleware.TokenName])
+	return event, nil
 }
 
-func (handler *PixelHandler) sendEvent(token string, event events.Event, request *http.Request) {
-	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
-	destinationStorages := handler.destinationService.GetDestinations(tokenID)
-	if len(destinationStorages) == 0 {
-		logging.Debugf(noDestinationsErrTemplate, token)
-		return
+//extractOrSetAnonymID gets cookie value (anonym ID)
+//generates and set it if doesn't exist
+func (ph *PixelHandler) extractOrSetAnonymID(c *gin.Context, event events.Event) {
+	anonymID, err := c.Cookie(middleware.JitsuAnonymIDCookie)
+	if err != nil {
+		if err == http.ErrNoCookie {
+			anonymID = strings.ReplaceAll(uuid.New(), "-", "")[:10]
+
+			topLevelDomain, ok := event[cookieDomainField]
+			if !ok {
+				topLevelDomain, _ = cors.ExtractTopLevelAndDomain(c.Request.Host)
+			}
+
+			http.SetCookie(c.Writer, &http.Cookie{
+				Name:     middleware.JitsuAnonymIDCookie,
+				Value:    url.QueryEscape(anonymID),
+				MaxAge:   0,
+				Path:     "/",
+				Domain:   fmt.Sprint(topLevelDomain),
+				SameSite: http.SameSiteNoneMode,
+				Secure:   true,
+				HttpOnly: false,
+			})
+		} else {
+			logging.Errorf("Error extracting cookie %q: %v", middleware.JitsuAnonymIDCookie, err)
+		}
 	}
 
-	// ** Enrichment **
-	// Note: we assume that destinations under 1 token cannot have different unique ID configuration (JS SDK 2.0 or an old one)
-	uniqueIDField := destinationStorages[0].GetUniqueIDField()
-	enrichment.ContextEnrichmentStep(event, token, request, handler.processor, uniqueIDField)
-
-	// Extract unique identifier
-	eventID := uniqueIDField.Extract(event)
-	if eventID == "" {
-		logging.Debugf("[%s] Empty extracted unique identifier in: %s", destinationStorages[0].ID(), event.Serialize())
-	}
-
-	// ** Caching **
-	// Clone event for preventing concurrent changes while serialization
-	cachingEvent := event.Clone()
-
-	var destinationIDs []string
-	for _, destinationProxy := range destinationStorages {
-		destinationIDs = append(destinationIDs, destinationProxy.ID())
-		handler.eventsCache.Put(destinationProxy.IsCachingDisabled(), destinationProxy.ID(), eventID, cachingEvent)
-	}
-
-	// ** Multiplexing **
-	consumers := handler.destinationService.GetConsumers(tokenID)
-	if len(consumers) == 0 {
-		logging.Debugf(noDestinationsErrTemplate, token)
-		return
-	}
-
-	for _, consumer := range consumers {
-		consumer.Consume(event, tokenID)
-	}
-
-	// ** Postprocessing **
-	handler.processor.Postprocess(event, eventID, destinationIDs)
-
-	// ** Telemetry **
-	counters.SuccessSourceEvents(tokenID, 1)
+	c.Set(middleware.JitsuAnonymIDCookie, anonymID)
 }

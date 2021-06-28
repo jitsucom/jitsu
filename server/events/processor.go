@@ -1,7 +1,7 @@
 package events
 
 import (
-	"net/http"
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -13,7 +13,7 @@ const (
 
 // Processor is used in preprocessing and postprocessing events before and after consuming(storing)
 type Processor interface {
-	Preprocess(event Event, r *http.Request)
+	Preprocess(event Event, c *gin.Context)
 	Postprocess(event Event, eventID string, destinationIDs []string)
 	Type() string
 }

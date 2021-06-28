@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/testsuite"
+	"github.com/jitsucom/jitsu/server/testsuit"
 	"net/http"
 	"testing"
 	"time"
@@ -65,7 +65,7 @@ func TestRetrospectiveUsersRecognition(t *testing.T) {
 
 	destinationConfig := fmt.Sprintf(configTemplate, postgresContainer.Host, postgresContainer.Port, postgresContainer.Database, postgresContainer.Schema, postgresContainer.Username, postgresContainer.Password)
 
-	testSuite := testsuite.NewSuiteBuilder(t).WithMetaStorage(t).WithDestinationService(t, destinationConfig).WithUserRecognition(t).Build(t)
+	testSuite := testsuit.NewSuiteBuilder(t).WithMetaStorage(t).WithDestinationService(t, destinationConfig).WithUserRecognition(t).Build(t)
 	defer testSuite.Close()
 
 	time.Sleep(100 * time.Millisecond)
