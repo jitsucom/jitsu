@@ -3,35 +3,19 @@ networks:
   main:
 
 services:
-  configurator:
-    container_name: jitsu_configurator
+  jitsu:
+    container_name: jitsu
+    image: jitsucom/jitsu:latest
     environment:
-      - SERVER_ADMIN_TOKEN=${SERVER_ADMIN_TOKEN}
-      - CONFIGURATOR_ADMIN_TOKEN=${CONFIGURATOR_ADMIN_TOKEN}
-    image: jitsucom/configurator:latest
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
     volumes:
-      - ./compose-data/configurator/data:/home/configurator/data/
+      - ./compose-data/configurator/data/logs:/home/configurator/data/logs
+      - ./compose-data/server/data/logs:/home/eventnative/data/logs
     restart: always
     ports:
-      - "7000:7000"
-    networks:
-      - main
-  server:
-    container_name: jitsu_server
-    environment:
-      - SERVER_ADMIN_TOKEN=${SERVER_ADMIN_TOKEN}
-      - CONFIGURATOR_ADMIN_TOKEN=${CONFIGURATOR_ADMIN_TOKEN}
-    image: jitsucom/server:latest
-    depends_on:
-      - configurator
-      - redis
-    restart: always
-    volumes:
-      - ./compose-data/server/data:/home/eventnative/data/
-    ports:
-      - "8001:8001"
+      - "8000:8000"
     networks:
       - main
   redis:
