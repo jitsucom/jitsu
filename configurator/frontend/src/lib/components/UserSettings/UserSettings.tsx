@@ -1,8 +1,6 @@
 import { UserSettingsViewComponent } from './UserSettingsView';
 
-type Props = {
-
-}
+type Props = {}
 
 export const UserSettings: React.FC<Props> = () => {
   return (

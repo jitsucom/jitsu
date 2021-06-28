@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { Button, Col, Dropdown, Layout, Menu, message, Modal, Row } from 'antd';
 import AreaChartOutlined from '@ant-design/icons/lib/icons/AreaChartOutlined';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useHistory } from 'react-router-dom';
 import UnlockOutlined from '@ant-design/icons/lib/icons/UnlockOutlined';
 import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 import NotificationOutlined from '@ant-design/icons/lib/icons/NotificationOutlined';
@@ -9,7 +9,7 @@ import CloudOutlined from '@ant-design/icons/lib/icons/CloudOutlined';
 import DownloadOutlined from '@ant-design/icons/lib/icons/DownloadOutlined';
 import * as React from 'react';
 import { useEffect, useState } from 'react';
-import Icon from '@ant-design/icons';
+import Icon, { SettingOutlined } from '@ant-design/icons';
 import logo from '@./icons/logo.svg';
 import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
 import { Align, handleError } from '@./lib/components/components';
@@ -28,6 +28,7 @@ import { CurrentPlan } from '@component/CurrentPlan/CurrentPlan';
 import { PaymentPlan, PaymentPlanStatus } from '@service/billing';
 import styles from './Layout.module.less';
 import { getIntercom } from '@service/intercom-wrapper';
+import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
@@ -130,6 +131,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
 
 export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMenu: () => void}> = ({ plan, user , hideMenu }) => {
   const services = useServices();
+  const history = useHistory();
 
   const passwordReset = () => {
     Modal.confirm({
@@ -151,6 +153,8 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
       }
     });
   };
+
+  const showSettings = React.useCallback<() => void>(() => history.push(settingsPageRoutes[0]), [history])
 
   const becomeUser = async() => {
     let email = prompt('Please enter e-mail of the user', '');
@@ -183,9 +187,32 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
         />
       </div>}
       <div className="p-2 flex flex-col items-stretch">
-        <Button type="text" className="text-left" key="profile" icon={<SlidersOutlined/>} onClick={passwordReset}>Reset Password</Button>
+        <Button
+          type="text"
+          className="text-left"
+          key="profile"
+          icon={<SlidersOutlined/>}
+          onClick={passwordReset}>
+            Reset Password
+        </Button>
+        <Button
+          type="text"
+          className="text-left"
+          key="settings"
+          icon={<SettingOutlined/>}
+          onClick={showSettings}>
+            Settings
+        </Button>
         {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) &&
-        <Button className="text-left" type="text" key="become" icon={<UserSwitchOutlined/>} onClick={becomeUser}>Become User</Button>}
+          <Button
+            className="text-left"
+            type="text"
+            key="become"
+            icon={<UserSwitchOutlined/>}
+            onClick={becomeUser}>
+              Become User
+          </Button>
+        }
         <Button
           className="text-left"
           type="text"
