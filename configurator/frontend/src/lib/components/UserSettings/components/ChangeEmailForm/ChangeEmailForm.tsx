@@ -39,7 +39,7 @@ const ChangeEmailFormComponent: React.FC<Props> = ({
       <Form
         form={form}
         className={
-          `inline-block overflow-hidden max-h-14 max-w-xs transition-all duration-700 ${
+          `inline-block overflow-hidden max-h-14 max-w-xs transition-all duration-1000 ${
             showChangeEmailField ? 'opacity-100 w-full mr-2' : 'opacity-0 w-0'
           }`
         }
@@ -81,6 +81,15 @@ const ChangeEmailFormComponent: React.FC<Props> = ({
       >
         {showChangeEmailField ? 'Confirm Email' : 'Change Email' }
       </Button>
+      {showChangeEmailField && (
+        <Button
+          type="default"
+          className="ml-2"
+          onClick={() => setShowChangeEmailField(false)}
+        >
+          {'Cancel'}
+        </Button>
+      )}
     </span>
   );
 }

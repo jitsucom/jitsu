@@ -39,7 +39,7 @@ const ChangePasswordFormComponent: React.FC<Props> = ({
       <Form
         form={form}
         className={
-          `inline-block overflow-hidden max-h-14 max-w-xs transition-all duration-700 ${
+          `inline-block overflow-hidden max-h-14 max-w-xs transition-all duration-1000 ${
             showChangePasswordField ? 'opacity-100 w-full mr-2' : 'opacity-0 w-0'
           }`
         }
@@ -77,6 +77,15 @@ const ChangePasswordFormComponent: React.FC<Props> = ({
       >
         {showChangePasswordField ? 'Set New Password' : 'Change Password' }
       </Button>
+      {showChangePasswordField && (
+        <Button
+          type="default"
+          className="ml-2"
+          onClick={() => setShowChangePasswordField(false)}
+        >
+          {'Cancel'}
+        </Button>
+      )}
     </span>
   );
 }

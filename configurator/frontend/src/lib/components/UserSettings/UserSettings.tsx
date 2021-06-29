@@ -67,7 +67,7 @@ export const UserSettings: React.FC<Props> = () => {
     try {
       await services.userService.changeTelemetrySettings({ isTelemetryEnabled: enabled });
       setIsTelemetryEnabled(enabled);
-      message.success('Telemetry preferences updated. Please, reload the page to apply your changes.', 5);
+      message.success('Telemetry preferences updated. Changes will apply after the application reload.', 3);
     } catch (error) {
       message.error(error.message || error);
     }
