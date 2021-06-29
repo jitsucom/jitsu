@@ -1,9 +1,9 @@
 {
   "_timestamp": "2020-06-16T23:00:00.000000Z",
   "api_key": "c2stoken",
-  "doc_host": "app.jitsu.com",
-  "doc_path": "/api/v1/p.gif",
-  "doc_search": "data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9\u0026object.field_1=value1\u0026field2=value2",
+  "doc_host": "jitsu.com",
+  "doc_path": "/docs",
+  "doc_search": "search=true",
   "event_type": "open_email",
   "eventn_ctx_event_id": "mockeduuid",
   "field2": "value2",
@@ -13,7 +13,7 @@
   "source_ip": "127.0.0.1",
   "src": "jitsu_gif",
   "token": "c2stoken",
-  "url": "https://jitsu.com/docs",
+  "url": "https://jitsu.com/docs?search=true",
   "user": {
     "anonymous_id": "dan3o12ndnsd"
   },
