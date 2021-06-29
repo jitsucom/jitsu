@@ -75,7 +75,6 @@ export const UserSettings: React.FC<Props> = () => {
       cancelText: 'Cancel',
       onOk: async() => {
         try {
-          debugger;
           await services.userService.sendPasswordReset();
           message.info('Reset password instructions has been sent. Please, check your mailbox');
         } catch (error) {
