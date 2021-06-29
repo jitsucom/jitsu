@@ -57,10 +57,9 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
       callback: async() => {
         if (full) {
           await services.backendApiClient.post('/sources/clear_cache', {
-            proxy: true,
             source: `${services.activeProject.id}.${src.sourceId}`,
             project_id: services.activeProject.id
-          });
+          }, { proxy: true });
         }
 
         if (src.collections && src.collections.length > 0) {
@@ -70,7 +69,8 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
               urlParams: {
                 source: `${services.activeProject.id}.${src.sourceId}`,
                 collection: src.collections[i].name,
-                project_id: services.activeProject.id }
+                project_id: services.activeProject.id
+              }
             });
           }
         } else {
@@ -81,7 +81,8 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
             urlParams: {
               source: `${services.activeProject.id}.${src.sourceId}`,
               collection: 'bogus',
-              project_id: services.activeProject.id }
+              project_id: services.activeProject.id
+            }
           });
         }
         history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId }));
@@ -105,7 +106,7 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
       <div className={styles.empty}>
         <h3 className="text-2xl">Sources list is still empty</h3>
         <div>
-          <Button type="primary" size="large" icon={<PlusOutlined />} onClick={handleAddClick}>Add source</Button>
+          <Button type="primary" size="large" icon={<PlusOutlined/>} onClick={handleAddClick}>Add source</Button>
         </div>
       </div>
     );
@@ -114,7 +115,7 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
   return (
     <>
       <div className="mb-5">
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAddClick}>Add source</Button>
+        <Button type="primary" icon={<PlusOutlined/>} onClick={handleAddClick}>Add source</Button>
       </div>
 
       <ul>
@@ -122,35 +123,39 @@ const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: Comm
           const reference = sourcesMap[src.sourceProtoType];
 
           return <ListItem
-            description={<ListItemDescription render={reference.displayName} />}
+            description={<ListItemDescription render={reference.displayName}/>}
             title={sourcePageUtils.getTitle(src)}
             icon={reference?.pic}
             id={src.sourceId}
             key={src.sourceId}
             actions={[
-              { component: <Dropdown trigger={['click']} overlay={
-                <Menu>
-                  <Menu.Item key="inc">
-                    <Button type="link" onClick={async() => await scheduleTasks(src, false)}>Sync Now</Button>
-                  </Menu.Item>
-                  <Menu.Item  key="all">
-                    <Button onClick={async() => await scheduleTasks(src, true)}  type="link">Full Re-sync (clear cache)</Button>
-                  </Menu.Item>
-                </Menu>
+              {
+                component: <Dropdown trigger={['click']} overlay={
+                  <Menu>
+                    <Menu.Item key="inc">
+                      <Button type="link" onClick={async() => await scheduleTasks(src, false)}>Sync Now</Button>
+                    </Menu.Item>
+                    <Menu.Item key="all">
+                      <Button onClick={async() => await scheduleTasks(src, true)} type="link">Full Re-sync (clear cache)</Button>
+                    </Menu.Item>
+                  </Menu>
 
-              }><Button type="link" className="align-bottom">Sync Now <DownOutlined /></Button></Dropdown>, icon: <CodeOutlined /> },
-              { onClick: () => history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId })), title: 'View logs', icon: <CodeOutlined /> },
-              { onClick: () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })), title: 'Edit', icon: <EditOutlined /> },
-              { onClick: () => {
-                const updatedSources = [...sources.filter((source: SourceData) => src.sourceId !== source.sourceId)];
+                }><Button type="link" className="align-bottom">Sync Now <DownOutlined/></Button></Dropdown>, icon: <CodeOutlined/>
+              },
+              { onClick: () => history.push(generatePath(taskLogsPageRoute, { sourceId: src.sourceId })), title: 'View logs', icon: <CodeOutlined/> },
+              { onClick: () => history.push(generatePath(sourcesPageRoutes.editExact, { sourceId: src.sourceId })), title: 'Edit', icon: <EditOutlined/> },
+              {
+                onClick: () => {
+                  const updatedSources = [...sources.filter((source: SourceData) => src.sourceId !== source.sourceId)];
 
-                services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
-                  updateSources({ sources: updatedSources });
+                  services.storageService.save('sources', { sources: updatedSources }, projectId).then(() => {
+                    updateSources({ sources: updatedSources });
 
-                  message.success('Sources list successfully updated');
-                });
+                    message.success('Sources list successfully updated');
+                  });
 
-              }, title: 'Delete', icon: <DeleteOutlined /> }
+                }, title: 'Delete', icon: <DeleteOutlined/>
+              }
             ]}
           />
         })}
