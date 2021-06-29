@@ -1,7 +1,7 @@
-# Tracking Pixel API
+# GIF Pixel API
 
 
-Jitsu has a [Tracking Pixel API](#apiv1pgif) endpoint for tracking email opens, impressions of advertisements and other cases when:
+Jitsu has a [GIF Pixel API](#apiv1pgif) endpoint for tracking email opens, impressions of advertisements and other cases when:
 
 - JavaScript is restricted
 - only HTTP GET request is allowed
@@ -19,7 +19,7 @@ Event data might be provided via `data` query parameter that is base64 encoded J
 
 <h4>Parameters</h4>
 
-<APIParam name={"token"} dataType="string" required={false} type="queryString" description="Client or Server secret token. Also might be provided in data JSON object."/>
+<APIParam name={"token"} dataType="string" required={true} type="queryString" description="Client or Server secret token. Also might be provided in the data JSON object."/>
 <APIParam name={"data"} dataType="string" required={false} type="queryString" description="Base 64 encoded string with event JSON. Might contain token field as well."/>
 <APIParam name={"path.to.node"} dataType="string" required={false} type="queryString" description="Path to node where write the value. (http://URL?user.email=john@gmail.com&event_type=email_open)"/>
 
