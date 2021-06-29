@@ -224,6 +224,12 @@ export class FirebaseUserService implements UserService {
     return this.firebaseUser.updatePassword(newPassword);
   }
 
+  async changeEmail(newEmail: string): Promise<void> {
+    await this.firebaseUser.updateEmail(newEmail);
+    this.user.email = newEmail;
+    await this.update(this.user);
+  }
+
   async becomeUser(email: string): Promise<void> {
     let token = (await this.backendApi.get(`/become?user_id=${email}`))['token'];
     await firebase.auth().signInWithCustomToken(token);

@@ -326,7 +326,7 @@ const EmailIsNotConfirmedMessage: React.FC<{key: React.Key}> = ({ key }) => {
         }
         <span>
           {
-            ` is not confirmed. Please, follow the instructions in your email 
+            ` is not verified. Please, follow the instructions in your email 
             to complete the verification process.`
           }
         </span>

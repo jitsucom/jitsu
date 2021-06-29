@@ -1,6 +1,9 @@
-import { Button, Input, Switch, Card } from 'antd';
+// @Libs
+import { Button, Input, Switch, Card, Form } from 'antd';
 import { useState } from 'react';
-
+// @Components
+import { ChangeEmailForm } from './components/ChangeEmailForm/ChangeEmailForm';
+// @Styles
 import styles from './UserSettingsView.module.less';
 
 type Email = {
@@ -14,10 +17,10 @@ type Props = {
   currentEmail: Email;
   confirmationEmailStatus: ConfirmationEmailStatus;
   isTelemetryEnabled: boolean;
-  handleChangeEmail: () => Promise<void>;
+  handleChangeEmail: (newEmail: string) => Promise<void>;
   handleSendEmailConfirmation: () => Promise<void>;
-  handleChangeTelemetry: () => Promise<void>;
-  handleChangePassword: () => Promise<void>;
+  handleChangeTelemetry: (value: boolean) => Promise<void>;
+  handleChangePassword: (newPassword: string) => Promise<void>;
 }
 
 const SectionContainer: React.FC = ({ children }) => {
@@ -43,52 +46,44 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
   handleChangeTelemetry,
   handleChangePassword
 }) => {
-  const [showChangeEmailField, setShowChangeEmailField] = useState<boolean>(false);
+  const showResendEmailFlow = confirmationEmailStatus !== 'not-required';
+  const showEmailNotSent = confirmationEmailStatus !== 'sent';
+
   return (
     <div className="flex flex-col">
 
       <SectionContainer>
         <SectionHeader>Email:</SectionHeader>
-        <span className="mb-2">
+        <span className={`${showResendEmailFlow ? 'mb-0' : 'mb-2'}`}>
           <span className="text-lg font-semibold" >{currentEmail.value}</span>
           <span className={`ml-2 font-bold ${styles.warning}`}>{currentEmail.isConfirmed ? null : 'Not Verified'}</span>
         </span>
-        <span className="flex items-center" >
-          <span className={
-            `inline-block overflow-hidden max-w-xs transition-all duration-700 ${
-              showChangeEmailField ? 'opacity-100 w-full mr-2' : 'opacity-0 w-0'
-            }`
-          }>
-            <Input className="w-full min-w-0" />
-          </span>
-          <Button
-            type="primary"
-            size="middle"
-            onClick={() => setShowChangeEmailField(val => !val)}
-          >
-            {showChangeEmailField ? 'Confirm Email' : 'Change Email' }
-          </Button>
-          {
-            confirmationEmailStatus === 'not-required'
-              ? null
-              : confirmationEmailStatus !== 'sent'
+        {
+          showResendEmailFlow && (
+            <span className="mb-1">
+              {showEmailNotSent
                 ? (
                   <Button
-                    type="text"
+                    type="link"
                     size="middle"
-                    className="ml-2"
+                    className="px-0"
                     loading={confirmationEmailStatus === 'sending'}
                     onClick={handleSendEmailConfirmation}
                   >
                     {'Resend Verification Link'}
                   </Button>
                 ) : (
-                  <span className="ml-2">
+                  <span className="py-1.5 inline-block box-border">
                     {'👌 Verification Link Sent'}
                   </span>
                 )
-          }
-        </span>
+              }
+            </span>
+          )
+        }
+        <ChangeEmailForm
+          handleChangeEmail={handleChangeEmail}
+        />
       </SectionContainer>
 
       <SectionContainer>
