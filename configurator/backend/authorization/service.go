@@ -19,14 +19,15 @@ const (
 	FirebaseType        = "firebase"
 )
 
-var ErrUserNotFound = errors.New("User wasn't found")
-var ErrUserExists = errors.New("User already exists")
-var ErrOldPasswordIncorrect = errors.New("Old password is incorrect")
-var ErrResetIDNotFound = errors.New("Reset id wasn't found")
-var ErrIncorrectPassword = errors.New("Incorrect password")
-var ErrExpiredToken = errors.New("Expired token")
-var ErrTokenSignature = errors.New("Token signature is invalid")
-var ErrUnknownToken = errors.New("Unknown token")
+var (
+	ErrUserNotFound      = errors.New("User wasn't found")
+	ErrUserExists        = errors.New("User already exists")
+	ErrResetIDNotFound   = errors.New("Reset id wasn't found")
+	ErrIncorrectPassword = errors.New("Incorrect password")
+	ErrExpiredToken      = errors.New("Expired token")
+	ErrTokenSignature    = errors.New("Token signature is invalid")
+	ErrUnknownToken      = errors.New("Unknown token")
+)
 
 type Service struct {
 	authProvider Provider
@@ -202,11 +203,26 @@ func (s *Service) CreateResetID(email string) (string, string, error) {
 	return resetID, user.Email, nil
 }
 
-//ChangePassword change user password and delete all tokens
-func (s *Service) ChangePassword(resetID, newPassword string) (*TokenDetails, error) {
-	user, err := s.authProvider.GetUserByResetID(resetID)
-	if err != nil {
-		return nil, err
+//ChangePassword gets user by reset ID or by authorization token
+//changes user password and delete all tokens
+func (s *Service) ChangePassword(resetID, clientAuthToken, newPassword string) (*TokenDetails, error) {
+	var user *User
+	var err error
+	if resetID != "" {
+		user, err = s.authProvider.GetUserByResetID(resetID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		userID, err := s.Authenticate(clientAuthToken)
+		if err != nil {
+			return nil, err
+		}
+
+		user, err = s.authProvider.GetUserByID(userID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	hashedPassword, err := s.hashAndSalt(newPassword)
