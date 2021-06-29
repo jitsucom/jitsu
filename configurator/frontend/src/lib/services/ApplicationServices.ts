@@ -4,7 +4,6 @@ import axios, { AxiosRequestConfig, AxiosResponse, AxiosTransformer, Method } fr
 import * as uuid from 'uuid';
 import AnalyticsService from './analytics';
 import { firebaseInit, FirebaseUserService } from './firebase';
-import firebase from 'firebase';
 import Marshal from '../commons/marshalling';
 import { BackendUserService } from './backend';
 import { randomId } from '@util/numbers';

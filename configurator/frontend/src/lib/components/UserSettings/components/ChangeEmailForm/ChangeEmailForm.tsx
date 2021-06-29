@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Form, Input, Button } from 'antd'
 
 type ChangeEmailFormValues = {
@@ -18,6 +18,7 @@ const ChangeEmailFormComponent: React.FC<Props> = ({
   className,
   handleChangeEmail
 }) => {
+  const inputRef = useRef(null);
   const [form] = Form.useForm<ChangeEmailFormValues>();
   const [showChangeEmailField, setShowChangeEmailField] = useState<boolean>(false);
   const [isChangeEmailInProgress, setIsChangeEmailInProgress] = useState<boolean>(false);
@@ -28,6 +29,10 @@ const ChangeEmailFormComponent: React.FC<Props> = ({
     setShowChangeEmailField(val => !val)
     setIsChangeEmailInProgress(false);
   }
+
+  useEffect(() => {
+    if (showChangeEmailField) inputRef.current?.focus?.();
+  }, [showChangeEmailField]);
 
   return (
     <span className={`flex items-start -mb-2 ${className || ''}`}>
@@ -55,7 +60,12 @@ const ChangeEmailFormComponent: React.FC<Props> = ({
             }
           ]}
         >
-          <Input type="email" className="w-full min-w-0" />
+          <Input
+            ref={inputRef}
+            type="email"
+            autoComplete="email"
+            className="w-full min-w-0"
+          />
         </Form.Item>
       </Form>
       <Button

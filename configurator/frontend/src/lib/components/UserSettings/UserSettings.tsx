@@ -2,7 +2,7 @@ import { useServices } from '@./hooks/useServices';
 import { useEffect, useMemo, useState } from 'react';
 import { message } from 'antd';
 import { UserSettingsViewComponent } from './UserSettingsView';
-import { reloadPage } from '@./lib/commons/utils';
+import { reloadPage, sleep } from '@./lib/commons/utils';
 
 type Email = {
   value: string,
@@ -18,7 +18,10 @@ export const UserSettings: React.FC<Props> = () => {
   const user = services.userService.getUser();
 
   const [isEmailConfirmed, setIsEmailConfirmed] = useState<boolean>(true);
-  const [confirmationEmailStatus, setConfirmationEmailStatus] = useState<ConfirmationEmailStatus>('not-required');
+  const [isTelemetryEnabled, setIsTelemetryEnabled] = useState<boolean>(false);
+  const [confirmationEmailStatus, setConfirmationEmailStatus] = useState<
+    ConfirmationEmailStatus
+  >('not-required');
 
   const currentEmail = useMemo<Email>(() => {
     const email = user.email;
@@ -51,26 +54,51 @@ export const UserSettings: React.FC<Props> = () => {
     }
   }
 
+  const handleChangePassword = async(newPassword: string) => {
+    try {
+      await services.userService.changePassword(newPassword);
+      message.success('Password updated');
+    } catch (error) {
+      message.error(error.message || error);
+    }
+  }
+
+  const handleChangeTelemetry = async(enabled: boolean) => {
+    try {
+      await sleep(1000);
+      setIsTelemetryEnabled(enabled);
+      message.success('Telemetry preferences updated');
+    } catch (error) {
+      message.error(error.message || error);
+    }
+  }
+
   useEffect(() => {
-    const getSettings = async() => {
+    const getEmailSettings = async() => {
       const email = await services.userService.getUserEmailStatus();
       if (email.needsConfirmation && !email.isConfirmed) {
         setIsEmailConfirmed(email.isConfirmed);
         setConfirmationEmailStatus('ready');
       }
     }
-    getSettings();
+    const getTelemetryStatus = async() => {
+      const enabled = await false;
+      setIsTelemetryEnabled(!!enabled);
+    }
+
+    getEmailSettings();
+    getTelemetryStatus();
   }, []);
 
   return (
     <UserSettingsViewComponent
       currentEmail={currentEmail}
       confirmationEmailStatus={confirmationEmailStatus}
-      isTelemetryEnabled={true}
+      isTelemetryEnabled={isTelemetryEnabled}
       handleChangeEmail={handleChangeEmail}
       handleSendEmailConfirmation={handleSendEmailConfirmation}
-      handleChangePassword={async() => {}}
-      handleChangeTelemetry={async() => {}}
+      handleChangePassword={handleChangePassword}
+      handleChangeTelemetry={handleChangeTelemetry}
     />
   );
 }
