@@ -36,6 +36,10 @@ export class BackendUserService implements UserService {
     });
   }
 
+  async sendConfirmationEmail(): Promise<never> {
+    throw new Error("Email verification currently not supported in self-hosted version");
+  }
+
   login(email: string, password: string): Promise<any> {
     return new Promise<any>((resolve, reject) => {
       this.backendApi
@@ -191,6 +195,10 @@ export class BackendUserService implements UserService {
     return this.user;
   }
 
+  async getUserEmailStatus(): Promise<{needsConfirmation: false}> {
+    return { needsConfirmation: false }
+  }
+
   update(user: User): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       if (user.projects == null) {
@@ -235,7 +243,7 @@ export class BackendUserService implements UserService {
     return !!this.user;
   }
 
-  changePassword(newPassword: any, resetId?: string): Promise<void> {
+  changePassword(newPassword: string, resetId?: string): Promise<void> {
     return this.backendApi
       .post('/users/password/change', { new_password: newPassword, reset_id: resetId }, { noauth: true } )
       .then((res) => {

@@ -3,7 +3,7 @@ import * as React from 'react';
 import { ExoticComponent, useState } from 'react';
 
 import {Redirect, Route, Switch} from 'react-router-dom';
-import {Button, Form, Input, Modal} from 'antd';
+import {Button, Form, Input, message, Modal} from 'antd';
 
 
 import './App.less';
@@ -13,7 +13,7 @@ import {reloadPage} from './lib/commons/utils';
 import {User} from './lib/services/model';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
-import { ApplicationPage, SlackChatWidget } from './Layout';
+import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from './Layout';
 import { PaymentPlanStatus } from '@service/billing';
 import { OnboardingTour } from 'lib/components/OnboardingTour/OnboardingTour';
 
@@ -71,6 +71,11 @@ export default class App extends React.Component<{}, AppState> {
                 user: loginStatus.user,
                 paymentPlanStatus: paymentPlanStatus
             });
+
+            if (loginStatus.user) {
+                const email = await this.services.userService.getUserEmailStatus();
+                email.needsConfirmation && !email.isConfirmed && message.warn(emailIsNotConfirmedMessageConfig)
+            }
         } catch (error) {
             console.error('Failed to initialize ApplicationServices', error);
             if (this.services.analyticsService) {

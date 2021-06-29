@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { Button, Col, Dropdown, Layout, Menu, message, Modal, Row } from 'antd';
+import { Button, Dropdown, Menu, message, Modal, MessageArgsProps } from 'antd';
 import AreaChartOutlined from '@ant-design/icons/lib/icons/AreaChartOutlined';
 import { NavLink, useHistory } from 'react-router-dom';
 import UnlockOutlined from '@ant-design/icons/lib/icons/UnlockOutlined';
@@ -8,11 +8,11 @@ import NotificationOutlined from '@ant-design/icons/lib/icons/NotificationOutlin
 import CloudOutlined from '@ant-design/icons/lib/icons/CloudOutlined';
 import DownloadOutlined from '@ant-design/icons/lib/icons/DownloadOutlined';
 import * as React from 'react';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import Icon, { SettingOutlined } from '@ant-design/icons';
 import logo from '@./icons/logo.svg';
 import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
-import { Align, handleError } from '@./lib/components/components';
+import { handleError } from '@./lib/components/components';
 import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
 import classNames from 'classnames';
 import { Permission, User } from '@service/model';
@@ -25,7 +25,7 @@ import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCi
 import { Page, usePageLocation } from '@./navigation';
 import { BreadcrumbsProps, withHome, Breadcrumbs } from '@component/Breadcrumbs/Breadcrumbs';
 import { CurrentPlan } from '@component/CurrentPlan/CurrentPlan';
-import { PaymentPlan, PaymentPlanStatus } from '@service/billing';
+import { PaymentPlanStatus } from '@service/billing';
 import styles from './Layout.module.less';
 import { getIntercom } from '@service/intercom-wrapper';
 import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
@@ -305,3 +305,46 @@ export const SlackInvitationModal: React.FC<{visible: boolean, hide: () => void}
   </Modal>
 }
 
+const EmailIsNotConfirmedMessage: React.FC<{key: React.Key}> = ({ key }) => {
+  const services = useServices();
+  const handleDestroyMessage = () => message.destroy(key);
+  const handleresendConfirmationLink = () => {
+    // ...send the link
+    handleDestroyMessage();
+  }
+  return (
+    <span className="flex flex-col items-center mt-1">
+      <span>
+        <span>{'Email '}</span>
+        {
+          services.userService.getUser()?.email
+            ? (
+              <span className={`font-semibold ${styles.emailHighlight}`}>
+                {services.userService.getUser()?.email}
+              </span>
+            ) : ''
+        }
+        <span>
+          {
+            ` is not confirmed. Please, follow the instructions in your email 
+            to complete the verification process.`
+          }
+        </span>
+      </span>
+      <span>
+        <Button type="link" onClick={handleresendConfirmationLink}>{'Resend verification link'}</Button>
+        <Button type="text" onClick={handleDestroyMessage}>{'Close'}</Button>
+      </span>
+    </span>
+  );
+}
+
+const MESSAGE_KEY = 'email-not-confirmed-message'
+
+export const emailIsNotConfirmedMessageConfig: MessageArgsProps = {
+  type: 'error',
+  key: MESSAGE_KEY,
+  duration: null,
+  icon: <>{null}</>,
+  content: <EmailIsNotConfirmedMessage key={MESSAGE_KEY} />
+}
