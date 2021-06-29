@@ -278,9 +278,16 @@ export const SlackInvitationModal: React.FC<{visible: boolean, hide: () => void}
 
 const EmailIsNotConfirmedMessage: React.FC<{key: React.Key}> = ({ key }) => {
   const services = useServices();
+  const [isSendingVerification, setIsSendingVerification] = useState<boolean>(false);
+
   const handleDestroyMessage = () => message.destroy(key);
-  const handleresendConfirmationLink = () => {
-    // ...send the link
+  const handleresendConfirmationLink = async() => {
+    setIsSendingVerification(true);
+    try {
+      await services.userService.sendConfirmationEmail();
+    } finally {
+      setIsSendingVerification(false);
+    }
     handleDestroyMessage();
   }
   return (
@@ -303,8 +310,17 @@ const EmailIsNotConfirmedMessage: React.FC<{key: React.Key}> = ({ key }) => {
         </span>
       </span>
       <span>
-        <Button type="link" onClick={handleresendConfirmationLink}>{'Resend verification link'}</Button>
-        <Button type="text" onClick={handleDestroyMessage}>{'Close'}</Button>
+        <Button
+          type="link"
+          loading={isSendingVerification}
+          onClick={handleresendConfirmationLink}>
+          {'Resend verification link'}
+        </Button>
+        <Button
+          type="text"
+          onClick={handleDestroyMessage}>
+          {'Close'}
+        </Button>
       </span>
     </span>
   );
