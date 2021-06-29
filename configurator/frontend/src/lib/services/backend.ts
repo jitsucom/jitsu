@@ -3,7 +3,7 @@ import { ApiAccess, Project, User } from './model';
 import 'firebase/auth';
 import 'firebase/firestore';
 import Marshal from '../commons/marshalling';
-import { BackendApiClient, LoginFeatures, ServerStorage, UserLoginStatus, UserService } from './ApplicationServices';
+import { BackendApiClient, LoginFeatures, ServerStorage, TelemetrySettings, UserLoginStatus, UserService } from './ApplicationServices';
 import { randomId } from '@util/numbers';
 import { cleanAuthorizationLocalStorage, concatenateURLs } from "@./lib/commons/utils";
 import { getBaseUIPath } from "@./lib/commons/pathHelper";
@@ -255,6 +255,10 @@ export class BackendUserService implements UserService {
   async changeEmail(newEmail: string): Promise<void> {
     this.user.email = newEmail;
     return this.update(this.user);
+  }
+
+  async changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void> {
+    await this.backendApi.post('/configurations/telemetry?id=global', { disabled: { usage: !newSettings.isTelemetryEnabled} });
   }
 
   //isn't supported (without google authorization)

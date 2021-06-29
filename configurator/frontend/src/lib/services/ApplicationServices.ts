@@ -253,10 +253,6 @@ export default class ApplicationServices {
       transformResponse: JSON_FORMAT
     };
 
-
-
-
-
     let response = await axios(request);
 
     let environment = response.data.selfhosted ? 'custom' : 'jitsu_cloud';
@@ -345,6 +341,10 @@ type UserEmailStatus =
   | { needsConfirmation: true; isConfirmed: boolean }
   | { needsConfirmation: false }
 
+export type TelemetrySettings = {
+  isTelemetryEnabled: boolean;
+}
+
 export interface SetupUserProps {
   email: string
   password: string
@@ -413,10 +413,16 @@ export interface UserService {
   changePassword(value: string, resetId?: string): Promise<void>;
 
   /**
-   * Changes account .
+   * Changes account email.
    * @param value - new email
    */
   changeEmail(value: string): Promise<void>;
+
+  /**
+   * Changes user's telemetry preferences.
+   * @param newSettings - telemetry settings
+   */
+  changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void>;
 
   update(user: User);
 

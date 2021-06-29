@@ -10,6 +10,7 @@ import {
   LoginFeatures,
   ServerStorage,
   setDebugInfo,
+  TelemetrySettings,
   UserLoginStatus,
   UserService
 } from './ApplicationServices';
@@ -228,6 +229,10 @@ export class FirebaseUserService implements UserService {
     await this.firebaseUser.updateEmail(newEmail);
     this.user.email = newEmail;
     await this.update(this.user);
+  }
+
+  async changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void> {
+    await this.backendApi.post('/configurations/telemetry?id=global', { disabled: { usage: !newSettings.isTelemetryEnabled} });
   }
 
   async becomeUser(email: string): Promise<void> {

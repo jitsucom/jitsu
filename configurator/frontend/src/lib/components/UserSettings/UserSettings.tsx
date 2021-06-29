@@ -65,9 +65,9 @@ export const UserSettings: React.FC<Props> = () => {
 
   const handleChangeTelemetry = async(enabled: boolean) => {
     try {
-      await sleep(1000);
+      await services.userService.changeTelemetrySettings({ isTelemetryEnabled: enabled });
       setIsTelemetryEnabled(enabled);
-      message.success('Telemetry preferences updated');
+      message.success('Telemetry preferences updated. Please, reload the page to apply your changes.', 5);
     } catch (error) {
       message.error(error.message || error);
     }
@@ -82,8 +82,8 @@ export const UserSettings: React.FC<Props> = () => {
       }
     }
     const getTelemetryStatus = async() => {
-      const enabled = await false;
-      setIsTelemetryEnabled(!!enabled);
+      const response = await services.backendApiClient.get('/configurations/telemetry?id=global');
+      setIsTelemetryEnabled(!response['disabled']?.['usage']);
     }
 
     getEmailSettings();
