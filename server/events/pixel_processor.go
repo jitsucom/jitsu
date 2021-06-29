@@ -68,7 +68,7 @@ func (pp *PixelProcessor) Preprocess(event Event, c *gin.Context) {
 	utcTime := timestamp.NowUTC()
 	anonymID, ok := c.Get(middleware.JitsuAnonymIDCookie)
 	if !ok {
-		logging.SystemError("anonym ID value  wasn't found in the context")
+		logging.SystemError("anonym ID value wasn't found in the context")
 	}
 
 	if compatibilityMode {
@@ -103,7 +103,6 @@ func (pp *PixelProcessor) Type() string {
 //setIfNotExist uses JSONPath SetIfNotExist func and log error if occurred
 func (pp *PixelProcessor) setIfNotExist(path jsonutils.JSONPath, event Event, value interface{}) {
 	if err := path.SetIfNotExist(event, value); err != nil {
-
 		logging.Errorf("Error setting %v into event %s by path %s: %v", value, event.Serialize(), path.String(), err)
 	}
 }
