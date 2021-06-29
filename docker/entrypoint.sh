@@ -88,6 +88,8 @@ sed "s/NGINX_PORT/$NGINX_PORT_VALUE/g" /etc/nginx/nginx.conf > /etc/nginx/nginx_
 mv /etc/nginx/nginx_replaced.conf /etc/nginx/nginx.conf && \
 nginx -g 'daemon off;' &
 
+sleep 1
+
 check_shutdown
 
 echo "=============================================================================="
@@ -96,7 +98,7 @@ echo "                    💻 visit localhost:$NGINX_PORT_VALUE/configurator"
 echo "=============================================================================="
 
 ### Shutdown loop
-# wait forever and checks every 3 seconds check shutdown
+# wait forever and check every 3 seconds shutdown
 while sleep 3; do
   check_shutdown
 done
