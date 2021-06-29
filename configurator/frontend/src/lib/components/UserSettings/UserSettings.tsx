@@ -2,6 +2,7 @@ import { useServices } from '@./hooks/useServices';
 import { useEffect, useMemo, useState } from 'react';
 import { message } from 'antd';
 import { UserSettingsViewComponent } from './UserSettingsView';
+import { reloadPage } from '@./lib/commons/utils';
 
 type Email = {
   value: string,
@@ -41,6 +42,15 @@ export const UserSettings: React.FC<Props> = () => {
     }
   }
 
+  const handleChangeEmail = async(newEmail: string) => {
+    try {
+      await services.userService.changeEmail(newEmail);
+      reloadPage();
+    } catch (error) {
+      message.error(error.message || error);
+    }
+  }
+
   useEffect(() => {
     const getSettings = async() => {
       const email = await services.userService.getUserEmailStatus();
@@ -57,7 +67,7 @@ export const UserSettings: React.FC<Props> = () => {
       currentEmail={currentEmail}
       confirmationEmailStatus={confirmationEmailStatus}
       isTelemetryEnabled={true}
-      handleChangeEmail={async() => {}}
+      handleChangeEmail={handleChangeEmail}
       handleSendEmailConfirmation={handleSendEmailConfirmation}
       handleChangePassword={async() => {}}
       handleChangeTelemetry={async() => {}}

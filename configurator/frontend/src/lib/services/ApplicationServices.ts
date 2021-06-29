@@ -407,11 +407,17 @@ export interface UserService {
   sendConfirmationEmail(): Promise<void>;
 
   /**
-   * Changes password of the account if signed up with email and password
-   * @param value - new password
-   * @param resetId - ???
+   * Changes account password if signed up with email and password.
+   * @param value new password
+   * @param resetId token from the password reset link; Needed if user is not logged in.
    */
-  changePassword(value: string, resetId?: string): void;
+  changePassword(value: string, resetId?: string): Promise<void>;
+
+  /**
+   * Changes account .
+   * @param value - new email
+   */
+  changeEmail(value: string): Promise<void>;
 
   update(user: User);
 

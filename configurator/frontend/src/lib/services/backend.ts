@@ -252,6 +252,11 @@ export class BackendUserService implements UserService {
       });
   }
 
+  async changeEmail(newEmail: string): Promise<void> {
+    this.user.email = newEmail;
+    return this.update(this.user);
+  }
+
   //isn't supported (without google authorization)
   async becomeUser(email: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {

@@ -52,7 +52,7 @@ export enum Permission {
 export class User {
   private readonly _apiAccessAccessor: () => ApiAccess;
   private readonly _uid: string;
-  private readonly _email: string;
+  private _email: string;
   private _name: string;
   private _projects: Project[] = [];
   private _onboarded = false;
@@ -121,6 +121,10 @@ export class User {
 
   get email(): string {
     return this._email;
+  }
+
+  set email(newEmail: string) {
+    this._email = newEmail;
   }
 
   get name(): string {
