@@ -1,8 +1,9 @@
 // @Libs
-import { Button, Input, Switch, Card, Form } from 'antd';
-import { useState } from 'react';
+import { Button, Card } from 'antd';
 // @Components
 import { ChangeEmailForm } from './components/ChangeEmailForm/ChangeEmailForm';
+import { ChangePasswordForm } from './components/ChangePasswordForm/ChangePasswordForm';
+import { TelemetrySettingsForm } from './components/TelemetrySettingsForm/TelemetrySettingsForm';
 // @Styles
 import styles from './UserSettingsView.module.less';
 
@@ -19,7 +20,7 @@ type Props = {
   isTelemetryEnabled: boolean;
   handleChangeEmail: (newEmail: string) => Promise<void>;
   handleSendEmailConfirmation: () => Promise<void>;
-  handleChangeTelemetry: (value: boolean) => Promise<void>;
+  handleChangeTelemetry: (enabled: boolean) => Promise<void>;
   handleChangePassword: (newPassword: string) => Promise<void>;
 }
 
@@ -81,26 +82,20 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
             </span>
           )
         }
-        <ChangeEmailForm
-          handleChangeEmail={handleChangeEmail}
-        />
+        <ChangeEmailForm handleChangeEmail={handleChangeEmail} />
       </SectionContainer>
 
       <SectionContainer>
         <SectionHeader>Password:</SectionHeader>
-        <span>
-          <Button type="primary" size="middle">Change Password</Button>
-        </span>
+        <ChangePasswordForm handleChangePassword={handleChangePassword} />
       </SectionContainer>
 
       <SectionContainer>
         <SectionHeader>Telemetry:</SectionHeader>
-        <span className="flex items-center">
-          <Switch size="small"/>
-          <span className="ml-2">
-            {'Allow us to track the application state in order to detect and respond to any issues.'}
-          </span>
-        </span>
+        <TelemetrySettingsForm
+          isTelemetryEnabled={isTelemetryEnabled}
+          handleChangeTelemetry={handleChangeTelemetry}
+        />
       </SectionContainer>
     </div>
   );

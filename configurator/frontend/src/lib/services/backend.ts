@@ -245,7 +245,7 @@ export class BackendUserService implements UserService {
 
   changePassword(newPassword: string, resetId?: string): Promise<void> {
     return this.backendApi
-      .post('/users/password/change', { new_password: newPassword, reset_id: resetId }, { noauth: true } )
+      .post('/users/password/change', { new_password: newPassword, reset_id: resetId }, { noauth: !!resetId } )
       .then((res) => {
         localStorage.removeItem(LS_ACCESS_KEY);
         localStorage.removeItem(LS_REFRESH_KEY);
