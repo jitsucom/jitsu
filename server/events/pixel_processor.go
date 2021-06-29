@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"net/url"
 )
 
 const (
@@ -61,9 +62,14 @@ func (pp *PixelProcessor) Preprocess(event Event, c *gin.Context) {
 	}
 
 	referer := c.Request.Header.Get("Referer")
-	host := c.Request.Host
-	docPath := c.Request.URL.Path
-	docSearch := c.Request.URL.RawQuery
+	refURL, err := url.Parse(referer)
+	if err != nil {
+		logging.SystemErrorf("error parsing Referer [%s] in pixel processor: %v", referer, err)
+		refURL = &url.URL{}
+	}
+	host := refURL.Host
+	docPath := refURL.Path
+	docSearch := refURL.RawQuery
 	userAgent := c.Request.UserAgent()
 	utcTime := timestamp.NowUTC()
 	anonymID, ok := c.Get(middleware.JitsuAnonymIDCookie)
