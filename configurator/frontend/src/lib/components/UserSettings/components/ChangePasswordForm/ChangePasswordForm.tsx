@@ -24,10 +24,10 @@ const ChangePasswordFormComponent: React.FC<Props> = ({
   const [isChangePasswordInProgress, setIsChangePasswordInProgress] = useState<boolean>(false);
 
   const handleSubmitNewPassword = async({ password }: ChangePasswordFormValues) => {
-    setIsChangePasswordInProgress(true);
+    // setIsChangePasswordInProgress(true);
     await handleChangePassword(password);
-    setShowChangePasswordField(val => !val)
-    setIsChangePasswordInProgress(false);
+    // setShowChangePasswordField(val => !val)
+    // setIsChangePasswordInProgress(false);
   }
 
   useEffect(() => {
@@ -69,13 +69,15 @@ const ChangePasswordFormComponent: React.FC<Props> = ({
         size="middle"
         loading={isChangePasswordInProgress}
         htmlType={showChangePasswordField ? 'submit' : 'button'}
-        onClick={() => showChangePasswordField
-          ? form.submit()
-          // ? setShowChangePasswordField(false)
-          : setShowChangePasswordField(true)
+        onClick={() =>
+          handleChangePassword('')
+          // showChangePasswordField
+          //   ? form.submit()
+          //   : setShowChangePasswordField(true)
         }
       >
-        {showChangePasswordField ? 'Set New Password' : 'Change Password' }
+        {/* {showChangePasswordField ? 'Set New Password' : 'Change Password' } */}
+        {'Reset Password'}
       </Button>
       {showChangePasswordField && (
         <Button

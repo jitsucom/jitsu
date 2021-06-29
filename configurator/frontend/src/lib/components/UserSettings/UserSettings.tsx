@@ -1,8 +1,14 @@
-import { useServices } from '@./hooks/useServices';
+// @Libs
 import { useEffect, useMemo, useState } from 'react';
-import { message } from 'antd';
+import { message, Modal } from 'antd';
+// @Icons
+import { ExclamationCircleOutlined } from '@ant-design/icons/lib/icons/'
+// @View
 import { UserSettingsViewComponent } from './UserSettingsView';
-import { reloadPage, sleep } from '@./lib/commons/utils';
+// @Utils
+import { reloadPage } from '@./lib/commons/utils';
+// @Services
+import { useServices } from '@./hooks/useServices';
 
 type Email = {
   value: string,
@@ -55,12 +61,31 @@ export const UserSettings: React.FC<Props> = () => {
   }
 
   const handleChangePassword = async(newPassword: string) => {
-    try {
-      await services.userService.changePassword(newPassword);
-      message.success('Password updated');
-    } catch (error) {
-      message.error(error.message || error);
-    }
+    // try {
+    //   await services.userService.changePassword(newPassword);
+    //   message.success('Password updated');
+    // } catch (error) {
+    //   message.error(error.message || error);
+    // }
+    Modal.confirm({
+      title: 'Password reset',
+      icon: <ExclamationCircleOutlined/>,
+      content: 'Please confirm password reset. Instructions will be sent to your email',
+      okText: 'Reset password',
+      cancelText: 'Cancel',
+      onOk: async() => {
+        try {
+          debugger;
+          await services.userService.sendPasswordReset();
+          message.info('Reset password instructions has been sent. Please, check your mailbox');
+        } catch (error) {
+          message.error("Can't reset password: " + error.message);
+          console.log("Can't reset password", error);
+        }
+      },
+      onCancel: () => {
+      }
+    });
   }
 
   const handleChangeTelemetry = async(enabled: boolean) => {
