@@ -4,7 +4,6 @@ import axios, { AxiosRequestConfig, AxiosResponse, AxiosTransformer, Method } fr
 import * as uuid from 'uuid';
 import AnalyticsService from './analytics';
 import { firebaseInit, FirebaseUserService } from './firebase';
-import firebase from 'firebase';
 import Marshal from '../commons/marshalling';
 import { BackendUserService } from './backend';
 import { randomId } from '@util/numbers';
@@ -256,10 +255,6 @@ export default class ApplicationServices {
       transformResponse: JSON_FORMAT
     };
 
-
-
-
-
     let response = await axios(request);
 
     let environment = response.data.selfhosted ? 'custom' : 'jitsu_cloud';
@@ -344,6 +339,14 @@ export interface LoginFeatures {
   signupEnabled: boolean;
 }
 
+type UserEmailStatus = 
+  | { needsConfirmation: true; isConfirmed: boolean }
+  | { needsConfirmation: false }
+
+export type TelemetrySettings = {
+  isTelemetryEnabled: boolean;
+}
+
 export interface SetupUserProps {
   email: string
   password: string
@@ -386,11 +389,42 @@ export interface UserService {
   getUser(): User;
 
   /**
-   * Get current logged in user. Throws exception if user is not available
+   * Checks if current user's email needs confirmation and if it is confirmed.
+   * @returns an object with the corresponding fields
+   */
+  getUserEmailStatus(): Promise<UserEmailStatus>;
+
+  /**
+   * Checks if any valid user is logged in.
    */
   hasUser(): boolean;
 
+  /**
+   * Sends user a reset password link via email
+   * @param email - email to send the link to
+   */
   sendPasswordReset(email?: string);
+
+  sendConfirmationEmail(): Promise<void>;
+
+  /**
+   * Changes account password if signed up with email and password.
+   * @param value new password
+   * @param resetId token from the password reset link; Needed if user is not logged in.
+   */
+  changePassword(value: string, resetId?: string): Promise<void>;
+
+  /**
+   * Changes account email.
+   * @param value - new email
+   */
+  changeEmail(value: string): Promise<void>;
+
+  /**
+   * Changes user's telemetry preferences.
+   * @param newSettings - telemetry settings
+   */
+  changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void>;
 
   update(user: User);
 
@@ -399,8 +433,6 @@ export interface UserService {
   createUser(email: string, password: string): Promise<void>;
 
   setupUser(userProps: SetupUserProps): Promise<void>;
-
-  changePassword(value: any, resetId?: string): void;
 
   becomeUser(email: string): Promise<void>;
 

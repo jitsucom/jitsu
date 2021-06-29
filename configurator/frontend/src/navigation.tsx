@@ -6,6 +6,7 @@ import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.r
 // @???
 import ComponentTest from './lib/components/componentTest';
 import { TaskLogsPage, taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
+import { SettingsPage, settingsPageRoutes } from '@page/SettingsPage/SettingsPage';
 import { taskLogsViewerRoute, TaskLogViewer } from '@page/TaskLogs/TaskLogViewer';
 import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
 import { LoginLink } from '@./lib/components/LoginLink/LoginLink';
@@ -88,6 +89,7 @@ export const PUBLIC_PAGES: Page[] = [
   new Page('Jitsu | register', ['/register'], SignupForm),
   new Page('Jitsu | reset password', ['/reset_password/:resetId'], PasswordForm)
 ];
+
 export const PRIVATE_PAGES: Page[] = [
   new Page('Test Component', '/test', ComponentTest, 'Component Test'),
   new Page('Jitsu | recent events', '/events_stream', EventsStream, 'Recent events'),
@@ -135,5 +137,11 @@ export const PRIVATE_PAGES: Page[] = [
     taskLogsViewerRoute,
     TaskLogViewer,
     'Task Logs'
+  ),
+  new Page(
+    'Jitsu | Settings',
+    settingsPageRoutes,
+    SettingsPage,
+    'Settings'
   )
 ];
