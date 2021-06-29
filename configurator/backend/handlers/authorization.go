@@ -8,7 +8,7 @@ import (
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
 	"github.com/jitsucom/jitsu/server/logging"
-	mdlwr "github.com/jitsucom/jitsu/server/middleware"
+	jmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"net/http"
 	"strings"
@@ -20,10 +20,6 @@ type ChangePasswordRequest struct {
 }
 
 func (cpr *ChangePasswordRequest) Validate() error {
-	if cpr.ResetID == "" {
-		return errors.New("reset_id is required field")
-	}
-
 	if cpr.NewPassword == "" {
 		return errors.New("new_password is required field")
 	}
@@ -106,19 +102,19 @@ func NewAuthorizationHandler(authService *authorization.Service, emailService *e
 func (ah *AuthorizationHandler) SignIn(c *gin.Context) {
 	req := &SignRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	err := req.Validate()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input data", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid input data", err))
 		return
 	}
 
 	td, err := ah.authService.SignIn(req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusUnauthorized, jmiddleware.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -129,19 +125,19 @@ func (ah *AuthorizationHandler) SignIn(c *gin.Context) {
 func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 	req := &SignUpRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	err := req.Validate()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input data", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid input data", err))
 		return
 	}
 
 	td, err := ah.authService.SignUp(req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -169,19 +165,19 @@ func (ah *AuthorizationHandler) OnboardedSignUp(c *gin.Context) {
 func (ah *AuthorizationHandler) SignUp(c *gin.Context) {
 	req := &SignRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	err := req.Validate()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input data", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid input data", err))
 		return
 	}
 
 	td, err := ah.authService.SignUp(req.Email, req.Password)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -193,7 +189,7 @@ func (ah *AuthorizationHandler) SignOut(c *gin.Context) {
 
 	err := ah.authService.SignOut(token)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -204,40 +200,40 @@ func (ah *AuthorizationHandler) SignOut(c *gin.Context) {
 //otherwise return error
 func (ah *AuthorizationHandler) ResetPassword(c *gin.Context) {
 	if !ah.emailService.IsConfigured() {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("SMTP isn't configured", nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("SMTP isn't configured", nil))
 		return
 	}
 
 	req := &PasswordResetRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	if req.Email == "" {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("email is required", nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("email is required", nil))
 		return
 	}
 
 	if req.Callback == "" {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("callback is required", nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("callback is required", nil))
 		return
 	}
 
 	resetID, email, err := ah.authService.CreateResetID(req.Email)
 	if err != nil {
 		if err == authorization.ErrUserNotFound {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
+			c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(err.Error(), nil))
 			return
 		}
 
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusInternalServerError, jmiddleware.ErrResponse(err.Error(), nil))
 		return
 	}
 
 	err = ah.emailService.SendResetPassword(email, strings.ReplaceAll(req.Callback, "{{token}}", resetID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, mdlwr.ErrResponse("Error sending email message", err))
+		c.JSON(http.StatusInternalServerError, jmiddleware.ErrResponse("Error sending email message", err))
 		return
 	}
 
@@ -247,24 +243,26 @@ func (ah *AuthorizationHandler) ResetPassword(c *gin.Context) {
 func (ah *AuthorizationHandler) ChangePassword(c *gin.Context) {
 	req := &ChangePasswordRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	err := req.Validate()
 	if err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input data", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid input data", err))
 		return
 	}
 
-	td, err := ah.authService.ChangePassword(req.ResetID, req.NewPassword)
+	token := c.GetHeader(middleware.ClientAuthHeader)
+
+	td, err := ah.authService.ChangePassword(req.ResetID, token, req.NewPassword)
 	if err != nil {
 		if err == authorization.ErrResetIDNotFound {
-			c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("The link has been expired!", nil))
+			c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("The link has been expired!", nil))
 			return
 		}
 
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -274,18 +272,18 @@ func (ah *AuthorizationHandler) ChangePassword(c *gin.Context) {
 func (ah *AuthorizationHandler) RefreshToken(c *gin.Context) {
 	req := &RefreshRequest{}
 	if err := c.BindJSON(req); err != nil {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid input JSON", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid input JSON", err))
 		return
 	}
 
 	if req.RefreshToken == "" {
-		c.JSON(http.StatusBadRequest, mdlwr.ErrResponse("Invalid data JSON", errors.New("refresh_token is required field")))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Invalid data JSON", errors.New("refresh_token is required field")))
 		return
 	}
 
 	td, err := ah.authService.Refresh(req.RefreshToken)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, mdlwr.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusUnauthorized, jmiddleware.ErrResponse(err.Error(), nil))
 		return
 	}
 

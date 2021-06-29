@@ -54,14 +54,6 @@ func (eh *DatabaseHandler) PostHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, database)
 }
 
-func extractUserID(c *gin.Context) string {
-	iface, ok := c.Get(middleware.UserIDKey)
-	if !ok {
-		return ""
-	}
-	return iface.(string)
-}
-
 func hasAccessToProject(c *gin.Context, requestedProjectID string) bool {
 	userProjectID, exists := c.Get("_project_id")
 	if !exists || userProjectID != requestedProjectID {
