@@ -77,7 +77,30 @@ func (rp *RedisProvider) UsersExist() (bool, error) {
 	return exists, nil
 }
 
-//GetUserIDByEmail return User by email
+//GetUserByID returns User by user ID
+func (rp *RedisProvider) GetUserByID(userID string) (*User, error) {
+	conn := rp.pool.Get()
+	defer conn.Close()
+
+	userValues, err := redis.Values(conn.Do("HGETALL", "user#"+userID))
+	if err != nil {
+		if err == redis.ErrNil {
+			return nil, ErrUserNotFound
+		}
+
+		return nil, err
+	}
+
+	user := &User{}
+	err = redis.ScanStruct(userValues, user)
+	if err != nil {
+		return nil, fmt.Errorf("Error deserializing user entity [%s]: %v", userID, err)
+	}
+
+	return user, nil
+}
+
+//GetUserByEmail returns User by email
 func (rp *RedisProvider) GetUserByEmail(email string) (*User, error) {
 	conn := rp.pool.Get()
 	defer conn.Close()
