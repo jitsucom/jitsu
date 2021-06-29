@@ -133,27 +133,6 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
   const services = useServices();
   const history = useHistory();
 
-  const passwordReset = () => {
-    Modal.confirm({
-      title: 'Password reset',
-      icon: <ExclamationCircleOutlined/>,
-      content: 'Please confirm password reset. Instructions will be sent to your email',
-      okText: 'Reset password',
-      cancelText: 'Cancel',
-      onOk: async() => {
-        try {
-          await services.userService.sendPasswordReset();
-          message.info('Reset password instructions has been sent. Please, check your mailbox');
-        } catch (error) {
-          message.error("Can't reset password: " + error.message);
-          console.log("Can't reset password", error);
-        }
-      },
-      onCancel: () => {
-      }
-    });
-  };
-
   const showSettings = React.useCallback<() => void>(() => history.push(settingsPageRoutes[0]), [history])
 
   const becomeUser = async() => {
@@ -187,14 +166,6 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
         />
       </div>}
       <div className="p-2 flex flex-col items-stretch">
-        <Button
-          type="text"
-          className="text-left"
-          key="profile"
-          icon={<SlidersOutlined/>}
-          onClick={passwordReset}>
-            Reset Password
-        </Button>
         <Button
           type="text"
           className="text-left"
