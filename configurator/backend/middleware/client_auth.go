@@ -9,9 +9,10 @@ import (
 )
 
 const (
-	ProjectIDKey = "_project_id"
-	UserIDKey    = "_user_id"
-	TokenKey     = "_token"
+	ProjectIDKey     = "_project_id"
+	UserIDKey        = "_user_id"
+	TokenKey         = "_token"
+	ClientAuthHeader = "X-Client-Auth"
 )
 
 type Authenticator struct {
@@ -24,7 +25,7 @@ func NewAuthenticator(service *authorization.Service) *Authenticator {
 
 func (a *Authenticator) ClientProjectAuth(main gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := c.GetHeader("X-Client-Auth")
+		token := c.GetHeader(ClientAuthHeader)
 		userID, err := a.service.Authenticate(token)
 		if err != nil {
 			logging.Errorf("Failed to authenticate with token %s: %v", token, err)
@@ -49,7 +50,7 @@ func (a *Authenticator) ClientProjectAuth(main gin.HandlerFunc) gin.HandlerFunc 
 
 func (a *Authenticator) ClientAuth(main gin.HandlerFunc) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		token := c.GetHeader("X-Client-Auth")
+		token := c.GetHeader(ClientAuthHeader)
 		userID, err := a.service.Authenticate(token)
 		if err != nil {
 			logging.Errorf("Failed to authenticate with token %s: %v", token, err)
