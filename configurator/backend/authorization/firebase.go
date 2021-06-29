@@ -24,6 +24,7 @@ type Provider interface {
 	Type() string
 
 	//only in-house
+	GetUserByID(userID string) (*User, error)
 	GetUserByEmail(email string) (*User, error)
 	SaveUser(user *User) error
 	CreateTokens(userID string) (*TokenDetails, error)
@@ -146,6 +147,12 @@ func (fp *FirebaseProvider) Close() error {
 	}
 
 	return nil
+}
+
+func (fp *FirebaseProvider) GetUserByID(userID string) (*User, error) {
+	errMsg := fmt.Sprintf("GetUserByID isn't supported in authorization FirebaseProvider. userID: %s", userID)
+	logging.SystemError(errMsg)
+	return nil, errors.New(errMsg)
 }
 
 func (fp *FirebaseProvider) GetUserByEmail(email string) (*User, error) {
