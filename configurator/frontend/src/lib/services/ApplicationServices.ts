@@ -342,6 +342,10 @@ export interface LoginFeatures {
   signupEnabled: boolean;
 }
 
+type UserEmailStatus = 
+  | { needsConfirmation: true; isConfirmed: boolean }
+  | { needsConfirmation: false }
+
 export interface SetupUserProps {
   email: string
   password: string
@@ -384,11 +388,30 @@ export interface UserService {
   getUser(): User;
 
   /**
-   * Get current logged in user. Throws exception if user is not available
+   * Checks if current user's email needs confirmation and if it is confirmed.
+   * @returns an object with the corresponding fields
+   */
+  getUserEmailStatus(): Promise<UserEmailStatus>;
+
+  /**
+   * Checks if any valid user is logged in.
    */
   hasUser(): boolean;
 
+  /**
+   * Sends user a reset password link via email
+   * @param email - email to send the link to
+   */
   sendPasswordReset(email?: string);
+
+  sendConfirmationEmail(): Promise<void>;
+
+  /**
+   * Changes password of the account if signed up with email and password
+   * @param value - new password
+   * @param resetId - ???
+   */
+  changePassword(value: string, resetId?: string): void;
 
   update(user: User);
 
@@ -397,8 +420,6 @@ export interface UserService {
   createUser(email: string, password: string): Promise<void>;
 
   setupUser(userProps: SetupUserProps): Promise<void>;
-
-  changePassword(value: any, resetId?: string): void;
 
   becomeUser(email: string): Promise<void>;
 }

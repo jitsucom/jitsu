@@ -117,9 +117,8 @@ export class FirebaseUserService implements UserService {
     await this.refreshToken(fbUser, false);
     this.user = new User(fbUser.uid, () => this.apiAccess, {} as SuggestedUserInfo);
 
-    let userInfo: {};
-    userInfo = await this.storageService.getUserInfo();
-    let suggestedInfo = {
+    const userInfo = await this.storageService.getUserInfo();
+    const suggestedInfo = {
       email: fbUser.email,
       name: fbUser.displayName
     };
@@ -130,13 +129,12 @@ export class FirebaseUserService implements UserService {
         this.user.created = new Date();
         //await this.update(this.user);
       }
-      return this.user;
     } else {
       this.user = new User(fbUser.uid, () => this.apiAccess, suggestedInfo);
       this.user.created = new Date();
       //await this.update(this.user);
-      return this.user;
     }
+    return this.user;
   }
 
   removeAuth(callback: () => void) {
@@ -148,6 +146,13 @@ export class FirebaseUserService implements UserService {
       throw new Error('User is null');
     }
     return this.user;
+  }
+
+  async getUserEmailStatus(): Promise<{
+    needsConfirmation: true;
+    isConfirmed: boolean
+  }> {
+    return { needsConfirmation: true, isConfirmed: this.firebaseUser.emailVerified }
   }
 
   update(user: User): Promise<void> {
@@ -165,10 +170,6 @@ export class FirebaseUserService implements UserService {
       delete userData['_projects'];
       return this.storageService.saveUserInfo(userData).then(resolve);
     });
-  }
-
-  sendPasswordReset(email?: string): Promise<void> {
-    return firebase.auth().sendPasswordResetEmail(email ? email : this.getUser().email);
   }
 
   async refreshToken(firebaseUser: firebase.User, forceRefresh: boolean) {
@@ -211,7 +212,15 @@ export class FirebaseUserService implements UserService {
     return !!this.user;
   }
 
-  changePassword(newPassword: any, resetId?: string): Promise<void> {
+  sendPasswordReset(email?: string): Promise<void> {
+    return firebase.auth().sendPasswordResetEmail(email ? email : this.getUser().email);
+  }
+
+  async sendConfirmationEmail(): Promise<void> {
+    return this.firebaseUser.sendEmailVerification();
+  }
+
+  changePassword(newPassword: string, resetId?: string): Promise<void> {
     return this.firebaseUser.updatePassword(newPassword);
   }
 

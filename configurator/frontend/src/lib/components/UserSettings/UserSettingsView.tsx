@@ -1,4 +1,4 @@
-import { Modal, Button, Input, Switch, Card } from 'antd';
+import { Button, Input, Switch, Card } from 'antd';
 import { useState } from 'react';
 
 import styles from './UserSettingsView.module.less';
@@ -8,17 +8,16 @@ type Email = {
   isConfirmed: boolean;
 }
 
+type ConfirmationEmailStatus = 'not-required' | 'ready' | 'sending' | 'sent';
+
 type Props = {
   currentEmail: Email;
+  confirmationEmailStatus: ConfirmationEmailStatus;
   isTelemetryEnabled: boolean;
   handleChangeEmail: () => Promise<void>;
   handleSendEmailConfirmation: () => Promise<void>;
   handleChangeTelemetry: () => Promise<void>;
   handleChangePassword: () => Promise<void>;
-}
-
-const _SectionContainer: React.FC = ({ children }) => {
-  return <div className="flex flex-col flex-auto my-3">{children}</div>;
 }
 
 const SectionContainer: React.FC = ({ children }) => {
@@ -37,6 +36,7 @@ const SectionHeader: React.FC = ({ children }) => {
 
 export const UserSettingsViewComponent: React.FC<Props> = ({
   currentEmail,
+  confirmationEmailStatus,
   isTelemetryEnabled,
   handleChangeEmail,
   handleSendEmailConfirmation,
@@ -45,12 +45,6 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
 }) => {
   const [showChangeEmailField, setShowChangeEmailField] = useState<boolean>(false);
   return (
-    // <Modal
-    //   // visible
-    //   closable
-    //   footer={null}
-    //   centered
-    // >
     <div className="flex flex-col">
 
       <SectionContainer>
@@ -59,7 +53,7 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
           <span className="text-lg font-semibold" >{currentEmail.value}</span>
           <span className={`ml-2 font-bold ${styles.warning}`}>{currentEmail.isConfirmed ? null : 'Not Verified'}</span>
         </span>
-        <span className="flex" >
+        <span className="flex items-center" >
           <span className={
             `inline-block overflow-hidden max-w-xs transition-all duration-700 ${
               showChangeEmailField ? 'opacity-100 w-full mr-2' : 'opacity-0 w-0'
@@ -74,13 +68,26 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
           >
             {showChangeEmailField ? 'Confirm Email' : 'Change Email' }
           </Button>
-          <Button
-            type="text"
-            size="middle"
-            className="ml-2"
-          >
-            {'Resend Verification Link'}
-          </Button>
+          {
+            confirmationEmailStatus === 'not-required'
+              ? null
+              : confirmationEmailStatus !== 'sent'
+                ? (
+                  <Button
+                    type="text"
+                    size="middle"
+                    className="ml-2"
+                    loading={confirmationEmailStatus === 'sending'}
+                    onClick={handleSendEmailConfirmation}
+                  >
+                    {'Resend Verification Link'}
+                  </Button>
+                ) : (
+                  <span className="ml-2">
+                    {'👌 Verification Link Sent'}
+                  </span>
+                )
+          }
         </span>
       </SectionContainer>
 
@@ -93,11 +100,13 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
 
       <SectionContainer>
         <SectionHeader>Telemetry:</SectionHeader>
-        <span>
+        <span className="flex items-center">
           <Switch size="small"/>
+          <span className="ml-2">
+            {'Allow us to track the application state in order to detect and respond to any issues.'}
+          </span>
         </span>
       </SectionContainer>
     </div>
-    // </Modal>
   );
 }
