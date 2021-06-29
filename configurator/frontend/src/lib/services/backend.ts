@@ -3,7 +3,7 @@ import { ApiAccess, Project, User } from './model';
 import 'firebase/auth';
 import 'firebase/firestore';
 import Marshal from '../commons/marshalling';
-import { BackendApiClient, LoginFeatures, ServerStorage, UserLoginStatus, UserService } from './ApplicationServices';
+import { BackendApiClient, LoginFeatures, ServerStorage, TelemetrySettings, UserLoginStatus, UserService } from './ApplicationServices';
 import { randomId } from '@util/numbers';
 import { cleanAuthorizationLocalStorage, concatenateURLs } from "@./lib/commons/utils";
 import { getBaseUIPath } from "@./lib/commons/pathHelper";
@@ -34,6 +34,10 @@ export class BackendUserService implements UserService {
     return new Promise<string>((resolve, reject) => {
       reject(new Error("Google authorization isn't supported in BackendUserService"));
     });
+  }
+
+  async sendConfirmationEmail(): Promise<never> {
+    throw new Error("Email verification currently not supported in self-hosted version");
   }
 
   login(email: string, password: string): Promise<any> {
@@ -191,6 +195,10 @@ export class BackendUserService implements UserService {
     return this.user;
   }
 
+  async getUserEmailStatus(): Promise<{needsConfirmation: false}> {
+    return { needsConfirmation: false }
+  }
+
   update(user: User): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       if (user.projects == null) {
@@ -235,13 +243,22 @@ export class BackendUserService implements UserService {
     return !!this.user;
   }
 
-  changePassword(newPassword: any, resetId?: string): Promise<void> {
+  changePassword(newPassword: string, resetId?: string): Promise<void> {
     return this.backendApi
-      .post('/users/password/change', { new_password: newPassword, reset_id: resetId }, { noauth: true } )
+      .post('/users/password/change', { new_password: newPassword, reset_id: resetId }, { noauth: !!resetId } )
       .then((res) => {
         localStorage.removeItem(LS_ACCESS_KEY);
         localStorage.removeItem(LS_REFRESH_KEY);
       });
+  }
+
+  async changeEmail(newEmail: string): Promise<void> {
+    this.user.email = newEmail;
+    return this.update(this.user);
+  }
+
+  async changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void> {
+    await this.backendApi.post('/configurations/telemetry?id=global', { disabled: { usage: !newSettings.isTelemetryEnabled} });
   }
 
   //isn't supported (without google authorization)

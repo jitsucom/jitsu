@@ -1,18 +1,18 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { Button, Col, Dropdown, Layout, Menu, message, Modal, Row } from 'antd';
+import { Button, Dropdown, Menu, message, Modal, MessageArgsProps } from 'antd';
 import AreaChartOutlined from '@ant-design/icons/lib/icons/AreaChartOutlined';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useHistory } from 'react-router-dom';
 import UnlockOutlined from '@ant-design/icons/lib/icons/UnlockOutlined';
 import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
 import NotificationOutlined from '@ant-design/icons/lib/icons/NotificationOutlined';
 import CloudOutlined from '@ant-design/icons/lib/icons/CloudOutlined';
 import DownloadOutlined from '@ant-design/icons/lib/icons/DownloadOutlined';
 import * as React from 'react';
-import { useEffect, useState } from 'react';
-import Icon from '@ant-design/icons';
+import { useState } from 'react';
+import Icon, { SettingOutlined } from '@ant-design/icons';
 import logo from '@./icons/logo.svg';
 import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
-import { Align, handleError } from '@./lib/components/components';
+import { handleError } from '@./lib/components/components';
 import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
 import classNames from 'classnames';
 import { Permission, User } from '@service/model';
@@ -25,9 +25,10 @@ import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCi
 import { Page, usePageLocation } from '@./navigation';
 import { BreadcrumbsProps, withHome, Breadcrumbs } from '@component/Breadcrumbs/Breadcrumbs';
 import { CurrentPlan } from '@component/CurrentPlan/CurrentPlan';
-import { PaymentPlan, PaymentPlanStatus } from '@service/billing';
+import { PaymentPlanStatus } from '@service/billing';
 import styles from './Layout.module.less';
 import { getIntercom } from '@service/intercom-wrapper';
+import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
@@ -103,7 +104,7 @@ export type PageHeaderProps = {
 }
 
 function abbr(user: User) {
-  return user.name.split(' ').filter(part => part.length > 0).map(part => part[0]).join('').toUpperCase();
+  return user.name?.split(' ').filter(part => part.length > 0).map(part => part[0]).join('').toUpperCase();
 }
 
 export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) => {
@@ -121,7 +122,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
         visible={dropdownVisible}
         overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}>
         <Button className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text" size="large" shape="circle">
-          {abbr(user)}
+          {abbr(user) || <UserOutlined />}
         </Button>
       </Dropdown>
     </div>
@@ -130,27 +131,9 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
 
 export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMenu: () => void}> = ({ plan, user , hideMenu }) => {
   const services = useServices();
+  const history = useHistory();
 
-  const passwordReset = () => {
-    Modal.confirm({
-      title: 'Password reset',
-      icon: <ExclamationCircleOutlined/>,
-      content: 'Please confirm password reset. Instructions will be sent to your email',
-      okText: 'Reset password',
-      cancelText: 'Cancel',
-      onOk: async() => {
-        try {
-          await services.userService.sendPasswordReset();
-          message.info('Reset password instructions has been sent. Please, check your mailbox');
-        } catch (error) {
-          message.error("Can't reset password: " + error.message);
-          console.log("Can't reset password", error);
-        }
-      },
-      onCancel: () => {
-      }
-    });
-  };
+  const showSettings = React.useCallback<() => void>(() => history.push(settingsPageRoutes[0]), [history])
 
   const becomeUser = async() => {
     let email = prompt('Please enter e-mail of the user', '');
@@ -183,9 +166,24 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
         />
       </div>}
       <div className="p-2 flex flex-col items-stretch">
-        <Button type="text" className="text-left" key="profile" icon={<SlidersOutlined/>} onClick={passwordReset}>Reset Password</Button>
+        <Button
+          type="text"
+          className="text-left"
+          key="settings"
+          icon={<SettingOutlined/>}
+          onClick={showSettings}>
+            Settings
+        </Button>
         {services.userService.getUser().hasPermission(Permission.BECOME_OTHER_USER) &&
-        <Button className="text-left" type="text" key="become" icon={<UserSwitchOutlined/>} onClick={becomeUser}>Become User</Button>}
+          <Button
+            className="text-left"
+            type="text"
+            key="become"
+            icon={<UserSwitchOutlined/>}
+            onClick={becomeUser}>
+              Become User
+          </Button>
+        }
         <Button
           className="text-left"
           type="text"
@@ -278,3 +276,62 @@ export const SlackInvitationModal: React.FC<{visible: boolean, hide: () => void}
   </Modal>
 }
 
+const EmailIsNotConfirmedMessage: React.FC<{key: React.Key}> = ({ key }) => {
+  const services = useServices();
+  const [isSendingVerification, setIsSendingVerification] = useState<boolean>(false);
+
+  const handleDestroyMessage = () => message.destroy(key);
+  const handleresendConfirmationLink = async() => {
+    setIsSendingVerification(true);
+    try {
+      await services.userService.sendConfirmationEmail();
+    } finally {
+      setIsSendingVerification(false);
+    }
+    handleDestroyMessage();
+  }
+  return (
+    <span className="flex flex-col items-center mt-1">
+      <span>
+        <span>{'Email '}</span>
+        {
+          services.userService.getUser()?.email
+            ? (
+              <span className={`font-semibold ${styles.emailHighlight}`}>
+                {services.userService.getUser()?.email}
+              </span>
+            ) : ''
+        }
+        <span>
+          {
+            ` is not verified. Please, follow the instructions in your email 
+            to complete the verification process.`
+          }
+        </span>
+      </span>
+      <span>
+        <Button
+          type="link"
+          loading={isSendingVerification}
+          onClick={handleresendConfirmationLink}>
+          {'Resend verification link'}
+        </Button>
+        <Button
+          type="text"
+          onClick={handleDestroyMessage}>
+          {'Close'}
+        </Button>
+      </span>
+    </span>
+  );
+}
+
+const MESSAGE_KEY = 'email-not-confirmed-message'
+
+export const emailIsNotConfirmedMessageConfig: MessageArgsProps = {
+  type: 'error',
+  key: MESSAGE_KEY,
+  duration: null,
+  icon: <>{null}</>,
+  content: <EmailIsNotConfirmedMessage key={MESSAGE_KEY} />
+}

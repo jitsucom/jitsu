@@ -1,21 +1,21 @@
 /* eslint-disable */
 import * as React from 'react';
-import { ExoticComponent, ReactNode, useState } from 'react';
+import { ExoticComponent, useState } from 'react';
 
-import {NavLink, Redirect, Route, Switch} from 'react-router-dom';
-import {Button, Col, Dropdown, Form, Input, Layout, Menu, message, Modal, Row, Tooltip} from 'antd';
+import {Redirect, Route, Switch} from 'react-router-dom';
+import {Button, Form, Input, message, Modal} from 'antd';
 
 
 import './App.less';
 import ApplicationServices, {setDebugInfo} from './lib/services/ApplicationServices';
-import {Align, CenteredSpin, GlobalError, handleError, Preloader} from './lib/components/components';
+import {CenteredSpin, GlobalError, handleError, Preloader} from './lib/components/components';
 import {reloadPage} from './lib/commons/utils';
 import {User} from './lib/services/model';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
-import { ApplicationPage, SlackChatWidget } from './Layout';
+import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from './Layout';
 import { PaymentPlanStatus } from '@service/billing';
-import { OnboardingTour } from './lib/components/OnboardingTour/OnboardingTour';
+import { OnboardingTour } from 'lib/components/OnboardingTour/OnboardingTour';
 
 enum AppLifecycle {
     LOADING, //Application is loading
@@ -71,6 +71,11 @@ export default class App extends React.Component<{}, AppState> {
                 user: loginStatus.user,
                 paymentPlanStatus: paymentPlanStatus
             });
+
+            if (loginStatus.user) {
+                const email = await this.services.userService.getUserEmailStatus();
+                email.needsConfirmation && !email.isConfirmed && message.warn(emailIsNotConfirmedMessageConfig)
+            }
         } catch (error) {
             console.error('Failed to initialize ApplicationServices', error);
             if (this.services.analyticsService) {
@@ -134,24 +139,25 @@ export default class App extends React.Component<{}, AppState> {
 
 
     appLayout() {
-        let routes = PRIVATE_PAGES.map((route) => {
-        let Component = route.component as ExoticComponent;
-        return <Route
-                key={route.pageTitle}
-                path={route.getPrefixedPath()}
-                exact={true}
-                render={(routeProps) => {
-                    this.services.analyticsService.onPageLoad({
-                        pagePath: routeProps.location.hash
-                    });
-                    document.title = route.pageTitle;
-                    return route.doNotWrap ?
-                        <Component {...(routeProps as any)} /> :
-                        <ApplicationPage user={this.state.user} plan={this.state.paymentPlanStatus} page={route} {...routeProps} />;
-                }}
-            />;
+        const routes = PRIVATE_PAGES.map((route) => {
+            const Component = route.component as ExoticComponent;
+            return <Route
+                    key={route.pageTitle}
+                    path={route.getPrefixedPath()}
+                    exact={true}
+                    render={(routeProps) => {
+                        this.services.analyticsService.onPageLoad({
+                            pagePath: routeProps.location.hash
+                        });
+                        document.title = route.pageTitle;
+                        return route.doNotWrap ?
+                            <Component {...(routeProps as any)} /> :
+                            <ApplicationPage user={this.state.user} plan={this.state.paymentPlanStatus} page={route} {...routeProps} />;
+                    }}
+                />;
         });
-        routes.push(<Redirect key="dashboardRedirect" to="/dashboard"/>);
+
+        routes.push(<Redirect key="dashboardRedirect" from="*" to="/dashboard"/>);
 
         const extraForms = <OnboardingTour />;
         if (this.services.userService.getUser().forcePasswordChange) {
