@@ -24,12 +24,13 @@ const (
 	dataField = "data"
 
 	cookieDomainField = "cookie_domain"
+	anonymIDJSONPath  = "/user/anonymous_id||/eventn_ctx/user/anonymous_id"
 )
 
 //PixelHandler is a handler of pixel tracking requests
 type PixelHandler struct {
-	emptyGIF []byte
-
+	emptyGIF            []byte
+	anonymIDPath        jsonutils.JSONPath
 	multiplexingService *multiplexing.Service
 	processor           events.Processor
 }
@@ -38,6 +39,7 @@ type PixelHandler struct {
 func NewPixelHandler(multiplexingService *multiplexing.Service, processor events.Processor) *PixelHandler {
 	return &PixelHandler{
 		emptyGIF:            appconfig.Instance.EmptyGIFPixelOnexOne,
+		anonymIDPath:        jsonutils.NewJSONPath(anonymIDJSONPath),
 		multiplexingService: multiplexingService,
 		processor:           processor,
 	}
@@ -50,19 +52,29 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 	event, err := ph.parseEvent(c)
 	if err != nil {
 		logging.Error(err)
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		return
+	}
+
+	ph.extractOrSetAnonymID(c, event)
+
+	var strToken string
+	token, ok := event[middleware.TokenName]
+	if ok {
+		strToken = fmt.Sprint(token)
 	} else {
-		ph.extractOrSetAnonymID(c, event)
-
-		token, ok := event[middleware.TokenName]
-		if !ok {
-			token, _ = event[middleware.APIKeyName]
+		token, ok = event[middleware.APIKeyName]
+		if ok {
+			strToken = fmt.Sprint(token)
 		}
+	}
 
-		err = ph.multiplexingService.AcceptRequest(ph.processor, c, fmt.Sprint(token), []events.Event{event})
-		if err != nil {
-			reqBody, _ := json.Marshal(event)
-			logging.Errorf("%v. Tracking pixel event: %s", err, string(reqBody))
-		}
+	err = ph.multiplexingService.AcceptRequest(ph.processor, c, strToken, []events.Event{event})
+	if err != nil {
+		reqBody, _ := json.Marshal(event)
+		logging.Errorf("%v. Tracking pixel event: %s", err, string(reqBody))
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		return
 	}
 
 	c.Data(http.StatusOK, "image/gif", ph.emptyGIF)
@@ -103,9 +115,15 @@ func (ph *PixelHandler) parseEvent(c *gin.Context) (events.Event, error) {
 	return event, nil
 }
 
-//extractOrSetAnonymID gets cookie value (anonym ID)
-//generates and set it if doesn't exist
+//extractOrSetAnonymID if no anoymous id found:
+// 1. gets cookie value (anonym ID)
+// 2. generates and set it if doesn't exist
 func (ph *PixelHandler) extractOrSetAnonymID(c *gin.Context, event events.Event) {
+	if anonymID, ok := ph.anonymIDPath.Get(event); ok {
+		c.Set(middleware.JitsuAnonymIDCookie, anonymID)
+		return
+	}
+
 	anonymID, err := c.Cookie(middleware.JitsuAnonymIDCookie)
 	if err != nil {
 		if err == http.ErrNoCookie {

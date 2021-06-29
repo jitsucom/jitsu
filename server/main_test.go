@@ -442,19 +442,22 @@ func TestPixelEndpoint(t *testing.T) {
 		CookieAnonymIDValue string
 		ExpectedJSONPath    string
 		ExpectedAnonymID    string
+		ExpectedErr         string
 	}{
 		{
-			"Unauthorized shouldn't error",
+			"Unauthorized error",
 			"/api/v1/p.gif?data=ewogIAogICJldmVudF90eXBlIjogIm9wZW5fZW1haWwiLAoidXNlciI6IHsKICAiYW5vbnltb3VzX2lkIjogImRhZG5vbjQxMjQxIgogIH0KfQ==",
 			"",
 			"",
 			"",
+			"{\"message\":\"No destination is configured for token [\\\"\\\"] (or only staged ones)\",\"error\":\"\"}",
 		},
 		{
 			"Event without context data and anonym id",
 			"/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2",
 			"dan3o12ndnsd",
 			"test_data/pixel_event_without_context_output.json",
+			"",
 			"",
 		},
 		{
@@ -463,12 +466,14 @@ func TestPixelEndpoint(t *testing.T) {
 			"",
 			"test_data/pixel_event_without_context_compat_output.json",
 			"mockeduuid",
+			"",
 		},
 		{
-			"Event with context data and anonym id",
+			"Event with context data and anonym id in body",
 			"/api/v1/p.gif?data=ewogICJkb2NfaG9zdCI6ICJjbG91ZC5qaXRzdS5jb20iLAogICJkb2NfcGF0aCI6ICIvZGVzdGluYXRpb25zIiwKICAiZG9jX3NlYXJjaCI6ICJpZD0xMjMiLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJ1cmwiOiAiaHR0cHM6Ly9jbG91ZC5qaXRzdS5jb20vZGVzdGluYXRpb25zIiwKICAidXNlciI6IHsKICAgICJhbm9ueW1vdXNfaWQiOiAiMTIzIgogIH0sCiAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTNfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUxIiwKICAidXRjX3RpbWUiOiAiMjAyMS0wNi0xNlQyMzowMDowMC4wMDAwMDBaIgp9&token=c2stoken",
 			"dan3o12ndnsd",
 			"test_data/pixel_event_with_context_output.json",
+			"",
 			"",
 		},
 		{
@@ -476,6 +481,15 @@ func TestPixelEndpoint(t *testing.T) {
 			"/api/v1/p.gif?data=ewogICJjb21wYXQiOiB0cnVlLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJldmVudG5fY3R4IjogewogICAgImRvY19ob3N0IjogImFwcC5qaXRzdS5jb20iLAogICAgImRvY19wYXRoIjogIi9hcGkvdjEvcC5naWYiLAogICAgImRvY19zZWFyY2giOiAiYWJjPTEyMyIsCiAgICAidXJsIjogImh0dHBzOi8vaml0c3UuY29tL2RvY3MiLAogICAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTJfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUwIiwKICAgICJ1dGNfdGltZSI6ICIyMDIwLTA2LTE2VDIzOjAwOjAwLjAwMDAwMFoiCiAgfQp9&token=c2stoken",
 			"dan3o12ndnsd",
 			"test_data/pixel_event_with_context_compat_output.json",
+			"",
+			"",
+		},
+		{
+			"Event with context data and anonym id in body",
+			"/api/v1/p.gif?data=ewogICJjb21wYXQiOiB0cnVlLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJldmVudG5fY3R4IjogewogICAgImRvY19ob3N0IjogImFwcC5qaXRzdS5jb20iLAogICAgImRvY19wYXRoIjogIi9hcGkvdjEvcC5naWYiLAogICAgImRvY19zZWFyY2giOiAiYWJjPTEyMyIsCiAgICAidXJsIjogImh0dHBzOi8vaml0c3UuY29tL2RvY3MiLAogICAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTJfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUwIiwKICAgICJ1c2VyIjp7CiAgICAgICAgImFub255bW91c19pZCI6ICIxMjMiCiAgICAgfSwKICAgICJ1dGNfdGltZSI6ICIyMDIwLTA2LTE2VDIzOjAwOjAwLjAwMDAwMFoiCiAgfQp9&token=c2stoken",
+			"",
+			"test_data/pixel_event_with_context_and_id_compat_output.json",
+			"",
 			"",
 		},
 	}
@@ -506,42 +520,52 @@ func TestPixelEndpoint(t *testing.T) {
 			resp, err := http.DefaultClient.Do(req)
 			require.NoError(t, err)
 
-			require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
-			require.Equal(t, "image/gif", resp.Header.Get("content-type"))
-			b, err := ioutil.ReadAll(resp.Body)
-			require.NoError(t, err)
-			resp.Body.Close()
+			if tt.ExpectedErr != "" {
+				require.Equal(t, http.StatusBadRequest, resp.StatusCode, "HTTP code isn't 400")
 
-			require.Equal(t, string(appconfig.Instance.EmptyGIFPixelOnexOne), string(b))
-
-			time.Sleep(200 * time.Millisecond)
-
-			if tt.ExpectedJSONPath != "" {
-				expectedBytes, err := ioutil.ReadFile(tt.ExpectedJSONPath)
+				b, err := ioutil.ReadAll(resp.Body)
 				require.NoError(t, err)
+				resp.Body.Close()
 
-				actualBytes := logging.InstanceMock.Data
+				require.Equal(t, tt.ExpectedErr, string(b), "Errors aren't equal")
+			} else {
+				require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP code isn't 200")
+				require.Equal(t, "image/gif", resp.Header.Get("content-type"))
+				b, err := ioutil.ReadAll(resp.Body)
+				require.NoError(t, err)
+				resp.Body.Close()
 
-				test.JSONBytesEqual(t, expectedBytes, actualBytes[0], "Logged facts aren't equal")
-			}
+				require.Equal(t, string(appconfig.Instance.EmptyGIFPixelOnexOne), string(b))
 
-			if tt.ExpectedAnonymID != "" {
-				exists := false
-				cookies := resp.Cookies()
-				for _, cookie := range cookies {
-					if cookie.Name == middleware.JitsuAnonymIDCookie {
-						exists = true
-						require.Equal(t, tt.ExpectedAnonymID, cookie.Value)
-						require.Equal(t, "/", cookie.Path)
-						require.Equal(t, true, cookie.Secure)
-						require.Equal(t, false, cookie.HttpOnly)
-						require.Equal(t, http.SameSiteNoneMode, cookie.SameSite)
-						require.Equal(t, "jitsu.com", cookie.Domain)
-						require.Equal(t, "Tue, 17 Jul 3021 23:00:00 GMT", cookie.RawExpires)
-					}
+				time.Sleep(200 * time.Millisecond)
+
+				if tt.ExpectedJSONPath != "" {
+					expectedBytes, err := ioutil.ReadFile(tt.ExpectedJSONPath)
+					require.NoError(t, err)
+
+					actualBytes := logging.InstanceMock.Data
+
+					test.JSONBytesEqual(t, expectedBytes, actualBytes[0], "Logged facts aren't equal")
 				}
 
-				require.True(t, exists, "Expected Jitsu cookie doesn't exist in the response")
+				if tt.ExpectedAnonymID != "" {
+					exists := false
+					cookies := resp.Cookies()
+					for _, cookie := range cookies {
+						if cookie.Name == middleware.JitsuAnonymIDCookie {
+							exists = true
+							require.Equal(t, tt.ExpectedAnonymID, cookie.Value)
+							require.Equal(t, "/", cookie.Path)
+							require.Equal(t, true, cookie.Secure)
+							require.Equal(t, false, cookie.HttpOnly)
+							require.Equal(t, http.SameSiteNoneMode, cookie.SameSite)
+							require.Equal(t, "jitsu.com", cookie.Domain)
+							require.Equal(t, "Tue, 17 Jul 3021 23:00:00 GMT", cookie.RawExpires)
+						}
+					}
+
+					require.True(t, exists, "Expected Jitsu cookie doesn't exist in the response")
+				}
 			}
 		})
 	}

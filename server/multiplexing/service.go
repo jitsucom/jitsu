@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	noDestinationsErrTemplate = "No destination is configured for token [%s] (or only staged ones)"
+	noDestinationsErrTemplate = "No destination is configured for token [%q] (or only staged ones)"
 )
 
 //Service is a service for accepting, multiplexing events and sending to consumers
