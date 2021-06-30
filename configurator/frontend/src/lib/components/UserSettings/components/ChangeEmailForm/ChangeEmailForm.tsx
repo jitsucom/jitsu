@@ -75,7 +75,6 @@ const ChangeEmailFormComponent: React.FC<Props> = ({
         htmlType={showChangeEmailField ? 'submit' : 'button'}
         onClick={() => showChangeEmailField
           ? form.submit()
-          // ? setShowChangeEmailField(false)
           : setShowChangeEmailField(true)
         }
       >
