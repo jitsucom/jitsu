@@ -20,7 +20,7 @@ type Props = {
   isTelemetryEnabled: boolean;
   handleChangeEmail: (newEmail: string) => Promise<void>;
   handleSendEmailConfirmation: () => Promise<void>;
-  handleChangeTelemetry: (enabled: boolean) => Promise<void>;
+  handleChangeTelemetry?: false | ( (enabled: boolean) => Promise<void> );
   handleChangePassword: (newPassword: string) => Promise<void>;
 }
 
@@ -90,13 +90,15 @@ export const UserSettingsViewComponent: React.FC<Props> = ({
         <ChangePasswordForm handleChangePassword={handleChangePassword} />
       </SectionContainer>
 
-      <SectionContainer>
-        <SectionHeader>Telemetry:</SectionHeader>
-        <TelemetrySettingsForm
-          isTelemetryEnabled={isTelemetryEnabled}
-          handleChangeTelemetry={handleChangeTelemetry}
-        />
-      </SectionContainer>
+      {handleChangeTelemetry && (
+        <SectionContainer>
+          <SectionHeader>Telemetry:</SectionHeader>
+          <TelemetrySettingsForm
+            isTelemetryEnabled={isTelemetryEnabled}
+            handleChangeTelemetry={handleChangeTelemetry}
+          />
+        </SectionContainer>
+      )}
     </div>
   );
 }
