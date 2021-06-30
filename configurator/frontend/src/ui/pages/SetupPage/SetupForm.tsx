@@ -1,18 +1,17 @@
 /* eslint-disable */
 import * as React from 'react';
-import { Button, Card, Checkbox, Col, Form, Grid, Input, message, Row, Switch } from 'antd';
+import { Button, Form, Switch } from 'antd';
 import styles from './SetupForm.module.less';
 
 import LockOutlined from '@ant-design/icons/lib/icons/LockOutlined';
 import MailOutlined from '@ant-design/icons/lib/icons/MailOutlined';
 
-import { NavLink } from 'react-router-dom';
 import { reloadPage } from '@./lib/commons/utils';
 import ApplicationServices from '../../../lib/services/ApplicationServices';
-import { Align, handleError } from '@./lib/components/components';
+import { handleError } from '@./lib/components/components';
 import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
 import BankOutlined from '@ant-design/icons/lib/icons/BankOutlined';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 
 import fullLogo from '../../../icons/logo.svg';
 import { FloatingLabelInput } from '@component/FloatingLabelInput/FloatingLabelInput';
@@ -53,7 +52,6 @@ export default function SetupForm() {
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [emailOptout, setEmailOptout] = useState(false);
-  const [usageOptout, setUsageOutout] = useState(false);
 
 
   const submit = async (values) => {
@@ -63,7 +61,7 @@ export default function SetupForm() {
         name: values['name'],
         email: values['email'],
         company: values['company_name'],
-        emailOptout, usageOptout
+        emailOptout,
       };
       if (!emailOptout) {
         await appService.analyticsService.track('selfhosted_email_subscribe', {
@@ -72,17 +70,10 @@ export default function SetupForm() {
             name: nonSensitiveUserData.name
           },
           company: nonSensitiveUserData.company,
-          emailOptout, usageOptout
+          emailOptout
         });
       }
-      if (!usageOptout) {
-        await appService.analyticsService.onUserKnown({
-          email: nonSensitiveUserData.email,
-          uid: nonSensitiveUserData.email,
-          name: nonSensitiveUserData.name
-        });
-      }
-      await appService.analyticsService.track('selfhosted_signup', { usageOptout, emailOptout });
+      await appService.analyticsService.track('selfhosted_signup', { emailOptout });
       await appService.userService.setupUser({...nonSensitiveUserData, password: values['password']});
 
       reloadPage();
@@ -191,15 +182,6 @@ export default function SetupForm() {
                 <TermsSwitch name="product-updates" onChange={(val) => setEmailOptout(!val)}>
                   Send me occasional product updates. You may unsubscribe at any time.
                 </TermsSwitch>
-                <TermsSwitch name="collect-events" onChange={(val) => setUsageOutout(!val)}>
-                  Allow Jitsu to anonymously collect usage events.
-                </TermsSwitch>
-
-                <ul className={'text-xs text-secondaryText mt-0 pt-0 ml-0 pl-0 list-none'}>
-                  <li>Jitsu never collects anything about your data or connection credentials.</li>
-                  <li>All collection is completely anonymous.</li>
-                  <li>Collection can be turned off at any point in configuration file.</li>
-                </ul>
               </Form>
             </div>
           </div>}

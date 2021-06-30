@@ -232,7 +232,7 @@ export class FirebaseUserService implements UserService {
   }
 
   async changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void> {
-    await this.backendApi.post('/configurations/telemetry?id=global', { disabled: { usage: !newSettings.isTelemetryEnabled} });
+    throw new Error('Not Available');
   }
 
   async becomeUser(email: string): Promise<void> {

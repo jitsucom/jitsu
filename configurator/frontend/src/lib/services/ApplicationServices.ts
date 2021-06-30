@@ -353,7 +353,6 @@ export interface SetupUserProps {
   name?: string
   company?: string
   emailOptout?: boolean
-  usageOptout?: boolean
 }
 
 export interface UserService {
