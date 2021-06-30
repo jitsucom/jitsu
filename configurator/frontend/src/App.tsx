@@ -124,7 +124,7 @@ export default class App extends React.Component<{}, AppState> {
             case AppLifecycle.APP:
                 return <>
                     {this.appLayout()}
-                    {this.services.features.chatSupportType === 'slack' && <SlackChatWidget />}
+                    {<SlackChatWidget />}
                     </>;
             case AppLifecycle.ERROR:
                 return <GlobalError/>;

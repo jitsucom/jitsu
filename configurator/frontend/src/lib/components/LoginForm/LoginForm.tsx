@@ -14,7 +14,7 @@ import ApplicationServices from '../../services/ApplicationServices';
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { reloadPage } from '../../commons/utils';
-import { getErrorPayload } from '@service/analytics';
+import { AnalyticsBlock, getErrorPayload } from '@service/analytics';
 import { FloatingLabelInput } from '@component/FloatingLabelInput/FloatingLabelInput';
 
 type State = {
@@ -39,6 +39,7 @@ export default class LoginForm extends React.Component<Props, State> {
   }
 
   render() {
+    AnalyticsBlock.unblockAll();
     let title = (
       <div className="login-form-header-container">
         <img src={logo} alt="[logo]" className="login-form-logo" />
