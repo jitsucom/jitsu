@@ -29,6 +29,10 @@ export const UserSettings: React.FC<Props> = () => {
     ConfirmationEmailStatus
   >('not-required');
 
+  const needToDisplayTelemetrySettings = useMemo<boolean>(() => {
+    return services.features.appName !== 'jitsu_cloud';
+  }, [services.features.appName])
+
   const currentEmail = useMemo<Email>(() => {
     const email = user.email;
     return {
@@ -104,7 +108,7 @@ export const UserSettings: React.FC<Props> = () => {
       handleChangeEmail={handleChangeEmail}
       handleSendEmailConfirmation={handleSendEmailConfirmation}
       handleChangePassword={handleChangePassword}
-      handleChangeTelemetry={handleChangeTelemetry}
+      handleChangeTelemetry={needToDisplayTelemetrySettings && handleChangeTelemetry}
     />
   );
 }
