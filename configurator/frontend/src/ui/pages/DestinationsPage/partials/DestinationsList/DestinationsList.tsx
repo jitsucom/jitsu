@@ -93,6 +93,9 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, so
       {
         destinations.map((dst: DestinationData) => {
           const reference = destinationsReferenceMap[dst._type];
+          if (!reference) {
+            throw new Error(`Unknown destination type ${dst._type}. All types: ${Object.keys(destinationsReferenceMap)}`)
+          }
 
           return <ListItem
             additional={destinationsUtils.getMode(dst._formData?.mode)}
