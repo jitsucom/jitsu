@@ -86,7 +86,7 @@ export class BackendUserService implements UserService {
     await this.update(user);
   }
 
-  async setupUser({ email, password, name, company = '', emailOptout = false, usageOptout = false }): Promise<void> {
+  async setupUser({ email, password, name, company = '', emailOptout = false }): Promise<void> {
     if (!name || name === "") {
       throw new Error("Name is not set")
     }
@@ -96,7 +96,7 @@ export class BackendUserService implements UserService {
       name,
       company,
       emailOptout,
-      usageOptout
+      usageOptout: false
     };
     let response = await this.backendApi.post('/users/onboarded/signup', signUpPayload, { noauth: true });
 
