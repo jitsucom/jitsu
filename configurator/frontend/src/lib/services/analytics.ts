@@ -22,15 +22,35 @@ interface AnalyticsExecutors extends Record<string, Executor<any>>{
 function defaultExecutors(execs: AnalyticsExecutors): AnalyticsExecutors {
   return {
     jitsu: execs?.jitsu ?? ((jitsu, eventType, payload) => {
-      return jitsu.track(eventType, payload || {});
+      if (!AnalyticsBlock.isBlocked()) {
+        return jitsu.track(eventType, payload || {});
+      }
     }),
     intercom: execs?.intercom ?? ((intercom, eventType, payload) => {
-      intercom('trackEvent', eventType, payload || {});
+      if (!AnalyticsBlock.isBlocked()) {
+        intercom('trackEvent', eventType, payload || {});
+      }
       return Promise.resolve();
     })
   }
 }
 
+/**
+ * Allows to block all calls to any analytics service. For become user feature
+ */
+export const AnalyticsBlock = {
+  blockAll: () => {
+    localStorage.setItem('jitsuBlockAllTracking', 'true');
+  },
+  unblockAll: () => {
+    localStorage.setItem('jitsuBlockAllTracking', 'false');
+  },
+  isBlocked: (): boolean => {
+    return localStorage.getItem('jitsuBlockAllTracking') === 'true';
+  }
+
+
+}
 class ConsoleLogInterceptor {
   private initialized: boolean = false;
   private listeners: ConsoleMessageListener[] = [];
@@ -136,7 +156,7 @@ export default class AnalyticsService {
   constructor(appConfig: ApplicationConfiguration) {
     this.appConfig = appConfig;
     this.consoleInterceptor.init();
-    if (this.appConfig.rawConfig.keys.eventnative) {
+    if (this.appConfig.rawConfig.keys.eventnative && !AnalyticsBlock.isBlocked()) {
       this.jitsu = jitsuClient({
         key: this.appConfig.rawConfig.keys.eventnative,
         tracking_host: 'https://t.jitsu.com',
@@ -158,7 +178,7 @@ export default class AnalyticsService {
   }
 
   public ensureLogRocketInitialized() {
-    if (!this.logRocketInitialized && this.appConfig.rawConfig.keys.logrocket) {
+    if (!this.logRocketInitialized && this.appConfig.rawConfig.keys.logrocket && !AnalyticsBlock.isBlocked()) {
       LogRocket.init(this.appConfig.rawConfig.keys.logrocket);
       setDebugInfo('logRocket', LogRocket, false);
       this.logRocketInitialized = true;
@@ -183,7 +203,7 @@ export default class AnalyticsService {
     if (this.jitsu) {
       this.jitsu.id(this.getJitsuIdPayload(userProps));
     }
-    if (this.appConfig.rawConfig.keys.intercom) {
+    if (this.appConfig.rawConfig.keys.intercom && !AnalyticsBlock.isBlocked()) {
       initIntercom(this.appConfig.rawConfig.keys.intercom, {
         email: userProps.email,
         name: userProps.name,

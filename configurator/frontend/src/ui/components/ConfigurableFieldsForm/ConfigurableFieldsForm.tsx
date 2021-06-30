@@ -85,19 +85,18 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
       return initial;
     }
 
-    const calcValue = typeof defaultValue !== 'undefined'
-      ?
-      defaultValue
-      :
-      typeof constantValue !== 'undefined'
-        ?
-        constantValue
-        :
-        type === 'json'
-          ?
-          {}
-          :
-          '';
+    let calcValue: any;
+    if (typeof defaultValue !== 'undefined') {
+      calcValue = defaultValue;
+    } else if (typeof constantValue !== 'undefined') {
+      calcValue = constantValue;
+    } else if (type === 'json') {
+      calcValue = {};
+    } else if (type.indexOf('array/') === 0) {
+      calcValue = [];
+    } else {
+      calcValue = '';
+    }
 
     return type === 'json' ? JSON.stringify(calcValue) : calcValue
   };
