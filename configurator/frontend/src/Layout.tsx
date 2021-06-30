@@ -29,6 +29,7 @@ import { PaymentPlanStatus } from '@service/billing';
 import styles from './Layout.module.less';
 import { getIntercom } from '@service/intercom-wrapper';
 import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
+import { AnalyticsBlock } from '@service/analytics';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
@@ -141,9 +142,11 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
       return;
     }
     try {
+      AnalyticsBlock.blockAll();
       await services.userService.becomeUser(email);
     } catch (e) {
       handleError(e, "Can't login as other user");
+      AnalyticsBlock.unblockAll();
     }
   };
 

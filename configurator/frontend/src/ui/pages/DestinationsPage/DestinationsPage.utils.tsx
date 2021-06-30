@@ -28,6 +28,9 @@ const destinationsUtils = {
       : configTitle;
   },
   getDescription: (reference: Destination, dst: DestinationData) => {
+    if (!reference) {
+      throw new Error(`Can't ge description of non-existent destination. The data: ${JSON.stringify(dst)}`)
+    }
     const { title, connectCmd } = reference.ui;
 
     const commandLineConnect = typeof connectCmd === 'function' ? connectCmd(dst) : undefined;
