@@ -17,7 +17,14 @@
 <a href="https://cloud.jitsu.com"><img src="https://img.shields.io/github/license/jitsucom/jitsu" alt="License"></a>
 </p>
 
-<hr />
+<table border="0" style="border: 0"><tr>
+  <td>
+    <img src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/destinations_screen.png" />
+  </td>  
+  <td>
+    <img src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/sources_screen.png" />
+  </td>  
+</tr></table>
 
 **[Jitsu](https://jitsu.com/?utm_source=gh)** is an open source high-performance data collection service. It can:
 
@@ -25,7 +32,6 @@
 * Pull data from APIs and save it to Data Warehouse
 
 Read more about [our features](https://jitsu.com/#features) and check out the [platform overview](https://jitsu.com/overview)!
-
 
 <a href="#"><img align="right" src="https://raw.githubusercontent.com/jitsucom/jitsu/master/artwork/quickstart.gif" width="40px"/></a>
 ## Quick Start
@@ -39,7 +45,7 @@ After that you can visit `<your_app_name>.herokuapp.com`
 <a href="https://heroku.com/deploy?template=https://github.com/jitsucom/jitsu"><img src="https://www.herokucdn.com/deploy/button.svg" width="250px" /></a>
 
 ### Docker Compose
-The local way to start Jitsu is using docker-compose:
+Start Jitsu using docker-compose:
 
 ```bash
 git clone https://github.com/jitsucom/jitsu.git
