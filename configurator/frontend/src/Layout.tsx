@@ -65,7 +65,7 @@ export const ApplicationMenu: React.FC<{}> = () => {
     </Menu.Item>
     {services.features.enableCustomDomains && <Menu.Item key="domains" icon={<CloudOutlined/>}>
       <NavLink to="/domains" activeClassName="selected">
-        Tracking Domains
+        Custom Domains
       </NavLink>
     </Menu.Item>}
     <Menu.Item key="cfg_download" icon={<DownloadOutlined/>}>

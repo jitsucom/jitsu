@@ -27,14 +27,14 @@ const destinationsUtils = {
       ? <LabelWithTooltip documentation={dst._comment} render={configTitle} />
       : configTitle;
   },
-  getDescription: (reference: Destination, dst: DestinationData) => {
+  getDescription: (reference: Destination, dst: DestinationData, hideSensitiveInfo = false) => {
     if (!reference) {
       throw new Error(`Can't ge description of non-existent destination. The data: ${JSON.stringify(dst)}`)
     }
     const { title, connectCmd } = reference.ui;
 
     const commandLineConnect = typeof connectCmd === 'function' ? connectCmd(dst) : undefined;
-    const displayURL = typeof title === 'function' ? title(dst) : undefined;
+    const displayURL = typeof title === 'function' && !hideSensitiveInfo ? title(dst) : `host.${reference.id}.com`;
 
     const codeSnippet = !commandLineConnect
       ? undefined
