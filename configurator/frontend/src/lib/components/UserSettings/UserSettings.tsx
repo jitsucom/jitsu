@@ -92,7 +92,7 @@ export const UserSettings: React.FC<Props> = () => {
       }
     }
     const getTelemetryStatus = async() => {
-      const response = await services.backendApiClient.get('/configurations/telemetry?id=global');
+      const response = await services.backendApiClient.get('/configurations/telemetry?id=global_configuration');
       setIsTelemetryEnabled(!response['disabled']?.['usage']);
     }
 
