@@ -60,7 +60,7 @@ docker-compose up
 
 Note: `latest` image will be downloaded and started.
 
-Visit `http://localhost:8000` after the build is complete.
+Visit `http://localhost:8000/configurator` after the build is complete.
 
 To learn more check out [Jitsu deployment documentation](https://jitsu.com/docs/deployment/):
 

@@ -258,7 +258,7 @@ export class BackendUserService implements UserService {
   }
 
   async changeTelemetrySettings(newSettings: TelemetrySettings): Promise<void> {
-    await this.backendApi.post('/configurations/telemetry?id=global', { disabled: { usage: !newSettings.isTelemetryEnabled} });
+    await this.backendApi.post('/configurations/telemetry?id=global_configuration', { disabled: { usage: !newSettings.isTelemetryEnabled} });
   }
 
   //isn't supported (without google authorization)

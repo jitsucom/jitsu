@@ -86,7 +86,7 @@ const (
 	lastUpdatedField                     = "_lastUpdated"
 
 	telemetryCollection = "telemetry"
-	telemetryGlobalID   = "global"
+	telemetryGlobalID   = "global_configuration"
 
 	LastUpdatedLayout = "2006-01-02T15:04:05.000Z"
 )
