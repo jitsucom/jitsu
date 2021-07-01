@@ -19,30 +19,95 @@ For running `latest` version use:
 docker-compose up
 ```
 
-Visit `http://localhost:7000` after the build is complete.
+Visit `http://localhost:8000` after the build is complete.
 
 **Jitsu** provides demo docker-compose that contains:
-* jitsucom/server
-* jitsucom/configurator (with User Interface)
+* jitsucom/jitsu
 * Redis
 
 <Hint>
-    <a href="https://hub.docker.com/r/jitsucom/server">@jitsucom/server</a> and <a href="https://hub.docker.com/r/jitsucom/configurator">@jitsucom/configurator</a> <code inline="true">latest</code> images will be downloaded and started.
-    For building and running local version use: <code inline="true">docker-compose build && docker-compose up</code>. It takes up to 15 min.
+    <a href="https://hub.docker.com/r/jitsucom/jitsu">@jitsucom/jitsu</a>  <code inline="true">latest</code> image will be downloaded and started.
 </Hint>
+
+## Deploying Jitsu
+
+Jitsu is a Docker image to simplify deployment on your IaaS or hardware of choice. The image `latest` version is built from [master](https://github.com/jitsucom/jitsu/tree/master) branch.
+
+<Hint>
+  Jitsu deployment requires <a href="https://redis.io/">Redis</a>. Redis connection string is provided via <code inline="true">REDIS_URL</code>
+  environment variable and has the following structure: <code inline="true">redis://:password@host:port</code> or <code inline="true">redis://host:port</code> without password.
+  You can easily run redis docker instance with <code inline="true">docker run -p 6379:6379 --name jitsu-redis -d redis</code> command.
+</Hint>
+
+### Getting started with Docker
+
+* Pull the image from Docker Hub with: `docker pull jitsucom/jitsu:latest`
+* If you would like to keep log files - create a `<server_log_dir>` and a `<configurator_log_dir>`
+
+<Hint>
+    Make sure &lt;server_log_dir&gt; and &lt;configurator_log_dir&gt; directories have right permissions or just run <code inline="true">chmod -R 777 &lt;server_log_dir&gt; && chmod -R 777 &lt;configurator_log_dir&gt;</code>
+</Hint>
+
+* Run the Docker image and mount your log dirs with the following command:
+
+```javascript
+docker run -p <local_port>:8000 \
+  -e REDIS_URL=redis://host.docker.internal:6379 \
+  -v /<server_log_dir>/:/home/eventnative/data/logs/ \
+  -v /<configurator_log_dir>/:/home/configurator/data/logs/ \
+  jitsucom/jitsu:latest
+```
+
+* Or run the Docker image without log dirs:
+
+```javascript
+docker run -p <local_port>:8000 \
+  -e REDIS_URL=redis://host.docker.internal:6379 \
+  jitsucom/jitsu:latest
+```
+
+Please, refer `<server_log_dir>` and `<configurator_log_dir>` by their absolute path. Use `$PWD` macro if necessary. Example:
+
+```javascript
+docker run -p <local_port>:8000 \
+  -e REDIS_URL=redis://host.docker.internal:6379 \
+  -v $PWD/server_logs/:/home/eventnative/data/logs/ \
+  -v $PWD/configurator_logs/:/home/configurator/data/logs/ \
+  jitsucom/jitsu:latest
+```
+
+Once you see Started banner in logs, it **Jitsu** is running.
+
+### Overriding Jitsu configuration with YAML file
+
+We highly recommend configuring Jitsu via UI. Although if you know what you do, you can override Jitsu Server configuration file `eventnative.yaml` by mounting it:
+
+```javascript
+docker run -p <local_port>:8000 \
+  -v $PWD/eventnative.yaml/:/home/eventnative/data/config/eventnative.yaml \
+  jitsucom/jitsu:latest
+```
+
+<Hint>
+  Make sure that <code inline="true">api_keys</code>,<code inline="true">destinations</code> and <code inline="true">sources</code> sections in <b>eventnative.yaml</b> are filled with
+  Jitsu Configurator URLs. Otherwise Jitsu Server doesn't take into account configuration from UI.
+</Hint>
+
 
 ## Deploying Jitsu Server
 
-Jitsu server is a Docker image to simplify deployment on your IaaS or hardware of choice. This image `latest` version is built from [master](https://github.com/jitsucom/jitsu/tree/master) branch.
+For the most cases we recommend using [single Jitsu docker](#getting-started-with-docker).
 
-### Getting started with Docker
+Jitsu Server can be deployed without Jitsu Configurator (and UI). It can be configured via YAML configuration file.
+
+### Getting started with Server Docker
 
 * Pull the image from Docker Hub with: `docker pull jitsucom/server:latest`
 * Create an `<data_dir>`. It will be used as Docker mount directory for keeping Jitsu config and logs.
 * Create [your config file](/docs/configuration/) and save it in `<data_dir>/config/eventnative.yaml`.
 
 <Hint>
-    Make sure &lt;data_dir&gt; directory have right permissions or just run <code inline="true">chmod -R 777 &lt;data_dir&gt;</code>
+  Make sure &lt;data_dir&gt; directory have right permissions or just run <code inline="true">chmod -R 777 &lt;data_dir&gt;</code>
 </Hint>
 
 * Run the Docker image and mount your config file with the following command:
@@ -61,7 +126,7 @@ docker run --name jitsu-test -p 8000:8001 \
   jitsucom/server:latest
 ```
 
-Also, **Jitsu** supports passing config via `CONFIG_LOCATION` environment variable. The configuration might be one of the [described formats](/docs/deployment/configuration-source). For example, docker run with externalized [HTTP configuration source](/docs/deployment/configuration-source#http-source):
+Also, **Jitsu Server** supports passing config via `CONFIG_LOCATION` environment variable. The configuration might be one of the [described formats](/docs/deployment/configuration-source). For example, docker run with externalized [HTTP configuration source](/docs/deployment/configuration-source#http-source):
 
 ```javascript
 docker run --name jitsu-test -p 8000:8001 \n
@@ -70,4 +135,4 @@ docker run --name jitsu-test -p 8000:8001 \n
 ```
 
 
-Once you see Started banner in logs, it **Jitsu** is running.
+Once you see Started banner in logs, it **Jitsu Server** is running.

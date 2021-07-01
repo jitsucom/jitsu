@@ -94,7 +94,7 @@ check_shutdown
 
 echo "=============================================================================="
 echo "                           🌪 Jitsu has started!"
-echo "                    💻 visit localhost:$NGINX_PORT_VALUE/configurator"
+echo "             💻 visit http://localhost:$NGINX_PORT_VALUE/configurator"
 echo "=============================================================================="
 
 ### Shutdown loop
