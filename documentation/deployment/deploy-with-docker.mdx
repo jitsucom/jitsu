@@ -42,7 +42,7 @@ Jitsu is a Docker image to simplify deployment on your IaaS or hardware of choic
 ### Getting started with Docker
 
 * Pull the image from Docker Hub with: `docker pull jitsucom/jitsu:latest`
-* Create a `<server_log_dir>` and a `<configurator_log_dir>`. It will be used as Docker mount directory for keeping Jitsu logs.
+* If you would like to keep log files - create a `<server_log_dir>` and a `<configurator_log_dir>`
 
 <Hint>
     Make sure &lt;server_log_dir&gt; and &lt;configurator_log_dir&gt; directories have right permissions or just run <code inline="true">chmod -R 777 &lt;server_log_dir&gt; && chmod -R 777 &lt;configurator_log_dir&gt;</code>
@@ -58,7 +58,15 @@ docker run -p <local_port>:8000 \
   jitsucom/jitsu:latest
 ```
 
-Please, refer `<server_log_dir>` and `<configurator_log_dir>` by its absolute path. Use `$PWD` macro if necessary. Example:
+* Or run the Docker image without log dirs:
+
+```javascript
+docker run -p <local_port>:8000 \
+  -e REDIS_URL=redis://host.docker.internal:6379 \
+  jitsucom/jitsu:latest
+```
+
+Please, refer `<server_log_dir>` and `<configurator_log_dir>` by their absolute path. Use `$PWD` macro if necessary. Example:
 
 ```javascript
 docker run -p <local_port>:8000 \
@@ -82,7 +90,7 @@ docker run -p <local_port>:8000 \
 
 <Hint>
   Make sure that <code inline="true">api_keys</code>,<code inline="true">destinations</code> and <code inline="true">sources</code> sections in <b>eventnative.yaml</b> are filled with
-  Jitsu Configurator address. Otherwise Jitsu Server doesn't take into account configuration from UI.
+  Jitsu Configurator URLs. Otherwise Jitsu Server doesn't take into account configuration from UI.
 </Hint>
 
 
@@ -127,4 +135,4 @@ docker run --name jitsu-test -p 8000:8001 \n
 ```
 
 
-Once you see Started banner in logs, it **Jitsu** is running.
+Once you see Started banner in logs, it **Jitsu Server** is running.
