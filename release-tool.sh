@@ -21,7 +21,7 @@ function release_server() {
   if [[ $1 =~ $SEMVER_EXPRESSION ]]; then
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -t jitsucom/server:latest -f server-release.Dockerfile --build-arg dhid=jitsucom . || { echo 'Server dockerx build semver failed' ; exit 1; }
 
-    docker login -u="$KSENSE_DOCKER_LOGIN" -p="$KSENSE_DOCKER_PASSWORD" || { echo "Docker ksense ($KSENSE_DOCKER_LOGIN) login failed" ; exit 1; }
+    docker login -u="$KSENSE_DOCKER_LOGIN" -p="$KSENSE_DOCKER_PASSWORD" || { echo "Docker ksense login failed" ; exit 1; }
     docker buildx build --platform linux/amd64 --push -t ksense/eventnative:"$1" -t ksense/eventnative:latest -f server-release.Dockerfile --build-arg dhid=ksense . || { echo 'ksense/eventnative dockerx build semver failed' ; exit 1; }
   else
     docker buildx build --platform linux/amd64,linux/arm64 --push -t jitsucom/server:"$1" -f server-release.Dockerfile --build-arg dhid=jitsucom  . || { echo 'Server dockerx build failed' ; exit 1; }
@@ -62,13 +62,8 @@ function release_jitsu() {
 SEMVER_EXPRESSION='^([0-9]+\.){0,2}(\*|[0-9]+)$'
 echo "Release tool running..."
 echo ""
-LAST_TAG=$(git describe --abbrev=0 --tags)
-read -r -p "The new release version will be $LAST_TAG. If it't not version you want to release, tag the master first (read release manual). Is $LAST_TAG correct version [Y/n]?" yes_no
 
-if [[ $yes_no != "Y" ]]; then
-  echo "Thanks! Maybe next time :)"
-  exit 1;
-fi
+read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
 
 echo "Release version: $version"
 
