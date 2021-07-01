@@ -15,15 +15,15 @@ We built **Jitsu** (🐳 [@jitsucom/jitsu](https://hub.docker.com/r/jitsucom/jit
 
  * **Jitsu Server** (🐳 [@jitsucom/server](https://hub.docker.com/r/jitsucom/server)) — Jitsu core that does all work such as transformations,
 queueing, batching, task scheduling etc.
- * **Jitsu Configurator** (optional) (🐳 [@jitsucom/configurator](https://hub.docker.com/r/jitsucom/configurator)) — and optional UI for configuring Jitsu.
-Without UI configuration has to be done through [YAML file](https://jitsu.com/docs/configuration). You can try configuration UI at [cloud.jitsu.com](https://cloud.jitsu.com)
+ * **Jitsu Configurator** (🐳 [@jitsucom/configurator](https://hub.docker.com/r/jitsucom/configurator)) — contains UI and backend for configuring Jitsu.
+You can try Configurator UI at [cloud.jitsu.com](https://cloud.jitsu.com)
+
+**Jitsu Server** can be used without **Jitsu Configurator** (and UI) with [YAML configuration](https://jitsu.com/docs/configuration). Read more about [Jitsu Server docker deployment](/docs/deployment/deploy-with-docker).
 
 <Hint>
-  Jitsu Configurator and some features require <b>Redis</b>: <a href="/docs/other-features/retrospective-user-recognition">Retrospective User Recognition</a>
-  or if you have more than one node running Jitsu Server for redundancy (Redis provisions coordination service).
+  Jitsu Configurator and some features (e.g. <a href="/docs/other-features/retrospective-user-recognition">Retrospective User Recognition</a>) require <b>Redis</b>.
+  Also if you have more than one node of Jitsu Server running, Redis is required for redundancy (as provisions coordination service).
 </Hint>
-
-**Jitsu Server** can be used without **Jitsu Configurator** (and UI) with YAML file configuration. Read more about [Jitsu Server docker deployment](/docs/deployment/deploy-with-docker).
 
 ## All deployment methods
 
