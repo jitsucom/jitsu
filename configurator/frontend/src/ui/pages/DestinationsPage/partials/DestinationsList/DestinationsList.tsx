@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
 import { Button, Dropdown, Modal } from 'antd';
 // @Services
@@ -29,6 +29,8 @@ import { destinationEditorUtils } from '@page/DestinationsPage/partials/Destinat
 
 const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, sources, updateSources  }: CommonDestinationPageProps) => {
   const history = useHistory();
+
+  const [hideSensitiveInfo] = useState(false);
 
   const update = useCallback((id: string) => async() => {
     const appServices = ApplicationServices.get();
@@ -99,7 +101,7 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, so
 
           return <ListItem
             additional={destinationsUtils.getMode(dst._formData?.mode)}
-            description={destinationsUtils.getDescription(reference, dst)}
+            description={destinationsUtils.getDescription(reference, dst, hideSensitiveInfo)}
             title={destinationsUtils.getTitle(dst)}
             icon={reference?.ui?.icon}
             id={dst._id}
