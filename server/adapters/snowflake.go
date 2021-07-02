@@ -5,11 +5,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	sf "github.com/snowflakedb/gosnowflake"
-	"sort"
-	"strings"
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 	addSFColumnTemplate                 = `ALTER TABLE %s.%s ADD COLUMN %s`
 	createSFTableTemplate               = `CREATE TABLE %s.%s (%s)`
 	insertSFTemplate                    = `INSERT INTO %s.%s (%s) VALUES (%s)`
+	deleteSFTemplate                    = `DELETE FROM %s.%s.%s WHERE %s`
 )
 
 var (
@@ -131,6 +133,10 @@ func (s *Snowflake) OpenTx() (*Transaction, error) {
 	}
 
 	return &Transaction{tx: tx, dbType: s.Type()}, nil
+}
+
+func (s *Snowflake) CreateDB(databaseName string) error {
+	return fmt.Errorf("Snowflake doesn't support CreateDB() func")
 }
 
 //CreateDbSchema create database schema instance if doesn't exist
@@ -263,8 +269,23 @@ func (s *Snowflake) Copy(fileName, tableName string, header []string) error {
 	return wrappedTx.DirectCommit()
 }
 
-//Insert provided object in snowflake
+// Insert inserts provided object into Snowflake
 func (s *Snowflake) Insert(eventContext *EventContext) error {
+	wrappedTx, err := s.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err := s.insertInTransaction(wrappedTx, eventContext); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+// insertInTransaction inserts provided object into Snowflake in transaction
+func (s *Snowflake) insertInTransaction(wrappedTx *Transaction, eventContext *EventContext) error {
 	var header, placeholders string
 	var values []interface{}
 	for name, value := range eventContext.ProcessedEvent {
@@ -281,24 +302,98 @@ func (s *Snowflake) Insert(eventContext *EventContext) error {
 	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(eventContext.Table.Name), header, placeholders)
 	s.queryLogger.LogQueryWithValues(query, values)
 
-	wrappedTx, err := s.OpenTx()
-	if err != nil {
-		return err
-	}
-
 	insertStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error preparing insert table %s statement: %v", eventContext.Table.Name, err)
 	}
 
 	_, err = insertStmt.ExecContext(s.ctx, values...)
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, header, values, err)
 	}
 
+	return nil
+}
+
+func (s *Snowflake) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	wrappedTx, err := s.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	eventContext := &EventContext{
+		Table: table,
+	}
+
+	for _, event := range objects {
+		eventContext.ProcessedEvent = event
+		if err := s.insertInTransaction(wrappedTx, eventContext); err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
+	}
+
 	return wrappedTx.DirectCommit()
+}
+
+func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	wrappedTx, err := s.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if !deleteConditions.IsEmpty() {
+		if err := s.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
+	}
+
+	eventContext := &EventContext{
+		Table: table,
+	}
+
+	for _, event := range objects {
+		eventContext.ProcessedEvent = event
+		if err := s.insertInTransaction(wrappedTx, eventContext); err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+// deleteWithConditions deletes objects from Snowflake in transaction
+func (s *Snowflake) deleteWithConditions(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+	deleteCondition, values := s.toDeleteQuery(deleteConditions)
+	query := fmt.Sprintf(deleteSFTemplate, s.config.Db, s.config.Schema, reformatValue(table.Name), deleteCondition)
+	s.queryLogger.LogQueryWithValues(query, values)
+
+	deleteStatement, err := wrappedTx.tx.PrepareContext(s.ctx, query)
+	if err != nil {
+		return fmt.Errorf("Error preparing delete table %s statement: %v", table.Name, err)
+	}
+
+	_, err = deleteStatement.ExecContext(s.ctx, values...)
+	if err != nil {
+		return fmt.Errorf("Error deleting in %s table with statement: %s values: %v: %v", table.Name, deleteCondition, values, err)
+	}
+
+	return nil
+}
+
+func (s *Snowflake) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+	var queryConditions []string
+	var values []interface{}
+
+	for _, condition := range conditions.Conditions {
+		conditionString := condition.Field + " " + condition.Clause + " ?"
+		queryConditions = append(queryConditions, conditionString)
+		values = append(values, condition.Value)
+	}
+
+	return strings.Join(queryConditions, conditions.JoinCondition), values
 }
 
 //Close underlying sql.DB

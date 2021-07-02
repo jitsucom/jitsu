@@ -3,11 +3,11 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 )
@@ -22,7 +22,6 @@ type BigQuery struct {
 
 	gcsAdapter           *adapters.GoogleCloudStorage
 	bqAdapter            *adapters.BigQuery
-	processor            *schema.Processor
 	streamingWorker      *StreamingWorker
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
@@ -80,7 +79,6 @@ func NewBigQuery(config *Config) (Storage, error) {
 	bq := &BigQuery{
 		gcsAdapter:           gcsAdapter,
 		bqAdapter:            bigQueryAdapter,
-		processor:            config.processor,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
@@ -88,6 +86,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 
 	//Abstract
 	bq.destinationID = config.destinationID
+	bq.processor = config.processor
 	bq.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	bq.eventsCache = config.eventsCache
 	bq.tableHelpers = []*TableHelper{tableHelper}
@@ -178,9 +177,9 @@ func (bq *BigQuery) Update(object map[string]interface{}) error {
 	return errors.New("BigQuery doesn't support updates")
 }
 
-//SyncStore isn't supported
+// SyncStore is used in storing chunk of pulled data to BigQuery with processing
 func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return errors.New("BigQuery doesn't support sync store")
+	return syncStoreImpl(bq, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //GetUsersRecognition returns disabled users recognition configuration

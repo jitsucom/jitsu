@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+
 	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
@@ -17,7 +18,6 @@ type GoogleAnalytics struct {
 
 	gaAdapter            *adapters.GoogleAnalytics
 	tableHelper          *TableHelper
-	processor            *schema.Processor
 	streamingWorker      *StreamingWorker
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
@@ -41,7 +41,6 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 	}
 
 	ga := &GoogleAnalytics{
-		processor:            config.processor,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
@@ -68,6 +67,7 @@ func NewGoogleAnalytics(config *Config) (Storage, error) {
 
 	//Abstract (SQLAdapters and tableHelpers are omitted)
 	ga.destinationID = config.destinationID
+	ga.processor = config.processor
 	ga.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	ga.eventsCache = config.eventsCache
 	ga.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)

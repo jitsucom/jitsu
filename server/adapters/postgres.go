@@ -6,13 +6,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
-	_ "github.com/lib/pq"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -171,6 +172,11 @@ func (p *Postgres) OpenTx() (*Transaction, error) {
 	}
 
 	return &Transaction{tx: tx, dbType: p.Type()}, nil
+}
+
+// CreateDB creates database instance if doesn't exist
+func (p *Postgres) CreateDB(databaseName string) error {
+	return fmt.Errorf("Postgres doesn't support CreateDB() func")
 }
 
 //CreateDbSchema creates database schema instance if doesn't exist
@@ -401,8 +407,7 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 	}
 
 	if !deleteConditions.IsEmpty() {
-		err := p.deleteInTransaction(wrappedTx, table, deleteConditions)
-		if err != nil {
+		if err := p.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
 			wrappedTx.Rollback()
 			return err
 		}
@@ -412,6 +417,7 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 		wrappedTx.Rollback()
 		return err
 	}
+
 	return wrappedTx.DirectCommit()
 }
 
@@ -526,7 +532,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 	return nil
 }
 
-func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+func (p *Postgres) deleteWithConditions(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	deleteCondition, values := p.toDeleteQuery(deleteConditions)
 	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteCondition)
 	p.queryLogger.LogQueryWithValues(query, values)
@@ -541,10 +547,13 @@ func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, del
 func (p *Postgres) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
 	var queryConditions []string
 	var values []interface{}
+
 	for i, condition := range conditions.Conditions {
-		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" $"+strconv.Itoa(i+1)+p.getCastClause(condition.Field))
+		conditionString := condition.Field + " " + condition.Clause + " $" + strconv.Itoa(i+1) + p.getCastClause(condition.Field)
+		queryConditions = append(queryConditions, conditionString)
 		values = append(values, condition.Value)
 	}
+
 	return strings.Join(queryConditions, conditions.JoinCondition), values
 }
 
