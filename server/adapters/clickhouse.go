@@ -237,7 +237,9 @@ func NewClickHouse(ctx context.Context, connectionString, database, cluster stri
 	if err != nil {
 		return nil, err
 	}
-	if err := dataSource.Ping(); err != nil {
+
+	//keep select 1 and don't use Ping() because chproxy doesn't support /ping endpoint.
+	if _, err := dataSource.Exec("SELECT 1"); err != nil {
 		dataSource.Close()
 		return nil, err
 	}
