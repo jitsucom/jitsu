@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/typing"
 
@@ -23,7 +24,6 @@ type Snowflake struct {
 
 	stageAdapter         adapters.Stage
 	snowflakeAdapter     *adapters.Snowflake
-	processor            *schema.Processor
 	streamingWorker      *StreamingWorker
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
@@ -91,7 +91,6 @@ func NewSnowflake(config *Config) (Storage, error) {
 	snowflake := &Snowflake{
 		stageAdapter:         stageAdapter,
 		snowflakeAdapter:     snowflakeAdapter,
-		processor:            config.processor,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
@@ -99,6 +98,7 @@ func NewSnowflake(config *Config) (Storage, error) {
 
 	//Abstract
 	snowflake.destinationID = config.destinationID
+	snowflake.processor = config.processor
 	snowflake.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	snowflake.eventsCache = config.eventsCache
 	snowflake.tableHelpers = []*TableHelper{tableHelper}
@@ -234,9 +234,9 @@ func (s *Snowflake) IsCachingDisabled() bool {
 	return s.cachingConfiguration != nil && s.cachingConfiguration.Disabled
 }
 
-//SyncStore isn't supported
+// SyncStore is used in storing chunk of pulled data to Snowflake with processing
 func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return errors.New("Snowflake doesn't support sync store")
+	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //Update isn't supported
