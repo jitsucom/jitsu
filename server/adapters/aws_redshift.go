@@ -390,7 +390,7 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 	deleteStatement := fmt.Sprintf(deleteBeforeBulkMergeUsing, ar.dataSourceProxy.config.Schema, table.Name, ar.dataSourceProxy.config.Schema, tmpTable.Name, deleteCondition)
 
 	ar.dataSourceProxy.queryLogger.LogQuery(deleteStatement)
-	_, err = ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, deleteStatement)
+	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, deleteStatement)
 	if err != nil {
 		return fmt.Errorf("Error deleting duplicated rows: %v", err)
 	}
@@ -398,7 +398,7 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 	//insert from select
 	insertFromSelectStatement := fmt.Sprintf(redshiftBulkMergeInsert, ar.dataSourceProxy.config.Schema, table.Name, ar.dataSourceProxy.config.Schema, tmpTable.Name)
 	ar.dataSourceProxy.queryLogger.LogQuery(insertFromSelectStatement)
-	_, err = ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, insertFromSelectStatement)
+	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, insertFromSelectStatement)
 	if err != nil {
 		return fmt.Errorf("Error merging rows: %v", err)
 	}
