@@ -49,7 +49,7 @@ const (
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
 	mergeTemplate                     = `INSERT INTO "%s"."%s"(%s) VALUES %s ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
-	bulkMergeTemplate                 = `INSERT INTO "%s"."%s"(%s) SELECT (%s) FROM "%s"."%s" ON CONFLICT ON CONSTRAINT %s DO UPDATE SET %s`
+	bulkMergeTemplate                 = `INSERT INTO "%s"."%s"(%s) SELECT %s FROM "%s"."%s" ON CONFLICT ON CONSTRAINT %s DO UPDATE SET %s`
 	bulkMergePrefix                   = `excluded`
 	deleteQueryTemplate               = `DELETE FROM "%s"."%s" WHERE %s`
 
@@ -425,12 +425,24 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 	return wrappedTx.DirectCommit()
 }
 
+//bulkStoreInTransaction checks PKFields and uses bulkInsert or bulkMerge
+//in bulkMerge - deduplicate objects
+//if there are any duplicates, do the job 2 times
 func (p *Postgres) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	if len(table.PKFields) == 0 {
 		return p.bulkInsertInTransaction(wrappedTx, table, objects)
 	}
 
-	return p.bulkMergeInTransaction(wrappedTx, table, objects)
+	//deduplication for bulkMerge success (it fails if there is any duplicate)
+	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
+
+	for _, objectsBucket := range deduplicatedObjectsBuckets {
+		if err := p.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 //Must be used when table has no primary keys. Inserts data in batches to improve performance.
@@ -496,8 +508,8 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 	return nil
 }
 
-//Must be used only if table has primary key fields. Slower than bulkInsert as each query executed separately.
-//Prefer to use bulkStoreInTransaction instead of calling this method directly
+//bulkMergeInTransaction creates tmp table without duplicates
+//inserts all data into tmp table and using bulkMergeTemplate merges all data to main table
 func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
 		Name:           table.Name + "_tmp_" + uuid.NewFirstPart(),
@@ -521,13 +533,14 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 	var setValues []string
 	var headerWithQuotes []string
 	for name := range table.Columns {
-		setValues = append(setValues, `"%s"=%s."%s"`, name, bulkMergePrefix, name)
+		setValues = append(setValues, fmt.Sprintf(`"%s"=%s."%s"`, name, bulkMergePrefix, name))
 		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
 	}
 
 	insertFromSelectStatement := fmt.Sprintf(bulkMergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(headerWithQuotes, ", "), p.config.Schema, tmpTable.Name, buildConstraintName(p.config.Schema, table.Name), strings.Join(setValues, ", "))
 	p.queryLogger.LogQuery(insertFromSelectStatement)
-	_, err = p.dataSource.ExecContext(p.ctx, insertFromSelectStatement)
+
+	_, err = wrappedTx.tx.ExecContext(p.ctx, insertFromSelectStatement)
 	if err != nil {
 		return fmt.Errorf("Error bulk merging in %s table with statement: %s: %v", table.Name, insertFromSelectStatement, err)
 	}
@@ -757,4 +770,52 @@ func removeLastComma(str string) string {
 	}
 
 	return str
+}
+
+//deduplicateObjects returns slices with deduplicated objects
+//(two objects with the same pkFields values can't be in one slice)
+func deduplicateObjects(table *Table, objects []map[string]interface{}) [][]map[string]interface{} {
+	var pkFields []string
+	for pkField := range table.PKFields {
+		pkFields = append(pkFields, pkField)
+	}
+
+	var result [][]map[string]interface{}
+	duplicatedInput := objects
+	for {
+		deduplicated, duplicated := getDeduplicatedAndOthers(pkFields, duplicatedInput)
+		result = append(result, deduplicated)
+
+		if len(duplicated) == 0 {
+			break
+		}
+
+		duplicatedInput = duplicated
+	}
+
+	return result
+}
+
+//getDeduplicatedAndOthers returns slices with deduplicated objects and others objects
+//(two objects with the same pkFields values can't be in deduplicated objects slice)
+func getDeduplicatedAndOthers(pkFields []string, objects []map[string]interface{}) ([]map[string]interface{}, []map[string]interface{}) {
+	var deduplicatedObjects, duplicatedObjects []map[string]interface{}
+	deduplicatedIDs := map[string]bool{}
+
+	//find duplicates
+	for _, object := range objects {
+		var key string
+		for _, pkField := range pkFields {
+			value, _ := object[pkField]
+			key += fmt.Sprint(value)
+		}
+		if _, ok := deduplicatedIDs[key]; ok {
+			duplicatedObjects = append(duplicatedObjects, object)
+		} else {
+			deduplicatedIDs[key] = true
+			deduplicatedObjects = append(deduplicatedObjects, object)
+		}
+	}
+
+	return deduplicatedObjects, duplicatedObjects
 }

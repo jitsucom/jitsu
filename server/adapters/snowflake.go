@@ -309,6 +309,9 @@ func (s *Snowflake) BulkInsert(table *Table, objects []map[string]interface{}) e
 }
 
 //BulkUpdate deletes with deleteConditions and runs bulkMergeInTransaction
+//checks PKFields and uses bulkInsert or bulkMerge
+//in bulkMerge - deduplicate objects
+//if there are any duplicates, do the job 2 times
 func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
@@ -322,9 +325,14 @@ func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, d
 		}
 	}
 
-	if err := s.bulkMergeInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback()
-		return err
+	//deduplication for bulkMerge success (it fails if there is any duplicate)
+	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
+
+	for _, objectsBucket := range deduplicatedObjectsBuckets {
+		if err := s.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
 	}
 
 	return wrappedTx.DirectCommit()
@@ -454,7 +462,7 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 		tmpTable.Name, strings.Join(joinConditions, " AND "), strings.Join(updateSet, ", "), strings.Join(formattedColumnNames, ", "), strings.Join(tmpPreffixColumnNames, ", "))
 
 	s.queryLogger.LogQuery(insertFromSelectStatement)
-	_, err = s.dataSource.ExecContext(s.ctx, insertFromSelectStatement)
+	_, err = wrappedTx.tx.ExecContext(s.ctx, insertFromSelectStatement)
 	if err != nil {
 		return fmt.Errorf("Error merging rows: %v", err)
 	}
