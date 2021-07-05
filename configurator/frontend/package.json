@@ -10,6 +10,8 @@
     "firebase": "^8.3.0",
     "lodash": "^4.17.21",
     "logrocket": "^1.0.14",
+    "mobx": "^6.3.2",
+    "mobx-react-lite": "^3.2.0",
     "murmurhash": "^2.0.0",
     "posthog-js": "^1.9.1",
     "react": "^17.0.1",
