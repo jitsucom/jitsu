@@ -31,7 +31,7 @@ func NewFirstPart() string {
 	}
 
 	uuidValue := googleuuid.New().String()
-	return strings.Split(uuidValue, "_")[0]
+	return strings.Split(uuidValue, "-")[0]
 }
 
 //GetHash returns GetKeysHash result with keys from m

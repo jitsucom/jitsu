@@ -525,7 +525,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
 	}
 
-	insertFromSelectStatement := fmt.Sprintf(bulkMergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(headerWithQuotes, ", "), p.config.Schema, tmpTable.Name, buildConstraintName(p.config.Schema, table.Name), setValues)
+	insertFromSelectStatement := fmt.Sprintf(bulkMergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(headerWithQuotes, ", "), p.config.Schema, tmpTable.Name, buildConstraintName(p.config.Schema, table.Name), strings.Join(setValues, ", "))
 	p.queryLogger.LogQuery(insertFromSelectStatement)
 	_, err = p.dataSource.ExecContext(p.ctx, insertFromSelectStatement)
 	if err != nil {
