@@ -77,10 +77,6 @@ func (wh *WebHook) GetTableSchema(tableName string) (*Table, error) {
 	}, nil
 }
 
-func (wh *WebHook) CreateDB(databaseName string) error {
-	return fmt.Errorf("WebHook doesn't support CreateDB() func")
-}
-
 //CreateTable returns nil
 func (wh *WebHook) CreateTable(schemaToCreate *Table) error {
 	return nil

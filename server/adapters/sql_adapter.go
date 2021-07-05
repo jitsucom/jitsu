@@ -2,7 +2,6 @@ package adapters
 
 //SQLAdapter is a manager for DWH tables
 type SQLAdapter interface {
-	CreateDB(databaseName string) error
 	Insert(eventContext *EventContext) error
 	GetTableSchema(tableName string) (*Table, error)
 	CreateTable(schemaToCreate *Table) error

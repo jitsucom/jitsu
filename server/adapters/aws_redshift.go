@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"strconv"
 	"strings"
 
@@ -22,6 +23,10 @@ const (
                     timeformat 'auto'`
 
 	updateStatement = `UPDATE "%s"."%s" SET %s WHERE %s=$%d`
+
+	deleteBeforeBulkMergeUsing     = `DELETE FROM "%s"."%s" using "%s"."%s" where %s`
+	deleteBeforeBulkMergeCondition = `"%s"."%s".%s = "%s"."%s".%s`
+	redshiftBulkMergeInsert        = `INSERT INTO "%s"."%s" select * from "%s"."%s"`
 
 	primaryKeyFieldsRedshiftQuery = `select kcu.column_name as key_column
 									 from information_schema.table_constraints tco
@@ -191,10 +196,6 @@ func (ar *AwsRedshift) GetTableSchema(tableName string) (*Table, error) {
 	return table, nil
 }
 
-func (ar *AwsRedshift) CreateDB(databaseName string) error {
-	return fmt.Errorf("AwsRedshift doesn't support CreateDB() func")
-}
-
 //CreateTable create database table with name,columns provided in Table representation
 func (ar *AwsRedshift) CreateTable(tableSchema *Table) error {
 	wrappedTx, err := ar.OpenTx()
@@ -202,7 +203,13 @@ func (ar *AwsRedshift) CreateTable(tableSchema *Table) error {
 		return err
 	}
 
-	return ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
+	err = ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
 }
 
 //Update one record in Redshift
@@ -303,21 +310,22 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 	return nil
 }
 
+//BulkInsert opens a new transaction and uses bulkStoreInTransaction func
 func (ar *AwsRedshift) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	eventContext := &EventContext{
-		Table: table,
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
 	}
 
-	for _, event := range objects {
-		eventContext.ProcessedEvent = event
-		if err := ar.Insert(eventContext); err != nil {
-			return err
-		}
+	if err = ar.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
 	}
 
-	return nil
+	return wrappedTx.DirectCommit()
 }
 
+//BulkUpdate deletes with deleteConditions and runs bulkStoreInTransaction
 func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
 	wrappedTx, err := ar.OpenTx()
 	if err != nil {
@@ -331,7 +339,7 @@ func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}
 		}
 	}
 
-	if err := ar.BulkInsert(table, objects); err != nil {
+	if err := ar.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
 		wrappedTx.Rollback()
 		return err
 	}
@@ -339,8 +347,68 @@ func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}
 	return wrappedTx.DirectCommit()
 }
 
+//bulkStoreInTransaction uses different statements for inserts and merges. Without primary keys:
+//  inserts data batch into the table by using postgres bulk insert (insert into ... values (), (), ())
+//with primary keys:
+//  uses bulkMergeInTransaction func
+func (ar *AwsRedshift) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+	if len(table.PKFields) == 0 {
+		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects)
+	}
+
+	return ar.bulkMergeInTransaction(wrappedTx, table, objects)
+}
+
+//bulkMergeInTransaction uses temporary table and insert from select statement
+func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+	tmpTable := &Table{
+		Name:           table.Name + "_tmp_" + uuid.NewFirstPart(),
+		Columns:        table.Columns,
+		PKFields:       map[string]bool{},
+		DeletePkFields: false,
+		Version:        0,
+	}
+
+	err := ar.dataSourceProxy.createTableInTransaction(wrappedTx, tmpTable)
+	if err != nil {
+		return fmt.Errorf("Error creating temporary table: %v", err)
+	}
+
+	err = ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
+	if err != nil {
+		return fmt.Errorf("Error inserting in temporary table: %v", err)
+	}
+
+	//delete duplicates from table
+	var deleteCondition string
+	for i, pkColumn := range table.GetPKFields() {
+		if i > 1 {
+			deleteCondition += " AND "
+		}
+		deleteCondition += fmt.Sprintf(deleteBeforeBulkMergeCondition, ar.dataSourceProxy.config.Schema, table.Name, pkColumn, ar.dataSourceProxy.config.Schema, tmpTable.Name, pkColumn)
+	}
+	deleteStatement := fmt.Sprintf(deleteBeforeBulkMergeUsing, ar.dataSourceProxy.config.Schema, table.Name, ar.dataSourceProxy.config.Schema, tmpTable.Name, deleteCondition)
+
+	ar.dataSourceProxy.queryLogger.LogQuery(deleteStatement)
+	_, err = ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, deleteStatement)
+	if err != nil {
+		return fmt.Errorf("Error deleting duplicated rows: %v", err)
+	}
+
+	//insert from select
+	insertFromSelectStatement := fmt.Sprintf(redshiftBulkMergeInsert, ar.dataSourceProxy.config.Schema, table.Name, ar.dataSourceProxy.config.Schema, tmpTable.Name)
+	ar.dataSourceProxy.queryLogger.LogQuery(insertFromSelectStatement)
+	_, err = ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, insertFromSelectStatement)
+	if err != nil {
+		return fmt.Errorf("Error merging rows: %v", err)
+	}
+
+	//delete tmp table
+	return ar.dataSourceProxy.dropTableInTransaction(wrappedTx, tmpTable)
+}
+
 func (ar *AwsRedshift) deleteWithConditions(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
-	return ar.dataSourceProxy.deleteWithConditions(wrappedTx, table, deleteConditions)
+	return ar.dataSourceProxy.deleteInTransaction(wrappedTx, table, deleteConditions)
 }
 
 //Close underlying sql.DB

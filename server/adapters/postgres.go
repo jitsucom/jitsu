@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"sort"
 	"strconv"
 	"strings"
@@ -48,7 +49,11 @@ const (
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
 	mergeTemplate                     = `INSERT INTO "%s"."%s"(%s) VALUES %s ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
+	bulkMergeTemplate                 = `INSERT INTO "%s"."%s"(%s) SELECT (%s) FROM "%s"."%s" ON CONFLICT ON CONSTRAINT %s DO UPDATE SET %s`
+	bulkMergePrefix                   = `excluded`
 	deleteQueryTemplate               = `DELETE FROM "%s"."%s" WHERE %s`
+
+	dropTableTemplate = `DROP TABLE "%s"."%s"`
 
 	copyColumnTemplate   = `UPDATE "%s"."%s" SET %s = %s`
 	dropColumnTemplate   = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
@@ -174,11 +179,6 @@ func (p *Postgres) OpenTx() (*Transaction, error) {
 	return &Transaction{tx: tx, dbType: p.Type()}, nil
 }
 
-// CreateDB creates database instance if doesn't exist
-func (p *Postgres) CreateDB(databaseName string) error {
-	return fmt.Errorf("Postgres doesn't support CreateDB() func")
-}
-
 //CreateDbSchema creates database schema instance if doesn't exist
 func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 	wrappedTx, err := p.OpenTx()
@@ -196,7 +196,13 @@ func (p *Postgres) CreateTable(table *Table) error {
 		return err
 	}
 
-	return p.createTableInTransaction(wrappedTx, table)
+	err = p.createTableInTransaction(wrappedTx, table)
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
 }
 
 //PatchTableSchema adds new columns(from provided Table) to existing table
@@ -298,17 +304,15 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 
 	if err != nil {
-		wrappedTx.Rollback()
 		return fmt.Errorf("Error creating [%s] table: %v", table.Name, err)
 	}
 
 	err = p.createPrimaryKeyInTransaction(wrappedTx, table)
 	if err != nil {
-		wrappedTx.Rollback()
 		return err
 	}
 
-	return wrappedTx.tx.Commit()
+	return nil
 }
 
 //alter table with columns (if not empty)
@@ -407,7 +411,7 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 	}
 
 	if !deleteConditions.IsEmpty() {
-		if err := p.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
+		if err := p.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
 			wrappedTx.Rollback()
 			return err
 		}
@@ -495,44 +499,57 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 //Must be used only if table has primary key fields. Slower than bulkInsert as each query executed separately.
 //Prefer to use bulkStoreInTransaction instead of calling this method directly
 func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	var placeholders string
-	var headerWithoutQuotes []string
-	var headerWithQuotes []string
-	i := 1
-	for name := range table.Columns {
-		headerWithoutQuotes = append(headerWithoutQuotes, name)
-		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
-
-		placeholders += "$" + strconv.Itoa(i) + p.getCastClause(name) + ","
-
-		i++
+	tmpTable := &Table{
+		Name:           table.Name + "_tmp_" + uuid.NewFirstPart(),
+		Columns:        table.Columns,
+		PKFields:       map[string]bool{},
+		DeletePkFields: false,
+		Version:        0,
 	}
-	placeholders = "(" + removeLastComma(placeholders) + ")"
 
-	statement := fmt.Sprintf(mergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ","), placeholders, buildConstraintName(p.config.Schema, table.Name), p.buildUpdateSection(headerWithoutQuotes))
-	mergeStmt, err := wrappedTx.tx.PrepareContext(p.ctx, statement)
+	err := p.createTableInTransaction(wrappedTx, tmpTable)
 	if err != nil {
-		return fmt.Errorf("Error preparing bulk merge statement [%s] table %s statement: %v", statement, table.Name, err)
+		return fmt.Errorf("Error creating temporary table: %v", err)
 	}
 
-	for _, row := range objects {
-		var values []interface{}
-		for _, column := range headerWithoutQuotes {
-			value, _ := row[column]
-			values = append(values, value)
-		}
+	err = p.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
+	if err != nil {
+		return fmt.Errorf("Error inserting in temporary table: %v", err)
+	}
 
-		p.queryLogger.LogQueryWithValues(statement, values)
-		_, err = mergeStmt.ExecContext(p.ctx, values...)
-		if err != nil {
-			return fmt.Errorf("Error bulk merging in %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
-		}
+	//insert from select
+	var setValues []string
+	var headerWithQuotes []string
+	for name := range table.Columns {
+		setValues = append(setValues, `"%s"=%s."%s"`, name, bulkMergePrefix, name)
+		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
+	}
+
+	insertFromSelectStatement := fmt.Sprintf(bulkMergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(headerWithQuotes, ", "), p.config.Schema, tmpTable.Name, buildConstraintName(p.config.Schema, table.Name), setValues)
+	p.queryLogger.LogQuery(insertFromSelectStatement)
+	_, err = p.dataSource.ExecContext(p.ctx, insertFromSelectStatement)
+	if err != nil {
+		return fmt.Errorf("Error bulk merging in %s table with statement: %s: %v", table.Name, insertFromSelectStatement, err)
+	}
+
+	//delete tmp table
+	return p.dropTableInTransaction(wrappedTx, tmpTable)
+}
+
+func (p *Postgres) dropTableInTransaction(wrappedTx *Transaction, table *Table) error {
+	query := fmt.Sprintf(dropTableTemplate, p.config.Schema, table.Name)
+	p.queryLogger.LogDDL(query)
+
+	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
+
+	if err != nil {
+		return fmt.Errorf("Error dropping [%s] table: %v", table.Name, err)
 	}
 
 	return nil
 }
 
-func (p *Postgres) deleteWithConditions(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	deleteCondition, values := p.toDeleteQuery(deleteConditions)
 	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteCondition)
 	p.queryLogger.LogQueryWithValues(query, values)

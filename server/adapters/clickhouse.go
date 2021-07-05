@@ -431,15 +431,14 @@ func (ch *ClickHouse) BulkUpdate(table *Table, objects []map[string]interface{},
 func (ch *ClickHouse) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	deleteCondition, values := ch.toDeleteQuery(deleteConditions)
 	deleteQuery := fmt.Sprintf(deleteQueryChTemplate, ch.database, table.Name, deleteCondition)
-	deleteStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, deleteQuery)
-	if err != nil {
-		return fmt.Errorf("Error preparing delete statement [%s]: %v", deleteQuery, err)
-	}
+
 	ch.queryLogger.LogQueryWithValues(deleteQuery, values)
-	_, err = deleteStmt.ExecContext(ch.ctx, values...)
+
+	_, err := wrappedTx.tx.ExecContext(ch.ctx, deleteQuery, values...)
 	if err != nil {
 		return fmt.Errorf("Error deleting using query: %s, error: %v", deleteQuery, err)
 	}
+
 	return nil
 }
 

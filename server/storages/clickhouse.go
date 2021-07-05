@@ -89,8 +89,7 @@ func NewClickHouse(config *Config) (Storage, error) {
 	ch.sqlAdapters = sqlAdapters
 	ch.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
 
-	adapter, _ := ch.getAdapters()
-	err = adapter.CreateDB(chConfig.Database)
+	err = chAdapters[0].CreateDB(chConfig.Database)
 	if err != nil {
 		//close all previous created adapters
 		for _, toClose := range chAdapters {
