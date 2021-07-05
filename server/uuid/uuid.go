@@ -5,6 +5,7 @@ import (
 	"fmt"
 	googleuuid "github.com/google/uuid"
 	"sort"
+	"strings"
 )
 
 var mock bool
@@ -21,6 +22,16 @@ func New() string {
 	}
 
 	return googleuuid.New().String()
+}
+
+//NewFirstPart returns first part of uuid v4 string or the mocked value
+func NewFirstPart() string {
+	if mock {
+		return "mockeduuid"
+	}
+
+	uuidValue := googleuuid.New().String()
+	return strings.Split(uuidValue, "_")[0]
 }
 
 //GetHash returns GetKeysHash result with keys from m

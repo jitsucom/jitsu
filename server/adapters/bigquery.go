@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/googleapi"
 )
+
+const deleteBigQueryTemplate = "DELETE FROM `%s.%s.%s` WHERE %s"
 
 var (
 	//SchemaToBigQueryString is mapping between JSON types and BigQuery types
@@ -23,8 +26,6 @@ var (
 		typing.BOOL:      string(bigquery.BooleanFieldType),
 		typing.UNKNOWN:   string(bigquery.StringFieldType),
 	}
-
-	deleteBigQueryTemplate = "DELETE FROM `%s.%s.%s` WHERE %s"
 )
 
 //BigQuery adapter for creating,patching (schema or table), inserting and copying data from gcs to BigQuery
@@ -81,10 +82,6 @@ func (bq *BigQuery) Insert(eventContext *EventContext) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
 	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
 	return inserter.Put(bq.ctx, BQItem{values: eventContext.ProcessedEvent})
-}
-
-func (bq *BigQuery) CreateDB(databaseName string) error {
-	return fmt.Errorf("BigQuery doesn't support CreateDB() func")
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
@@ -187,47 +184,28 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	return nil
 }
 
-func (bq *BigQuery) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	eventContext := &EventContext{
-		Table: table,
-	}
-
-	for _, event := range objects {
-		eventContext.ProcessedEvent = event
-		if err := bq.Insert(eventContext); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	if !deleteConditions.IsEmpty() {
-		if err := bq.deleteWithConditions(table, deleteConditions); err != nil {
-			return err
-		}
-	}
-
-	if err := bq.BulkInsert(table, objects); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// deleteWithConditions tries to remove rows with specific conditions.
+// DeleteWithConditions tries to remove rows with specific conditions.
 // Note that rows that were written to a table recently by using streaming
 // (the tabledata.insertall method or the Storage Write API)
 // cannot be modified with UPDATE, DELETE, or MERGE statements.
 // Recent writes are typically those that occur within the last 30 minutes.
 // https://cloud.google.com/bigquery/docs/reference/standard-sql/data-manipulation-language#limitations
-func (bq *BigQuery) deleteWithConditions(table *Table, deleteConditions *DeleteConditions) error {
+func (bq *BigQuery) DeleteWithConditions(tableName string, deleteConditions *DeleteConditions) error {
 	deleteCondition := bq.toDeleteQuery(deleteConditions)
-	query := fmt.Sprintf(deleteBigQueryTemplate, bq.config.Project, bq.config.Dataset, table.Name, deleteCondition)
+	query := fmt.Sprintf(deleteBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName, deleteCondition)
 	bq.queryLogger.LogQuery(query)
 	_, err := bq.client.Query(query).Read(bq.ctx)
 	return err
+}
+
+//BulkInsert isn't supported
+func (bq *BigQuery) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	return errors.New("BigQuery doesn't support BulkInsert()")
+}
+
+//BulkUpdate isn't supported
+func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	return errors.New("BigQuery doesn't support BulkUpdate()")
 }
 
 func (bq *BigQuery) toDeleteQuery(conditions *DeleteConditions) string {

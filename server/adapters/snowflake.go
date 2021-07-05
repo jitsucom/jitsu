@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"sort"
 	"strings"
 
@@ -23,10 +24,12 @@ const (
 					           CREDENTIALS = (aws_key_id='%s' aws_secret_key='%s') 
                                %s`
 
+	sfMergeStatement = `MERGE INTO %s.%s USING (SELECT %s FROM %s.%s) %s ON %s WHEN MATCHED THEN UPDATE SET %s WHEN NOT MATCHED THEN INSERT (%s) VALUES (%s)`
+
 	createSFDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS %s`
 	addSFColumnTemplate                 = `ALTER TABLE %s.%s ADD COLUMN %s`
 	createSFTableTemplate               = `CREATE TABLE %s.%s (%s)`
-	insertSFTemplate                    = `INSERT INTO %s.%s (%s) VALUES (%s)`
+	insertSFTemplate                    = `INSERT INTO %s.%s (%s) VALUES %s`
 	deleteSFTemplate                    = `DELETE FROM %s.%s.%s WHERE %s`
 )
 
@@ -135,10 +138,6 @@ func (s *Snowflake) OpenTx() (*Transaction, error) {
 	return &Transaction{tx: tx, dbType: s.Type()}, nil
 }
 
-func (s *Snowflake) CreateDB(databaseName string) error {
-	return fmt.Errorf("Snowflake doesn't support CreateDB() func")
-}
-
 //CreateDbSchema create database schema instance if doesn't exist
 func (s *Snowflake) CreateDbSchema(dbSchemaName string) error {
 	wrappedTx, err := s.OpenTx()
@@ -150,32 +149,14 @@ func (s *Snowflake) CreateDbSchema(dbSchemaName string) error {
 		dbSchemaName, s.queryLogger)
 }
 
-//CreateTable creates database table with name,columns provided in Table representation
+//CreateTable runs createTableInTransaction
 func (s *Snowflake) CreateTable(tableSchema *Table) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	var columnsDDL []string
-	for columnName, column := range tableSchema.Columns {
-		columnDDL := s.columnDDL(columnName, column)
-		columnsDDL = append(columnsDDL, columnDDL)
-	}
-
-	//sorting columns asc
-	sort.Strings(columnsDDL)
-	query := fmt.Sprintf(createSFTableTemplate, s.config.Schema, reformatValue(tableSchema.Name), strings.Join(columnsDDL, ","))
-	s.queryLogger.LogDDL(query)
-	createStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing create table %s statement: %v", tableSchema.Name, err)
-	}
-
-	_, err = createStmt.ExecContext(s.ctx)
-
-	if err != nil {
+	if err = s.createTableInTransaction(wrappedTx, tableSchema); err != nil {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error creating [%s] table: %v", tableSchema.Name, err)
 	}
@@ -284,30 +265,25 @@ func (s *Snowflake) Insert(eventContext *EventContext) error {
 	return wrappedTx.DirectCommit()
 }
 
-// insertInTransaction inserts provided object into Snowflake in transaction
+//insertInTransaction inserts provided object into Snowflake in transaction
 func (s *Snowflake) insertInTransaction(wrappedTx *Transaction, eventContext *EventContext) error {
-	var header, placeholders string
+	var columnNames, placeholders []string
 	var values []interface{}
 	for name, value := range eventContext.ProcessedEvent {
-		header += reformatValue(name) + ","
+		columnNames = append(columnNames, reformatValue(name))
 
 		castClause := s.getCastClause(name)
-		placeholders += "?" + castClause + ","
+		placeholders = append(placeholders, "?"+castClause)
 		values = append(values, value)
 	}
 
-	header = removeLastComma(header)
-	placeholders = removeLastComma(placeholders)
+	header := strings.Join(columnNames, ", ")
+	placeholderStr := strings.Join(placeholders, ", ")
 
-	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(eventContext.Table.Name), header, placeholders)
+	query := fmt.Sprintf(insertSFTemplate, s.config.Schema, reformatValue(eventContext.Table.Name), header, "("+placeholderStr+")")
 	s.queryLogger.LogQueryWithValues(query, values)
 
-	insertStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
-	if err != nil {
-		return fmt.Errorf("Error preparing insert table %s statement: %v", eventContext.Table.Name, err)
-	}
-
-	_, err = insertStmt.ExecContext(s.ctx, values...)
+	_, err := wrappedTx.tx.ExecContext(s.ctx, query, values...)
 	if err != nil {
 		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, header, values, err)
 	}
@@ -315,27 +291,24 @@ func (s *Snowflake) insertInTransaction(wrappedTx *Transaction, eventContext *Ev
 	return nil
 }
 
+//BulkInsert runs bulkInsertInTransaction
+//returns error if occurred
 func (s *Snowflake) BulkInsert(table *Table, objects []map[string]interface{}) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	eventContext := &EventContext{
-		Table: table,
-	}
-
-	for _, event := range objects {
-		eventContext.ProcessedEvent = event
-		if err := s.insertInTransaction(wrappedTx, eventContext); err != nil {
-			wrappedTx.Rollback()
-			return err
-		}
+	err = s.bulkInsertInTransaction(wrappedTx, table, objects)
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
 	}
 
 	return wrappedTx.DirectCommit()
 }
 
+//BulkUpdate deletes with deleteConditions and runs bulkMergeInTransaction
 func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
@@ -343,29 +316,187 @@ func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, d
 	}
 
 	if !deleteConditions.IsEmpty() {
-		if err := s.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
+		if err := s.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
 			wrappedTx.Rollback()
 			return err
 		}
 	}
 
-	eventContext := &EventContext{
-		Table: table,
-	}
-
-	for _, event := range objects {
-		eventContext.ProcessedEvent = event
-		if err := s.insertInTransaction(wrappedTx, eventContext); err != nil {
-			wrappedTx.Rollback()
-			return err
-		}
+	if err := s.bulkMergeInTransaction(wrappedTx, table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
 	}
 
 	return wrappedTx.DirectCommit()
 }
 
-// deleteWithConditions deletes objects from Snowflake in transaction
-func (s *Snowflake) deleteWithConditions(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+//createTableInTransaction creates database table with name,columns provided in Table representation
+func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
+	var columnsDDL []string
+	for columnName, column := range table.Columns {
+		columnDDL := s.columnDDL(columnName, column)
+		columnsDDL = append(columnsDDL, columnDDL)
+	}
+
+	//sorting columns asc
+	sort.Strings(columnsDDL)
+	query := fmt.Sprintf(createSFTableTemplate, s.config.Schema, reformatValue(table.Name), strings.Join(columnsDDL, ","))
+	s.queryLogger.LogDDL(query)
+
+	_, err := wrappedTx.tx.ExecContext(s.ctx, query)
+	if err != nil {
+		return fmt.Errorf("Error creating [%s] table: %v", table.Name, err)
+	}
+
+	return nil
+}
+
+//bulkInsertInTransaction inserts events in batches (insert into values (),(),())
+func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+	var placeholdersBuilder strings.Builder
+	var unformattedColumnNames []string
+	for name := range table.Columns {
+		unformattedColumnNames = append(unformattedColumnNames, name)
+	}
+	maxValues := len(objects) * len(table.Columns)
+	if maxValues > postgresValuesLimit {
+		maxValues = postgresValuesLimit
+	}
+	valueArgs := make([]interface{}, 0, maxValues)
+	for _, row := range objects {
+		// if number of values exceeds limit, we have to execute insert query on processed rows
+		if len(valueArgs)+len(unformattedColumnNames) > postgresValuesLimit {
+			err := s.executeInsert(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs)
+			if err != nil {
+				return fmt.Errorf("Error executing insert: %v", err)
+			}
+
+			placeholdersBuilder.Reset()
+			valueArgs = make([]interface{}, 0, maxValues)
+		}
+		_, err := placeholdersBuilder.WriteString("(")
+		if err != nil {
+			return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
+		}
+
+		for i, column := range unformattedColumnNames {
+			value, _ := row[column]
+			valueArgs = append(valueArgs, value)
+			castClause := s.getCastClause(column)
+
+			_, err = placeholdersBuilder.WriteString("?" + castClause)
+			if err != nil {
+				return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
+			}
+
+			if i < len(unformattedColumnNames)-1 {
+				_, err = placeholdersBuilder.WriteString(",")
+				if err != nil {
+					return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
+				}
+			}
+		}
+		_, err = placeholdersBuilder.WriteString("),")
+		if err != nil {
+			return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
+		}
+	}
+
+	if len(valueArgs) > 0 {
+		err := s.executeInsert(wrappedTx, table, unformattedColumnNames, removeLastComma(placeholdersBuilder.String()), valueArgs)
+		if err != nil {
+			return fmt.Errorf("Error executing last insert in bulk: %v", err)
+		}
+	}
+
+	return nil
+}
+
+//bulkMergeInTransaction uses temporary table and insert from select statement
+func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+	tmpTable := &Table{
+		Name:           table.Name + "_tmp_" + uuid.NewFirstPart(),
+		Columns:        table.Columns,
+		PKFields:       map[string]bool{},
+		DeletePkFields: false,
+		Version:        0,
+	}
+
+	err := s.createTableInTransaction(wrappedTx, tmpTable)
+	if err != nil {
+		return fmt.Errorf("Error creating temporary table: %v", err)
+	}
+
+	err = s.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
+	if err != nil {
+		return fmt.Errorf("Error inserting in temporary table: %v", err)
+	}
+
+	//insert from select
+	var unformattedColumnNames []string
+	var formattedColumnNames []string
+	var updateSet []string
+	var tmpPreffixColumnNames []string
+	for name := range table.Columns {
+		reformattedColumnName := reformatValue(name)
+		unformattedColumnNames = append(unformattedColumnNames, name)
+		formattedColumnNames = append(formattedColumnNames, reformattedColumnName)
+		updateSet = append(updateSet, fmt.Sprintf("%s.%s = %s.%s", table.Name, reformattedColumnName, tmpTable.Name, reformattedColumnName))
+		tmpPreffixColumnNames = append(tmpPreffixColumnNames, fmt.Sprintf("%s.%s", tmpTable.Name, reformattedColumnName))
+	}
+
+	var joinConditions []string
+	for pkField := range table.PKFields {
+		joinConditions = append(joinConditions, fmt.Sprintf("%s.%s = %s.%s", table.Name, pkField, tmpTable.Name, pkField))
+	}
+
+	insertFromSelectStatement := fmt.Sprintf(sfMergeStatement, s.config.Schema, table.Name, strings.Join(formattedColumnNames, ", "), s.config.Schema, tmpTable.Name,
+		tmpTable.Name, strings.Join(joinConditions, " AND "), strings.Join(updateSet, ", "), strings.Join(formattedColumnNames, ", "), strings.Join(tmpPreffixColumnNames, ", "))
+
+	s.queryLogger.LogQuery(insertFromSelectStatement)
+	_, err = s.dataSource.ExecContext(s.ctx, insertFromSelectStatement)
+	if err != nil {
+		return fmt.Errorf("Error merging rows: %v", err)
+	}
+
+	//delete tmp table
+	return s.dropTableInTransaction(wrappedTx, tmpTable)
+}
+
+//dropTableInTransaction dropts a table in transaction
+func (s *Snowflake) dropTableInTransaction(wrappedTx *Transaction, table *Table) error {
+	query := fmt.Sprintf(dropTableTemplate, s.config.Schema, table.Name)
+	s.queryLogger.LogDDL(query)
+
+	_, err := wrappedTx.tx.ExecContext(s.ctx, query)
+
+	if err != nil {
+		return fmt.Errorf("Error dropping [%s] table: %v", table.Name, err)
+	}
+
+	return nil
+}
+
+//executeInsert execute insert with insertTemplate
+func (s *Snowflake) executeInsert(wrappedTx *Transaction, table *Table, headerWithoutQuotes []string, placeholders string, valueArgs []interface{}) error {
+	var quotedHeader []string
+	for _, columnName := range headerWithoutQuotes {
+		quotedHeader = append(quotedHeader, reformatValue(columnName))
+	}
+
+	statement := fmt.Sprintf(insertSFTemplate, s.config.Schema, table.Name, strings.Join(quotedHeader, ", "), placeholders)
+
+	s.queryLogger.LogQueryWithValues(statement, valueArgs)
+
+	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// deleteInTransaction deletes objects from Snowflake in transaction
+func (s *Snowflake) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	deleteCondition, values := s.toDeleteQuery(deleteConditions)
 	query := fmt.Sprintf(deleteSFTemplate, s.config.Db, s.config.Schema, reformatValue(table.Name), deleteCondition)
 	s.queryLogger.LogQueryWithValues(query, values)

@@ -32,7 +32,7 @@ func init() {
 	RegisterStorage(RedshiftType, NewAwsRedshift)
 }
 
-//NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
+//NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(config *Config) (Storage, error) {
 	redshiftConfig := config.destination.DataSource
 	if err := redshiftConfig.Validate(); err != nil {

@@ -1,6 +1,7 @@
 package google_analytics
 
 import (
+	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 )
@@ -19,5 +20,10 @@ func (gac *GoogleAnalyticsConfig) Validate() error {
 	if gac.ViewID == "" {
 		return fmt.Errorf("view_id field must not be empty")
 	}
+
+	if gac.AuthConfig == nil {
+		return errors.New("'auth' is required")
+	}
+
 	return gac.AuthConfig.Validate()
 }

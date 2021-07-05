@@ -52,7 +52,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	} else {
 		//default primary keys for enabling users recognition
 		//for disabling this feature set destination.DisableDefaultPrimaryKeyFields on a certain destination
-		if !destination.DisableDefaultPrimaryKeyFields && (destination.Type == enstorages.PostgresType || destination.Type == enstorages.RedshiftType) {
+		if !destination.DisableDefaultPrimaryKeyFields &&
+			(destination.Type == enstorages.PostgresType || destination.Type == enstorages.RedshiftType || destination.Type == enstorages.SnowflakeType) {
 			if config.DataLayout == nil {
 				config.DataLayout = &enstorages.DataLayout{}
 			}

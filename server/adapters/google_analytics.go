@@ -114,10 +114,6 @@ func (ga *GoogleAnalytics) GetTableSchema(tableName string) (*Table, error) {
 	}, nil
 }
 
-func (ga *GoogleAnalytics) CreateDB(databaseName string) error {
-	return fmt.Errorf("FacebookConversionAPI doesn't support CreateDB() func")
-}
-
 //CreateTable GA doesn't use tables
 func (ga *GoogleAnalytics) CreateTable(schemaToCreate *Table) error {
 	return nil

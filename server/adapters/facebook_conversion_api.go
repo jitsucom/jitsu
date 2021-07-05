@@ -156,10 +156,6 @@ func (fc *FacebookConversionAPI) GetTableSchema(tableName string) (*Table, error
 	}, nil
 }
 
-func (fc *FacebookConversionAPI) CreateDB(databaseName string) error {
-	return fmt.Errorf("FacebookConversionAPI doesn't support CreateDB() func")
-}
-
 //CreateTable Facebook doesn't use tables
 func (fc *FacebookConversionAPI) CreateTable(schemaToCreate *Table) error {
 	return nil

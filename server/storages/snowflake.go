@@ -22,12 +22,13 @@ import (
 type Snowflake struct {
 	Abstract
 
-	stageAdapter         adapters.Stage
-	snowflakeAdapter     *adapters.Snowflake
-	streamingWorker      *StreamingWorker
-	uniqueIDField        *identifiers.UniqueID
-	staged               bool
-	cachingConfiguration *CachingConfiguration
+	stageAdapter                  adapters.Stage
+	snowflakeAdapter              *adapters.Snowflake
+	streamingWorker               *StreamingWorker
+	usersRecognitionConfiguration *UserRecognitionConfiguration
+	uniqueIDField                 *identifiers.UniqueID
+	staged                        bool
+	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
@@ -89,11 +90,12 @@ func NewSnowflake(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.maxColumns)
 
 	snowflake := &Snowflake{
-		stageAdapter:         stageAdapter,
-		snowflakeAdapter:     snowflakeAdapter,
-		uniqueIDField:        config.uniqueIDField,
-		staged:               config.destination.Staged,
-		cachingConfiguration: config.destination.CachingConfiguration,
+		stageAdapter:                  stageAdapter,
+		snowflakeAdapter:              snowflakeAdapter,
+		usersRecognitionConfiguration: config.usersRecognition,
+		uniqueIDField:                 config.uniqueIDField,
+		staged:                        config.destination.Staged,
+		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	//Abstract
@@ -221,7 +223,7 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 
 //GetUsersRecognition returns users recognition configuration
 func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
-	return disabledRecognitionConfiguration
+	return s.usersRecognitionConfiguration
 }
 
 //GetUniqueIDField returns unique ID field configuration
@@ -239,9 +241,9 @@ func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
-//Update isn't supported
+//Update uses SyncStore under the hood
 func (s *Snowflake) Update(object map[string]interface{}) error {
-	return errors.New("Snowflake doesn't support updates")
+	return s.SyncStore(nil, []map[string]interface{}{object}, "", true)
 }
 
 //Type returns Snowflake type
