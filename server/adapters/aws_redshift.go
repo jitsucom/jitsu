@@ -26,7 +26,7 @@ const (
 
 	deleteBeforeBulkMergeUsing     = `DELETE FROM "%s"."%s" using "%s"."%s" where %s`
 	deleteBeforeBulkMergeCondition = `"%s"."%s".%s = "%s"."%s".%s`
-	redshiftBulkMergeInsert        = `INSERT INTO "%s"."%s" select * from "%s"."%s"`
+	redshiftBulkMergeInsert        = `INSERT INTO "%s"."%s" (%s) select %s from "%s"."%s"`
 
 	primaryKeyFieldsRedshiftQuery = `select kcu.column_name as key_column
 									 from information_schema.table_constraints tco
@@ -36,6 +36,8 @@ const (
  										  and kcu.constraint_name = tco.constraint_name
 				                     where tco.table_schema = $1 and tco.table_name = $2 and tco.constraint_type = 'PRIMARY KEY'
                                      order by kcu.ordinal_position`
+
+	redshiftValuesLimit = 32767 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
@@ -353,7 +355,7 @@ func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}
 //  uses bulkMergeInTransaction func with deduplicated objects
 func (ar *AwsRedshift) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	if len(table.PKFields) == 0 {
-		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects)
+		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects, redshiftValuesLimit)
 	}
 
 	//deduplication for bulkMerge success (it fails if there is any duplicate)
@@ -383,9 +385,9 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 		return fmt.Errorf("Error creating temporary table: %v", err)
 	}
 
-	err = ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
+	err = ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, tmpTable, objects, redshiftValuesLimit)
 	if err != nil {
-		return fmt.Errorf("Error inserting in temporary table: %v", err)
+		return fmt.Errorf("Error inserting in temporary table [%s]: %v", tmpTable, err)
 	}
 
 	//delete duplicates from table
@@ -405,7 +407,12 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 	}
 
 	//insert from select
-	insertFromSelectStatement := fmt.Sprintf(redshiftBulkMergeInsert, ar.dataSourceProxy.config.Schema, table.Name, ar.dataSourceProxy.config.Schema, tmpTable.Name)
+	var quotedColumnNames []string
+	for columnName := range tmpTable.Columns {
+		quotedColumnNames = append(quotedColumnNames, fmt.Sprintf(`"%s"`, columnName))
+	}
+	quotedHeader := strings.Join(quotedColumnNames, ", ")
+	insertFromSelectStatement := fmt.Sprintf(redshiftBulkMergeInsert, ar.dataSourceProxy.config.Schema, table.Name, quotedHeader, quotedHeader, ar.dataSourceProxy.config.Schema, tmpTable.Name)
 	ar.dataSourceProxy.queryLogger.LogQuery(insertFromSelectStatement)
 	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, insertFromSelectStatement)
 	if err != nil {

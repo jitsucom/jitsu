@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"net/http"
 	"strings"
 
@@ -81,7 +82,23 @@ func (bq *BigQuery) Test() error {
 func (bq *BigQuery) Insert(eventContext *EventContext) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
 	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
-	return inserter.Put(bq.ctx, BQItem{values: eventContext.ProcessedEvent})
+	err := inserter.Put(bq.ctx, BQItem{values: eventContext.ProcessedEvent})
+	if err != nil {
+		putMultiError, ok := err.(bigquery.PutMultiError)
+		if !ok {
+			return err
+		}
+
+		//parse bigquery multi error
+		var multiErr error
+		for _, errUnit := range putMultiError {
+			multiErr = multierror.Append(multiErr, errors.New(errUnit.Error()))
+		}
+
+		return multiErr
+	}
+
+	return nil
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
