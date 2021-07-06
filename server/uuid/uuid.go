@@ -24,14 +24,14 @@ func New() string {
 	return googleuuid.New().String()
 }
 
-//NewFirstPart returns first part of uuid v4 string or the mocked value
-func NewFirstPart() string {
+//NewLettersNumbers returns uuid without "-"
+func NewLettersNumbers() string {
 	if mock {
 		return "mockeduuid"
 	}
 
 	uuidValue := googleuuid.New().String()
-	return strings.Split(uuidValue, "-")[0]
+	return strings.ReplaceAll(uuidValue, "-", "")
 }
 
 //GetHash returns GetKeysHash result with keys from m

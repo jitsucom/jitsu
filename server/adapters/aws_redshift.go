@@ -371,7 +371,7 @@ func (ar *AwsRedshift) bulkStoreInTransaction(wrappedTx *Transaction, table *Tab
 //bulkMergeInTransaction uses temporary table and insert from select statement
 func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
-		Name:           table.Name + "_tmp_" + uuid.NewFirstPart(),
+		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers(),
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,
@@ -391,7 +391,7 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 	//delete duplicates from table
 	var deleteCondition string
 	for i, pkColumn := range table.GetPKFields() {
-		if i > 1 {
+		if i > 0 {
 			deleteCondition += " AND "
 		}
 		deleteCondition += fmt.Sprintf(deleteBeforeBulkMergeCondition, ar.dataSourceProxy.config.Schema, table.Name, pkColumn, ar.dataSourceProxy.config.Schema, tmpTable.Name, pkColumn)

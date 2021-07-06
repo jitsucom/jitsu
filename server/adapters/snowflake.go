@@ -423,7 +423,7 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 //bulkMergeInTransaction uses temporary table and insert from select statement
 func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
-		Name:           table.Name + "_tmp_" + uuid.NewFirstPart(),
+		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers(),
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,
@@ -509,12 +509,7 @@ func (s *Snowflake) deleteInTransaction(wrappedTx *Transaction, table *Table, de
 	query := fmt.Sprintf(deleteSFTemplate, s.config.Db, s.config.Schema, reformatValue(table.Name), deleteCondition)
 	s.queryLogger.LogQueryWithValues(query, values)
 
-	deleteStatement, err := wrappedTx.tx.PrepareContext(s.ctx, query)
-	if err != nil {
-		return fmt.Errorf("Error preparing delete table %s statement: %v", table.Name, err)
-	}
-
-	_, err = deleteStatement.ExecContext(s.ctx, values...)
+	_, err := wrappedTx.tx.ExecContext(s.ctx, query, values...)
 	if err != nil {
 		return fmt.Errorf("Error deleting in %s table with statement: %s values: %v: %v", table.Name, deleteCondition, values, err)
 	}
