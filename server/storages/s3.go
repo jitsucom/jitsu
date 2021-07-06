@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
@@ -16,7 +17,6 @@ type S3 struct {
 	Abstract
 
 	s3Adapter            *adapters.S3
-	processor            *schema.Processor
 	fallbackLogger       *logging.AsyncLogger
 	eventsCache          *caching.EventsCache
 	uniqueIDField        *identifiers.UniqueID
@@ -47,7 +47,6 @@ func NewS3(config *Config) (Storage, error) {
 
 	s3 := &S3{
 		s3Adapter:            s3Adapter,
-		processor:            config.processor,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
@@ -55,6 +54,7 @@ func NewS3(config *Config) (Storage, error) {
 
 	//Abstract (SQLAdapters and tableHelpers and archive logger are omitted)
 	s3.destinationID = config.destinationID
+	s3.processor = config.processor
 	s3.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	s3.eventsCache = config.eventsCache
 

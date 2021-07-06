@@ -2,6 +2,8 @@ package adapters
 
 import (
 	"errors"
+	"fmt"
+
 	"github.com/jitsucom/jitsu/server/typing"
 )
 
@@ -83,6 +85,14 @@ func (wh *WebHook) CreateTable(schemaToCreate *Table) error {
 //PatchTableSchema returns nil
 func (wh *WebHook) PatchTableSchema(schemaToAdd *Table) error {
 	return nil
+}
+
+func (wh *WebHook) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	return fmt.Errorf("WebHook doesn't support BulkInsert() func")
+}
+
+func (wh *WebHook) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	return fmt.Errorf("WebHook doesn't support BulkUpdate() func")
 }
 
 //Close closes underlying HTTPAdapter

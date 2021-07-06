@@ -388,7 +388,7 @@ func (f *FactoryImpl) initializeRetrospectiveUsersRecognition(destinationID stri
 	}
 
 	//check primary fields
-	if (destination.Type == PostgresType || destination.Type == RedshiftType) && len(pkFields) == 0 {
+	if (destination.Type == PostgresType || destination.Type == RedshiftType || destination.Type == SnowflakeType) && len(pkFields) == 0 {
 		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
 		return &UserRecognitionConfiguration{enabled: false}, nil
 	}

@@ -1,10 +1,10 @@
 package storages
 
 import (
-	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -21,7 +21,6 @@ type AwsRedshift struct {
 
 	s3Adapter                     *adapters.S3
 	redshiftAdapter               *adapters.AwsRedshift
-	processor                     *schema.Processor
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 	uniqueIDField                 *identifiers.UniqueID
@@ -33,7 +32,7 @@ func init() {
 	RegisterStorage(RedshiftType, NewAwsRedshift)
 }
 
-//NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
+//NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(config *Config) (Storage, error) {
 	redshiftConfig := config.destination.DataSource
 	if err := redshiftConfig.Validate(); err != nil {
@@ -80,7 +79,6 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	ar := &AwsRedshift{
 		s3Adapter:                     s3Adapter,
 		redshiftAdapter:               redshiftAdapter,
-		processor:                     config.processor,
 		usersRecognitionConfiguration: config.usersRecognition,
 		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
@@ -89,6 +87,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 
 	//Abstract
 	ar.destinationID = config.destinationID
+	ar.processor = config.processor
 	ar.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	ar.eventsCache = config.eventsCache
 	ar.tableHelpers = []*TableHelper{tableHelper}
@@ -174,9 +173,9 @@ func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.T
 	return nil
 }
 
-//SyncStore isn't supported
+// SyncStore is used in storing chunk of pulled data to AwsRedshift with processing
 func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return errors.New("RedShift doesn't support sync store")
+	return syncStoreImpl(ar, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //Update updates record in Redshift

@@ -3,11 +3,13 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/uuid"
+	"strconv"
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	_ "github.com/lib/pq"
-	"strconv"
-	"strings"
 )
 
 const (
@@ -22,6 +24,10 @@ const (
 
 	updateStatement = `UPDATE "%s"."%s" SET %s WHERE %s=$%d`
 
+	deleteBeforeBulkMergeUsing     = `DELETE FROM "%s"."%s" using "%s"."%s" where %s`
+	deleteBeforeBulkMergeCondition = `"%s"."%s".%s = "%s"."%s".%s`
+	redshiftBulkMergeInsert        = `INSERT INTO "%s"."%s" (%s) select %s from "%s"."%s"`
+
 	primaryKeyFieldsRedshiftQuery = `select kcu.column_name as key_column
 									 from information_schema.table_constraints tco
          							   join information_schema.key_column_usage kcu
@@ -30,6 +36,8 @@ const (
  										  and kcu.constraint_name = tco.constraint_name
 				                     where tco.table_schema = $1 and tco.table_name = $2 and tco.constraint_type = 'PRIMARY KEY'
                                      order by kcu.ordinal_position`
+
+	redshiftValuesLimit = 32767 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
@@ -197,7 +205,13 @@ func (ar *AwsRedshift) CreateTable(tableSchema *Table) error {
 		return err
 	}
 
-	return ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
+	err = ar.dataSourceProxy.createTableInTransaction(wrappedTx, tableSchema)
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
 }
 
 //Update one record in Redshift
@@ -296,6 +310,121 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 	}
 
 	return nil
+}
+
+//BulkInsert opens a new transaction and uses bulkStoreInTransaction func
+func (ar *AwsRedshift) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err = ar.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+//BulkUpdate deletes with deleteConditions and runs bulkStoreInTransaction
+func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	wrappedTx, err := ar.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if !deleteConditions.IsEmpty() {
+		if err := ar.deleteWithConditions(wrappedTx, table, deleteConditions); err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
+	}
+
+	if err := ar.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+//bulkStoreInTransaction uses different statements for inserts and merges. Without primary keys:
+//  inserts data batch into the table by using postgres bulk insert (insert into ... values (), (), ())
+//with primary keys:
+//  uses bulkMergeInTransaction func with deduplicated objects
+func (ar *AwsRedshift) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+	if len(table.PKFields) == 0 {
+		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects, redshiftValuesLimit)
+	}
+
+	//deduplication for bulkMerge success (it fails if there is any duplicate)
+	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
+
+	for _, objectsBucket := range deduplicatedObjectsBuckets {
+		if err := ar.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+//bulkMergeInTransaction uses temporary table and insert from select statement
+func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+	tmpTable := &Table{
+		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers(),
+		Columns:        table.Columns,
+		PKFields:       map[string]bool{},
+		DeletePkFields: false,
+		Version:        0,
+	}
+
+	err := ar.dataSourceProxy.createTableInTransaction(wrappedTx, tmpTable)
+	if err != nil {
+		return fmt.Errorf("Error creating temporary table: %v", err)
+	}
+
+	err = ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, tmpTable, objects, redshiftValuesLimit)
+	if err != nil {
+		return fmt.Errorf("Error inserting in temporary table [%s]: %v", tmpTable.Name, err)
+	}
+
+	//delete duplicates from table
+	var deleteCondition string
+	for i, pkColumn := range table.GetPKFields() {
+		if i > 0 {
+			deleteCondition += " AND "
+		}
+		deleteCondition += fmt.Sprintf(deleteBeforeBulkMergeCondition, ar.dataSourceProxy.config.Schema, table.Name, pkColumn, ar.dataSourceProxy.config.Schema, tmpTable.Name, pkColumn)
+	}
+	deleteStatement := fmt.Sprintf(deleteBeforeBulkMergeUsing, ar.dataSourceProxy.config.Schema, table.Name, ar.dataSourceProxy.config.Schema, tmpTable.Name, deleteCondition)
+
+	ar.dataSourceProxy.queryLogger.LogQuery(deleteStatement)
+	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, deleteStatement)
+	if err != nil {
+		return fmt.Errorf("Error deleting duplicated rows: %v", err)
+	}
+
+	//insert from select
+	var quotedColumnNames []string
+	for columnName := range tmpTable.Columns {
+		quotedColumnNames = append(quotedColumnNames, fmt.Sprintf(`"%s"`, columnName))
+	}
+	quotedHeader := strings.Join(quotedColumnNames, ", ")
+	insertFromSelectStatement := fmt.Sprintf(redshiftBulkMergeInsert, ar.dataSourceProxy.config.Schema, table.Name, quotedHeader, quotedHeader, ar.dataSourceProxy.config.Schema, tmpTable.Name)
+	ar.dataSourceProxy.queryLogger.LogQuery(insertFromSelectStatement)
+	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, insertFromSelectStatement)
+	if err != nil {
+		return fmt.Errorf("Error merging rows: %v", err)
+	}
+
+	//delete tmp table
+	return ar.dataSourceProxy.dropTableInTransaction(wrappedTx, tmpTable)
+}
+
+func (ar *AwsRedshift) deleteWithConditions(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+	return ar.dataSourceProxy.deleteInTransaction(wrappedTx, table, deleteConditions)
 }
 
 //Close underlying sql.DB
