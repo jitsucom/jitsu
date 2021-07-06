@@ -128,7 +128,7 @@ func main() {
 	}
 
 	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"),
-		viper.GetBool("singer-bridge.install_taps"), appconfig.Instance.SingerLogsWriter); err != nil {
+		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
 

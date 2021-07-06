@@ -124,6 +124,14 @@ func (ga *GoogleAnalytics) PatchTableSchema(schemaToAdd *Table) error {
 	return nil
 }
 
+func (ga *GoogleAnalytics) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	return fmt.Errorf("FacebookConversionAPI doesn't support BulkInsert() func")
+}
+
+func (ga *GoogleAnalytics) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	return fmt.Errorf("FacebookConversionAPI doesn't support BulkUpdate() func")
+}
+
 //Close closes HTTPAdapter
 func (ga *GoogleAnalytics) Close() error {
 	return ga.httpAdapter.Close()

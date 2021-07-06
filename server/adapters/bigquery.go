@@ -1,16 +1,21 @@
 package adapters
 
 import (
-	"cloud.google.com/go/bigquery"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
+	"net/http"
+	"strings"
+
+	"cloud.google.com/go/bigquery"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	"google.golang.org/api/googleapi"
-	"net/http"
-	"strings"
 )
+
+const deleteBigQueryTemplate = "DELETE FROM `%s.%s.%s` WHERE %s"
 
 var (
 	//SchemaToBigQueryString is mapping between JSON types and BigQuery types
@@ -77,7 +82,23 @@ func (bq *BigQuery) Test() error {
 func (bq *BigQuery) Insert(eventContext *EventContext) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
 	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
-	return inserter.Put(bq.ctx, BQItem{values: eventContext.ProcessedEvent})
+	err := inserter.Put(bq.ctx, BQItem{values: eventContext.ProcessedEvent})
+	if err != nil {
+		putMultiError, ok := err.(bigquery.PutMultiError)
+		if !ok {
+			return err
+		}
+
+		//parse bigquery multi error
+		var multiErr error
+		for _, errUnit := range putMultiError {
+			multiErr = multierror.Append(multiErr, errors.New(errUnit.Error()))
+		}
+
+		return multiErr
+	}
+
+	return nil
 }
 
 //GetTableSchema return google BigQuery table (name,columns) representation wrapped in Table struct
@@ -178,6 +199,41 @@ func (bq *BigQuery) PatchTableSchema(patchSchema *Table) error {
 	}
 
 	return nil
+}
+
+// DeleteWithConditions tries to remove rows with specific conditions.
+// Note that rows that were written to a table recently by using streaming
+// (the tabledata.insertall method or the Storage Write API)
+// cannot be modified with UPDATE, DELETE, or MERGE statements.
+// Recent writes are typically those that occur within the last 30 minutes.
+// https://cloud.google.com/bigquery/docs/reference/standard-sql/data-manipulation-language#limitations
+func (bq *BigQuery) DeleteWithConditions(tableName string, deleteConditions *DeleteConditions) error {
+	deleteCondition := bq.toDeleteQuery(deleteConditions)
+	query := fmt.Sprintf(deleteBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName, deleteCondition)
+	bq.queryLogger.LogQuery(query)
+	_, err := bq.client.Query(query).Read(bq.ctx)
+	return err
+}
+
+//BulkInsert isn't supported
+func (bq *BigQuery) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	return errors.New("BigQuery doesn't support BulkInsert()")
+}
+
+//BulkUpdate isn't supported
+func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	return errors.New("BigQuery doesn't support BulkUpdate()")
+}
+
+func (bq *BigQuery) toDeleteQuery(conditions *DeleteConditions) string {
+	var queryConditions []string
+
+	for _, condition := range conditions.Conditions {
+		conditionString := fmt.Sprintf("%v %v %q", condition.Field, condition.Clause, condition.Value)
+		queryConditions = append(queryConditions, conditionString)
+	}
+
+	return strings.Join(queryConditions, conditions.JoinCondition)
 }
 
 func (bq *BigQuery) logQuery(messageTemplate string, entity interface{}, ddl bool) {

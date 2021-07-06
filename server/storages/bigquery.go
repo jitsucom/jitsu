@@ -3,11 +3,12 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 )
@@ -22,7 +23,6 @@ type BigQuery struct {
 
 	gcsAdapter           *adapters.GoogleCloudStorage
 	bqAdapter            *adapters.BigQuery
-	processor            *schema.Processor
 	streamingWorker      *StreamingWorker
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
@@ -80,7 +80,6 @@ func NewBigQuery(config *Config) (Storage, error) {
 	bq := &BigQuery{
 		gcsAdapter:           gcsAdapter,
 		bqAdapter:            bigQueryAdapter,
-		processor:            config.processor,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
@@ -88,6 +87,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 
 	//Abstract
 	bq.destinationID = config.destinationID
+	bq.processor = config.processor
 	bq.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	bq.eventsCache = config.eventsCache
 	bq.tableHelpers = []*TableHelper{tableHelper}
@@ -178,9 +178,69 @@ func (bq *BigQuery) Update(object map[string]interface{}) error {
 	return errors.New("BigQuery doesn't support updates")
 }
 
-//SyncStore isn't supported
+// SyncStore is used in storing chunk of pulled data to BigQuery with processing
 func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return errors.New("BigQuery doesn't support sync store")
+	_, tableHelper := bq.getAdapters()
+
+	flatData, err := bq.processor.ProcessPulledEvents(timeIntervalValue, objects)
+	if err != nil {
+		return err
+	}
+
+	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
+
+	// overridden table destinationID
+	var overriddenTableName string
+	if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
+		overriddenTableName = overriddenDataSchema.TableName
+	}
+
+	// table schema overridden (is used by Singer sources)
+	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
+		for _, fdata := range flatData {
+			// enrich overridden schema with new fields (some system fields or e.g. after lookup step)
+			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
+		}
+
+		table := tableHelper.MapTableSchema(overriddenDataSchema)
+		err = bq.bqAdapter.DeleteWithConditions(table.Name, deleteConditions)
+		if err != nil {
+			return fmt.Errorf("Error deleting from BigQuery: %v", err)
+		}
+
+		for _, fdata := range flatData {
+			start := time.Now()
+			if err := bq.storeTable(fdata, table); err != nil {
+				return fmt.Errorf("Error inserting data chunk to BigQuery: %v", err)
+			}
+
+			logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", bq.ID(), fdata.GetPayloadLen(), time.Now().Sub(start).Seconds())
+		}
+
+		return nil
+	}
+
+	// plain flow
+	if err = bq.bqAdapter.DeleteWithConditions(overriddenTableName, deleteConditions); err != nil {
+		return fmt.Errorf("Error deleting from BigQuery: %v", err)
+	}
+
+	for _, fdata := range flatData {
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
+		if overriddenTableName != "" {
+			table.Name = overriddenTableName
+		}
+
+		start := time.Now()
+
+		if err := bq.storeTable(fdata, table); err != nil {
+			return err
+		}
+
+		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", bq.ID(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
+	}
+
+	return nil
 }
 
 //GetUsersRecognition returns disabled users recognition configuration

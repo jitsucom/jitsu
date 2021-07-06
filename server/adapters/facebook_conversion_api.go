@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 const (
@@ -163,6 +164,14 @@ func (fc *FacebookConversionAPI) CreateTable(schemaToCreate *Table) error {
 //PatchTableSchema Facebook doesn't use tables
 func (fc *FacebookConversionAPI) PatchTableSchema(schemaToAdd *Table) error {
 	return nil
+}
+
+func (fc *FacebookConversionAPI) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	return fmt.Errorf("FacebookConversionAPI doesn't support BulkInsert() func")
+}
+
+func (fc *FacebookConversionAPI) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	return fmt.Errorf("FacebookConversionAPI doesn't support BulkUpdate() func")
 }
 
 //Close closes underlying HTTPAdapter
