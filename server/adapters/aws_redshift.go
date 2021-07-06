@@ -387,7 +387,7 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 
 	err = ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, tmpTable, objects, redshiftValuesLimit)
 	if err != nil {
-		return fmt.Errorf("Error inserting in temporary table [%s]: %v", tmpTable, err)
+		return fmt.Errorf("Error inserting in temporary table [%s]: %v", tmpTable.Name, err)
 	}
 
 	//delete duplicates from table
