@@ -18,13 +18,14 @@ type Bridge struct {
 	PythonExecPath string
 	VenvDir        string
 	installTaps    bool
+	updateTaps     bool
 	LogWriter      io.Writer
 
 	installedTaps         *sync.Map
 	installInProgressTaps *sync.Map
 }
 
-func Init(pythonExecPath, venvDir string, installTaps bool, logWriter io.Writer) error {
+func Init(pythonExecPath, venvDir string, installTaps, updateTaps bool, logWriter io.Writer) error {
 	if pythonExecPath == "" {
 		return errors.New("Singer bridge python exec path can't be empty")
 	}
@@ -55,6 +56,7 @@ func Init(pythonExecPath, venvDir string, installTaps bool, logWriter io.Writer)
 		installTaps:           installTaps,
 		LogWriter:             logWriter,
 		installedTaps:         installedTaps,
+		updateTaps:            updateTaps,
 		installInProgressTaps: &sync.Map{},
 	}
 
@@ -118,7 +120,7 @@ func (b *Bridge) EnsureTap(tap string) {
 
 //UpdateTap runs sync update singer tap and returns err if occurred
 func (b *Bridge) UpdateTap(tap string) error {
-	if !b.installTaps {
+	if !b.updateTaps {
 		return nil
 	}
 

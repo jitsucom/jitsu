@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	tableSchemaSFQuery      = `SELECT COLUMN_NAME, concat(DATA_TYPE, IFF(NUMERIC_SCALE is null, '', TO_VARCHAR(NUMERIC_SCALE))) from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = ? and TABLE_NAME = ?`
+	tableExistenceSFQuery   = `SELECT count(*) from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = ? and TABLE_NAME = ?`
+	descSchemaSFQuery       = `desc table %s.%s`
 	copyStatementFileFormat = ` FILE_FORMAT=(TYPE= 'CSV', FIELD_DELIMITER = '||' SKIP_HEADER = 1 EMPTY_FIELD_AS_NULL = true) `
 	gcpFrom                 = `FROM @%s
    							   %s
@@ -30,7 +31,8 @@ const (
 	addSFColumnTemplate                 = `ALTER TABLE %s.%s ADD COLUMN %s`
 	createSFTableTemplate               = `CREATE TABLE %s.%s (%s)`
 	insertSFTemplate                    = `INSERT INTO %s.%s (%s) VALUES %s`
-	deleteSFTemplate                    = `DELETE FROM %s.%s.%s WHERE %s`
+	deleteSFTemplate                    = `DELETE FROM %s.%s WHERE %s`
+	dropSFTableTemplate                 = `DROP TABLE %s.%s`
 )
 
 var (
@@ -192,21 +194,52 @@ func (s *Snowflake) PatchTableSchema(patchSchema *Table) error {
 	return wrappedTx.tx.Commit()
 }
 
-//GetTableSchema return table (name,columns with name and types) representation wrapped in Table struct
+//GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
 func (s *Snowflake) GetTableSchema(tableName string) (*Table, error) {
 	table := &Table{Name: tableName, Columns: Columns{}}
 
-	rows, err := s.dataSource.QueryContext(s.ctx, tableSchemaSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
+	countReqRows, err := s.dataSource.QueryContext(s.ctx, tableExistenceSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
+	if err != nil {
+		return nil, fmt.Errorf("Error querying table [%s] existence: %v", tableName, err)
+	}
+	defer countReqRows.Close()
+	countReqRows.Next()
+	var count int
+	if err = countReqRows.Scan(&count); err != nil {
+		return nil, fmt.Errorf("Error scanning table [%s] existence: %v", tableName, err)
+	}
+
+	//table doesn't exist
+	if count == 0 {
+		return table, nil
+	}
+
+	query := fmt.Sprintf(descSchemaSFQuery, reformatToParam(s.config.Schema), reformatToParam(reformatValue(tableName)))
+	rows, err := s.dataSource.QueryContext(s.ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
 	}
-
 	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("Error getting columns from query: %v", err)
+	}
+
 	for rows.Next() {
-		var columnName, columnSnowflakeType string
-		if err := rows.Scan(&columnName, &columnSnowflakeType); err != nil {
+		line := make([]interface{}, len(columns))
+		linePointers := make([]interface{}, len(columns))
+		for i := range columns {
+			linePointers[i] = &line[i]
+		}
+
+		// Scan the result into the column pointers...
+		if err := rows.Scan(linePointers...); err != nil {
 			return nil, fmt.Errorf("Error scanning result: %v", err)
 		}
+
+		columnName := fmt.Sprint(line[0])
+		columnSnowflakeType := fmt.Sprint(line[1])
 
 		table.Columns[strings.ToLower(columnName)] = Column{SQLType: columnSnowflakeType}
 	}
@@ -448,7 +481,7 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 	for name := range table.Columns {
 		reformattedColumnName := reformatValue(name)
 		unformattedColumnNames = append(unformattedColumnNames, name)
-		formattedColumnNames = append(formattedColumnNames, reformattedColumnName)
+		formattedColumnNames = append(formattedColumnNames, reformatDefault(reformattedColumnName))
 		updateSet = append(updateSet, fmt.Sprintf("%s.%s = %s.%s", table.Name, reformattedColumnName, tmpTable.Name, reformattedColumnName))
 		tmpPreffixColumnNames = append(tmpPreffixColumnNames, fmt.Sprintf("%s.%s", tmpTable.Name, reformattedColumnName))
 	}
@@ -471,9 +504,9 @@ func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table,
 	return s.dropTableInTransaction(wrappedTx, tmpTable)
 }
 
-//dropTableInTransaction dropts a table in transaction
+//dropTableInTransaction drops a table in transaction
 func (s *Snowflake) dropTableInTransaction(wrappedTx *Transaction, table *Table) error {
-	query := fmt.Sprintf(dropTableTemplate, s.config.Schema, table.Name)
+	query := fmt.Sprintf(dropSFTableTemplate, s.config.Schema, table.Name)
 	s.queryLogger.LogDDL(query)
 
 	_, err := wrappedTx.tx.ExecContext(s.ctx, query)
@@ -506,7 +539,7 @@ func (s *Snowflake) executeInsert(wrappedTx *Transaction, table *Table, headerWi
 // deleteInTransaction deletes objects from Snowflake in transaction
 func (s *Snowflake) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	deleteCondition, values := s.toDeleteQuery(deleteConditions)
-	query := fmt.Sprintf(deleteSFTemplate, s.config.Db, s.config.Schema, reformatValue(table.Name), deleteCondition)
+	query := fmt.Sprintf(deleteSFTemplate, s.config.Schema, reformatValue(table.Name), deleteCondition)
 	s.queryLogger.LogQueryWithValues(query, values)
 
 	_, err := wrappedTx.tx.ExecContext(s.ctx, query, values...)
@@ -587,6 +620,16 @@ func reformatValue(value string) string {
 			}
 		}
 
+	}
+
+	return value
+}
+
+//Snowflake doesn't accept names (identifiers) like: default
+//it should be reformatted to "DEFAULT"
+func reformatDefault(value string) string {
+	if value == "default" {
+		return `"DEFAULT"`
 	}
 
 	return value

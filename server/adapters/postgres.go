@@ -430,7 +430,7 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 //if there are any duplicates, do the job 2 times
 func (p *Postgres) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	if len(table.PKFields) == 0 {
-		return p.bulkInsertInTransaction(wrappedTx, table, objects)
+		return p.bulkInsertInTransaction(wrappedTx, table, objects, postgresValuesLimit)
 	}
 
 	//deduplication for bulkMerge success (it fails if there is any duplicate)
@@ -447,21 +447,21 @@ func (p *Postgres) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, 
 
 //Must be used when table has no primary keys. Inserts data in batches to improve performance.
 //Prefer to use bulkStoreInTransaction instead of calling this method directly
-func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}, valuesLimit int) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes []string
 	for name := range table.Columns {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
 	}
 	maxValues := len(objects) * len(table.Columns)
-	if maxValues > postgresValuesLimit {
-		maxValues = postgresValuesLimit
+	if maxValues > valuesLimit {
+		maxValues = valuesLimit
 	}
 	valueArgs := make([]interface{}, 0, maxValues)
 	placeholdersCounter := 1
 	for _, row := range objects {
 		// if number of values exceeds limit, we have to execute insert query on processed rows
-		if len(valueArgs)+len(headerWithoutQuotes) > postgresValuesLimit {
+		if len(valueArgs)+len(headerWithoutQuotes) > valuesLimit {
 			err := p.executeInsert(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 			if err != nil {
 				return fmt.Errorf("Error executing insert: %v", err)
@@ -524,7 +524,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 		return fmt.Errorf("Error creating temporary table: %v", err)
 	}
 
-	err = p.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
+	err = p.bulkInsertInTransaction(wrappedTx, tmpTable, objects, postgresValuesLimit)
 	if err != nil {
 		return fmt.Errorf("Error inserting in temporary table: %v", err)
 	}

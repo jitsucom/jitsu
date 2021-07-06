@@ -82,6 +82,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("users_recognition.identification_nodes", []string{"/eventn_ctx/user/internal_id||/user/internal_id"})
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
+	viper.SetDefault("singer-bridge.update_taps", false)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 
 	//Segment API mappings
