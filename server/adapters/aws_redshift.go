@@ -350,13 +350,22 @@ func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}
 //bulkStoreInTransaction uses different statements for inserts and merges. Without primary keys:
 //  inserts data batch into the table by using postgres bulk insert (insert into ... values (), (), ())
 //with primary keys:
-//  uses bulkMergeInTransaction func
+//  uses bulkMergeInTransaction func with deduplicated objects
 func (ar *AwsRedshift) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	if len(table.PKFields) == 0 {
 		return ar.dataSourceProxy.bulkInsertInTransaction(wrappedTx, table, objects)
 	}
 
-	return ar.bulkMergeInTransaction(wrappedTx, table, objects)
+	//deduplication for bulkMerge success (it fails if there is any duplicate)
+	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
+
+	for _, objectsBucket := range deduplicatedObjectsBuckets {
+		if err := ar.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 //bulkMergeInTransaction uses temporary table and insert from select statement
