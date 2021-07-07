@@ -3,13 +3,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
 import { Button, Dropdown, Modal } from 'antd';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
-import { destinationsReferenceList, destinationsReferenceMap } from '@page/DestinationsPage/commons';
+import ApplicationServices from 'lib/services/ApplicationServices';
+import {
+  destinationsReferenceList,
+  destinationsReferenceMap,
+} from 'ui/pages/DestinationsPage/commons';
 // @Components
-import { handleError } from '@./lib/components/components';
-import { DropDownList } from '@component/DropDownList/DropDownList';
-import { ListItem } from '@component/ListItem/ListItem';
-import { EmptyList } from '@component/EmptyList/EmptyList';
+import { handleError } from 'lib/components/components';
+import { DropDownList } from 'ui/components/DropDownList/DropDownList';
+import { ListItem } from 'ui/components/ListItem/ListItem';
+import { EmptyList } from 'ui/components/EmptyList/EmptyList';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
@@ -18,14 +21,14 @@ import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 // @Styles
 import styles from './DestinationsList.module.less';
 // @Utils
-import { destinationsUtils } from '@page/DestinationsPage/DestinationsPage.utils';
+import { destinationsUtils } from 'ui/pages/DestinationsPage/DestinationsPage.utils';
 // @Routes
-import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
+import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPage.routes';
 // @Types
-import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
-import { Destination } from '@catalog/destinations/types';
-import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
-import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
+import { CommonDestinationPageProps } from 'ui/pages/DestinationsPage/DestinationsPage';
+import { Destination } from 'catalog/destinations/types';
+import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
+import { destinationEditorUtils } from 'ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 
 const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, sources, updateSources  }: CommonDestinationPageProps) => {
   const history = useHistory();
