@@ -2,7 +2,7 @@ ARG SRC_VERSION=latest
 
 FROM nginx:alpine as main
 
-RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata bash
+RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata bash sudo
 
 ENV EVENTNATIVE_USER=eventnative
 
@@ -12,8 +12,7 @@ RUN addgroup -S $EVENTNATIVE_USER \
     && mkdir -p /home/$EVENTNATIVE_USER/data/config \
     && mkdir -p /home/$EVENTNATIVE_USER/data/venv \
     && mkdir -p /home/$EVENTNATIVE_USER/app \
-    && chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER \
-    && groupdel nginx
+    && chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER
 
 # Create symlink for backward compatibility
 RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res && \
