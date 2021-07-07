@@ -7,18 +7,18 @@ import { sourcesPageRoutes } from './SourcesPage.routes';
 import { SourcesList } from './partials/SourcesList/SourcesList';
 import { SourceEditor } from './partials/SourceEditor/SourceEditor';
 import { AddSourceDialog } from './partials/AddSourceDialog/AddSourceDialog';
-import { CenteredError, CenteredSpin } from '@./lib/components/components';
+import { CenteredError, CenteredSpin } from 'lib/components/components';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Styles
 import './SourcesPage.less';
 // @Hocs
-import { getComponent } from '@hocs/getComponent';
+import { getComponent } from 'hocs/getComponent';
 // @Types
-import { BreadcrumbsProps } from '@component/Breadcrumbs/Breadcrumbs';
-import { PageProps } from '@./navigation';
+import { BreadcrumbsProps } from 'ui/components/Breadcrumbs/Breadcrumbs';
+import { PageProps } from 'navigation';
 // @Hooks
-import useLoader from '@hooks/useLoader';
+import useLoader from 'hooks/useLoader';
 
 export interface CollectionSourceData {
   sources: SourceData[];

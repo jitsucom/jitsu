@@ -6,7 +6,7 @@ import { BrowserRouter, Route } from 'react-router-dom';
 import App from './App';
 // @Styles
 import './index.less'
-import { getBaseUIPath } from '@./lib/commons/pathHelper';
+import { getBaseUIPath } from 'lib/commons/pathHelper';
 
 ReactDOM.render(
   <BrowserRouter basename={getBaseUIPath()}>

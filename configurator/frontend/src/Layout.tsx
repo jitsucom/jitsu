@@ -10,26 +10,30 @@ import DownloadOutlined from '@ant-design/icons/lib/icons/DownloadOutlined';
 import * as React from 'react';
 import { useState } from 'react';
 import Icon, { SettingOutlined } from '@ant-design/icons';
-import logo from '@./icons/logo.svg';
+import logo from 'icons/logo.svg';
 import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
-import { handleError } from '@./lib/components/components';
+import { handleError } from 'lib/components/components';
 import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
 import classNames from 'classnames';
-import { Permission, User } from '@service/model';
+import { Permission, User } from 'lib/services/model';
 import SlidersOutlined from '@ant-design/icons/lib/icons/SlidersOutlined';
 import UserSwitchOutlined from '@ant-design/icons/lib/icons/UserSwitchOutlined';
 import LogoutOutlined from '@ant-design/icons/lib/icons/LogoutOutlined';
-import { reloadPage } from '@./lib/commons/utils';
-import { useServices } from '@hooks/useServices';
+import { reloadPage } from 'lib/commons/utils';
+import { useServices } from 'hooks/useServices';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
-import { Page, usePageLocation } from '@./navigation';
-import { BreadcrumbsProps, withHome, Breadcrumbs } from '@component/Breadcrumbs/Breadcrumbs';
-import { CurrentPlan } from '@component/CurrentPlan/CurrentPlan';
-import { PaymentPlanStatus } from '@service/billing';
+import { Page, usePageLocation } from 'navigation';
+import {
+  BreadcrumbsProps,
+  withHome,
+  Breadcrumbs
+} from 'ui/components/Breadcrumbs/Breadcrumbs';
+import { CurrentPlan } from 'ui/components/CurrentPlan/CurrentPlan';
+import { PaymentPlanStatus } from 'lib/services/billing';
 import styles from './Layout.module.less';
-import { getIntercom } from '@service/intercom-wrapper';
+import { getIntercom } from 'lib/services/intercom-wrapper';
 import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
-import { AnalyticsBlock } from '@service/analytics';
+import { AnalyticsBlock } from 'lib/services/analytics';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;

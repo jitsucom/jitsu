@@ -2,20 +2,24 @@
 import React, { useCallback, useMemo } from 'react';
 import { Form } from 'antd';
 // @Constants
-import { SOURCE_CONNECTED_DESTINATION } from '@./embeddedDocs/sourcesConnectedItems';
+import { SOURCE_CONNECTED_DESTINATION } from 'embeddedDocs/sourcesConnectedItems';
 // @Components
-import { NameWithPicture, ConnectedItem, ConnectedItems } from '@component/ConnectedItems/ConnectedItems';
-import { TabDescription } from '@component/Tabs/TabDescription';
+import {
+  NameWithPicture,
+  ConnectedItem,
+  ConnectedItems
+} from 'ui/components/ConnectedItems/ConnectedItems';
+import { TabDescription } from 'ui/components/Tabs/TabDescription';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
-import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
+import ApplicationServices from 'lib/services/ApplicationServices';
+import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { Destination } from '@catalog/destinations/types';
+import { Destination } from 'catalog/destinations/types';
 // @Hooks
-import useLoader from '@hooks/useLoader';
+import useLoader from 'hooks/useLoader';
 // @Utils
-import { destinationsUtils } from '@page/DestinationsPage/DestinationsPage.utils';
+import { destinationsUtils } from 'ui/pages/DestinationsPage/DestinationsPage.utils';
 
 export interface Props {
   form: FormInstance;

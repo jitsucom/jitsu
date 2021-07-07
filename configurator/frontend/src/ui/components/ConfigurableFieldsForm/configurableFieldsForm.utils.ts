@@ -1,4 +1,4 @@
-import { isUrlValid } from '@util/validation/url';
+import { isUrlValid } from 'utils/validation/url';
 
 const dsnValidator = (value: string) => {
   if (!value) {

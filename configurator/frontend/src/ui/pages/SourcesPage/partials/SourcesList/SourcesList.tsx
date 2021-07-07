@@ -4,8 +4,8 @@ import { generatePath, useHistory } from 'react-router-dom';
 import { Button, Dropdown, Menu, message } from 'antd';
 import snakeCase from 'lodash/snakeCase';
 // @Components
-import { ListItem } from '@component/ListItem/ListItem';
-import { ListItemDescription } from '@component/ListItem/ListItemDescription';
+import { ListItem } from 'ui/components/ListItem/ListItem';
+import { ListItemDescription } from 'ui/components/ListItem/ListItemDescription';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
@@ -14,21 +14,21 @@ import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 import DownOutlined from '@ant-design/icons/lib/icons/DownOutlined';
 
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Types
-import { SourceConnector } from '@catalog/sources/types';
-import { CommonSourcePageProps } from '@page/SourcesPage/SourcesPage';
-import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
+import { SourceConnector } from 'catalog/sources/types';
+import { CommonSourcePageProps } from 'ui/pages/SourcesPage/SourcesPage';
+import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 // @Styles
 import styles from './SourcesList.module.less';
 // @Sources
-import { allSources } from '@catalog/sources/lib';
+import { allSources } from 'catalog/sources/lib';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
+import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 // @Utils
-import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
-import { taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
-import { withProgressBar } from '@./lib/components/components';
+import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
+import { taskLogsPageRoute } from 'ui/pages/TaskLogs/TaskLogsPage';
+import { withProgressBar } from 'lib/components/components';
 
 const SourcesList = ({ projectId, sources, updateSources, setBreadcrumbs }: CommonSourcePageProps) => {
   const history = useHistory();

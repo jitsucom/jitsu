@@ -1,9 +1,9 @@
-import ApplicationServices from '@service/ApplicationServices';
-import Marshal from '@./lib/commons/marshalling';
-import { closeableMessage, handleError } from '@./lib/components/components';
+import ApplicationServices from 'lib/services/ApplicationServices';
+import Marshal from 'lib/commons/marshalling';
+import { closeableMessage, handleError } from 'lib/components/components';
 import { message } from 'antd';
-import { firstToLower } from '@./lib/commons/utils';
-import { Tab } from '@component/Tabs/TabsConfigurator';
+import { firstToLower } from 'lib/commons/utils';
+import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 
 const destinationEditorUtils = {
   testConnection: async(dst: DestinationData, hideMessage?: boolean) => {

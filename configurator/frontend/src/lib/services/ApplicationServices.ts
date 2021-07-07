@@ -6,9 +6,9 @@ import AnalyticsService from './analytics';
 import { firebaseInit, FirebaseUserService } from './firebase';
 import Marshal from '../commons/marshalling';
 import { BackendUserService } from './backend';
-import { randomId } from '@util/numbers';
-import { cleanAuthorizationLocalStorage, concatenateURLs, reloadPage } from '@./lib/commons/utils';
-import { getBackendApiBase } from '@./lib/commons/pathHelper';
+import { randomId } from 'utils/numbers';
+import { cleanAuthorizationLocalStorage, concatenateURLs, reloadPage } from 'lib/commons/utils';
+import { getBackendApiBase } from 'lib/commons/pathHelper';
 
 type AppEnvironmentType = 'development' | 'production';
 

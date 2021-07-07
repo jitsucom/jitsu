@@ -1,6 +1,6 @@
-import { Project } from '@service/model';
-import { BackendApiClient } from '@service/ApplicationServices';
-import { DatePoint, StatService, StatServiceImpl } from '@service/stat';
+import { Project } from 'lib/services/model';
+import { BackendApiClient } from 'lib/services/ApplicationServices';
+import { DatePoint, StatService, StatServiceImpl } from 'lib/services/stat';
 
 export type PlanId = 'free' | 'growth' | 'premium' | 'enterprise';
 

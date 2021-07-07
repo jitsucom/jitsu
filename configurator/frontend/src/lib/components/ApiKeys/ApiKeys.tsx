@@ -21,10 +21,10 @@ import TagsInput from '../TagsInput/TagsInput';
 import { getCurlDocumentation, getEmbeddedHtml, getNPMDocumentation } from '../../commons/api-documentation';
 import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
-import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
-import useLoader from '@hooks/useLoader';
-import { randomId } from '@util/numbers';
-import { useServices } from '@hooks/useServices';
+import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
+import useLoader from 'hooks/useLoader';
+import { randomId } from 'utils/numbers';
+import { useServices } from 'hooks/useServices';
 
 export type UserAPIToken = {
   uid: string;

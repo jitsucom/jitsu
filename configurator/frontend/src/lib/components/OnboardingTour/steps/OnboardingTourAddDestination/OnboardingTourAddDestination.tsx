@@ -4,21 +4,21 @@ import { Button } from 'antd';
 // @Styles
 import styles from './OnboardingTourAddDestination.module.less';
 // @Commons
-import { createFreeDatabase } from '@./lib/commons/createFreeDatabase';
+import { createFreeDatabase } from 'lib/commons/createFreeDatabase';
 // @Components
-import { EmptyListView } from '@./ui/components/EmptyList/EmptyListView';
-import { DropDownList } from '@./ui/components/DropDownList/DropDownList';
+import { EmptyListView } from 'ui/components/EmptyList/EmptyListView';
+import { DropDownList } from 'ui/components/DropDownList/DropDownList';
 import { DestinationEditor } from 'ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor';
 import {
   destinationsReferenceList,
   destinationsReferenceMap,
   DestinationStrictType
-} from '@./ui/pages/DestinationsPage/commons';
+} from 'ui/pages/DestinationsPage/commons';
 // @Hooks
-import useLoader from '@./hooks/useLoader';
-import { useServices } from '@./hooks/useServices';
+import useLoader from 'hooks/useLoader';
+import { useServices } from 'hooks/useServices';
 // @Utils
-import ApiKeyHelper from '@./lib/services/ApiKeyHelper';
+import ApiKeyHelper from 'lib/services/ApiKeyHelper';
 
 type ExtractDatabaseOrWebhook<T> = T extends {readonly type: 'database'}
   ? T

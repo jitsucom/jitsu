@@ -11,12 +11,16 @@ import { OnboardingTourAddJitsuOnClient } from './steps/OnboardingTourAddJitsuOn
 import { OnboardingTourReceiveEvent } from './steps/OnboardingTourReceiveEvent/OnboardingTourReceiveEvent';
 import { OnboardingTourSuccess } from './steps/OnboardingTourSuccess/OnboardingTourSuccess';
 // @Services
-import ApplicationServices from '@./lib/services/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Hooks
-import { formatTimeOfRawUserEvents, getLatestUserEvent, userEventWasTimeAgo } from '@./lib/commons/utils';
+import {
+  formatTimeOfRawUserEvents,
+  getLatestUserEvent,
+  userEventWasTimeAgo
+} from 'lib/commons/utils';
 import { fetchUserAPITokens, generateNewAPIToken, UserAPIToken, _unsafeRequestPutUserAPITokens } from '../ApiKeys/ApiKeys';
-import { Project } from '@./lib/services/model';
-import { randomId } from '@./utils/numbers';
+import { Project } from 'lib/services/model';
+import { randomId } from 'utils/numbers';
 
 type OnboardingConfig = {
   showUserAndCompanyNamesStep: boolean;

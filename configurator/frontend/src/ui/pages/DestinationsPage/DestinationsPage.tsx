@@ -7,16 +7,16 @@ import { DestinationEditor } from './partials/DestinationEditor/DestinationEdito
 // @Routes
 import { destinationPageRoutes } from './DestinationsPage.routes';
 // @Hooks
-import useLoader from '@hooks/useLoader';
+import useLoader from 'hooks/useLoader';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Hocs
-import { getComponent } from '@hocs/getComponent';
+import { getComponent } from 'hocs/getComponent';
 // @Components
-import { CenteredError, CenteredSpin } from '@./lib/components/components';
+import { CenteredError, CenteredSpin } from 'lib/components/components';
 // @Types
-import { PageProps } from '@./navigation';
-import { BreadcrumbsProps } from '@component/Breadcrumbs/Breadcrumbs';
+import { PageProps } from 'navigation';
+import { BreadcrumbsProps } from 'ui/components/Breadcrumbs/Breadcrumbs';
 
 export interface CollectionDestinationData {
   destinations: DestinationData[];
