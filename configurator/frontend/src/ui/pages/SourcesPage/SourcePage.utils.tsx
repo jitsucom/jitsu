@@ -1,19 +1,19 @@
 // @Libs
 import snakeCase from 'lodash/snakeCase';
 // @Types
-import { SourceConnector } from '@catalog/sources/types';
+import { SourceConnector } from 'catalog/sources/types';
 // @Utils
-import { getUniqueAutoIncId } from '@util/numbers';
-import { closeableMessage, handleError } from '@./lib/components/components';
+import { getUniqueAutoIncId } from 'utils/numbers';
+import { closeableMessage, handleError } from 'lib/components/components';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
-import Marshal from '@./lib/commons/marshalling';
+import ApplicationServices from 'lib/services/ApplicationServices';
+import Marshal from 'lib/commons/marshalling';
 // @Components
-import { ListItemTitle } from '@component/ListItem/ListItemTitle';
-import { Tab } from '@component/Tabs/TabsConfigurator';
-import { validateTabForm } from '@util/forms/validateTabForm';
-import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
-import { SourceTabKey } from '@page/SourcesPage/partials/SourceEditor/SourceEditor';
+import { ListItemTitle } from 'ui/components/ListItem/ListItemTitle';
+import { Tab } from 'ui/components/Tabs/TabsConfigurator';
+import { validateTabForm } from 'utils/forms/validateTabForm';
+import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
+import { SourceTabKey } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditor';
 
 const sourcePageUtils = {
   getSourceType: (sourceConnector: SourceConnector) => sourceConnector?.isSingerType

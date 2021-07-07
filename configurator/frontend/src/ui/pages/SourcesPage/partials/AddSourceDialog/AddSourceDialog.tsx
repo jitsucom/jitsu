@@ -5,16 +5,16 @@ import { Badge, Input, Modal } from 'antd';
 import cn from 'classnames';
 import debounce from 'lodash/debounce';
 // @Catalog sources
-import { allSources } from '@catalog/sources/lib';
+import { allSources } from 'catalog/sources/lib';
 // @Styles
 import styles from './AddSourceDialog.module.less';
 // @Types
-import { SourceConnector } from '@catalog/sources/types';
+import { SourceConnector } from 'catalog/sources/types';
 // @Icons
 import { StarOutlined, StarFilled, ExclamationCircleOutlined } from '@ant-design/icons';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
-import { useServices } from '@hooks/useServices';
+import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
+import { useServices } from 'hooks/useServices';
 
 /**
  * All sources which are available for adding. Some filtering & sorting is applied

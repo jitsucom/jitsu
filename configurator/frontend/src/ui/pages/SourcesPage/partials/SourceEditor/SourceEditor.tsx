@@ -9,27 +9,30 @@ import { SourceEditorConfig } from './SourceEditorConfig';
 import { SourceEditorCollections } from './SourceEditorCollections';
 import { SourceEditorDestinations } from './SourceEditorDestinations';
 // @Components
-import { Tab, TabsConfigurator } from '@component/Tabs/TabsConfigurator';
-import { PageHeader } from '@component/PageHeader/PageHeader';
-import { EditorButtons } from '@component/EditorButtons/EditorButtons';
+import { Tab, TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
+import { PageHeader } from 'ui/components/PageHeader/PageHeader';
+import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
 // @Types
-import { CollectionSourceData, CommonSourcePageProps } from '@page/SourcesPage/SourcesPage';
-import { SourceConnector } from '@catalog/sources/types';
+import {
+  CollectionSourceData,
+  CommonSourcePageProps
+} from 'ui/pages/SourcesPage/SourcesPage';
+import { SourceConnector } from 'catalog/sources/types';
 import { FormInstance } from 'antd/es';
-import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
+import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 // @Routes
-import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
+import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 // @Catalog sources
-import { allSources } from '@catalog/sources/lib';
+import { allSources } from 'catalog/sources/lib';
 // @Utils
-import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
-import { validateTabForm } from '@util/forms/validateTabForm';
+import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
+import { validateTabForm } from 'utils/forms/validateTabForm';
 // @Hooks
-import { useForceUpdate } from '@hooks/useForceUpdate';
+import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
-import { closeableMessage, handleError } from '@./lib/components/components';
-import { firstToLower } from '@./lib/commons/utils';
+import ApplicationServices from 'lib/services/ApplicationServices';
+import { closeableMessage, handleError } from 'lib/components/components';
+import { firstToLower } from 'lib/commons/utils';
 // @Styles
 import styles from './SourceEditor.module.less';
 import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';

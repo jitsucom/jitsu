@@ -5,13 +5,13 @@ import debounce from 'lodash/debounce';
 import cn from 'classnames';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { SourceConnector } from '@catalog/sources/types';
+import { SourceConnector } from 'catalog/sources/types';
 import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 // @Components
-import { ConfigurableFieldsForm } from '@component/ConfigurableFieldsForm/ConfigurableFieldsForm';
-import { COLLECTIONS_SCHEDULES } from '@./constants/schedule';
+import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm';
+import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
 // @Styles
-import editorStyles from '@component/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
+import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
 
 export interface Props {
   form: FormInstance;

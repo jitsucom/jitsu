@@ -6,28 +6,31 @@ import get from 'lodash/get';
 import set from 'lodash/set';
 import cn from 'classnames';
 // @Components
-import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
-import { CodeDebugger, FormValues as DebuggerFormValues } from '@component/CodeDebugger/CodeDebugger';
-import { EditableList } from '@./lib/components/EditableList/EditableList';
-import { CodeEditor } from '@component/CodeEditor/CodeEditor';
+import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
+import {
+  CodeDebugger,
+  FormValues as DebuggerFormValues
+} from 'ui/components/CodeDebugger/CodeDebugger';
+import { EditableList } from 'lib/components/EditableList/EditableList';
+import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
 // @Types
-import { Parameter, ParameterType } from '@catalog/sources/types';
+import { Parameter, ParameterType } from 'catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 // @Utils
-import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
-import { isoDateValidator } from '@util/validation/validators';
+import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
+import { isoDateValidator } from 'utils/validation/validators';
 // @Hooks
-import { useForceUpdate } from '@hooks/useForceUpdate';
+import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
 import EyeTwoTone from '@ant-design/icons/lib/icons/EyeTwoTone';
 import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlined';
-import BugIcon from '@./icons/bug';
+import BugIcon from 'icons/bug';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 import { random } from 'lodash-es';
-import { randomId } from '@util/numbers';
+import { randomId } from 'utils/numbers';
 
 export interface Props {
   fieldsParamsList: readonly Parameter[];

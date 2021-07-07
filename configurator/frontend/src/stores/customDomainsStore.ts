@@ -4,7 +4,7 @@ import { observable, action } from 'mobx';
 import ApplicationServices from 'lib/services/ApplicationServices'
 // @Model
 import { Domain } from 'lib/services/model';
-import { isArray } from '@./utils/typeCheck';
+import { isArray } from 'utils/typeCheck';
 
 type DomainsList = Domain[]
 

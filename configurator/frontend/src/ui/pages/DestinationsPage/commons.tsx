@@ -7,7 +7,7 @@ import {
   redshiftDestination,
   snowflakeDestination,
   webhookDestination
-} from '@catalog/destinations/lib';
+} from 'catalog/destinations/lib';
 
 export const destinationsReferenceMap = {
   postgres: postgresDestination,

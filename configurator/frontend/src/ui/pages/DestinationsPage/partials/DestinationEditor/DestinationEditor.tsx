@@ -4,36 +4,36 @@ import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Card, Form, message } from 'antd';
 import cn from 'classnames';
 // @Components
-import { TabsConfigurator } from '@component/Tabs/TabsConfigurator';
-import { EditorButtons } from '@component/EditorButtons/EditorButtons';
-import { ComingSoon } from '@component/ComingSoon/ComingSoon';
-import { PageHeader } from '@component/PageHeader/PageHeader';
-import { closeableMessage } from '@./lib/components/components';
+import { TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
+import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
+import { ComingSoon } from 'ui/components/ComingSoon/ComingSoon';
+import { PageHeader } from 'ui/components/PageHeader/PageHeader';
+import { closeableMessage } from 'lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
 import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
 // @CatalogDestinations
-import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
+import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/es';
-import { Destination } from '@catalog/destinations/types';
-import { Tab } from '@component/Tabs/TabsConfigurator';
-import { CommonDestinationPageProps } from '@page/DestinationsPage/DestinationsPage';
-import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
+import { Destination } from 'catalog/destinations/types';
+import { Tab } from 'ui/components/Tabs/TabsConfigurator';
+import { CommonDestinationPageProps } from 'ui/pages/DestinationsPage/DestinationsPage';
+import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Routes
-import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
+import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPage.routes';
 // @Styles
 import styles from './DestinationEditor.module.less';
 // @Utils
-import { makeObjectFromFieldsValues } from '@util/forms/marshalling';
-import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
-import { getUniqueAutoIncId, randomId } from '@util/numbers';
-import { firstToLower } from '@./lib/commons/utils';
+import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
+import { destinationEditorUtils } from 'ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
+import { getUniqueAutoIncId, randomId } from 'utils/numbers';
+import { firstToLower } from 'lib/commons/utils';
 // @Hooks
-import { useForceUpdate } from '@hooks/useForceUpdate';
+import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
 

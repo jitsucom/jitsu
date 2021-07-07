@@ -14,7 +14,7 @@ import {
   UserLoginStatus,
   UserService
 } from './ApplicationServices';
-import { randomId } from '@util/numbers';
+import { randomId } from 'utils/numbers';
 
 export class FirebaseUserService implements UserService {
   private user?: User;

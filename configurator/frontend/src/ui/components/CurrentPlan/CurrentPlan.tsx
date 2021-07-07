@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Button, Input, Modal, Progress } from 'antd';
 import cn from 'classnames';
-import { PaymentPlan, paymentPlans } from '@service/billing';
-import { useServices } from '@hooks/useServices';
-import { handleError } from '@./lib/components/components';
+import { PaymentPlan, paymentPlans } from 'lib/services/billing';
+import { useServices } from 'hooks/useServices';
+import { handleError } from 'lib/components/components';
 import styles from './CurrentPlan.module.less';
 
 function numberWithCommas(x) {

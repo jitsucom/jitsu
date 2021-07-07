@@ -14,8 +14,8 @@ import ApplicationServices from '../../services/ApplicationServices';
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { reloadPage } from '../../commons/utils';
-import { AnalyticsBlock, getErrorPayload } from '@service/analytics';
-import { FloatingLabelInput } from '@component/FloatingLabelInput/FloatingLabelInput';
+import { AnalyticsBlock, getErrorPayload } from 'lib/services/analytics';
+import { FloatingLabelInput } from 'ui/components/FloatingLabelInput/FloatingLabelInput';
 
 type State = {
   loading: boolean;

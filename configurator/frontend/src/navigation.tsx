@@ -2,23 +2,36 @@
 import React, { ExoticComponent, ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 // @Routes
-import { destinationPageRoutes } from '@page/DestinationsPage/DestinationsPage.routes';
+import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPage.routes';
 // @???
 import ComponentTest from './lib/components/componentTest';
-import { TaskLogsPage, taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
-import { SettingsPage, settingsPageRoutes } from '@page/SettingsPage/SettingsPage';
-import { taskLogsViewerRoute, TaskLogViewer } from '@page/TaskLogs/TaskLogViewer';
-import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
-import { LoginLink } from '@./lib/components/LoginLink/LoginLink';
+import {
+  TaskLogsPage,
+  taskLogsPageRoute
+} from 'ui/pages/TaskLogs/TaskLogsPage';
+import {
+  SettingsPage,
+  settingsPageRoutes
+} from 'ui/pages/SettingsPage/SettingsPage';
+import {
+  taskLogsViewerRoute,
+  TaskLogViewer
+} from 'ui/pages/TaskLogs/TaskLogViewer';
+import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
+import { LoginLink } from 'lib/components/LoginLink/LoginLink';
 // @Components
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
-const DestinationsPage = React.lazy(() => import('@page/DestinationsPage/DestinationsPage'));
+const DestinationsPage = React.lazy(
+  () => import('ui/pages/DestinationsPage/DestinationsPage')
+);
 const EventsStream = React.lazy(() => import('./lib/components/EventsStream/EventsStream'));
 const LoginForm = React.lazy(() => import('./lib/components/LoginForm/LoginForm'));
-const SetupForm = React.lazy(() => import('@page/SetupPage/SetupForm'));
+const SetupForm = React.lazy(() => import('ui/pages/SetupPage/SetupForm'));
 const SignupForm = React.lazy(() => import('./lib/components/SignupForm/SignupForm'));
-const SourcesPage = React.lazy(() => import('@page/SourcesPage/SourcesPage'));
+const SourcesPage = React.lazy(
+  () => import('ui/pages/SourcesPage/SourcesPage')
+);
 const StatusPage = React.lazy(() => import('./lib/components/StatusPage/StatusPage'));
 const PasswordForm = React.lazy(() => import('./lib/components/PasswordForm/PasswordForm'));
 const DownloadConfig = React.lazy(() => import('./lib/components/DownloadConfig/DownloadConfig'));

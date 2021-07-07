@@ -2,7 +2,7 @@
 import { Button, Spin } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 // @Services
-import ApplicationServices from '@./lib/services/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Styles
 import styles from './OnboardingTourReceiveEvent.module.less'
 

@@ -11,7 +11,13 @@ import { NavLink } from 'react-router-dom';
 import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
 import { BarChart, LineChart, Line, Bar, Legend, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined'
-import { addSeconds, DatePoint, EventsComparison, StatService, StatServiceImpl } from '@service/stat';
+import {
+  addSeconds,
+  DatePoint,
+  EventsComparison,
+  StatService,
+  StatServiceImpl
+} from 'lib/services/stat';
 
 
 

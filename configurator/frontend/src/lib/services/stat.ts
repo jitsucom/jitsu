@@ -1,6 +1,6 @@
 import moment, { Moment, unitOfTime } from 'moment';
-import ApplicationServices, { BackendApiClient } from '@service/ApplicationServices';
-import { Project } from '@service/model';
+import ApplicationServices, { BackendApiClient } from 'lib/services/ApplicationServices';
+import { Project } from 'lib/services/model';
 
 export type DatePoint = {
   date: Moment;

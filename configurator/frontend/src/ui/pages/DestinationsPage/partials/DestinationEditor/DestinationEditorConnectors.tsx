@@ -4,23 +4,27 @@ import { Link, NavLink } from 'react-router-dom';
 import { Collapse, Form } from 'antd';
 import snakeCase from 'lodash/snakeCase';
 // @Hooks
-import useLoader from '@hooks/useLoader';
+import useLoader from 'hooks/useLoader';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Utils
-import { sourcePageUtils } from '@page/SourcesPage/SourcePage.utils';
-import { destinationEditorUtils } from '@page/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
+import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
+import { destinationEditorUtils } from 'ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 // @Components
-import { NameWithPicture, ConnectedItems, ConnectedItem } from '@component/ConnectedItems/ConnectedItems';
-import { CenteredError, CenteredSpin } from '@./lib/components/components';
-import { TabDescription } from '@component/Tabs/TabDescription';
+import {
+  NameWithPicture,
+  ConnectedItems,
+  ConnectedItem
+} from 'ui/components/ConnectedItems/ConnectedItems';
+import { CenteredError, CenteredSpin } from 'lib/components/components';
+import { TabDescription } from 'ui/components/Tabs/TabDescription';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { Destination } from '@catalog/destinations/types';
+import { Destination } from 'catalog/destinations/types';
 // @Catalog sources
-import { allSources } from '@catalog/sources/lib';
+import { allSources } from 'catalog/sources/lib';
 // @Constants
-import { DESTINATIONS_CONNECTED_SOURCES } from '@./embeddedDocs/destinationsConnectedItems';
+import { DESTINATIONS_CONNECTED_SOURCES } from 'embeddedDocs/destinationsConnectedItems';
 
 export interface Props {
   form: FormInstance;

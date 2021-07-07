@@ -6,21 +6,21 @@ import unset from 'lodash/unset';
 import { SourceFormCollectionsField } from './SourceFormCollectionsField';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { CollectionParameter, SourceConnector } from '@catalog/sources/types';
+import { CollectionParameter, SourceConnector } from 'catalog/sources/types';
 import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 // @Constants
-import { SOURCE_COLLECTIONS } from '@./embeddedDocs/sourceCollections';
-import { COLLECTIONS_SCHEDULES } from '@./constants/schedule';
+import { SOURCE_COLLECTIONS } from 'embeddedDocs/sourceCollections';
+import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
 // @Styles
 import styles from './SourceEditor.module.less';
 // @Icons
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Utils
-import { getUniqueAutoIncId } from '@util/numbers';
-import { TabDescription } from '@component/Tabs/TabDescription';
-import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
-import { CodeInline } from '@./lib/components/components';
+import { getUniqueAutoIncId } from 'utils/numbers';
+import { TabDescription } from 'ui/components/Tabs/TabDescription';
+import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
+import { CodeInline } from 'lib/components/components';
 
 export interface Props {
   form: FormInstance;
