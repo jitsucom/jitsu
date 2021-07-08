@@ -225,6 +225,17 @@ func (bq *BigQuery) BulkUpdate(table *Table, objects []map[string]interface{}, d
 	return errors.New("BigQuery doesn't support BulkUpdate()")
 }
 
+//DropTable drops table from BigQuery
+func (bq *BigQuery) DropTable(table *Table) error {
+	bqTable := bq.client.Dataset(bq.config.Dataset).Table(table.Name)
+
+	if err := bqTable.Delete(bq.ctx); err != nil {
+		return fmt.Errorf("Error dropping [%s] BigQuery table: %v", table.Name, err)
+	}
+
+	return nil
+}
+
 func (bq *BigQuery) toDeleteQuery(conditions *DeleteConditions) string {
 	var queryConditions []string
 
