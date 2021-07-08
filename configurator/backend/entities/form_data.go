@@ -106,3 +106,11 @@ type WebhookFormData struct {
 	Body    string   `firestore:"body" json:"body"`
 	Headers []string `firestore:"headers" json:"headers"`
 }
+
+//AmplitudeFormData entity is stored in main storage (Firebase/Redis)
+type AmplitudeFormData struct {
+	Mode      string `firestore:"mode" json:"mode"`
+	TableName string `firestore:"tableName" json:"tableName"`
+
+	APIKey string `firestore:"apiKey" json:"apiKey"`
+}

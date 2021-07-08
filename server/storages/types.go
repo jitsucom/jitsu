@@ -20,6 +20,7 @@ const (
 	GoogleAnalyticsType = "google_analytics"
 	FacebookType        = "facebook"
 	WebHookType         = "webhook"
+	AmplitudeType       = "amplitude"
 )
 
 //Storage is a destination representation

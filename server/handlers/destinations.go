@@ -110,6 +110,12 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		}
 
 		return nil
+	case storages.AmplitudeType:
+		if err := config.Amplitude.Validate(); err != nil {
+			return err
+		}
+
+		return nil
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}
