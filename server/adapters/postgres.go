@@ -425,6 +425,21 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 	return wrappedTx.DirectCommit()
 }
 
+//DropTable drops table in transaction
+func (p *Postgres) DropTable(table *Table) error {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err := p.dropTableInTransaction(wrappedTx, table); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
 //bulkStoreInTransaction checks PKFields and uses bulkInsert or bulkMerge
 //in bulkMerge - deduplicate objects
 //if there are any duplicates, do the job 2 times
