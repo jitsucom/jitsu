@@ -54,7 +54,7 @@ func NewUploader(logEventPath, fileMask string, uploadEveryS int, destinationSer
 func (u *PeriodicUploader) Start() {
 	safego.RunWithRestart(func() {
 		for {
-			if appstatus.Instance.Idle {
+			if appstatus.Instance.Idle.Load() {
 				break
 			}
 
