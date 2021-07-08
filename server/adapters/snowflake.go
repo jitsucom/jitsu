@@ -371,6 +371,21 @@ func (s *Snowflake) BulkUpdate(table *Table, objects []map[string]interface{}, d
 	return wrappedTx.DirectCommit()
 }
 
+//DropTable drops table in transaction
+func (s *Snowflake) DropTable(table *Table) error {
+	wrappedTx, err := s.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err := s.dropTableInTransaction(wrappedTx, table); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
 //createTableInTransaction creates database table with name,columns provided in Table representation
 func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string

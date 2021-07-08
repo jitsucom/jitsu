@@ -349,6 +349,11 @@ func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}
 	return wrappedTx.DirectCommit()
 }
 
+//DropTable drops table in transaction uses underlying postgres datasource
+func (ar *AwsRedshift) DropTable(table *Table) error {
+	return ar.dataSourceProxy.DropTable(table)
+}
+
 //bulkStoreInTransaction uses different statements for inserts and merges. Without primary keys:
 //  inserts data batch into the table by using postgres bulk insert (insert into ... values (), (), ())
 //with primary keys:
