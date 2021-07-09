@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-func TestMysqlBulkInsert(t *testing.T) {
+func TestMySQLBulkInsert(t *testing.T) {
 	table := &Table{
 		Name: "test_insert",
 		Columns: Columns{
@@ -23,29 +23,29 @@ func TestMysqlBulkInsert(t *testing.T) {
 			"user":   Column{"MEDIUMTEXT"},
 		},
 	}
-	container, mysql := setupMysqlDatabase(t, table)
+	container, mySQL := setupMySQLDatabase(t, table)
 	defer container.Close()
-	err := mysql.BulkInsert(table, createObjectsForMysql(5))
+	err := mySQL.BulkInsert(table, createObjectsForMySQL(5))
 	require.NoError(t, err, "Failed to bulk insert 5 objects")
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
 	assert.Equal(t, rows, 5)
 }
 
-func TestMysqlBulkMerge(t *testing.T) {
+func TestMySQLBulkMerge(t *testing.T) {
 	assert.Equal(t, 5, 5)
 }
 
-//func TestMysqlBulkMerge(t *testing.T) {
+//func TestMySQLBulkMerge(t *testing.T) {
 //	table := &Table{
 //		Name:     "test_merge",
 //		Columns:  Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
 //		PKFields: map[string]bool{"field1": true},
 //	}
-//	container, pg := setupMysqlDatabase(t, table)
+//	container, pg := setupMySQLDatabase(t, table)
 //	defer container.Close()
 //	// store 8 objects with 3 id duplications, the result must be 5 objects
-//	objects := createObjectsForMysql(5)
+//	objects := createObjectsForMySQL(5)
 //	objects = append(objects, objects[0])
 //	objects = append(objects, objects[2])
 //	objects = append(objects, objects[3])
@@ -56,9 +56,9 @@ func TestMysqlBulkMerge(t *testing.T) {
 //	assert.Equal(t, rows, 5)
 //}
 
-func setupMysqlDatabase(t *testing.T, table *Table) (*test.MysqlContainer, *Mysql) {
+func setupMySQLDatabase(t *testing.T, table *Table) (*test.MySQLContainer, *MySQL) {
 	ctx := context.Background()
-	container, err := test.NewMysqlContainer(ctx)
+	container, err := test.NewMySQLContainer(ctx)
 	if err != nil {
 		t.Fatalf("failed to initialize container: %v", err)
 	}
@@ -71,16 +71,16 @@ func setupMysqlDatabase(t *testing.T, table *Table) (*test.MysqlContainer, *Mysq
 		Schema:     container.Database,
 		Parameters: map[string]string{"tls": "false"},
 	}
-	adapter, err := NewMysql(ctx, dsConfig, &logging.QueryLogger{}, typing.SQLTypes{})
+	adapter, err := NewMySQL(ctx, dsConfig, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
-		t.Fatalf("Failed to create Mysql adapter: %v", err)
+		t.Fatalf("Failed to create MySQL adapter: %v", err)
 	}
 	err = adapter.CreateTable(table)
 	require.NoError(t, err, "Failed to create table")
 	return container, adapter
 }
 
-func createObjectsForMysql(num int) []map[string]interface{} {
+func createObjectsForMySQL(num int) []map[string]interface{} {
 	var objects []map[string]interface{}
 	for i := 0; i < num; i++ {
 		object := make(map[string]interface{})

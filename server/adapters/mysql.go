@@ -14,13 +14,13 @@ import (
 )
 
 const (
-	mysqlCreateTableTemplate = `CREATE TABLE %s (%s)`
-	mysqlInsertTemplate      = `INSERT INTO %s (%s) VALUES %s`
-	mysqlValuesLimit         = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	mySQLCreateTableTemplate = "CREATE TABLE `%s`.`%s` (%s)"
+	mySQLInsertTemplate      = "INSERT INTO `%s`.`%s` (%s) VALUES %s"
+	mySQLValuesLimit         = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
-	SchemaToMysql = map[typing.DataType]string{
+	SchemaToMySQL = map[typing.DataType]string{
 		typing.STRING:    "MEDIUMTEXT", // A TEXT column with a maximum length of 16_777_215 characters
 		typing.INT64:     "BIGINT",
 		typing.FLOAT64:   "DECIMAL(38,18)",
@@ -30,8 +30,8 @@ var (
 	}
 )
 
-//Mysql is adapter for creating, patching (schema or table), inserting data to mysql database
-type Mysql struct {
+//MySQL is adapter for creating, patching (schema or table), inserting data to mySQL database
+type MySQL struct {
 	ctx         context.Context
 	config      *DataSourceConfig
 	dataSource  *sql.DB
@@ -40,9 +40,9 @@ type Mysql struct {
 	sqlTypes typing.SQLTypes
 }
 
-//NewMysql returns configured Mysql adapter instance
-func NewMysql(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*Mysql, error) {
-	connectionString := mysqlDriverConnectionString(config)
+//NewMySQL returns configured MySQL adapter instance
+func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*MySQL, error) {
+	connectionString := mySQLDriverConnectionString(config)
 	dataSource, err := sql.Open("mysql", connectionString)
 	if err != nil {
 		return nil, err
@@ -56,10 +56,10 @@ func NewMysql(ctx context.Context, config *DataSourceConfig, queryLogger *loggin
 	//set default value
 	dataSource.SetConnMaxLifetime(10 * time.Minute)
 
-	return &Mysql{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToMysql)}, nil
+	return &MySQL{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToMySQL)}, nil
 }
 
-func mysqlDriverConnectionString(config *DataSourceConfig) string {
+func mySQLDriverConnectionString(config *DataSourceConfig) string {
 	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
 	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
 		config.Username, config.Password, config.Host, config.Port.String(), config.Db)
@@ -75,39 +75,39 @@ func mysqlDriverConnectionString(config *DataSourceConfig) string {
 	return connectionString
 }
 
-//Type returns Mysql type
-func (Mysql) Type() string {
-	return "Mysql"
+//Type returns MySQL type
+func (MySQL) Type() string {
+	return "MySQL"
 }
 
 //OpenTx opens underline sql transaction and return wrapped instance
-func (mysqlAdapter *Mysql) OpenTx() (*Transaction, error) {
-	tx, err := mysqlAdapter.dataSource.BeginTx(mysqlAdapter.ctx, nil)
+func (m *MySQL) OpenTx() (*Transaction, error) {
+	tx, err := m.dataSource.BeginTx(m.ctx, nil)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Transaction{tx: tx, dbType: mysqlAdapter.Type()}, nil
+	return &Transaction{tx: tx, dbType: m.Type()}, nil
 }
 
 //CreateTable creates database table with name,columns provided in Table representation
-func (mysqlAdapter *Mysql) CreateTable(table *Table) error {
-	wrappedTx, err := mysqlAdapter.OpenTx()
+func (m *MySQL) CreateTable(table *Table) error {
+	wrappedTx, err := m.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	return mysqlAdapter.createTableInTransaction(wrappedTx, table)
+	return m.createTableInTransaction(wrappedTx, table)
 }
 
 //BulkInsert runs bulkStoreInTransaction
-func (mysqlAdapter *Mysql) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	wrappedTx, err := mysqlAdapter.OpenTx()
+func (m *MySQL) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	wrappedTx, err := m.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	if err = mysqlAdapter.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
+	if err = m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
 		wrappedTx.Rollback()
 		return err
 	}
@@ -115,32 +115,32 @@ func (mysqlAdapter *Mysql) BulkInsert(table *Table, objects []map[string]interfa
 	return wrappedTx.DirectCommit()
 }
 
-func (mysqlAdapter *Mysql) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+func (m *MySQL) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	if len(table.PKFields) == 0 {
-		return mysqlAdapter.bulkInsertInTransaction(wrappedTx, table, objects)
+		return m.bulkInsertInTransaction(wrappedTx, table, objects)
 	}
 
-	return mysqlAdapter.bulkMergeInTransaction(wrappedTx, table, objects)
+	return m.bulkMergeInTransaction(wrappedTx, table, objects)
 }
 
 //Must be used when table has no primary keys. Inserts data in batches to improve performance.
 //Prefer to use bulkStoreInTransaction instead of calling this method directly
-func (mysqlAdapter *Mysql) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes []string
 	for name := range table.Columns {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
 	}
 	maxValues := len(objects) * len(table.Columns)
-	if maxValues > mysqlValuesLimit {
-		maxValues = mysqlValuesLimit
+	if maxValues > mySQLValuesLimit {
+		maxValues = mySQLValuesLimit
 	}
 	valueArgs := make([]interface{}, 0, maxValues)
 	placeholdersCounter := 1
 	for _, row := range objects {
 		// if number of values exceeds limit, we have to execute insert query on processed rows
-		if len(valueArgs)+len(headerWithoutQuotes) > mysqlValuesLimit {
-			err := mysqlAdapter.executeInsert(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
+		if len(valueArgs)+len(headerWithoutQuotes) > mySQLValuesLimit {
+			err := m.executeInsert(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 			if err != nil {
 				return fmt.Errorf("Error executing insert: %v", err)
 			}
@@ -177,7 +177,7 @@ func (mysqlAdapter *Mysql) bulkInsertInTransaction(wrappedTx *Transaction, table
 		}
 	}
 	if len(valueArgs) > 0 {
-		err := mysqlAdapter.executeInsert(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
+		err := m.executeInsert(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 		if err != nil {
 			return fmt.Errorf("Error executing last insert in bulk: %v", err)
 		}
@@ -185,11 +185,11 @@ func (mysqlAdapter *Mysql) bulkInsertInTransaction(wrappedTx *Transaction, table
 	return nil
 }
 
-//TODO incompatible with mysql
+//TODO incompatible with mySQL
 //getCastClause returns ::SQL_TYPE clause or empty string
 //$1::type, $2::type, $3, etc
-func (mysqlAdapter *Mysql) getCastClause(name string) string {
-	castType, ok := mysqlAdapter.sqlTypes[name]
+func (m *MySQL) getCastClause(name string) string {
+	castType, ok := m.sqlTypes[name]
 	if ok {
 		return "::" + castType.Type
 	}
@@ -198,10 +198,15 @@ func (mysqlAdapter *Mysql) getCastClause(name string) string {
 }
 
 //executeInsert executes insert with insertTemplate
-func (mysqlAdapter *Mysql) executeInsert(wrappedTx *Transaction, table *Table, header []string, placeholders string, valueArgs []interface{}) error {
-	statement := fmt.Sprintf(mysqlInsertTemplate, table.Name, strings.Join(header, ","), placeholders)
+func (m *MySQL) executeInsert(wrappedTx *Transaction, table *Table, headerWithoutQuotes []string, placeholders string, valueArgs []interface{}) error {
+	var quotedHeader []string
+	for _, columnName := range headerWithoutQuotes {
+		quotedHeader = append(quotedHeader, fmt.Sprintf("`%s`", columnName))
+	}
 
-	mysqlAdapter.queryLogger.LogQueryWithValues(statement, valueArgs)
+	statement := fmt.Sprintf(mySQLInsertTemplate, m.config.Schema, table.Name, strings.Join(quotedHeader, ","), placeholders)
+
+	m.queryLogger.LogQueryWithValues(statement, valueArgs)
 
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
 		return err
@@ -212,7 +217,7 @@ func (mysqlAdapter *Mysql) executeInsert(wrappedTx *Transaction, table *Table, h
 
 //Must be used only if table has primary key fields. Slower than bulkInsert as each query executed separately.
 //Prefer to use bulkStoreInTransaction instead of calling this method directly
-func (mysqlAdapter *Mysql) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	var placeholders string
 	var headerWithoutQuotes []string
 	var headerWithQuotes []string
@@ -221,21 +226,21 @@ func (mysqlAdapter *Mysql) bulkMergeInTransaction(wrappedTx *Transaction, table 
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
 		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
 
-		placeholders += "$" + strconv.Itoa(i) + mysqlAdapter.getCastClause(name) + ","
+		placeholders += "$" + strconv.Itoa(i) + m.getCastClause(name) + ","
 
 		i++
 	}
 	placeholders = "(" + removeLastComma(placeholders) + ")"
 
 	statement := fmt.Sprintf(mergeTemplate,
-		mysqlAdapter.config.Schema,
+		m.config.Schema,
 		table.Name,
 		strings.Join(headerWithQuotes, ","),
 		placeholders,
-		buildConstraintName(mysqlAdapter.config.Schema, table.Name),
-		mysqlAdapter.buildUpdateSection(headerWithoutQuotes),
+		buildConstraintName(m.config.Schema, table.Name),
+		m.buildUpdateSection(headerWithoutQuotes),
 	)
-	mergeStmt, err := wrappedTx.tx.PrepareContext(mysqlAdapter.ctx, statement)
+	mergeStmt, err := wrappedTx.tx.PrepareContext(m.ctx, statement)
 	if err != nil {
 		return fmt.Errorf("Error preparing bulk merge statement [%s] table %s statement: %v", statement, table.Name, err)
 	}
@@ -247,8 +252,8 @@ func (mysqlAdapter *Mysql) bulkMergeInTransaction(wrappedTx *Transaction, table 
 			values = append(values, value)
 		}
 
-		mysqlAdapter.queryLogger.LogQueryWithValues(statement, values)
-		_, err = mergeStmt.ExecContext(mysqlAdapter.ctx, values...)
+		m.queryLogger.LogQueryWithValues(statement, values)
+		_, err = mergeStmt.ExecContext(m.ctx, values...)
 		if err != nil {
 			return fmt.Errorf("Error bulk merging in %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
 		}
@@ -258,7 +263,7 @@ func (mysqlAdapter *Mysql) bulkMergeInTransaction(wrappedTx *Transaction, table 
 }
 
 //buildUpdateSection returns value for merge update statement ("col1"=$1, "col2"=$2)
-func (mysqlAdapter *Mysql) buildUpdateSection(header []string) string {
+func (m *MySQL) buildUpdateSection(header []string) string {
 	var updateColumns []string
 	for i, columnName := range header {
 		updateColumns = append(updateColumns, fmt.Sprintf(`"%s"=$%d`, columnName, i+1))
@@ -267,24 +272,24 @@ func (mysqlAdapter *Mysql) buildUpdateSection(header []string) string {
 }
 
 //columnDDL returns column DDL (quoted column name, mapped sql type and 'not null' if pk field)
-func (mysqlAdapter *Mysql) columnDDL(name string, column Column, pkFields map[string]bool) string {
+func (m *MySQL) columnDDL(name string, column Column, pkFields map[string]bool) string {
 	var notNullClause string
 	sqlType := column.SQLType
 
-	if overriddenSQLType, ok := mysqlAdapter.sqlTypes[name]; ok {
+	if overriddenSQLType, ok := m.sqlTypes[name]; ok {
 		sqlType = overriddenSQLType.ColumnType
 	}
 
 	//not null
 	if _, ok := pkFields[name]; ok {
-		notNullClause = " NOT NULL " + mysqlAdapter.getDefaultValueStatement(sqlType)
+		notNullClause = " NOT NULL " + m.getDefaultValueStatement(sqlType)
 	}
 
-	return fmt.Sprintf(`%s %s%s`, name, sqlType, notNullClause)
+	return fmt.Sprintf("`%s` %s%s", name, sqlType, notNullClause)
 }
 
-//return default value statement for creating column
-func (mysqlAdapter *Mysql) getDefaultValueStatement(sqlType string) string {
+//getDefaultValueStatement returns default value statement for creating column
+func (m *MySQL) getDefaultValueStatement(sqlType string) string {
 	//get default value based on type
 	normalizedSqlType := strings.ToLower(sqlType)
 	if strings.Contains(normalizedSqlType, "var") || strings.Contains(normalizedSqlType, "text") {
@@ -295,21 +300,21 @@ func (mysqlAdapter *Mysql) getDefaultValueStatement(sqlType string) string {
 }
 
 //createPrimaryKeyInTransaction create primary key constraint
-func (mysqlAdapter *Mysql) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
+func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
 	if len(table.PKFields) == 0 {
 		return nil
 	}
 
 	var quotedColumnNames []string
 	for _, column := range table.GetPKFields() {
-		quotedColumnNames = append(quotedColumnNames, fmt.Sprintf(`"%s"`, column))
+		quotedColumnNames = append(quotedColumnNames, fmt.Sprintf("`%s`", column))
 	}
 
 	statement := fmt.Sprintf(alterPrimaryKeyTemplate,
-		mysqlAdapter.config.Schema, table.Name, buildConstraintName(mysqlAdapter.config.Schema, table.Name), strings.Join(quotedColumnNames, ","))
-	mysqlAdapter.queryLogger.LogDDL(statement)
+		m.config.Schema, table.Name, buildConstraintName(m.config.Schema, table.Name), strings.Join(quotedColumnNames, ","))
+	m.queryLogger.LogDDL(statement)
 
-	_, err := wrappedTx.tx.ExecContext(mysqlAdapter.ctx, statement)
+	_, err := wrappedTx.tx.ExecContext(m.ctx, statement)
 	if err != nil {
 		return fmt.Errorf("Error setting primary key [%s] %s table: %v", strings.Join(table.GetPKFields(), ","), table.Name, err)
 	}
@@ -320,26 +325,26 @@ func (mysqlAdapter *Mysql) createPrimaryKeyInTransaction(wrappedTx *Transaction,
 //create table columns and pk key
 //override input table sql type with configured cast type
 //make fields from Table PkFields - 'not null'
-func (mysqlAdapter *Mysql) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
+func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string
 	pkFields := table.GetPKFieldsMap()
 	for columnName, column := range table.Columns {
-		columnsDDL = append(columnsDDL, mysqlAdapter.columnDDL(columnName, column, pkFields))
+		columnsDDL = append(columnsDDL, m.columnDDL(columnName, column, pkFields))
 	}
 
 	//sorting columns asc
 	sort.Strings(columnsDDL)
-	query := fmt.Sprintf(mysqlCreateTableTemplate, table.Name, strings.Join(columnsDDL, ", "))
-	mysqlAdapter.queryLogger.LogDDL(query)
+	query := fmt.Sprintf(mySQLCreateTableTemplate, m.config.Schema, table.Name, strings.Join(columnsDDL, ", "))
+	m.queryLogger.LogDDL(query)
 
-	_, err := wrappedTx.tx.ExecContext(mysqlAdapter.ctx, query)
+	_, err := wrappedTx.tx.ExecContext(m.ctx, query)
 
 	if err != nil {
 		wrappedTx.Rollback()
 		return fmt.Errorf("Error creating [%s] table: %v", table.Name, err)
 	}
 
-	err = mysqlAdapter.createPrimaryKeyInTransaction(wrappedTx, table)
+	err = m.createPrimaryKeyInTransaction(wrappedTx, table)
 	if err != nil {
 		wrappedTx.Rollback()
 		return err
