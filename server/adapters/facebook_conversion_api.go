@@ -77,8 +77,9 @@ type FacebookConversionEventsReq struct {
 
 //FacebookConversionAPI adapter for Facebook Conversion API
 type FacebookConversionAPI struct {
-	config      *FacebookConversionAPIConfig
-	httpAdapter *HTTPAdapter
+	AbstractHTTP
+
+	config *FacebookConversionAPIConfig
 }
 
 //NewTestFacebookConversion returns test instance of adapter
@@ -95,7 +96,9 @@ func NewFacebookConversion(config *FacebookConversionAPIConfig, httpAdapterConfi
 		return nil, err
 	}
 
-	return &FacebookConversionAPI{config: config, httpAdapter: httpAdapter}, nil
+	fca := &FacebookConversionAPI{config: config}
+	fca.httpAdapter = httpAdapter
+	return fca, nil
 }
 
 //TestAccess sends test request (empty POST) to Facebook and check if pixel id or access token are invalid
@@ -140,43 +143,9 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 	return errors.New("Empty Facebook response body")
 }
 
-//Insert sends HTTP POST request to Facebook Conversion API via HTTPAdapter
-func (fc *FacebookConversionAPI) Insert(eventContext *EventContext) error {
-	return fc.httpAdapter.SendAsync(eventContext)
-}
-
-//GetTableSchema always return empty schema
-func (fc *FacebookConversionAPI) GetTableSchema(tableName string) (*Table, error) {
-	return &Table{
-		Name:           tableName,
-		Columns:        Columns{},
-		PKFields:       map[string]bool{},
-		DeletePkFields: false,
-		Version:        0,
-	}, nil
-}
-
-//CreateTable Facebook doesn't use tables
-func (fc *FacebookConversionAPI) CreateTable(schemaToCreate *Table) error {
-	return nil
-}
-
-//PatchTableSchema Facebook doesn't use tables
-func (fc *FacebookConversionAPI) PatchTableSchema(schemaToAdd *Table) error {
-	return nil
-}
-
-func (fc *FacebookConversionAPI) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return fmt.Errorf("FacebookConversionAPI doesn't support BulkInsert() func")
-}
-
-func (fc *FacebookConversionAPI) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	return fmt.Errorf("FacebookConversionAPI doesn't support BulkUpdate() func")
-}
-
-//Close closes underlying HTTPAdapter
-func (fc *FacebookConversionAPI) Close() error {
-	return fc.httpAdapter.Close()
+//Type returns adapter type
+func (fc *FacebookConversionAPI) Type() string {
+	return "FacebookConversionAPI"
 }
 
 //FacebookRequestFactory is a factory for building facebook POST HTTP requests from input events

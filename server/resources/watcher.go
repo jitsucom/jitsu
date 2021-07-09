@@ -39,7 +39,7 @@ func (w *Watcher) watch() {
 	w.download()
 	safego.RunWithRestart(func() {
 		for {
-			if appstatus.Instance.Idle {
+			if appstatus.Instance.Idle.Load() {
 				break
 			}
 

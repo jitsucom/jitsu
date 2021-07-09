@@ -69,7 +69,9 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 		}
 	}
 
-	err = ph.multiplexingService.AcceptRequest(ph.processor, c, strToken, []events.Event{event})
+	reqContext := getRequestContext(c)
+
+	err = ph.multiplexingService.AcceptRequest(ph.processor, reqContext, strToken, []events.Event{event})
 	if err != nil {
 		reqBody, _ := json.Marshal(event)
 		logging.Errorf("%v. Tracking pixel event: %s", err, string(reqBody))
