@@ -115,7 +115,8 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 			return err
 		}
 
-		return nil
+		amplitudeAdapter := adapters.NewTestAmplitude(config.Amplitude)
+		return amplitudeAdapter.TestAccess()
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}

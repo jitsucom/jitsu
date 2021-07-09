@@ -11,8 +11,6 @@ import (
 
 const (
 	amplitudeAPIURL = "https://api.amplitude.com/2/httpapi"
-
-	extractKey = "_extract"
 )
 
 //AmplitudeRequest is a dto for sending requests to Amplitude
@@ -23,7 +21,8 @@ type AmplitudeRequest struct {
 
 //AmplitudeResponse is a dto for receiving response from Amplitude
 type AmplitudeResponse struct {
-	Code int `json:"code"`
+	Code  int    `json:"code"`
+	Error string `json:"error"`
 }
 
 //AmplitudeRequestFactory is a factory for building Amplitude HTTP requests from input events
@@ -37,8 +36,15 @@ func newAmplitudeRequestFactory(apiKey string) (HTTPRequestFactory, error) {
 }
 
 //Create returns created amplitude request
+//put empty array in body if object is nil (is used in test connection)
 func (arf *AmplitudeRequestFactory) Create(object map[string]interface{}) (*Request, error) {
-	req := AmplitudeRequest{APIKey: arf.apiKey, Events: []map[string]interface{}{object}}
+	//empty array is required. Otherwise nil will be sent (error)
+	eventsArr := []map[string]interface{}{}
+	if object != nil {
+		eventsArr = append(eventsArr, object)
+	}
+
+	req := AmplitudeRequest{APIKey: arf.apiKey, Events: eventsArr}
 	b, err := json.Marshal(req)
 	if err != nil {
 		return nil, fmt.Errorf("Error marshalling amplitude request [%v]: %v", req, err)
@@ -70,7 +76,9 @@ func (ac *AmplitudeConfig) Validate() error {
 
 //Amplitude is an adapter for sending HTTP requests to Amplitude
 type Amplitude struct {
-	httpAdapter *HTTPAdapter
+	AbstractHTTP
+
+	config *AmplitudeConfig
 }
 
 //NewAmplitude returns configured Amplitude adapter instance
@@ -87,46 +95,24 @@ func NewAmplitude(config *AmplitudeConfig, httpAdapterConfiguration *HTTPAdapter
 		return nil, err
 	}
 
-	return &Amplitude{httpAdapter: httpAdapter}, nil
+	a := &Amplitude{config: config}
+	a.httpAdapter = httpAdapter
+	return a, nil
 }
 
-//Insert passes object to HTTPAdapter
-func (a *Amplitude) Insert(eventContext *EventContext) error {
-	return a.httpAdapter.SendAsync(eventContext)
-}
-
-//GetTableSchema always returns empty table
-func (a *Amplitude) GetTableSchema(tableName string) (*Table, error) {
-	return &Table{
-		Name:           tableName,
-		Columns:        Columns{},
-		PKFields:       map[string]bool{},
-		DeletePkFields: false,
-		Version:        0,
-	}, nil
-}
-
-//CreateTable returns nil
-func (a *Amplitude) CreateTable(schemaToCreate *Table) error {
-	return nil
-}
-
-//PatchTableSchema returns nil
-func (a *Amplitude) PatchTableSchema(schemaToAdd *Table) error {
-	return nil
-}
-
-func (a *Amplitude) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return fmt.Errorf("Amplitude doesn't support BulkInsert() func")
-}
-
-func (a *Amplitude) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
-	return fmt.Errorf("Amplitude doesn't support BulkUpdate() func")
+//NewTestAmplitude returns test instance of adapter
+func NewTestAmplitude(config *AmplitudeConfig) *Amplitude {
+	return &Amplitude{config: config}
 }
 
 //TestAccess sends test request (empty POST) to Amplitude and check if error has occurred
 func (a *Amplitude) TestAccess() error {
-	r, err := a.httpAdapter.httpReqFactory.Create(map[string]interface{}{})
+	httpReqFactory, err := newAmplitudeRequestFactory(a.config.APIKey)
+	if err != nil {
+		return err
+	}
+
+	r, err := httpReqFactory.Create(nil)
 	if err != nil {
 		return err
 	}
@@ -157,7 +143,7 @@ func (a *Amplitude) TestAccess() error {
 		}
 
 		if response.Code != 200 {
-			return fmt.Errorf("Error connecting to amplitude: [code=%d]", response.Code)
+			return fmt.Errorf("Error connecting to amplitude [code=%d]: %s", response.Code, response.Error)
 		}
 
 		//assume other errors - it's ok
@@ -167,7 +153,7 @@ func (a *Amplitude) TestAccess() error {
 	return err
 }
 
-//Close closes underlying HTTPAdapter
-func (a *Amplitude) Close() error {
-	return a.httpAdapter.Close()
+//Type returns adapter type
+func (a *Amplitude) Type() string {
+	return "Amplitude"
 }
