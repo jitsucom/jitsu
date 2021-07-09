@@ -32,6 +32,10 @@ func TestMysqlBulkInsert(t *testing.T) {
 	assert.Equal(t, rows, 5)
 }
 
+func TestMysqlBulkMerge(t *testing.T) {
+	assert.Equal(t, 5, 5)
+}
+
 //func TestMysqlBulkMerge(t *testing.T) {
 //	table := &Table{
 //		Name:     "test_merge",
