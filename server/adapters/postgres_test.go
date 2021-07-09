@@ -13,30 +13,30 @@ import (
 	"testing"
 )
 
-func TestBulkInsert(t *testing.T) {
+func TestPostgresBulkInsert(t *testing.T) {
 	table := &Table{
 		Name:    "test_insert",
 		Columns: Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
 	}
-	container, pg := setupDatabase(t, table)
+	container, pg := setupPostgresDatabase(t, table)
 	defer container.Close()
-	err := pg.BulkInsert(table, createObjects(5))
+	err := pg.BulkInsert(table, createObjectsForPostgres(5))
 	require.NoError(t, err, "Failed to bulk insert 5 objects")
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
 	assert.Equal(t, rows, 5)
 }
 
-func TestBulkMerge(t *testing.T) {
+func TestPostgresBulkMerge(t *testing.T) {
 	table := &Table{
 		Name:     "test_merge",
 		Columns:  Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
 		PKFields: map[string]bool{"field1": true},
 	}
-	container, pg := setupDatabase(t, table)
+	container, pg := setupPostgresDatabase(t, table)
 	defer container.Close()
 	// store 8 objects with 3 id duplications, the result must be 5 objects
-	objects := createObjects(5)
+	objects := createObjectsForPostgres(5)
 	objects = append(objects, objects[0])
 	objects = append(objects, objects[2])
 	objects = append(objects, objects[3])
@@ -47,7 +47,7 @@ func TestBulkMerge(t *testing.T) {
 	assert.Equal(t, rows, 5)
 }
 
-func setupDatabase(t *testing.T, table *Table) (*test.PostgresContainer, *Postgres) {
+func setupPostgresDatabase(t *testing.T, table *Table) (*test.PostgresContainer, *Postgres) {
 	ctx := context.Background()
 	container, err := test.NewPostgresContainer(ctx)
 	if err != nil {
@@ -63,7 +63,7 @@ func setupDatabase(t *testing.T, table *Table) (*test.PostgresContainer, *Postgr
 	return container, pg
 }
 
-func createObjects(num int) []map[string]interface{} {
+func createObjectsForPostgres(num int) []map[string]interface{} {
 	var objects []map[string]interface{}
 	for i := 0; i < num; i++ {
 		object := make(map[string]interface{})

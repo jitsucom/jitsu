@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	tableNamesQuery  = `SELECT table_name FROM information_schema.tables WHERE table_schema=$1`
-	tableSchemaQuery = `SELECT 
+	tableNamesQuery          = `SELECT table_name FROM information_schema.tables WHERE table_schema=$1`
+	postgresTableSchemaQuery = `SELECT 
  							pg_attribute.attname AS name,
     						pg_catalog.format_type(pg_attribute.atttypid,pg_attribute.atttypmod) AS column_type
 						FROM pg_attribute
@@ -29,7 +29,7 @@ const (
   							AND  pg_namespace.nspname = $1
   							AND pg_class.relname = $2
   							AND pg_attribute.attnum > 0`
-	primaryKeyFieldsQuery = `SELECT
+	postgresPrimaryKeyFieldsQuery = `SELECT
 							pg_attribute.attname
 						FROM pg_index, pg_class, pg_attribute, pg_namespace
 						WHERE
@@ -44,7 +44,7 @@ const (
 	addColumnTemplate                 = `ALTER TABLE "%s"."%s" ADD COLUMN %s`
 	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT %s"
 	alterPrimaryKeyTemplate           = `ALTER TABLE "%s"."%s" ADD CONSTRAINT %s PRIMARY KEY (%s)`
-	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
+	postgresCreateTableTemplate       = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
 	mergeTemplate                     = `INSERT INTO "%s"."%s"(%s) VALUES %s ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
 	deleteQueryTemplate               = `DELETE FROM "%s"."%s" WHERE %s`
@@ -248,7 +248,7 @@ func (p *Postgres) Insert(eventContext *EventContext) error {
 
 func (p *Postgres) getTable(tableName string) (*Table, error) {
 	table := &Table{Name: tableName, Columns: map[string]Column{}, PKFields: map[string]bool{}}
-	rows, err := p.dataSource.QueryContext(p.ctx, tableSchemaQuery, p.config.Schema, tableName)
+	rows, err := p.dataSource.QueryContext(p.ctx, postgresTableSchemaQuery, p.config.Schema, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
 	}
@@ -286,7 +286,7 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 
 	//sorting columns asc
 	sort.Strings(columnsDDL)
-	query := fmt.Sprintf(createTableTemplate, p.config.Schema, table.Name, strings.Join(columnsDDL, ", "))
+	query := fmt.Sprintf(postgresCreateTableTemplate, p.config.Schema, table.Name, strings.Join(columnsDDL, ", "))
 	p.queryLogger.LogDDL(query)
 
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
@@ -615,7 +615,7 @@ func buildConstraintName(schemaName string, tableName string) string {
 
 func (p *Postgres) getPrimaryKeys(tableName string) (map[string]bool, error) {
 	primaryKeys := map[string]bool{}
-	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, primaryKeyFieldsQuery, p.config.Schema+"."+tableName, p.config.Schema)
+	pkFieldsRows, err := p.dataSource.QueryContext(p.ctx, postgresPrimaryKeyFieldsQuery, p.config.Schema+"."+tableName, p.config.Schema)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", p.config.Schema, tableName, err)
 	}

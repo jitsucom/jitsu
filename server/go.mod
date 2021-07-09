@@ -13,6 +13,7 @@ require (
 	github.com/docker/go-connections v0.4.0
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-redsync/redsync/v4 v4.3.0
+	github.com/go-sql-driver/mysql v1.6.0
 	github.com/gomodule/redigo v1.8.2
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/martian v2.1.0+incompatible
