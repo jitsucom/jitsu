@@ -46,13 +46,16 @@ type Service struct {
 
 //NewService returns configured Service and starts goroutine for handling write-ahead-log
 func NewService(logEventPath string, logger *logging.AsyncLogger, multiplexingService *multiplexing.Service, processorHolder *events.ProcessorHolder) *Service {
-	return &Service{
+	s := &Service{
 		walFileMask:         path.Join(logEventPath, logging.IncomingDir, walFileMask),
 		logger:              logger,
 		multiplexingService: multiplexingService,
 		processorHolder:     processorHolder,
 		closed:              atomic.NewBool(false),
 	}
+
+	s.start()
+	return s
 }
 
 //Run goroutine after 5 minute sleep for:
@@ -89,7 +92,7 @@ func (s *Service) start() {
 				}
 			}
 
-			time.Sleep(time.Second)
+			time.Sleep(time.Minute)
 		}
 	})
 }

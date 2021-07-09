@@ -353,7 +353,7 @@ func mapAmplitude(aDestination *entities.Destination) (*enstorages.DestinationCo
 	aFormData := &entities.AmplitudeFormData{}
 	err = json.Unmarshal(b, aFormData)
 	if err != nil {
-		return nil, fmt.Errorf("Error unmarshaling facebook form data: %v", err)
+		return nil, fmt.Errorf("Error unmarshaling amplitude form data: %v", err)
 	}
 
 	return &enstorages.DestinationConfig{
