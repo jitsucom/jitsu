@@ -352,19 +352,28 @@ export const redis: SourceConnector = {
       displayName: 'Redis Host',
       id: 'config.host',
       type: stringType,
-      required: true
+      required: true,
+      documentation: <>
+        Your Redis host
+      </>
     },
     {
       displayName: 'Redis Port',
       id: 'config.port',
       type: intType,
       defaultValue: 6379,
-      required: true
+      required: true,
+      documentation: <>
+        Your Redis port
+      </>
     },
     {
       displayName: 'Redis Password',
       id: 'config.password',
-      type: passwordType
+      type: passwordType,
+      documentation: <>
+        Your Redis password. Leave it empty if your Redis doesn't have a password.
+      </>
     }
   ],
   documentation: {
