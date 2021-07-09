@@ -38,6 +38,7 @@ type AppConfig struct {
 	closeMe []io.Closer
 
 	eventsConsumers []io.Closer
+	writeAheadLog   io.Closer
 }
 
 var (
@@ -309,6 +310,18 @@ func (a *AppConfig) CloseEventsConsumers() {
 		if err := ec.Close(); err != nil {
 			logging.Errorf("[EventsConsumer] %v", err)
 		}
+	}
+}
+
+//ScheduleWriteAheadLogClosing adds wal.Service closer
+func (a *AppConfig) ScheduleWriteAheadLogClosing(c io.Closer) {
+	a.writeAheadLog = c
+}
+
+//CloseWriteAheadLog closes write-ahead-log service in the last call
+func (a *AppConfig) CloseWriteAheadLog() {
+	if err := a.writeAheadLog.Close(); err != nil {
+		logging.Errorf("[WriteAheadLog] %v", err)
 	}
 }
 

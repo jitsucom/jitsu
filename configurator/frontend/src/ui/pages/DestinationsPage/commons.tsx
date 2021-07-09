@@ -1,4 +1,5 @@
 import {
+  amplitudeDestination,
   bigQueryDestination,
   clickHouseDestination,
   facebookDestination,
@@ -17,7 +18,8 @@ export const destinationsReferenceMap = {
   snowflake: snowflakeDestination,
   facebook: facebookDestination,
   google_analytics: googleAnalyticsDestination,
-  webhook: webhookDestination
+  webhook: webhookDestination,
+  amplitude: amplitudeDestination
 } as const;
 
 export const destinationsReferenceList = Object.values(destinationsReferenceMap);
