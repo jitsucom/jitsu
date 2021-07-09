@@ -1,28 +1,26 @@
 package schema
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/templates"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"strings"
-	"text/template"
 	"time"
 )
 
 //TableNameExtractor extracts table name from every JSON event
 type TableNameExtractor struct {
 	tableNameExtractExpression string
-	tmpl                       *template.Template
+	tmpl                       templates.TemplateExecutor
 	useTimestamp               bool
 }
 
 //NewTableNameExtractor returns configured TableNameExtractor
 func NewTableNameExtractor(tableNameExtractExpression string) (*TableNameExtractor, error) {
 	//Table naming
-	tmpl, err := template.New("table name extract").
-		Parse(tableNameExtractExpression)
+	tmpl, err := templates.SmartParse("table name extract", tableNameExtractExpression)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing table name template %v", err)
 	}
@@ -63,13 +61,20 @@ func (tne *TableNameExtractor) Extract(object map[string]interface{}) (result st
 		object[timestamp.Key] = t
 	}
 
-	var buf bytes.Buffer
-	if err := tne.tmpl.Execute(&buf, object); err != nil {
+	resultObject, err := tne.tmpl.ProcessEvent(object)
+	if err != nil {
 		return "", fmt.Errorf("Error executing %s template: %v", tne.tableNameExtractExpression, err)
 	}
-
+	switch resultObject.(type) {
+	case string:
+		result = resultObject.(string)
+	default:
+		//TODO: maybe we need something better here
+		result = ""
+	}
 	// format "<no value>" -> null
-	formatted := strings.ReplaceAll(buf.String(), "<no value>", "null")
-	// format "Abc dse" -> "abc_dse"
+	formatted := strings.ReplaceAll(result, "<no value>", "null")
+	// format "Abc dse" -> "abc_dse" TODO: why we do that?
+
 	return Reformat(strings.TrimSpace(formatted)), nil
 }

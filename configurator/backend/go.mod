@@ -7,10 +7,12 @@ require (
 	firebase.google.com/go/v4 v4.1.0
 	github.com/bramvdbogaerde/go-scp v0.0.0-20200820121624-ded9ee94aef5
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/dop251/goja v0.0.0-20210630164231-8f81471d5d0b
 	github.com/gin-gonic/contrib v0.0.0-20201101042839-6a891bf89f19
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-acme/lego v2.7.2+incompatible
 	github.com/gomodule/redigo v1.8.2
+	github.com/google/go-cmp v0.5.4
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/jitsucom/jitsu/server v1.31.9
 	github.com/lib/pq v1.10.2
