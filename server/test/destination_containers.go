@@ -21,11 +21,18 @@ const (
 	pgDatabase    = "test"
 	pgSchema      = "public"
 
+	mysqlDefaultPort  = "3306/tcp"
+	mysqlRootPassword = "test_root_password"
+	mysqlUser         = "test_user"
+	mysqlPassword     = "test_password"
+	mysqlDatabase     = "test_database"
+
 	chDatabase           = "default"
 	chDatasourceTemplate = "http://default:@localhost:%d/default?read_timeout=5m&timeout=5m&enable_http_compression=1"
 
 	envClickhousePortVariable = "CH_TEST_PORT"
 	envPostgresPortVariable   = "PG_TEST_PORT"
+	envMysqlPortVariable      = "MYSQL_TEST_PORT"
 )
 
 //PostgresContainer is a Postgres testcontainer
@@ -36,6 +43,17 @@ type PostgresContainer struct {
 	Port      int
 	Database  string
 	Schema    string
+	Username  string
+	Password  string
+}
+
+//MysqlContainer is a Mysql testcontainer
+type MysqlContainer struct {
+	Container testcontainers.Container
+	Context   context.Context
+	Host      string
+	Port      int
+	Database  string
 	Username  string
 	Password  string
 }
@@ -83,6 +101,47 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 		Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}, nil
 }
 
+//NewMysqlContainer creates new Mysql test container if MYSQL_TEST_PORT is not defined. Otherwise uses db at defined port.
+//This logic is required for running test at CI environment
+func NewMysqlContainer(ctx context.Context) (*MysqlContainer, error) {
+	if os.Getenv(envMysqlPortVariable) != "" {
+		port, err := strconv.Atoi(os.Getenv(envMysqlPortVariable))
+		if err != nil {
+			return nil, err
+		}
+		return &MysqlContainer{Context: ctx, Host: "localhost", Port: port,
+			Database: mysqlDatabase, Username: mysqlUser, Password: mysqlPassword}, nil
+	}
+	dbSettings := make(map[string]string, 0)
+	dbSettings["MYSQL_ROOT_PASSWORD"] = mysqlRootPassword
+	dbSettings["MYSQL_USER"] = mysqlUser
+	dbSettings["MYSQL_PASSWORD"] = mysqlPassword
+	dbSettings["MYSQL_DATABASE"] = mysqlDatabase
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "mysql:8.0.25",
+			ExposedPorts: []string{mysqlDefaultPort},
+			Env:          dbSettings,
+			WaitingFor:   tcWait.ForLog("port: 3306  MySQL Community Server - GPL"),
+		},
+		Started: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	host, err := container.Host(ctx)
+	if err != nil {
+		return nil, err
+	}
+	port, err := container.MappedPort(ctx, "3306")
+	if err != nil {
+		return nil, err
+	}
+	return &MysqlContainer{Container: container, Context: ctx, Host: host, Port: port.Int(),
+		Database: mysqlDatabase, Username: mysqlUser, Password: mysqlPassword}, nil
+}
+
 //CountRows returns row count in DB table with name = table
 //or error if occurred
 func (pgc *PostgresContainer) CountRows(table string) (int, error) {
@@ -99,6 +158,25 @@ func (pgc *PostgresContainer) CountRows(table string) (int, error) {
 			return 0, err
 		}
 
+		return -1, err
+	}
+	defer rows.Close()
+	rows.Next()
+	var count int
+	err = rows.Scan(&count)
+	return count, err
+}
+
+func (mysqlContainer *MysqlContainer) CountRows(table string) (int, error) {
+	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
+	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		mysqlContainer.Username, mysqlContainer.Password, mysqlContainer.Host, mysqlContainer.Port, mysqlContainer.Database)
+	dataSource, err := sql.Open("mysql", connectionString)
+	if err != nil {
+		return -1, err
+	}
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT count(*) FROM %s", table))
+	if err != nil {
 		return -1, err
 	}
 	defer rows.Close()
@@ -152,12 +230,22 @@ func (pgc *PostgresContainer) GetAllSortedRows(table, orderClause string) ([]map
 	return objects, nil
 }
 
-//Close terminates underlying docker container
+//Close terminates underlying postgres docker container
 func (pgc *PostgresContainer) Close() {
 	if pgc.Container != nil {
 		err := pgc.Container.Terminate(pgc.Context)
 		if err != nil {
-			logging.Error("Failed to stop container")
+			logging.Error("Failed to stop postgres container")
+		}
+	}
+}
+
+//Close terminates underlying mysql docker container
+func (mysqlContainer *MysqlContainer) Close() {
+	if mysqlContainer.Container != nil {
+		err := mysqlContainer.Container.Terminate(mysqlContainer.Context)
+		if err != nil {
+			logging.Error("Failed to stop mysql container")
 		}
 	}
 }
