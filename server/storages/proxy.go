@@ -5,6 +5,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"go.uber.org/atomic"
 	"sync"
 	"time"
 )
@@ -16,13 +17,18 @@ type RetryableProxy struct {
 
 	config  *Config
 	storage Storage
-	ready   bool
-	closed  bool
+	ready   *atomic.Bool
+	closed  *atomic.Bool
 }
 
 //newProxy return New RetryableProxy and starts goroutine
 func newProxy(factoryMethod func(*Config) (Storage, error), config *Config) StorageProxy {
-	rsp := &RetryableProxy{factoryMethod: factoryMethod, config: config}
+	rsp := &RetryableProxy{
+		factoryMethod: factoryMethod,
+		config:        config,
+		ready:         atomic.NewBool(false),
+		closed:        atomic.NewBool(false),
+	}
 	rsp.start()
 	return rsp
 }
@@ -31,7 +37,7 @@ func newProxy(factoryMethod func(*Config) (Storage, error), config *Config) Stor
 func (rsp *RetryableProxy) start() {
 	safego.RunWithRestart(func() {
 		for {
-			if rsp.closed {
+			if rsp.closed.Load() {
 				break
 			}
 
@@ -44,7 +50,7 @@ func (rsp *RetryableProxy) start() {
 
 			rsp.Lock()
 			rsp.storage = storage
-			rsp.ready = true
+			rsp.ready.Store(true)
 			rsp.Unlock()
 
 			logging.Infof("[%s] destination has been initialized!", rsp.config.destinationID)
@@ -60,7 +66,7 @@ func (rsp *RetryableProxy) start() {
 func (rsp *RetryableProxy) Get() (Storage, bool) {
 	rsp.RLock()
 	defer rsp.RUnlock()
-	return rsp.storage, rsp.ready
+	return rsp.storage, rsp.ready.Load()
 }
 
 //GetUniqueIDField returns unique ID field configuration
@@ -81,7 +87,7 @@ func (rsp *RetryableProxy) IsCachingDisabled() bool {
 
 //Close stops underlying goroutine and close the storage
 func (rsp *RetryableProxy) Close() error {
-	rsp.closed = true
+	rsp.closed.Store(true)
 	if rsp.storage != nil {
 		return rsp.storage.Close()
 	}
