@@ -17,9 +17,9 @@ func TestMySQLBulkInsert(t *testing.T) {
 	table := &Table{
 		Name: "test_insert",
 		Columns: Columns{
-			"field1": Column{"MEDIUMTEXT"},
+			"field1": Column{"BIGINT"},
 			"field2": Column{"MEDIUMTEXT"},
-			"field3": Column{"BIGINT"},
+			"field3": Column{"MEDIUMTEXT"},
 			"user":   Column{"MEDIUMTEXT"},
 		},
 	}
@@ -33,28 +33,29 @@ func TestMySQLBulkInsert(t *testing.T) {
 }
 
 func TestMySQLBulkMerge(t *testing.T) {
-	assert.Equal(t, 5, 5)
+	table := &Table{
+		Name: "test_merge",
+		Columns: Columns{
+			"field1": Column{"BIGINT"},
+			"field2": Column{"MEDIUMTEXT"},
+			"field3": Column{"MEDIUMTEXT"},
+			"user":   Column{"MEDIUMTEXT"},
+		},
+		PKFields: map[string]bool{"field1": true},
+	}
+	container, mySQL := setupMySQLDatabase(t, table)
+	defer container.Close()
+	// store 8 objects with 3 id duplications, the result must be 5 objects
+	objects := createObjectsForMySQL(5)
+	objects = append(objects, objects[0])
+	objects = append(objects, objects[2])
+	objects = append(objects, objects[3])
+	err := mySQL.BulkInsert(table, objects)
+	require.NoError(t, err, "Failed to bulk merge objects")
+	rows, err := container.CountRows(table.Name)
+	require.NoError(t, err, "Failed to count objects at "+table.Name)
+	assert.Equal(t, rows, 5)
 }
-
-//func TestMySQLBulkMerge(t *testing.T) {
-//	table := &Table{
-//		Name:     "test_merge",
-//		Columns:  Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
-//		PKFields: map[string]bool{"field1": true},
-//	}
-//	container, pg := setupMySQLDatabase(t, table)
-//	defer container.Close()
-//	// store 8 objects with 3 id duplications, the result must be 5 objects
-//	objects := createObjectsForMySQL(5)
-//	objects = append(objects, objects[0])
-//	objects = append(objects, objects[2])
-//	objects = append(objects, objects[3])
-//	err := pg.BulkInsert(table, objects)
-//	require.NoError(t, err, "Failed to bulk merge objects")
-//	rows, err := container.CountRows(table.Name)
-//	require.NoError(t, err, "Failed to count objects at "+table.Name)
-//	assert.Equal(t, rows, 5)
-//}
 
 func setupMySQLDatabase(t *testing.T, table *Table) (*test.MySQLContainer, *MySQL) {
 	ctx := context.Background()

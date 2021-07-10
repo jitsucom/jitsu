@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	tableNamesQuery          = `SELECT table_name FROM information_schema.tables WHERE table_schema=$1`
 	postgresTableSchemaQuery = `SELECT 
  							pg_attribute.attname AS name,
     						pg_catalog.format_type(pg_attribute.atttypid,pg_attribute.atttypmod) AS column_type
@@ -40,18 +39,18 @@ const (
 								pg_attribute.attrelid = pg_class.oid AND
 								pg_attribute.attnum = any(pg_index.indkey)
 					  	AND indisprimary`
-	createDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS "%s"`
-	addColumnTemplate                 = `ALTER TABLE "%s"."%s" ADD COLUMN %s`
-	dropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT %s"
-	alterPrimaryKeyTemplate           = `ALTER TABLE "%s"."%s" ADD CONSTRAINT %s PRIMARY KEY (%s)`
-	postgresCreateTableTemplate       = `CREATE TABLE "%s"."%s" (%s)`
-	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
-	mergeTemplate                     = `INSERT INTO "%s"."%s"(%s) VALUES %s ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
-	deleteQueryTemplate               = `DELETE FROM "%s"."%s" WHERE %s`
+	postgresCreateDbSchemaIfNotExistsTemplate = `CREATE SCHEMA IF NOT EXISTS "%s"`
+	postgresAddColumnTemplate                 = `ALTER TABLE "%s"."%s" ADD COLUMN %s`
+	postgresDropPrimaryKeyTemplate            = "ALTER TABLE %s.%s DROP CONSTRAINT %s"
+	postgresAlterPrimaryKeyTemplate           = `ALTER TABLE "%s"."%s" ADD CONSTRAINT %s PRIMARY KEY (%s)`
+	postgresCreateTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
+	postgresInsertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
+	postgresMergeTemplate                     = `INSERT INTO "%s"."%s"(%s) VALUES %s ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
+	postgresDeleteQueryTemplate               = `DELETE FROM "%s"."%s" WHERE %s`
 
-	copyColumnTemplate   = `UPDATE "%s"."%s" SET %s = %s`
-	dropColumnTemplate   = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
-	renameColumnTemplate = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
+	postgresCopyColumnTemplate   = `UPDATE "%s"."%s" SET %s = %s`
+	postgresDropColumnTemplate   = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
+	postgresRenameColumnTemplate = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
 
 	placeholdersStringBuildErrTemplate = `Error building placeholders string: %v`
 	postgresValuesLimit                = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
@@ -180,7 +179,7 @@ func (p *Postgres) CreateDbSchema(dbSchemaName string) error {
 		return err
 	}
 
-	return createDbSchemaInTransaction(p.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName, p.queryLogger)
+	return createDbSchemaInTransaction(p.ctx, wrappedTx, postgresCreateDbSchemaIfNotExistsTemplate, dbSchemaName, p.queryLogger)
 }
 
 //CreateTable creates database table with name,columns provided in Table representation
@@ -231,9 +230,9 @@ func (p *Postgres) Insert(eventContext *EventContext) error {
 
 	var statement string
 	if len(eventContext.Table.PKFields) == 0 {
-		statement = fmt.Sprintf(insertTemplate, p.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
+		statement = fmt.Sprintf(postgresInsertTemplate, p.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
 	} else {
-		statement = fmt.Sprintf(mergeTemplate, p.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", buildConstraintName(p.config.Schema, eventContext.Table.Name), p.buildUpdateSection(columnsWithoutQuotes))
+		statement = fmt.Sprintf(postgresMergeTemplate, p.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", buildConstraintName(p.config.Schema, eventContext.Table.Name), p.buildUpdateSection(columnsWithoutQuotes))
 	}
 
 	p.queryLogger.LogQueryWithValues(statement, values)
@@ -312,7 +311,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 	//patch columns
 	for columnName, column := range patchTable.Columns {
 		columnDDL := p.columnDDL(columnName, column, pkFields)
-		query := fmt.Sprintf(addColumnTemplate, p.config.Schema, patchTable.Name, columnDDL)
+		query := fmt.Sprintf(postgresAddColumnTemplate, p.config.Schema, patchTable.Name, columnDDL)
 		p.queryLogger.LogDDL(query)
 
 		_, err := wrappedTx.tx.ExecContext(p.ctx, query)
@@ -354,7 +353,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 		quotedColumnNames = append(quotedColumnNames, fmt.Sprintf(`"%s"`, column))
 	}
 
-	statement := fmt.Sprintf(alterPrimaryKeyTemplate,
+	statement := fmt.Sprintf(postgresAlterPrimaryKeyTemplate,
 		p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name), strings.Join(quotedColumnNames, ","))
 	p.queryLogger.LogDDL(statement)
 
@@ -368,7 +367,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 
 //delete primary key
 func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
-	query := fmt.Sprintf(dropPrimaryKeyTemplate, p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name))
+	query := fmt.Sprintf(postgresDropPrimaryKeyTemplate, p.config.Schema, table.Name, buildConstraintName(p.config.Schema, table.Name))
 	p.queryLogger.LogDDL(query)
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 	if err != nil {
@@ -503,7 +502,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 	}
 	placeholders = "(" + removeLastComma(placeholders) + ")"
 
-	statement := fmt.Sprintf(mergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ","), placeholders, buildConstraintName(p.config.Schema, table.Name), p.buildUpdateSection(headerWithoutQuotes))
+	statement := fmt.Sprintf(postgresMergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ","), placeholders, buildConstraintName(p.config.Schema, table.Name), p.buildUpdateSection(headerWithoutQuotes))
 	mergeStmt, err := wrappedTx.tx.PrepareContext(p.ctx, statement)
 	if err != nil {
 		return fmt.Errorf("Error preparing bulk merge statement [%s] table %s statement: %v", statement, table.Name, err)
@@ -528,7 +527,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 
 func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	deleteCondition, values := p.toDeleteQuery(deleteConditions)
-	query := fmt.Sprintf(deleteQueryTemplate, p.config.Schema, table.Name, deleteCondition)
+	query := fmt.Sprintf(postgresDeleteQueryTemplate, p.config.Schema, table.Name, deleteCondition)
 	p.queryLogger.LogQueryWithValues(query, values)
 
 	if _, err := wrappedTx.tx.ExecContext(p.ctx, query, values...); err != nil {
@@ -548,14 +547,14 @@ func (p *Postgres) toDeleteQuery(conditions *DeleteConditions) (string, []interf
 	return strings.Join(queryConditions, conditions.JoinCondition), values
 }
 
-//executeInsert execute insert with insertTemplate
+//executeInsert execute insert with postgresInsertTemplate
 func (p *Postgres) executeInsert(wrappedTx *Transaction, table *Table, headerWithoutQuotes []string, placeholders string, valueArgs []interface{}) error {
 	var quotedHeader []string
 	for _, columnName := range headerWithoutQuotes {
 		quotedHeader = append(quotedHeader, fmt.Sprintf(`"%s"`, columnName))
 	}
 
-	statement := fmt.Sprintf(insertTemplate, p.config.Schema, table.Name, strings.Join(quotedHeader, ","), placeholders)
+	statement := fmt.Sprintf(postgresInsertTemplate, p.config.Schema, table.Name, strings.Join(quotedHeader, ","), placeholders)
 
 	p.queryLogger.LogQueryWithValues(statement, valueArgs)
 

@@ -8,25 +8,28 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 )
 
 const (
-	mySQLCreateTableTemplate = "CREATE TABLE `%s`.`%s` (%s)"
-	mySQLInsertTemplate      = "INSERT INTO `%s`.`%s` (%s) VALUES %s"
-	mySQLValuesLimit         = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	mySQLCreateTableTemplate     = "CREATE TABLE `%s`.`%s` (%s)"
+	mySQLInsertTemplate          = "INSERT INTO `%s`.`%s` (%s) VALUES %s"
+	mySQLAlterPrimaryKeyTemplate = "ALTER TABLE `%s`.`%s` ADD CONSTRAINT %s PRIMARY KEY (%s)"
+	mySQLMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) VALUES %s ON DUPLICATE KEY UPDATE %s"
+	mySQLValuesLimit             = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
 	SchemaToMySQL = map[typing.DataType]string{
+		//TODO revisit string type in MySQL, maybe string should be stored as varchar
 		typing.STRING:    "MEDIUMTEXT", // A TEXT column with a maximum length of 16_777_215 characters
 		typing.INT64:     "BIGINT",
 		typing.FLOAT64:   "DECIMAL(38,18)",
 		typing.TIMESTAMP: "TIMESTAMP",
 		typing.BOOL:      "BOOLEAN",
-		typing.UNKNOWN:   "MEDIUMTEXT", // A TEXT column with a maximum length of 16_777_215 characters
+		//TODO revisit string type in MySQL, maybe string should be stored as varchar
+		typing.UNKNOWN: "MEDIUMTEXT", // A TEXT column with a maximum length of 16_777_215 characters
 	}
 )
 
@@ -197,7 +200,7 @@ func (m *MySQL) getCastClause(name string) string {
 	return ""
 }
 
-//executeInsert executes insert with insertTemplate
+//executeInsert executes insert with postgresInsertTemplate
 func (m *MySQL) executeInsert(wrappedTx *Transaction, table *Table, headerWithoutQuotes []string, placeholders string, valueArgs []interface{}) error {
 	var quotedHeader []string
 	for _, columnName := range headerWithoutQuotes {
@@ -221,23 +224,18 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 	var placeholders string
 	var headerWithoutQuotes []string
 	var headerWithQuotes []string
-	i := 1
 	for name := range table.Columns {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
-		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
-
-		placeholders += "$" + strconv.Itoa(i) + m.getCastClause(name) + ","
-
-		i++
+		headerWithQuotes = append(headerWithQuotes, m.quot(name))
+		placeholders += "?,"
 	}
 	placeholders = "(" + removeLastComma(placeholders) + ")"
 
-	statement := fmt.Sprintf(mergeTemplate,
+	statement := fmt.Sprintf(mySQLMergeTemplate,
 		m.config.Schema,
 		table.Name,
 		strings.Join(headerWithQuotes, ","),
 		placeholders,
-		buildConstraintName(m.config.Schema, table.Name),
 		m.buildUpdateSection(headerWithoutQuotes),
 	)
 	mergeStmt, err := wrappedTx.tx.PrepareContext(m.ctx, statement)
@@ -251,6 +249,8 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 			value, _ := row[column]
 			values = append(values, value)
 		}
+		//TODO remove values duplication, add named placeholders instead of ?
+		values = append(values, values...)
 
 		m.queryLogger.LogQueryWithValues(statement, values)
 		_, err = mergeStmt.ExecContext(m.ctx, values...)
@@ -265,8 +265,8 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 //buildUpdateSection returns value for merge update statement ("col1"=$1, "col2"=$2)
 func (m *MySQL) buildUpdateSection(header []string) string {
 	var updateColumns []string
-	for i, columnName := range header {
-		updateColumns = append(updateColumns, fmt.Sprintf(`"%s"=$%d`, columnName, i+1))
+	for _, columnName := range header {
+		updateColumns = append(updateColumns, fmt.Sprintf("%s=?", m.quot(columnName)))
 	}
 	return strings.Join(updateColumns, ",")
 }
@@ -285,7 +285,7 @@ func (m *MySQL) columnDDL(name string, column Column, pkFields map[string]bool) 
 		notNullClause = " NOT NULL " + m.getDefaultValueStatement(sqlType)
 	}
 
-	return fmt.Sprintf("`%s` %s%s", name, sqlType, notNullClause)
+	return fmt.Sprintf("%s %s%s", m.quot(name), sqlType, notNullClause)
 }
 
 //getDefaultValueStatement returns default value statement for creating column
@@ -307,11 +307,11 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 
 	var quotedColumnNames []string
 	for _, column := range table.GetPKFields() {
-		quotedColumnNames = append(quotedColumnNames, fmt.Sprintf("`%s`", column))
+		quotedColumnNames = append(quotedColumnNames, m.quot(column))
 	}
 
-	statement := fmt.Sprintf(alterPrimaryKeyTemplate,
-		m.config.Schema, table.Name, buildConstraintName(m.config.Schema, table.Name), strings.Join(quotedColumnNames, ","))
+	statement := fmt.Sprintf(mySQLAlterPrimaryKeyTemplate,
+		m.config.Schema, table.Name, m.buildConstraintName(table.Name), strings.Join(quotedColumnNames, ","))
 	m.queryLogger.LogDDL(statement)
 
 	_, err := wrappedTx.tx.ExecContext(m.ctx, statement)
@@ -351,4 +351,12 @@ func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) e
 	}
 
 	return wrappedTx.tx.Commit()
+}
+
+func (m *MySQL) buildConstraintName(tableName string) string {
+	return m.quot(fmt.Sprintf("%s_%s_pk", m.config.Schema, tableName))
+}
+
+func (m *MySQL) quot(str string) string {
+	return fmt.Sprintf("`%s`", str)
 }
