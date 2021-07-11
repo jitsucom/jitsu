@@ -13,23 +13,35 @@ import (
 )
 
 const (
+	mySQLTableSchemaQuery = `SELECT
+									column_name AS name,
+									data_type AS column_type
+								FROM information_schema.columns
+								WHERE table_schema = ? AND table_name = ?`
+	mySQLPrimaryKeyFieldsQuery = `SELECT
+									column_name AS name
+								FROM information_schema.columns
+								WHERE table_schema = ? AND table_name = ? AND column_key = 'PRI'`
 	mySQLCreateTableTemplate     = "CREATE TABLE `%s`.`%s` (%s)"
 	mySQLInsertTemplate          = "INSERT INTO `%s`.`%s` (%s) VALUES %s"
 	mySQLAlterPrimaryKeyTemplate = "ALTER TABLE `%s`.`%s` ADD CONSTRAINT %s PRIMARY KEY (%s)"
 	mySQLMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) VALUES %s ON DUPLICATE KEY UPDATE %s"
+	mySQLDeleteQueryTemplate     = "DELETE FROM `%s`.`%s` WHERE %s"
+	mySQLAddColumnTemplate       = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
+	mySQLDropPrimaryKeyTemplate  = "ALTER TABLE %s.%s DROP CONSTRAINT %s"
 	mySQLValuesLimit             = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
 	SchemaToMySQL = map[typing.DataType]string{
 		//TODO revisit string type in MySQL, maybe string should be stored as varchar
-		typing.STRING:    "MEDIUMTEXT", // A TEXT column with a maximum length of 16_777_215 characters
-		typing.INT64:     "BIGINT",
-		typing.FLOAT64:   "DECIMAL(38,18)",
-		typing.TIMESTAMP: "TIMESTAMP",
-		typing.BOOL:      "BOOLEAN",
+		typing.STRING:    "mediumtext", // a text column with a maximum length of 16_777_215 characters
+		typing.INT64:     "bigint",
+		typing.FLOAT64:   "decimal(38,18)",
+		typing.TIMESTAMP: "timestamp",
+		typing.BOOL:      "boolean",
 		//TODO revisit string type in MySQL, maybe string should be stored as varchar
-		typing.UNKNOWN: "MEDIUMTEXT", // A TEXT column with a maximum length of 16_777_215 characters
+		typing.UNKNOWN: "mediumtext", // a text column with a maximum length of 16_777_215 characters
 	}
 )
 
@@ -62,20 +74,102 @@ func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *loggin
 	return &MySQL{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToMySQL)}, nil
 }
 
-func mySQLDriverConnectionString(config *DataSourceConfig) string {
-	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
-	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
-		config.Username, config.Password, config.Host, config.Port.String(), config.Db)
-	if len(config.Parameters) > 0 {
-		connectionString += "?"
-		paramList := make([]string, 10)
-		//concat provided connection parameters
-		for k, v := range config.Parameters {
-			paramList = append(paramList, k+"="+v)
-		}
-		connectionString += strings.Join(paramList, "&")
+//Insert provided object in postgres with typecasts
+//uses upsert (merge on conflict) if primary_keys are configured
+func (m *MySQL) Insert(eventContext *EventContext) error {
+	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := m.buildInsertPayload(eventContext.ProcessedEvent)
+
+	var statement string
+	if len(eventContext.Table.PKFields) == 0 {
+		statement = fmt.Sprintf(mySQLInsertTemplate, m.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
+	} else {
+		statement = fmt.Sprintf(mySQLMergeTemplate, m.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", m.buildUpdateSection(columnsWithoutQuotes))
 	}
-	return connectionString
+
+	m.queryLogger.LogQueryWithValues(statement, values)
+
+	_, err := m.dataSource.ExecContext(m.ctx, statement, values...)
+	if err != nil {
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, statement, values, err)
+	}
+
+	return nil
+}
+
+//GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
+func (m *MySQL) GetTableSchema(tableName string) (*Table, error) {
+	table, err := m.getTable(tableName)
+	if err != nil {
+		return nil, err
+	}
+
+	//don't select primary keys of non-existent table
+	if len(table.Columns) == 0 {
+		return table, nil
+	}
+
+	pkFields, err := m.getPrimaryKeys(tableName)
+	if err != nil {
+		return nil, err
+	}
+
+	table.PKFields = pkFields
+	return table, nil
+}
+
+//BulkUpdate deletes with deleteConditions and runs bulkStoreInTransaction
+func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	wrappedTx, err := m.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if !deleteConditions.IsEmpty() {
+		err := m.deleteInTransaction(wrappedTx, table, deleteConditions)
+		if err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
+	}
+
+	if err := m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+	return wrappedTx.DirectCommit()
+}
+
+func (m *MySQL) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
+	deleteCondition, values := m.toDeleteQuery(deleteConditions)
+	query := fmt.Sprintf(mySQLDeleteQueryTemplate, m.config.Schema, table.Name, deleteCondition)
+	m.queryLogger.LogQueryWithValues(query, values)
+
+	if _, err := wrappedTx.tx.ExecContext(m.ctx, query, values...); err != nil {
+		return fmt.Errorf("Error deleting using query: %s, error: %v", query, err)
+	}
+
+	return nil
+}
+
+func (m *MySQL) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
+	var queryConditions []string
+	var values []interface{}
+	for _, condition := range conditions.Conditions {
+		quotedField := m.quot(condition.Field)
+		queryConditions = append(queryConditions, quotedField+" "+condition.Clause+" ?")
+		values = append(values, condition.Value)
+	}
+	return strings.Join(queryConditions, conditions.JoinCondition), values
+}
+
+//PatchTableSchema adds new columns(from provided Table) to existing table
+func (m *MySQL) PatchTableSchema(patchTable *Table) error {
+	wrappedTx, err := m.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	return m.patchTableSchemaInTransaction(wrappedTx, patchTable)
 }
 
 //Type returns MySQL type
@@ -116,6 +210,81 @@ func (m *MySQL) BulkInsert(table *Table, objects []map[string]interface{}) error
 	}
 
 	return wrappedTx.DirectCommit()
+}
+
+//Close underlying sql.DB
+func (m *MySQL) Close() error {
+	return m.dataSource.Close()
+}
+
+func (m *MySQL) getTable(tableName string) (*Table, error) {
+	table := &Table{Name: tableName, Columns: map[string]Column{}, PKFields: map[string]bool{}}
+	rows, err := m.dataSource.QueryContext(m.ctx, mySQLTableSchemaQuery, m.config.Schema, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var columnName, columnType string
+		if err := rows.Scan(&columnName, &columnType); err != nil {
+			return nil, fmt.Errorf("Error scanning result: %v", err)
+		}
+		if columnType == "" {
+			//skip dropped field
+			continue
+		}
+
+		table.Columns[columnName] = Column{SQLType: columnType}
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("Last rows.Err: %v", err)
+	}
+
+	return table, nil
+}
+
+func (m *MySQL) getPrimaryKeys(tableName string) (map[string]bool, error) {
+	primaryKeys := map[string]bool{}
+	pkFieldsRows, err := m.dataSource.QueryContext(m.ctx, mySQLPrimaryKeyFieldsQuery, m.config.Schema, tableName)
+	if err != nil {
+		return nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", m.config.Schema, tableName, err)
+	}
+
+	defer pkFieldsRows.Close()
+	var pkFields []string
+	for pkFieldsRows.Next() {
+		var fieldName string
+		if err := pkFieldsRows.Scan(&fieldName); err != nil {
+			return nil, fmt.Errorf("error scanning primary key result: %v", err)
+		}
+		pkFields = append(pkFields, fieldName)
+	}
+	if err := pkFieldsRows.Err(); err != nil {
+		return nil, fmt.Errorf("pk last rows.Err: %v", err)
+	}
+	for _, field := range pkFields {
+		primaryKeys[field] = true
+	}
+
+	return primaryKeys, nil
+}
+
+func mySQLDriverConnectionString(config *DataSourceConfig) string {
+	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
+	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s",
+		config.Username, config.Password, config.Host, config.Port.String(), config.Db)
+	if len(config.Parameters) > 0 {
+		connectionString += "?"
+		paramList := make([]string, 10)
+		//concat provided connection parameters
+		for k, v := range config.Parameters {
+			paramList = append(paramList, k+"="+v)
+		}
+		connectionString += strings.Join(paramList, "&")
+	}
+	return connectionString
 }
 
 func (m *MySQL) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
@@ -359,4 +528,77 @@ func (m *MySQL) buildConstraintName(tableName string) string {
 
 func (m *MySQL) quot(str string) string {
 	return fmt.Sprintf("`%s`", str)
+}
+
+//alter table with columns (if not empty)
+//recreate primary key (if not empty) or delete primary key if Table.DeletePkFields is true
+func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable *Table) error {
+	pkFields := patchTable.GetPKFieldsMap()
+	//patch columns
+	for columnName, column := range patchTable.Columns {
+		columnDDL := m.columnDDL(columnName, column, pkFields)
+		query := fmt.Sprintf(mySQLAddColumnTemplate, m.config.Schema, patchTable.Name, columnDDL)
+		m.queryLogger.LogDDL(query)
+
+		_, err := wrappedTx.tx.ExecContext(m.ctx, query)
+		if err != nil {
+			wrappedTx.Rollback()
+			return fmt.Errorf("Error patching %s table with [%s] DDL: %v", patchTable.Name, columnDDL, err)
+		}
+	}
+
+	//patch primary keys - delete old
+	if patchTable.DeletePkFields {
+		err := m.deletePrimaryKeyInTransaction(wrappedTx, patchTable)
+		if err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
+	}
+
+	//patch primary keys - create new
+	if len(patchTable.PKFields) > 0 {
+		err := m.createPrimaryKeyInTransaction(wrappedTx, patchTable)
+		if err != nil {
+			wrappedTx.Rollback()
+			return err
+		}
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+//delete primary key
+func (m *MySQL) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
+	query := fmt.Sprintf(mySQLDropPrimaryKeyTemplate, m.config.Schema, table.Name, buildConstraintName(m.config.Schema, table.Name))
+	m.queryLogger.LogDDL(query)
+	_, err := wrappedTx.tx.ExecContext(m.ctx, query)
+	if err != nil {
+		return fmt.Errorf("Failed to drop primary key constraint for table %s.%s: %v", m.config.Schema, table.Name, err)
+	}
+
+	return nil
+}
+
+//buildInsertPayload returns
+// 1. column names slice
+// 2. quoted column names slice
+// 2. placeholders slice
+// 3. values slice
+func (m *MySQL) buildInsertPayload(valuesMap map[string]interface{}) ([]string, []string, []string, []interface{}) {
+	header := make([]string, len(valuesMap), len(valuesMap))
+	quotedHeader := make([]string, len(valuesMap), len(valuesMap))
+	placeholders := make([]string, len(valuesMap), len(valuesMap))
+	values := make([]interface{}, len(valuesMap), len(valuesMap))
+	i := 0
+	for name, value := range valuesMap {
+		quotedHeader[i] = m.quot(name)
+		header[i] = name
+
+		placeholders[i] = "?"
+		values[i] = value
+		i++
+	}
+
+	return header, quotedHeader, placeholders, values
 }
