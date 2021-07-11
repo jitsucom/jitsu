@@ -6,14 +6,14 @@ import (
 	"time"
 
 	"github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/storages"
 )
 
 // Amplitude is a Amplitude driver.
 // It is used in syncing data from Amplitude.
 type Amplitude struct {
-	adapter *AmplitudeAdapter
-	config  *AmplitudeConfig
-
+	adapter    *AmplitudeAdapter
+	config     *AmplitudeConfig
 	collection *base.Collection
 }
 
@@ -33,7 +33,11 @@ func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		return nil, err
 	}
 
-	adapter, err := NewAmplitudeAdapter(sourceConfig.SourceID, config.ApiKey, config.SecretKey)
+	if collection.Name != AmplitudeEvents {
+		return nil, fmt.Errorf("Unknown collection for amplitude: %v", collection.Name)
+	}
+
+	adapter, err := NewAmplitudeAdapter(config.ApiKey, config.SecretKey, storages.DefaultHTTPConfiguration)
 	if err != nil {
 		return nil, err
 	}
@@ -60,7 +64,7 @@ func TestAmplitude(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 
-	adapter, err := NewAmplitudeAdapter(sourceConfig.SourceID, config.ApiKey, config.SecretKey)
+	adapter, err := NewAmplitudeAdapter(config.ApiKey, config.SecretKey, storages.DefaultHTTPConfiguration)
 	if err != nil {
 		return err
 	}
@@ -71,8 +75,8 @@ func TestAmplitude(sourceConfig *base.SourceConfig) error {
 	}
 
 	collection := &base.Collection{
-		Name:           "events",
-		DaysBackToLoad: 10,
+		Name:           AmplitudeEvents,
+		DaysBackToLoad: 30,
 	}
 
 	amplitude := &Amplitude{
@@ -125,7 +129,7 @@ func (a *Amplitude) GetCollectionTable() string {
 }
 
 func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
-	if a.collection.Name == "events" {
+	if a.collection.Name == AmplitudeEvents {
 		eventsArray, err := a.adapter.GetEvents(interval)
 		if err != nil {
 			return nil, err
