@@ -1,4 +1,4 @@
-package adapters
+package amplitude
 
 import (
 	"archive/zip"
@@ -15,12 +15,12 @@ import (
 const AmplitudeURL = "https://amplitude.com"
 const AmplitudeLayout = "20060102T15"
 
-type Amplitude struct {
+type AmplitudeAdapter struct {
 	httpAdapter *HTTPAdapter
 	authToken   string
 }
 
-func NewAmplitude(ID, apiKey, secretKey string) (*Amplitude, error) {
+func NewAmplitudeAdapter(ID, apiKey, secretKey string) (*AmplitudeAdapter, error) {
 	config := &HTTPAdapterConfiguration{
 		Dir: "test",
 		HTTPConfig: &HTTPConfiguration{
@@ -40,17 +40,17 @@ func NewAmplitude(ID, apiKey, secretKey string) (*Amplitude, error) {
 	encodedToken := base64.StdEncoding.EncodeToString([]byte(token))
 	secretToken := fmt.Sprintf("Basic %s", encodedToken)
 
-	return &Amplitude{
+	return &AmplitudeAdapter{
 		httpAdapter: httpAdapter,
 		authToken:   secretToken,
 	}, nil
 }
 
-func (a *Amplitude) Close() error {
+func (a *AmplitudeAdapter) Close() error {
 	return a.httpAdapter.Close()
 }
 
-func (a *Amplitude) GetStatus() error {
+func (a *AmplitudeAdapter) GetStatus() error {
 	request := &Request{
 		URL:    AmplitudeURL + "/status",
 		Method: "GET",
@@ -63,7 +63,7 @@ func (a *Amplitude) GetStatus() error {
 	return nil
 }
 
-func (a *Amplitude) GetEvents(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+func (a *AmplitudeAdapter) GetEvents(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	start := interval.LowerEndpoint().Format(AmplitudeLayout)
 	end := interval.UpperEndpoint().Format(AmplitudeLayout)
 
