@@ -416,12 +416,11 @@ func initializeCoordinationService(ctx context.Context, metaStorageConfiguration
 	//configured
 	if coordinationRedisConfiguration != nil {
 		telemetry.Coordination("redis")
-		redisConfig := &meta.RedisConfiguration{
-			Host:          coordinationRedisConfiguration.GetString("host"),
-			Port:          coordinationRedisConfiguration.GetInt("port"),
-			Password:      coordinationRedisConfiguration.GetString("password"),
-			TLSSkipVerify: coordinationRedisConfiguration.GetBool("tls_skip_verify"),
-		}
+		redisConfig := meta.NewRedisConfiguration(coordinationRedisConfiguration.GetString("host"),
+			coordinationRedisConfiguration.GetInt("port"),
+			coordinationRedisConfiguration.GetString("password"),
+			coordinationRedisConfiguration.GetBool("tls_skip_verify"))
+		redisConfig.CheckAndSetDefaultPort()
 		return coordination.NewRedisService(ctx, appconfig.Instance.ServerName, redisConfig)
 	}
 
