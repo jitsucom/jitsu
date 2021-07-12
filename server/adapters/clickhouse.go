@@ -379,10 +379,10 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 
 //Insert provided object in ClickHouse in stream mode
 func (ch *ClickHouse) Insert(eventContext *EventContext) error {
-	var header, placeholders []string
+	var headerWithQuotes, placeholders []string
 	var values []interface{}
 	for name, value := range eventContext.ProcessedEvent {
-		header = append(header, name)
+		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
 		placeholders = append(placeholders, ch.getPlaceholder(name))
 		values = append(values, value)
 	}
@@ -392,18 +392,13 @@ func (ch *ClickHouse) Insert(eventContext *EventContext) error {
 		return err
 	}
 
-	query := fmt.Sprintf(insertCHTemplate, ch.database, eventContext.Table.Name, strings.Join(header, ", "), strings.Join(placeholders, ", "))
+	query := fmt.Sprintf(insertCHTemplate, ch.database, eventContext.Table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(placeholders, ", "))
 	ch.queryLogger.LogQueryWithValues(query, values)
-	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing insert table %s statement: %v", eventContext.Table.Name, err)
-	}
 
-	_, err = insertStmt.ExecContext(ch.ctx, values...)
+	_, err = wrappedTx.tx.ExecContext(ch.ctx, query, values...)
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, header, values, err)
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, query, values, err)
 	}
 
 	return wrappedTx.DirectCommit()
@@ -467,13 +462,14 @@ func (ch *ClickHouse) toDeleteQuery(conditions *DeleteConditions) (string, []int
 }
 
 func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	var header, placeholders []string
+	var headerWithQuotes, headerWithoutQuotes, placeholders []string
 	for name := range table.Columns {
-		header = append(header, name)
+		headerWithoutQuotes = append(headerWithoutQuotes, name)
+		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
 		placeholders = append(placeholders, ch.getPlaceholder(name))
 	}
 
-	query := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(header, ", "), strings.Join(placeholders, ", "))
+	query := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(placeholders, ", "))
 	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
 	if err != nil {
 		return fmt.Errorf("Error preparing bulk insert statement [%s] table %s statement: %v", query, table.Name, err)
@@ -481,7 +477,7 @@ func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, 
 
 	for _, row := range objects {
 		var values []interface{}
-		for _, column := range header {
+		for _, column := range headerWithoutQuotes {
 			value, ok := row[column]
 			if ok {
 				values = append(values, ch.reformatValue(value))
@@ -570,7 +566,7 @@ func (ch *ClickHouse) columnDDL(name string, column Column) string {
 		columnTypeDDL = columnSQLType
 	}
 
-	return name + " " + columnTypeDDL
+	return fmt.Sprintf(`"%s" %s`, name, columnTypeDDL)
 }
 
 //getPlaceholder returns "?" placeholder or with typecast
