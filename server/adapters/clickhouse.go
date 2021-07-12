@@ -355,16 +355,11 @@ func (ch *ClickHouse) PatchTableSchema(patchSchema *Table) error {
 		columnDDL := ch.columnDDL(columnName, column)
 		query := fmt.Sprintf(addColumnCHTemplate, ch.database, patchSchema.Name, ch.getOnClusterClause(), columnDDL)
 		ch.queryLogger.LogDDL(query)
-		alterStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
-		if err != nil {
-			wrappedTx.Rollback()
-			return fmt.Errorf("Error preparing patching table %s schema statement: %v", patchSchema.Name, err)
-		}
 
-		_, err = alterStmt.ExecContext(ch.ctx)
+		_, err := wrappedTx.tx.ExecContext(ch.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
-			return fmt.Errorf("Error patching %s table with '%s' column DDL: %v", patchSchema.Name, columnDDL, err)
+			return fmt.Errorf("Error patching %s table with statement [%s]: %v", patchSchema.Name, query, err)
 		}
 	}
 
