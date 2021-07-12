@@ -53,16 +53,9 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 		redisPassword := vp.GetString("auth.redis.password")
 		tlsSkipVerify := vp.GetBool("auth.redis.tls_skip_verify")
 
-		redisConfig := &meta.RedisConfiguration{
-			Host:          host,
-			Port:          port,
-			Password:      redisPassword,
-			TLSSkipVerify: tlsSkipVerify,
-		}
-
-		if redisConfig.Port == 0 && !redisConfig.IsURL() && !redisConfig.IsSecuredURL() {
-			redisConfig.Port = 6379
-			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", redisConfig.Port)
+		redisConfig := meta.NewRedisConfiguration(host, port, redisPassword, tlsSkipVerify)
+		if defaultPort, ok := redisConfig.CheckAndSetDefaultPort(); ok {
+			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", defaultPort)
 		}
 
 		accessSecret := vp.GetString("auth.redis.access_secret")
