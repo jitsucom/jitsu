@@ -230,6 +230,57 @@ func (pgc *PostgresContainer) GetAllSortedRows(table, orderClause string) ([]map
 	return objects, nil
 }
 
+//GetAllSortedRows returns all selected row from table ordered according to orderClause
+//or error if occurred
+func (mc *MySQLContainer) GetAllSortedRows(table, orderClause string) ([]map[string]interface{}, error) {
+	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
+	//connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+	//	mc.Username, mc.Password, mc.Host, mc.Port, mc.Database)
+	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		"sandbox_1", "sandbox_123", "localhost", 33306, "sandbox")
+	dataSource, err := sql.Open("mysql", connectionString)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT * from %s %s", table, orderClause))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cols, _ := rows.Columns()
+
+	objects := []map[string]interface{}{}
+	for rows.Next() {
+		columns := make([]interface{}, len(cols))
+		columnPointers := make([]interface{}, len(cols))
+		for i := range columns {
+			columnPointers[i] = &columns[i]
+		}
+
+		// Scan the result into the column pointers...
+		if err := rows.Scan(columnPointers...); err != nil {
+			return nil, err
+		}
+
+		// Create our map, and retrieve the value for each column from the pointers slice,
+		// storing it in the map with the name of the column as the key.
+		object := make(map[string]interface{})
+		for i, colName := range cols {
+			val := *(columnPointers[i].(*interface{}))
+			if val == nil {
+				object[colName] = nil
+			} else {
+				object[colName] = string((val).([]uint8))
+			}
+		}
+
+		objects = append(objects, object)
+	}
+
+	return objects, nil
+}
+
 //Close terminates underlying postgres docker container
 func (pgc *PostgresContainer) Close() {
 	if pgc.Container != nil {
