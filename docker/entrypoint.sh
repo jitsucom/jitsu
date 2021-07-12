@@ -19,23 +19,20 @@ graceful_exit() {
 }
 #if at least one of services has exited - do shutdown
 check_shutdown(){
-  ps aux |grep configurator |grep -q -v grep
-  PROCESS_CONFIGURATOR=$?
-  ps aux |grep eventnative |grep -q -v grep
-  PROCESS_SERVER=$?
-  ps aux |grep nginx |grep -q -v grep
-  PROCESS_NGINX=$?
-  # If the greps above find anything, they exit with 0 status
-  # If they are not both 0, then something is wrong
-  if [ $PROCESS_CONFIGURATOR -ne 0 ]; then
+  PROCESS_CONFIGURATOR="$(pgrep -f '/home/configurator/app/configurator')"
+  PROCESS_SERVER="$(pgrep -f '/home/eventnative/app/eventnative')"
+  PROCESS_NGINX="$(pgrep -f 'nginx: master process')"
+
+  # Check if PIDs of internal services exist
+  if [ -z "$PROCESS_CONFIGURATOR" ]; then
     echo "Jitsu Configurator has already exited."
     graceful_exit
   fi
-  if [ $PROCESS_SERVER -ne 0 ]; then
+  if [ -z "$PROCESS_SERVER" ]; then
     echo "Jitsu Server has already exited."
     graceful_exit
   fi
-  if [ $PROCESS_NGINX -ne 0 ]; then
+  if [ -z "$PROCESS_NGINX" ]; then
     echo "Nginx has already exited."
     graceful_exit
   fi

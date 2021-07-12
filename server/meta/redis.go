@@ -32,29 +32,53 @@ var (
 
 //RedisConfiguration is a dto with Redis credentials and configuration parameters
 type RedisConfiguration struct {
-	Host          string
-	Port          int
-	Password      string
-	TLSSkipVerify bool
+	host          string
+	port          int
+	password      string
+	tlsSkipVerify bool
+}
+
+//NewRedisConfiguration returns filled RedisConfiguration and removes quotes in host
+func NewRedisConfiguration(host string, port int, password string, tlsSkipVerify bool) *RedisConfiguration {
+	host = strings.TrimPrefix(host, `"`)
+	host = strings.TrimPrefix(host, `'`)
+	host = strings.TrimSuffix(host, `"`)
+	host = strings.TrimSuffix(host, `'`)
+	return &RedisConfiguration{
+		host:          host,
+		port:          port,
+		password:      password,
+		tlsSkipVerify: tlsSkipVerify,
+	}
+}
+
+//CheckAndSetDefaultPort checks if port isn't set - put 6379
+func (rc *RedisConfiguration) CheckAndSetDefaultPort() (int, bool) {
+	if rc.port == 0 && !rc.IsURL() && !rc.IsSecuredURL() {
+		rc.port = 6379
+		return rc.port, true
+	}
+
+	return 0, false
 }
 
 //IsURL returns true if RedisConfiguration contains connection credentials via URL
 func (rc *RedisConfiguration) IsURL() bool {
-	return strings.HasPrefix(rc.Host, "redis://")
+	return strings.HasPrefix(rc.host, "redis://")
 }
 
 //IsSecuredURL returns true if RedisConfiguration contains connection credentials via secured(SSL) URL
 func (rc *RedisConfiguration) IsSecuredURL() bool {
-	return strings.HasPrefix(rc.Host, "rediss://")
+	return strings.HasPrefix(rc.host, "rediss://")
 }
 
 //String returns host:port or host if host is an URL
 func (rc *RedisConfiguration) String() string {
 	if rc.IsURL() || rc.IsSecuredURL() {
-		return rc.Host
+		return rc.host
 	}
 
-	return fmt.Sprintf("%s:%d", rc.Host, rc.Port)
+	return fmt.Sprintf("%s:%d", rc.host, rc.port)
 }
 
 type Redis struct {
@@ -121,7 +145,7 @@ func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
 	if config.IsSecuredURL() {
 		//redis secured URL
 		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.DialURL(config.Host, redis.DialTLSSkipVerify(config.TLSSkipVerify), defaultDialConnectTimeout, defaultDialReadTimeout)
+			c, err := redis.DialURL(config.host, redis.DialTLSSkipVerify(config.tlsSkipVerify), defaultDialConnectTimeout, defaultDialReadTimeout)
 			if err != nil {
 				return nil, err
 			}
@@ -130,7 +154,7 @@ func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
 	} else if config.IsURL() {
 		//redis unsecured URL
 		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.DialURL(config.Host, redis.DialTLSSkipVerify(true), defaultDialConnectTimeout, defaultDialReadTimeout)
+			c, err := redis.DialURL(config.host, redis.DialTLSSkipVerify(true), defaultDialConnectTimeout, defaultDialReadTimeout)
 			if err != nil {
 				return nil, err
 			}
@@ -141,10 +165,10 @@ func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
 		dialFunc = func() (redis.Conn, error) {
 			c, err := redis.Dial(
 				"tcp",
-				config.Host+":"+strconv.Itoa(config.Port),
+				config.String(),
 				defaultDialConnectTimeout,
 				defaultDialReadTimeout,
-				redis.DialPassword(config.Password),
+				redis.DialPassword(config.password),
 			)
 			if err != nil {
 				return nil, err
