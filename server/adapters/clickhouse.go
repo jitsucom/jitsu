@@ -279,16 +279,11 @@ func (ch *ClickHouse) CreateDB(dbName string) error {
 
 	query := fmt.Sprintf(createCHDBTemplate, dbName, ch.getOnClusterClause())
 	ch.queryLogger.LogDDL(query)
-	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
+	_, err = wrappedTx.tx.ExecContext(ch.ctx, query)
 	if err != nil {
-		return fmt.Errorf("Error preparing create db %s statement: %v", dbName, err)
+		return fmt.Errorf("Error creating [%s] db with statement [%s]: %v", dbName, query, err)
 	}
 
-	_, err = createStmt.ExecContext(ch.ctx)
-
-	if err != nil {
-		return fmt.Errorf("Error creating [%s] db: %v", dbName, err)
-	}
 	return wrappedTx.tx.Commit()
 }
 
@@ -423,12 +418,7 @@ func (ch *ClickHouse) BulkUpdate(table *Table, objects []map[string]interface{},
 func (ch *ClickHouse) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	deleteCondition, values := ch.toDeleteQuery(deleteConditions)
 	deleteQuery := fmt.Sprintf(deleteQueryChTemplate, ch.database, table.Name, deleteCondition)
-	deleteStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, deleteQuery)
-	if err != nil {
-		return fmt.Errorf("Error preparing delete statement [%s]: %v", deleteQuery, err)
-	}
-	ch.queryLogger.LogQueryWithValues(deleteQuery, values)
-	_, err = deleteStmt.ExecContext(ch.ctx, values...)
+	_, err := wrappedTx.tx.ExecContext(ch.ctx, deleteQuery, values...)
 	if err != nil {
 		return fmt.Errorf("Error deleting using query: %s, error: %v", deleteQuery, err)
 	}
@@ -533,14 +523,9 @@ func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string
 func (ch *ClickHouse) dropDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
 	query := fmt.Sprintf(dropDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
 	ch.queryLogger.LogDDL(query)
-	createStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
+	_, err := wrappedTx.tx.ExecContext(ch.ctx, query)
 	if err != nil {
-		logging.Errorf("Error preparing drop distributed table statement for [%s] : %v", originTableName, err)
-		return
-	}
-
-	if _, err = createStmt.ExecContext(ch.ctx); err != nil {
-		logging.Errorf("Error dropping distributed table for [%s] : %v", originTableName, err)
+		logging.Errorf("Error dropping distributed table for [%s] with statement [%s]: %v", originTableName, query, err)
 	}
 }
 

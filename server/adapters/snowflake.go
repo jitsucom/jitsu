@@ -161,18 +161,12 @@ func (s *Snowflake) CreateTable(tableSchema *Table) error {
 	sort.Strings(columnsDDL)
 	query := fmt.Sprintf(createSFTableTemplate, s.config.Schema, reformatValue(tableSchema.Name), strings.Join(columnsDDL, ","))
 	s.queryLogger.LogDDL(query)
-	createStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
+	_, err = wrappedTx.tx.ExecContext(s.ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing create table %s statement: %v", tableSchema.Name, err)
+		return fmt.Errorf("Error creating [%s] table with statement [%s]: %v", tableSchema.Name, query, err)
 	}
 
-	_, err = createStmt.ExecContext(s.ctx)
-
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] table: %v", tableSchema.Name, err)
-	}
 	return wrappedTx.tx.Commit()
 }
 
@@ -286,16 +280,10 @@ func (s *Snowflake) Insert(eventContext *EventContext) error {
 		return err
 	}
 
-	insertStmt, err := wrappedTx.tx.PrepareContext(s.ctx, query)
+	_, err = wrappedTx.tx.ExecContext(s.ctx, query, values...)
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing insert table %s statement: %v", eventContext.Table.Name, err)
-	}
-
-	_, err = insertStmt.ExecContext(s.ctx, values...)
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, header, values, err)
+		return fmt.Errorf("Error inserting in %s table with statement: [%s] values: %v: %v", eventContext.Table.Name, query, values, err)
 	}
 
 	return wrappedTx.DirectCommit()
