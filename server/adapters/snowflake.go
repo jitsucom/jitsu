@@ -401,7 +401,7 @@ func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Tabl
 
 	_, err := wrappedTx.tx.ExecContext(s.ctx, query)
 	if err != nil {
-		return fmt.Errorf("Error creating [%s] table: %v", table.Name, err)
+		return fmt.Errorf("Error creating [%s] table with statement [%s]: %v", table.Name, query, err)
 	}
 
 	return nil
