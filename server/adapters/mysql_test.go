@@ -17,10 +17,10 @@ func TestMySQLBulkInsert(t *testing.T) {
 	table := &Table{
 		Name: "test_insert",
 		Columns: Columns{
-			"field1": Column{"bigint"},
-			"field2": Column{"mediumtext"},
-			"field3": Column{"mediumtext"},
-			"user":   Column{"mediumtext"},
+			"field1": Column{SchemaToMySQL[typing.INT64]},
+			"field2": Column{SchemaToMySQL[typing.STRING]},
+			"field3": Column{SchemaToMySQL[typing.STRING]},
+			"user":   Column{SchemaToMySQL[typing.STRING]},
 		},
 	}
 	container, mySQL := setupMySQLDatabase(t, table)
@@ -36,10 +36,10 @@ func TestMySQLBulkMerge(t *testing.T) {
 	table := &Table{
 		Name: "test_merge",
 		Columns: Columns{
-			"field1": Column{"bigint"},
-			"field2": Column{"mediumtext"},
-			"field3": Column{"mediumtext"},
-			"user":   Column{"mediumtext"},
+			"field1": Column{SchemaToMySQL[typing.INT64]},
+			"field2": Column{SchemaToMySQL[typing.STRING]},
+			"field3": Column{SchemaToMySQL[typing.STRING]},
+			"user":   Column{SchemaToMySQL[typing.STRING]},
 		},
 		PKFields: map[string]bool{"field1": true},
 	}

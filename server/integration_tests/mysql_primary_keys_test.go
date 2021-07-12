@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/test"
+	"github.com/stretchr/testify/require"
 	"testing"
 
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -14,19 +16,17 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
-	"github.com/jitsucom/jitsu/server/test"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/spf13/viper"
-	"github.com/stretchr/testify/require"
 )
 
-//Test postgres adapter with primary keys and without (make sure primary keys are deleted)
-func TestPostgresPrimaryKeyRemoval(t *testing.T) {
+//Test mySQL adapter with primary keys and without (make sure primary keys are deleted)
+func TestMySQLPrimaryKeyRemoval(t *testing.T) {
 	telemetry.InitTest()
 	viper.Set("server.log.path", "")
 
 	ctx := context.Background()
-	container, err := test.NewPostgresContainer(ctx)
+	container, err := test.NewMySQLContainer(ctx)
 	if err != nil {
 		t.Fatalf("failed to initialize container: %v", err)
 	}
@@ -36,12 +36,21 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 
 	enrichment.InitDefault("", "", "", "")
-	dsConfig := &adapters.DataSourceConfig{Host: container.Host, Port: json.Number(fmt.Sprint(container.Port)), Db: container.Database, Schema: container.Schema, Username: container.Username, Password: container.Password, Parameters: map[string]string{"sslmode": "disable"}}
-	pg, err := adapters.NewPostgres(ctx, dsConfig, logging.NewQueryLogger("test", nil, nil), typing.SQLTypes{})
-	require.NoError(t, err)
-	require.NotNil(t, pg)
+	dsConfig := &adapters.DataSourceConfig{
+		Host:       container.Host,
+		Port:       json.Number(fmt.Sprint(container.Port)),
+		Db:         container.Database,
+		Schema:     container.Database,
+		Username:   container.Username,
+		Password:   container.Password,
+		Parameters: map[string]string{"tls": "false"},
+	}
 
-	tableHelperWithPk := storages.NewTableHelper(pg, coordination.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToPostgres, 0)
+	mySQL, err := adapters.NewMySQL(ctx, dsConfig, logging.NewQueryLogger("test", nil, nil), typing.SQLTypes{})
+	require.NoError(t, err)
+	require.NotNil(t, mySQL)
+
+	tableHelperWithPk := storages.NewTableHelper(mySQL, coordination.NewInMemoryService([]string{}), map[string]bool{"email": true}, adapters.SchemaToMySQL, 0)
 
 	// all events should be merged as have the same PK value
 	tableWithMerge := tableHelperWithPk.MapTableSchema(&schema.BatchHeader{
@@ -54,7 +63,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		err = pg.BulkInsert(ensuredWithMerge, []map[string]interface{}{data})
+		err = mySQL.BulkInsert(ensuredWithMerge, []map[string]interface{}{data})
 		if err != nil {
 			t.Fatal("failed to bulk insert", err)
 		}
@@ -64,7 +73,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, rowsUnique)
 
-	tableHelperWithoutPk := storages.NewTableHelper(pg, coordination.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToPostgres, 0)
+	tableHelperWithoutPk := storages.NewTableHelper(mySQL, coordination.NewInMemoryService([]string{}), map[string]bool{}, adapters.SchemaToMySQL, 0)
 	// all events should be merged as have the same PK value
 	table := tableHelperWithoutPk.MapTableSchema(&schema.BatchHeader{
 		TableName: "users",
@@ -75,7 +84,7 @@ func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := 0; i < 5; i++ {
-		err = pg.BulkInsert(ensuredWithoutMerge, []map[string]interface{}{data})
+		err = mySQL.BulkInsert(ensuredWithoutMerge, []map[string]interface{}{data})
 		if err != nil {
 			t.Fatal("failed to bulk insert", err)
 		}

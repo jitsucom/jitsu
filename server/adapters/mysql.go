@@ -28,20 +28,18 @@ const (
 	mySQLMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) VALUES %s ON DUPLICATE KEY UPDATE %s"
 	mySQLDeleteQueryTemplate     = "DELETE FROM `%s`.`%s` WHERE %s"
 	mySQLAddColumnTemplate       = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
-	mySQLDropPrimaryKeyTemplate  = "ALTER TABLE %s.%s DROP CONSTRAINT %s"
+	mySQLDropPrimaryKeyTemplate  = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
 	mySQLValuesLimit             = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
 	SchemaToMySQL = map[typing.DataType]string{
-		//TODO revisit string type in MySQL, maybe string should be stored as varchar
-		typing.STRING:    "mediumtext", // a text column with a maximum length of 16_777_215 characters
-		typing.INT64:     "bigint",
-		typing.FLOAT64:   "decimal(38,18)",
-		typing.TIMESTAMP: "timestamp",
-		typing.BOOL:      "boolean",
-		//TODO revisit string type in MySQL, maybe string should be stored as varchar
-		typing.UNKNOWN: "mediumtext", // a text column with a maximum length of 16_777_215 characters
+		typing.STRING:    "VARCHAR(255) CHARACTER SET utf8",
+		typing.INT64:     "BIGINT",
+		typing.FLOAT64:   "DECIMAL(38,18)",
+		typing.TIMESTAMP: "TIMESTAMP",
+		typing.BOOL:      "BOOLEAN",
+		typing.UNKNOWN:   "VARCHAR(255) CHARACTER SET utf8",
 	}
 )
 
@@ -570,7 +568,7 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 
 //delete primary key
 func (m *MySQL) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
-	query := fmt.Sprintf(mySQLDropPrimaryKeyTemplate, m.config.Schema, table.Name, buildConstraintName(m.config.Schema, table.Name))
+	query := fmt.Sprintf(mySQLDropPrimaryKeyTemplate, m.config.Schema, table.Name)
 	m.queryLogger.LogDDL(query)
 	_, err := wrappedTx.tx.ExecContext(m.ctx, query)
 	if err != nil {
