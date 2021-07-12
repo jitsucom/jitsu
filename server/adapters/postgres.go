@@ -293,7 +293,7 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] table: %v", table.Name, err)
+		return fmt.Errorf("Error creating [%s] table with statement [%s]: %v", table.Name, query, err)
 	}
 
 	err = p.createPrimaryKeyInTransaction(wrappedTx, table)
@@ -677,17 +677,10 @@ func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, st
 	dbSchemaName string, queryLogger *logging.QueryLogger) error {
 	query := fmt.Sprintf(statementTemplate, dbSchemaName)
 	queryLogger.LogDDL(query)
-	createStmt, err := wrappedTx.tx.PrepareContext(ctx, query)
+	_, err := wrappedTx.tx.ExecContext(ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing create db schema %s statement: %v", dbSchemaName, err)
-	}
-
-	_, err = createStmt.ExecContext(ctx)
-
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] db schema: %v", dbSchemaName, err)
+		return fmt.Errorf("Error creating [%s] db schema with statement [%s]: %v", dbSchemaName, query, err)
 	}
 
 	return wrappedTx.tx.Commit()
