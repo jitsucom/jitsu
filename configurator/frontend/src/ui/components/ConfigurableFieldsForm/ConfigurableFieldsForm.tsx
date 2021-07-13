@@ -43,11 +43,10 @@ export const FormItemName = {
   }
 }
 
+const debuggableFields = ['_formData.tableName', '_formData.body', '_formData.url']
+const isDebugSupported = function(id) {return debuggableFields.includes(id)}
+
 const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleTouchAnyField }: Props) => {
-
-  const debuggableFields = ['_formData.tableName', '_formData.body', '_formData.url']
-
-  const isDebugSupported = function(id) {return debuggableFields.includes(id)}
 
   const services = ApplicationServices.get();
 

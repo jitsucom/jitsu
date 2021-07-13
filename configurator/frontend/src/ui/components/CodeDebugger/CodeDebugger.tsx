@@ -56,7 +56,7 @@ export interface FormValues {
 
 interface CalculationResult {
   code: 'error' | 'success';
-  format: string
+  format: string | null
   message: string;
 }
 
