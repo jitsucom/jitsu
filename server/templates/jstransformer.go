@@ -3,6 +3,7 @@ package templates
 import (
 	"fmt"
 	"github.com/dop251/goja"
+	"text/template"
 )
 
 const functionName = "process"
@@ -33,7 +34,7 @@ func Transform(src string) (string, error) {
 
 //LoadTemplateScript loads script into newly created Javascript vm
 //Returns func that is mapped to javascript function inside vm instance
-func LoadTemplateScript(script string) (func(map[string]interface{}) interface{}, error) {
+func LoadTemplateScript(script string, extraFunctions template.FuncMap) (func(map[string]interface{}) interface{}, error) {
 	vm := goja.New()
 	_, err := vm.RunString(script)
 	if err != nil {
@@ -43,6 +44,13 @@ func LoadTemplateScript(script string) (func(map[string]interface{}) interface{}
 	err = vm.ExportTo(vm.Get(functionName), &fn)
 	if err != nil {
 		return nil, err
+	}
+	if extraFunctions != nil {
+		for name, fnc := range extraFunctions {
+			if err = vm.Set(name, fnc); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return fn, nil
 }
