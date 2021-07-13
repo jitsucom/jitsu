@@ -1,5 +1,5 @@
 // @Libs
-import { Dispatch, SetStateAction, useMemo } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo } from 'react';
 import { Route, Switch } from 'react-router-dom';
 // @Pages
 import { DestinationsList } from './partials/DestinationsList/DestinationsList';
@@ -10,13 +10,13 @@ import { destinationPageRoutes } from './DestinationsPage.routes';
 import useLoader from 'hooks/useLoader';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
-// @Hocs
-import { getComponent } from 'hocs/getComponent';
 // @Components
 import { CenteredError, CenteredSpin } from 'lib/components/components';
 // @Types
 import { PageProps } from 'navigation';
 import { BreadcrumbsProps } from 'ui/components/Breadcrumbs/Breadcrumbs';
+import { observer } from 'mobx-react-lite';
+import { destinationsStore, DestinationsStoreState } from 'stores/destinationsStore';
 
 export interface CollectionDestinationData {
   destinations: DestinationData[];
@@ -33,24 +33,27 @@ export interface CommonDestinationPageProps {
   updateSources: Dispatch<SetStateAction<any>>;
 }
 
-export const DestinationsPage = (props: PageProps) => {
+const DestinationsPageComponent = (props: PageProps) => {
   const services = ApplicationServices.get();
 
   const [sourcesError, sourcesData, updateSources] = useLoader(async() => await services.storageService.get('sources', services.activeProject.id));
-  const [error, destinations, updateDestinations] = useLoader(async() => await services.storageService.get('destinations', services.activeProject.id));
 
   const additionalProps = useMemo(() => ({
     setBreadcrumbs: props.setBreadcrumbs,
-    destinations: destinations?.destinations ?? [],
-    updateDestinations,
+    destinations: destinationsStore.destinations,
+    updateDestinations: () => {},
     sources: sourcesData?.sources ?? [],
     sourcesError,
     updateSources
-  }), [props.setBreadcrumbs, destinations, updateDestinations, sourcesData, sourcesError, updateSources]);
+  }), [props.setBreadcrumbs, sourcesData, sourcesError, updateSources]);
 
-  if (error) {
-    return <CenteredError error={error} />;
-  } else if (!destinations || (!sourcesData && !sourcesError)) {
+  useEffect(() => {
+    destinationsStore.pullDestinations(true);
+  }, []);
+
+  if (destinationsStore.state === DestinationsStoreState.GLOBAL_ERROR) {
+    return <CenteredError error={destinationsStore.error} />;
+  } else if (destinationsStore.state === DestinationsStoreState.GLOBAL_LOADING || (!sourcesData && !sourcesError)) {
     return <CenteredSpin />;
   }
 
@@ -59,22 +62,27 @@ export const DestinationsPage = (props: PageProps) => {
       <Route
         path={destinationPageRoutes.root}
         exact
-        render={getComponent<CommonDestinationPageProps>(DestinationsList, additionalProps)}
-      />
+      >
+        <DestinationsList {...additionalProps}/>
+      </Route>
       <Route
         path={destinationPageRoutes.newDestination}
         strict={false}
         exact
-        render={getComponent<CommonDestinationPageProps>(DestinationEditor, { ...additionalProps, editorMode: 'add' })}
-      />
+      >
+        <DestinationEditor {...{...additionalProps, editorMode: 'add'}}/>
+      </Route>
       <Route
         path={destinationPageRoutes.editDestination}
         strict={false}
         exact
-        render={getComponent<CommonDestinationPageProps>(DestinationEditor, { ...additionalProps, editorMode: 'edit' })}
-      />
+      >
+        <DestinationEditor {...{...additionalProps, editorMode: 'edit'}}/>
+      </Route>
     </Switch>
   );
 };
+
+const DestinationsPage = observer(DestinationsPageComponent);
 
 export default DestinationsPage;

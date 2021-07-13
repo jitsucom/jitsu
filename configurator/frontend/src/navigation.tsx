@@ -25,6 +25,7 @@ const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/Cu
 const DestinationsPage = React.lazy(
   () => import('ui/pages/DestinationsPage/DestinationsPage')
 );
+
 const EventsStream = React.lazy(() => import('./lib/components/EventsStream/EventsStream'));
 const LoginForm = React.lazy(() => import('./lib/components/LoginForm/LoginForm'));
 const SetupForm = React.lazy(() => import('ui/pages/SetupPage/SetupForm'));

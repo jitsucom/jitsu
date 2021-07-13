@@ -8,6 +8,8 @@ import {
   destinationsReferenceList,
   destinationsReferenceMap,
 } from 'ui/pages/DestinationsPage/commons';
+// @Store
+import { destinationsStore } from 'stores/destinationsStore';
 // @Components
 import { handleError } from 'lib/components/components';
 import { DropDownList } from 'ui/components/DropDownList/DropDownList';
@@ -29,74 +31,103 @@ import { CommonDestinationPageProps } from 'ui/pages/DestinationsPage/Destinatio
 import { Destination } from 'catalog/destinations/types';
 import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 import { destinationEditorUtils } from 'ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
+import { observer } from 'mobx-react-lite';
 
-const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, sources, updateSources  }: CommonDestinationPageProps) => {
+const DestinationsListComponent = ({
+  setBreadcrumbs,
+  sources,
+  updateSources
+}: CommonDestinationPageProps) => {
   const history = useHistory();
 
   const [hideSensitiveInfo] = useState(false);
 
-  const update = useCallback((id: string) => async() => {
-    const appServices = ApplicationServices.get();
+  const deleteDestination = useCallback(
+    (id: string) => async () => {
+      const appServices = ApplicationServices.get();
 
-    const currentDestination = destinations.find(dest => dest._id === id);
+      const destinationToDelete = destinationsStore.destinations.find(
+        
+        
+        
+        (dest) => dest._id === id
+      
+      
+      
+      );
 
-    const newDestinations = destinations.filter(dest => dest._id !== id);
+      try {
+        const updatesSources = destinationEditorUtils.updateSources(
+          sources,
+          destinationToDelete,
+          appServices.activeProject.id
+        );
+        updateSources({ sources: updatesSources });
 
-    try {
-      const updatesSources = destinationEditorUtils.updateSources(sources, currentDestination, appServices.activeProject.id);
-      updateSources({ sources: updatesSources });
+        destinationsStore.deleteDestination(destinationToDelete);
+      } catch (errors) {
+        handleError(
+          errors,
+          'Unable to delete destination at this moment, please try later.'
+        );
+      }
+    },
+    [sources, updateSources]
+  );
 
-      await appServices.storageService.save('destinations', { destinations: newDestinations }, appServices.activeProject.id);
-
-      updateDestinations({ destinations: newDestinations });
-    } catch (errors) {
-      handleError(errors, 'Unable to delete destination at this moment, please try later.')
-    }
-  }, [destinations, updateDestinations, sources, updateSources]);
-
-  const dropDownList = useMemo(() => <DropDownList
-    hideFilter
-    list={destinationsReferenceList.map((dst: Destination) => ({
-      title: dst.displayName,
-      id: dst.id,
-      icon: dst.ui.icon,
-      link: generatePath(destinationPageRoutes.newDestination, { type: dst.id })
-    }))}
-    filterPlaceholder="Filter by destination name or id"
-  />, []);
+  const dropDownList = useMemo(
+    () => (
+      <DropDownList
+        hideFilter
+        list={destinationsReferenceList.map((dst: Destination) => ({
+          title: dst.displayName,
+          id: dst.id,
+          icon: dst.ui.icon,
+          link: generatePath(destinationPageRoutes.newDestination, {
+            type: dst.id
+          })
+        }))}
+        filterPlaceholder="Filter by destination name or id"
+      />
+    ),
+    []
+  );
 
   useEffect(() => {
-    setBreadcrumbs(withHome({
-      elements: [
-        { title: 'Destinations', link: destinationPageRoutes.root },
-        {
-          title: 'Destinations List'
-        }
-      ]
-    }));
-  }, [setBreadcrumbs])
+    setBreadcrumbs(
+      withHome({
+        elements: [
+          { title: 'Destinations', link: destinationPageRoutes.root },
+          {
+            title: 'Destinations List'
+          }
+        ]
+      })
+    );
+  }, [setBreadcrumbs]);
 
-  if (destinations.length === 0) {
-    return <EmptyList
-      list={dropDownList}
-      title="Destinations list is still empty"
-      unit="destination"
-    />;
+  if (destinationsStore.destinations.length === 0) {
+    return (
+      <EmptyList
+        list={dropDownList}
+        title="Destinations list is still empty"
+        unit="destination"
+      />
+    );
   }
 
-  return <>
-    <div className="mb-5">
-      <Dropdown
-        trigger={['click']}
-        overlay={dropDownList}
-      >
-        <Button type="primary" icon={<PlusOutlined />}>Add destination</Button>
-      </Dropdown>
-    </div>
+  return (
+    <>
+      <div className="mb-5">
+        <Dropdown trigger={['click']} overlay={dropDownList}>
+          <Button type="primary" icon={<PlusOutlined />}>
+            Add destination
+          </Button>
+        </Dropdown>
+      </div>
 
-    <ul className={styles.list}>
-      {
-        destinations.map((dst: DestinationData) => {
+      <ul className={styles.list}>
+        {destinationsStore.destinations.map((dst: DestinationData) => {
           const reference = destinationsReferenceMap[dst._type];
           if (!reference) {
             throw new Error(
@@ -106,31 +137,53 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, so
             );
           }
 
-          return <ListItem
-            additional={destinationsUtils.getMode(dst._formData?.mode)}
-            description={destinationsUtils.getDescription(reference, dst, hideSensitiveInfo)}
-            title={destinationsUtils.getTitle(dst)}
-            icon={reference?.ui?.icon}
-            id={dst._id}
-            key={dst._id}
-            actions={[
-              { onClick: () => history.push(generatePath(destinationPageRoutes.editDestination, { id: dst._id })), title: 'Edit', icon: <EditOutlined /> },
-              { onClick: () => {
-                Modal.confirm({
-                  title: 'Please confirm deletion of destination',
-                  icon: <ExclamationCircleOutlined/>,
-                  content: 'Are you sure you want to delete ' + dst._id + ' destination?',
-                  okText: 'Delete',
-                  cancelText: 'Cancel',
-                  onOk: update(dst._id)
-                });
-              }, title: 'Delete', icon: <DeleteOutlined /> }
-            ]}
-          />
-        })
-      }
-    </ul>
-  </>
+          return (
+            <ListItem
+              additional={destinationsUtils.getMode(dst._formData?.mode)}
+              description={destinationsUtils.getDescription(
+                reference,
+                dst,
+                hideSensitiveInfo
+              )}
+              title={destinationsUtils.getTitle(dst)}
+              icon={reference?.ui?.icon}
+              id={dst._id}
+              key={dst._id}
+              actions={[
+                {
+                  onClick: () =>
+                    history.push(
+                      generatePath(destinationPageRoutes.editDestination, {
+                        id: dst._id
+                      })
+                    ),
+                  title: 'Edit',
+                  icon: <EditOutlined />
+                },
+                {
+                  onClick: () => {
+                    Modal.confirm({
+                      title: 'Please confirm deletion of destination',
+                      icon: <ExclamationCircleOutlined />,
+                      content:
+                        'Are you sure you want to delete ' +
+                        dst._id +
+                        ' destination?',
+                      okText: 'Delete',
+                      cancelText: 'Cancel',
+                      onOk: deleteDestination(dst._id)
+                    });
+                  },
+                  title: 'Delete',
+                  icon: <DeleteOutlined />
+                }
+              ]}
+            />
+          );
+        })}
+      </ul>
+    </>
+  );
 };
 
-export { DestinationsList };
+export const DestinationsList = observer(DestinationsListComponent);
