@@ -13,6 +13,8 @@ import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
 import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
+// @Store
+import { destinationsStore } from 'stores/destinationsStore';
 // @CatalogDestinations
 import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
 // @Types
@@ -65,7 +67,6 @@ type Props =
   & ControlsProps;
 
 const DestinationEditor = ({
-  destinations,
   editorMode,
   sources,
   sourcesError,
@@ -73,7 +74,6 @@ const DestinationEditor = ({
   disableForceUpdateOnSave,
   updateSources,
   setBreadcrumbs,
-  updateDestinations,
   onAfterSaveSucceded,
   onCancel
 }: Props) => {
@@ -95,8 +95,8 @@ const DestinationEditor = ({
   const [activeTabKey, setActiveTabKey] = useState<DestinationTabKey>('config');
 
   const destinationData = useRef<DestinationData>(
-    destinations.find(dst => dst._id === params.id) || {
-      _id: getUniqueAutoIncId(params.type, destinations.map(dst => dst._id)),
+    destinationsStore.destinations.find(dst => dst._id === params.id) || {
+      _id: getUniqueAutoIncId(params.type, destinationsStore.destinations.map(dst => dst._id)),
       _uid: randomId(),
       _type: params.type,
       _mappings: { _keepUnmappedFields: true },
@@ -272,7 +272,7 @@ const DestinationEditor = ({
     }
   }, [validateTabForm, forceUpdate]);
 
-  const handleSubmit = useCallback(() => {
+  const handleSaveDestination = useCallback(() => {
     submittedOnce.current = true;
 
     setDestinationSaving(true);
@@ -308,24 +308,8 @@ const DestinationEditor = ({
         try {
           await destinationEditorUtils.testConnection(destinationData.current, true);
 
-          const payload = {
-            destinations: editorMode === 'add'
-              ?
-              [...destinations, destinationData.current]
-              :
-              destinations.reduce((accumulator: DestinationData[], current: DestinationData) => [
-                ...accumulator,
-                current._uid !== destinationData.current._uid
-                  ?
-                  current
-                  :
-                  destinationData.current
-              ], [])
-          };
-
-          await services.storageService.save('destinations', payload, services.activeProject.id);
-
-          updateDestinations(payload);
+          if (editorMode === 'add') destinationsStore.addDestination(destinationData.current);
+          if (editorMode === 'edit') destinationsStore.editDestination(destinationData.current);
 
           destinationsTabs.current.forEach((tab: Tab) => tab.touched = false);
 
@@ -352,7 +336,7 @@ const DestinationEditor = ({
         setDestinationSaving(false);
         !disableForceUpdateOnSave && forceUpdate();
       });
-  }, [sources, history, validateTabForm, destinations, updateDestinations, forceUpdate, editorMode, services.activeProject.id, services.storageService, updateSources]);
+  }, [sources, history, validateTabForm, forceUpdate, editorMode, services.activeProject.id, services.storageService, updateSources]);
 
   const connectedSourcesNum = sources.filter(src => (src.destinations || []).includes(destinationData.current._uid)).length;
 
@@ -400,7 +384,7 @@ const DestinationEditor = ({
             save={{
               isRequestPending: destinationSaving,
               isPopoverVisible: savePopover && destinationsTabs.current.some((tab: Tab) => tab.errorsCount > 0),
-              handlePress: handleSubmit,
+              handlePress: handleSaveDestination,
               handlePopoverClose: savePopoverClose,
               titleText: 'Destination editor errors',
               tabsList: destinationsTabs.current
