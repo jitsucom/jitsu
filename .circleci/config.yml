@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   lint:
     docker:
-      - image: circleci/golang:1.14
+      - image: circleci/golang:1.16
     working_directory: /go/src/github.com/jitsucom/jitsu
     steps:
       - checkout
@@ -21,7 +21,7 @@ jobs:
   server-test:
     working_directory: /go/src/github.com/jitsucom/jitsu/server
     docker:
-      - image: circleci/golang:1.14
+      - image: circleci/golang:1.16
       - image: yandex/clickhouse-server:20.3
       - image: circleci/postgres:12
         environment:

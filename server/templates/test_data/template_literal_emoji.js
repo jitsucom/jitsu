@@ -1,0 +1,1 @@
+return `🤘 ${$.event_type}`

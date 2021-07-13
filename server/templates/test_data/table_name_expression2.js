@@ -1,0 +1,1 @@
+$.metric_type || ($.app + "web_test")
