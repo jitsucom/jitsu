@@ -117,6 +117,13 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 		amplitudeAdapter := adapters.NewTestAmplitude(config.Amplitude)
 		return amplitudeAdapter.TestAccess()
+	case storages.HubSpotType:
+		if err := config.HubSpot.Validate(); err != nil {
+			return err
+		}
+
+		hubspotAdapter := adapters.NewTestHubSpot(config.HubSpot)
+		return hubspotAdapter.TestAccess()
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}
