@@ -271,6 +271,7 @@ const DestinationEditor = ({
   }, [validateTabForm, forceUpdate]);
 
   const handleSaveDestination = useCallback(() => {
+
     submittedOnce.current = true;
 
     setDestinationSaving(true);
@@ -278,6 +279,7 @@ const DestinationEditor = ({
     Promise
       .all(destinationsTabs.current.filter((tab: Tab) => !!tab.form).map((tab: Tab) => validateTabForm(tab)))
       .then(async allValues => {
+
         destinationData.current = {
           ...destinationData.current,
           ...allValues.reduce((result: any, current: any) => {
@@ -288,13 +290,14 @@ const DestinationEditor = ({
           }, {})
         };
 
-        try {
-          const updatedSources = await destinationEditorUtils.updateSources(
-            sources, destinationData.current, services.activeProject.id
-          );
-          updatedSources.forEach(sourcesStore.editSource);
-        } catch (error) {
-        }
+        const updatedSources = await destinationEditorUtils.updateSources(
+          sources,
+          destinationData.current,
+          services.activeProject.id
+        );
+        debugger;
+        sourcesStore.editSources(updatedSources);
+        
 
         // ToDo: remove this code after _mappings refactoring
         destinationData.current = {

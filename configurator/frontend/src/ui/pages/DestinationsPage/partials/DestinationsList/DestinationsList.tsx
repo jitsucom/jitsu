@@ -55,7 +55,7 @@ const DestinationsListComponent = ({
           destinationToDelete,
           appServices.activeProject.id
         );
-        updatedSources.forEach(sourcesStore.editSource);;;
+        sourcesStore.editSources(updatedSources);
         destinationsStore.deleteDestination(destinationToDelete);
       } catch (errors) {
         handleError(
