@@ -1,6 +1,7 @@
 // @Libs
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { Col, Form, Input, Row, Select } from 'antd';
+import { observer } from 'mobx-react-lite';
 import debounce from 'lodash/debounce';
 import cn from 'classnames';
 // @Types
@@ -22,18 +23,28 @@ export interface Props {
   handleTouchAnyField: VoidFunc;
 }
 
-const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, initialValues = {} as SourceData, handleTouchAnyField }: Props) => {
+const SourceEditorConfigComponent = ({
+  form,
+  sourceReference,
+  isCreateForm,
+  sources,
+  initialValues = {} as SourceData,
+  handleTouchAnyField
+}: Props) => {
   const validateUniqueSourceId = useCallback(
-    (rule: RuleObject, value: string) => sources?.find((source: SourceData) => source.sourceId === value)
-      ? Promise.reject('Source ID must be unique!')
-      : Promise.resolve(),
+    (rule: RuleObject, value: string) =>
+      sources?.find((source: SourceData) => source.sourceId === value)
+        ? Promise.reject('Source ID must be unique!')
+        : Promise.resolve(),
     [sources]
   );
 
   const handleChange = debounce(handleTouchAnyField, 500);
 
   const sourceIdValidators = useMemo(() => {
-    const rules: Rule[] = [{ required: true, message: 'Source ID is required field' }];
+    const rules: Rule[] = [
+      { required: true, message: 'Source ID is required field' }
+    ];
 
     if (isCreateForm) {
       rules.push({
@@ -75,8 +86,8 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
         </Col>
       </Row>
 
-      {
-        sourceReference.isSingerType && <Row>
+      {sourceReference.isSingerType && (
+        <Row>
           <Col span={24}>
             <Form.Item
               initialValue={initialSchedule}
@@ -85,19 +96,21 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
               label="Schedule:"
               labelCol={{ span: 4 }}
               wrapperCol={{ span: 20 }}
-              rules={[{ required: true, message: 'You have to choose schedule' }]}
+              rules={[
+                { required: true, message: 'You have to choose schedule' }
+              ]}
             >
               <Select>
-                {
-                  COLLECTIONS_SCHEDULES.map((option) =>
-                    <Select.Option value={option.value} key={option.value}>{option.label}</Select.Option>
-                  )
-                }
+                {COLLECTIONS_SCHEDULES.map((option) => (
+                  <Select.Option value={option.value} key={option.value}>
+                    {option.label}
+                  </Select.Option>
+                ))}
               </Select>
             </Form.Item>
           </Col>
         </Row>
-      }
+      )}
 
       <ConfigurableFieldsForm
         handleTouchAnyField={handleTouchAnyField}
@@ -108,6 +121,8 @@ const SourceEditorConfig = ({ form, sourceReference, isCreateForm, sources, init
     </Form>
   );
 };
+
+const SourceEditorConfig = observer(SourceEditorConfigComponent);
 
 SourceEditorConfig.displayName = 'SourceEditorConfig';
 

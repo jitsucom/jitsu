@@ -83,7 +83,6 @@ class DestinationsStore implements IDestinationsStore {
   }
 
   public *pullDestinations(showGlobalLoader?: boolean) {
-    console.log('pulling');
     this.resetError();
     this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING;
     try {

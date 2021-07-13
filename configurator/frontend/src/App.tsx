@@ -1,10 +1,8 @@
 /* eslint-disable */
-import * as React from 'react';
-import { ExoticComponent, useState } from 'react';
+import React, { ExoticComponent, useState } from 'react';
 
 import {Redirect, Route, Switch} from 'react-router-dom';
 import {Button, Form, Input, message, Modal} from 'antd';
-
 
 import './App.less';
 import ApplicationServices, {setDebugInfo} from './lib/services/ApplicationServices';
@@ -16,6 +14,7 @@ import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from './Layout';
 import { PaymentPlanStatus } from 'lib/services/billing';
 import { OnboardingTour } from 'lib/components/OnboardingTour/OnboardingTour';
+import { initializeAllStores } from 'stores/_initializeAllStores';
 
 enum AppLifecycle {
     LOADING, //Application is loading
@@ -44,6 +43,8 @@ export const initializeApplication = async (
   if (user) {
     services.analyticsService.onUserKnown(user);
   }
+
+  await initializeAllStores();
 
   let paymentPlanStatus: PaymentPlanStatus | undefined = undefined;
   if (user && services.features.billingEnabled) {

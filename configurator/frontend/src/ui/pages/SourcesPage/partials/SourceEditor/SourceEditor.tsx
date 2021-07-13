@@ -1,7 +1,8 @@
 // @Libs
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, Redirect, useHistory, useParams } from 'react-router-dom';
-import { Button, Collapse, Drawer, Form, message } from 'antd';
+import { Button, Collapse, Drawer, Form } from 'antd';
+import { observer } from 'mobx-react-lite';
 import cn from 'classnames';
 import snakeCase from 'lodash/snakeCase';
 // @Page
@@ -12,9 +13,10 @@ import { SourceEditorDestinations } from './SourceEditorDestinations';
 import { Tab, TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
 import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
+// @Store
+import { sourcesStore } from 'stores/sourcesStore'
 // @Types
 import {
-  CollectionSourceData,
   CommonSourcePageProps
 } from 'ui/pages/SourcesPage/SourcesPage';
 import { SourceConnector } from 'catalog/sources/types';
@@ -30,7 +32,6 @@ import { validateTabForm } from 'utils/forms/validateTabForm';
 // @Hooks
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
 import { closeableMessage, handleError } from 'lib/components/components';
 import { firstToLower } from 'lib/commons/utils';
 // @Styles
@@ -39,9 +40,7 @@ import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOu
 
 export type SourceTabKey = 'config' | 'collections' | 'destinations';
 
-const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
-  const services = ApplicationServices.get();
-
+const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
   const history = useHistory();
 
   const forceUpdate = useForceUpdate();
@@ -63,19 +62,19 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       let sourceType = params.source
         ? params.source
         : params.sourceId
-          ? sources.find(src => src.sourceId === params.sourceId)?.sourceProtoType
+          ? sourcesStore.sources.find(src => src.sourceId === params.sourceId)?.sourceProtoType
           : undefined;
 
       return sourceType
         ? allSources.find((source: SourceConnector) => snakeCase(source.id) === snakeCase(sourceType))
         : undefined;
     },
-    [params.source, params.sourceId, sources]
+    [params.source, params.sourceId]
   );
 
   const sourceData = useRef<SourceData>(
-    sources.find(src => src.sourceId === params.sourceId) ?? {
-      sourceId: sourcePageUtils.getSourceId(params.source, sources.map(src => src.sourceId)),
+    sourcesStore.sources.find(src => src.sourceId === params.sourceId) ?? {
+      sourceId: sourcePageUtils.getSourceId(params.source, sourcesStore.sources.map(src => src.sourceId)),
       connected: false,
       sourceType: sourcePageUtils.getSourceType(connectorSource),
       sourceProtoType: snakeCase(params.source)
@@ -93,7 +92,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         sourceReference={connectorSource}
         isCreateForm={editorMode === 'add'}
         initialValues={sourceData.current}
-        sources={sources}
+        sources={sourcesStore.sources}
         handleTouchAnyField={validateAndTouchField(0)}
       />
     ),
@@ -122,7 +121,6 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       <SourceEditorDestinations
         form={form}
         initialValues={sourceData.current}
-        projectId={projectId}
         handleTouchAnyField={validateAndTouchField(2)}
       />
     ),
@@ -172,7 +170,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
       });
   };
 
-  const handleSubmit = () => {
+  const handleSaveSource = () => {
     submittedOnce.current = true;
 
     setSourceSaving(true);
@@ -193,20 +191,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
         };
 
         try {
-          const payload: CollectionSourceData = {
-            sources: editorMode === 'edit'
-              ? sources.reduce((accumulator: SourceData[], current: SourceData) => [
-                ...accumulator,
-                current.sourceId !== sourceData.current.sourceId
-                  ? current
-                  : sourceData.current
-              ], [])
-              : [...sources, sourceData.current]
-          };
-
-          await services.storageService.save('sources', payload, projectId);
-
-          updateSources(payload);
+          if (editorMode === 'add') sourcesStore.addSource(sourceData.current);
+          if (editorMode === 'edit') sourcesStore.editSource(sourceData.current);
 
           sourcesTabs.current.forEach((tab: Tab) => tab.touched = false);
 
@@ -269,7 +255,7 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
             save={{
               isRequestPending: sourceSaving,
               isPopoverVisible: savePopover && sourcesTabs.current.some((tab: Tab) => tab.errorsCount > 0),
-              handlePress: handleSubmit,
+              handlePress: handleSaveSource,
               handlePopoverClose: savePopoverClose,
               titleText: 'Source editor errors',
               tabsList: sourcesTabs.current
@@ -309,6 +295,8 @@ const SourceEditor = ({ projectId, sources, updateSources, setBreadcrumbs, edito
     </>
   );
 };
+
+const SourceEditor = observer(SourceEditorComponent);
 
 SourceEditor.displayName = 'SourceEditor';
 

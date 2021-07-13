@@ -1,5 +1,6 @@
 // @Libs
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { observer } from 'mobx-react-lite';
 import { Form } from 'antd';
 // @Constants
 import { SOURCE_CONNECTED_DESTINATION } from 'embeddedDocs/sourcesConnectedItems';
@@ -16,15 +17,13 @@ import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { Destination } from 'catalog/destinations/types';
-// @Hooks
-import useLoader from 'hooks/useLoader';
 // @Utils
 import { destinationsUtils } from 'ui/pages/DestinationsPage/DestinationsPage.utils';
+import { destinationsStore } from 'stores/destinationsStore';
 
 export interface Props {
   form: FormInstance;
   initialValues: SourceData;
-  projectId: string;
   handleTouchAnyField: VoidFunc;
 }
 
@@ -38,31 +37,48 @@ function getDescription(reference: Destination) {
   }
 }
 
-const SourceEditorDestinations = ({ form, initialValues, projectId, handleTouchAnyField }: Props) => {
-  const services = useMemo(() => ApplicationServices.get(), []);
+const SourceEditorDestinationsComponent = ({
+  form,
+  initialValues,
+  handleTouchAnyField
+}: Props) => {
+  const destinations = destinationsStore.destinations;
 
-  const [, destinations] = useLoader(
-    async() => await services.storageService.get('destinations', projectId)
+  const destinationsList = useMemo<ConnectedItem[]>(
+    () =>
+      destinations?.map((dst: DestinationData) => {
+        const reference = destinationsReferenceMap[dst._type];
+        return {
+          id: dst._uid,
+          disabled:
+            reference.syncFromSourcesStatus === 'coming_soon' ||
+            reference.syncFromSourcesStatus === 'not_supported',
+          title: (
+            <NameWithPicture icon={reference.ui.icon}>
+              <b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}
+            </NameWithPicture>
+          ),
+          description: <i className="text-xs">{getDescription(reference)}</i>
+        };
+      }) ?? [],
+    [destinations]
   );
 
-  const destinationsList = useMemo<ConnectedItem[]>(() => destinations?.destinations?.map((dst: DestinationData) => {
-    const reference = destinationsReferenceMap[dst._type]
-    return {
-      id: dst._uid,
-      disabled: reference.syncFromSourcesStatus === 'coming_soon' || reference.syncFromSourcesStatus === 'not_supported',
-      title: <NameWithPicture icon={reference.ui.icon}><b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}</NameWithPicture>,
-      description: <i className="text-xs">{getDescription(reference)}</i>
-    };
-  }) ?? [], [destinations?.destinations]);
+  const preparedInitialValue = useMemo(
+    () => initialValues?.destinations ?? [],
+    [initialValues]
+  );
 
-  const preparedInitialValue = useMemo(() => initialValues?.destinations ?? [], [initialValues]);
+  const handleItemChange = useCallback(
+    (items: string[]) => {
+      const beenTouched =
+        JSON.stringify(items) !== JSON.stringify(initialValues.destinations);
 
-  const handleItemChange = useCallback((items: string[]) => {
-    const beenTouched = JSON.stringify(items) !== JSON.stringify(initialValues.destinations)
-
-    handleTouchAnyField(beenTouched);
-  }, [initialValues, handleTouchAnyField])
-
+      handleTouchAnyField(beenTouched);
+    },
+    [initialValues, handleTouchAnyField]
+  );
+  debugger;
   return (
     <>
       <TabDescription>{SOURCE_CONNECTED_DESTINATION}</TabDescription>
@@ -80,6 +96,8 @@ const SourceEditorDestinations = ({ form, initialValues, projectId, handleTouchA
     </>
   );
 };
+
+const SourceEditorDestinations = observer(SourceEditorDestinationsComponent);
 
 SourceEditorDestinations.displayName = 'SourceEditorDestinations';
 
