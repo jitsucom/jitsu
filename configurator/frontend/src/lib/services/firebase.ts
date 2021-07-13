@@ -19,7 +19,6 @@ import { randomId } from 'utils/numbers';
 export class FirebaseUserService implements UserService {
   private user?: User;
   private apiAccess: ApiAccess;
-  private unregisterAuthObserver: firebase.Unsubscribe;
   private firebaseUser: firebase.User;
   private backendApi: BackendApiClient;
   private readonly storageService: ServerStorage;
@@ -75,6 +74,14 @@ export class FirebaseUserService implements UserService {
 
     let fbUserPromise = new Promise<firebase.User>((resolve, reject) => {
       let unregister = firebase.auth().onAuthStateChanged(
+        /**
+         * 
+         * 
+         * mock onAuthStateChanged implementation so 
+         * that it always returns a valid user
+         * 
+         * 
+         */
         (user: firebase.User) => {
           if (user) {
             this.firebaseUser = user;
@@ -84,7 +91,10 @@ export class FirebaseUserService implements UserService {
               async (email) => {
                 try {
                   let updateResult = await user.updateEmail(email);
-                  console.log(`Attempt to update email to ${email}. Result`, updateResult);
+                  console.log(
+                    `Attempt to update email to ${email}. Result`,
+                    updateResult
+                  );
                 } catch (e) {
                   console.log(`Attempt to update email to ${email} failed`, e);
                 }
@@ -108,7 +118,7 @@ export class FirebaseUserService implements UserService {
           return { user: user, loggedIn: true, loginErrorMessage: null };
         });
       } else {
-        return { user: null, loggedIn: false};
+        return { user: null, loggedIn: false };
       }
     });
   }
@@ -116,7 +126,11 @@ export class FirebaseUserService implements UserService {
   private async restoreUser(fbUser: firebase.User): Promise<User> {
     //initialize authorization
     await this.refreshToken(fbUser, false);
-    this.user = new User(fbUser.uid, () => this.apiAccess, {} as SuggestedUserInfo);
+    this.user = new User(
+      fbUser.uid,
+      () => this.apiAccess,
+      {} as SuggestedUserInfo
+    );
 
     const userInfo = await this.storageService.getUserInfo();
     const suggestedInfo = {
@@ -124,7 +138,12 @@ export class FirebaseUserService implements UserService {
       name: fbUser.displayName
     };
     if (Object.keys(userInfo).length !== 0) {
-      this.user = new User(fbUser.uid, () => this.apiAccess, suggestedInfo, userInfo);
+      this.user = new User(
+        fbUser.uid,
+        () => this.apiAccess,
+        suggestedInfo,
+        userInfo
+      );
       //Fix a bug where created date is not set for a new user
       if (!this.user.created) {
         this.user.created = new Date();
@@ -151,19 +170,31 @@ export class FirebaseUserService implements UserService {
 
   async getUserEmailStatus(): Promise<{
     needsConfirmation: true;
-    isConfirmed: boolean
+    isConfirmed: boolean;
   }> {
-    return { needsConfirmation: true, isConfirmed: this.firebaseUser.emailVerified }
+    return {
+      needsConfirmation: true,
+      isConfirmed: this.firebaseUser.emailVerified
+    };
   }
 
   update(user: User): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       if (user.projects == null) {
-        reject(new Error(`Can't update user without projects:` + JSON.stringify(user)));
+        reject(
+          new Error(
+            `Can't update user without projects:` + JSON.stringify(user)
+          )
+        );
       }
       if (user.projects.length != 1) {
         reject(
-          new Error(`Can't update user projects ( ` + user.projects.length + `), should be 1` + JSON.stringify(user))
+          new Error(
+            `Can't update user projects ( ` +
+              user.projects.length +
+              `), should be 1` +
+              JSON.stringify(user)
+          )
         );
       }
       let userData: any = Marshal.toPureJson(user);
@@ -174,8 +205,9 @@ export class FirebaseUserService implements UserService {
   }
 
   async refreshToken(firebaseUser: firebase.User, forceRefresh: boolean) {
-    let tokenInfo = await firebaseUser.getIdTokenResult(forceRefresh);
-    let expirationMs = new Date(tokenInfo.expirationTime).getTime() - Date.now();
+    const tokenInfo = await firebaseUser.getIdTokenResult(forceRefresh);
+    const expirationMs =
+      new Date(tokenInfo.expirationTime).getTime() - Date.now();
     console.log(
       `Firebase token (force=${forceRefresh}) which expire at ${tokenInfo.expirationTime} in ${expirationMs}ms=(${tokenInfo.expirationTime})`
     );
@@ -184,7 +216,9 @@ export class FirebaseUserService implements UserService {
   }
 
   async createUser(email: string, password: string): Promise<void> {
-    let firebaseUser = await firebase.auth().createUserWithEmailAndPassword(email.trim(), password.trim());
+    let firebaseUser = await firebase
+      .auth()
+      .createUserWithEmailAndPassword(email.trim(), password.trim());
 
     await this.refreshToken(firebaseUser.user, false);
 
@@ -214,7 +248,9 @@ export class FirebaseUserService implements UserService {
   }
 
   sendPasswordReset(email?: string): Promise<void> {
-    return firebase.auth().sendPasswordResetEmail(email ? email : this.getUser().email);
+    return firebase
+      .auth()
+      .sendPasswordResetEmail(email ? email : this.getUser().email);
   }
 
   async sendConfirmationEmail(): Promise<void> {
@@ -236,7 +272,9 @@ export class FirebaseUserService implements UserService {
   }
 
   async becomeUser(email: string): Promise<void> {
-    let token = (await this.backendApi.get(`/become?user_id=${email}`))['token'];
+    let token = (await this.backendApi.get(`/become?user_id=${email}`))[
+      'token'
+    ];
     await firebase.auth().signInWithCustomToken(token);
     reloadPage();
   }
@@ -247,9 +285,14 @@ export class FirebaseUserService implements UserService {
 
   sendLoginLink(email: string): Promise<void> {
     return firebase.auth().sendSignInLinkToEmail(email, {
-      url: document.location.protocol + "//" + document.location.host + "/login-link/" + btoa(email),
+      url:
+        document.location.protocol +
+        '//' +
+        document.location.host +
+        '/login-link/' +
+        btoa(email),
       handleCodeInApp: true
-    })
+    });
   }
 
   supportsLoginViaLink(): boolean {
@@ -263,8 +306,6 @@ export class FirebaseUserService implements UserService {
   loginWithLink(email: string, href: string): Promise<void> {
     return firebase.auth().signInWithEmailLink(email, href).then();
   }
-
-
 }
 
 export function firebaseInit(config: any) {

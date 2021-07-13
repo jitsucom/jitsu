@@ -1,6 +1,6 @@
 import moment, { Moment, unitOfTime } from 'moment';
-import ApplicationServices, { BackendApiClient } from 'lib/services/ApplicationServices';
-import { Project } from 'lib/services/model';
+import { BackendApiClient } from 'lib/services/ApplicationServices';
+import { IProject } from 'lib/services/model';
 
 export type DatePoint = {
   date: Moment;
@@ -95,27 +95,36 @@ function index(series: DatePoint[]): Record<string, number> {
 export class StatServiceImpl implements StatService {
   private readonly api: BackendApiClient;
 
-  private readonly project: Project
+  private readonly project: IProject;;
 
   private readonly timeInUTC: boolean;
 
-  constructor(api: BackendApiClient, project: Project, timeInUTC: boolean) {
+  constructor(api: BackendApiClient, project: IProject, timeInUTC: boolean) {
     this.api = api;
     this.project = project;
     this.timeInUTC = timeInUTC;
   }
 
-  async get(start: Date, end: Date, granularity: Granularity): Promise<DatePoint[]> {
+  async get(
+    start: Date,
+    end: Date,
+    granularity: Granularity
+  ): Promise<DatePoint[]> {
     let data = (
       await this.api.get(
-        `/statistics?project_id=${this.project.id}&start=${start.toISOString()}&end=${end.toISOString()}&granularity=${granularity}`,
+        `/statistics?project_id=${
+          this.project.id
+        }&start=${start.toISOString()}&end=${end.toISOString()}&granularity=${granularity}`,
         { proxy: true }
       )
     )['data'];
     return mergeSeries(
       emptySeries(moment(start).utc(), moment(end).utc(), granularity),
       data.map((el) => {
-        return { date: this.timeInUTC ? moment(el.key).utc() : moment(el.key), events: el.events };
+        return {
+          date: this.timeInUTC ? moment(el.key).utc() : moment(el.key),
+          events: el.events
+        };
       })
     );
   }

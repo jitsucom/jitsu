@@ -1,4 +1,4 @@
-import { Project } from 'lib/services/model';
+import { IProject } from 'lib/services/model';
 import { BackendApiClient } from 'lib/services/ApplicationServices';
 import { DatePoint, StatService, StatServiceImpl } from 'lib/services/stat';
 
@@ -27,7 +27,7 @@ export class PaymentPlanStatus {
 
   private _stat: StatService;
 
-  public async init(project: Project, backendApiClient: BackendApiClient) {
+  public async init(project: IProject, backendApiClient: BackendApiClient) {
     if (!project?.planId) {
       this._currentPlan = paymentPlans.free;
     } else {

@@ -32,6 +32,30 @@ type AppState = {
     paymentPlanStatus?: PaymentPlanStatus;
 };
 
+export const initializeApplication = async (
+  services: ApplicationServices = ApplicationServices.get()
+): Promise<{
+  user: User;
+  paymentPlanStatus: PaymentPlanStatus;
+}> => {
+  await services.init();
+  const { user } = await services.userService.waitForUser();
+  setDebugInfo('user', user);
+  if (user) {
+    services.analyticsService.onUserKnown(user);
+  }
+
+  let paymentPlanStatus: PaymentPlanStatus | undefined = undefined;
+  if (user && services.features.billingEnabled) {
+    paymentPlanStatus = new PaymentPlanStatus();
+    await paymentPlanStatus.init(
+      services.activeProject,
+      services.backendApiClient
+    );
+  }
+
+  return { user, paymentPlanStatus };
+};
 
 const LOGIN_TIMEOUT = 5000;
 export default class App extends React.Component<{}, AppState> {
@@ -53,28 +77,22 @@ export default class App extends React.Component<{}, AppState> {
 
     public async componentDidMount() {
         try {
-            await this.services.init();
-            const loginStatus = await this.services.userService.waitForUser();
-            setDebugInfo('user', loginStatus.user);
-            if (loginStatus.user) {
-                this.services.analyticsService.onUserKnown(loginStatus.user);
-            }
-
-            let paymentPlanStatus: (PaymentPlanStatus | undefined) = undefined;
-            if (loginStatus.user && this.services.features.billingEnabled) {
-                paymentPlanStatus = new PaymentPlanStatus();
-                await paymentPlanStatus.init(this.services.activeProject, this.services.backendApiClient)
-            }
+            const { user, paymentPlanStatus } = await initializeApplication(
+              this.services
+            );
 
             this.setState({
-                lifecycle: loginStatus.user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
-                user: loginStatus.user,
-                paymentPlanStatus: paymentPlanStatus
+              lifecycle: user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
+              user: user,
+              paymentPlanStatus: paymentPlanStatus
             });
 
-            if (loginStatus.user) {
-                const email = await this.services.userService.getUserEmailStatus();
-                email.needsConfirmation && !email.isConfirmed && message.warn(emailIsNotConfirmedMessageConfig)
+            if (user) {
+              const email =
+                await this.services.userService.getUserEmailStatus();
+              email.needsConfirmation &&
+                !email.isConfirmed &&
+                message.warn(emailIsNotConfirmedMessageConfig);
             }
         } catch (error) {
             console.error('Failed to initialize ApplicationServices', error);

@@ -1,5 +1,5 @@
 // @Libs
-import React, { Dispatch, SetStateAction, useMemo } from 'react';
+import { Dispatch, SetStateAction, useMemo } from 'react';
 import { Route, Switch } from 'react-router-dom';
 // @Pages
 import { DestinationsList } from './partials/DestinationsList/DestinationsList';
