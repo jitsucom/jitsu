@@ -2,6 +2,7 @@
 import { makeAutoObservable, flow } from 'mobx';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
+import { isArray } from 'utils/typeCheck';
 
 interface ISourcesStore {
   sources: SourceData[];
@@ -14,7 +15,7 @@ interface ISourcesStore {
   deleteSource: (
     source: SourceData
   ) => Generator<Promise<unknown>, void, unknown>;
-  editSource: (
+  editSources: (
     newData: SourceData
   ) => Generator<Promise<unknown>, void, unknown>;
 }
@@ -81,7 +82,6 @@ class SourcesStore implements ISourcesStore {
   }
 
   public *pullSources(showGlobalLoader?: boolean) {
-    console.log('pulling');
     this.resetError();
     this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING;
     try {
@@ -138,13 +138,21 @@ class SourcesStore implements ISourcesStore {
     }
   }
 
-  public *editSource(sourceToUpdate: SourceData) {
+  public *editSources(_sourcesToUpdate: SourceData | SourceData[]) {
+    const sourcesToUpdate: SourceData[] = isArray(_sourcesToUpdate)
+      ? _sourcesToUpdate
+      : [_sourcesToUpdate];
+
     this.resetError();
     this._state = BACKGROUND_LOADING;
     const updatedSources = this._sources.map((source) => {
-      if (source.sourceId !== sourceToUpdate.sourceId) return source;
-      return sourceToUpdate;
+      const updateCandidate = sourcesToUpdate.find(
+        (updateCandidate) => updateCandidate.sourceId === source.sourceId
+      );
+      if (!updateCandidate) return source;
+      return updateCandidate;
     });
+    debugger;
     try {
       const result = yield services.storageService.save(
         'sources',

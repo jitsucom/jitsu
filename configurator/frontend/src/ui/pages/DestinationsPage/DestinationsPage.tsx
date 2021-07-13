@@ -28,10 +28,6 @@ export interface CommonDestinationPageProps {
 
 const DestinationsPageComponent = ({setBreadcrumbs}: PageProps) => {
 
-  useEffect(() => {
-    destinationsStore.pullDestinations(true);
-  }, []);
-
   if (destinationsStore.state === DestinationsStoreState.GLOBAL_ERROR) {
     return <CenteredError error={destinationsStore.error} />;
   } else if (

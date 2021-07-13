@@ -192,7 +192,8 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
 
         try {
           if (editorMode === 'add') sourcesStore.addSource(sourceData.current);
-          if (editorMode === 'edit') sourcesStore.editSource(sourceData.current);
+          if (editorMode === 'edit')
+            sourcesStore.editSources(sourceData.current);
 
           sourcesTabs.current.forEach((tab: Tab) => tab.touched = false);
 
