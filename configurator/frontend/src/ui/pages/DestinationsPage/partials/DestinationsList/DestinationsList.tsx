@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
 import { Button, Dropdown, Modal } from 'antd';
 // @Services
@@ -99,7 +99,11 @@ const DestinationsList = ({ destinations, updateDestinations, setBreadcrumbs, so
         destinations.map((dst: DestinationData) => {
           const reference = destinationsReferenceMap[dst._type];
           if (!reference) {
-            throw new Error(`Unknown destination type ${dst._type}. All types: ${Object.keys(destinationsReferenceMap)}`)
+            throw new Error(
+              `Unknown destination type ${
+                dst._type
+              }. Supported types: ${Object.keys(destinationsReferenceMap)}`
+            );
           }
 
           return <ListItem

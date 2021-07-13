@@ -1,5 +1,5 @@
 /* eslint-disable */
-import { ApiAccess, Project, User } from './model';
+import { ApiAccess, IProject, User } from './model';
 import axios, { AxiosRequestConfig, AxiosResponse, AxiosTransformer, Method } from 'axios';
 import * as uuid from 'uuid';
 import AnalyticsService from './analytics';
@@ -9,6 +9,7 @@ import { BackendUserService } from './backend';
 import { randomId } from 'utils/numbers';
 import { cleanAuthorizationLocalStorage, concatenateURLs, reloadPage } from 'lib/commons/utils';
 import { getBackendApiBase } from 'lib/commons/pathHelper';
+import { assert } from 'utils/typeCheck';
 
 type AppEnvironmentType = 'development' | 'production';
 
@@ -166,7 +167,18 @@ function getRawApplicationConfig(): RawConfigObject {
   };
 }
 
-export default class ApplicationServices {
+export interface IApplicationServices {
+  init(): Promise<void>;
+  userService: UserService;
+  activeProject: IProject;
+  storageService: ServerStorage;
+  analyticsService: AnalyticsService;
+  backendApiClient: BackendApiClient;
+  features: FeatureSettings;
+  applicationConfiguration: ApplicationConfiguration;
+  showSelfHostedSignUp(): boolean;
+}
+export default class ApplicationServices implements IApplicationServices {
   private readonly _applicationConfiguration: ApplicationConfiguration;
   private readonly _analyticsService: AnalyticsService;
   private readonly _backendApiClient: BackendApiClient;
@@ -180,7 +192,9 @@ export default class ApplicationServices {
 
   constructor() {
     this._applicationConfiguration = new ApplicationConfiguration();
-    this._analyticsService = new AnalyticsService(this._applicationConfiguration);
+    this._analyticsService = new AnalyticsService(
+      this._applicationConfiguration
+    );
     this._backendApiClient = new JWTBackendClient(
       this._applicationConfiguration.backendApiBase,
       this._applicationConfiguration.backendApiProxyBase,
@@ -196,13 +210,25 @@ export default class ApplicationServices {
     this._features = configuration;
     this._analyticsService.configure(this._features);
 
-    if (configuration.authorization == 'redis' || !this._applicationConfiguration.firebaseConfig) {
-      this._userService = new BackendUserService(this._backendApiClient, this._storageService, configuration.smtp);
+    if (
+      configuration.authorization == 'redis' ||
+      !this._applicationConfiguration.firebaseConfig
+    ) {
+      this._userService = new BackendUserService(
+        this._backendApiClient,
+        this._storageService,
+        configuration.smtp
+      );
     } else if (configuration.authorization == 'firebase') {
       firebaseInit(this._applicationConfiguration.firebaseConfig);
-      this._userService = new FirebaseUserService(this._backendApiClient, this._storageService);
+      this._userService = new FirebaseUserService(
+        this._backendApiClient,
+        this._storageService
+      );
     } else {
-      throw new Error(`Unknown backend configuration authorization type: ${configuration.authorization}`);
+      throw new Error(
+        `Unknown backend configuration authorization type: ${configuration.authorization}`
+      );
     }
   }
 
@@ -210,9 +236,7 @@ export default class ApplicationServices {
     return this._userService;
   }
 
-
-
-  get activeProject(): Project {
+  get activeProject(): IProject {
     return this.userService.getUser().projects[0];
   }
 
@@ -248,7 +272,10 @@ export default class ApplicationServices {
     return this._features;
   }
   private async loadBackendConfiguration(): Promise<FeatureSettings> {
-    let fullUrl = concatenateURLs(this._applicationConfiguration.backendApiBase, '/system/configuration');
+    let fullUrl = concatenateURLs(
+      this._applicationConfiguration.backendApiBase,
+      '/system/configuration'
+    );
     let request: AxiosRequestConfig = {
       method: 'GET',
       url: fullUrl,
@@ -257,39 +284,29 @@ export default class ApplicationServices {
 
     let response = await axios(request);
 
-    let environment = response.data.selfhosted ? 'custom' : 'jitsu_cloud';
-    if (response.data.docker_hub_id === 'heroku') {
-      environment = 'heroku';
-    } else if (response.data.docker_hub_id === 'ksense' || response.data.docker_hub_id === 'jitsucom') {
-      environment = 'docker';
-    }
-
     if (response.status == 200) {
-      return {
-        ...(response.data),
-        createDemoDatabase: !response.data.selfhosted,
-        users: !response.data.selfhosted || response.data.users,
-        enableCustomDomains: !response.data.selfhosted,
-        anonymizeUsers: !!response.data.selfhosted,
-        appName: response.data.selfhosted ? 'selfhosted' : 'jitsu_cloud',
-        chatSupportType: response.data.selfhosted ? 'slack' : 'chat',
-        billingEnabled: !response.data.selfhosted,
-        environment: environment
-      };
+      return mapBackendConfigResponseToAppFeatures(response.data);
     } else {
       throw new APIError(response, request);
     }
   }
 
-  public async initializeDefaultDestination(): Promise<{ credentials: PgDatabaseCredentials, destinations: DestinationData[] }> {
-    let credentials: PgDatabaseCredentials = await this._backendApiClient.post('/database', {
-      projectId: this.activeProject.id
-    });
+  public async initializeDefaultDestination(): Promise<{
+    credentials: PgDatabaseCredentials;
+    destinations: DestinationData[];
+  }> {
+    let credentials: PgDatabaseCredentials = await this._backendApiClient.post(
+      '/database',
+      {
+        projectId: this.activeProject.id
+      }
+    );
     const destinationData: DestinationData = {
       _type: 'postgres',
-      _comment: "We set up a test postgres database for you. It's hosted by us and has a 10,000 rows limitation. It's ok" +
+      _comment:
+        "We set up a test postgres database for you. It's hosted by us and has a 10,000 rows limitation. It's ok" +
         " to try with service with it. However, don't use it in production setup. To reveal credentials, click on the 'Edit' button",
-      _id: "demo_postgres",
+      _id: 'demo_postgres',
       _uid: randomId(),
       _mappings: null,
       _onlyKeys: [],
@@ -303,9 +320,13 @@ export default class ApplicationServices {
         pgdatabase: credentials['Database'],
         mode: 'stream'
       }
-    } ;
+    };
     const destinations = [destinationData];
-    await this._storageService.save('destinations', { destinations }, this.activeProject.id);
+    await this._storageService.save(
+      'destinations',
+      { destinations },
+      this.activeProject.id
+    );
     return { credentials, destinations };
   }
 
@@ -327,6 +348,44 @@ export default class ApplicationServices {
     return !this._features.users;
   }
 }
+
+export function mapBackendConfigResponseToAppFeatures(responseData: {[key: string]: unknown}): FeatureSettings {
+  let environment: FeatureSettings['environment'] = responseData.selfhosted ? 'custom' : 'jitsu_cloud';
+  if (responseData.docker_hub_id === 'heroku') {
+    environment = 'heroku';
+  } else if (
+    responseData.docker_hub_id === 'ksense' ||
+    responseData.docker_hub_id === 'jitsucom'
+  ) {
+    environment = 'docker' as const;
+  }
+
+  assert(
+    responseData.authorization === 'redis' ||
+    responseData.authorization === 'firebase' 
+  );
+
+  assert(typeof responseData.smtp === 'boolean');
+
+  return {
+    ...responseData,
+    createDemoDatabase: !responseData.selfhosted,
+    users: !responseData.selfhosted || !!responseData.users,
+    enableCustomDomains: !responseData.selfhosted,
+    anonymizeUsers: !!responseData.selfhosted,
+    appName: responseData.selfhosted ? 'selfhosted' : 'jitsu_cloud',
+    chatSupportType: responseData.selfhosted ? 'slack' : 'chat',
+    billingEnabled: !responseData.selfhosted,
+    authorization: responseData.authorization,
+    smtp: responseData.smtp,
+    environment
+  }
+}
+
+
+/**
+ * User Service
+ */
 
 export type UserLoginStatus = {
   user?: User;
@@ -482,7 +541,7 @@ export type ApiRequestOptions = {
  */
 export interface BackendApiClient {
   /**
-   * For end-points that returns JSON. In that case response will
+   * For end-points that return JSON. In that case response will
    * be deserialized
    * @param url url
    * @param payload payload
@@ -749,3 +808,4 @@ class HttpServerStorage implements ServerStorage {
     return this.backendApi.post(`/configurations/${collectionName}?id=${key}`, Marshal.toPureJson(data));
   }
 }
+

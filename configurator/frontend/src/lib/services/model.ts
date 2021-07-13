@@ -1,7 +1,13 @@
 /* eslint-disable */
 import Marshal from '../commons/marshalling';
 
-export class Project {
+export interface IProject {
+  id: string;
+  name: string;
+  planId: string;
+}
+
+export class Project implements IProject {
   private readonly _id: string;
   private _name: string;
   private _planId?: string;
