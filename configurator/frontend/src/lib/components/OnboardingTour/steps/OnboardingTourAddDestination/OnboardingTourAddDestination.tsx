@@ -1,6 +1,9 @@
 // @Libs
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from 'antd';
+// @Store
+import { sourcesStore, SourcesStoreState } from 'stores/sourcesStore';
+import { destinationsStore, DestinationsStoreState } from 'stores/destinationsStore';
 // @Styles
 import styles from './OnboardingTourAddDestination.module.less';
 // @Commons
@@ -15,7 +18,6 @@ import {
   DestinationStrictType
 } from 'ui/pages/DestinationsPage/commons';
 // @Hooks
-import useLoader from 'hooks/useLoader';
 import { useServices } from 'hooks/useServices';
 // @Utils
 import ApiKeyHelper from 'lib/services/ApiKeyHelper';
@@ -55,15 +57,12 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     services.features.createDemoDatabase
   ]);
 
-  const [sourcesError, sources, updateSources,, isLoadingUserSources] = useLoader(
-    async() => await services.storageService.get('sources', services.activeProject.id)
-  );
-  const [, destinations,, updateDestinations, isLoadingUserDestinations ] = useLoader(
-    async() => await services.storageService.get('destinations', services.activeProject.id)
-  );
+  
+  const userSources = sourcesStore.sources;
+  const userDestinations = destinationsStore.destinations;
 
-  const userSources = useMemo(() => sources?.sources ?? [], [sources])
-  const userDestinations = useMemo(() =>  destinations?.destinations ?? [], [destinations])
+  const isLoadingUserSources = sourcesStore.state === SourcesStoreState.GLOBAL_LOADING
+  const isLoadingUserDestinations = destinationsStore.state === DestinationsStoreState.GLOBAL_LOADING
 
   const handleCancelDestinationSetup = useCallback<() => void>(() => {
     setLifecycle('setup_choice');
@@ -151,13 +150,8 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
       return (
         <div className={styles.destinationEditorContainer}>
           <DestinationEditor
-            destinations={userDestinations}
             setBreadcrumbs={() => {}}
-            updateDestinations={updateDestinations}
             editorMode="add"
-            sources={userSources}
-            sourcesError={sourcesError}
-            updateSources={updateSources}
             paramsByProps={{
               type: destinationsReferenceMap[lifecycle]['id'],
               id: '',
@@ -174,11 +168,8 @@ export const OnboardingTourAddDestination: React.FC<Props> = function({
     lifecycle,
     userDestinations,
     userSources,
-    sourcesError,
     needShowCreateDemoDatabase,
     handleSkip,
-    updateDestinations,
-    updateSources,
     handleCancelDestinationSetup,
     onAfterCustomDestinationCreated,
     handleCreateFreeDatabase

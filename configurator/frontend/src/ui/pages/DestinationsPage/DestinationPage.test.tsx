@@ -10,7 +10,7 @@ import {
 // @Mock Server
 import { setupMockServer } from 'utils/tests/tests-utils.mock-server';
 // @Component
-import { DestinationsPage } from './DestinationsPage';
+import DestinationsPage from './DestinationsPage';
 import { initializeApplication } from 'App';
 import { destinationPageRoutes } from './DestinationsPage.routes';
 

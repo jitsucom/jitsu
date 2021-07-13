@@ -10,6 +10,7 @@ import {
 } from 'ui/pages/DestinationsPage/commons';
 // @Store
 import { destinationsStore } from 'stores/destinationsStore';
+import { sourcesStore } from 'stores/sourcesStore';
 // @Components
 import { handleError } from 'lib/components/components';
 import { DropDownList } from 'ui/components/DropDownList/DropDownList';
@@ -34,9 +35,7 @@ import { destinationEditorUtils } from 'ui/pages/DestinationsPage/partials/Desti
 import { observer } from 'mobx-react-lite';
 
 const DestinationsListComponent = ({
-  setBreadcrumbs,
-  sources,
-  updateSources
+  setBreadcrumbs
 }: CommonDestinationPageProps) => {
   const history = useHistory();
 
@@ -47,23 +46,16 @@ const DestinationsListComponent = ({
       const appServices = ApplicationServices.get();
 
       const destinationToDelete = destinationsStore.destinations.find(
-        
-        
-        
         (dest) => dest._id === id
-      
-      
-      
       );
 
       try {
-        const updatesSources = destinationEditorUtils.updateSources(
-          sources,
+        const updatedSources = destinationEditorUtils.updateSources(
+          sourcesStore.sources,
           destinationToDelete,
           appServices.activeProject.id
         );
-        updateSources({ sources: updatesSources });
-
+        updatedSources.forEach(sourcesStore.editSource);;;
         destinationsStore.deleteDestination(destinationToDelete);
       } catch (errors) {
         handleError(
@@ -72,7 +64,7 @@ const DestinationsListComponent = ({
         );
       }
     },
-    [sources, updateSources]
+    []
   );
 
   const dropDownList = useMemo(

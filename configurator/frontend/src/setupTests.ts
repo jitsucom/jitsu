@@ -6,7 +6,7 @@ import '@testing-library/jest-dom/extend-expect';
 
 jest.mock('react-monaco-editor');
 
-jest.setTimeout(15000);
+jest.setTimeout(300_000);
 
 global.matchMedia =
   global.matchMedia ||

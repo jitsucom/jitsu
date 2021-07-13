@@ -1,5 +1,5 @@
 // @Libs
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Card, Form, message } from 'antd';
 import cn from 'classnames';
@@ -38,6 +38,7 @@ import { firstToLower } from 'lib/commons/utils';
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
+import { sourcesStore } from 'stores/sourcesStore';
 
 type DestinationTabKey = 'config' | 'mappings' | 'sources' | 'settings' | 'statistics';
 
@@ -68,11 +69,8 @@ type Props =
 
 const DestinationEditor = ({
   editorMode,
-  sources,
-  sourcesError,
   paramsByProps,
   disableForceUpdateOnSave,
-  updateSources,
   setBreadcrumbs,
   onAfterSaveSucceded,
   onCancel
@@ -85,6 +83,8 @@ const DestinationEditor = ({
 
   const urlParams = useParams<DestinationURLParams>();
   const params = paramsByProps || urlParams;
+
+  const sources = sourcesStore.sources;
 
   const [testConnecting, setTestConnecting] = useState<boolean>(false);
   const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
@@ -184,8 +184,6 @@ const DestinationEditor = ({
         initialValues={destinationData.current}
         destination={destinationReference}
         handleTouchAnyField={validateAndTouchField(2)}
-        sources={sources}
-        sourcesError={sourcesError}
       />,
     form: Form.useForm()[0],
     errorsLevel: 'warning',
@@ -291,8 +289,10 @@ const DestinationEditor = ({
         };
 
         try {
-          const updatedSources = await destinationEditorUtils.updateSources(sources, destinationData.current, services.activeProject.id);
-          updateSources({ sources: updatedSources });
+          const updatedSources = await destinationEditorUtils.updateSources(
+            sources, destinationData.current, services.activeProject.id
+          );
+          updatedSources.forEach(sourcesStore.editSource);
         } catch (error) {
         }
 
@@ -336,7 +336,7 @@ const DestinationEditor = ({
         setDestinationSaving(false);
         !disableForceUpdateOnSave && forceUpdate();
       });
-  }, [sources, history, validateTabForm, forceUpdate, editorMode, services.activeProject.id, services.storageService, updateSources]);
+  }, [sources, history, validateTabForm, forceUpdate, editorMode, services.activeProject.id, services.storageService]);
 
   const connectedSourcesNum = sources.filter(src => (src.destinations || []).includes(destinationData.current._uid)).length;
 
