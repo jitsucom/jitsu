@@ -7,7 +7,7 @@ const icon = <svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="ht
 
 const amplitudeDestination = {
   description: <>
-    Jitsu can send events from JS SDK or Events API to <a href="https://developers.amplitude.com/docs/http-api-v2>">Amplitude API</a>.
+    Jitsu can send events from JS SDK or Events API to <a href="https://developers.amplitude.com/docs/http-api-v2">Amplitude API</a>.
   </>,
   syncFromSourcesStatus: 'not_supported',
   id: 'amplitude',
