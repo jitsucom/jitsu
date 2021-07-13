@@ -46,6 +46,10 @@ var JSTemplateTest = []struct {
 	{"test_data/object_modify.js", object{"event_type": "app_page"}, object{"event_type": "app"}},
 	{"test_data/object_modify.js", object{"event_type": "important", "user": object{"email": "reg@ksense.io"}}, object{"event_type": "jitsu", "user": object{"email": "reg@ksense.io"}}},
 	{"test_data/object_modify.js", object{"event_type": "important", "user": object{"email": "test@test.com"}}, object{"event_type": "skipped", "user": object{"email": "test@test.com"}}},
+
+	//TODO: babels plugin transform-template-literals ruins emoji characters 😢 disable test for now
+	//{"test_data/template_literal_emoji.js", object{"event_type": "app_page"}, "🤘 app_page"},
+
 }
 
 func TestTransform(t *testing.T) {
@@ -61,7 +65,7 @@ func TestTransform(t *testing.T) {
 				return
 			}
 
-			function, err := LoadTemplateScript(script)
+			function, err := LoadTemplateScript(script, nil)
 			if err != nil {
 				t.Errorf("%s Failed loading script into vm: %v", tt.filename, err)
 			}

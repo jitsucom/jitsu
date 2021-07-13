@@ -1,11 +1,8 @@
 package adapters
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/templates"
-	"strings"
-	"text/template"
 )
 
 //HTTPRequestFactory is a factory for creating http.Request from input event object
@@ -16,23 +13,22 @@ type HTTPRequestFactory interface {
 //WebhookRequestFactory is a factory for building webhook (templating) HTTP requests from input events
 type WebhookRequestFactory struct {
 	httpMethod string
-	urlTmpl    *template.Template
-	bodyTmpl   *template.Template
+	urlTmpl    templates.TemplateExecutor
+	bodyTmpl   templates.TemplateExecutor
 	headers    map[string]string
 }
 
 //NewWebhookRequestFactory returns configured HTTPRequestFactory instance for webhook requests
 func NewWebhookRequestFactory(httpMethod, urlTmplStr, bodyTmplStr string, headers map[string]string) (HTTPRequestFactory, error) {
-	urlTmpl, err := template.New("url").Parse(urlTmplStr)
+	urlTmpl, err := templates.SmartParse("url", urlTmplStr, templates.JSONSerializeFuncs)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing URL template [%s]: %v", urlTmplStr, err)
 	}
 
-	bodyTmpl, err := template.New("body").Funcs(templates.JSONSerializeFuncs).Parse(bodyTmplStr)
+	bodyTmpl, err := templates.SmartParse("body", bodyTmplStr, templates.JSONSerializeFuncs)
 	if err != nil {
 		return nil, fmt.Errorf("Error parsing body template [%s]: %v", bodyTmplStr, err)
 	}
-
 	return &WebhookRequestFactory{
 		httpMethod: httpMethod,
 		urlTmpl:    urlTmpl,
@@ -51,20 +47,22 @@ func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Re
 		}
 	}()
 
-	var urlBuf bytes.Buffer
-	if err = wrf.urlTmpl.Execute(&urlBuf, object); err != nil {
+	url, err := wrf.urlTmpl.ProcessEvent(object)
+	if err != nil {
 		return nil, fmt.Errorf("Error executing URL template: %v", err)
 	}
-	url := strings.TrimSpace(urlBuf.String())
 
-	var bodyBuf bytes.Buffer
-	if err = wrf.bodyTmpl.Execute(&bodyBuf, object); err != nil {
+	rawBody, err := wrf.bodyTmpl.ProcessEvent(object)
+	if err != nil {
 		return nil, fmt.Errorf("Error executing body template: %v", err)
 	}
-	body := []byte(strings.TrimSpace(bodyBuf.String()))
+	body, err := templates.ToJSON(rawBody)
+	if err != nil {
+		return nil, err
+	}
 
 	return &Request{
-		URL:     url,
+		URL:     templates.ToString(url, false, false, false),
 		Method:  wrf.httpMethod,
 		Body:    body,
 		Headers: wrf.headers,

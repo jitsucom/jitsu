@@ -11,26 +11,35 @@ import (
 
 type TemplateExecutor interface {
 	ProcessEvent(events.Event) (interface{}, error)
+	Format() string
 }
 
 type goTemplateExecutor struct {
 	template *template.Template
 }
 
-func newGoTemplateExecutor(name string, expression string) (*goTemplateExecutor, error) {
-	template, err := template.New(name).Parse(expression)
+func newGoTemplateExecutor(name string, expression string, extraFunctions template.FuncMap) (*goTemplateExecutor, error) {
+	tmpl := template.New(name)
+	if extraFunctions != nil {
+		tmpl = tmpl.Funcs(extraFunctions)
+	}
+	tmpl, err := tmpl.Parse(expression)
 	if err != nil {
 		return nil, err
 	}
-	return &goTemplateExecutor{template: template}, nil
+	return &goTemplateExecutor{template: tmpl}, nil
 }
 
 func (gte *goTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
 	var buf bytes.Buffer
 	if err := gte.template.Execute(&buf, event); err != nil {
-		return "", fmt.Errorf("error executing %s template: %v", gte.template.Name(), err)
+		return "", err
 	}
 	return strings.TrimSpace(buf.String()), nil
+}
+
+func (gte *goTemplateExecutor) Format() string {
+	return "go"
 }
 
 func (gte *goTemplateExecutor) isPlainText() bool {
@@ -42,11 +51,11 @@ type jsTemplateExecutor struct {
 	jsFunction func(map[string]interface{}) interface{}
 }
 
-func newJsTemplateExecutor(expression string) (*jsTemplateExecutor, error) {
+func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (*jsTemplateExecutor, error) {
 	//First we need to transform js template to ES5 compatible code
 	script, err := Transform(expression)
 	if err != nil {
-		resError := fmt.Errorf("error while transforming JavaScript template \"%s\": %v", expression, err)
+		resError := fmt.Errorf("js transforming error: %v", err)
 		//hack to keep compatibility with JSON templating (which sadly can't be valid JS)
 		script, err = Transform("return " + expression)
 		if err != nil {
@@ -55,15 +64,18 @@ func newJsTemplateExecutor(expression string) (*jsTemplateExecutor, error) {
 		}
 	}
 	//loads javascript into vm instance
-	function, err := LoadTemplateScript(script)
+	function, err := LoadTemplateScript(script, extraFunctions)
 	if err != nil {
-		return nil, fmt.Errorf("error while loading JavaScript template \"%s\": %v", expression, err)
+		return nil, fmt.Errorf("js loading error: %v", err)
 	}
 	return &jsTemplateExecutor{function},  nil
 }
 
 func (jte *jsTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
 	return ProcessEvent(jte.jsFunction, event)
+}
+func (jte *jsTemplateExecutor) Format() string {
+	return "javascript"
 }
 
 type constTemplateExecutor struct {
@@ -75,4 +87,8 @@ func newConstTemplateExecutor(expression string) (*constTemplateExecutor, error)
 
 func (cte *constTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
 	return cte.template, nil
+}
+
+func (cte *constTemplateExecutor) Format() string {
+	return "constant"
 }

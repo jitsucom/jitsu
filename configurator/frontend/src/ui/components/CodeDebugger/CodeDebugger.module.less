@@ -60,12 +60,15 @@
     @apply flex;
 
     .status {
-      @apply w-20 whitespace-nowrap pr-3 flex-shrink-0;
+      @apply w-60 whitespace-pre-wrap pr-3 flex-shrink-0;
 
       .time {
         font-size: 0.75em;
       }
     }
+    .message {
+          white-space: pre-wrap;
+        }
   }
 
   .itemError {
@@ -90,6 +93,11 @@
   :global {
     .ant-tabs-nav {
       min-width: auto !important;
+    }
+
+    .ant-tabs-content-holder {
+      overflow-y: scroll;
+      word-wrap: anywhere;
     }
 
     .ant-tabs-tab {
