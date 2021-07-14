@@ -1,6 +1,11 @@
-import * as React from 'react';
-import * as logos from './logos'
-import { booleanType, dashDateType, intType, isoUtcDateType, stringType } from '../types';
+import * as logos from './logos';
+import {
+  booleanType,
+  dashDateType,
+  intType,
+  isoUtcDateType,
+  stringType
+} from '../types';
 import { customParameters, SingerTap } from './helper';
 import { googleServiceAuthDocumentation } from '../lib/documentation';
 import { googleAuthConfigParameters } from '../lib/commonParams';
@@ -213,18 +218,19 @@ export const allSingerTaps: SingerTap[] = [
           id: 'access_token',
           type: stringType,
           required: true,
-          documentation: <>
-            Access Token. Generate it <a href="https://github.com/settings/tokens">here</a>
-          </>
+          documentation: (
+            <>
+              Access Token. Generate it{' '}
+              <a href="https://github.com/settings/tokens">here</a>
+            </>
+          )
         },
         {
           displayName: 'Repository',
           id: 'repository',
           type: stringType,
           required: true,
-          documentation: <>
-            Repository as org/repo such as jitsucom/jitsu
-          </>
+          documentation: <>Repository as org/repo such as jitsucom/jitsu</>
         },
         {
           displayName: 'Start Date',
@@ -238,24 +244,64 @@ export const allSingerTaps: SingerTap[] = [
 
     stable: true,
     hasNativeEquivalent: false,
-    documentation:
-      {
-        overview: <>The GitHub Connector pulls the following data from the repository{': '}
-          <a href="https://developer.github.com/v3/issues/assignees/#list-assignees">assignees</a>{', '}
-          <a href="https://developer.github.com/v3/repos/collaborators/#list-collaborators">collaborators</a>{', '}
-          <a href="https://developer.github.com/v3/repos/commits/#list-commits-on-a-repository">commits</a>{', '}
-          <a href="https://developer.github.com/v3/issues/#list-issues-for-a-repository">issues</a>{', '}
-          <a href="https://developer.github.com/v3/pulls/#list-pull-requests">pull requests</a>{', '}
-          <a href="https://developer.github.com/v3/issues/comments/#list-comments-in-a-repository">comments</a>{', '}
-          <a href="https://developer.github.com/v3/pulls/reviews/#list-reviews-on-a-pull-request">reviews</a>{', '}
-          <a href="https://developer.github.com/v3/pulls/comments/">review comments</a>{', '}
-          <a href="https://developer.github.com/v3/activity/starring/#list-stargazers">stargazers</a>
-        </>,
-        connection: <><ul>
-          <li>Go to the <a href="https://github.com/settings/tokens">GitHub tokens</a> page</li>
-          <li>Create a new token with at <code>repo</code> scope.</li>
-          <li>Save created token. It is used as Access Token in Jitsu UI</li>
-        </ul></> }
+    documentation: {
+      overview: (
+        <>
+          The GitHub Connector pulls the following data from the repository
+          {': '}
+          <a href="https://developer.github.com/v3/issues/assignees/#list-assignees">
+            assignees
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/repos/collaborators/#list-collaborators">
+            collaborators
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/repos/commits/#list-commits-on-a-repository">
+            commits
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/issues/#list-issues-for-a-repository">
+            issues
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/pulls/#list-pull-requests">
+            pull requests
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/issues/comments/#list-comments-in-a-repository">
+            comments
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/pulls/reviews/#list-reviews-on-a-pull-request">
+            reviews
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/pulls/comments/">
+            review comments
+          </a>
+          {', '}
+          <a href="https://developer.github.com/v3/activity/starring/#list-stargazers">
+            stargazers
+          </a>
+        </>
+      ),
+      connection: (
+        <>
+          <ul>
+            <li>
+              Go to the{' '}
+              <a href="https://github.com/settings/tokens">GitHub tokens</a>{' '}
+              page
+            </li>
+            <li>
+              Create a new token with at <code>repo</code> scope.
+            </li>
+            <li>Save created token. It is used as Access Token in Jitsu UI</li>
+          </ul>
+        </>
+      )
+    }
   },
   {
     pic: logos.tap_gitlab,
@@ -276,7 +322,14 @@ export const allSingerTaps: SingerTap[] = [
           displayName: 'Developer Token',
           id: 'developer_token',
           required: true,
-          documentation: <>API Developer token. <a href="https://services.google.com/fb/forms/newtoken/">Apply here</a></>
+          documentation: (
+            <>
+              API Developer token.{' '}
+              <a href="https://services.google.com/fb/forms/newtoken/">
+                Apply here
+              </a>
+            </>
+          )
         },
         {
           displayName: 'OAuth Client ID',
@@ -353,15 +406,22 @@ export const allSingerTaps: SingerTap[] = [
       ]
     }),
     documentation: {
-      overview: <>The Google Sheets connector pulls data from Google Sheets. Each sheet is treated as separate collection and being synced to separate table</>,
+      overview: (
+        <>
+          The Google Sheets connector pulls data from Google Sheets. Each sheet
+          is treated as separate collection and being synced to separate table
+        </>
+      ),
       connection: googleServiceAuthDocumentation({
         serviceName: 'Google Sheets',
-        scopes: ['https://www.googleapis.com/auth/drive.metadata.readonly', 'https://www.googleapis.com/auth/spreadsheets.readonly'],
+        scopes: [
+          'https://www.googleapis.com/auth/drive.metadata.readonly',
+          'https://www.googleapis.com/auth/spreadsheets.readonly'
+        ],
         apis: ['Google Sheets API', 'Google Drive API'],
         oauthEnabled: true,
         serviceAccountEnabled: false
       })
-
     }
   },
   {
@@ -419,9 +479,14 @@ export const allSingerTaps: SingerTap[] = [
           id: 'access_token',
           type: stringType,
           required: true,
-          documentation: <>
-            Intercom API Access Token. <a href="https://developers.intercom.com/building-apps/docs/authentication-types#section-access-tokens">Read how to get it</a>
-          </>
+          documentation: (
+            <>
+              Intercom API Access Token.{' '}
+              <a href="https://developers.intercom.com/building-apps/docs/authentication-types#section-access-tokens">
+                Read how to get it
+              </a>
+            </>
+          )
         },
         {
           displayName: 'Start Date',
@@ -439,29 +504,86 @@ export const allSingerTaps: SingerTap[] = [
       ]
     }),
     documentation: {
-      overview: <>The Intercom Connector pulls the following entities: <a href="https://developers.intercom.com/intercom-api-reference/v2.0/reference">Intercom v2.0 API</a>{': '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-admins">Admins</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-companies">Companies</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-conversations">Conversations</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#get-a-single-conversation">Conversation Parts</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#data-attributes">Data Attributes</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-customer-data-attributes">Customer Attributes</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-company-data-attributes">Company Attributes</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-leads">Leads</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-segments">Segments</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-segments">Company Segments</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-tags-for-an-app">Tags</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-teams">Teams</a>{', '}
-        <a href="https://developers.intercom.com/intercom-api-reference/reference#list-users">Users</a>{', '}
-      </>,
-      connection: <ul>
-        <li>Go to the <a href="https://app.intercom.com/a/developer-signup">Intercom Apps</a> page</li>
-        <li>Click "New app"</li>
-        <li>Select a clear name e.g. "Jitsu Connector"</li>
-        <li>Select "Internal integration"</li>
-        <li>Click "Create app"</li>
-        <li>Go to the "Configure" tab and save Access Token value from "Authentication" section. It is used as API Access Token in Jitsu UI</li>
-      </ul>
+      overview: (
+        <>
+          The Intercom Connector pulls the following entities:{' '}
+          <a href="https://developers.intercom.com/intercom-api-reference/v2.0/reference">
+            Intercom v2.0 API
+          </a>
+          {': '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-admins">
+            Admins
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-companies">
+            Companies
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-conversations">
+            Conversations
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#get-a-single-conversation">
+            Conversation Parts
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#data-attributes">
+            Data Attributes
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-customer-data-attributes">
+            Customer Attributes
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-company-data-attributes">
+            Company Attributes
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-leads">
+            Leads
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-segments">
+            Segments
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-segments">
+            Company Segments
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-tags-for-an-app">
+            Tags
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-teams">
+            Teams
+          </a>
+          {', '}
+          <a href="https://developers.intercom.com/intercom-api-reference/reference#list-users">
+            Users
+          </a>
+          {', '}
+        </>
+      ),
+      connection: (
+        <ul>
+          <li>
+            Go to the{' '}
+            <a href="https://app.intercom.com/a/developer-signup">
+              Intercom Apps
+            </a>{' '}
+            page
+          </li>
+          <li>Click "New app"</li>
+          <li>Select a clear name e.g. "Jitsu Connector"</li>
+          <li>Select "Internal integration"</li>
+          <li>Click "Create app"</li>
+          <li>
+            Go to the "Configure" tab and save Access Token value from
+            "Authentication" section. It is used as API Access Token in Jitsu UI
+          </li>
+        </ul>
+      )
     }
   },
   {
@@ -568,7 +690,9 @@ export const allSingerTaps: SingerTap[] = [
           id: 'api_secret',
           type: stringType,
           required: true,
-          documentation: <>MixPanel API Secret. Obtain it in MixPanel UI project settings.</>
+          documentation: (
+            <>MixPanel API Secret. Obtain it in MixPanel UI project settings.</>
+          )
         },
         {
           displayName: 'Date Window Size',
@@ -576,7 +700,14 @@ export const allSingerTaps: SingerTap[] = [
           type: intType,
           required: true,
           defaultValue: 30,
-          documentation: <>Number of days for date window looping through transactional endpoints with from_date and to_date. Clients with large volumes of events may want to decrease this to 14, 7, or even down to 1-2 days.</>
+          documentation: (
+            <>
+              Number of days for date window looping through transactional
+              endpoints with from_date and to_date. Clients with large volumes
+              of events may want to decrease this to 14, 7, or even down to 1-2
+              days.
+            </>
+          )
         },
         {
           displayName: 'Attribution Window',
@@ -584,7 +715,12 @@ export const allSingerTaps: SingerTap[] = [
           type: intType,
           required: true,
           defaultValue: 5,
-          documentation: <>Latency minimum number of days to look-back to account for delays in attributing accurate results.</>
+          documentation: (
+            <>
+              Latency minimum number of days to look-back to account for delays
+              in attributing accurate results.
+            </>
+          )
         },
         {
           displayName: 'Project Timezone',
@@ -592,7 +728,17 @@ export const allSingerTaps: SingerTap[] = [
           type: stringType,
           required: true,
           defaultValue: 'UTC',
-          documentation: <>Time zone in which integer date times are stored. The project timezone may be found in the project settings in the Mixpanel console. <a href="https://help.mixpanel.com/hc/en-us/articles/115004547203-Manage-Timezones-for-Projects-in-Mixpanel">More info about timezones</a>.</>
+          documentation: (
+            <>
+              Time zone in which integer date times are stored. The project
+              timezone may be found in the project settings in the Mixpanel
+              console.{' '}
+              <a href="https://help.mixpanel.com/hc/en-us/articles/115004547203-Manage-Timezones-for-Projects-in-Mixpanel">
+                More info about timezones
+              </a>
+              .
+            </>
+          )
         },
         {
           displayName: 'Select properties by default',
@@ -600,7 +746,13 @@ export const allSingerTaps: SingerTap[] = [
           type: booleanType,
           defaultValue: true,
           required: true,
-          documentation: <>Setting this config parameter to true ensures that new properties on events and engage records are captured. Otherwise new properties will be ignored.</>
+          documentation: (
+            <>
+              Setting this config parameter to true ensures that new properties
+              on events and engage records are captured. Otherwise new
+              properties will be ignored.
+            </>
+          )
         },
         {
           displayName: 'Start Date',
@@ -618,22 +770,57 @@ export const allSingerTaps: SingerTap[] = [
       ]
     }),
     documentation: {
-      overview: <>
-        The MixPanel Connector pulls the following data entities from <a href="https://mixpanel.com">MixPanel</a>{': '}
-        <a href="https://developer.mixpanel.com/docs/exporting-raw-data#section-export-api-reference">Export (Events)</a>{', '}
-        <a href="https://developer.mixpanel.com/docs/data-export-api#section-engage">Engage (People/Users)</a>{', '}
-        <a href="https://developer.mixpanel.com/docs/data-export-api#section-funnels">Funnels</a>{', '}
-        <a href="https://developer.mixpanel.com/docs/data-export-api#section-annotations">Annotations</a>{', '}
-        <a href="https://developer.mixpanel.com/docs/cohorts#section-list-cohorts">Cohorts</a>{', '}
-        <a href="https://developer.mixpanel.com/docs/data-export-api#section-engage">Cohort Members</a>{', '}
-        <a href="https://developer.mixpanel.com/docs/data-export-api#section-hr-span-style-font-family-courier-revenue-span">Revenue</a>
-      </>,
-      connection: <>
-        <ul>
-          <li>Go to the <a href="https://mixpanel.com/report">MixPanel Project settings</a> page</li>
-          <li>Save API Secret value from "Access Keys" section of Overview tab. It is used as API Secret in Jitsu UI</li>
-        </ul>
-      </>
+      overview: (
+        <>
+          The MixPanel Connector pulls the following data entities from{' '}
+          <a href="https://mixpanel.com">MixPanel</a>
+          {': '}
+          <a href="https://developer.mixpanel.com/docs/exporting-raw-data#section-export-api-reference">
+            Export (Events)
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/data-export-api#section-engage">
+            Engage (People/Users)
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/data-export-api#section-funnels">
+            Funnels
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/data-export-api#section-annotations">
+            Annotations
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/cohorts#section-list-cohorts">
+            Cohorts
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/data-export-api#section-engage">
+            Cohort Members
+          </a>
+          {', '}
+          <a href="https://developer.mixpanel.com/docs/data-export-api#section-hr-span-style-font-family-courier-revenue-span">
+            Revenue
+          </a>
+        </>
+      ),
+      connection: (
+        <>
+          <ul>
+            <li>
+              Go to the{' '}
+              <a href="https://mixpanel.com/report">
+                MixPanel Project settings
+              </a>{' '}
+              page
+            </li>
+            <li>
+              Save API Secret value from "Access Keys" section of Overview tab.
+              It is used as API Secret in Jitsu UI
+            </li>
+          </ul>
+        </>
+      )
     }
   },
   {
@@ -824,9 +1011,14 @@ export const allSingerTaps: SingerTap[] = [
           id: 'api_key',
           type: stringType,
           required: true,
-          documentation: <>
-            Read more about <a href="https://shopify.dev/tutorials/generate-api-credentials">How to obtain API Key</a>
-          </>
+          documentation: (
+            <>
+              Read more about{' '}
+              <a href="https://shopify.dev/tutorials/generate-api-credentials">
+                How to obtain API Key
+              </a>
+            </>
+          )
         },
         {
           displayName: 'Start Date',
@@ -840,25 +1032,60 @@ export const allSingerTaps: SingerTap[] = [
           id: 'shop',
           type: stringType,
           required: true,
-          documentation: <>
-            Name of your Shopify shop from URL: https://{'<YOUR_SHOP_NAME>'}.myshopify.com
-          </>
+          documentation: (
+            <>
+              Name of your Shopify shop from URL: https://{'<YOUR_SHOP_NAME>'}
+              .myshopify.com
+            </>
+          )
         }
       ]
     }),
     documentation: {
-      overview: <>
-        The Shopify Connector pulls the following entities from <a href="https://help.shopify.com/en/api/reference">Shopify API</a> {': '}
-        <a href="https://help.shopify.com/en/api/reference/orders/abandoned_checkouts">Abandoned Checkouts</a>{', '}
-        <a href="https://help.shopify.com/en/api/reference/products/collect">Collects</a>{', '}
-        <a href="https://help.shopify.com/en/api/reference/products/customcollection">Custom Collections</a>{', '}
-        <a href="https://help.shopify.com/en/api/reference/customers">Customers</a>{', '}
-        <a href="https://help.shopify.com/en/api/reference/metafield">Metafields</a>{', '}
-        <a href="https://help.shopify.com/en/api/reference/orders">Orders</a>{', '}
-        <a href="https://help.shopify.com/en/api/reference/products">Products</a>{', '}
-        <a href="https://help.shopify.com/en/api/reference/orders/transaction">Transactions</a>
-      </>,
-      connection: <>Follow this instruction to obtain an API key <a href="https://shopify.dev/tutorials/generate-api-credentials">How to obtain API Key</a></>
+      overview: (
+        <>
+          The Shopify Connector pulls the following entities from{' '}
+          <a href="https://help.shopify.com/en/api/reference">Shopify API</a>{' '}
+          {': '}
+          <a href="https://help.shopify.com/en/api/reference/orders/abandoned_checkouts">
+            Abandoned Checkouts
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/products/collect">
+            Collects
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/products/customcollection">
+            Custom Collections
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/customers">
+            Customers
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/metafield">
+            Metafields
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/orders">Orders</a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/products">
+            Products
+          </a>
+          {', '}
+          <a href="https://help.shopify.com/en/api/reference/orders/transaction">
+            Transactions
+          </a>
+        </>
+      ),
+      connection: (
+        <>
+          Follow this instruction to obtain an API key{' '}
+          <a href="https://shopify.dev/tutorials/generate-api-credentials">
+            How to obtain API Key
+          </a>
+        </>
+      )
     }
   },
   {
@@ -874,12 +1101,18 @@ export const allSingerTaps: SingerTap[] = [
           id: 'token',
           type: stringType,
           required: true,
-          documentation: <>
-            You can obtain a token for a single workspace by creating a new{' '}
-            <a href="https://api.slack.com/apps?new_app=1">Slack App</a> in your workspace and assigning it the relevant{' '}
-            <a href="https://api.slack.com/docs/oauth-scopes">scopes</a>. As of right now, the minimum required scopes for this App are:{' '}
-            channels:history, channels:join, channels:read, files:read, groups:read, reactions:read, remote_files:read, team:read, usergroups:read, users.profile:read, users:read, users:read.email
-          </>
+          documentation: (
+            <>
+              You can obtain a token for a single workspace by creating a new{' '}
+              <a href="https://api.slack.com/apps?new_app=1">Slack App</a> in
+              your workspace and assigning it the relevant{' '}
+              <a href="https://api.slack.com/docs/oauth-scopes">scopes</a>. As
+              of right now, the minimum required scopes for this App are:{' '}
+              channels:history, channels:join, channels:read, files:read,
+              groups:read, reactions:read, remote_files:read, team:read,
+              usergroups:read, users.profile:read, users:read, users:read.email
+            </>
+          )
         },
         {
           displayName: 'Start Date',
@@ -909,25 +1142,65 @@ export const allSingerTaps: SingerTap[] = [
       ]
     }),
     documentation: {
-      overview: <>
-        The Slack Connector pulls the following data via Slack App (Slack bot) from <a href="https://api.slack.com/">Slack API</a> {': '}
-        <a href="https://api.slack.com/methods/conversations.list">Channels</a>{', '}
-        <a href="https://api.slack.com/methods/conversations.members">Channel Members</a>{', '}
-        <a href="https://api.slack.com/methods/users.list">Users</a>{', '}
-        <a href="https://api.slack.com/methods/conversations.replies">Threads (Channel replies)</a>{', '}
-        <a href="https://api.slack.com/methods/usergroups.list">User Groups</a>{', '}
-        <a href="https://api.slack.com/methods/files.list">Files</a>{', '}
-        <a href="https://api.slack.com/methods/files.remote.list">Remote Files</a>
-      </>,
-      connection: <ul>
-        <li>Go to the <a href="https://api.slack.com/apps?new_app=1">creating Slack Apps</a> page</li>
-        <li>Choose clear app name (e.g. "Jitsu Sync") and select Slack workspace to download data from</li>
-        <li>Go to the "OAuth & Permissions" page of created Slack app</li>
-        <li>Add the following Bot Token <a href="https://api.slack.com/docs/oauth-scopes">Scopes</a>:
-          channels:history, channels:join, channels:read, files:read, groups:read, reactions:read, remote_files:read, team:read, usergroups:read, users.profile:read, users:read, users:read.email</li>
-        <li>Click "Install to Workspace" in the top of of the OAuth & Permissions page and click "Confirm"</li>
-        <li>Save Bot User OAuth Token. It is used as Access Token in Jitsu UI</li>
-      </ul>
+      overview: (
+        <>
+          The Slack Connector pulls the following data via Slack App (Slack bot)
+          from <a href="https://api.slack.com/">Slack API</a> {': '}
+          <a href="https://api.slack.com/methods/conversations.list">
+            Channels
+          </a>
+          {', '}
+          <a href="https://api.slack.com/methods/conversations.members">
+            Channel Members
+          </a>
+          {', '}
+          <a href="https://api.slack.com/methods/users.list">Users</a>
+          {', '}
+          <a href="https://api.slack.com/methods/conversations.replies">
+            Threads (Channel replies)
+          </a>
+          {', '}
+          <a href="https://api.slack.com/methods/usergroups.list">
+            User Groups
+          </a>
+          {', '}
+          <a href="https://api.slack.com/methods/files.list">Files</a>
+          {', '}
+          <a href="https://api.slack.com/methods/files.remote.list">
+            Remote Files
+          </a>
+        </>
+      ),
+      connection: (
+        <ul>
+          <li>
+            Go to the{' '}
+            <a href="https://api.slack.com/apps?new_app=1">
+              creating Slack Apps
+            </a>{' '}
+            page
+          </li>
+          <li>
+            Choose clear app name (e.g. "Jitsu Sync") and select Slack workspace
+            to download data from
+          </li>
+          <li>Go to the "OAuth & Permissions" page of created Slack app</li>
+          <li>
+            Add the following Bot Token{' '}
+            <a href="https://api.slack.com/docs/oauth-scopes">Scopes</a>:
+            channels:history, channels:join, channels:read, files:read,
+            groups:read, reactions:read, remote_files:read, team:read,
+            usergroups:read, users.profile:read, users:read, users:read.email
+          </li>
+          <li>
+            Click "Install to Workspace" in the top of of the OAuth &
+            Permissions page and click "Confirm"
+          </li>
+          <li>
+            Save Bot User OAuth Token. It is used as Access Token in Jitsu UI
+          </li>
+        </ul>
+      )
     }
   },
   // {
@@ -950,18 +1223,14 @@ export const allSingerTaps: SingerTap[] = [
           id: 'client_secret',
           type: stringType,
           required: true,
-          documentation: <>
-                        Client secret ('sk_live_....')
-          </>
+          documentation: <>Client secret ('sk_live_....')</>
         },
         {
           displayName: 'Account ID',
           id: 'account_id',
           type: stringType,
           required: true,
-          documentation: <>
-                        Account ID ('acct_....')
-          </>
+          documentation: <>Account ID ('acct_....')</>
         },
         {
           displayName: 'Start Date',
@@ -969,9 +1238,7 @@ export const allSingerTaps: SingerTap[] = [
           type: isoUtcDateType,
           required: true,
           defaultValue: '2020-01-01T00:00:00.000Z',
-          documentation: <>
-                        Start date
-          </>
+          documentation: <>Start date</>
         }
       ]
     })
@@ -1087,5 +1354,5 @@ export const allSingerTaps: SingerTap[] = [
     tap: 'tap-ilevel',
     stable: true,
     hasNativeEquivalent: false
-  }]
-
+  }
+];
