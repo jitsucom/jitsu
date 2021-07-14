@@ -78,7 +78,7 @@ const SourceEditorDestinationsComponent = ({
     },
     [initialValues, handleTouchAnyField]
   );
-  debugger;
+
   return (
     <>
       <TabDescription>{SOURCE_CONNECTED_DESTINATION}</TabDescription>

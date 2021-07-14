@@ -1,6 +1,6 @@
 // @Libs
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Col, Form, Input, Row, Select, Switch, Tooltip } from 'antd';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Col, Form, Input, Row, Select, Switch, Tooltip, Modal } from 'antd';
 import debounce from 'lodash/debounce';
 import get from 'lodash/get';
 import cn from 'classnames';
@@ -8,6 +8,12 @@ import cn from 'classnames';
 import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
 import { EditableList } from 'lib/components/EditableList/EditableList';
 import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
+import {
+  CodeDebugger,
+  FormValues as DebuggerFormValues
+} from 'ui/components/CodeDebugger/CodeDebugger';
+// @Services
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Types
 import { Parameter, ParameterType } from 'catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
@@ -22,8 +28,6 @@ import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlin
 import BugIcon from 'icons/bug';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
-// @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
 
 export interface Props {
   fieldsParamsList: readonly Parameter[];
@@ -42,8 +46,14 @@ export const FormItemName = {
 const debuggableFields = ['_formData.tableName', '_formData.body', '_formData.url']
 const isDebugSupported = function(id) {return debuggableFields.includes(id)}
 
-const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleTouchAnyField }: Props) => {
+const services = ApplicationServices.get();
 
+const ConfigurableFieldsForm = ({
+  fieldsParamsList,
+  form,
+  initialValues,
+  handleTouchAnyField
+}: Props) => {
   const debugModalsStates = {
     '_formData.tableName': useState<boolean>(false),
     '_formData.body': useState<boolean>(false),
@@ -59,15 +69,10 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
     '_formData.body': false,
     '_formData.url': false
   };
-  debugger;
+
   const handleTouchField = debounce(handleTouchAnyField, 1000);
 
   const forceUpdate = useForceUpdate();
-
-  const tableNameDetected = useMemo<boolean>(
-    () => fieldsParamsList.some((param) => param.id === '_formData.tableName'),
-    [fieldsParamsList]
-  );
 
   const handleChangeIntInput = useCallback(
     (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,8 +156,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
     form.setFieldsValue(formValues);
   }, [fieldsParamsList, form, initialValues]);
 
-  const getFieldComponent = useCallback(
-    (
+  const getFieldComponent = (
       type: ParameterType<any>,
       id: string,
       defaultValue?: any,
@@ -184,49 +188,41 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
               mode={type.data.maxOptions > 1 ? 'multiple' : undefined}
               onChange={forceUpdate}
             >
-              {type.data.options.map(({ id, displayName }: Option) => (
-                <Select.Option value={id} key={id}>
-                  {displayName}
-                </Select.Option>
-              ))}
+              {type.data.options.map(({ id, displayName }: Option) => {
+                return (
+                  <Select.Option value={id} key={id}>
+                    {displayName}
+                  </Select.Option>
+                );
+              })}
             </Select>
           );
 
         case 'array/string':
-          const value = form.getFieldValue(id);
-          return (
-            <EditableList
-              initialValue={
-                value
-                  ? value
-                  : getInitialValue(
-                      id,
-                      defaultValue,
-                      constantValue,
-                      type?.typeName
-                    )
-              }
-            />
-          );
-
+          const value = 
+            form.getFieldValue(id) || 
+            getInitialValue(
+              id,
+              defaultValue,
+              constantValue,
+              type?.typeName
+            );
+          return <EditableList initialValue={value} />;
         case 'json': {
-          const value = form.getFieldValue(id);
-          debugger;
+          const value = 
+            form.getFieldValue(id) || 
+            getInitialValue(
+              id,
+              defaultValue,
+              constantValue,
+              type?.typeName
+            );
           return (
             <div>
               <div>
                 <CodeEditor
                   handleChange={handleJsonChange(id)}
-                  initialValue={
-                    value
-                      ? value
-                      : getInitialValue(
-                          id,
-                          defaultValue,
-                          constantValue,
-                          type?.typeName
-                        )
-                  }
+                  initialValue={value}
                 />
               </div>
               <div
@@ -278,22 +274,39 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
             />
           );
       }
-    },
-    [
-      handleJsonChange,
-      form,
-      handleChangeSwitch,
-      handleChangeIntInput,
-      forceUpdate
-    ]
-  );
+    };
+
+  const handleDebuggerRun = async (id: string, values: DebuggerFormValues) => {
+    const data = {
+      reformat: debugModalsReformat[id],
+      expression: values.code,
+      object: JSON.parse(values.object)
+    };
+
+    return services.backendApiClient.post(
+      `/templates/evaluate?project_id=${services.activeProject.id}`,
+      data,
+      { proxy: true }
+    );
+  };
+
+  const handleCodeChange = (id: string, value: string) => {
+    debugModalsValues[id].current = value;
+  };
 
   const handleCloseDebugger = (id) => debugModalsStates[id][1](false);
 
+  const handleSaveDebugger = (id) => {
+    if (debugModalsValues[id].current) {
+      form.setFieldsValue({ [id]: debugModalsValues[id].current });
+    }
+    handleCloseDebugger(id);
+  };
+
   return (
     <>
-      {fieldsParamsList.map((param: Parameter) => {
-        const {
+      {fieldsParamsList.map(
+        ({
           id,
           documentation,
           displayName,
@@ -301,70 +314,98 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
           defaultValue,
           required,
           constant
-        } = param;
-
-        const currentFormValues = makeObjectFromFieldsValues(
-          form.getFieldsValue() ?? {}
-        );
-        const constantValue =
-          typeof constant === 'function'
-            ? constant?.(currentFormValues)
-            : constant;
-        const isHidden = constantValue !== undefined;
-        const formItemName = id;
-        debugger;
-
-        return !isHidden ? (
-          <Row key={id} className={cn(isHidden && 'hidden')}>
-            <Col span={24}>
-              <Form.Item
-                //key={formItemName}
-                className={cn(
-                  'form-field_fixed-label',
-                  styles.field,
-                  type?.typeName === 'json' && styles.jsonField
-                )}
-                //                initialValue={initialValue}
-                name={formItemName}
-                label={
-                  documentation ? (
-                    <LabelWithTooltip
-                      documentation={documentation}
-                      render={displayName}
+        }: Parameter) => {
+          const currentFormValues = form.getFieldsValue() ?? {};
+          const formIsEmpty: boolean = !Object.keys(currentFormValues).length; // will be true during the first render
+          const formValuesToConsider = formIsEmpty 
+            ? fieldsParamsList.reduce( 
+              (result, {id, defaultValue}) => ({...result, [id]: defaultValue}), // so need to use default values instead
+              {}
+            ) : currentFormValues;
+          const parsedFormValues = makeObjectFromFieldsValues(formValuesToConsider);
+          const constantValue =
+            typeof constant === 'function'
+              ? constant?.(parsedFormValues)
+              : constant;
+          const isHidden = constantValue !== undefined;
+          const formItemName = id;
+          debugger;
+          return !isHidden ? (
+            <Row key={id} className={cn(isHidden && 'hidden')}>
+              <Col span={24}>
+                {isDebugSupported(id) ? (
+                  <Modal
+                    className={styles.modal}
+                    closable={false}
+                    maskClosable={false}
+                    onCancel={() => handleCloseDebugger(id)}
+                    onOk={() => handleSaveDebugger(id)}
+                    okText={`Save ${displayName} template`}
+                    visible={debugModalsStates[id][0]}
+                    wrapClassName={styles.modalWrap}
+                    width="80%"
+                  >
+                    <CodeDebugger
+                      className="pb-2"
+                      codeFieldLabel="Expression"
+                      defaultCodeValue={get(initialValues, id)}
+                      handleClose={() => handleCloseDebugger(id)}
+                      handleCodeChange={(value) =>
+                        handleCodeChange(id, value.toString())
+                      }
+                      run={(values) => handleDebuggerRun(id, values)}
                     />
-                  ) : (
-                    <span>{displayName}:</span>
-                  )
-                }
-                labelCol={{ span: 4 }}
-                wrapperCol={{ span: 20 }}
-                rules={
-                  type?.typeName === 'isoUtcDate'
-                    ? [isoDateValidator(`${displayName} field is required.`)]
-                    : [
-                        {
-                          required:
-                            typeof required === 'boolean'
-                              ? required
-                              : required?.(currentFormValues),
-                          message: `${displayName} field is required.`
-                        }
-                      ]
-                }
-              >
-                {getFieldComponent(type, id, defaultValue, constantValue)}
-              </Form.Item>
-            </Col>
-          </Row>
-        ) : (
-          <Form.Item
-            key={formItemName}
-            name={formItemName}
-            hidden={true}
-            initialValue={constantValue}
-          />
-        );
-      })}
+                  </Modal>
+                ) : (
+                  <></>
+                )}
+                <Form.Item
+                  className={cn(
+                    'form-field_fixed-label',
+                    styles.field,
+                    type?.typeName === 'json' && styles.jsonField
+                  )}
+                  name={formItemName}
+                  label={
+                    documentation ? (
+                      <LabelWithTooltip
+                        documentation={documentation}
+                        render={displayName}
+                      />
+                    ) : (
+                      <span>{displayName}:</span>
+                    )
+                  }
+                  labelCol={{ span: 4 }}
+                  wrapperCol={{ span: 20 }}
+                  rules={
+                    type?.typeName === 'isoUtcDate'
+                      ? [isoDateValidator(`${displayName} field is required.`)]
+                      : [
+                          {
+                            required:
+                              typeof required === 'boolean'
+                                ? required
+                                : required?.(parsedFormValues),
+                            message: `${displayName} field is required.`
+                          }
+                        ]
+                  }
+                >
+                  {getFieldComponent(type, id, defaultValue, constantValue)}
+                </Form.Item>
+              </Col>
+            </Row>
+          ) : (
+            <Form.Item
+              key={formItemName}
+              name={formItemName}
+              hidden={true}
+              initialValue={constantValue}
+            />
+          );
+        }
+      )}
     </>
   );
 };
