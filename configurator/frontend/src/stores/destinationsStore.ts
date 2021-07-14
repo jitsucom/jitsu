@@ -90,7 +90,7 @@ class DestinationsStore implements IDestinationsStore {
         'destinations',
         services.activeProject.id
       );
-      this._destinations = destinations;
+      this._destinations = destinations || [];
     } catch (error) {
       this.setError(
         GLOBAL_ERROR,
