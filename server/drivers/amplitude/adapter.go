@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -17,6 +18,10 @@ import (
 const AmplitudeURL = "https://amplitude.com"
 const AmplitudeLayout = "20060102T15"
 const AmplitudeEvents = "events"
+const AmplitudeActiveUsers = "activeusers"
+const AmplitudeNewUsers = "newusers"
+const TypeActiveUsers = "active"
+const TypeNewUsers = "new"
 
 type AmplitudeAdapter struct {
 	httpClient *http.Client
@@ -101,6 +106,36 @@ func (a *AmplitudeAdapter) GetEvents(interval *base.TimeInterval) ([]map[string]
 	return eventsArray, nil
 }
 
+func (a *AmplitudeAdapter) GetUsers(interval *base.TimeInterval, userType string) ([]map[string]interface{}, error) {
+	start := interval.LowerEndpoint().Format(AmplitudeLayout)
+	end := interval.UpperEndpoint().Format(AmplitudeLayout)
+	url := fmt.Sprintf("%v/api/2/users?start=%s&end=%s&m=%s", AmplitudeURL, start, end, userType)
+
+	request := &adapters.Request{
+		URL:     url,
+		Method:  "GET",
+		Headers: map[string]string{},
+	}
+
+	request.Headers["Authorization"] = a.authToken
+
+	status, response, err := a.doRequest(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("Request does not return OK status [%v]: %v", status, string(response))
+	}
+
+	usersArray, err := parseUsers(response)
+	if err != nil {
+		return nil, err
+	}
+
+	return usersArray, nil
+}
+
 func (a *AmplitudeAdapter) doRequest(request *adapters.Request) (int, []byte, error) {
 	var httpRequest *http.Request
 	var err error
@@ -177,4 +212,30 @@ func parseEvents(income []byte) ([]map[string]interface{}, error) {
 	}
 
 	return eventsArray, nil
+}
+
+type userData struct {
+	XValues []string `mapstructure:"xValues" json:"xValues,omitempty" yaml:"xValues,omitempty"`
+	Series  [][]int  `mapstructure:"series" json:"series,omitempty" yaml:"series,omitempty"`
+}
+
+type userResponse struct {
+	Data userData `mapstructure:"data" json:"data,omitempty" yaml:"data,omitempty"`
+}
+
+func parseUsers(income []byte) ([]map[string]interface{}, error) {
+	response := &userResponse{}
+	if err := json.Unmarshal(income, &response); err != nil {
+		return nil, err
+	}
+
+	usersArray := make([]map[string]interface{}, 0)
+	for i := 0; i < len(response.Data.Series) && i < len(response.Data.XValues); i++ {
+		users := map[string]interface{}{
+			response.Data.XValues[i]: response.Data.Series[i],
+		}
+		usersArray = append(usersArray, users)
+	}
+
+	return usersArray, nil
 }

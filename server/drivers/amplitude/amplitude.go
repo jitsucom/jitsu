@@ -33,7 +33,11 @@ func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		return nil, err
 	}
 
-	if collection.Name != AmplitudeEvents {
+	known := collection.Name == AmplitudeEvents ||
+		collection.Name == AmplitudeActiveUsers ||
+		collection.Name == AmplitudeNewUsers
+
+	if !known {
 		return nil, fmt.Errorf("Unknown collection for amplitude: %v", collection.Name)
 	}
 
@@ -136,6 +140,24 @@ func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval) ([]map[string]int
 		}
 
 		return eventsArray, nil
+	}
+
+	if a.collection.Name == AmplitudeActiveUsers {
+		usersArray, err := a.adapter.GetUsers(interval, TypeActiveUsers)
+		if err != nil {
+			return nil, err
+		}
+
+		return usersArray, nil
+	}
+
+	if a.collection.Name == AmplitudeNewUsers {
+		usersArray, err := a.adapter.GetUsers(interval, TypeNewUsers)
+		if err != nil {
+			return nil, err
+		}
+
+		return usersArray, nil
 	}
 
 	return nil, fmt.Errorf("Unknown collection for amplitude: %v", a.collection.Name)
