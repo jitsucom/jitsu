@@ -1,6 +1,6 @@
 # JavaScript Expressions
 
-**Jitsu** supports JavaScript language to dynamically evaluate certain destination parameters based on received event. E.g., this applies to [Table Names and Filters](docs/configuration/table-names-and-filters) and [WebHook](docs/destinations-configuration/webhook) url and JSON body calculation.
+**Jitsu** supports JavaScript language to dynamically evaluate certain destination parameters based on received event. E.g., this applies to [Table Names and Filters](/docs/configuration/table-names-and-filters) and [WebHook](/docs/destinations-configuration/webhook) url and JSON body calculation.
 Jitsu supports JavaScript expressions alongside [GO text template](https://golang.org/pkg/text/template/) – it automatically detects language based on provided syntax.
 
 ## Difference with Go text/template
@@ -22,8 +22,11 @@ _.event_type //this one better suits Template literals `Welcome, ${_.user?.name}
 ```
 
 Jitsu automatically converts returned value to the type expected by underlying destination property. E.g.,
+
 text string – for Table Name and HTTP URL
-JSON - for HTTP JSON Body
+
+JSON – for HTTP JSON Body
+
 With javascript you can simply return `Object` where JSON is expected - it will be automatically converted
 ```javascript
 return {
@@ -56,7 +59,7 @@ return {
 
 ### Hints & Tips
 
-You can omit return statement for simple expressions
+You can omit `return` statement for simple expressions
 ```javascript
 //table name expression that skips events without user's email
 $.user?.email && $.metric_type
@@ -77,5 +80,5 @@ function removeEmails(obj) {
 	}
 }
 removeEmails($)
-return $
+return "events_without_emails"
 ```

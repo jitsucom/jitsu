@@ -3,7 +3,7 @@
 
 **Jitsu** supports any HTTP destinations. WebHook destination can send configurable HTTP requests based on input JS/API event objects.
 For instance WebHook destination can send notifications about important conversion events to [Slack](https://slack.com/) or another notification channel.
-URL and Body might be configured with [GO text/template](https://golang.org/pkg/text/template/) or [JavaScript expressions](docs/configuration/javascript-expressions). It allows to enrich HTTP request with data from JS/API events.
+URL and Body might be configured with [GO text/template](https://golang.org/pkg/text/template/) or [JavaScript expressions](/docs/configuration/javascript-expressions). It allows to enrich HTTP request with data from JS/API events.
 
 <Hint>
     WebHook destination supports only <code inline={true}>stream</code> mode.
@@ -44,9 +44,9 @@ destinations:
 
 | Parameter | Description |
 | :--- | :--- |
-| `url` (required) | HTTP URL. Can be a string constant, string with [GO text/template](https://golang.org/pkg/text/template/) or [JavaScript expressions](docs/configuration/javascript-expressions) |
+| `url` (required) | HTTP URL. Can be a string constant, string with [GO text/template](https://golang.org/pkg/text/template/) or [JavaScript expressions](/docs/configuration/javascript-expressions) |
 | `method`| HTTP method. Optional. Default value is: `GET`|
-| `body`| HTTP request JSON body. Can be a JSON constant, JSON with [GO text/template](https://golang.org/pkg/text/template/) or [JavaScript expressions](docs/configuration/javascript-expressions) returning Object |
+| `body`| HTTP request JSON body. Can be a JSON constant, JSON with [GO text/template](https://golang.org/pkg/text/template/) or [JavaScript expressions](/docs/configuration/javascript-expressions) returning Object |
 | `headers`| HTTP headers Map. All HTTP requests will be enriched with configured HTTP headers. |
 
 ## Slack Example
