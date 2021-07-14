@@ -1,10 +1,10 @@
 package storages
 
 import (
-	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/identifiers"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -20,7 +20,6 @@ type Postgres struct {
 	Abstract
 
 	adapter                       *adapters.Postgres
-	processor                     *schema.Processor
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
 	uniqueIDField                 *identifiers.UniqueID
@@ -40,7 +39,7 @@ func NewPostgres(config *Config) (Storage, error) {
 	}
 	//enrich with default parameters
 	if pgConfig.Port.String() == "" {
-		pgConfig.Port = json.Number("5432")
+		pgConfig.Port = "5432"
 		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, pgConfig.Port.String())
 	}
 	if pgConfig.Schema == "" {
@@ -69,7 +68,6 @@ func NewPostgres(config *Config) (Storage, error) {
 
 	p := &Postgres{
 		adapter:                       adapter,
-		processor:                     config.processor,
 		usersRecognitionConfiguration: config.usersRecognition,
 		uniqueIDField:                 config.uniqueIDField,
 		staged:                        config.destination.Staged,
@@ -78,6 +76,7 @@ func NewPostgres(config *Config) (Storage, error) {
 
 	//Abstract
 	p.destinationID = config.destinationID
+	p.processor = config.processor
 	p.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	p.eventsCache = config.eventsCache
 	p.tableHelpers = []*TableHelper{tableHelper}
@@ -158,60 +157,7 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
 func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	_, tableHelper := p.getAdapters()
-	flatData, err := p.processor.ProcessPulledEvents(timeIntervalValue, objects)
-	if err != nil {
-		return err
-	}
-
-	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
-
-	//table schema overridden
-	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
-		var data []map[string]interface{}
-		//ignore table multiplexing from mapping step
-		for _, fdata := range flatData {
-			data = append(data, fdata.GetPayload()...)
-			//enrich overridden schema with new fields (some system fields or e.g. after lookup step)
-			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
-		}
-
-		table := tableHelper.MapTableSchema(overriddenDataSchema)
-
-		dbSchema, err := tableHelper.EnsureTable(p.ID(), table, cacheTable)
-		if err != nil {
-			return err
-		}
-		start := time.Now()
-		if err = p.adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
-			return err
-		}
-		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.ID(), len(data), time.Now().Sub(start).Seconds())
-
-		return nil
-	}
-
-	//plain flow
-	for _, fdata := range flatData {
-		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-
-		//overridden table destinationID
-		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
-			table.Name = overriddenDataSchema.TableName
-		}
-
-		dbSchema, err := tableHelper.EnsureTable(p.ID(), table, cacheTable)
-		if err != nil {
-			return err
-		}
-		start := time.Now()
-		if err = p.adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions); err != nil {
-			return err
-		}
-		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.ID(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
-	}
-
-	return nil
+	return syncStoreImpl(p, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //Update uses SyncStore under the hood

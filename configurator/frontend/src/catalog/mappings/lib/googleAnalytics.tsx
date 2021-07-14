@@ -17,13 +17,13 @@ const mapping: DestinationConfigurationTemplate = {
       src: null,
       dst: '/aip',
       action: 'constant',
-      value: false
+      value: 0
     },
     {
       src: null,
       dst: '/ds',
       action: 'constant',
-      value: false
+      value: 'jitsu'
     },
     {
       src: '/eventn_ctx/user/anonymous_id',

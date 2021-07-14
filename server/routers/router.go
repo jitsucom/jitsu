@@ -2,6 +2,7 @@ package routers
 
 import (
 	"github.com/jitsucom/jitsu/server/multiplexing"
+	"github.com/jitsucom/jitsu/server/wal"
 	"net/http"
 	"net/http/pprof"
 
@@ -19,14 +20,14 @@ import (
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/jitsucom/jitsu/server/system"
-	"github.com/jitsucom/jitsu/server/users"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 )
 
 func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *destinations.Service, sourcesService *sources.Service, taskService *synchronization.TaskService,
-	usersRecognitionService *users.RecognitionService, fallbackService *fallback.Service, clusterManager cluster.Manager,
-	eventsCache *caching.EventsCache, systemService *system.Service, segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper) *gin.Engine {
+	fallbackService *fallback.Service, clusterManager cluster.Manager, eventsCache *caching.EventsCache, systemService *system.Service,
+	segmentEndpointFieldMapper, segmentCompatEndpointFieldMapper events.Mapper, processorHolder *events.ProcessorHolder,
+	multiplexingService *multiplexing.Service, walService *wal.Service) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.New() //gin.Default()
@@ -47,20 +48,18 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	router.GET("/s/:filename", staticHandler.Handler)
 	router.GET("/t/:filename", staticHandler.Handler)
 
-	multiplexingService := multiplexing.NewService(destinations, eventsCache)
-
-	jsEventHandler := handlers.NewEventHandler(multiplexingService, eventsCache, events.NewJitsuParser(), events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path")))
-	apiEventHandler := handlers.NewEventHandler(multiplexingService, eventsCache, events.NewJitsuParser(), events.NewAPIProcessor())
-	segmentHandler := handlers.NewEventHandler(multiplexingService, eventsCache, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewSegmentProcessor(usersRecognitionService))
-	segmentCompatHandler := handlers.NewEventHandler(multiplexingService, eventsCache, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), events.NewSegmentProcessor(usersRecognitionService))
+	jsEventHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewJitsuParser(), processorHolder.GetJSPreprocessor())
+	apiEventHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewJitsuParser(), processorHolder.GetAPIPreprocessor())
+	segmentHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewSegmentParser(segmentEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), processorHolder.GetSegmentPreprocessor())
+	segmentCompatHandler := handlers.NewEventHandler(walService, multiplexingService, eventsCache, events.NewSegmentCompatParser(segmentCompatEndpointFieldMapper, appconfig.Instance.GlobalUniqueIDField), processorHolder.GetSegmentPreprocessor())
 
 	taskHandler := handlers.NewTaskHandler(taskService, sourcesService)
 	fallbackHandler := handlers.NewFallbackHandler(fallbackService)
-	dryRunHandler := handlers.NewDryRunHandler(destinations, events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path")))
+	dryRunHandler := handlers.NewDryRunHandler(destinations, processorHolder.GetJSPreprocessor())
 	statisticsHandler := handlers.NewStatisticsHandler(metaStorage)
 
 	sourcesHandler := handlers.NewSourcesHandler(sourcesService, metaStorage)
-	pixelHandler := handlers.NewPixelHandler(multiplexingService, events.NewPixelProcessor())
+	pixelHandler := handlers.NewPixelHandler(multiplexingService, processorHolder.GetPixelPreprocessor())
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")

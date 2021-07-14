@@ -46,18 +46,32 @@ export const FormItemName = {
   }
 }
 
+const debuggableFields = ['_formData.tableName', '_formData.body', '_formData.url']
+const isDebugSupported = function(id) {return debuggableFields.includes(id)}
+
 const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleTouchAnyField }: Props) => {
+
   const services = ApplicationServices.get();
 
-  const [tableNameModal, switchTableNameModal] = useState<boolean>(false);
-
-  const codeValue = useRef<string>();
+  const debugModalsStates = {
+    '_formData.tableName':  useState<boolean>(false),
+    '_formData.body':  useState<boolean>(false),
+    '_formData.url':  useState<boolean>(false),
+  }
+  const debugModalsValues = {
+    '_formData.tableName':   useRef<string>(),
+    '_formData.body':   useRef<string>(),
+    '_formData.url':   useRef<string>(),
+  }
+  const debugModalsReformat = {
+    '_formData.tableName':   true,
+    '_formData.body':   false,
+    '_formData.url':   false,
+  }
 
   const handleTouchField = debounce(handleTouchAnyField, 1000);
 
   const forceUpdate = useForceUpdate();
-
-  const tableNameDetected = useMemo(() => fieldsParamsList.some(param => param.id === '_formData.tableName'), [fieldsParamsList]);
 
   const handleChangeIntInput = useCallback((id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
@@ -77,6 +91,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
         value :
         ''
     });
+    debugModalsValues[id] = value
 
     handleTouchField();
   };
@@ -151,9 +166,12 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
 
     case 'json': {
       const value = form.getFieldValue(id);
-      return <CodeEditor handleChange={handleJsonChange(id)} initialValue={value ?
+      return <div><div><CodeEditor handleChange={handleJsonChange(id)} initialValue={value ?
         value :
-        getInitialValue(id, defaultValue, constantValue, type?.typeName)}/>;
+        getInitialValue(id, defaultValue, constantValue, type?.typeName)}
+      /></div><div style={{textAlign: 'right', zIndex: 1000, position: "relative", paddingRight: 12, paddingTop: 5}}>{isDebugSupported(id) && <Tooltip title="Debug expression">
+        <span onClick={() => debugModalsStates[id][1](true) }><BugIcon className={styles.bugIcon} /></span>
+      </Tooltip>}</div></div>;
     }
 
     case 'boolean':
@@ -162,17 +180,17 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
     case 'string':
     default:
       return <Input
-        autoComplete="off"
-        suffix={id === '_formData.tableName' && <Tooltip title="Debug expression">
-          <span><BugIcon className={styles.bugIcon} onClick={() => switchTableNameModal(true)}/></span>
-        </Tooltip>}
+          autoComplete="off"
+          suffix={isDebugSupported(id) && <Tooltip title="Debug expression">
+            <span><BugIcon className={styles.bugIcon} onClick={() => debugModalsStates[id][1](true)}/></span>
+          </Tooltip>}
       />;
     }
   }, [handleJsonChange, form, handleChangeSwitch, handleChangeIntInput, forceUpdate]);
 
-  const handleDebuggerRun = async(values: DebuggerFormValues) => {
+  const handleDebuggerRun = async(id: string, values: DebuggerFormValues) => {
     const data = {
-      reformat: true,
+      reformat: debugModalsReformat[id],
       expression: values.code,
       object: JSON.parse(values.object)
     };
@@ -180,47 +198,21 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
     return services.backendApiClient.post(`/templates/evaluate?project_id=${services.activeProject.id}`, data, { proxy: true });
   };
 
-  const handleCodeChange = (value: string) => {
-    codeValue.current = value.replace(/[\r\n]+/g, '');
+  const handleCodeChange = (id: string, value: string) => {
+    debugModalsValues[id].current = value;
   };
 
-  const handleCloseDebugger = () => switchTableNameModal(false);
+  const handleCloseDebugger = (id) => debugModalsStates[id][1](false);
 
-  const handleSaveTableName = () => {
-    if (codeValue.current) {
-      form.setFieldsValue({ '_formData.tableName': codeValue.current });
+  const handleSaveDebugger = (id) => {
+    if (debugModalsValues[id].current) {
+      form.setFieldsValue({ [id]: debugModalsValues[id].current });
     }
-
-    handleCloseDebugger();
+    handleCloseDebugger(id);
   };
 
   return (
     <>
-      {
-        tableNameDetected && (
-          <Modal
-            className={styles.modal}
-            closable={false}
-            maskClosable={false}
-            onCancel={handleCloseDebugger}
-            onOk={handleSaveTableName}
-            okText="Save table name template"
-            visible={tableNameModal}
-            wrapClassName={styles.modalWrap}
-            width="80%"
-          >
-            <CodeDebugger
-              className="pb-2"
-              codeFieldLabel="Expression"
-              defaultCodeValue={get(initialValues, '_formData.tableName')}
-              handleClose={handleCloseDebugger}
-              handleCodeChange={handleCodeChange}
-              run={handleDebuggerRun}
-            />
-          </Modal>
-        )
-      }
-
       {
         fieldsParamsList.map((param: Parameter) => {
           const { id, documentation, displayName, type, defaultValue, required, constant } = param;
@@ -234,6 +226,28 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
 
           return !isHidden ?  <Row key={id} className={cn(isHidden && 'hidden')}>
             <Col span={24}>
+              {isDebugSupported(id) ?
+                  <Modal
+                      className={styles.modal}
+                      closable={false}
+                      maskClosable={false}
+                      onCancel={() => handleCloseDebugger(id)}
+                      onOk={() => handleSaveDebugger(id)}
+                      okText={`Save ${displayName} template`}
+                      visible={debugModalsStates[id][0]}
+                      wrapClassName={styles.modalWrap}
+                      width="80%"
+                  >
+                    <CodeDebugger
+                        className="pb-2"
+                        codeFieldLabel="Expression"
+                        defaultCodeValue={get(initialValues, id)}
+                        handleClose={() => handleCloseDebugger(id)}
+                        handleCodeChange={(value) => handleCodeChange(id, value.toString())}
+                        run={values => handleDebuggerRun(id, values)}
+                    />
+                  </Modal>:<></>
+              }
               <Form.Item
                 //key={formItemName}
                 className={cn('form-field_fixed-label', styles.field, type?.typeName === 'json' && styles.jsonField)}
@@ -269,6 +283,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
     </>
   );
 };
+
 
 ConfigurableFieldsForm.displayName = 'ConfigurableFieldsForm';
 

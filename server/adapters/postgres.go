@@ -6,13 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/typing"
-	_ "github.com/lib/pq"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/typing"
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -47,7 +49,11 @@ const (
 	createTableTemplate               = `CREATE TABLE "%s"."%s" (%s)`
 	insertTemplate                    = `INSERT INTO "%s"."%s" (%s) VALUES %s`
 	mergeTemplate                     = `INSERT INTO "%s"."%s"(%s) VALUES %s ON CONFLICT ON CONSTRAINT %s DO UPDATE set %s;`
+	bulkMergeTemplate                 = `INSERT INTO "%s"."%s"(%s) SELECT %s FROM "%s"."%s" ON CONFLICT ON CONSTRAINT %s DO UPDATE SET %s`
+	bulkMergePrefix                   = `excluded`
 	deleteQueryTemplate               = `DELETE FROM "%s"."%s" WHERE %s`
+
+	dropTableTemplate = `DROP TABLE "%s"."%s"`
 
 	copyColumnTemplate   = `UPDATE "%s"."%s" SET %s = %s`
 	dropColumnTemplate   = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
@@ -190,7 +196,13 @@ func (p *Postgres) CreateTable(table *Table) error {
 		return err
 	}
 
-	return p.createTableInTransaction(wrappedTx, table)
+	err = p.createTableInTransaction(wrappedTx, table)
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
 }
 
 //PatchTableSchema adds new columns(from provided Table) to existing table
@@ -292,17 +304,15 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 
 	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] table: %v", table.Name, err)
+		return fmt.Errorf("Error creating [%s] table with statement [%s]: %v", table.Name, query, err)
 	}
 
 	err = p.createPrimaryKeyInTransaction(wrappedTx, table)
 	if err != nil {
-		wrappedTx.Rollback()
 		return err
 	}
 
-	return wrappedTx.tx.Commit()
+	return nil
 }
 
 //alter table with columns (if not empty)
@@ -401,8 +411,7 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 	}
 
 	if !deleteConditions.IsEmpty() {
-		err := p.deleteInTransaction(wrappedTx, table, deleteConditions)
-		if err != nil {
+		if err := p.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
 			wrappedTx.Rollback()
 			return err
 		}
@@ -412,34 +421,62 @@ func (p *Postgres) BulkUpdate(table *Table, objects []map[string]interface{}, de
 		wrappedTx.Rollback()
 		return err
 	}
+
 	return wrappedTx.DirectCommit()
 }
 
-func (p *Postgres) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	if len(table.PKFields) == 0 {
-		return p.bulkInsertInTransaction(wrappedTx, table, objects)
+//DropTable drops table in transaction
+func (p *Postgres) DropTable(table *Table) error {
+	wrappedTx, err := p.OpenTx()
+	if err != nil {
+		return err
 	}
 
-	return p.bulkMergeInTransaction(wrappedTx, table, objects)
+	if err := p.dropTableInTransaction(wrappedTx, table); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+//bulkStoreInTransaction checks PKFields and uses bulkInsert or bulkMerge
+//in bulkMerge - deduplicate objects
+//if there are any duplicates, do the job 2 times
+func (p *Postgres) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+	if len(table.PKFields) == 0 {
+		return p.bulkInsertInTransaction(wrappedTx, table, objects, postgresValuesLimit)
+	}
+
+	//deduplication for bulkMerge success (it fails if there is any duplicate)
+	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
+
+	for _, objectsBucket := range deduplicatedObjectsBuckets {
+		if err := p.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 //Must be used when table has no primary keys. Inserts data in batches to improve performance.
 //Prefer to use bulkStoreInTransaction instead of calling this method directly
-func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
+func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}, valuesLimit int) error {
 	var placeholdersBuilder strings.Builder
 	var headerWithoutQuotes []string
 	for name := range table.Columns {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
 	}
 	maxValues := len(objects) * len(table.Columns)
-	if maxValues > postgresValuesLimit {
-		maxValues = postgresValuesLimit
+	if maxValues > valuesLimit {
+		maxValues = valuesLimit
 	}
 	valueArgs := make([]interface{}, 0, maxValues)
 	placeholdersCounter := 1
 	for _, row := range objects {
 		// if number of values exceeds limit, we have to execute insert query on processed rows
-		if len(valueArgs)+len(headerWithoutQuotes) > postgresValuesLimit {
+		if len(valueArgs)+len(headerWithoutQuotes) > valuesLimit {
 			err := p.executeInsert(wrappedTx, table, headerWithoutQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 			if err != nil {
 				return fmt.Errorf("Error executing insert: %v", err)
@@ -486,41 +523,55 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 	return nil
 }
 
-//Must be used only if table has primary key fields. Slower than bulkInsert as each query executed separately.
-//Prefer to use bulkStoreInTransaction instead of calling this method directly
+//bulkMergeInTransaction creates tmp table without duplicates
+//inserts all data into tmp table and using bulkMergeTemplate merges all data to main table
 func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	var placeholders string
-	var headerWithoutQuotes []string
-	var headerWithQuotes []string
-	i := 1
-	for name := range table.Columns {
-		headerWithoutQuotes = append(headerWithoutQuotes, name)
-		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
-
-		placeholders += "$" + strconv.Itoa(i) + p.getCastClause(name) + ","
-
-		i++
+	tmpTable := &Table{
+		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers(),
+		Columns:        table.Columns,
+		PKFields:       map[string]bool{},
+		DeletePkFields: false,
+		Version:        0,
 	}
-	placeholders = "(" + removeLastComma(placeholders) + ")"
 
-	statement := fmt.Sprintf(mergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ","), placeholders, buildConstraintName(p.config.Schema, table.Name), p.buildUpdateSection(headerWithoutQuotes))
-	mergeStmt, err := wrappedTx.tx.PrepareContext(p.ctx, statement)
+	err := p.createTableInTransaction(wrappedTx, tmpTable)
 	if err != nil {
-		return fmt.Errorf("Error preparing bulk merge statement [%s] table %s statement: %v", statement, table.Name, err)
+		return fmt.Errorf("Error creating temporary table: %v", err)
 	}
 
-	for _, row := range objects {
-		var values []interface{}
-		for _, column := range headerWithoutQuotes {
-			value, _ := row[column]
-			values = append(values, value)
-		}
+	err = p.bulkInsertInTransaction(wrappedTx, tmpTable, objects, postgresValuesLimit)
+	if err != nil {
+		return fmt.Errorf("Error inserting in temporary table: %v", err)
+	}
 
-		p.queryLogger.LogQueryWithValues(statement, values)
-		_, err = mergeStmt.ExecContext(p.ctx, values...)
-		if err != nil {
-			return fmt.Errorf("Error bulk merging in %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
-		}
+	//insert from select
+	var setValues []string
+	var headerWithQuotes []string
+	for name := range table.Columns {
+		setValues = append(setValues, fmt.Sprintf(`"%s"=%s."%s"`, name, bulkMergePrefix, name))
+		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
+	}
+
+	insertFromSelectStatement := fmt.Sprintf(bulkMergeTemplate, p.config.Schema, table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(headerWithQuotes, ", "), p.config.Schema, tmpTable.Name, buildConstraintName(p.config.Schema, table.Name), strings.Join(setValues, ", "))
+	p.queryLogger.LogQuery(insertFromSelectStatement)
+
+	_, err = wrappedTx.tx.ExecContext(p.ctx, insertFromSelectStatement)
+	if err != nil {
+		return fmt.Errorf("Error bulk merging in %s table with statement: %s: %v", table.Name, insertFromSelectStatement, err)
+	}
+
+	//delete tmp table
+	return p.dropTableInTransaction(wrappedTx, tmpTable)
+}
+
+func (p *Postgres) dropTableInTransaction(wrappedTx *Transaction, table *Table) error {
+	query := fmt.Sprintf(dropTableTemplate, p.config.Schema, table.Name)
+	p.queryLogger.LogDDL(query)
+
+	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
+
+	if err != nil {
+		return fmt.Errorf("Error dropping [%s] table: %v", table.Name, err)
 	}
 
 	return nil
@@ -541,10 +592,13 @@ func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, del
 func (p *Postgres) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {
 	var queryConditions []string
 	var values []interface{}
+
 	for i, condition := range conditions.Conditions {
-		queryConditions = append(queryConditions, condition.Field+" "+condition.Clause+" $"+strconv.Itoa(i+1)+p.getCastClause(condition.Field))
+		conditionString := condition.Field + " " + condition.Clause + " $" + strconv.Itoa(i+1) + p.getCastClause(condition.Field)
+		queryConditions = append(queryConditions, conditionString)
 		values = append(values, condition.Value)
 	}
+
 	return strings.Join(queryConditions, conditions.JoinCondition), values
 }
 
@@ -677,17 +731,10 @@ func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, st
 	dbSchemaName string, queryLogger *logging.QueryLogger) error {
 	query := fmt.Sprintf(statementTemplate, dbSchemaName)
 	queryLogger.LogDDL(query)
-	createStmt, err := wrappedTx.tx.PrepareContext(ctx, query)
+	_, err := wrappedTx.tx.ExecContext(ctx, query)
 	if err != nil {
 		wrappedTx.Rollback()
-		return fmt.Errorf("Error preparing create db schema %s statement: %v", dbSchemaName, err)
-	}
-
-	_, err = createStmt.ExecContext(ctx)
-
-	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] db schema: %v", dbSchemaName, err)
+		return fmt.Errorf("Error creating [%s] db schema with statement [%s]: %v", dbSchemaName, query, err)
 	}
 
 	return wrappedTx.tx.Commit()
@@ -731,4 +778,52 @@ func removeLastComma(str string) string {
 	}
 
 	return str
+}
+
+//deduplicateObjects returns slices with deduplicated objects
+//(two objects with the same pkFields values can't be in one slice)
+func deduplicateObjects(table *Table, objects []map[string]interface{}) [][]map[string]interface{} {
+	var pkFields []string
+	for pkField := range table.PKFields {
+		pkFields = append(pkFields, pkField)
+	}
+
+	var result [][]map[string]interface{}
+	duplicatedInput := objects
+	for {
+		deduplicated, duplicated := getDeduplicatedAndOthers(pkFields, duplicatedInput)
+		result = append(result, deduplicated)
+
+		if len(duplicated) == 0 {
+			break
+		}
+
+		duplicatedInput = duplicated
+	}
+
+	return result
+}
+
+//getDeduplicatedAndOthers returns slices with deduplicated objects and others objects
+//(two objects with the same pkFields values can't be in deduplicated objects slice)
+func getDeduplicatedAndOthers(pkFields []string, objects []map[string]interface{}) ([]map[string]interface{}, []map[string]interface{}) {
+	var deduplicatedObjects, duplicatedObjects []map[string]interface{}
+	deduplicatedIDs := map[string]bool{}
+
+	//find duplicates
+	for _, object := range objects {
+		var key string
+		for _, pkField := range pkFields {
+			value, _ := object[pkField]
+			key += fmt.Sprint(value)
+		}
+		if _, ok := deduplicatedIDs[key]; ok {
+			duplicatedObjects = append(duplicatedObjects, object)
+		} else {
+			deduplicatedIDs[key] = true
+			deduplicatedObjects = append(deduplicatedObjects, object)
+		}
+	}
+
+	return deduplicatedObjects, duplicatedObjects
 }

@@ -1,15 +1,14 @@
 package handlers
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/templates"
 	"net/http"
-	"text/template"
 )
 
 //EvaluateTemplateRequest is a request dto for testing text/template expressions
@@ -22,6 +21,8 @@ type EvaluateTemplateRequest struct {
 //EvaluateTemplateResponse is a response dto for testing text/template expressions
 type EvaluateTemplateResponse struct {
 	Result string `json:"result"`
+	Error string `json:"message"`
+	Format string `json:"format"`
 }
 
 //Validate returns err if invalid
@@ -52,23 +53,24 @@ func EventTemplateHandler(c *gin.Context) {
 	}
 
 	var result string
+	var format string
 	var err error
 
 	if req.Reformat {
-		result, err = evaluateReformatted(req)
+		result, format, err = evaluateReformatted(req)
 	} else {
-		result, err = evaluate(req)
+		result, format, err = evaluate(req)
 	}
 
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		c.JSON(http.StatusBadRequest, EvaluateTemplateResponse{Result: result, Format: format, Error: err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, EvaluateTemplateResponse{Result: result})
+	c.JSON(http.StatusOK, EvaluateTemplateResponse{Result: result, Format: format})
 }
 
-func evaluate(req *EvaluateTemplateRequest) (result string, err error) {
+func evaluate(req *EvaluateTemplateRequest) (result string, format string, err error) {
 	//panic handler
 	defer func() {
 		if r := recover(); r != nil {
@@ -77,25 +79,28 @@ func evaluate(req *EvaluateTemplateRequest) (result string, err error) {
 		}
 	}()
 
-	tmpl, err := template.New("template evaluating").
-		Parse(req.Expression)
+	tmpl, err := templates.SmartParse("template evaluating", req.Expression, templates.JSONSerializeFuncs)
 	if err != nil {
-		return "", fmt.Errorf("Error parsing template: %v", err)
+		return "", "", fmt.Errorf("error parsing template: %v", err)
 	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, req.Object); err != nil {
-		return "", fmt.Errorf("Error evaluating template: %v", err)
+	resultObject, err:= tmpl.ProcessEvent(req.Object)
+	if err != nil {
+		return "", tmpl.Format(), fmt.Errorf("error executing template: %v", err)
 	}
-
-	return buf.String(), nil
+	jsonBytes, err := templates.ToJSON(resultObject)
+	if err != nil {
+		return "", tmpl.Format(), err
+	}
+	result = string(jsonBytes)
+	format = tmpl.Format()
+	return
 }
 
-func evaluateReformatted(req *EvaluateTemplateRequest) (string, error) {
+func evaluateReformatted(req *EvaluateTemplateRequest) (string, string, error) {
 	tableNameExtractor, err := schema.NewTableNameExtractor(req.Expression)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-
-	return tableNameExtractor.Extract(req.Object)
+	res, err := tableNameExtractor.Extract(req.Object)
+	return res, tableNameExtractor.Format(), err
 }

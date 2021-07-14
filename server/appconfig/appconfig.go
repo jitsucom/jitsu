@@ -38,6 +38,7 @@ type AppConfig struct {
 	closeMe []io.Closer
 
 	eventsConsumers []io.Closer
+	writeAheadLog   io.Closer
 }
 
 var (
@@ -82,6 +83,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("users_recognition.identification_nodes", []string{"/eventn_ctx/user/internal_id||/user/internal_id"})
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
+	viper.SetDefault("singer-bridge.update_taps", false)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 
 	//Segment API mappings
@@ -308,6 +310,18 @@ func (a *AppConfig) CloseEventsConsumers() {
 		if err := ec.Close(); err != nil {
 			logging.Errorf("[EventsConsumer] %v", err)
 		}
+	}
+}
+
+//ScheduleWriteAheadLogClosing adds wal.Service closer
+func (a *AppConfig) ScheduleWriteAheadLogClosing(c io.Closer) {
+	a.writeAheadLog = c
+}
+
+//CloseWriteAheadLog closes write-ahead-log service in the last call
+func (a *AppConfig) CloseWriteAheadLog() {
+	if err := a.writeAheadLog.Close(); err != nil {
+		logging.Errorf("[WriteAheadLog] %v", err)
 	}
 }
 

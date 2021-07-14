@@ -56,6 +56,7 @@ export interface FormValues {
 
 interface CalculationResult {
   code: 'error' | 'success';
+  format: string | null
   message: string;
 }
 
@@ -82,7 +83,6 @@ const CodeDebugger = ({
 
   const handleChange = (name: 'object' | 'code') => (value: string | object) => {
     form.setFieldsValue({ [name]: value ? value : '' });
-
     if (name === 'code' && handleCodeChange) {
       handleCodeChange(value);
     }
@@ -96,11 +96,13 @@ const CodeDebugger = ({
 
       setCalcResult({
         code: 'success',
+        format: response.format,
         message: response.result
       });
     } catch(error) {
       setCalcResult({
         code: 'error',
+        format: error?._response?.format,
         message: error?.message ?? 'Error'
       });
     } finally {
@@ -216,7 +218,7 @@ const CodeDebugger = ({
                     [styles.itemError]: calcResult.code === 'error',
                     [styles.itemSuccess]: calcResult.code === 'success'
                   })}>
-                  <strong className={styles.status}>{calcResult.code}</strong>
+                  <strong className={styles.status}>{calcResult.code + (calcResult.format ? ' ('+ calcResult.format + ')' : '') }:</strong>
                   <span className={styles.message}>{calcResult.message}</span>
                 </p>
               }
