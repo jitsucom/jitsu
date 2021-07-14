@@ -44,6 +44,9 @@ var templateTest = []templateTestData{
 	{"const: data_base.table1", "constant", "data_base.table1", events.Event{"metric_type": "ogon"}, "data_base.table1"},
 	{"const: \"data base\".\"table1\"", "constant", "\"data base\".\"table1\"", events.Event{"metric_type": "ogon"}, "\"data base\".\"table1\""},
 	{"const: url", "constant", "https://example.com/123/abc123", events.Event{"metric_type": "ogon"}, "https://example.com/123/abc123"},
+
+	{"infinite loop", "javascript", "var i; while (1) {i++}", events.Event{"metric_type": "ogon"}, fmt.Errorf("javascript error: Error: Infinite(or too long) loop break on the line")},
+	{"infinite recursion", "javascript", "var emailRegexp = /^$/\nfunction removeEmails(obj) {\n\tfor (const key in obj) {\n\t\tif (typeof obj[key] === \"object\") {\n\t\t\tremoveEmails($)\n\t\t} else if (typeof obj[key] === \"string\" && obj[key].match(emailRegexp)) { \n\t\t\tdelete obj[key]\n\t\t}\n\t}\n}\nremoveEmails($)\nreturn $", events.Event{"object": object{}}, fmt.Errorf("javascript error: <nil>")},
 }
 
 func TestJtemplate(t *testing.T) {

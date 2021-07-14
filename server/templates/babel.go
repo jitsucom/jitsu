@@ -104,6 +104,8 @@ var babelData string
 //go:embed js/transform-last-statement.js
 var transformLastStatementData string
 
+//go:embed js/loop-protect.js
+var loopProtectData string
 
 func compileBabel() error {
 	var err error
@@ -127,6 +129,14 @@ func loadBabel(vm *goja.Runtime) (func(string, map[string]interface{}) (goja.Val
 	_, err = vm.RunProgram(transformProg)
 	if err != nil {
 		return nil, fmt.Errorf("unable to run transform-last-statement.js: %s", err)
+	}
+	loopProtectProg, err := goja.Compile("loop-protect.js", loopProtectData, false)
+	if err != nil {
+		return nil, fmt.Errorf("unable to compile loop-protect.js: %s", err)
+	}
+	_, err = vm.RunProgram(loopProtectProg)
+	if err != nil {
+		return nil, fmt.Errorf("unable to run loop-protect.js: %s", err)
 	}
 	var transform goja.Callable
 	babel := vm.Get("Babel")
