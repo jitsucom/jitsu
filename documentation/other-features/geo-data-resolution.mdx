@@ -41,8 +41,15 @@ destinations:
 
 geo.maxmind_path: path_to_file #local file
 #or
+geo.maxmind_path: 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>' #Jitsu will download MaxMind DB from official MaxMind URL with your licence key
+#or
 geo.maxmind_path: http://resource.url/path #hosted file
 ```
 
 If a file is not provided, **Jitsu** will still work, but geo data will not be resolved.
 
+<Hint>
+  Jitsu uses official MaxMind URL <code inline="true">https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-City&license_key=%s&suffix=tar.gz</code> and replaces <code inline="true">%s</code> with {' '}
+  your MaxMind licence key from <code inline="true">geo.maxmind_path: 'maxmind://{'<YOUR_MAXMIND_LICENSE_KEY>'}'</code>. For using another MaxMind file URL, please set <code inline="true">maxmind.download_url</code> {' '}
+  configuration parameter in <code inline="true">eventnative.yaml</code> with <code inline="true">%s</code> for replacing it with licence key.
+</Hint>
