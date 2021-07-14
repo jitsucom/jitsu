@@ -279,7 +279,6 @@ const DestinationEditor = ({
     Promise
       .all(destinationsTabs.current.filter((tab: Tab) => !!tab.form).map((tab: Tab) => validateTabForm(tab)))
       .then(async allValues => {
-
         destinationData.current = {
           ...destinationData.current,
           ...allValues.reduce((result: any, current: any) => {
@@ -295,26 +294,32 @@ const DestinationEditor = ({
           destinationData.current,
           services.activeProject.id
         );
-        debugger;
+
         sourcesStore.editSources(updatedSources);
-        
 
         // ToDo: remove this code after _mappings refactoring
         destinationData.current = {
           ...destinationData.current,
           _mappings: {
             ...destinationData.current._mappings,
-            _keepUnmappedFields: Boolean(destinationData.current._mappings._keepUnmappedFields)
+            _keepUnmappedFields: Boolean(
+              destinationData.current._mappings._keepUnmappedFields
+            )
           }
         };
 
         try {
-          await destinationEditorUtils.testConnection(destinationData.current, true);
+          await destinationEditorUtils.testConnection(
+            destinationData.current,
+            true
+          );
 
-          if (editorMode === 'add') destinationsStore.addDestination(destinationData.current);
-          if (editorMode === 'edit') destinationsStore.editDestination(destinationData.current);
+          if (editorMode === 'add')
+            destinationsStore.addDestination(destinationData.current);
+          if (editorMode === 'edit')
+            destinationsStore.editDestination(destinationData.current);
 
-          destinationsTabs.current.forEach((tab: Tab) => tab.touched = false);
+          destinationsTabs.current.forEach((tab: Tab) => (tab.touched = false));
 
           if (destinationData.current._connectionTestOk) {
             message.success('New destination has been added!');
@@ -329,8 +334,7 @@ const DestinationEditor = ({
           onAfterSaveSucceded
             ? onAfterSaveSucceded()
             : history.push(destinationPageRoutes.root);
-        } catch (errors) {
-        }
+        } catch (errors) {}
       })
       .catch(() => {
         switchSavePopover(true);

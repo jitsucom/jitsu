@@ -89,7 +89,7 @@ class SourcesStore implements ISourcesStore {
         'sources',
         services.activeProject.id
       );
-      this._sources = sources;
+      this._sources = sources || [];
     } catch (error) {
       this.setError(
         GLOBAL_ERROR,
@@ -152,7 +152,6 @@ class SourcesStore implements ISourcesStore {
       if (!updateCandidate) return source;
       return updateCandidate;
     });
-    debugger;
     try {
       const result = yield services.storageService.save(
         'sources',
