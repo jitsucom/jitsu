@@ -1,6 +1,6 @@
 # Table Names and Filters
 
-**Jitsu** supports splitting events stream into different tables in DWH based on event JSON payload. It works by applying [GO text template](https://golang.org/pkg/text/template/) expressions to incoming JSON objects. It can select a table name or pass a constant or even filter certain events from the destination. It is configured in the destination section and each destination has its own rules.
+**Jitsu** supports splitting events stream into different tables in DWH based on event JSON payload. It works by applying [GO text template](https://golang.org/pkg/text/template/) or [JavaScript expressions](docs/configuration/javascript-expressions)  to incoming JSON objects. It can select a table name or pass a constant or even filter certain events from the destination. It is configured in the destination section and each destination has its own rules.
 
 ## **Table Name Selection**
 
@@ -23,9 +23,14 @@ destinations:
     data_layout:
       #tables will be created with 'event_type' names
       table_name_template: '{{.event_type}}'
+      #the same in JavaScript
+      table_name_template: '$.event_type'
+
       #or
       #tables will have 'event_type_YYYY_MM' format based on 'event_type' and date
-      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}'
+      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}' #Go template
+      table_name_template: '`${_.event_type}_${_._timestamp.Format("2006_01")}`' #JavaScript
+
 ```
 
 <Hint>
@@ -46,7 +51,9 @@ For example all `pageview` events might be skipped:
 destinations:
   destination_1:
     data_layout:
-      table_name_template: '{{if eq .event_type "pageview"}}{{else}}{{.event_type}}{{end}}'
+      table_name_template: '{{if eq .event_type "pageview"}}{{else}}{{.event_type}}{{end}}' #Go template
+      table_name_template: '$.event_type=="pageview" ? "" : $.event_type' #JavaScript
+
 ```
 
 Expressions might be more complex. For example, keep only conversion events
