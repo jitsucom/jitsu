@@ -1,5 +1,6 @@
 import { jsonType, Parameter, passwordType, selectionType, stringType, Function, ConstantOrFunction } from '../../sources/types';
 import { ReactNode } from 'react';
+import * as React from "react";
 const S3_REGIONS = [
   'us-east-2',
   'us-east-1',
@@ -42,7 +43,7 @@ export const modeParameter = (constValue?: string): Parameter => {
 }
 
 export const filteringExpressionDocumentation = <>
-  Table name (or table name template). The value is treated as expression, if the expression
+  Table name (or table name template). The value is treated as expression (<a href={"https://golang.org/pkg/text/template/"}>Go text/template</a> or <a href={"https://jitsu.com/docs/configuration/javascript-expressions"}>JavaScript expressions</a>), if the expression
   returns null or empty string, the event will not be sent to API. Otherwise the event will go through.
   Any non-empty (null or '') will be treated the same way. If you do not intend to make any filtering, leave the value
   as is.
