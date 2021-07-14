@@ -84,6 +84,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.install_taps", true)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 
+	//MaxMind URL
+	viper.SetDefault("maxmind.download_url", "https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-City&license_key=%s&suffix=tar.gz")
+
 	//Segment API mappings
 	//uses remove type mappings (e.g. "/page->") because we have root path mapping "/context -> /"
 	viper.SetDefault("compatibility.segment.endpoint", []string{
@@ -312,9 +315,9 @@ func (a *AppConfig) CloseEventsConsumers() {
 }
 
 func loadGeoResolver() geo.Resolver {
-	geoPath := viper.GetString("geo.maxmind_path")
 	if viper.IsSet("geo.maxmind_path") {
-		geoResolver, err := geo.CreateResolver(geoPath)
+		geoPath := viper.GetString("geo.maxmind_path")
+		geoResolver, err := geo.CreateResolver(viper.GetString("maxmind.download_url"), geoPath)
 		if err != nil {
 			logging.Warnf("❌ Failed to load MaxMind DB from %s: %v. Geo resolution won't be available", geoPath, err)
 		} else {
