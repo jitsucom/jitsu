@@ -132,7 +132,7 @@ const DestinationEditor = ({
 
     await mappingsForm.setFieldsValue({
       '_mappings._mappings': newMappings._mappings,
-      '_mappings._keepUnmappedFields': newMappings._keepUnmappedFields
+      '_mappings._keepUnmappedFields': newMappings._keepUnmappedFields ? 1 : 0
     });
 
     destinationsTabs.current[1].touched = true;
