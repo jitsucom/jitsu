@@ -279,7 +279,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
 	var flattener schema.Flattener
 	var typeResolver schema.TypeResolver
-	if destination.Type == FacebookType || destination.Type == WebHookType || destination.Type == AmplitudeType {
+	if destination.Type == FacebookType || destination.Type == WebHookType || destination.Type == AmplitudeType || destination.Type == HubSpotType {
 		flattener = schema.NewDummyFlattener()
 		typeResolver = schema.NewDummyTypeResolver()
 	} else {
