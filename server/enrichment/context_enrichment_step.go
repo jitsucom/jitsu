@@ -2,14 +2,11 @@ package enrichment
 
 import (
 	"fmt"
-	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
-	"net/http"
-	"strings"
 )
 
 const (
@@ -18,18 +15,17 @@ const (
 )
 
 //ContextEnrichmentStep enriches payload with ip, user-agent, token, unique ID field (event_id) and _timestamp
-func ContextEnrichmentStep(payload events.Event, token string, c *gin.Context, preprocessor events.Processor,
+func ContextEnrichmentStep(payload events.Event, token string, reqContext *events.RequestContext, preprocessor events.Processor,
 	uniqueIDField *identifiers.UniqueID) {
 	//1. source IP (don't override income value)
 	if _, ok := payload[ipKey]; !ok {
-		ip := extractIP(c.Request)
-		if ip != "" {
-			payload[ipKey] = ip
+		if reqContext.ClientIP != "" {
+			payload[ipKey] = reqContext.ClientIP
 		}
 	}
 
 	//2. preprocess
-	preprocessor.Preprocess(payload, c)
+	preprocessor.Preprocess(payload, reqContext)
 
 	//3. unique ID field
 	//extract 1.0 format -> 1.0 flat format -> 2.0 format
@@ -45,26 +41,4 @@ func ContextEnrichmentStep(payload events.Event, token string, c *gin.Context, p
 	//4. timestamp & api key
 	payload[ApiTokenKey] = token
 	payload[timestamp.Key] = timestamp.NowUTC()
-}
-
-func extractIP(r *http.Request) string {
-	ip := r.Header.Get("X-Real-IP")
-	if ip == "" {
-		ip = r.Header.Get("X-Forwarded-For")
-	}
-	if ip == "" {
-		remoteAddr := r.RemoteAddr
-		if remoteAddr != "" {
-			addrPort := strings.Split(remoteAddr, ":")
-			ip = addrPort[0]
-		}
-	}
-
-	//Case when Nginx concatenate remote_addr to client addr
-	if strings.Contains(ip, ",") {
-		addresses := strings.Split(ip, ",")
-		return strings.TrimSpace(addresses[0])
-	}
-
-	return ip
 }

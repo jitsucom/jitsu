@@ -39,7 +39,7 @@ func (whc *WebHookConfig) Validate() error {
 
 //WebHook is an adapter for sending HTTP requests with configurable HTTP parameters (URL, body, headers)
 type WebHook struct {
-	httpAdapter *HTTPAdapter
+	AbstractHTTP
 }
 
 //NewWebHook returns configured WebHook adapter instance
@@ -56,36 +56,13 @@ func NewWebHook(config *WebHookConfig, httpAdapterConfiguration *HTTPAdapterConf
 		return nil, err
 	}
 
-	return &WebHook{httpAdapter: httpAdapter}, nil
+	wh := &WebHook{}
+	wh.httpAdapter = httpAdapter
+
+	return wh, nil
 }
 
-//Insert passes object to HTTPAdapter
-func (wh *WebHook) Insert(eventContext *EventContext) error {
-	return wh.httpAdapter.SendAsync(eventContext)
-}
-
-//GetTableSchema always returns empty table
-func (wh *WebHook) GetTableSchema(tableName string) (*Table, error) {
-	return &Table{
-		Name:           tableName,
-		Columns:        Columns{},
-		PKFields:       map[string]bool{},
-		DeletePkFields: false,
-		Version:        0,
-	}, nil
-}
-
-//CreateTable returns nil
-func (wh *WebHook) CreateTable(schemaToCreate *Table) error {
-	return nil
-}
-
-//PatchTableSchema returns nil
-func (wh *WebHook) PatchTableSchema(schemaToAdd *Table) error {
-	return nil
-}
-
-//Close closes underlying HTTPAdapter
-func (wh *WebHook) Close() error {
-	return wh.httpAdapter.Close()
+//Type returns adapter type
+func (wh *WebHook) Type() string {
+	return "WebHook"
 }

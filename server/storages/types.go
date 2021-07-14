@@ -20,6 +20,7 @@ const (
 	GoogleAnalyticsType = "google_analytics"
 	FacebookType        = "facebook"
 	WebHookType         = "webhook"
+	AmplitudeType       = "amplitude"
 )
 
 //Storage is a destination representation
@@ -32,6 +33,8 @@ type Storage interface {
 	Fallback(events ...*events.FailedEvent)
 	GetUsersRecognition() *UserRecognitionConfiguration
 	GetUniqueIDField() *identifiers.UniqueID
+	getAdapters() (adapters.SQLAdapter, *TableHelper)
+	Processor() *schema.Processor
 	ID() string
 	Type() string
 	IsStaging() bool
