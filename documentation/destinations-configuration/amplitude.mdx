@@ -29,7 +29,7 @@ destinations:
     amplitude:
       api_key: <YOUR_API_KEY> #see below how to get it from Amplitude
     data_layout:
-      table_name_template: '{{text template}}' #Optional. It is used for filtering events.
+      table_name_template: '$.event_type' #Optional. It is used for filtering events.
       mappings:
         keep_unmapped: false
         fields:

@@ -163,7 +163,7 @@ const ConfigurableFieldsForm = ({ fieldsParamsList, form, initialValues, handleT
 
     case 'json': {
       const value = form.getFieldValue(id);
-      return <div><div><CodeEditor handleChange={handleJsonChange(id)} initialValue={value ?
+      return <div><div><CodeEditor language={"javascript"} handleChange={handleJsonChange(id)} initialValue={value ?
         value :
         getInitialValue(id, defaultValue, constantValue, type?.typeName)}
       /></div><div style={{textAlign: 'right', zIndex: 1000, position: "relative", paddingRight: 12, paddingTop: 5}}>{isDebugSupported(id) && <Tooltip title="Debug expression">

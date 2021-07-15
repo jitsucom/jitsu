@@ -1,7 +1,7 @@
-# JavaScript Expressions
+# JavaScript Functions
 
 **Jitsu** supports JavaScript language to dynamically evaluate certain destination parameters based on received event. E.g., this applies to [Table Names and Filters](/docs/configuration/table-names-and-filters) and [WebHook](/docs/destinations-configuration/webhook) url and JSON body calculation.
-Jitsu supports JavaScript expressions alongside [GO text template](https://golang.org/pkg/text/template/) – it automatically detects language based on provided syntax.
+Jitsu supports JavaScript functions alongside [GO text template](https://golang.org/pkg/text/template/) – it automatically detects language based on provided syntax.
 
 ## Difference with Go text/template
 
@@ -9,7 +9,7 @@ It is important to understand differences between two approaches:
 
 **Go text/template** – text templates engine that uses incoming event data to produce text result based on provided template. Nonetheless, that templates can be easily used for creating JSON objects.
 
-**JavaScript Expressions** – you can use full power of JavaScript language to decide what to do with incoming event, modify it or build entirely new object for your destinations.
+**JavaScript Functions** – you can use full power of JavaScript language to decide what to do with incoming event, modify it or build entirely new object for your destinations.
 
 ## Implementation Details
 
@@ -23,9 +23,8 @@ _.event_type //this one better suits Template literals `Welcome, ${_.user?.name}
 
 Jitsu automatically converts returned value to the type expected by underlying destination property. E.g.,
 
-text string – for Table Name and HTTP URL
-
-JSON – for HTTP JSON Body
+ * text string – for Table Name and HTTP URL
+ * JSON – for HTTP JSON Body
 
 With javascript you can simply return `Object` where JSON is expected - it will be automatically converted
 ```javascript
@@ -68,7 +67,7 @@ $.user?.email && $.metric_type
 You can use more complicated things like flow control and loops statements in your code.
 Also, you can modify provided event object and that will reflect on what actually be sent to destination
 ```javascript
-//filter event from all email occurrences
+//simple Data Masking: filter event from all email occurrences
 var emailRegexp = /^([a-zA-Z0-9_\-\.]+)@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.)|(([a-zA-Z0-9\-]+\.)+))([a-zA-Z]{2,4}|[0-9]{1,3})(\]?)$/
 function removeEmails(obj) {
 	for (const key in obj) {
