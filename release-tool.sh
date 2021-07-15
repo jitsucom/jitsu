@@ -66,20 +66,18 @@ echo ""
 read -r -p "What version would you like to release? ['beta' or release as semver, e. g. '1.30.1' ] " version
 
 echo "Release version: $version"
+echo "Using git reset --hard"
+git reset --hard
 
 if [[ $version =~ $SEMVER_EXPRESSION ]]; then
   echo "Checkouting master ..."
   git checkout master
-  echo "Using git reset --hard"
-  git reset --hard
   git pull
   echo "Service to release: configurator, server, jitsu"
   subsystem='jitsu'
 elif [[ $version == "beta" ]]; then
   echo "Checkouting beta ..."
   git checkout beta
-  echo "Using git reset --hard"
-  git reset --hard
   git pull
   read -r -p "What service would you like to release? ['server', 'configurator', 'jitsu']: " subsystem
 else
