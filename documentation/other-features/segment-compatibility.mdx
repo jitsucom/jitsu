@@ -60,15 +60,16 @@ destinations:
     ...
     data_layout:
       table_name_template: |
-        {{if or (eq .event_type "user_identify") (eq .event_type "identify")}}
-          {{"identifies"}}
-        {{else}}
-          {{if or (eq .event_type "page") (eq .event_type "pageview")}}
-            {{"pages"}}
-          {{else}}
-            {{.event_type}}
-          {{end}}
-        {{end}}
+        switch ($.event_type) {
+            case "user_identify":
+            case "identify":
+                return "identifies";
+            case "page":
+            case "pageview":
+                return "pages";
+            default:
+                return $.event_type
+        }
       mappings:
         #Use true if you would like to have Segment like DB schema + all other fields.
         #Use false for having only Segment data.
