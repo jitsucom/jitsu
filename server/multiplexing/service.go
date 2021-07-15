@@ -1,7 +1,7 @@
 package multiplexing
 
 import (
-	"fmt"
+	"errors"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -12,8 +12,8 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 )
 
-const (
-	noDestinationsErrTemplate = "No destination is configured for token [%q] (or only staged ones)"
+var (
+	ErrNoDestinations = errors.New("No destination is configured for token")
 )
 
 //Service is a service for accepting, multiplexing events and sending to consumers
@@ -35,7 +35,7 @@ func (s *Service) AcceptRequest(processor events.Processor, c *gin.Context, toke
 	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
 	destinationStorages := s.destinationService.GetDestinations(tokenID)
 	if len(destinationStorages) == 0 {
-		return fmt.Errorf(noDestinationsErrTemplate, token)
+		return ErrNoDestinations
 	}
 
 	for _, payload := range eventsArray {
@@ -62,7 +62,7 @@ func (s *Service) AcceptRequest(processor events.Processor, c *gin.Context, toke
 		//** Multiplexing **
 		consumers := s.destinationService.GetConsumers(tokenID)
 		if len(consumers) == 0 {
-			return fmt.Errorf(noDestinationsErrTemplate, token)
+			return ErrNoDestinations
 		}
 
 		for _, consumer := range consumers {
