@@ -250,9 +250,8 @@ func NewTestHubSpot(config *HubSpotConfig) *HubSpot {
 	return &HubSpot{config: config}
 }
 
-//TestAccess sends test request (empty POST) to HubSpot and check if error has occurred
+//TestAccess sends get user properties request to HubSpot and check if error has occurred
 func (h *HubSpot) TestAccess() error {
-	//send empty request and expect error
 	_, err := loadContactProperties(h.config.APIKey)
 	return err
 }
@@ -288,7 +287,7 @@ func loadContactProperties(apiKey string) (map[string]bool, error) {
 			hubspotProperties := []HubSpotContactProperty{}
 			err = json.Unmarshal(responseBody, &hubspotProperties)
 			if err != nil {
-				return nil, fmt.Errorf("error unmarhalling hubspot response body: %v", err)
+				return nil, fmt.Errorf("error unmarshalling hubspot response body: %v", err)
 			}
 
 			properties := map[string]bool{}
@@ -302,7 +301,7 @@ func loadContactProperties(apiKey string) (map[string]bool, error) {
 		hr := &HubSpotResponse{}
 		err = json.Unmarshal(responseBody, hr)
 		if err != nil {
-			return nil, fmt.Errorf("error unmarhalling hubspot response body: %v", err)
+			return nil, fmt.Errorf("error unmarshalling hubspot response body: %v", err)
 		}
 
 		return nil, fmt.Errorf("received HTTP code [%d] from HubSpot: %s [%s]: %s", r.StatusCode, hr.Status, hr.Category, hr.Message)

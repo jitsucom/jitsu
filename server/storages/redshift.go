@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jitsucom/jitsu/server/identifiers"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
@@ -23,9 +21,6 @@ type AwsRedshift struct {
 	redshiftAdapter               *adapters.AwsRedshift
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
-	uniqueIDField                 *identifiers.UniqueID
-	staged                        bool
-	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
@@ -80,9 +75,6 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 		s3Adapter:                     s3Adapter,
 		redshiftAdapter:               redshiftAdapter,
 		usersRecognitionConfiguration: config.usersRecognition,
-		uniqueIDField:                 config.uniqueIDField,
-		staged:                        config.destination.Staged,
-		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	//Abstract
@@ -93,17 +85,15 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	ar.tableHelpers = []*TableHelper{tableHelper}
 	ar.sqlAdapters = []adapters.SQLAdapter{redshiftAdapter}
 	ar.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	ar.uniqueIDField = config.uniqueIDField
+	ar.staged = config.destination.Staged
+	ar.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
 	ar.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ar, tableHelper)
 	ar.streamingWorker.start()
 
 	return ar, nil
-}
-
-func (ar *AwsRedshift) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	_, tableHelper := ar.getAdapters()
-	return dryRun(payload, ar.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
@@ -207,23 +197,9 @@ func (ar *AwsRedshift) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ar.usersRecognitionConfiguration
 }
 
-//GetUniqueIDField returns unique ID field configuration
-func (ar *AwsRedshift) GetUniqueIDField() *identifiers.UniqueID {
-	return ar.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (ar *AwsRedshift) IsCachingDisabled() bool {
-	return ar.cachingConfiguration != nil && ar.cachingConfiguration.Disabled
-}
-
 //Type returns Redshift type
 func (ar *AwsRedshift) Type() string {
 	return RedshiftType
-}
-
-func (ar *AwsRedshift) IsStaging() bool {
-	return ar.staged
 }
 
 //Close closes AwsRedshift adapter, fallback logger and streaming worker

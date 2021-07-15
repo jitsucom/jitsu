@@ -6,7 +6,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
@@ -20,9 +19,6 @@ type ClickHouse struct {
 	chTableHelpers                []*TableHelper
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
-	uniqueIDField                 *identifiers.UniqueID
-	staged                        bool
-	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
@@ -75,9 +71,6 @@ func NewClickHouse(config *Config) (Storage, error) {
 		adapters:                      chAdapters,
 		chTableHelpers:                chTableHelpers,
 		usersRecognitionConfiguration: config.usersRecognition,
-		uniqueIDField:                 config.uniqueIDField,
-		staged:                        config.destination.Staged,
-		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	//Abstract
@@ -88,6 +81,9 @@ func NewClickHouse(config *Config) (Storage, error) {
 	ch.tableHelpers = chTableHelpers
 	ch.sqlAdapters = sqlAdapters
 	ch.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	ch.uniqueIDField = config.uniqueIDField
+	ch.staged = config.destination.Staged
+	ch.cachingConfiguration = config.destination.CachingConfiguration
 
 	err = chAdapters[0].CreateDB(chConfig.Database)
 	if err != nil {
@@ -109,11 +105,6 @@ func NewClickHouse(config *Config) (Storage, error) {
 //Type returns ClickHouse type
 func (ch *ClickHouse) Type() string {
 	return ClickHouseType
-}
-
-func (ch *ClickHouse) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	_, tableHelper := ch.getAdapters()
-	return dryRun(payload, ch.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
@@ -186,20 +177,6 @@ func (ch *ClickHouse) Update(object map[string]interface{}) error {
 //GetUsersRecognition returns users recognition configuration
 func (ch *ClickHouse) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ch.usersRecognitionConfiguration
-}
-
-//GetUniqueIDField returns unique ID field configuration
-func (ch *ClickHouse) GetUniqueIDField() *identifiers.UniqueID {
-	return ch.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (ch *ClickHouse) IsCachingDisabled() bool {
-	return ch.cachingConfiguration != nil && ch.cachingConfiguration.Disabled
-}
-
-func (ch *ClickHouse) IsStaging() bool {
-	return ch.staged
 }
 
 //Close closes ClickHouse adapters, fallback logger and streaming worker

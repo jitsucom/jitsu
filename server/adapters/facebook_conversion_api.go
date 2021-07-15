@@ -120,7 +120,7 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 		response := &FacebookResponse{}
 		err = json.Unmarshal(responseBody, response)
 		if err != nil {
-			return fmt.Errorf("Error unmarhalling facebook conversion API response body: %v", err)
+			return fmt.Errorf("Error unmarshalling facebook conversion API response body: %v", err)
 		}
 
 		if response.Error.Code == 190 {

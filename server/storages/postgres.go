@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jitsucom/jitsu/server/identifiers"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
@@ -22,9 +20,6 @@ type Postgres struct {
 	adapter                       *adapters.Postgres
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
-	uniqueIDField                 *identifiers.UniqueID
-	staged                        bool
-	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
@@ -69,9 +64,6 @@ func NewPostgres(config *Config) (Storage, error) {
 	p := &Postgres{
 		adapter:                       adapter,
 		usersRecognitionConfiguration: config.usersRecognition,
-		uniqueIDField:                 config.uniqueIDField,
-		staged:                        config.destination.Staged,
-		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	//Abstract
@@ -82,17 +74,15 @@ func NewPostgres(config *Config) (Storage, error) {
 	p.tableHelpers = []*TableHelper{tableHelper}
 	p.sqlAdapters = []adapters.SQLAdapter{adapter}
 	p.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	p.uniqueIDField = config.uniqueIDField
+	p.staged = config.destination.Staged
+	p.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
 	p.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, p, tableHelper)
 	p.streamingWorker.start()
 
 	return p, nil
-}
-
-func (p *Postgres) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	_, tableHelper := p.getAdapters()
-	return dryRun(payload, p.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
@@ -170,23 +160,9 @@ func (p *Postgres) GetUsersRecognition() *UserRecognitionConfiguration {
 	return p.usersRecognitionConfiguration
 }
 
-//GetUniqueIDField returns unique ID field configuration
-func (p *Postgres) GetUniqueIDField() *identifiers.UniqueID {
-	return p.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (p *Postgres) IsCachingDisabled() bool {
-	return p.cachingConfiguration != nil && p.cachingConfiguration.Disabled
-}
-
 //Type returns Facebook type
 func (p *Postgres) Type() string {
 	return PostgresType
-}
-
-func (p *Postgres) IsStaging() bool {
-	return p.staged
 }
 
 //Close closes Postgres adapter, fallback logger and streaming worker
