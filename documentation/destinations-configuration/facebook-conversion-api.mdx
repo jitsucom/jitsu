@@ -29,7 +29,7 @@ destinations:
       pixel_id: <YOUR_PIXEL_ID> #see below how to get it from Facebook
       access_token: <YOUR_ACCESS_TOKEN> #see below how to get it from Facebook
     data_layout:
-      table_name_template: '{{text template}}' #Optional. It is used for filtering events.
+      table_name_template: '$.event_type' #Optional. It is used for filtering events.
       mappings:
         keep_unmapped: false
         fields:

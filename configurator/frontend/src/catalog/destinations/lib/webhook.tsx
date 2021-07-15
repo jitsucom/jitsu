@@ -29,7 +29,7 @@ const webhookDestination = {
       required: true,
       type: stringType,
       documentation:
-          <>HTTP URL constant string, <a href={"https://golang.org/pkg/text/template/"}>Go text/template</a> or <a href={"https://jitsu.com/docs/configuration/javascript-expressions"}>JavaScript expressions</a> e.g.:<br></br><i>https://mydomain/{'{{'}.event_type{'}}'}</i><br></br> will get <b>event_type</b> field from event and use it as a part of URL path.</>
+          <>HTTP URL constant string or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:<br></br><i>"https://mydomain/" + $.event_type</i><br></br> will get <b>event_type</b> field from event and use it as a part of URL path.</>
     },
     {
       id: '_formData.method',
@@ -44,14 +44,14 @@ const webhookDestination = {
       required: false,
       type: jsonType,
       documentation:
-        <>HTTP body JSON constant, <a href={"https://golang.org/pkg/text/template/"}>Go text/template</a> or <a href={"https://jitsu.com/docs/configuration/javascript-expressions"}>JavaScript expressions</a> e.g.:
+        <>HTTP body JSON constant, or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:
           <pre>
             {`{
-  "action":"{{.event_name}}",
-  "message":"User {{.user.email}} has been logged in."
+  "action": _.event_name,
+  "message": \`User \${_.user.email} has been logged in.\`
 }`}
           </pre>
-           will get event_name and user email fields from every event and use it as a part of request body JSON.</>
+           will get <b>event_name</b> and <b>user email</b> fields from every event and use it as a part of request body JSON.</>
     },
     {
       id: '_formData.headers',
