@@ -8,7 +8,7 @@ import snakeCase from 'lodash/snakeCase';
 import { ListItem } from 'ui/components/ListItem/ListItem';
 import { ListItemDescription } from 'ui/components/ListItem/ListItemDescription';
 // @Store
-import { sourcesStore } from 'stores/sourcesStore'
+import { sourcesStore } from 'stores/sources';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';

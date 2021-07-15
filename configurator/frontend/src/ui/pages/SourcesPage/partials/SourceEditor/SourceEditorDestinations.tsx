@@ -19,7 +19,7 @@ import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { Destination } from 'catalog/destinations/types';
 // @Utils
 import { destinationsUtils } from 'ui/pages/DestinationsPage/DestinationsPage.utils';
-import { destinationsStore } from 'stores/destinationsStore';
+import { destinationsStore } from 'stores/destinations';
 
 export interface Props {
   form: FormInstance;

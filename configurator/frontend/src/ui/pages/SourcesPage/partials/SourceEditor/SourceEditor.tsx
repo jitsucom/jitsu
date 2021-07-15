@@ -14,7 +14,7 @@ import { Tab, TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
 import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
 // @Store
-import { sourcesStore } from 'stores/sourcesStore'
+import { sourcesStore } from 'stores/sources';
 // @Types
 import {
   CommonSourcePageProps

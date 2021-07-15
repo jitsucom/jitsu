@@ -14,7 +14,7 @@ import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
 import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
 // @Store
-import { destinationsStore } from 'stores/destinationsStore';
+import { destinationsStore } from 'stores/destinations';
 // @CatalogDestinations
 import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
 // @Types
@@ -38,7 +38,7 @@ import { firstToLower } from 'lib/commons/utils';
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
-import { sourcesStore } from 'stores/sourcesStore';
+import { sourcesStore } from 'stores/sources';
 
 type DestinationTabKey = 'config' | 'mappings' | 'sources' | 'settings' | 'statistics';
 

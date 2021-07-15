@@ -16,7 +16,7 @@ interface ISourcesStore {
     source: SourceData
   ) => Generator<Promise<unknown>, void, unknown>;
   editSources: (
-    newData: SourceData
+    newData: SourceData | SourceData[]
   ) => Generator<Promise<unknown>, void, unknown>;
 }
 

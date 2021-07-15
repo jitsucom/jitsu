@@ -1,9 +1,17 @@
 import { flowResult } from 'mobx';
-import { destinationsStore } from './destinationsStore';
-import { sourcesStore } from './sourcesStore';
+import { apiKeysStore } from './apiKeys';
+import { destinationsStore } from './destinations';
+import { sourcesStore } from './sources';
 
-export const initializeAllStores = () => {
+export const initializeAllStores = (): Promise<
+  [
+    PromiseSettledResult<void>,
+    PromiseSettledResult<void>,
+    PromiseSettledResult<void>
+  ]
+> => {
   return Promise.allSettled([
+    flowResult(apiKeysStore.pullApiKeys(true)),
     flowResult(destinationsStore.pullDestinations(true)),
     flowResult(sourcesStore.pullSources(true))
   ]);

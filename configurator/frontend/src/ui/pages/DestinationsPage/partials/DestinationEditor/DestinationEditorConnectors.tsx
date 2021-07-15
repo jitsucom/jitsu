@@ -4,7 +4,7 @@ import { Link, NavLink } from 'react-router-dom';
 import { Collapse, Form } from 'antd';
 import snakeCase from 'lodash/snakeCase';
 // @Store
-import { sourcesStore } from 'stores/sourcesStore';
+import { sourcesStore } from 'stores/sources';
 // @Hooks
 import useLoader from 'hooks/useLoader';
 // @Services

@@ -2,8 +2,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Button } from 'antd';
 // @Store
-import { sourcesStore, SourcesStoreState } from 'stores/sourcesStore';
-import { destinationsStore, DestinationsStoreState } from 'stores/destinationsStore';
+import { sourcesStore, SourcesStoreState } from 'stores/sources';
+import { destinationsStore, DestinationsStoreState } from 'stores/destinations';
 // @Styles
 import styles from './OnboardingTourAddDestination.module.less';
 // @Commons

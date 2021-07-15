@@ -10,7 +10,7 @@ import { SourceEditor } from './partials/SourceEditor/SourceEditor';
 import { AddSourceDialog } from './partials/AddSourceDialog/AddSourceDialog';
 import { CenteredError, CenteredSpin } from 'lib/components/components';
 // @Store
-import { sourcesStore, SourcesStoreState } from 'stores/sourcesStore';
+import { sourcesStore, SourcesStoreState } from 'stores/sources';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Styles

@@ -9,8 +9,8 @@ import {
   destinationsReferenceMap,
 } from 'ui/pages/DestinationsPage/commons';
 // @Store
-import { destinationsStore } from 'stores/destinationsStore';
-import { sourcesStore } from 'stores/sourcesStore';
+import { destinationsStore } from 'stores/destinations';
+import { sourcesStore } from 'stores/sources';
 // @Components
 import { handleError } from 'lib/components/components';
 import { DropDownList } from 'ui/components/DropDownList/DropDownList';
