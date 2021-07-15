@@ -27,7 +27,7 @@ destinations:
     google_analytics:
       tracking_id: UA-121905385-1
     data_layout:
-      table_name_template: '{{text template}}' #Optional. It is used for filtering events.
+      table_name_template: '$.event_type' #Optional. It is used for filtering events.
       mappings:
         keep_unmapped: false
         fields:

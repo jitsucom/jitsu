@@ -78,6 +78,7 @@ func ToString(responseObject interface{}, allowArray bool, allowObject bool, tru
 		}
 	case []interface {}:
 		if allowArray && len(obj) > 0 {
+			//return only first element
 			return ToString(obj[0], allowArray, allowObject, truncateDate)
 		} else {
 			return "null"
