@@ -6,8 +6,8 @@ import { observer } from 'mobx-react-lite';
 import { DestinationsList } from './partials/DestinationsList/DestinationsList';
 import { DestinationEditor } from './partials/DestinationEditor/DestinationEditor';
 // @Store
-import { destinationsStore, DestinationsStoreState } from 'stores/destinationsStore';
-import { sourcesStore, SourcesStoreState} from 'stores/sourcesStore';
+import { destinationsStore, DestinationsStoreState } from 'stores/destinations';
+import { sourcesStore, SourcesStoreState } from 'stores/sources';
 // @Routes
 import { destinationPageRoutes } from './DestinationsPage.routes';
 // @Components
