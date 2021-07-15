@@ -8,7 +8,6 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 )
@@ -21,12 +20,9 @@ var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: fa
 type BigQuery struct {
 	Abstract
 
-	gcsAdapter           *adapters.GoogleCloudStorage
-	bqAdapter            *adapters.BigQuery
-	streamingWorker      *StreamingWorker
-	uniqueIDField        *identifiers.UniqueID
-	staged               bool
-	cachingConfiguration *CachingConfiguration
+	gcsAdapter      *adapters.GoogleCloudStorage
+	bqAdapter       *adapters.BigQuery
+	streamingWorker *StreamingWorker
 }
 
 func init() {
@@ -78,11 +74,8 @@ func NewBigQuery(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString, config.maxColumns)
 
 	bq := &BigQuery{
-		gcsAdapter:           gcsAdapter,
-		bqAdapter:            bigQueryAdapter,
-		uniqueIDField:        config.uniqueIDField,
-		staged:               config.destination.Staged,
-		cachingConfiguration: config.destination.CachingConfiguration,
+		gcsAdapter: gcsAdapter,
+		bqAdapter:  bigQueryAdapter,
 	}
 
 	//Abstract
@@ -93,17 +86,15 @@ func NewBigQuery(config *Config) (Storage, error) {
 	bq.tableHelpers = []*TableHelper{tableHelper}
 	bq.sqlAdapters = []adapters.SQLAdapter{bigQueryAdapter}
 	bq.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	bq.uniqueIDField = config.uniqueIDField
+	bq.staged = config.destination.Staged
+	bq.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
 	bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
 	bq.streamingWorker.start()
 
 	return bq, nil
-}
-
-func (bq *BigQuery) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	_, tableHelper := bq.getAdapters()
-	return dryRun(payload, bq.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
@@ -251,20 +242,6 @@ func (bq *BigQuery) GetUsersRecognition() *UserRecognitionConfiguration {
 //Type returns BigQuery type
 func (bq *BigQuery) Type() string {
 	return BigQueryType
-}
-
-func (bq *BigQuery) IsStaging() bool {
-	return bq.staged
-}
-
-//GetUniqueIDField returns unique ID field configuration
-func (bq *BigQuery) GetUniqueIDField() *identifiers.UniqueID {
-	return bq.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (bq *BigQuery) IsCachingDisabled() bool {
-	return bq.cachingConfiguration != nil && bq.cachingConfiguration.Disabled
 }
 
 //Close closes BigQuery adapter, fallback logger and streaming worker
