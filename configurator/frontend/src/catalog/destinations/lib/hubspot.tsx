@@ -8,6 +8,7 @@ const icon = <svg id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlnsXlink="ht
 const hubspotDestination = {
   description: <>
     Jitsu can send events from JS SDK or Events API to <a href="https://developers.hubspot.com/docs/api/overview">HubSpot</a>.
+    HubSpot is a marketing and sales platform that helps companies to track and account customers path from website visitors, leads to payment clients. {' '}
   </>,
   syncFromSourcesStatus: 'not_supported',
   id: 'hubspot',
@@ -27,7 +28,7 @@ const hubspotDestination = {
       required: true,
       type: stringType,
       documentation: <>
-        Your HubSpot API Key (in UUID format, like: e91eb0d4-a72e-4688-9fe4-60cecf8376eb). Read <a href="https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key">How to obtain API Key</a>.
+        Your HubSpot API Key (in UUID format, like: e91eb0d4-a72e-4688-9fe4-60cecf8376eb). Read <a target="_blank" href="https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key">How to obtain API Key</a>.
       </>
     },
     {
@@ -36,7 +37,7 @@ const hubspotDestination = {
       required: true,
       type: stringType,
       documentation: <>
-        Your HubSpot Hub ID (in number format, like 453283). Read <a href="http://help.hubspot.com/articles/KCS_Article/Account/Where-can-I-find-my-HUB-ID">How to obtain HubSpot Hub ID</a>.
+        Your HubSpot Hub ID (in number format, like 453283). Read <a target="_blank" href="http://help.hubspot.com/articles/KCS_Article/Account/Where-can-I-find-my-HUB-ID">How to obtain HubSpot Hub ID</a>.
       </>
     }
   ]
