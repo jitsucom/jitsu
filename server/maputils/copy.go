@@ -1,5 +1,6 @@
 package maputils
 
+//CopyMap returns copy of input map with all sub objects
 func CopyMap(m map[string]interface{}) map[string]interface{} {
 	cp := make(map[string]interface{})
 	for k, v := range m {
@@ -12,4 +13,14 @@ func CopyMap(m map[string]interface{}) map[string]interface{} {
 	}
 
 	return cp
+}
+
+//CopySet returns copy of input set
+func CopySet(m map[string]bool) map[string]bool {
+	cs := make(map[string]bool)
+	for k, v := range m {
+		cs[k] = v
+	}
+
+	return cs
 }

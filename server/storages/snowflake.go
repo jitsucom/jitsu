@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/typing"
 
 	"github.com/hashicorp/go-multierror"
@@ -26,9 +25,6 @@ type Snowflake struct {
 	snowflakeAdapter              *adapters.Snowflake
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
-	uniqueIDField                 *identifiers.UniqueID
-	staged                        bool
-	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
@@ -93,9 +89,6 @@ func NewSnowflake(config *Config) (Storage, error) {
 		stageAdapter:                  stageAdapter,
 		snowflakeAdapter:              snowflakeAdapter,
 		usersRecognitionConfiguration: config.usersRecognition,
-		uniqueIDField:                 config.uniqueIDField,
-		staged:                        config.destination.Staged,
-		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	//Abstract
@@ -106,6 +99,9 @@ func NewSnowflake(config *Config) (Storage, error) {
 	snowflake.tableHelpers = []*TableHelper{tableHelper}
 	snowflake.sqlAdapters = []adapters.SQLAdapter{snowflakeAdapter}
 	snowflake.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	snowflake.uniqueIDField = config.uniqueIDField
+	snowflake.staged = config.destination.Staged
+	snowflake.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
 	snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
@@ -147,11 +143,6 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 		return nil, err
 	}
 	return snowflakeAdapter, nil
-}
-
-func (s *Snowflake) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	_, tableHelper := s.getAdapters()
-	return dryRun(payload, s.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
@@ -226,16 +217,6 @@ func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 	return s.usersRecognitionConfiguration
 }
 
-//GetUniqueIDField returns unique ID field configuration
-func (s *Snowflake) GetUniqueIDField() *identifiers.UniqueID {
-	return s.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (s *Snowflake) IsCachingDisabled() bool {
-	return s.cachingConfiguration != nil && s.cachingConfiguration.Disabled
-}
-
 // SyncStore is used in storing chunk of pulled data to Snowflake with processing
 func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
@@ -249,10 +230,6 @@ func (s *Snowflake) Update(object map[string]interface{}) error {
 //Type returns Snowflake type
 func (s *Snowflake) Type() string {
 	return SnowflakeType
-}
-
-func (s *Snowflake) IsStaging() bool {
-	return s.staged
 }
 
 //Close closes Snowflake adapter, stage adapter, fallback logger and streaming worker
