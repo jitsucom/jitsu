@@ -73,9 +73,15 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 
 	err = ph.multiplexingService.AcceptRequest(ph.processor, reqContext, strToken, []events.Event{event})
 	if err != nil {
+		code := http.StatusBadRequest
+		if err == multiplexing.ErrNoDestinations {
+			code = http.StatusUnprocessableEntity
+			err = fmt.Errorf(noDestinationsErrTemplate, strToken)
+		}
+
 		reqBody, _ := json.Marshal(event)
 		logging.Errorf("%v. Tracking pixel event: %s", err, string(reqBody))
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		c.JSON(code, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
 

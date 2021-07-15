@@ -521,7 +521,7 @@ func TestPixelEndpoint(t *testing.T) {
 			require.NoError(t, err)
 
 			if tt.ExpectedErr != "" {
-				require.Equal(t, http.StatusBadRequest, resp.StatusCode, "HTTP code isn't 400")
+				require.Equal(t, http.StatusUnprocessableEntity, resp.StatusCode, "HTTP code isn't 422")
 
 				b, err := ioutil.ReadAll(resp.Body)
 				require.NoError(t, err)
