@@ -130,6 +130,8 @@ func (hf *HubSpotRequestFactory) Create(object map[string]interface{}) (*Request
 			reqURL = fmt.Sprintf(hubSpotContactWithEmailAPIURLTemplate, email)
 		}
 
+		reqURL += "?hapikey=" + hf.apiKey
+
 		body := HubSpotContactRequest{Properties: objectUserProperties}
 		b, err := json.Marshal(body)
 		if err != nil {
