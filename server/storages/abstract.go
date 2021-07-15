@@ -2,6 +2,7 @@ package storages
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/identifiers"
 	"math/rand"
 
 	"github.com/hashicorp/go-multierror"
@@ -27,6 +28,10 @@ type Abstract struct {
 	tableHelpers []*TableHelper
 	sqlAdapters  []adapters.SQLAdapter
 
+	uniqueIDField        *identifiers.UniqueID
+	staged               bool
+	cachingConfiguration *CachingConfiguration
+
 	archiveLogger *logging.AsyncLogger
 }
 
@@ -38,6 +43,25 @@ func (a *Abstract) ID() string {
 // Processor returns processor
 func (a *Abstract) Processor() *schema.Processor {
 	return a.processor
+}
+
+func (a *Abstract) IsStaging() bool {
+	return a.staged
+}
+
+//GetUniqueIDField returns unique ID field configuration
+func (a *Abstract) GetUniqueIDField() *identifiers.UniqueID {
+	return a.uniqueIDField
+}
+
+//IsCachingDisabled returns true if caching is disabled in destination configuration
+func (a *Abstract) IsCachingDisabled() bool {
+	return a.cachingConfiguration != nil && a.cachingConfiguration.Disabled
+}
+
+func (a *Abstract) DryRun(payload events.Event) ([]adapters.TableField, error) {
+	_, tableHelper := a.getAdapters()
+	return dryRun(payload, a.processor, tableHelper)
 }
 
 //ErrorEvent writes error to metrics/counters/telemetry/events cache
