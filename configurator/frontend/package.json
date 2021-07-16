@@ -8,6 +8,7 @@
     "axios": "^0.21.1",
     "classnames": "^2.2.6",
     "firebase": "^8.3.0",
+    "highlight.run": "^2.2.0",
     "lodash": "^4.17.21",
     "logrocket": "^1.0.14",
     "mobx": "^6.3.2",
@@ -26,7 +27,7 @@
     "transform": {
       "^.+\\.tsx?$": "ts-jest"
     },
-    "transformIgnorePatterns": [   
+    "transformIgnorePatterns": [
       "node_modules/?!(react-syntax-highlighter)",
       "^.+\\.module\\.(css|sass|scss)$"
     ]
