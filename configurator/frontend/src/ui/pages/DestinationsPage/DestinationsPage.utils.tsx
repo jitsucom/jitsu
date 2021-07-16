@@ -1,27 +1,40 @@
 // @Libs
 import { message } from 'antd';
 // @Components
-import { ListItemTitle } from '@component/ListItem/ListItemTitle';
-import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
-import { ListItemDescription } from '@component/ListItem/ListItemDescription';
-import { ActionLink, Align, CodeInline, CodeSnippet } from '@./lib/components/components';
+import { ListItemTitle } from 'ui/components/ListItem/ListItemTitle';
+import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
+import { ListItemDescription } from 'ui/components/ListItem/ListItemDescription';
+import {
+  ActionLink,
+  Align,
+  CodeInline,
+  CodeSnippet
+} from 'lib/components/components';
 // @Types
-import { Destination } from '@catalog/destinations/types';
+import { Destination } from 'catalog/destinations/types';
 // @Utils
-import { copyToClipboard } from '@./lib/commons/utils';
+import { copyToClipboard } from 'lib/commons/utils';
 
 const destinationsUtils = {
   getTitle: (dst: DestinationData) => {
-    const configTitle = <ListItemTitle
-      error={!dst._connectionTestOk}
-      errorMessage={
-        dst._connectionErrorMessage && <>
-          Last connection test failed with <b><i>'{dst._connectionErrorMessage}'</i></b>. Destination might be not
-          accepting data. Please, go to editor and fix the connection settings
-        </>
-      }
-      render={dst._id}
-    />;
+    const configTitle = (
+      <ListItemTitle
+        error={!dst._connectionTestOk}
+        errorMessage={
+          dst._connectionErrorMessage && (
+            <>
+              Last connection test failed with{' '}
+              <b>
+                <i>'{dst._connectionErrorMessage}'</i>
+              </b>
+              . Destination might be not accepting data. Please, go to editor
+              and fix the connection settings.
+            </>
+          )
+        }
+        render={dst._id}
+      />
+    );
 
     return dst._comment
       ? <LabelWithTooltip documentation={dst._comment} render={configTitle} />

@@ -2,11 +2,11 @@
 import { Button } from 'antd'
 import { useEffect, useState } from 'react'
 // @Services
-import ApplicationServices from '@./lib/services/ApplicationServices'
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Components
 import { OnboardingClientDocs } from './OnboardingClientDocs'
 // @Helpers
-import ApiKeyHelper from '@./lib/services/ApiKeyHelper'
+import ApiKeyHelper from 'lib/services/ApiKeyHelper';
 // @Styles
 import styles from './OnboardingTourAddJitsuOnClient.module.less'
 

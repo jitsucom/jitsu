@@ -5,10 +5,10 @@ import MonacoEditor from 'react-monaco-editor';
 import cn from 'classnames';
 import debounce from 'lodash/debounce';
 // @Components
-import { DebugEvents } from '@component/CodeDebugger/DebugEvents';
-import { CodeEditor } from '@component/CodeEditor/CodeEditor';
+import { DebugEvents } from 'ui/components/CodeDebugger/DebugEvents';
+import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
 // @Types
-import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStream';
+import { Event as RecentEvent } from 'lib/components/EventsStream/EventsStream';
 // @Icons
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import UnorderedListOutlined from '@ant-design/icons/lib/icons/UnorderedListOutlined';

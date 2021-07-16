@@ -30,19 +30,6 @@ module.exports = {
     contentBase: __dirname + '/public'
   },
   webpack: {
-    alias: {
-      /**
-       * Once alias added here, it should be added to tsconfig.paths.json as well
-       */
-      '@.': path.resolve(__dirname, './src/'),
-      '@component': path.resolve(__dirname, './src/ui/components'),
-      '@page': path.resolve(__dirname, './src/ui/pages'),
-      '@catalog': path.resolve(__dirname, './src/catalog'),
-      '@service': path.resolve('./src/lib/services/'),
-      '@util': path.resolve(__dirname, './src/utils'),
-      '@hooks': path.resolve(__dirname, './src/hooks'),
-      '@hocs': path.resolve(__dirname, './src/hocs')
-    },
     plugins: [
       new webpack.DefinePlugin({
         'process.env': {

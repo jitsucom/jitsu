@@ -1,5 +1,4 @@
-import { intType, jsonType, Parameter, passwordType, selectionType, SourceConnector, stringType } from '../types';
-import * as React from 'react';
+import { intType, passwordType, selectionType, SourceConnector, stringType } from '../types';
 import { googleServiceAuthDocumentation } from '../lib/documentation';
 
 import { googleAuthConfigParameters } from '../lib/commonParams';

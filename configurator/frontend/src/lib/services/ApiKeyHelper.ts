@@ -1,5 +1,5 @@
-import { randomId } from '@./utils/numbers';
-import ApplicationServices from '@service/ApplicationServices';
+import { randomId } from 'utils/numbers';
+import ApplicationServices from 'lib/services/ApplicationServices';
 
 export default class ApiKeyHelper {
   private _services: ApplicationServices
