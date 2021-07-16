@@ -56,7 +56,7 @@ type Singer struct {
 	streamTableNames map[string]string
 
 	catalogDiscovered *atomic.Bool
-	closed            bool
+	closed            *atomic.Bool
 }
 
 func init() {
@@ -149,6 +149,7 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 		pathToConfigs:     pathToConfigs,
 		streamTableNames:  tableNameMappings,
 		catalogDiscovered: catalogDiscovered,
+		closed:            atomic.NewBool(false),
 	}
 
 	safego.Run(s.EnsureTapAndCatalog)
@@ -190,7 +191,7 @@ func (s *Singer) EnsureTapAndCatalog() {
 	singer.Instance.EnsureTap(s.tap)
 
 	for {
-		if s.closed {
+		if s.closed.Load() {
 			break
 		}
 
@@ -206,7 +207,7 @@ func (s *Singer) EnsureTapAndCatalog() {
 		catalogPath, propertiesPath, err := doDiscover(s.sourceID, s.tap, s.pathToConfigs, s.configPath)
 		if err != nil {
 			logging.Errorf("[%s] Error configuring Singer: %v", s.sourceID, err)
-			time.Sleep(5 * time.Second)
+			time.Sleep(time.Minute)
 			continue
 		}
 
@@ -261,7 +262,7 @@ func (s *Singer) GetTap() string {
 }
 
 func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsumer singer.PortionConsumer) error {
-	if s.closed {
+	if s.closed.Load() {
 		return errors.New("Singer has already been closed")
 	}
 
@@ -379,7 +380,7 @@ func (s *Singer) Type() string {
 }
 
 func (s *Singer) Close() (multiErr error) {
-	s.closed = true
+	s.closed.Store(true)
 
 	s.Lock()
 	for _, command := range s.commands {

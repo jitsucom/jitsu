@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/parsers"
+	"strings"
 )
 
 const IPLookup = "ip_lookup"
@@ -44,7 +45,7 @@ func (ir *IPLookupRule) Execute(event map[string]interface{}) {
 		return
 	}
 
-	geoData, err := ir.geoResolver.Resolve(ip)
+	geoData, err := ir.resolve(ip)
 	if err != nil {
 		if err != geo.EmptyIP {
 			logging.SystemErrorf("Error resolving geo ip [%s]: %v", ip, err)
@@ -68,4 +69,27 @@ func (ir *IPLookupRule) Execute(event map[string]interface{}) {
 
 func (ir *IPLookupRule) Name() string {
 	return IPLookup
+}
+
+//resolve tries to resolve comma separated ips or plain ip
+//returns first result without error
+func (ir *IPLookupRule) resolve(ipStr string) (data *geo.Data, err error) {
+	ips := []string{ipStr}
+	if strings.Contains(ipStr, ",") {
+		ips = []string{}
+		ipArr := strings.Split(ipStr, ",")
+		for _, ipFromAr := range ipArr {
+			ips = append(ips, strings.TrimSpace(ipFromAr))
+		}
+	}
+
+	for _, ip := range ips {
+		data, err = ir.geoResolver.Resolve(ip)
+		//return first without error
+		if err == nil {
+			return data, err
+		}
+	}
+
+	return
 }

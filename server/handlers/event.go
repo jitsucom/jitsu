@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
@@ -191,16 +192,26 @@ func extractIP(c *gin.Context) string {
 }
 
 func getRequestContext(c *gin.Context) *events.RequestContext {
+	clientIP := extractIP(c)
+
 	var jitsuAnonymousID string
-	anonymID, ok := c.Get(middleware.JitsuAnonymIDCookie)
-	if ok {
-		jitsuAnonymousID = fmt.Sprint(anonymID)
+	gdpr := c.Query(middleware.GDPRQueryParameter) == "true"
+	if gdpr {
+		//cookie less
+		dailyUserIdentifier := clientIP + c.Request.UserAgent() + time.Now().UTC().Format("200601")
+		jitsuAnonymousID = fmt.Sprintf("%x", md5.Sum([]byte(dailyUserIdentifier)))
+	} else {
+		anonymID, ok := c.Get(middleware.JitsuAnonymIDCookie)
+		if ok {
+			jitsuAnonymousID = fmt.Sprint(anonymID)
+		}
 	}
 
 	return &events.RequestContext{
 		UserAgent:        c.Request.UserAgent(),
-		ClientIP:         extractIP(c),
+		ClientIP:         clientIP,
 		Referer:          c.Request.Referer(),
 		JitsuAnonymousID: jitsuAnonymousID,
+		GDPR:             gdpr,
 	}
 }

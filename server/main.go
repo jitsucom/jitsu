@@ -170,11 +170,12 @@ func main() {
 		appconfig.Instance.Close()
 		telemetry.Flush()
 		notifications.Close()
-		time.Sleep(5 * time.Second)
+		time.Sleep(4 * time.Second)
 		telemetry.Close()
 		//we should close it in the end
 		appconfig.Instance.CloseEventsConsumers()
 		appconfig.Instance.CloseWriteAheadLog()
+		time.Sleep(time.Second)
 		os.Exit(0)
 	}()
 
