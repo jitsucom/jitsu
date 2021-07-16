@@ -1,9 +1,7 @@
 // @Libs
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Col, Dropdown, Form, Row, Tabs } from 'antd';
-import MonacoEditor from 'react-monaco-editor';
 import cn from 'classnames';
-import debounce from 'lodash/debounce';
 // @Components
 import { DebugEvents } from 'ui/components/CodeDebugger/DebugEvents';
 import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
