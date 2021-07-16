@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import MonacoEditor, { monaco as monacoEditor } from 'react-monaco-editor';
+import * as monacoEditor from 'monaco-editor';
+import MonacoEditor from 'react-monaco-editor';
 import { Props } from './CodeEditor.types';
 import { IKeyboardEvent } from 'monaco-editor';
 
