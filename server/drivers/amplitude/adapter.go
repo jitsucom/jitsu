@@ -15,13 +15,16 @@ import (
 	"github.com/jitsucom/jitsu/server/parsers"
 )
 
-const AmplitudeURL = "https://amplitude.com"
-const AmplitudeLayout = "20060102T15"
+const amplitudeURL = "https://amplitude.com"
+const amplitudeLayout = "20060102T15"
+
+const AmplitudeActiveUsers = "active_users"
+const AmplitudeAverageSessions = "average_sessions"
 const AmplitudeEvents = "events"
-const AmplitudeActiveUsers = "activeusers"
-const AmplitudeNewUsers = "newusers"
-const TypeActiveUsers = "active"
-const TypeNewUsers = "new"
+const AmplitudeNewUsers = "new_users"
+
+const typeActiveUsers = "active"
+const typeNewUsers = "new"
 
 type AmplitudeAdapter struct {
 	httpClient *http.Client
@@ -54,7 +57,7 @@ func (a *AmplitudeAdapter) Close() error {
 
 func (a *AmplitudeAdapter) GetStatus() error {
 	request := &adapters.Request{
-		URL:    AmplitudeURL + "/status",
+		URL:    amplitudeURL + "/status",
 		Method: "GET",
 	}
 
@@ -71,10 +74,10 @@ func (a *AmplitudeAdapter) GetStatus() error {
 }
 
 func (a *AmplitudeAdapter) GetEvents(interval *base.TimeInterval) ([]map[string]interface{}, error) {
-	start := interval.LowerEndpoint().Format(AmplitudeLayout)
-	end := interval.UpperEndpoint().Format(AmplitudeLayout)
+	start := interval.LowerEndpoint().Format(amplitudeLayout)
+	end := interval.UpperEndpoint().Format(amplitudeLayout)
 
-	url := fmt.Sprintf("%v/api/2/export?start=%s&end=%s", AmplitudeURL, start, end)
+	url := fmt.Sprintf("%v/api/2/export?start=%s&end=%s", amplitudeURL, start, end)
 
 	request := &adapters.Request{
 		URL:     url,
@@ -106,10 +109,20 @@ func (a *AmplitudeAdapter) GetEvents(interval *base.TimeInterval) ([]map[string]
 	return eventsArray, nil
 }
 
-func (a *AmplitudeAdapter) GetUsers(interval *base.TimeInterval, userType string) ([]map[string]interface{}, error) {
-	start := interval.LowerEndpoint().Format(AmplitudeLayout)
-	end := interval.UpperEndpoint().Format(AmplitudeLayout)
-	url := fmt.Sprintf("%v/api/2/users?start=%s&end=%s&m=%s", AmplitudeURL, start, end, userType)
+func (a *AmplitudeAdapter) GetUsers(interval *base.TimeInterval, collectionName string) ([]map[string]interface{}, error) {
+	userType := ""
+	switch collectionName {
+	case AmplitudeActiveUsers:
+		userType = typeActiveUsers
+	case AmplitudeNewUsers:
+		userType = typeNewUsers
+	default:
+		return nil, fmt.Errorf("Unexpected collection for amplitude users: %v", collectionName)
+	}
+
+	start := interval.LowerEndpoint().Format(amplitudeLayout)
+	end := interval.UpperEndpoint().Format(amplitudeLayout)
+	url := fmt.Sprintf("%v/api/2/users?start=%s&end=%s&m=%s", amplitudeURL, start, end, userType)
 
 	request := &adapters.Request{
 		URL:     url,
@@ -128,12 +141,42 @@ func (a *AmplitudeAdapter) GetUsers(interval *base.TimeInterval, userType string
 		return nil, fmt.Errorf("Request does not return OK status [%v]: %v", status, string(response))
 	}
 
-	usersArray, err := parseUsers(response)
+	usersArray, err := parseDashboard(response, collectionName)
 	if err != nil {
 		return nil, err
 	}
 
 	return usersArray, nil
+}
+
+func (a *AmplitudeAdapter) GetSessions(interval *base.TimeInterval) ([]map[string]interface{}, error) {
+	start := interval.LowerEndpoint().Format(amplitudeLayout)
+	end := interval.UpperEndpoint().Format(amplitudeLayout)
+	url := fmt.Sprintf("%v/api/2/sessions/average?start=%s&end=%s", amplitudeURL, start, end)
+
+	request := &adapters.Request{
+		URL:     url,
+		Method:  "GET",
+		Headers: map[string]string{},
+	}
+
+	request.Headers["Authorization"] = a.authToken
+
+	status, response, err := a.doRequest(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("Request does not return OK status [%v]: %v", status, string(response))
+	}
+
+	sessionsArray, err := parseDashboard(response, AmplitudeAverageSessions)
+	if err != nil {
+		return nil, err
+	}
+
+	return sessionsArray, nil
 }
 
 func (a *AmplitudeAdapter) doRequest(request *adapters.Request) (int, []byte, error) {
@@ -214,28 +257,39 @@ func parseEvents(income []byte) ([]map[string]interface{}, error) {
 	return eventsArray, nil
 }
 
-type userData struct {
-	XValues []string `mapstructure:"xValues" json:"xValues,omitempty" yaml:"xValues,omitempty"`
-	Series  [][]int  `mapstructure:"series" json:"series,omitempty" yaml:"series,omitempty"`
+type dashboardData struct {
+	XValues []string    `mapstructure:"xValues" json:"xValues,omitempty" yaml:"xValues,omitempty"`
+	Series  [][]float64 `mapstructure:"series" json:"series,omitempty" yaml:"series,omitempty"`
 }
 
-type userResponse struct {
-	Data userData `mapstructure:"data" json:"data,omitempty" yaml:"data,omitempty"`
+type dashboardResponse struct {
+	Data dashboardData `mapstructure:"data" json:"data,omitempty" yaml:"data,omitempty"`
 }
 
-func parseUsers(income []byte) ([]map[string]interface{}, error) {
-	response := &userResponse{}
+func parseDashboard(income []byte, fieldName string) ([]map[string]interface{}, error) {
+	response := &dashboardResponse{}
 	if err := json.Unmarshal(income, &response); err != nil {
 		return nil, err
 	}
 
-	usersArray := make([]map[string]interface{}, 0)
+	array := make([]map[string]interface{}, 0)
 	for i := 0; i < len(response.Data.Series) && i < len(response.Data.XValues); i++ {
-		users := map[string]interface{}{
-			response.Data.XValues[i]: response.Data.Series[i],
+		item := map[string]interface{}{
+			fieldName: simplifyArrayValue(response.Data.Series[i]),
 		}
-		usersArray = append(usersArray, users)
+		array = append(array, item)
 	}
 
-	return usersArray, nil
+	return array, nil
+}
+
+func simplifyArrayValue(array []float64) interface{} {
+	if len(array) == 1 {
+		value := array[0]
+		if value == float64(int(value)) {
+			return int(value)
+		}
+		return value
+	}
+	return array
 }

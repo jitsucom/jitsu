@@ -33,8 +33,9 @@ func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		return nil, err
 	}
 
-	known := collection.Name == AmplitudeEvents ||
-		collection.Name == AmplitudeActiveUsers ||
+	known := collection.Name == AmplitudeActiveUsers ||
+		collection.Name == AmplitudeAverageSessions ||
+		collection.Name == AmplitudeEvents ||
 		collection.Name == AmplitudeNewUsers
 
 	if !known {
@@ -78,25 +79,34 @@ func TestAmplitude(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 
-	collection := &base.Collection{
-		Name:           AmplitudeEvents,
-		DaysBackToLoad: 30,
+	collectionNames := []string{
+		AmplitudeActiveUsers,
+		AmplitudeAverageSessions,
+		AmplitudeEvents,
+		AmplitudeNewUsers,
 	}
 
-	amplitude := &Amplitude{
-		adapter:    adapter,
-		config:     config,
-		collection: collection,
-	}
+	for _, name := range collectionNames {
+		collection := &base.Collection{
+			Name:           name,
+			DaysBackToLoad: 10,
+		}
 
-	intervals, err := amplitude.GetAllAvailableIntervals()
-	if err != nil {
-		return err
-	}
+		amplitude := &Amplitude{
+			adapter:    adapter,
+			config:     config,
+			collection: collection,
+		}
 
-	for _, interval := range intervals {
-		if _, err := amplitude.GetObjectsFor(interval); err != nil {
+		intervals, err := amplitude.GetAllAvailableIntervals()
+		if err != nil {
 			return err
+		}
+
+		for _, interval := range intervals {
+			if _, err := amplitude.GetObjectsFor(interval); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -133,34 +143,27 @@ func (a *Amplitude) GetCollectionTable() string {
 }
 
 func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
-	if a.collection.Name == AmplitudeEvents {
-		eventsArray, err := a.adapter.GetEvents(interval)
-		if err != nil {
-			return nil, err
-		}
+	var err error
+	var array []map[string]interface{}
 
-		return eventsArray, nil
+	switch a.collection.Name {
+	case AmplitudeActiveUsers:
+		array, err = a.adapter.GetUsers(interval, AmplitudeActiveUsers)
+	case AmplitudeAverageSessions:
+		array, err = a.adapter.GetSessions(interval)
+	case AmplitudeEvents:
+		array, err = a.adapter.GetEvents(interval)
+	case AmplitudeNewUsers:
+		array, err = a.adapter.GetUsers(interval, AmplitudeNewUsers)
+	default:
+		err = fmt.Errorf("Unknown collection for amplitude: %v", a.collection.Name)
 	}
 
-	if a.collection.Name == AmplitudeActiveUsers {
-		usersArray, err := a.adapter.GetUsers(interval, TypeActiveUsers)
-		if err != nil {
-			return nil, err
-		}
-
-		return usersArray, nil
+	if err != nil {
+		return nil, err
 	}
 
-	if a.collection.Name == AmplitudeNewUsers {
-		usersArray, err := a.adapter.GetUsers(interval, TypeNewUsers)
-		if err != nil {
-			return nil, err
-		}
-
-		return usersArray, nil
-	}
-
-	return nil, fmt.Errorf("Unknown collection for amplitude: %v", a.collection.Name)
+	return array, nil
 }
 
 func (a *Amplitude) Type() string {
