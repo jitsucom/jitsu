@@ -75,6 +75,7 @@ export type RawConfigObject = {
     logrocket?: string;
     intercom?: string;
     eventnative?: string;
+    highlight?: string;
   };
 };
 

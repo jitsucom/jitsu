@@ -6651,6 +6651,11 @@ highlight.js@^10.4.1, highlight.js@~10.7.0:
   resolved "https://registry.npmjs.org/highlight.js/-/highlight.js-10.7.2.tgz"
   integrity sha512-oFLl873u4usRM9K63j4ME9u3etNF0PLiJhSQ8rdfuL51Wn3zkD6drf9ZW0dOzjnZI22YYG24z30JcmfCZjMgYg==
 
+highlight.run@^2.2.0:
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/highlight.run/-/highlight.run-2.2.0.tgz#ba529ae5033bb51f170228d9e702dc4c44c9225c"
+  integrity sha512-2qa/+VjPzRVpmSxAcDMjj9o3bFE0PrD+4NM8f1e8RigXFkBL4nfsNiDdJvV2F3cv1nJHsO79FQ83TRxkjuiSkw==
+
 history@^4.9.0:
   version "4.10.1"
   resolved "https://registry.npmjs.org/history/-/history-4.10.1.tgz"

@@ -1,8 +1,12 @@
 /* eslint-disable */
-import { ApplicationConfiguration, FeatureSettings, setDebugInfo } from './ApplicationServices';
-import { User } from './model';
+import {
+  ApplicationConfiguration,
+  FeatureSettings,
+  setDebugInfo
+} from './ApplicationServices';
 // @ts-ignore
 import LogRocket from 'logrocket';
+import { H as HighlightJs } from 'highlight.run';
 import murmurhash from 'murmurhash';
 import { isNullOrUndef } from '../commons/utils';
 import { jitsuClient, JitsuClient } from '@jitsu/sdk-js';
@@ -148,6 +152,7 @@ export default class AnalyticsService {
   private user: UserProps;
   private jitsu?: JitsuClient;
   private logRocketInitialized: boolean = false;
+  private highlightJsInitialized: boolean = false;
   private consoleInterceptor: ConsoleLogInterceptor = new ConsoleLogInterceptor();
   private _anonymizeUsers = false;
   private _appName = 'unknown';
@@ -175,6 +180,14 @@ export default class AnalyticsService {
         this.onGlobalError(error, true);
       }
     });
+    this.initializeHighlightJs();
+  }
+
+  private initializeHighlightJs(): void {
+    const key = this.appConfig.rawConfig.keys.highlight;
+    console.log('highlight.run intialization, key=' + key);
+    if (key) HighlightJs.init(key);
+    this.highlightJsInitialized = true;
   }
 
   public ensureLogRocketInitialized() {
@@ -199,6 +212,10 @@ export default class AnalyticsService {
       LogRocket.identify(userProps.uid, {
         email: userProps.email
       });
+    }
+    if (this.appConfig.rawConfig.keys.highlight) {
+      if (!this.highlightJsInitialized) this.initializeHighlightJs();
+      HighlightJs.identify(userProps.email, { id: userProps.uid });
     }
     if (this.jitsu) {
       this.jitsu.id(this.getJitsuIdPayload(userProps));
