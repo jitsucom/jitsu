@@ -19,7 +19,8 @@ func NewJsProcessor(usersRecognition Recognition, userAgentPath string) *JsProce
 	return &JsProcessor{usersRecognition: usersRecognition, userAgentJSONPath: jsonutils.NewJSONPath(userAgentPath)}
 }
 
-//Preprocess set user-agent from request header to configured nodes
+//Preprocess sets user-agent from request header to configured nodes
+//sets user anonymous ID if GDPR
 func (jp *JsProcessor) Preprocess(event Event, reqContext *RequestContext) {
 	if reqContext.UserAgent != "" {
 		if err := jp.userAgentJSONPath.Set(event, reqContext.UserAgent); err != nil {

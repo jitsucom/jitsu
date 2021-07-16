@@ -46,5 +46,9 @@ EventNative accepts the following parameters.
         <td>compat_mode<br />(<span style={{whiteSpace: 'nowrap'}}>data-compat-mode</span>)</td>
         <td>If event JSON should have a structure compatible with an old version. Read more about compat mode in <a href="/docs/sending-data/js-sdk/migrating">Migration Guide</a></td>
     </tr>
+    <tr>
+      <td>gdpr<br />(<span style={{whiteSpace: 'nowrap'}}>data-gdpr</span>)</td>
+      <td>If set to true, Jitsu won't set any cookies and will enrich event with daily anonymous ID based on hashed user IP, user agent and day on the backend side.</td>
+    </tr>
     </tbody>
 </table>
