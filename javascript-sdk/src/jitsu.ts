@@ -303,7 +303,9 @@ class JitsuClientImpl implements JitsuClient {
     if (options.segment_hook) {
       interceptSegmentCalls(this);
     }
-    this.anonymousId = this.getAnonymousId();
+    if (options.gdpr !== true){
+      this.anonymousId = this.getAnonymousId();
+    }
     this.initialized = true;
   }
 

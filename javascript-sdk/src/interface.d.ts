@@ -152,8 +152,8 @@ export type JitsuOptions = {
   id_method?: IdMethod
 
   /**
-   * GDPR complaint configuration flag. If true - Jitsu doesn't set cookies and tracks only daily unique users
-   * by hash(daily_salt + ip_address + user_agent)
+   * GDPR complaint configuration flag. If set to true, Jitsu won't set any cookies and will enrich event with daily anonymous ID based on hashed user IP, user agent and day on the backend side:
+   * by hash(YYYYMM + ip_address + user_agent)
    * @default false
    */
   gdpr?: boolean

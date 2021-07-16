@@ -56,7 +56,7 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	ph.extractOrSetAnonymID(c, event)
+	ph.extractOrSetAnonymIDCookie(c, event)
 
 	var strToken string
 	token, ok := event[middleware.TokenName]
@@ -123,11 +123,11 @@ func (ph *PixelHandler) parseEvent(c *gin.Context) (events.Event, error) {
 	return event, nil
 }
 
-//extractOrSetAnonymID if no anoymous id found:
+//extractOrSetAnonymIDCookie if no anoymous id found:
 // 1. gets cookie value (anonym ID)
 // 2. generates and set it if doesn't exist
 // Note: do nothing if query parameter gdpr=true is provided
-func (ph *PixelHandler) extractOrSetAnonymID(c *gin.Context, event events.Event) {
+func (ph *PixelHandler) extractOrSetAnonymIDCookie(c *gin.Context, event events.Event) {
 	gdpr := c.Query(middleware.GDPRQueryParameter)
 	if gdpr == "true" {
 		return

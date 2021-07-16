@@ -313,6 +313,15 @@ func TestEventEndpoint(t *testing.T) {
 			http.StatusOK,
 			"",
 		},
+		{
+			"GDPR test",
+			"/api/v1/event?token=c2stoken&gdpr=true",
+			"test_data/event_input_2.0.json",
+			"test_data/fact_output_gdpr.json",
+			"",
+			http.StatusOK,
+			"",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.Name, func(t *testing.T) {
@@ -489,6 +498,14 @@ func TestPixelEndpoint(t *testing.T) {
 			"/api/v1/p.gif?data=ewogICJjb21wYXQiOiB0cnVlLAogICJldmVudF90eXBlIjogInBhZ2UiLAogICJldmVudG5fY3R4IjogewogICAgImRvY19ob3N0IjogImFwcC5qaXRzdS5jb20iLAogICAgImRvY19wYXRoIjogIi9hcGkvdjEvcC5naWYiLAogICAgImRvY19zZWFyY2giOiAiYWJjPTEyMyIsCiAgICAidXJsIjogImh0dHBzOi8vaml0c3UuY29tL2RvY3MiLAogICAgInVzZXJfYWdlbnQiOiAiTW96aWxsYS81LjAgKGlQb2Q7IENQVSBpUGhvbmUgT1MgMTJfMCBsaWtlIG1hY09TKSBBcHBsZVdlYktpdC82MDIuMS41MCAoS0hUTUwsIGxpa2UgR2Vja28pIFZlcnNpb24vMTIuMCBNb2JpbGUvMTRBNTMzNWQgU2FmYXJpLzYwMi4xLjUwIiwKICAgICJ1c2VyIjp7CiAgICAgICAgImFub255bW91c19pZCI6ICIxMjMiCiAgICAgfSwKICAgICJ1dGNfdGltZSI6ICIyMDIwLTA2LTE2VDIzOjAwOjAwLjAwMDAwMFoiCiAgfQp9&token=c2stoken",
 			"",
 			"test_data/pixel_event_with_context_and_id_compat_output.json",
+			"",
+			"",
+		},
+		{
+			"Event without context data and anonym id GDPR",
+			"/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2&gdpr=true",
+			"",
+			"test_data/pixel_event_gdpr_output.json",
 			"",
 			"",
 		},

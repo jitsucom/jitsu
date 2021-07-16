@@ -13,6 +13,7 @@ func NewSegmentProcessor(usersRecognition Recognition) *SegmentProcessor {
 }
 
 //Preprocess adds src value
+//sets user anonymous ID if GDPR
 func (sp *SegmentProcessor) Preprocess(event Event, reqContext *RequestContext) {
 	event[SrcKey] = "segment_api"
 
