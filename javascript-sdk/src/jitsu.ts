@@ -21,7 +21,6 @@ const VERSION_INFO = {
 
 const JITSU_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
 
-
 const xmlHttpReqTransport: Transport = (url: string, json: string): Promise<void> => {
   let req = new XMLHttpRequest();
   return new Promise((resolve, reject) => {
@@ -87,6 +86,15 @@ class CookiePersistence implements Persistence {
   }
 }
 
+class NoPersistence implements Persistence {
+  public save(props: Record<string, any>) {
+  }
+
+  restore(): Record<string, any> | undefined {
+    return undefined;
+  }
+}
+
 const defaultCompatMode = false;
 
 export function jitsuClient(opts?: JitsuOptions): JitsuClient {
@@ -104,7 +112,6 @@ type PermanentProperties = {
 class JitsuClientImpl implements JitsuClient {
   private userIdPersistence?: Persistence;
   private propsPersistance?: Persistence;
-  private
 
   private anonymousId: string = '';
   private userProperties: UserProps = {}
@@ -184,9 +191,10 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   sendJson(json: any): Promise<void> {
-    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}`;
+    let gdprParam = this.initialOptions.gdpr ? '&gdpr=true' : ''
+    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${gdprParam}`;
     if (this.randomizeUrl) {
-      url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}`;
+      url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${gdprParam}`;
     }
 
     let jsonString = JSON.stringify(json);
@@ -264,8 +272,13 @@ class JitsuClientImpl implements JitsuClient {
     this.idCookieName = options.cookie_name || '__eventn_id';
     this.apiKey = options.key;
 
-    this.userIdPersistence = new CookiePersistence(this.cookieDomain, this.idCookieName + '_usr');
-    this.propsPersistance = new CookiePersistence(this.cookieDomain, this.idCookieName + '_props');
+    if (options.gdpr === true){
+      this.userIdPersistence = new NoPersistence()
+      this.propsPersistance = new NoPersistence()
+    }else{
+      this.userIdPersistence = new CookiePersistence(this.cookieDomain, this.idCookieName + '_usr');
+      this.propsPersistance = new CookiePersistence(this.cookieDomain, this.idCookieName + '_props');
+    }
 
     if (this.propsPersistance) {
       const restored = this.propsPersistance.restore();

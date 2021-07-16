@@ -13,6 +13,7 @@ const (
 	ErrTokenNotFound = "The token is not found"
 
 	JitsuAnonymIDCookie = "__eventn_id"
+	GDPRQueryParameter  = "gdpr"
 )
 
 //extractToken return token from

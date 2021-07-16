@@ -126,7 +126,13 @@ func (ph *PixelHandler) parseEvent(c *gin.Context) (events.Event, error) {
 //extractOrSetAnonymID if no anoymous id found:
 // 1. gets cookie value (anonym ID)
 // 2. generates and set it if doesn't exist
+// Note: do nothing if query parameter gdpr=true is provided
 func (ph *PixelHandler) extractOrSetAnonymID(c *gin.Context, event events.Event) {
+	gdpr := c.Query(middleware.GDPRQueryParameter)
+	if gdpr == "true" {
+		return
+	}
+
 	if anonymID, ok := ph.anonymIDPath.Get(event); ok {
 		c.Set(middleware.JitsuAnonymIDCookie, anonymID)
 		return

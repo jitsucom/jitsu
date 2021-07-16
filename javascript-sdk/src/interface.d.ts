@@ -71,9 +71,8 @@ export type JitsuFunction = (action: 'track' | 'id' | 'set', eventType: string, 
  * User identification method:
  *  - cookie (based on cookie)
  *  - ls (localstorage)
- *  - cookie-less (without any information stored locally; currently unsupported)
  */
-export type IdMethod = 'cookie' | 'ls' | 'cookie-less'
+export type IdMethod = 'cookie' | 'ls'
 
 /**
  * Configuration options of EventNative
@@ -151,6 +150,13 @@ export type JitsuOptions = {
    * See comment on IdMethod. Currently only 'cookie' is supported
    */
   id_method?: IdMethod
+
+  /**
+   * GDPR complaint configuration flag. If true - Jitsu doesn't set cookies and tracks only daily unique users
+   * by hash(daily_salt + ip_address + user_agent)
+   * @default false
+   */
+  gdpr?: boolean
 
   /**
    * Log level. 'WARN' if not set
