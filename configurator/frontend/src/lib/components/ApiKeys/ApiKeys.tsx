@@ -1,6 +1,7 @@
 // @Libs
 import React, { useState } from 'react';
 import { flowResult } from 'mobx';
+import { Observer, observer } from 'mobx-react-lite';
 import {
   Button,
   Input,
@@ -13,15 +14,7 @@ import {
   Tabs,
   Tooltip
 } from 'antd';
-// @Store
-import { apiKeysStore, UserApiKey } from 'stores/apiKeys';
-// @Services
-import { useServices } from 'hooks/useServices';
-
-import CodeFilled from '@ant-design/icons/lib/icons/CodeFilled';
-import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
-
-import './ApiKeys.less';
+// @Components
 import {
   ActionLink,
   CenteredError,
@@ -30,18 +23,28 @@ import {
   CodeSnippet,
   handleError
 } from '../components';
-import { copyToClipboard as copyToClipboardUtility } from '../../commons/utils';
-import TagsInput from '../TagsInput/TagsInput';
 import {
   getCurlDocumentation,
   getEmbeddedHtml,
   getNPMDocumentation
 } from '../../commons/api-documentation';
+import TagsInput from '../TagsInput/TagsInput';
+import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
+// @Store
+import { apiKeysStore, UserApiKey } from 'stores/apiKeys';
+// @Services
+import { useServices } from 'hooks/useServices';
+// @Icons
+import CodeFilled from '@ant-design/icons/lib/icons/CodeFilled';
+import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import DeleteFilled from '@ant-design/icons/lib/icons/DeleteFilled';
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
-import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
+// @Utils
+import { copyToClipboard as copyToClipboardUtility } from '../../commons/utils';
+// @Hooks
 import useLoader from 'hooks/useLoader';
-import { observer } from 'mobx-react-lite';
+// @Styles
+import './ApiKeys.less';
 
 /**
  * What's displayed as loading? 
@@ -191,19 +194,23 @@ const ApiKeysComponent: React.FC = () => {
               <ActionLink onClick={() => copyToClipboard(text)}>
                 Copy To Clipboard
               </ActionLink>
-              <ActionLink
-                onClick={() => {
-                  generateNewKeyWithConfirmation(() => {
-                    const updatedKey = {...keys[index]};
-                    updatedKey.jsAuth =
-                      apiKeysStore.generateApiToken('js');
-                    handleEditKeys(updatedKey, index);
-                    message.info('New key has been generated and saved');
-                  });
-                }}
-              >
-                Generate New Key
-              </ActionLink>
+              <Observer>
+                {() => (
+                  <ActionLink
+                  onClick={() => {
+                    generateNewKeyWithConfirmation(() => {
+                      const updatedKey = {...keys[index]};
+                      updatedKey.jsAuth =
+                        apiKeysStore.generateApiToken('js');
+                      handleEditKeys(updatedKey, index);
+                      message.info('New key has been generated and saved');
+                    });
+                  }}
+                >
+                  Generate New Key
+                </ActionLink>
+                )}
+              </Observer>
             </Space>
           </span>
         );
@@ -236,19 +243,23 @@ const ApiKeysComponent: React.FC = () => {
               <ActionLink onClick={() => copyToClipboard(text)}>
                 Copy To Clipboard
               </ActionLink>
-              <ActionLink
-                onClick={() => {
-                  generateNewKeyWithConfirmation(() => {
-                    const updatedKey = {...keys[index]};
-                    updatedKey.serverAuth =
-                      apiKeysStore.generateApiToken('s2s');
-                    handleEditKeys(updatedKey, index);
-                    message.info('New key has been generated and saved');
-                  });
-                }}
-              >
-                Generate New Key
-              </ActionLink>
+              <Observer>
+                {() => (
+                  <ActionLink
+                  onClick={() => {
+                    generateNewKeyWithConfirmation(() => {
+                      const updatedKey = {...keys[index]};
+                      updatedKey.serverAuth =
+                        apiKeysStore.generateApiToken('s2s');
+                      handleEditKeys(updatedKey, index);
+                      message.info('New key has been generated and saved');
+                    });
+                  }}
+                >
+                  Generate New Key
+                </ActionLink>
+                )}
+              </Observer>
             </Space>
           </span>
         );

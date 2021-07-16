@@ -242,7 +242,7 @@ export const mockDestinationsList = {
         pgpassword: 'desqIw-0pyspi-bezqah',
         pgdisablessl: false
       },
-      _sources: [],
+      _sources: undefined,
       _connectionTestOk: false,
       _connectionErrorMessage:
         'dial tcp: lookup pg_host on 172.26.0.2:53: no such host (#400)'
@@ -311,7 +311,7 @@ export const mockSources = {
       },
       connected: false,
       connectedErrorMessage: "missing 'type' field in credentials (#400)",
-      destinations: [],
+      destinations: undefined,
       sourceId: 'firebase',
       sourceProtoType: 'firebase',
       sourceType: 'firebase'

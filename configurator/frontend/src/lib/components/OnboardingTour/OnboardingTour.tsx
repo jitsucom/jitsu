@@ -41,7 +41,7 @@ export function showOnboardingError(msg?: string): void {
 
 const services = ApplicationServices.get();
 
-export const OnboardingTourComponent: React.FC = () => {
+const OnboardingTour: React.FC = () => {
   const [config, setConfig] = useState<OnboardingConfig | null>(null);
   const [userClosedTour, setUserClosedTour] = useState<boolean>(false);
 
@@ -240,8 +240,6 @@ function calculateAmountOfSteps(config: OnboardingConfig): number {
       return accumulator + +current;
     }, 0);
 }
-
-const OnboardingTour = observer(OnboardingTourComponent);
 
 OnboardingTour.displayName = 'OnboardingTour';
 
