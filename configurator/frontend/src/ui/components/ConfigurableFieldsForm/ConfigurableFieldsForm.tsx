@@ -78,6 +78,7 @@ const ConfigurableFieldsForm = ({
     (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value.replace(/\D/g, '');
       form.setFieldsValue({ [id]: value });
+      debugModalsValues[id].current = value;
     },
     [form]
   );
@@ -223,6 +224,7 @@ const ConfigurableFieldsForm = ({
                 <CodeEditor
                   handleChange={handleJsonChange(id)}
                   initialValue={value}
+                  language="javascript"
                 />
               </div>
               <div
@@ -356,9 +358,7 @@ const ConfigurableFieldsForm = ({
                       run={(values) => handleDebuggerRun(id, values)}
                     />
                   </Modal>
-                ) : (
-                  <></>
-                )}
+                ) : null}
                 <Form.Item
                   className={cn(
                     'form-field_fixed-label',
