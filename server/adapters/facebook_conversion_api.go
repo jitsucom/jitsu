@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/events"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -17,8 +18,6 @@ import (
 
 const (
 	eventsURLTemplate = "https://graph.facebook.com/v11.0/%s/events?access_token=%s&locale=en_EN"
-
-	maskedParameterValue = "masked"
 )
 
 var (
@@ -121,7 +120,7 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 		response := &FacebookResponse{}
 		err = json.Unmarshal(responseBody, response)
 		if err != nil {
-			return fmt.Errorf("Error unmarhalling facebook conversion API response body: %v", err)
+			return fmt.Errorf("Error unmarshalling facebook conversion API response body: %v", err)
 		}
 
 		if response.Error.Code == 190 {
@@ -256,7 +255,7 @@ func (frf *FacebookRequestFactory) hashFields(object map[string]interface{}) {
 	email, ok := userData["em"]
 	if ok {
 		strEmail := fmt.Sprintf("%v", email)
-		if strings.Contains(strEmail, "@") || strEmail == maskedParameterValue {
+		if strings.Contains(strEmail, "@") || strEmail == events.MaskedParameterValue {
 			sum := sha256.Sum256([]byte(strEmail))
 			userData["em"] = fmt.Sprintf("%x", sum)
 		}

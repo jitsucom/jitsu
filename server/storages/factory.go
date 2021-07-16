@@ -57,6 +57,7 @@ type DestinationConfig struct {
 	Facebook        *adapters.FacebookConversionAPIConfig `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
 	WebHook         *adapters.WebHookConfig               `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
 	Amplitude       *adapters.AmplitudeConfig             `mapstructure:"amplitude" json:"amplitude,omitempty" yaml:"amplitude,omitempty"`
+	HubSpot         *adapters.HubSpotConfig               `mapstructure:"hubspot" json:"hubspot,omitempty" yaml:"hubspot,omitempty"`
 }
 
 //DataLayout is used for configure mappings/table names and other data layout parameters
@@ -278,7 +279,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
 	var flattener schema.Flattener
 	var typeResolver schema.TypeResolver
-	if destination.Type == FacebookType || destination.Type == WebHookType || destination.Type == AmplitudeType {
+	if destination.Type == FacebookType || destination.Type == WebHookType || destination.Type == AmplitudeType || destination.Type == HubSpotType {
 		flattener = schema.NewDummyFlattener()
 		typeResolver = schema.NewDummyTypeResolver()
 	} else {

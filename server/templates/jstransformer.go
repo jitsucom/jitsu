@@ -15,6 +15,8 @@ func Transform(src string) (string, error) {
 			[]interface{}{"transform-last-statement", map[string]interface{}{"topLevel": true}},
 			"proposal-optional-chaining",
 			"transform-template-literals",
+			"loop-protect",
+
 		},
 		"parserOpts":  map[string]interface{}{
 			"errorRecovery": true,
@@ -36,6 +38,8 @@ func Transform(src string) (string, error) {
 //Returns func that is mapped to javascript function inside vm instance
 func LoadTemplateScript(script string, extraFunctions template.FuncMap) (func(map[string]interface{}) interface{}, error) {
 	vm := goja.New()
+	//limit call stack size to prevent endless recurison
+	vm.SetMaxCallStackSize(42)
 	_, err := vm.RunString(script)
 	if err != nil {
 		return nil, err

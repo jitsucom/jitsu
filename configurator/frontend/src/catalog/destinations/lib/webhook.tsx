@@ -27,7 +27,7 @@ const webhookDestination = {
       required: true,
       type: stringType,
       documentation:
-        <>HTTP URL constant string or with text/template expressions e.g. https://mydomain/{'{{'}.event_type{'}}'}/notification will get event_type field from every event and use it as a part of URL path.</>
+          <>HTTP URL constant string or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:<br></br><i>"https://mydomain/" + $.event_type</i><br></br> will get <b>event_type</b> field from event and use it as a part of URL path.</>
     },
     {
       id: '_formData.method',
@@ -42,7 +42,14 @@ const webhookDestination = {
       required: false,
       type: jsonType,
       documentation:
-        <>HTTP body JSON constant or with text/template expressions e.g. {'{ "action": "{{'}.event_name{'}}"'}, "message":"User {'{{'}.user.email{'}}'} has been logged in." will get event_name and user email fields from every event and use it as a part of request body JSON.</>
+        <>HTTP body JSON constant, or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:
+          <pre>
+            {`{
+  "action": _.event_name,
+  "message": \`User \${_.user.email} has been logged in.\`
+}`}
+          </pre>
+           will get <b>event_name</b> and <b>user email</b> fields from every event and use it as a part of request body JSON.</>
     },
     {
       id: '_formData.headers',

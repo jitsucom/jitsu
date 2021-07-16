@@ -11,7 +11,7 @@ destinations:
     only_tokens: [] #Optinal. Default value is array with all authorization tokens
     staged: true | false #Optional. Default value is false
     data_layout: #Optional
-      table_name_template: {{.event_type}} #Optional. Default value is 'events'
+      table_name_template: $.event_type #Optional. Default value is 'events'
       mappings: #Optional. See documentation link below
         ...
       primary_key_fields: [] #Optional. See documentation link below
@@ -147,6 +147,8 @@ Example of URL content:
 ### Services
 
 <LargeLink href="/docs/destinations-configuration/amplitude" title="Amplitude"/>
+
+<LargeLink href="/docs/destinations-configuration/hubspot" title="HubSpot"/>
 
 <LargeLink href="/docs/destinations-configuration/google-analytics" title="Google Analytics"/>
 

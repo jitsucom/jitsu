@@ -35,6 +35,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		config, err = mapWebhook(destination)
 	case enstorages.AmplitudeType:
 		config, err = mapAmplitude(destination)
+	case enstorages.HubSpotType:
+		config, err = mapHubSpot(destination)
 	default:
 		return nil, fmt.Errorf("Unknown destination type: %s", destination.Type)
 	}
@@ -364,6 +366,31 @@ func mapAmplitude(aDestination *entities.Destination) (*enstorages.DestinationCo
 		},
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: aFormData.TableName,
+		},
+	}, nil
+}
+
+func mapHubSpot(hDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+	b, err := json.Marshal(hDestination.Data)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshaling hubspot config destination: %v", err)
+	}
+
+	hFormData := &entities.HubSpotFormData{}
+	err = json.Unmarshal(b, hFormData)
+	if err != nil {
+		return nil, fmt.Errorf("Error unmarshaling hubspot form data: %v", err)
+	}
+
+	return &enstorages.DestinationConfig{
+		Type: enstorages.HubSpotType,
+		Mode: hFormData.Mode,
+		HubSpot: &enadapters.HubSpotConfig{
+			APIKey: hFormData.APIKey,
+			HubID:  hFormData.HubID,
+		},
+		DataLayout: &enstorages.DataLayout{
+			TableNameTemplate: hFormData.TableName,
 		},
 	}, nil
 }
