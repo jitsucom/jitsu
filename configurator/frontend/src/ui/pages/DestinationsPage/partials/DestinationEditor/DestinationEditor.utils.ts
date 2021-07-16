@@ -1,14 +1,17 @@
-import ApplicationServices from '@service/ApplicationServices';
-import Marshal from '@./lib/commons/marshalling';
-import { closeableMessage, handleError } from '@./lib/components/components';
+import ApplicationServices from 'lib/services/ApplicationServices';
+import Marshal from 'lib/commons/marshalling';
+import { closeableMessage, handleError } from 'lib/components/components';
 import { message } from 'antd';
-import { firstToLower } from '@./lib/commons/utils';
-import { Tab } from '@component/Tabs/TabsConfigurator';
+import { firstToLower } from 'lib/commons/utils';
+import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 
 const destinationEditorUtils = {
-  testConnection: async(dst: DestinationData, hideMessage?: boolean) => {
+  testConnection: async (dst: DestinationData, hideMessage?: boolean) => {
     try {
-      await ApplicationServices.get().backendApiClient.post('/destinations/test', Marshal.toPureJson(dst));
+      await ApplicationServices.get().backendApiClient.post(
+        '/destinations/test',
+        Marshal.toPureJson(dst)
+      );
 
       dst._connectionTestOk = true;
 
@@ -33,30 +36,42 @@ const destinationEditorUtils = {
       return accumulator;
     }, []);
   },
-  updateSources: (sources: SourceData[], data: DestinationData, projectId: string) => {
-    const result = sources.reduce((accumulator: SourceData[], current: SourceData) => {
-      if (data._sources?.includes(current.sourceId)) {
-        if (!current.destinations) current = { ...current, destinations: [] };
-        current = {
-          ...current,
-          destinations: current?.destinations?.find((dst: string) => !data._sources?.includes(data._uid))
-            ? current?.destinations
-            : [...current?.destinations, data._uid]
-        };
-      } else {
-        current = {
-          ...current,
-          destinations: current?.destinations?.filter((dst: string) => dst !== data._uid)
-        };
-      }
-      return [
-        ...accumulator,
-        current
-      ];
-    }, []);
+  updateSources: (
+    sources: SourceData[],
+    destination: DestinationData,
+    projectId: string
+  ) => {
+    const result = sources.reduce(
+      (accumulator: SourceData[], current: SourceData) => {
+        if (destination._sources?.includes(current.sourceId)) {
+          if (!current.destinations) current = { ...current, destinations: [] };
+          current = {
+            ...current,
+            destinations: current?.destinations?.find(
+                        (dst: string) => !destination._sources?.includes(destination._uid)
+                      )
+              ? current?.destinations
+              : [...current?.destinations, destination._uid]
+          };
+        } else {
+          current = {
+            ...current,
+            destinations: current?.destinations?.filter(
+                      (dst: string) => dst !== destination._uid
+                    )
+          };
+        }
+        return [...accumulator, current];
+      },
+      []
+    );
 
     try {
-      ApplicationServices.get().storageService.save('sources', { sources: result }, projectId);
+      ApplicationServices.get().storageService.save(
+        'sources',
+        { sources: result },
+        projectId
+      );
 
       return result;
     } catch (error) {
@@ -68,9 +83,10 @@ const destinationEditorUtils = {
       );
     }
   },
-  getPromptMessage: (tabs: Tab[]) => () => tabs.some(tab => tab.touched)
-    ? 'You have unsaved changes. Are you sure you want to leave the page?'
-    : undefined
+  getPromptMessage: (tabs: Tab[]) => () =>
+    tabs.some((tab) => tab.touched)
+      ? 'You have unsaved changes. Are you sure you want to leave the page?'
+      : undefined
 };
 
 export { destinationEditorUtils };

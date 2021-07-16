@@ -1,35 +1,48 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { Button, Dropdown, Menu, message, Modal, MessageArgsProps } from 'antd';
-import AreaChartOutlined from '@ant-design/icons/lib/icons/AreaChartOutlined';
-import { NavLink, useHistory } from 'react-router-dom';
-import UnlockOutlined from '@ant-design/icons/lib/icons/UnlockOutlined';
-import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
-import NotificationOutlined from '@ant-design/icons/lib/icons/NotificationOutlined';
-import CloudOutlined from '@ant-design/icons/lib/icons/CloudOutlined';
-import DownloadOutlined from '@ant-design/icons/lib/icons/DownloadOutlined';
+// @Libs
 import * as React from 'react';
 import { useState } from 'react';
-import Icon, { SettingOutlined } from '@ant-design/icons';
-import logo from '@./icons/logo.svg';
-import WechatOutlined from '@ant-design/icons/lib/icons/WechatOutlined';
-import { handleError } from '@./lib/components/components';
-import UserOutlined from '@ant-design/icons/lib/icons/UserOutlined';
+import { NavLink, useHistory } from 'react-router-dom';
+import { Button, Dropdown, Menu, message, Modal, MessageArgsProps } from 'antd';
+// @Components
+import {
+  BreadcrumbsProps,
+  withHome,
+  Breadcrumbs
+} from 'ui/components/Breadcrumbs/Breadcrumbs';
+import { NotificationsWidget } from 'lib/components/Notifications/NotificationsWidget';
+import { CurrentPlan } from 'ui/components/CurrentPlan/CurrentPlan';
+import { handleError } from 'lib/components/components';
+// @Icons
+import Icon, {
+  SettingOutlined,
+  AreaChartOutlined,
+  UnlockOutlined,
+  ApiOutlined,
+  NotificationOutlined,
+  CloudOutlined,
+  DownloadOutlined,
+  WechatOutlined,
+  UserOutlined,
+  UserSwitchOutlined,
+  LogoutOutlined
+} from '@ant-design/icons';
+import logo from 'icons/logo.svg';
 import classNames from 'classnames';
-import { Permission, User } from '@service/model';
-import SlidersOutlined from '@ant-design/icons/lib/icons/SlidersOutlined';
-import UserSwitchOutlined from '@ant-design/icons/lib/icons/UserSwitchOutlined';
-import LogoutOutlined from '@ant-design/icons/lib/icons/LogoutOutlined';
-import { reloadPage } from '@./lib/commons/utils';
-import { useServices } from '@hooks/useServices';
-import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
-import { Page, usePageLocation } from '@./navigation';
-import { BreadcrumbsProps, withHome, Breadcrumbs } from '@component/Breadcrumbs/Breadcrumbs';
-import { CurrentPlan } from '@component/CurrentPlan/CurrentPlan';
-import { PaymentPlanStatus } from '@service/billing';
+// @Model
+import { Permission, User } from 'lib/services/model';
+// @Utils
+import { reloadPage } from 'lib/commons/utils';
+import { Page, usePageLocation } from 'navigation';
+// @Services
+import { useServices } from 'hooks/useServices';
+import { getIntercom } from 'lib/services/intercom-wrapper';
+import { AnalyticsBlock } from 'lib/services/analytics';
+import { PaymentPlanStatus } from 'lib/services/billing';
+// @Styles
 import styles from './Layout.module.less';
-import { getIntercom } from '@service/intercom-wrapper';
+// @Misc
 import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
-import { AnalyticsBlock } from '@service/analytics';
 
 export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
@@ -110,24 +123,42 @@ function abbr(user: User) {
 
 export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) => {
   const [dropdownVisible, setDropdownVisible] = useState(false);
-  return <div className="border-b border-splitBorder mb-4 h-12 flex flex-nowrap">
-    <div className="flex-grow">
-      <div className="h-12 flex items-center">
-        {children}
+  return (
+    <div className="border-b border-splitBorder mb-4 h-12 flex flex-nowrap">
+      <div className="flex-grow">
+        <div className="h-12 flex items-center">{children}</div>
+      </div>
+      <div
+        className={
+          `flex-shrink flex justify-center items-center mx-1`
+        }
+      >
+        <NotificationsWidget />
+      </div>
+      <div className="flex-shrink flex justify-center items-center">
+        <Dropdown
+          trigger={['click']}
+          onVisibleChange={(vis) => setDropdownVisible(vis)}
+          visible={dropdownVisible}
+          overlay={
+            <DropdownMenu
+              user={user}
+              plan={plan}
+              hideMenu={() => setDropdownVisible(false)}
+            />
+          }
+        >
+          <Button
+            className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text"
+            size="large"
+            shape="circle"
+          >
+            {abbr(user) || <UserOutlined />}
+          </Button>
+        </Dropdown>
       </div>
     </div>
-    <div className="flex-shrink">
-      <Dropdown
-        trigger={['click']}
-        onVisibleChange={(vis) => setDropdownVisible(vis)}
-        visible={dropdownVisible}
-        overlay={<DropdownMenu user={user} plan={plan} hideMenu={() => setDropdownVisible(false)} />}>
-        <Button className="ml-1 border-primary border-2 hover:border-text text-text hover:text-text" size="large" shape="circle">
-          {abbr(user) || <UserOutlined />}
-        </Button>
-      </Dropdown>
-    </div>
-  </div>
+  );
 }
 
 export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMenu: () => void}> = ({ plan, user , hideMenu }) => {

@@ -21,7 +21,8 @@
     "preserveConstEnums": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "experimentalDecorators": true
   },
   "include": [
     "src",

@@ -1,24 +1,23 @@
 // @Libs
-import React, { Dispatch, SetStateAction, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Route, Switch } from 'react-router-dom';
+import { observer } from 'mobx-react-lite';
 // @Routes
 import { sourcesPageRoutes } from './SourcesPage.routes';
 // @Components
 import { SourcesList } from './partials/SourcesList/SourcesList';
 import { SourceEditor } from './partials/SourceEditor/SourceEditor';
 import { AddSourceDialog } from './partials/AddSourceDialog/AddSourceDialog';
-import { CenteredError, CenteredSpin } from '@./lib/components/components';
+import { CenteredError, CenteredSpin } from 'lib/components/components';
+// @Store
+import { sourcesStore, SourcesStoreState } from 'stores/sources';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Styles
 import './SourcesPage.less';
-// @Hocs
-import { getComponent } from '@hocs/getComponent';
 // @Types
-import { BreadcrumbsProps } from '@component/Breadcrumbs/Breadcrumbs';
-import { PageProps } from '@./navigation';
-// @Hooks
-import useLoader from '@hooks/useLoader';
+import { BreadcrumbsProps } from 'ui/components/Breadcrumbs/Breadcrumbs';
+import { PageProps } from 'navigation';
 
 export interface CollectionSourceData {
   sources: SourceData[];
@@ -26,30 +25,16 @@ export interface CollectionSourceData {
 }
 
 export interface CommonSourcePageProps {
-  sources: SourceData[];
-  projectId: string;
-  updateSources: Dispatch<SetStateAction<CollectionSourceData>>;
   setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void;
   editorMode?: 'edit' | 'add';
 }
 
-const SourcesPage = (props: PageProps) => {
+const SourcesPageComponent = ({setBreadcrumbs}: PageProps) => {
   const services = useMemo(() => ApplicationServices.get(), []);
 
-  const [error, sources, updateSources] = useLoader(
-    async() => await services.storageService.get('sources', services.activeProject.id)
-  );
-
-  const additionalProps = useMemo(() => ({
-    projectId: services.activeProject.id,
-    sources: sources?.sources ?? [],
-    updateSources,
-    setBreadcrumbs: props.setBreadcrumbs
-  }), [props.setBreadcrumbs, sources?.sources, services.activeProject.id, updateSources]);
-
-  if (error) {
-    return <CenteredError error={error} />;
-  } else if (!sources) {
+  if (sourcesStore.state === SourcesStoreState.GLOBAL_ERROR) {
+    return <CenteredError error={sourcesStore.error} />;
+  } else if (sourcesStore.state === SourcesStoreState.GLOBAL_LOADING) {
     return <CenteredSpin />;
   }
 
@@ -58,29 +43,35 @@ const SourcesPage = (props: PageProps) => {
       <Route
         path={sourcesPageRoutes.root}
         exact
-        render={getComponent<CommonSourcePageProps>(SourcesList, additionalProps)}
-      />
+      >
+        <SourcesList {...{setBreadcrumbs}} />
+      </Route>
       <Route
         path={sourcesPageRoutes.addExact}
         strict={false}
         exact
-        render={getComponent<CommonSourcePageProps>(SourceEditor, { ...additionalProps, editorMode: 'add' })}
-      />
+      >
+        <SourceEditor {...{setBreadcrumbs, editorMode: 'add' }} />
+      </Route>
       <Route
         path={sourcesPageRoutes.add}
         strict={false}
         exact
-        render={getComponent<CommonSourcePageProps>(AddSourceDialog, additionalProps)}
-      />
+      >
+        <AddSourceDialog />
+      </Route>
       <Route
         path={sourcesPageRoutes.editExact}
         strict={false}
         exact
-        render={getComponent<CommonSourcePageProps>(SourceEditor, { ...additionalProps, editorMode: 'edit' })}
-      />
+      >
+        <SourceEditor {...{ setBreadcrumbs, editorMode: 'edit' }} />
+      </Route>
     </Switch>
   );
 };
+
+const SourcesPage = observer(SourcesPageComponent);
 
 SourcesPage.displayName = 'SourcesPage';
 
