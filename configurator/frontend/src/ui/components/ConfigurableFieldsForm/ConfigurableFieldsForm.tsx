@@ -78,6 +78,7 @@ const ConfigurableFieldsForm = ({
     (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value.replace(/\D/g, '');
       form.setFieldsValue({ [id]: value });
+      debugModalsValues[id].current = value;
     },
     [form]
   );
@@ -219,20 +220,13 @@ const ConfigurableFieldsForm = ({
             );
           return (
             <div>
-              <div>
-                <CodeEditor
-                  handleChange={handleJsonChange(id)}
-                  initialValue={value}
-                />
-              </div>
-              <div
-                style={{
-                  textAlign: 'right',
-                  zIndex: 1000,
-                  position: 'relative',
-                  paddingRight: 12,
-                  paddingTop: 5
-                }}
+              <CodeEditor
+                handleChange={handleJsonChange(id)}
+                initialValue={value}
+                language="javascript"
+              />
+              <span
+                className='z-50 absolute top-2 right-3'
               >
                 {isDebugSupported(id) && (
                   <Tooltip title="Debug expression">
@@ -241,7 +235,7 @@ const ConfigurableFieldsForm = ({
                     </span>
                   </Tooltip>
                 )}
-              </div>
+              </span>
             </div>
           );
         }
@@ -329,7 +323,7 @@ const ConfigurableFieldsForm = ({
               : constant;
           const isHidden = constantValue !== undefined;
           const formItemName = id;
-          debugger;
+
           return !isHidden ? (
             <Row key={id} className={cn(isHidden && 'hidden')}>
               <Col span={24}>
@@ -356,9 +350,7 @@ const ConfigurableFieldsForm = ({
                       run={(values) => handleDebuggerRun(id, values)}
                     />
                   </Modal>
-                ) : (
-                  <></>
-                )}
+                ) : null}
                 <Form.Item
                   className={cn(
                     'form-field_fixed-label',
