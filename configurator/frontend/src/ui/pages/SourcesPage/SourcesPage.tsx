@@ -1,5 +1,5 @@
 // @Libs
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { Route, Switch } from 'react-router-dom';
 import { observer } from 'mobx-react-lite';
 // @Routes

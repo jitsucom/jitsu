@@ -1,11 +1,10 @@
-import { configure } from 'mobx';
+// import { configure } from 'mobx';
+import React from 'react';
 
-configure({
-  enforceActions: 'always',
-  computedRequiresReaction: true,
-  reactionRequiresObservable: true,
-  observableRequiresReaction: true,
-  disableErrorBoundaries: true
-});
-
-console.log('Mobx is set up');
+// configure({
+//   enforceActions: 'always',
+//   computedRequiresReaction: true,
+//   reactionRequiresObservable: true,
+//   observableRequiresReaction: true,
+//   disableErrorBoundaries: true
+// });
