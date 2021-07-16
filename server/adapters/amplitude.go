@@ -139,7 +139,7 @@ func (a *Amplitude) TestAccess() error {
 		response := &AmplitudeResponse{}
 		err = json.Unmarshal(responseBody, response)
 		if err != nil {
-			return fmt.Errorf("Error unmarhalling amplitude response body: %v", err)
+			return fmt.Errorf("Error unmarshalling amplitude response body: %v", err)
 		}
 
 		if response.Code != 200 {

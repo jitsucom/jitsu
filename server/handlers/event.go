@@ -20,6 +20,8 @@ import (
 
 const (
 	defaultLimit = 100
+
+	noDestinationsErrTemplate = "No destination is configured for token [%q] (or only staged ones)"
 )
 
 //CachedEvent is a dto for events cache
@@ -84,9 +86,15 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 
 	err = eh.multiplexingService.AcceptRequest(eh.processor, reqContext, token, eventsArray)
 	if err != nil {
+		code := http.StatusBadRequest
+		if err == multiplexing.ErrNoDestinations {
+			code = http.StatusUnprocessableEntity
+			err = fmt.Errorf(noDestinationsErrTemplate, token)
+		}
+
 		reqBody, _ := json.Marshal(eventsArray)
 		logging.Warnf("%v. Event: %s", err, string(reqBody))
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		c.JSON(code, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
 

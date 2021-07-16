@@ -130,18 +130,18 @@ Response will be either HTTP 200 OK, or error with description as JSON
 
 <APIMethod method="POST" path="/api/v1/templates/evaluate"/>
 
-Evaluates input [GO text/template](https://golang.org/pkg/text/template/) expression with input object. It is suitable for:
+Evaluates input [JavaScript functions](/docs/configuration/javascript-functions) or [GO text/template](https://golang.org/pkg/text/template/) expression with input object. It is suitable for:
 * testing [table name template](/docs/configuration/table-names-and-filters) - rules for choosing table name for every income JSON event.
 * testing [HTTP body payload and HTTP URL](https://jitsu.com/docs/destinations-configuration/webhook#webhook-configuration-parameters) - expressions in [WebHook](https://jitsu.com/docs/destinations-configuration/webhook) destination configuration.
 
 <APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header" description="Authorization token (see above)"/>
-<APIParam name={"expression"} dataType="string" required={true} type="jsonBody" description="GO text/template expression"/>
+<APIParam name={"expression"} dataType="string" required={true} type="jsonBody" description="GO text/template or JavaScript expression"/>
 <APIParam name={"object"} dataType="JSON object" required={true} type="jsonBody" description="Event JSON object for evaluating expression"/>
 <APIParam name={"reformat"} dataType="boolean" required={false} type="jsonBody" description="If true - result will be reformatted like in table name evaluating (special chars will be replaced)"/>
 
 <h4>Request</h4>
 
-```yaml
+```json
 {
   "object": {
     "app": "jitsu_cloud",
@@ -152,23 +152,25 @@ Evaluates input [GO text/template](https://golang.org/pkg/text/template/) expres
     "src": "jitsu",
     "event_type": "site_page"
   },
-  "expression": "{{.event_type}}"
+  "expression": "$.event_type"
 }
 ```
 
 <h4>Response</h4>
 
 HTTP 200
-```yaml
+```json
 {
-  "result": "site_page"
+  "result": "site_page",
+  "format": "javascript"
 }
 ```
 
 or HTTP 400
-```yaml
+```json
 {
-  "message": "Error description"
+  "message": "Error description",
+  "format": "go"
 }
 ```
 

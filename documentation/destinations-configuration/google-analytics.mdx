@@ -12,8 +12,7 @@ Google Analytics destination supports only <code inline="true">stream</code> mod
 
 ## Filtering events
 
-For filtering events stream to prevent sending all events in GoogleAnalytics
-`table_name_template` is used. For more information see
+For filtering events stream to prevent sending all events to GoogleAnalytics `table_name_template` is used. For more information see
 [Table Names and Filters](/docs/configuration/table-names-and-filters#events-filtering).
 
 ## Configuration
@@ -28,7 +27,7 @@ destinations:
     google_analytics:
       tracking_id: UA-121905385-1
     data_layout:
-      table_name_template: '{{text template}}' #Optional. It is used for filtering events.
+      table_name_template: '$.event_type' #Optional. It is used for filtering events.
       mappings:
         keep_unmapped: false
         fields:

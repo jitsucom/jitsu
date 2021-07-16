@@ -8,8 +8,18 @@ const mapping: DestinationConfigurationTemplate = {
   keepUnmappedFields: false,
   mappings: [
     {
+      src: '/eventn_ctx/user/email',
+      dst: '/user_id',
+      action: 'move'
+    },
+    {
       src: '/user/email',
       dst: '/user_id',
+      action: 'move'
+    },
+    {
+      src: '/eventn_ctx/user/anonymous_id',
+      dst: '/device_id',
       action: 'move'
     },
     {
@@ -23,18 +33,28 @@ const mapping: DestinationConfigurationTemplate = {
       action: 'move'
     },
     {
+      src: '/eventn_ctx/parsed_ua/os_family',
+      dst: '/os_name',
+      action: 'move'
+    },
+    {
       src: '/parsed_ua/os_family',
       dst: '/os_name',
       action: 'move'
     },
     {
-      src: '/parsed_ua/os_version',
+      src: '/eventn_ctx/parsed_ua/os_version',
       dst: '/os_version',
       action: 'move'
     },
     {
       src: '/parsed_ua/os_version',
       dst: '/os_version',
+      action: 'move'
+    },
+    {
+      src: '/eventn_ctx/parsed_ua/device_brand',
+      dst: '/device_brand',
       action: 'move'
     },
     {
@@ -43,8 +63,18 @@ const mapping: DestinationConfigurationTemplate = {
       action: 'move'
     },
     {
+      src: '/eventn_ctx/parsed_ua/device_family',
+      dst: '/device_manufacturer',
+      action: 'move'
+    },
+    {
       src: '/parsed_ua/device_family',
       dst: '/device_manufacturer',
+      action: 'move'
+    },
+    {
+      src: '/eventn_ctx/parsed_ua/device_model',
+      dst: '/device_model',
       action: 'move'
     },
     {
@@ -53,8 +83,18 @@ const mapping: DestinationConfigurationTemplate = {
       action: 'move'
     },
     {
+      src: '/eventn_ctx/location/country',
+      dst: '/country',
+      action: 'move'
+    },
+    {
       src: '/location/country',
       dst: '/country',
+      action: 'move'
+    },
+    {
+      src: '/eventn_ctx/location/region',
+      dst: '/region',
       action: 'move'
     },
     {
@@ -63,8 +103,18 @@ const mapping: DestinationConfigurationTemplate = {
       action: 'move'
     },
     {
+      src: '/eventn_ctx/location/city',
+      dst: '/city',
+      action: 'move'
+    },
+    {
       src: '/location/city',
       dst: '/city',
+      action: 'move'
+    },
+    {
+      src: '/eventn_ctx/user_language',
+      dst: '/language',
       action: 'move'
     },
     {
@@ -73,8 +123,18 @@ const mapping: DestinationConfigurationTemplate = {
       action: 'move'
     },
     {
+      src: '/eventn_ctx/location/latitude',
+      dst: '/location_lat',
+      action: 'move'
+    },
+    {
       src: '/location/latitude',
       dst: '/location_lat',
+      action: 'move'
+    },
+    {
+      src: '/eventn_ctx/location/longitude',
+      dst: '/location_lng',
       action: 'move'
     },
     {
@@ -85,6 +145,11 @@ const mapping: DestinationConfigurationTemplate = {
     {
       src: '/source_ip',
       dst: '/ip',
+      action: 'move'
+    },
+    {
+      src: '/eventn_ctx/event_id',
+      dst: '/insert_id',
       action: 'move'
     },
     {

@@ -1,7 +1,8 @@
 import { DestinationConfigurationTemplate } from '../types';
 
 const mapping: DestinationConfigurationTemplate = {
-  keepUnmappedFields: true,
+  keepUnmappedFields: false,
+  tableNameTemplate: '{{if or (eq .event_type "user_identify") (eq .event_type "identify")}}{{"identifies"}}{{else}}{{if or (eq .event_type "page") (eq .event_type "pageview")}}{{"pages"}}{{else}}{{.event_type}}{{end}}{{end}}',
   comment: <>
     Template for Segment compatibility implementation. Use this template to cast Jitsu events to Segment-like schema.
     {' '}<a href="https://jitsu.com/docs/other-features/segment-compatibility">More on Segment compatibility here</a>

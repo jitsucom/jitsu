@@ -40,7 +40,7 @@ server:
 
 
 ### GEO resolution https://jitsu.com/docs/other-features/geo-data-resolution
-#geo.maxmind_path: https://statichost/GeoIP2-City.mmdb Optional. EventNative resolves geo data only if maxmind is configured.
+#geo.maxmind_path: https://statichost/GeoIP2-City.mmdb Optional. Jitsu resolves geo data only if maxmind is configured.
 
 ### Events logs https://jitsu.com/docs/configuration#log
 #log:
@@ -424,7 +424,7 @@ destinations:
 ### or Coordination in cluster setup https://jitsu.com/docs/other-features/scaling-eventnative
 #meta:
 #  storage:
-#    redis: #Currently EventNative supports only Redis
+#    redis: #Currently Jitsu supports only Redis
 #      host: <redis_host>
 #      port: 6379
 #      password: <secret_password>
@@ -433,7 +433,7 @@ destinations:
 
 ### Notifications
 #notifications: #Optional. If configured - server starts, all system errors and panics info will be sent to notifier
-#  slack: #Currently EventNative supports only Slack
+#  slack: #Currently Jitsu supports only Slack
 #    url: https://webhook_url
 
 ### Global config of singer(https://www.singer.io/) bridge

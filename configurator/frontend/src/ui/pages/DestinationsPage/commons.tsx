@@ -3,6 +3,7 @@ import {
   bigQueryDestination,
   clickHouseDestination,
   facebookDestination,
+  hubspotDestination,
   googleAnalyticsDestination,
   postgresDestination,
   redshiftDestination,
@@ -19,7 +20,8 @@ export const destinationsReferenceMap = {
   facebook: facebookDestination,
   google_analytics: googleAnalyticsDestination,
   webhook: webhookDestination,
-  amplitude: amplitudeDestination
+  amplitude: amplitudeDestination,
+  hubspot: hubspotDestination
 } as const;
 
 export const destinationsReferenceList = Object.values(destinationsReferenceMap);

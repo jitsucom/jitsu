@@ -21,6 +21,7 @@ const (
 	FacebookType        = "facebook"
 	WebHookType         = "webhook"
 	AmplitudeType       = "amplitude"
+	HubSpotType         = "hubspot"
 )
 
 //Storage is a destination representation

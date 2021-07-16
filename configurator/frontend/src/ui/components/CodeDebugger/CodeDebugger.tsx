@@ -179,6 +179,7 @@ const CodeDebugger = ({
             >
               <CodeEditor
                 initialValue={objectInitialValue}
+                language={"json"}
                 handleChange={handleChange('object')}
               />
             </Form.Item>
@@ -197,7 +198,7 @@ const CodeDebugger = ({
                   <CodeEditor
                     initialValue={defaultCodeValue}
                     handleChange={handleChange('code')}
-                    language="go"
+                    language="javascript"
                   />
                 </Form.Item>
               </Col>

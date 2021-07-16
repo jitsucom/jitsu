@@ -46,12 +46,21 @@ var (
 	}
 
 	defaultValues = map[string]interface{}{
+		"int8":                     0,
 		"int32":                    0,
 		"int64":                    0,
+		"int128":                   0,
+		"int256":                   0,
 		"float32":                  0.0,
 		"float64":                  0.0,
+		"decimal":                  0.0,
+		"numeric":                  0.0,
 		"datetime":                 time.Time{},
 		"uint8":                    false,
+		"uint32":                   0,
+		"uint64":                   0,
+		"uint128":                  0,
+		"uint256":                  0,
 		"string":                   "",
 		"lowcardinality(int32)":    0,
 		"lowcardinality(int64)":    0,
