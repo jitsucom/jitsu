@@ -1,8 +1,11 @@
 package geo
 
 import (
+	"archive/tar"
+	"compress/gzip"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -18,10 +21,12 @@ var (
 	mmdbSuffix = ".mmdb"
 )
 
+//Resolver is a geo based location data resolver
 type Resolver interface {
 	Resolve(ip string) (*Data, error)
 }
 
+//Data is a geo location data dto
 type Data struct {
 	Country string  `json:"country,omitempty"`
 	City    string  `json:"city,omitempty"`
@@ -31,14 +36,17 @@ type Data struct {
 	Region  string  `json:"region,omitempty"`
 }
 
+//MaxMindResolver is a geo location data Resolver that is based on MaxMind DB data
 type MaxMindResolver struct {
 	parser *geoip2.Reader
 }
 
+//DummyResolver is a dummy resolver that does nothing and returns empty geo data
 type DummyResolver struct{}
 
-func CreateResolver(geoipPath string) (Resolver, error) {
-	geoIPParser, err := createGeoIPParser(geoipPath)
+//CreateResolver returns geo MaxMind Resolver
+func CreateResolver(maxmindDownloadURLTemplate, geoipPath string) (Resolver, error) {
+	geoIPParser, err := loadAndCreateGeoIPParser(maxmindDownloadURLTemplate, geoipPath)
 	if err != nil {
 		return &DummyResolver{}, fmt.Errorf("Error open maxmind db: %v", err)
 	}
@@ -49,8 +57,12 @@ func CreateResolver(geoipPath string) (Resolver, error) {
 	return resolver, nil
 }
 
-//Create maxmind geo resolver from http source or from local file
-func createGeoIPParser(geoipPath string) (*geoip2.Reader, error) {
+//loadAndCreateGeoIPParser creates maxmind geo resolver from:
+// HTTP Custom source
+// HTTP MaxMind official source
+// local file
+func loadAndCreateGeoIPParser(maxmindDownloadURLTemplate, geoipPath string) (*geoip2.Reader, error) {
+	//load from custom HTTP source
 	if strings.Contains(geoipPath, "http://") || strings.Contains(geoipPath, "https://") {
 		logging.Info("Start downloading maxmind from", geoipPath)
 		r, err := http.Get(geoipPath)
@@ -62,6 +74,23 @@ func createGeoIPParser(geoipPath string) (*geoip2.Reader, error) {
 		b, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			return nil, fmt.Errorf("Error reading maxmind db from http source: %s %v", geoipPath, err)
+		}
+
+		return geoip2.FromBytes(b)
+	} else if strings.Contains(geoipPath, "maxmind://") {
+		//load from official MaxMind HTTP source
+		maxmindDBURL := fmt.Sprintf(maxmindDownloadURLTemplate, strings.TrimSpace(strings.ReplaceAll(geoipPath, "maxmind://", "")))
+		logging.Info("Start downloading maxmind from", maxmindDBURL)
+
+		r, err := http.Get(maxmindDBURL)
+		if err != nil {
+			return nil, fmt.Errorf("Error loading maxmind db from MaxMind URL [%s]: %v", maxmindDBURL, err)
+		}
+		defer r.Body.Close()
+
+		b, err := extractMaxMindDBFromTarGz(r.Body)
+		if err != nil {
+			return nil, fmt.Errorf("Error reading maxmind db from MaxMind URL [%s]: %v", maxmindDBURL, err)
 		}
 
 		return geoip2.FromBytes(b)
@@ -125,4 +154,41 @@ func findMmdbFile(dir string) string {
 	}
 
 	return ""
+}
+
+func extractMaxMindDBFromTarGz(gzipStream io.Reader) ([]byte, error) {
+	uncompressedStream, err := gzip.NewReader(gzipStream)
+	if err != nil {
+		return nil, fmt.Errorf("error creating new gzip reader: %v", err)
+	}
+
+	tarReader := tar.NewReader(uncompressedStream)
+
+	for {
+		header, err := tarReader.Next()
+
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("error extracting tar.gz: %v", err)
+		}
+
+		switch header.Typeflag {
+		case tar.TypeReg:
+			if strings.HasSuffix(header.Name, mmdbSuffix) {
+				maxmindDBBytes, err := ioutil.ReadAll(tarReader)
+				if err != nil {
+					return nil, fmt.Errorf("error reading from downloaded maxmind file: %v", err)
+				}
+
+				return maxmindDBBytes, nil
+			}
+
+		default:
+		}
+	}
+
+	return nil, fmt.Errorf("MaxMind DB (file with %s suffix) wasn't found", mmdbSuffix)
 }

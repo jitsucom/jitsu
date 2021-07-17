@@ -2,10 +2,10 @@
 import React, { memo, useMemo } from 'react';
 import { Col, Form, Input, Row, Select } from 'antd';
 // @Components
-import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
+import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
 // @Types
 import { Rule } from 'antd/lib/form';
-import { CollectionParameter } from '@catalog/sources/types';
+import { CollectionParameter } from 'catalog/sources/types';
 import { FormListFieldData } from 'antd/es/form/FormList';
 
 export interface Props {

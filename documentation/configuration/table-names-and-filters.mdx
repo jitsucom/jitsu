@@ -1,6 +1,6 @@
 # Table Names and Filters
 
-**Jitsu** supports splitting events stream into different tables in DWH based on event JSON payload. It works by applying [GO text template](https://golang.org/pkg/text/template/) expressions to incoming JSON objects. It can select a table name or pass a constant or even filter certain events from the destination. It is configured in the destination section and each destination has its own rules.
+**Jitsu** supports splitting events stream into different tables in DWH based on event JSON payload. It works by applying [JavaScript functions](/docs/configuration/javascript-functions) to incoming JSON objects. It can select a table name or pass a constant or even filter certain events from the destination. It is configured in the destination section and each destination has its own rules.
 
 ## **Table Name Selection**
 
@@ -22,10 +22,12 @@ destinations:
   destination_1:
     data_layout:
       #tables will be created with 'event_type' names
-      table_name_template: '{{.event_type}}'
+      table_name_template: '$.event_type'
+
       #or
       #tables will have 'event_type_YYYY_MM' format based on 'event_type' and date
-      table_name_template: '{{.event_type}}_{{._timestamp.Format "2006_01"}}'
+      table_name_template: '`${_.event_type}_${_._timestamp.Format("2006_01")}`'
+
 ```
 
 <Hint>
@@ -36,8 +38,8 @@ destinations:
 
 `table_name_template` might be used for filtering certain events from the destination.
 <Hint>
-    If <code inline={true}>table_name_template</code> returns an empty string or null then the event will be skipped.
-    Use <a href="/docs/other-features/admin-endpoints#apiv1templatesevaluate">Jitsu Template Evaluation endpoint</a> for testing GO text/template expression.
+    If <code inline={true}>table_name_template</code> returns an empty string, `null` or `false` then the event will be skipped.
+    Use <a href="/docs/other-features/admin-endpoints#apiv1templatesevaluate">Jitsu Template Evaluation endpoint</a> for testing your code.
 </Hint>
 
 For example all `pageview` events might be skipped:
@@ -46,7 +48,8 @@ For example all `pageview` events might be skipped:
 destinations:
   destination_1:
     data_layout:
-      table_name_template: '{{if eq .event_type "pageview"}}{{else}}{{.event_type}}{{end}}'
+      table_name_template: '$.event_type=="pageview" ? "" : $.event_type' #JavaScript
+
 ```
 
 Expressions might be more complex. For example, keep only conversion events
@@ -57,12 +60,12 @@ destinations:
   destination_1:
     data_layout:
       table_name_template: |
-        {{if .event_type}}
-            {{if and (eq .event_type "conversion") (and (.eventn_ctx)
-                 (or (not .eventn_ctx.ids) (not .eventn_ctx.ids.ga)))}}
-              {{.event_type}}
-            {{else}}
-        {{end}}
-        {{else}}{{end}}
+            if ($.event_type == "conversion") {
+                //only for conversion events
+                if (!$.ids?.ga) {
+                    //no ga id present
+                    return $.event_type
+                }
+            }
+            return ""
 ```
-

@@ -14,7 +14,6 @@ import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import { LoadableComponent, withProgressBar } from '../components';
 import './CustomDomains.less';
 import { Domain } from '../../services/model';
-import { sleep } from '../../commons/utils';
 
 const CNAME = 'hosting.jitsu.com';
 
@@ -132,13 +131,11 @@ export default class CustomDomains extends LoadableComponent<any, State> {
               </div>
             );
           }
-          return description ? (
+          return (
             <>
               {tag}
               {description}
             </>
-          ) : (
-            tag
           );
         }
       },
@@ -147,7 +144,7 @@ export default class CustomDomains extends LoadableComponent<any, State> {
         title: 'Action',
         dataIndex: 'action',
         key: 'action',
-        render: (_, domain: Domain, index) => {
+        render: (_, domain: Domain) => {
           return (
             <Button
               icon={<DeleteOutlined />}

@@ -18,3 +18,11 @@ meta:
     redis:
       host: '${env.REDIS_URL}'
       tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
+sql_debug_log:
+  ddl:
+    path: /home/eventnative/data/logs
+    rotation_min: 1440
+  queries:
+    path: /home/eventnative/data/logs
+    rotation_min: 60

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	googleuuid "github.com/google/uuid"
 	"sort"
+	"strings"
 )
 
 var mock bool
@@ -21,6 +22,16 @@ func New() string {
 	}
 
 	return googleuuid.New().String()
+}
+
+//NewLettersNumbers returns uuid without "-"
+func NewLettersNumbers() string {
+	if mock {
+		return "mockeduuid"
+	}
+
+	uuidValue := googleuuid.New().String()
+	return strings.ReplaceAll(uuidValue, "-", "")
 }
 
 //GetHash returns GetKeysHash result with keys from m

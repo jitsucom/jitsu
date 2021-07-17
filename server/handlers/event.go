@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/wal"
 	"net/http"
 	"strconv"
 	"strings"
@@ -18,6 +20,8 @@ import (
 
 const (
 	defaultLimit = 100
+
+	noDestinationsErrTemplate = "No destination is configured for token [%q] (or only staged ones)"
 )
 
 //CachedEvent is a dto for events cache
@@ -36,20 +40,22 @@ type CachedEventsResponse struct {
 
 //EventHandler accepts all events
 type EventHandler struct {
-	multiplexingService *multiplexing.Service
-	eventsCache         *caching.EventsCache
-	parser              events.Parser
-	processor           events.Processor
+	writeAheadLogService *wal.Service
+	multiplexingService  *multiplexing.Service
+	eventsCache          *caching.EventsCache
+	parser               events.Parser
+	processor            events.Processor
 }
 
 //NewEventHandler returns configured EventHandler
-func NewEventHandler(multiplexingService *multiplexing.Service, eventsCache *caching.EventsCache,
-	parser events.Parser, processor events.Processor) (eventHandler *EventHandler) {
+func NewEventHandler(writeAheadLogService *wal.Service, multiplexingService *multiplexing.Service,
+	eventsCache *caching.EventsCache, parser events.Parser, processor events.Processor) (eventHandler *EventHandler) {
 	return &EventHandler{
-		multiplexingService: multiplexingService,
-		eventsCache:         eventsCache,
-		parser:              parser,
-		processor:           processor,
+		writeAheadLogService: writeAheadLogService,
+		multiplexingService:  multiplexingService,
+		eventsCache:          eventsCache,
+		parser:               parser,
+		processor:            processor,
 	}
 }
 
@@ -69,11 +75,26 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 	}
 	token := iface.(string)
 
-	err = eh.multiplexingService.AcceptRequest(eh.processor, c, token, eventsArray)
+	reqContext := getRequestContext(c)
+
+	//put all events to write-ahead-log if idle
+	if appstatus.Instance.Idle.Load() {
+		eh.writeAheadLogService.Consume(eventsArray, reqContext, token, eh.processor.Type())
+		c.JSON(http.StatusOK, middleware.OKResponse())
+		return
+	}
+
+	err = eh.multiplexingService.AcceptRequest(eh.processor, reqContext, token, eventsArray)
 	if err != nil {
+		code := http.StatusBadRequest
+		if err == multiplexing.ErrNoDestinations {
+			code = http.StatusUnprocessableEntity
+			err = fmt.Errorf(noDestinationsErrTemplate, token)
+		}
+
 		reqBody, _ := json.Marshal(eventsArray)
 		logging.Warnf("%v. Event: %s", err, string(reqBody))
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		c.JSON(code, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
 
@@ -144,4 +165,42 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+//extractIP returns client IP address parsed from HTTP request (headers, remoteAddr)
+func extractIP(c *gin.Context) string {
+	ip := c.Request.Header.Get("X-Real-IP")
+	if ip == "" {
+		ip = c.Request.Header.Get("X-Forwarded-For")
+	}
+	if ip == "" {
+		remoteAddr := c.Request.RemoteAddr
+		if remoteAddr != "" {
+			addrPort := strings.Split(remoteAddr, ":")
+			ip = addrPort[0]
+		}
+	}
+
+	//Case when Nginx concatenate remote_addr to client addr
+	if strings.Contains(ip, ",") {
+		addresses := strings.Split(ip, ",")
+		return strings.TrimSpace(addresses[0])
+	}
+
+	return ip
+}
+
+func getRequestContext(c *gin.Context) *events.RequestContext {
+	var jitsuAnonymousID string
+	anonymID, ok := c.Get(middleware.JitsuAnonymIDCookie)
+	if ok {
+		jitsuAnonymousID = fmt.Sprint(anonymID)
+	}
+
+	return &events.RequestContext{
+		UserAgent:        c.Request.UserAgent(),
+		ClientIP:         extractIP(c),
+		Referer:          c.Request.Referer(),
+		JitsuAnonymousID: jitsuAnonymousID,
+	}
 }

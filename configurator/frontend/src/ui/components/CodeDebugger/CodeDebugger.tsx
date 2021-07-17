@@ -1,14 +1,12 @@
 // @Libs
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Col, Dropdown, Form, Row, Tabs } from 'antd';
-import MonacoEditor from 'react-monaco-editor';
 import cn from 'classnames';
-import debounce from 'lodash/debounce';
 // @Components
-import { DebugEvents } from '@component/CodeDebugger/DebugEvents';
-import { CodeEditor } from '@component/CodeEditor/CodeEditor';
+import { DebugEvents } from 'ui/components/CodeDebugger/DebugEvents';
+import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
 // @Types
-import { Event as RecentEvent } from '@./lib/components/EventsStream/EventsStream';
+import { Event as RecentEvent } from 'lib/components/EventsStream/EventsStream';
 // @Icons
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import UnorderedListOutlined from '@ant-design/icons/lib/icons/UnorderedListOutlined';
@@ -56,6 +54,7 @@ export interface FormValues {
 
 interface CalculationResult {
   code: 'error' | 'success';
+  format: string | null
   message: string;
 }
 
@@ -82,7 +81,6 @@ const CodeDebugger = ({
 
   const handleChange = (name: 'object' | 'code') => (value: string | object) => {
     form.setFieldsValue({ [name]: value ? value : '' });
-
     if (name === 'code' && handleCodeChange) {
       handleCodeChange(value);
     }
@@ -96,11 +94,13 @@ const CodeDebugger = ({
 
       setCalcResult({
         code: 'success',
+        format: response.format,
         message: response.result
       });
     } catch(error) {
       setCalcResult({
         code: 'error',
+        format: error?._response?.format,
         message: error?.message ?? 'Error'
       });
     } finally {
@@ -177,6 +177,7 @@ const CodeDebugger = ({
             >
               <CodeEditor
                 initialValue={objectInitialValue}
+                language={"json"}
                 handleChange={handleChange('object')}
               />
             </Form.Item>
@@ -195,7 +196,7 @@ const CodeDebugger = ({
                   <CodeEditor
                     initialValue={defaultCodeValue}
                     handleChange={handleChange('code')}
-                    language="go"
+                    language="javascript"
                   />
                 </Form.Item>
               </Col>
@@ -216,7 +217,7 @@ const CodeDebugger = ({
                     [styles.itemError]: calcResult.code === 'error',
                     [styles.itemSuccess]: calcResult.code === 'success'
                   })}>
-                  <strong className={styles.status}>{calcResult.code}</strong>
+                  <strong className={styles.status}>{calcResult.code + (calcResult.format ? ' ('+ calcResult.format + ')' : '') }:</strong>
                   <span className={styles.message}>{calcResult.message}</span>
                 </p>
               }

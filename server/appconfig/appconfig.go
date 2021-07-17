@@ -38,6 +38,7 @@ type AppConfig struct {
 	closeMe []io.Closer
 
 	eventsConsumers []io.Closer
+	writeAheadLog   io.Closer
 }
 
 var (
@@ -82,7 +83,11 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("users_recognition.identification_nodes", []string{"/eventn_ctx/user/internal_id||/user/internal_id"})
 	viper.SetDefault("singer-bridge.python", "python3")
 	viper.SetDefault("singer-bridge.install_taps", true)
+	viper.SetDefault("singer-bridge.update_taps", false)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
+
+	//MaxMind URL
+	viper.SetDefault("maxmind.download_url", "https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-City&license_key=%s&suffix=tar.gz")
 
 	//Segment API mappings
 	//uses remove type mappings (e.g. "/page->") because we have root path mapping "/context -> /"
@@ -311,10 +316,22 @@ func (a *AppConfig) CloseEventsConsumers() {
 	}
 }
 
+//ScheduleWriteAheadLogClosing adds wal.Service closer
+func (a *AppConfig) ScheduleWriteAheadLogClosing(c io.Closer) {
+	a.writeAheadLog = c
+}
+
+//CloseWriteAheadLog closes write-ahead-log service in the last call
+func (a *AppConfig) CloseWriteAheadLog() {
+	if err := a.writeAheadLog.Close(); err != nil {
+		logging.Errorf("[WriteAheadLog] %v", err)
+	}
+}
+
 func loadGeoResolver() geo.Resolver {
-	geoPath := viper.GetString("geo.maxmind_path")
 	if viper.IsSet("geo.maxmind_path") {
-		geoResolver, err := geo.CreateResolver(geoPath)
+		geoPath := viper.GetString("geo.maxmind_path")
+		geoResolver, err := geo.CreateResolver(viper.GetString("maxmind.download_url"), geoPath)
 		if err != nil {
 			logging.Warnf("❌ Failed to load MaxMind DB from %s: %v. Geo resolution won't be available", geoPath, err)
 		} else {

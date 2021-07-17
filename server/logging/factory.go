@@ -84,3 +84,14 @@ func (f *Factory) CreateStreamingArchiveLogger(destinationName string) *AsyncLog
 		RotateOnClose: true,
 	}), false)
 }
+
+func (f *Factory) CreateWriteAheadLogger() *AsyncLogger {
+	eventLogWriter := NewRollingWriter(&Config{
+		FileName:      "write-ahead-log",
+		FileDir:       path.Join(f.logEventPath, IncomingDir),
+		RotationMin:   f.logRotationMin,
+		RotateOnClose: true,
+	})
+
+	return NewAsyncLogger(eventLogWriter, false)
+}

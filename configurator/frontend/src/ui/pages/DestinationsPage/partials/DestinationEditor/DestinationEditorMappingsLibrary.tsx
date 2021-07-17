@@ -1,18 +1,21 @@
 // @Libs
 import { Button, Modal } from 'antd';
 // @Catalog
-import mappings from '@catalog/mappings/lib';
+import mappings from 'catalog/mappings/lib';
 // @Styles
 import styles from './DestinationEditor.module.less';
 // @Types
-import { FieldMapping, DestinationConfigurationTemplate } from '@catalog/mappings/types';
+import {
+  FieldMapping,
+  DestinationConfigurationTemplate
+} from 'catalog/mappings/types';
 // @Icons
 import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
 // @Components
-import { TabDescription } from '@component/Tabs/TabDescription';
+import { TabDescription } from 'ui/components/Tabs/TabDescription';
 // @Constant
-import { MAPPING_ROW_PROPS_MAP } from '@./constants/mapping';
-import { MAPPING_LIBRARY } from '@./embeddedDocs/mappingsLibrary';
+import { MAPPING_ROW_PROPS_MAP } from 'constants/mapping';
+import { MAPPING_LIBRARY } from 'embeddedDocs/mappingsLibrary';
 
 interface Props {
   handleDataUpdate: (newMappings: DestinationMapping, newTableName?: string) => void;

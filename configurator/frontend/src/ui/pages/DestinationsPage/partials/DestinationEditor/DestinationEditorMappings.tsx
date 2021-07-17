@@ -2,8 +2,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Col, Form, Row, Select } from 'antd';
 // @Components
-import { TabDescription } from '@component/Tabs/TabDescription';
-import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
+import { TabDescription } from 'ui/components/Tabs/TabDescription';
+import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
 import { DestinationEditorMappingsItem } from './DestinationEditorMappingsItem';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
@@ -11,7 +11,7 @@ import { FormListFieldData, FormListOperation } from 'antd/es/form/FormList';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 // @Constants
-import { DESTINATION_EDITOR_MAPPING } from '@./embeddedDocs/mappings';
+import { DESTINATION_EDITOR_MAPPING } from 'embeddedDocs/mappings';
 // @Styles
 import styles from './DestinationEditor.module.less';
 

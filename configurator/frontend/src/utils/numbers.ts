@@ -1,4 +1,4 @@
-import { naturalSort } from '@util/Array';
+import { naturalSort } from 'utils/Array';
 
 function randomId(len?: number) {
   let str = Math.random().toString(36).substring(2, len) + Math.random().toString(36).substring(2, 15);

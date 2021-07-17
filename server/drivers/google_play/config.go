@@ -18,5 +18,9 @@ func (gpc *GooglePlayConfig) Validate() error {
 	if gpc.AccountID == "" {
 		return errors.New("GooglePlay account_id is required")
 	}
+
+	if gpc.AccountKey == nil {
+		return errors.New("GooglePlay 'auth' is required")
+	}
 	return gpc.AccountKey.Validate()
 }

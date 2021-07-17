@@ -33,6 +33,10 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		config, err = mapFacebook(destination)
 	case enstorages.WebHookType:
 		config, err = mapWebhook(destination)
+	case enstorages.AmplitudeType:
+		config, err = mapAmplitude(destination)
+	case enstorages.HubSpotType:
+		config, err = mapHubSpot(destination)
 	default:
 		return nil, fmt.Errorf("Unknown destination type: %s", destination.Type)
 	}
@@ -52,7 +56,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 	} else {
 		//default primary keys for enabling users recognition
 		//for disabling this feature set destination.DisableDefaultPrimaryKeyFields on a certain destination
-		if !destination.DisableDefaultPrimaryKeyFields && (destination.Type == enstorages.PostgresType || destination.Type == enstorages.RedshiftType) {
+		if !destination.DisableDefaultPrimaryKeyFields &&
+			(destination.Type == enstorages.PostgresType || destination.Type == enstorages.RedshiftType || destination.Type == enstorages.SnowflakeType) {
 			if config.DataLayout == nil {
 				config.DataLayout = &enstorages.DataLayout{}
 			}
@@ -337,6 +342,55 @@ func mapWebhook(whDestination *entities.Destination) (*enstorages.DestinationCon
 		},
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: whFormData.TableName,
+		},
+	}, nil
+}
+
+func mapAmplitude(aDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+	b, err := json.Marshal(aDestination.Data)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshaling amplitude config destination: %v", err)
+	}
+
+	aFormData := &entities.AmplitudeFormData{}
+	err = json.Unmarshal(b, aFormData)
+	if err != nil {
+		return nil, fmt.Errorf("Error unmarshaling amplitude form data: %v", err)
+	}
+
+	return &enstorages.DestinationConfig{
+		Type: enstorages.AmplitudeType,
+		Mode: aFormData.Mode,
+		Amplitude: &enadapters.AmplitudeConfig{
+			APIKey: aFormData.APIKey,
+		},
+		DataLayout: &enstorages.DataLayout{
+			TableNameTemplate: aFormData.TableName,
+		},
+	}, nil
+}
+
+func mapHubSpot(hDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+	b, err := json.Marshal(hDestination.Data)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshaling hubspot config destination: %v", err)
+	}
+
+	hFormData := &entities.HubSpotFormData{}
+	err = json.Unmarshal(b, hFormData)
+	if err != nil {
+		return nil, fmt.Errorf("Error unmarshaling hubspot form data: %v", err)
+	}
+
+	return &enstorages.DestinationConfig{
+		Type: enstorages.HubSpotType,
+		Mode: hFormData.Mode,
+		HubSpot: &enadapters.HubSpotConfig{
+			APIKey: hFormData.APIKey,
+			HubID:  hFormData.HubID,
+		},
+		DataLayout: &enstorages.DataLayout{
+			TableNameTemplate: hFormData.TableName,
 		},
 	}, nil
 }

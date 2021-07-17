@@ -7,6 +7,8 @@ import snowflakeDestination from './snowflake';
 import facebookDestination from './facebook';
 import googleAnalyticsDestination from './googleAnalytics';
 import webhookDestination from './webhook';
+import amplitudeDestination from './amplitude';
+import hubspotDestination from './hubspot';
 
 export {
   postgresDestination,
@@ -16,5 +18,7 @@ export {
   snowflakeDestination,
   facebookDestination,
   googleAnalyticsDestination,
-  webhookDestination
+  webhookDestination,
+  amplitudeDestination,
+  hubspotDestination
 }

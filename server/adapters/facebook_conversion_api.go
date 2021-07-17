@@ -6,18 +6,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/jitsucom/jitsu/server/events"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 const (
 	eventsURLTemplate = "https://graph.facebook.com/v11.0/%s/events?access_token=%s&locale=en_EN"
-
-	maskedParameterValue = "masked"
 )
 
 var (
@@ -76,8 +76,9 @@ type FacebookConversionEventsReq struct {
 
 //FacebookConversionAPI adapter for Facebook Conversion API
 type FacebookConversionAPI struct {
-	config      *FacebookConversionAPIConfig
-	httpAdapter *HTTPAdapter
+	AbstractHTTP
+
+	config *FacebookConversionAPIConfig
 }
 
 //NewTestFacebookConversion returns test instance of adapter
@@ -94,7 +95,9 @@ func NewFacebookConversion(config *FacebookConversionAPIConfig, httpAdapterConfi
 		return nil, err
 	}
 
-	return &FacebookConversionAPI{config: config, httpAdapter: httpAdapter}, nil
+	fca := &FacebookConversionAPI{config: config}
+	fca.httpAdapter = httpAdapter
+	return fca, nil
 }
 
 //TestAccess sends test request (empty POST) to Facebook and check if pixel id or access token are invalid
@@ -117,7 +120,7 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 		response := &FacebookResponse{}
 		err = json.Unmarshal(responseBody, response)
 		if err != nil {
-			return fmt.Errorf("Error unmarhalling facebook conversion API response body: %v", err)
+			return fmt.Errorf("Error unmarshalling facebook conversion API response body: %v", err)
 		}
 
 		if response.Error.Code == 190 {
@@ -139,35 +142,9 @@ func (fc *FacebookConversionAPI) TestAccess() error {
 	return errors.New("Empty Facebook response body")
 }
 
-//Insert sends HTTP POST request to Facebook Conversion API via HTTPAdapter
-func (fc *FacebookConversionAPI) Insert(eventContext *EventContext) error {
-	return fc.httpAdapter.SendAsync(eventContext)
-}
-
-//GetTableSchema always return empty schema
-func (fc *FacebookConversionAPI) GetTableSchema(tableName string) (*Table, error) {
-	return &Table{
-		Name:           tableName,
-		Columns:        Columns{},
-		PKFields:       map[string]bool{},
-		DeletePkFields: false,
-		Version:        0,
-	}, nil
-}
-
-//CreateTable Facebook doesn't use tables
-func (fc *FacebookConversionAPI) CreateTable(schemaToCreate *Table) error {
-	return nil
-}
-
-//PatchTableSchema Facebook doesn't use tables
-func (fc *FacebookConversionAPI) PatchTableSchema(schemaToAdd *Table) error {
-	return nil
-}
-
-//Close closes underlying HTTPAdapter
-func (fc *FacebookConversionAPI) Close() error {
-	return fc.httpAdapter.Close()
+//Type returns adapter type
+func (fc *FacebookConversionAPI) Type() string {
+	return "FacebookConversionAPI"
 }
 
 //FacebookRequestFactory is a factory for building facebook POST HTTP requests from input events
@@ -278,7 +255,7 @@ func (frf *FacebookRequestFactory) hashFields(object map[string]interface{}) {
 	email, ok := userData["em"]
 	if ok {
 		strEmail := fmt.Sprintf("%v", email)
-		if strings.Contains(strEmail, "@") || strEmail == maskedParameterValue {
+		if strings.Contains(strEmail, "@") || strEmail == events.MaskedParameterValue {
 			sum := sha256.Sum256([]byte(strEmail))
 			userData["em"] = fmt.Sprintf("%x", sum)
 		}

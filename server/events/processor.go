@@ -1,19 +1,59 @@
 package events
 
-import (
-	"github.com/gin-gonic/gin"
+const (
+	apiPreprocessorType     = "api"
+	jsPreprocessorType      = "js"
+	pixelPreprocessorType   = "pixel"
+	segmentPreprocessorType = "segment"
 )
 
-const (
-	APIPreprocessorType     = "api"
-	JSPreprocessorType      = "js"
-	PixelPreprocessorType   = "pixel"
-	SegmentPreprocessorType = "segment"
-)
+//RequestContext is a dto for keeping request data like special headers or e.g. client IP address
+type RequestContext struct {
+	UserAgent        string `json:"user_agent,omitempty"`
+	ClientIP         string `json:"client_ip,omitempty"`
+	Referer          string `json:"referer,omitempty"`
+	JitsuAnonymousID string `json:"jitsu_anonymous_id,omitempty"`
+}
 
 // Processor is used in preprocessing and postprocessing events before and after consuming(storing)
+// should be stateless
 type Processor interface {
-	Preprocess(event Event, c *gin.Context)
+	Preprocess(event Event, requestContext *RequestContext)
 	Postprocess(event Event, eventID string, destinationIDs []string)
 	Type() string
+}
+
+//ProcessorHolder is used for holding Processor instances per type
+type ProcessorHolder struct {
+	processors map[string]Processor
+}
+
+//NewProcessorHolder returns configured ProcessHolder with all processor types instances
+func NewProcessorHolder(apiProcessor *APIProcessor, jsProcessor *JsProcessor, pixelProcessor *PixelProcessor, segmentProcessor *SegmentProcessor) *ProcessorHolder {
+	return &ProcessorHolder{map[string]Processor{
+		apiPreprocessorType:     apiProcessor,
+		jsPreprocessorType:      jsProcessor,
+		pixelPreprocessorType:   pixelProcessor,
+		segmentPreprocessorType: segmentProcessor,
+	}}
+}
+
+func (ph *ProcessorHolder) GetAPIPreprocessor() Processor {
+	return ph.GetByType(apiPreprocessorType)
+}
+
+func (ph *ProcessorHolder) GetJSPreprocessor() Processor {
+	return ph.GetByType(jsPreprocessorType)
+}
+
+func (ph *ProcessorHolder) GetPixelPreprocessor() Processor {
+	return ph.GetByType(pixelPreprocessorType)
+}
+
+func (ph *ProcessorHolder) GetSegmentPreprocessor() Processor {
+	return ph.GetByType(segmentPreprocessorType)
+}
+
+func (ph *ProcessorHolder) GetByType(processorType string) Processor {
+	return ph.processors[processorType]
 }

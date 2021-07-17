@@ -3,7 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -20,13 +20,9 @@ var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: fa
 type BigQuery struct {
 	Abstract
 
-	gcsAdapter           *adapters.GoogleCloudStorage
-	bqAdapter            *adapters.BigQuery
-	processor            *schema.Processor
-	streamingWorker      *StreamingWorker
-	uniqueIDField        *identifiers.UniqueID
-	staged               bool
-	cachingConfiguration *CachingConfiguration
+	gcsAdapter      *adapters.GoogleCloudStorage
+	bqAdapter       *adapters.BigQuery
+	streamingWorker *StreamingWorker
 }
 
 func init() {
@@ -78,32 +74,27 @@ func NewBigQuery(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(bigQueryAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToBigQueryString, config.maxColumns)
 
 	bq := &BigQuery{
-		gcsAdapter:           gcsAdapter,
-		bqAdapter:            bigQueryAdapter,
-		processor:            config.processor,
-		uniqueIDField:        config.uniqueIDField,
-		staged:               config.destination.Staged,
-		cachingConfiguration: config.destination.CachingConfiguration,
+		gcsAdapter: gcsAdapter,
+		bqAdapter:  bigQueryAdapter,
 	}
 
 	//Abstract
 	bq.destinationID = config.destinationID
+	bq.processor = config.processor
 	bq.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	bq.eventsCache = config.eventsCache
 	bq.tableHelpers = []*TableHelper{tableHelper}
 	bq.sqlAdapters = []adapters.SQLAdapter{bigQueryAdapter}
 	bq.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	bq.uniqueIDField = config.uniqueIDField
+	bq.staged = config.destination.Staged
+	bq.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
 	bq.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, bq, tableHelper)
 	bq.streamingWorker.start()
 
 	return bq, nil
-}
-
-func (bq *BigQuery) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	_, tableHelper := bq.getAdapters()
-	return dryRun(payload, bq.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
@@ -178,9 +169,69 @@ func (bq *BigQuery) Update(object map[string]interface{}) error {
 	return errors.New("BigQuery doesn't support updates")
 }
 
-//SyncStore isn't supported
+// SyncStore is used in storing chunk of pulled data to BigQuery with processing
 func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return errors.New("BigQuery doesn't support sync store")
+	_, tableHelper := bq.getAdapters()
+
+	flatData, err := bq.processor.ProcessPulledEvents(timeIntervalValue, objects)
+	if err != nil {
+		return err
+	}
+
+	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
+
+	// overridden table destinationID
+	var overriddenTableName string
+	if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
+		overriddenTableName = overriddenDataSchema.TableName
+	}
+
+	// table schema overridden (is used by Singer sources)
+	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
+		for _, fdata := range flatData {
+			// enrich overridden schema with new fields (some system fields or e.g. after lookup step)
+			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
+		}
+
+		table := tableHelper.MapTableSchema(overriddenDataSchema)
+		err = bq.bqAdapter.DeleteWithConditions(table.Name, deleteConditions)
+		if err != nil {
+			return fmt.Errorf("Error deleting from BigQuery: %v", err)
+		}
+
+		for _, fdata := range flatData {
+			start := time.Now()
+			if err := bq.storeTable(fdata, table); err != nil {
+				return fmt.Errorf("Error inserting data chunk to BigQuery: %v", err)
+			}
+
+			logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", bq.ID(), fdata.GetPayloadLen(), time.Now().Sub(start).Seconds())
+		}
+
+		return nil
+	}
+
+	// plain flow
+	if err = bq.bqAdapter.DeleteWithConditions(overriddenTableName, deleteConditions); err != nil {
+		return fmt.Errorf("Error deleting from BigQuery: %v", err)
+	}
+
+	for _, fdata := range flatData {
+		table := tableHelper.MapTableSchema(fdata.BatchHeader)
+		if overriddenTableName != "" {
+			table.Name = overriddenTableName
+		}
+
+		start := time.Now()
+
+		if err := bq.storeTable(fdata, table); err != nil {
+			return err
+		}
+
+		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", bq.ID(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
+	}
+
+	return nil
 }
 
 //GetUsersRecognition returns disabled users recognition configuration
@@ -191,20 +242,6 @@ func (bq *BigQuery) GetUsersRecognition() *UserRecognitionConfiguration {
 //Type returns BigQuery type
 func (bq *BigQuery) Type() string {
 	return BigQueryType
-}
-
-func (bq *BigQuery) IsStaging() bool {
-	return bq.staged
-}
-
-//GetUniqueIDField returns unique ID field configuration
-func (bq *BigQuery) GetUniqueIDField() *identifiers.UniqueID {
-	return bq.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (bq *BigQuery) IsCachingDisabled() bool {
-	return bq.cachingConfiguration != nil && bq.cachingConfiguration.Disabled
 }
 
 //Close closes BigQuery adapter, fallback logger and streaming worker

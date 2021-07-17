@@ -2,7 +2,7 @@
  * Utilities for working with path. Mostly few hacks to
  * make configurator work within heroku environment
  */
-import { concatenateURLs } from '@./lib/commons/utils';
+import { concatenateURLs } from 'lib/commons/utils';
 
 const CONFIGURATOR_PREFIX = '/configurator';
 

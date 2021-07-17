@@ -1,4 +1,4 @@
-import { Tab } from '@component/Tabs/TabsConfigurator';
+import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 
 interface Options {
   forceUpdate: VoidFunc;
