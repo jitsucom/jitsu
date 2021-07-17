@@ -3,13 +3,18 @@ package templates
 import (
 	"fmt"
 	"github.com/dop251/goja"
+	"sync"
 	"text/template"
 )
 
 const functionName = "process"
 
+var mutex = sync.Mutex{}
+
 //Transform transforms javascript to ES5 compatible code + adds few tweaks to loosen some rules
 func Transform(src string) (string, error) {
+	mutex.Lock()
+	defer mutex.Unlock()
 	res, err := TransformString(src, map[string]interface{}{
 		"plugins": []interface{}{
 			[]interface{}{"transform-last-statement", map[string]interface{}{"topLevel": true}},
