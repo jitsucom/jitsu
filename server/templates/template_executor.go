@@ -5,8 +5,13 @@ import (
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
 	"strings"
+	"sync"
 	"text/template"
 	"text/template/parse"
+)
+
+const (
+	jsLoadingErrorText = "JS LOADING ERROR"
 )
 
 type TemplateExecutor interface {
@@ -51,7 +56,17 @@ type jsTemplateExecutor struct {
 	jsFunction func(map[string]interface{}) interface{}
 }
 
-func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (*jsTemplateExecutor, error) {
+type asyncJsTemplateExecutor struct {
+	incoming chan events.Event
+	results chan interface{}
+	loadingError error
+}
+
+type pooledTemplateExecutor struct {
+	pool sync.Pool
+}
+
+func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (*asyncJsTemplateExecutor, error) {
 	//First we need to transform js template to ES5 compatible code
 	script, err := Transform(expression)
 	if err != nil {
@@ -63,12 +78,62 @@ func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (
 			return nil, resError
 		}
 	}
-	//loads javascript into vm instance
+
+	jte := &asyncJsTemplateExecutor{make(chan events.Event), make(chan interface{}), nil}
+	go jte.start(script, extraFunctions)
+	_, err = jte.ProcessEvent(events.Event{})
+	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
+		//we need to test that js function is properly loaded because that happens in asyncJsTemplateExecutor's goroutine
+		return nil, err
+	}
+	return jte, nil
+}
+
+
+func (jte *asyncJsTemplateExecutor) start(script string, extraFunctions template.FuncMap) {
+	//loads javascript into new vm instance
 	function, err := LoadTemplateScript(script, extraFunctions)
 	if err != nil {
-		return nil, fmt.Errorf("js loading error: %v", err)
+		jte.loadingError =  fmt.Errorf("%s: %v",jsLoadingErrorText, err)
 	}
-	return &jsTemplateExecutor{function},  nil
+	for {
+		event := <- jte.incoming
+		if jte.loadingError != nil {
+			jte.results <- jte.loadingError
+		} else {
+			res, err := ProcessEvent(function, event)
+			if err != nil {
+				jte.results <- err
+			} else {
+				jte.results <- res
+			}
+		}
+	}
+}
+
+func (jte *asyncJsTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
+	jte.incoming <- event
+	resRaw := <-jte.results
+	switch res := resRaw.(type) {
+	case error:
+		return nil, res
+	default:
+		return res, nil
+	}
+}
+
+func (jte *asyncJsTemplateExecutor) Format() string {
+	return "javascript"
+}
+
+func (pte *pooledTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
+	jte := pte.pool.Get().(*asyncJsTemplateExecutor)
+	defer pte.pool.Put(jte)
+	return jte.ProcessEvent(event)
+}
+
+func (pte *pooledTemplateExecutor) Format() string {
+	return "javascript"
 }
 
 func (jte *jsTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
@@ -76,6 +141,17 @@ func (jte *jsTemplateExecutor) ProcessEvent(event events.Event) (interface{}, er
 }
 func (jte *jsTemplateExecutor) Format() string {
 	return "javascript"
+}
+
+func (jte *jsTemplateExecutor) load(script string, extraFunctions template.FuncMap) error {
+	//loads javascript into vm instance
+	function, err := LoadTemplateScript(script, extraFunctions)
+	if err != nil {
+		return fmt.Errorf("%s: %v", jsLoadingErrorText, err)
+	} else {
+		jte.jsFunction = function
+		return nil
+	}
 }
 
 type constTemplateExecutor struct {
