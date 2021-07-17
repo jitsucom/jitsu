@@ -1,21 +1,17 @@
 package events
 
-import (
-	"github.com/gin-gonic/gin"
-)
-
 //SegmentProcessor preprocess client integration events
 type SegmentProcessor struct {
 	usersRecognition Recognition
 }
 
 //NewSegmentProcessor returns configured SegmentProcessor
-func NewSegmentProcessor(usersRecognition Recognition) Processor {
+func NewSegmentProcessor(usersRecognition Recognition) *SegmentProcessor {
 	return &SegmentProcessor{usersRecognition: usersRecognition}
 }
 
 //Preprocess adds src value
-func (sp *SegmentProcessor) Preprocess(event Event, c *gin.Context) {
+func (sp *SegmentProcessor) Preprocess(event Event, reqContext *RequestContext) {
 	event[SrcKey] = "segment_api"
 }
 
@@ -26,5 +22,5 @@ func (sp *SegmentProcessor) Postprocess(event Event, eventID string, destination
 
 //Type returns preprocessor type
 func (sp *SegmentProcessor) Type() string {
-	return SegmentPreprocessorType
+	return segmentPreprocessorType
 }

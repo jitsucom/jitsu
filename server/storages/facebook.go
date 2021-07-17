@@ -3,6 +3,7 @@ package storages
 import (
 	"errors"
 	"fmt"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
@@ -16,7 +17,6 @@ type Facebook struct {
 
 	fbAdapter            *adapters.FacebookConversionAPI
 	tableHelper          *TableHelper
-	processor            *schema.Processor
 	streamingWorker      *StreamingWorker
 	uniqueIDField        *identifiers.UniqueID
 	staged               bool
@@ -42,7 +42,6 @@ func NewFacebook(config *Config) (Storage, error) {
 	requestDebugLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
 
 	fb := &Facebook{
-		processor:            config.processor,
 		uniqueIDField:        config.uniqueIDField,
 		staged:               config.destination.Staged,
 		cachingConfiguration: config.destination.CachingConfiguration,
@@ -68,6 +67,7 @@ func NewFacebook(config *Config) (Storage, error) {
 
 	//Abstract (SQLAdapters and tableHelpers are omitted)
 	fb.destinationID = config.destinationID
+	fb.processor = config.processor
 	fb.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	fb.eventsCache = config.eventsCache
 	fb.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)

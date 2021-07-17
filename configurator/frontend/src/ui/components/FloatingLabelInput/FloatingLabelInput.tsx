@@ -4,7 +4,7 @@ import { Form, Input } from 'antd';
 import cn from 'classnames';
 import get from 'lodash/get';
 // @Components
-import { FloatingLabel } from '@component/FloatingLabelInput/FloatingLabel';
+import { FloatingLabel } from 'ui/components/FloatingLabelInput/FloatingLabel';
 // @Types
 import { NamePath } from 'rc-field-form/lib/interface';
 import { Rule } from 'antd/lib/form';

@@ -6,9 +6,9 @@ import { ExclamationCircleOutlined } from '@ant-design/icons/lib/icons/'
 // @View
 import { UserSettingsViewComponent } from './UserSettingsView';
 // @Utils
-import { reloadPage } from '@./lib/commons/utils';
+import { reloadPage } from 'lib/commons/utils';
 // @Services
-import { useServices } from '@./hooks/useServices';
+import { useServices } from 'hooks/useServices';
 
 type Email = {
   value: string,

@@ -57,16 +57,9 @@ func NewRedis(ctx context.Context, sourceConfig *base.SourceConfig, collection *
 		return nil, fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	redisConfig := &meta.RedisConfiguration{
-		Host:          config.Host,
-		Port:          int(intPort),
-		Password:      config.Password,
-		TLSSkipVerify: config.TLSSkipVerify,
-	}
-
-	if redisConfig.Port == 0 && !redisConfig.IsURL() && !redisConfig.IsSecuredURL() {
-		redisConfig.Port = 6379
-		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", sourceConfig.SourceID, redisConfig.Port)
+	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify)
+	if defaultPort, ok := redisConfig.CheckAndSetDefaultPort(); ok {
+		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", sourceConfig.SourceID, defaultPort)
 	}
 
 	pool, err := meta.NewRedisPool(redisConfig)
@@ -97,16 +90,8 @@ func TestRedis(sourceConfig *base.SourceConfig) error {
 		return fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	redisConfig := &meta.RedisConfiguration{
-		Host:          config.Host,
-		Port:          int(intPort),
-		Password:      config.Password,
-		TLSSkipVerify: config.TLSSkipVerify,
-	}
-
-	if redisConfig.Port == 0 && !redisConfig.IsURL() && !redisConfig.IsSecuredURL() {
-		redisConfig.Port = 6379
-	}
+	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify)
+	redisConfig.CheckAndSetDefaultPort()
 
 	pool, err := meta.NewRedisPool(redisConfig)
 	if err != nil {

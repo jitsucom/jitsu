@@ -2,8 +2,6 @@ package storages
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
-	"math/rand"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
@@ -19,12 +17,8 @@ type ClickHouse struct {
 
 	adapters                      []*adapters.ClickHouse
 	chTableHelpers                []*TableHelper
-	processor                     *schema.Processor
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
-	uniqueIDField                 *identifiers.UniqueID
-	staged                        bool
-	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
@@ -76,23 +70,22 @@ func NewClickHouse(config *Config) (Storage, error) {
 	ch := &ClickHouse{
 		adapters:                      chAdapters,
 		chTableHelpers:                chTableHelpers,
-		processor:                     config.processor,
 		usersRecognitionConfiguration: config.usersRecognition,
-		uniqueIDField:                 config.uniqueIDField,
-		staged:                        config.destination.Staged,
-		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	//Abstract
 	ch.destinationID = config.destinationID
+	ch.processor = config.processor
 	ch.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	ch.eventsCache = config.eventsCache
 	ch.tableHelpers = chTableHelpers
 	ch.sqlAdapters = sqlAdapters
 	ch.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	ch.uniqueIDField = config.uniqueIDField
+	ch.staged = config.destination.Staged
+	ch.cachingConfiguration = config.destination.CachingConfiguration
 
-	adapter, _ := ch.getAdapters()
-	err = adapter.CreateDB(chConfig.Database)
+	err = chAdapters[0].CreateDB(chConfig.Database)
 	if err != nil {
 		//close all previous created adapters
 		for _, toClose := range chAdapters {
@@ -112,11 +105,6 @@ func NewClickHouse(config *Config) (Storage, error) {
 //Type returns ClickHouse type
 func (ch *ClickHouse) Type() string {
 	return ClickHouseType
-}
-
-func (ch *ClickHouse) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	_, tableHelper := ch.getAdapters()
-	return dryRun(payload, ch.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
@@ -163,7 +151,7 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 
 //check table schema
 //and store data into one table
-func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *TableHelper, fdata *schema.ProcessedFile, table *adapters.Table) error {
+func (ch *ClickHouse) storeTable(adapter adapters.SQLAdapter, tableHelper *TableHelper, fdata *schema.ProcessedFile, table *adapters.Table) error {
 	dbSchema, err := tableHelper.EnsureTableWithoutCaching(ch.ID(), table)
 	if err != nil {
 		return err
@@ -178,59 +166,7 @@ func (ch *ClickHouse) storeTable(adapter *adapters.ClickHouse, tableHelper *Tabl
 
 //SyncStore is used in storing chunk of pulled data to ClickHouse with processing
 func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	flatData, err := ch.processor.ProcessPulledEvents(timeIntervalValue, objects)
-	if err != nil {
-		return err
-	}
-
-	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
-
-	//table schema overridden (is used by Singer sources)
-	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
-		var data []map[string]interface{}
-		//ignore table multiplexing from mapping step
-		for _, fdata := range flatData {
-			data = append(data, fdata.GetPayload()...)
-			//enrich overridden schema with new fields (some system fields or e.g. after lookup step)
-			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
-		}
-
-		adapter, tableHelper := ch.getAdapters()
-
-		table := tableHelper.MapTableSchema(overriddenDataSchema)
-
-		dbSchema, err := tableHelper.EnsureTable(ch.ID(), table, cacheTable)
-		if err != nil {
-			return err
-		}
-		if err = adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
-			return err
-		}
-
-		return nil
-	}
-
-	//plain flow
-	for _, fdata := range flatData {
-		adapter, tableHelper := ch.getAdapters()
-		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-
-		//overridden table destinationID
-		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
-			table.Name = overriddenDataSchema.TableName
-		}
-
-		dbSchema, err := tableHelper.EnsureTable(ch.ID(), table, cacheTable)
-		if err != nil {
-			return err
-		}
-		err = adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return syncStoreImpl(ch, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //Update uses SyncStore under the hood
@@ -241,20 +177,6 @@ func (ch *ClickHouse) Update(object map[string]interface{}) error {
 //GetUsersRecognition returns users recognition configuration
 func (ch *ClickHouse) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ch.usersRecognitionConfiguration
-}
-
-//GetUniqueIDField returns unique ID field configuration
-func (ch *ClickHouse) GetUniqueIDField() *identifiers.UniqueID {
-	return ch.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (ch *ClickHouse) IsCachingDisabled() bool {
-	return ch.cachingConfiguration != nil && ch.cachingConfiguration.Disabled
-}
-
-func (ch *ClickHouse) IsStaging() bool {
-	return ch.staged
 }
 
 //Close closes ClickHouse adapters, fallback logger and streaming worker
@@ -276,10 +198,4 @@ func (ch *ClickHouse) Close() (multiErr error) {
 	}
 
 	return
-}
-
-//assume that adapters quantity == tableHelpers quantity
-func (ch *ClickHouse) getAdapters() (*adapters.ClickHouse, *TableHelper) {
-	num := rand.Intn(len(ch.adapters))
-	return ch.adapters[num], ch.chTableHelpers[num]
 }

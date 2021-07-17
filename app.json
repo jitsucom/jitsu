@@ -8,7 +8,7 @@
   "stack": "container",
   "env": {
     "GEO_MAXMIND_PATH": {
-      "description": "(Optional) If you want Jitsu to resolve location-based data (Coutry, City, etc) based on IP address, provide HTTP URL to hosted Maxmind DB file. You can leave it blank, it this case location-resolution wont' work. See https://jitsu.com/docs/other-features/geo-data-resolution for details",
+      "description": "(Optional) If you want Jitsu to resolve location-based data (Coutry, City, etc) based on IP address, provide 'maxmind://<YOUR_MAXMIND_LICENSE_KEY>' or custom HTTP URL to hosted Maxmind DB file. You can leave it blank, it this case location-resolution won't work. See https://jitsu.com/docs/other-features/geo-data-resolution for details",
       "required": false
     },
     "SMTP_HOST": {
