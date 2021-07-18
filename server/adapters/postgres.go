@@ -18,6 +18,7 @@ import (
 )
 
 const (
+	tableNamesQuery  = `SELECT table_name FROM information_schema.tables WHERE table_schema=$1`
 	tableSchemaQuery = `SELECT 
  							pg_attribute.attname AS name,
     						pg_catalog.format_type(pg_attribute.atttypid,pg_attribute.atttypmod) AS column_type
