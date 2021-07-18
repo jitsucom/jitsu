@@ -72,7 +72,7 @@ func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *loggin
 	return &MySQL{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToMySQL)}, nil
 }
 
-//Insert provided object in postgres with typecasts
+//Insert provided object in mySQL with typecasts
 //uses upsert (merge on conflict) if primary_keys are configured
 func (m *MySQL) Insert(eventContext *EventContext) error {
 	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := m.buildInsertPayload(eventContext.ProcessedEvent)
@@ -367,7 +367,7 @@ func (m *MySQL) getCastClause(name string) string {
 	return ""
 }
 
-//executeInsert executes insert with postgresInsertTemplate
+//executeInsert executes insert with mySQLInsertTemplate
 func (m *MySQL) executeInsert(wrappedTx *Transaction, table *Table, headerWithoutQuotes []string, placeholders string, valueArgs []interface{}) error {
 	var quotedHeader []string
 	for _, columnName := range headerWithoutQuotes {

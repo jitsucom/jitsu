@@ -113,7 +113,7 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 		return err
 	}
 
-	return createDbSchemaInTransaction(ar.dataSourceProxy.ctx, wrappedTx, postgresCreateDbSchemaIfNotExistsTemplate, dbSchemaName,
+	return createDbSchemaInTransaction(ar.dataSourceProxy.ctx, wrappedTx, createDbSchemaIfNotExistsTemplate, dbSchemaName,
 		ar.dataSourceProxy.queryLogger)
 }
 
@@ -121,7 +121,7 @@ func (ar *AwsRedshift) CreateDbSchema(dbSchemaName string) error {
 func (ar *AwsRedshift) Insert(eventContext *EventContext) error {
 	_, quotedColumnNames, placeholders, values := ar.dataSourceProxy.buildInsertPayload(eventContext.ProcessedEvent)
 
-	statement := fmt.Sprintf(postgresInsertTemplate, ar.dataSourceProxy.config.Schema, eventContext.Table.Name, strings.Join(quotedColumnNames, ", "), "("+strings.Join(placeholders, ", ")+")")
+	statement := fmt.Sprintf(insertTemplate, ar.dataSourceProxy.config.Schema, eventContext.Table.Name, strings.Join(quotedColumnNames, ", "), "("+strings.Join(placeholders, ", ")+")")
 	ar.dataSourceProxy.queryLogger.LogQueryWithValues(statement, values)
 
 	_, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, statement, values...)
@@ -277,7 +277,7 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 		//replace original name with _tmp one
 		columnDDL = strings.ReplaceAll(columnDDL, columnName, tmpColumnName)
 
-		addColumnQuery := fmt.Sprintf(postgresAddColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, columnDDL)
+		addColumnQuery := fmt.Sprintf(addColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, columnDDL)
 		ar.dataSourceProxy.queryLogger.LogDDL(addColumnQuery)
 		_, err := wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, addColumnQuery)
 		if err != nil {
@@ -285,7 +285,7 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 		}
 
 		//** copy all values **
-		copyColumnQuery := fmt.Sprintf(postgresCopyColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, tmpColumnName, columnName)
+		copyColumnQuery := fmt.Sprintf(copyColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, tmpColumnName, columnName)
 		ar.dataSourceProxy.queryLogger.LogDDL(copyColumnQuery)
 		_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, copyColumnQuery)
 		if err != nil {
@@ -293,7 +293,7 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 		}
 
 		//** drop old column **
-		dropOldColumnQuery := fmt.Sprintf(postgresDropColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, columnName)
+		dropOldColumnQuery := fmt.Sprintf(dropColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, columnName)
 		ar.dataSourceProxy.queryLogger.LogDDL(dropOldColumnQuery)
 		_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, dropOldColumnQuery)
 		if err != nil {
@@ -301,7 +301,7 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 		}
 
 		//**rename tmp column **
-		renameTmpColumnQuery := fmt.Sprintf(postgresRenameColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, tmpColumnName, columnName)
+		renameTmpColumnQuery := fmt.Sprintf(renameColumnTemplate, ar.dataSourceProxy.config.Schema, table.Name, tmpColumnName, columnName)
 		ar.dataSourceProxy.queryLogger.LogDDL(renameTmpColumnQuery)
 		_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, renameTmpColumnQuery)
 		if err != nil {
