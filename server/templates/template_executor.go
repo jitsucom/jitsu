@@ -17,10 +17,12 @@ const (
 type TemplateExecutor interface {
 	ProcessEvent(events.Event) (interface{}, error)
 	Format() string
+	Expression() string
 }
 
 type goTemplateExecutor struct {
 	template *template.Template
+	expression string
 }
 
 func newGoTemplateExecutor(name string, expression string, extraFunctions template.FuncMap) (*goTemplateExecutor, error) {
@@ -32,7 +34,7 @@ func newGoTemplateExecutor(name string, expression string, extraFunctions templa
 	if err != nil {
 		return nil, err
 	}
-	return &goTemplateExecutor{template: tmpl}, nil
+	return &goTemplateExecutor{template: tmpl, expression: expression}, nil
 }
 
 func (gte *goTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
@@ -47,6 +49,10 @@ func (gte *goTemplateExecutor) Format() string {
 	return "go"
 }
 
+func (gte *goTemplateExecutor) Expression() string {
+	return gte.expression
+}
+
 func (gte *goTemplateExecutor) isPlainText() bool {
 	return len(gte.template.Tree.Root.Nodes) == 1 &&
 		gte.template.Tree.Root.Nodes[0].Type() == parse.NodeText
@@ -54,16 +60,19 @@ func (gte *goTemplateExecutor) isPlainText() bool {
 
 type jsTemplateExecutor struct {
 	jsFunction func(map[string]interface{}) interface{}
+	transformedExpression string
 }
 
 type asyncJsTemplateExecutor struct {
 	incoming chan events.Event
 	results chan interface{}
+	transformedExpression string
 	loadingError error
 }
 
 type pooledTemplateExecutor struct {
 	pool sync.Pool
+	expression string
 }
 
 func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (*asyncJsTemplateExecutor, error) {
@@ -79,8 +88,8 @@ func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (
 		}
 	}
 
-	jte := &asyncJsTemplateExecutor{make(chan events.Event), make(chan interface{}), nil}
-	go jte.start(script, extraFunctions)
+	jte := &asyncJsTemplateExecutor{make(chan events.Event), make(chan interface{}), script, nil}
+	go jte.start(extraFunctions)
 	_, err = jte.ProcessEvent(events.Event{})
 	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
 		//we need to test that js function is properly loaded because that happens in asyncJsTemplateExecutor's goroutine
@@ -90,11 +99,11 @@ func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (
 }
 
 
-func (jte *asyncJsTemplateExecutor) start(script string, extraFunctions template.FuncMap) {
+func (jte *asyncJsTemplateExecutor) start(extraFunctions template.FuncMap) {
 	//loads javascript into new vm instance
-	function, err := LoadTemplateScript(script, extraFunctions)
+	function, err := LoadTemplateScript(jte.transformedExpression, extraFunctions)
 	if err != nil {
-		jte.loadingError =  fmt.Errorf("%s: %v",jsLoadingErrorText, err)
+		jte.loadingError =  fmt.Errorf("%s: %v\ntransformed function:\n%v\n",jsLoadingErrorText, err, jte.transformedExpression)
 	}
 	for {
 		event := <- jte.incoming
@@ -126,6 +135,10 @@ func (jte *asyncJsTemplateExecutor) Format() string {
 	return "javascript"
 }
 
+func (jte *asyncJsTemplateExecutor) Expression() string {
+	return jte.transformedExpression
+}
+
 func (pte *pooledTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
 	jte := pte.pool.Get().(*asyncJsTemplateExecutor)
 	defer pte.pool.Put(jte)
@@ -136,6 +149,10 @@ func (pte *pooledTemplateExecutor) Format() string {
 	return "javascript"
 }
 
+func (pte *pooledTemplateExecutor) Expression() string {
+	return pte.expression
+}
+
 func (jte *jsTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
 	return ProcessEvent(jte.jsFunction, event)
 }
@@ -143,9 +160,13 @@ func (jte *jsTemplateExecutor) Format() string {
 	return "javascript"
 }
 
-func (jte *jsTemplateExecutor) load(script string, extraFunctions template.FuncMap) error {
+func (jte *jsTemplateExecutor) Expression() string {
+	return jte.transformedExpression
+}
+
+func (jte *jsTemplateExecutor) load(extraFunctions template.FuncMap) error {
 	//loads javascript into vm instance
-	function, err := LoadTemplateScript(script, extraFunctions)
+	function, err := LoadTemplateScript(jte.transformedExpression, extraFunctions)
 	if err != nil {
 		return fmt.Errorf("%s: %v", jsLoadingErrorText, err)
 	} else {
@@ -167,4 +188,8 @@ func (cte *constTemplateExecutor) ProcessEvent(event events.Event) (interface{},
 
 func (cte *constTemplateExecutor) Format() string {
 	return "constant"
+}
+
+func (cte *constTemplateExecutor) Expression() string {
+	return cte.template
 }

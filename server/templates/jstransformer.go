@@ -33,10 +33,10 @@ func Transform(src string) (string, error) {
 		return "",err
 	}
 	return `function ` + functionName + `(event) { 
-        var $ = event;
-        var _ = event;
-		` + res +`
-		};`, nil
+var $ = event;
+var _ = event;
+` + res +`
+};`, nil
 }
 
 //LoadTemplateScript loads script into newly created Javascript vm
