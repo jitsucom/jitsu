@@ -12,7 +12,7 @@ import (
 
 //TableNameExtractor extracts table name from every JSON event
 type TableNameExtractor struct {
-	tableNameExtractExpression string
+	Expression string
 	tmpl                       templates.TemplateExecutor
 	useTimestamp               bool
 }
@@ -26,7 +26,7 @@ func NewTableNameExtractor(tableNameExtractExpression string) (*TableNameExtract
 	}
 
 	return &TableNameExtractor{
-		tableNameExtractExpression: tableNameExtractExpression,
+		Expression: tmpl.Expression(),
 		tmpl:                       tmpl,
 		useTimestamp:               strings.Contains(tableNameExtractExpression, timestamp.Key),
 	}, nil
