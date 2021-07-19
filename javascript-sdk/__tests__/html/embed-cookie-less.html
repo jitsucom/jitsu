@@ -6,11 +6,11 @@
     <script src="%%SERVER%%/s/lib.js"
             data-key="Test"
             data-log-level="debug"
-            data-gdpr="true"
+            data-id-method="cookie-less"
             defer></script>
     <script>
       setTimeout(() => {
-        console.log("Testing tracking with GDPR");
+        console.log("Testing tracking with cookie-less configuration");
         let jitsu = window.jitsu = window.jitsu || (function(){(window.jitsuQ = window.jitsuQ || []).push(arguments);})
 
         jitsu('set', {persistent_prop1: 2})

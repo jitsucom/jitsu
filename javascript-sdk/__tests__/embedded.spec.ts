@@ -55,9 +55,9 @@ test('test embedded', async () => {
   server.clearRequestLog();
 });
 
-test('test embedded gdpr', async () => {
+test('test embedded cookie-less', async () => {
   server.clearRequestLog();
-  await runUrl(browser, server.getUrl('/test-case/embed-gdpr.html?gclid=1'));
+  await runUrl(browser, server.getUrl('/test-case/embed-cookie-less.html?gclid=1'));
   let requestLog = server.requestLog;
   expect(requestLog.length).toBe(2);
   expect(requestLog[0].api_key).toBe("Test");

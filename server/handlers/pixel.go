@@ -128,8 +128,7 @@ func (ph *PixelHandler) parseEvent(c *gin.Context) (events.Event, error) {
 // 2. generates and set it if doesn't exist
 // Note: do nothing if query parameter gdpr=true is provided
 func (ph *PixelHandler) extractOrSetAnonymIDCookie(c *gin.Context, event events.Event) {
-	gdpr := c.Query(middleware.GDPRQueryParameter)
-	if gdpr == "true" {
+	if c.Query(middleware.CookieLessQueryParameter) == "true" {
 		return
 	}
 

@@ -193,13 +193,18 @@ func extractIP(c *gin.Context) string {
 
 func getRequestContext(c *gin.Context) *events.RequestContext {
 	clientIP := extractIP(c)
+	if c.Query(middleware.PrivacyPolicyQueryParameter) == middleware.IPThreeOctetsPolicy {
+		ipParts := strings.Split(clientIP, ".")
+		ipParts[len(ipParts)-1] = "1"
+		clientIP = strings.Join(ipParts, ".")
+	}
 
 	var jitsuAnonymousID string
-	gdpr := c.Query(middleware.GDPRQueryParameter) == "true"
-	if gdpr {
+	cookieLess := c.Query(middleware.CookieLessQueryParameter) == "true"
+	if cookieLess {
 		//cookie less
-		dailyUserIdentifier := clientIP + c.Request.UserAgent() + time.Now().UTC().Format("200601")
-		jitsuAnonymousID = fmt.Sprintf("%x", md5.Sum([]byte(dailyUserIdentifier)))
+		userIdentifier := clientIP + c.Request.UserAgent()
+		jitsuAnonymousID = fmt.Sprintf("%x", md5.Sum([]byte(userIdentifier)))
 	} else {
 		anonymID, ok := c.Get(middleware.JitsuAnonymIDCookie)
 		if ok {
@@ -212,6 +217,6 @@ func getRequestContext(c *gin.Context) *events.RequestContext {
 		ClientIP:         clientIP,
 		Referer:          c.Request.Referer(),
 		JitsuAnonymousID: jitsuAnonymousID,
-		GDPR:             gdpr,
+		CookieLess:       cookieLess,
 	}
 }

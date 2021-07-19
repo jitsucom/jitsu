@@ -1,16 +1,26 @@
 import {
   generateId,
   generateRandom,
+  getCookie,
   getCookieDomain,
   getCookies,
-  getCookie,
-  setCookie,
   getDataFromParams,
   getHostWithProtocol,
   parseQuery,
-  reformatDate
+  reformatDate,
+  setCookie
 } from './helpers'
-import { Event, EventCompat, EventCtx, EventPayload, EventSrc, JitsuClient, JitsuOptions, UserProps, Transport } from './interface'
+import {
+  Event,
+  EventCompat,
+  EventCtx,
+  EventPayload,
+  EventSrc,
+  JitsuClient,
+  JitsuOptions,
+  Transport,
+  UserProps
+} from './interface'
 import { getLogger, setRootLogLevel } from './log';
 
 const VERSION_INFO = {
@@ -86,15 +96,6 @@ class CookiePersistence implements Persistence {
   }
 }
 
-class NoPersistence implements Persistence {
-  public save(props: Record<string, any>) {
-  }
-
-  restore(): Record<string, any> | undefined {
-    return undefined;
-  }
-}
-
 const defaultCompatMode = false;
 
 export function jitsuClient(opts?: JitsuOptions): JitsuClient {
@@ -106,7 +107,6 @@ export function jitsuClient(opts?: JitsuOptions): JitsuClient {
 type PermanentProperties = {
   globalProps: Record<string, any>
   propsPerEvent: Record<string, Record<string, any>>
-
 }
 
 class JitsuClientImpl implements JitsuClient {
@@ -191,10 +191,11 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   sendJson(json: any): Promise<void> {
-    let gdprParam = this.initialOptions.gdpr ? '&gdpr=true' : ''
-    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${gdprParam}`;
+    let cookieLess = this.initialOptions.id_method && this.initialOptions.id_method === 'cookie-less' ? '&cookie_less=true' : ''
+    let privacyPolicy = this.initialOptions.privacy_policy ? `&privacy_policy=${this.initialOptions.privacy_policy}` : ''
+    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${cookieLess}${privacyPolicy}`;
     if (this.randomizeUrl) {
-      url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${gdprParam}`;
+      url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${cookieLess}${privacyPolicy}`;
     }
 
     let jsonString = JSON.stringify(json);
@@ -272,13 +273,8 @@ class JitsuClientImpl implements JitsuClient {
     this.idCookieName = options.cookie_name || '__eventn_id';
     this.apiKey = options.key;
 
-    if (options.gdpr === true){
-      this.userIdPersistence = new NoPersistence()
-      this.propsPersistance = new NoPersistence()
-    }else{
-      this.userIdPersistence = new CookiePersistence(this.cookieDomain, this.idCookieName + '_usr');
-      this.propsPersistance = new CookiePersistence(this.cookieDomain, this.idCookieName + '_props');
-    }
+    this.userIdPersistence = new CookiePersistence(this.cookieDomain, this.idCookieName + '_usr');
+    this.propsPersistance = new CookiePersistence(this.cookieDomain, this.idCookieName + '_props');
 
     if (this.propsPersistance) {
       const restored = this.propsPersistance.restore();
@@ -303,7 +299,7 @@ class JitsuClientImpl implements JitsuClient {
     if (options.segment_hook) {
       interceptSegmentCalls(this);
     }
-    if (options.gdpr !== true){
+    if (options.id_method && options.id_method !== 'cookie-less'){
       this.anonymousId = this.getAnonymousId();
     }
     this.initialized = true;
@@ -350,10 +346,12 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   private restoreId() {
-    if (this.userIdPersistence) {
-      let props = this.userIdPersistence.restore();
-      if (props) {
-        this.userProperties = { ...props, ...this.userProperties };
+    if (this.initialOptions.id_method && this.initialOptions.id_method !== 'cookie-less') {
+      if (this.userIdPersistence) {
+        let props = this.userIdPersistence.restore();
+        if (props) {
+          this.userProperties = { ...props, ...this.userProperties };
+        }
       }
     }
   }
