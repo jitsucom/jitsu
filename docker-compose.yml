@@ -5,7 +5,7 @@ networks:
 services:
   jitsu:
     container_name: jitsu
-    image: jitsucom/jitsu:latest
+    image: jitsucom/jitsu:local
     environment:
       - REDIS_URL=redis://redis:6379
     depends_on:
@@ -13,9 +13,10 @@ services:
     volumes:
       - ./compose-data/configurator/data/logs:/home/configurator/data/logs
       - ./compose-data/server/data/logs:/home/eventnative/data/logs
+      - ./compose-data/server/data/logs/events:/home/eventnative/data/logs/events
     restart: always
     ports:
-      - "8000:8000"
+      - "8010:8000"
     networks:
       - main
   redis:
