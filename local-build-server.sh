@@ -7,4 +7,4 @@ fi
 
 cd javascript-sdk/ && yarn clean && yarn install && yarn build &&\
 cd ../server && make all GOBUILD_PREFIX="$GO_BUILD_PARAMS" &&\
-cd ../ && docker build -t jitsucom/server -f server-local.Dockerfile --build-arg dhid=jitsucom .
+cd ../ && docker build -t jitsucom/server -t jitsucom/server:local -f server-local.Dockerfile --build-arg dhid=jitsucom .
