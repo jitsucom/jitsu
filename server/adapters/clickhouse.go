@@ -22,6 +22,7 @@ const (
 	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s`
 	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
 	deleteQueryChTemplate     = `ALTER TABLE %s.%s DELETE WHERE %s`
+	dropTableCHTemplate       = `DROP TABLE "%s"."%s"`
 	onClusterCHClauseTemplate = ` ON CLUSTER "%s" `
 	columnCHNullableTemplate  = ` Nullable(%s) `
 
@@ -427,10 +428,14 @@ func (ch *ClickHouse) BulkUpdate(table *Table, objects []map[string]interface{},
 func (ch *ClickHouse) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	deleteCondition, values := ch.toDeleteQuery(deleteConditions)
 	deleteQuery := fmt.Sprintf(deleteQueryChTemplate, ch.database, table.Name, deleteCondition)
+
+	ch.queryLogger.LogQueryWithValues(deleteQuery, values)
+
 	_, err := wrappedTx.tx.ExecContext(ch.ctx, deleteQuery, values...)
 	if err != nil {
 		return fmt.Errorf("Error deleting using query: %s, error: %v", deleteQuery, err)
 	}
+
 	return nil
 }
 
@@ -443,6 +448,20 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 		return err
 	}
 	return wrappedTx.DirectCommit()
+}
+
+//DropTable drops table in transaction
+func (ch *ClickHouse) DropTable(table *Table) error {
+	query := fmt.Sprintf(dropTableCHTemplate, ch.database, table.Name)
+	ch.queryLogger.LogDDL(query)
+
+	_, err := ch.dataSource.ExecContext(ch.ctx, query)
+
+	if err != nil {
+		return fmt.Errorf("Error dropping [%s] table: %v", table.Name, err)
+	}
+
+	return nil
 }
 
 func (ch *ClickHouse) toDeleteQuery(conditions *DeleteConditions) (string, []interface{}) {

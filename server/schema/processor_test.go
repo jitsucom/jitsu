@@ -104,7 +104,7 @@ func TestProcessFilePayload(t *testing.T) {
 						"key1":             NewField(typing.FLOAT64)}},
 				},
 			},
-			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "Error extracting table name: _timestamp field doesn't exist"}},
+			[]events.FailedEvent{{Event: []byte(`{"_geo_data":{},"event_type":"views","key1000":"super value"}`), Error: "error extracting table name: _timestamp field doesn't exist"}},
 		},
 		{
 			"Input fallback file",
@@ -203,7 +203,7 @@ func TestProcessFact(t *testing.T) {
 			map[string]interface{}{},
 			nil,
 			map[string]interface{}{},
-			"Error extracting table name: _timestamp field doesn't exist",
+			"error extracting table name: _timestamp field doesn't exist",
 		},
 		{
 			"input without ip and ua ok",

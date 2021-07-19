@@ -158,6 +158,13 @@ export interface CollectionParameter extends Parameter {
   applyOnlyTo?: string[] | string
 }
 
+type SourceConnectorId = 
+  | "facebook_marketing"
+  | "google_analytics"
+  | "google_play"
+  | "firebase"
+  | "redis"
+  | string
 export interface SourceConnector {
   /**
    * Is it singer source or not, optional parameter.
@@ -177,7 +184,7 @@ export interface SourceConnector {
   /**
    * id of connector. Corresponds to 'type' node in event native config
    */
-  id: string
+  id: SourceConnectorId
   /**
    * SVG icon (please, no height/width params!)
    */

@@ -3,9 +3,9 @@ import React from 'react';
 import { Form } from 'antd';
 import debounce from 'lodash/debounce';
 // @Components
-import { ConfigurableFieldsForm } from '@component/ConfigurableFieldsForm/ConfigurableFieldsForm';
+import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm';
 // @Types
-import { Destination } from '@catalog/destinations/types';
+import { Destination } from 'catalog/destinations/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 
 export interface Props {

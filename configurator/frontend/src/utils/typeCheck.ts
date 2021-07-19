@@ -18,7 +18,7 @@ export function isObject(value: unknown): value is Object {
  *
  * @returns boolean
  */
-export function isArray(value: unknown): value is Array<unknown> {
+export function isArray<T>(value: Array<T> | unknown): value is Array<T> {
   return Array.isArray(value);
 }
 

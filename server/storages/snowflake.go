@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
+
 	"github.com/jitsucom/jitsu/server/typing"
 
 	"github.com/hashicorp/go-multierror"
@@ -21,13 +21,10 @@ import (
 type Snowflake struct {
 	Abstract
 
-	stageAdapter         adapters.Stage
-	snowflakeAdapter     *adapters.Snowflake
-	processor            *schema.Processor
-	streamingWorker      *StreamingWorker
-	uniqueIDField        *identifiers.UniqueID
-	staged               bool
-	cachingConfiguration *CachingConfiguration
+	stageAdapter                  adapters.Stage
+	snowflakeAdapter              *adapters.Snowflake
+	streamingWorker               *StreamingWorker
+	usersRecognitionConfiguration *UserRecognitionConfiguration
 }
 
 func init() {
@@ -89,21 +86,22 @@ func NewSnowflake(config *Config) (Storage, error) {
 	tableHelper := NewTableHelper(snowflakeAdapter, config.monitorKeeper, config.pkFields, adapters.SchemaToSnowflake, config.maxColumns)
 
 	snowflake := &Snowflake{
-		stageAdapter:         stageAdapter,
-		snowflakeAdapter:     snowflakeAdapter,
-		processor:            config.processor,
-		uniqueIDField:        config.uniqueIDField,
-		staged:               config.destination.Staged,
-		cachingConfiguration: config.destination.CachingConfiguration,
+		stageAdapter:                  stageAdapter,
+		snowflakeAdapter:              snowflakeAdapter,
+		usersRecognitionConfiguration: config.usersRecognition,
 	}
 
 	//Abstract
 	snowflake.destinationID = config.destinationID
+	snowflake.processor = config.processor
 	snowflake.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	snowflake.eventsCache = config.eventsCache
 	snowflake.tableHelpers = []*TableHelper{tableHelper}
 	snowflake.sqlAdapters = []adapters.SQLAdapter{snowflakeAdapter}
 	snowflake.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	snowflake.uniqueIDField = config.uniqueIDField
+	snowflake.staged = config.destination.Staged
+	snowflake.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
 	snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
@@ -145,11 +143,6 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 		return nil, err
 	}
 	return snowflakeAdapter, nil
-}
-
-func (s *Snowflake) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	_, tableHelper := s.getAdapters()
-	return dryRun(payload, s.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
@@ -221,36 +214,22 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 
 //GetUsersRecognition returns users recognition configuration
 func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
-	return disabledRecognitionConfiguration
+	return s.usersRecognitionConfiguration
 }
 
-//GetUniqueIDField returns unique ID field configuration
-func (s *Snowflake) GetUniqueIDField() *identifiers.UniqueID {
-	return s.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (s *Snowflake) IsCachingDisabled() bool {
-	return s.cachingConfiguration != nil && s.cachingConfiguration.Disabled
-}
-
-//SyncStore isn't supported
+// SyncStore is used in storing chunk of pulled data to Snowflake with processing
 func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return errors.New("Snowflake doesn't support sync store")
+	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
-//Update isn't supported
+//Update uses SyncStore under the hood
 func (s *Snowflake) Update(object map[string]interface{}) error {
-	return errors.New("Snowflake doesn't support updates")
+	return s.SyncStore(nil, []map[string]interface{}{object}, "", true)
 }
 
 //Type returns Snowflake type
 func (s *Snowflake) Type() string {
 	return SnowflakeType
-}
-
-func (s *Snowflake) IsStaging() bool {
-	return s.staged
 }
 
 //Close closes Snowflake adapter, stage adapter, fallback logger and streaming worker

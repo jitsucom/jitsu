@@ -17,7 +17,7 @@ const (
 	twentyFourHoursInMinutes = 1440
 )
 
-//regex for reading already rotated and closed log files
+//TokenIDExtractRegexp is a regex for reading already rotated and closed log files
 var TokenIDExtractRegexp = regexp.MustCompile("incoming.tok=(.*)-\\d\\d\\d\\d-\\d\\d-\\d\\dT")
 
 //RollingWriterProxy for lumberjack.Logger

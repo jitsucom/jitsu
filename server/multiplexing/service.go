@@ -2,7 +2,6 @@ package multiplexing
 
 import (
 	"errors"
-	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/counters"
@@ -30,8 +29,8 @@ func NewService(destinationService *destinations.Service, eventsCache *caching.E
 	}
 }
 
-//AcceptRequest multiplexes input events, enriches with context and sending to consumers
-func (s *Service) AcceptRequest(processor events.Processor, c *gin.Context, token string, eventsArray []events.Event) error {
+//AcceptRequest multiplexes input events, enriches with context and sends to consumers
+func (s *Service) AcceptRequest(processor events.Processor, reqContext *events.RequestContext, token string, eventsArray []events.Event) error {
 	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(token)
 	destinationStorages := s.destinationService.GetDestinations(tokenID)
 	if len(destinationStorages) == 0 {
@@ -41,7 +40,7 @@ func (s *Service) AcceptRequest(processor events.Processor, c *gin.Context, toke
 	for _, payload := range eventsArray {
 		//** Context enrichment **
 		//Note: we assume that destinations under 1 token can't have different unique ID configuration (JS SDK 2.0 or an old one)
-		enrichment.ContextEnrichmentStep(payload, token, c, processor, destinationStorages[0].GetUniqueIDField())
+		enrichment.ContextEnrichmentStep(payload, token, reqContext, processor, destinationStorages[0].GetUniqueIDField())
 
 		//** Caching **
 		//clone payload for preventing concurrent changes while serialization

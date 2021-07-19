@@ -1,13 +1,15 @@
 import {
+  amplitudeDestination,
   bigQueryDestination,
   clickHouseDestination,
   facebookDestination,
+  hubspotDestination,
   googleAnalyticsDestination,
   postgresDestination,
   redshiftDestination,
   snowflakeDestination,
   webhookDestination
-} from '@catalog/destinations/lib';
+} from 'catalog/destinations/lib';
 
 export const destinationsReferenceMap = {
   postgres: postgresDestination,
@@ -17,7 +19,9 @@ export const destinationsReferenceMap = {
   snowflake: snowflakeDestination,
   facebook: facebookDestination,
   google_analytics: googleAnalyticsDestination,
-  webhook: webhookDestination
+  webhook: webhookDestination,
+  amplitude: amplitudeDestination,
+  hubspot: hubspotDestination
 } as const;
 
 export const destinationsReferenceList = Object.values(destinationsReferenceMap);

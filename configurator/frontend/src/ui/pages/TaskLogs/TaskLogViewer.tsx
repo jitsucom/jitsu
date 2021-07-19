@@ -1,22 +1,27 @@
 import { Button, Tag } from 'antd';
 import ArrowLeftOutlined from '@ant-design/icons/lib/icons/ArrowLeftOutlined';
 import { generatePath, NavLink, useHistory, useParams } from 'react-router-dom';
-import { CenteredError, CenteredSpin, closeableMessage, handleError } from '@./lib/components/components';
+import {
+  CenteredError,
+  CenteredSpin,
+  closeableMessage,
+  handleError
+} from 'lib/components/components';
 import { Task, TaskId, TaskLogEntry } from './utils';
-import { useLoader } from '@hooks/useLoader';
-import { useServices } from '@hooks/useServices';
-import { CollectionSourceData } from '@page/SourcesPage/SourcesPage';
+import { useLoader } from 'hooks/useLoader';
+import { useServices } from 'hooks/useServices';
+import { CollectionSourceData } from 'ui/pages/SourcesPage/SourcesPage';
 import React, { useEffect, useRef, useState } from 'react';
-import { withHome } from '@component/Breadcrumbs/Breadcrumbs';
-import { PageHeader } from '@component/PageHeader/PageHeader';
-import { PageProps } from '@./navigation';
-import { allSources } from '@catalog/sources/lib';
-import { SourceConnector } from '@catalog/sources/types';
+import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
+import { PageHeader } from 'ui/components/PageHeader/PageHeader';
+import { PageProps } from 'navigation';
+import { allSources } from 'catalog/sources/lib';
+import { SourceConnector } from 'catalog/sources/types';
 import snakeCase from 'lodash/snakeCase';
-import { taskLogsPageRoute } from '@page/TaskLogs/TaskLogsPage';
+import { taskLogsPageRoute } from 'ui/pages/TaskLogs/TaskLogsPage';
 import styles from './TaskLogsPage.module.less'
 import classNames from 'classnames';
-import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
+import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import moment from 'moment';
 import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
 

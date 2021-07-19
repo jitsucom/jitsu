@@ -4,9 +4,9 @@ import 'firebase/auth';
 import 'firebase/firestore';
 import Marshal from '../commons/marshalling';
 import { BackendApiClient, LoginFeatures, ServerStorage, TelemetrySettings, UserLoginStatus, UserService } from './ApplicationServices';
-import { randomId } from '@util/numbers';
-import { cleanAuthorizationLocalStorage, concatenateURLs } from "@./lib/commons/utils";
-import { getBaseUIPath } from "@./lib/commons/pathHelper";
+import { randomId } from 'utils/numbers';
+import { cleanAuthorizationLocalStorage, concatenateURLs } from "lib/commons/utils";
+import { getBaseUIPath } from "lib/commons/pathHelper";
 
 export const LS_ACCESS_KEY = 'en_access';
 export const LS_REFRESH_KEY = 'en_refresh';

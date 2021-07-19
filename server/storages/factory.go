@@ -56,6 +56,8 @@ type DestinationConfig struct {
 	Snowflake       *adapters.SnowflakeConfig             `mapstructure:"snowflake" json:"snowflake,omitempty" yaml:"snowflake,omitempty"`
 	Facebook        *adapters.FacebookConversionAPIConfig `mapstructure:"facebook" json:"facebook,omitempty" yaml:"facebook,omitempty"`
 	WebHook         *adapters.WebHookConfig               `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
+	Amplitude       *adapters.AmplitudeConfig             `mapstructure:"amplitude" json:"amplitude,omitempty" yaml:"amplitude,omitempty"`
+	HubSpot         *adapters.HubSpotConfig               `mapstructure:"hubspot" json:"hubspot,omitempty" yaml:"hubspot,omitempty"`
 }
 
 //DataLayout is used for configure mappings/table names and other data layout parameters
@@ -277,7 +279,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
 	var flattener schema.Flattener
 	var typeResolver schema.TypeResolver
-	if destination.Type == FacebookType || destination.Type == WebHookType {
+	if destination.Type == FacebookType || destination.Type == WebHookType || destination.Type == AmplitudeType || destination.Type == HubSpotType {
 		flattener = schema.NewDummyFlattener()
 		typeResolver = schema.NewDummyTypeResolver()
 	} else {
@@ -388,7 +390,7 @@ func (f *FactoryImpl) initializeRetrospectiveUsersRecognition(destinationID stri
 	}
 
 	//check primary fields
-	if (destination.Type == PostgresType || destination.Type == RedshiftType) && len(pkFields) == 0 {
+	if (destination.Type == PostgresType || destination.Type == RedshiftType || destination.Type == SnowflakeType) && len(pkFields) == 0 {
 		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
 		return &UserRecognitionConfiguration{enabled: false}, nil
 	}

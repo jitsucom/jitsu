@@ -83,7 +83,7 @@ func (garf *GoogleAnalyticsRequestFactory) Create(object map[string]interface{})
 
 //GoogleAnalytics is an adapter for sending events into GoogleAnalytics
 type GoogleAnalytics struct {
-	httpAdapter *HTTPAdapter
+	AbstractHTTP
 }
 
 //NewGoogleAnalytics returns configured GoogleAnalytics instance
@@ -95,36 +95,12 @@ func NewGoogleAnalytics(config *GoogleAnalyticsConfig, httpAdapterConfiguration 
 		return nil, err
 	}
 
-	return &GoogleAnalytics{httpAdapter: httpAdapter}, nil
+	ga := &GoogleAnalytics{}
+	ga.httpAdapter = httpAdapter
+	return ga, nil
 }
 
-//Insert passes object to HTTPAdapter
-func (ga *GoogleAnalytics) Insert(eventContext *EventContext) error {
-	return ga.httpAdapter.SendAsync(eventContext)
-}
-
-//GetTableSchema always return empty schema
-func (ga *GoogleAnalytics) GetTableSchema(tableName string) (*Table, error) {
-	return &Table{
-		Name:           tableName,
-		Columns:        Columns{},
-		PKFields:       map[string]bool{},
-		DeletePkFields: false,
-		Version:        0,
-	}, nil
-}
-
-//CreateTable GA doesn't use tables
-func (ga *GoogleAnalytics) CreateTable(schemaToCreate *Table) error {
-	return nil
-}
-
-//PatchTableSchema GA doesn't use tables
-func (ga *GoogleAnalytics) PatchTableSchema(schemaToAdd *Table) error {
-	return nil
-}
-
-//Close closes HTTPAdapter
-func (ga *GoogleAnalytics) Close() error {
-	return ga.httpAdapter.Close()
+//Type returns adapter type
+func (ga *GoogleAnalytics) Type() string {
+	return "GoogleAnalytics"
 }

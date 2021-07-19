@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/system"
+	"github.com/jitsucom/jitsu/server/wal"
 	"math/rand"
 	"net/http"
 	"os"
@@ -128,7 +131,7 @@ func main() {
 	}
 
 	if err := singer.Init(viper.GetString("singer-bridge.python"), viper.GetString("singer-bridge.venv_dir"),
-		viper.GetBool("singer-bridge.install_taps"), appconfig.Instance.SingerLogsWriter); err != nil {
+		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
 
@@ -162,7 +165,7 @@ func main() {
 		<-c
 		logging.Info("🤖 * Server is shutting down.. *")
 		telemetry.ServerStop()
-		appstatus.Instance.Idle = true
+		appstatus.Instance.Idle.Store(true)
 		cancel()
 		appconfig.Instance.Close()
 		telemetry.Flush()
@@ -171,6 +174,7 @@ func main() {
 		telemetry.Close()
 		//we should close it in the end
 		appconfig.Instance.CloseEventsConsumers()
+		appconfig.Instance.CloseWriteAheadLog()
 		os.Exit(0)
 	}()
 
@@ -358,8 +362,20 @@ func main() {
 
 	systemService := system.NewService(viper.GetString("system"))
 
-	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, usersRecognitionService, fallbackService,
-		coordinationService, eventsCache, systemService, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper)
+	//event processors
+	apiProcessor := events.NewAPIProcessor()
+	jsProcessor := events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
+	pixelProcessor := events.NewPixelProcessor()
+	segmentProcessor := events.NewSegmentProcessor(usersRecognitionService)
+	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor)
+
+	multiplexingService := multiplexing.NewService(destinationsService, eventsCache)
+	walService := wal.NewService(logEventPath, loggerFactory.CreateWriteAheadLogger(), multiplexingService, processorHolder)
+	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
+
+	router := routers.SetupRouter(adminToken, metaStorage, destinationsService, sourceService, taskService, fallbackService,
+		coordinationService, eventsCache, systemService, segmentRequestFieldsMapper, segmentCompatRequestFieldsMapper, processorHolder,
+		multiplexingService, walService)
 
 	telemetry.ServerStart()
 	notifications.ServerStart()
