@@ -82,6 +82,7 @@ func (m *MySQL) Insert(eventContext *EventContext) error {
 		statement = fmt.Sprintf(mySQLInsertTemplate, m.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
 	} else {
 		statement = fmt.Sprintf(mySQLMergeTemplate, m.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", m.buildUpdateSection(columnsWithoutQuotes))
+		values = append(values, values...)
 	}
 
 	m.queryLogger.LogQueryWithValues(statement, values)
