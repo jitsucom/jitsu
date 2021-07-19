@@ -15,9 +15,7 @@ const mySQLDestination = {
     displayName: 'MySQL',
     ui: {
         icon: icon,
-        connectCmd: (cfg: object) => {
-            return `password="${cfg['_formData']['mySQLPassword']}" user=${cfg['_formData']['mySQLUser']} database=${cfg['_formData']['mySQLDatabase']} host=${cfg['_formData']['mySQLHost']} port=${cfg['_formData']['mySQLPort']} query="SELECT 1"`
-        },
+        connectCmd: (cfg: object) => null,
         title: (cfg: object) => {
             return cfg['_formData']['mySQLHost'];
         }

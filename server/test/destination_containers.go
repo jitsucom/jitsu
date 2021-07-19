@@ -234,10 +234,8 @@ func (pgc *PostgresContainer) GetAllSortedRows(table, orderClause string) ([]map
 //or error if occurred
 func (mc *MySQLContainer) GetAllSortedRows(table, orderClause string) ([]map[string]interface{}, error) {
 	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
-	//connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
-	//	mc.Username, mc.Password, mc.Host, mc.Port, mc.Database)
 	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
-		"sandbox_1", "sandbox_123", "localhost", 33306, "sandbox")
+		mc.Username, mc.Password, mc.Host, mc.Port, mc.Database)
 	dataSource, err := sql.Open("mysql", connectionString)
 	if err != nil {
 		return nil, err
