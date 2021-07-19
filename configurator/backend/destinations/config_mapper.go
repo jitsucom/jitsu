@@ -37,6 +37,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		config, err = mapAmplitude(destination)
 	case enstorages.HubSpotType:
 		config, err = mapHubSpot(destination)
+	case enstorages.MySQLType:
+		config, err = mapMySQL(destination)
 	default:
 		return nil, fmt.Errorf("Unknown destination type: %s", destination.Type)
 	}
@@ -57,7 +59,7 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		//default primary keys for enabling users recognition
 		//for disabling this feature set destination.DisableDefaultPrimaryKeyFields on a certain destination
 		if !destination.DisableDefaultPrimaryKeyFields &&
-			(destination.Type == enstorages.PostgresType || destination.Type == enstorages.RedshiftType || destination.Type == enstorages.SnowflakeType) {
+			(destination.Type == enstorages.PostgresType || destination.Type == enstorages.MySQLType || destination.Type == enstorages.RedshiftType || destination.Type == enstorages.SnowflakeType) {
 			if config.DataLayout == nil {
 				config.DataLayout = &enstorages.DataLayout{}
 			}
@@ -140,6 +142,39 @@ func mapPostgres(pgDestinations *entities.Destination) (*enstorages.DestinationC
 			Schema:     pgFormData.Schema,
 			Username:   pgFormData.Username,
 			Password:   pgFormData.Password,
+			Parameters: parameters,
+		},
+	}, nil
+}
+
+func mapMySQL(md *entities.Destination) (*enstorages.DestinationConfig, error) {
+	b, err := json.Marshal(md.Data)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshaling MySQL config destination: %v", err)
+	}
+
+	mySQLFormData := &entities.MySQLFormData{}
+	err = json.Unmarshal(b, mySQLFormData)
+	if err != nil {
+		return nil, fmt.Errorf("Error unmarshaling MySQL form data: %v", err)
+	}
+
+	parameters := map[string]string{"tls": "false"}
+
+	return &enstorages.DestinationConfig{
+		Type: enstorages.MySQLType,
+		Mode: mySQLFormData.Mode,
+		DataLayout: &enstorages.DataLayout{
+			TableNameTemplate: mySQLFormData.TableName,
+			PrimaryKeyFields:  mySQLFormData.PKFields,
+		},
+		DataSource: &enadapters.DataSourceConfig{
+			Host:       mySQLFormData.Host,
+			Port:       mySQLFormData.Port,
+			Db:         mySQLFormData.Db,
+			Schema:     mySQLFormData.Db,
+			Username:   mySQLFormData.Username,
+			Password:   mySQLFormData.Password,
 			Parameters: parameters,
 		},
 	}, nil
