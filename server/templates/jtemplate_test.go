@@ -36,6 +36,7 @@ var templateTest = []templateTestData{
 		object{"blocks": []interface{}{object{"text": object{"emoji": true, "text": "🤘 page from test@test.com", "type": "plain_text"}, "type": "header"}, object{"text": object{"text": "User test@test.com has sent *page* in <https://example.com?email=test%40test.com>", "type": "mrkdwn"}, "type": "section"}, object{"text": object{"text": "*Data*:```{\\n  \\\"event_type\\\": \\\"page\\\",\\n  \\\"user\\\": {\\n    \\\"email\\\": \\\"test@test.com\\\"\\n  }\\n}```", "type": "mrkdwn"}, "type": "section"}}}},
 	{"go_and_js_error", "error", "if (true) {{return func(){ .metric_type }}}", events.Event{"metric_type": "ogon", "app": "neagon"}, fmt.Errorf("2 errors occurred")},
 	{"golike_js", "javascript", "if (true) {var a = function(){ metric_type }} return $.metric_type", events.Event{"metric_type": "ogon", "app": "neagon"}, "ogon"},
+	{"js_load_error", "javascript", "class Rectangle {constructor() {}}", events.Event{"metric_type": "ogon", "app": "neagon"}, fmt.Errorf("JS LOADING ERROR")},
 
 	{"const: \"table_name\"", "constant", "\"table_name\"", events.Event{"metric_type": "ogon"}, "\"table_name\""},
 	{"const: table_name", "constant", "table_name", events.Event{"metric_type": "ogon"}, "table_name"},
