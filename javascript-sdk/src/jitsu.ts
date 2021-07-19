@@ -191,8 +191,8 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   sendJson(json: any): Promise<void> {
-    let cookieLess = this.initialOptions.id_method && this.initialOptions.id_method === 'cookie-less' ? '&cookie_less=true' : ''
-    let privacyPolicy = this.initialOptions.privacy_policy ? `&privacy_policy=${this.initialOptions.privacy_policy}` : ''
+    let cookieLess = this.initialOptions?.id_method === 'cookie-less' ? '&cookie_less=true' : ''
+    let privacyPolicy = this.initialOptions?.privacy_policy ? `&privacy_policy=${this.initialOptions.privacy_policy}` : ''
     let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${cookieLess}${privacyPolicy}`;
     if (this.randomizeUrl) {
       url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${cookieLess}${privacyPolicy}`;
@@ -299,7 +299,7 @@ class JitsuClientImpl implements JitsuClient {
     if (options.segment_hook) {
       interceptSegmentCalls(this);
     }
-    if (options.id_method && options.id_method !== 'cookie-less'){
+    if (options.id_method !== 'cookie-less'){
       this.anonymousId = this.getAnonymousId();
     }
     this.initialized = true;
@@ -346,7 +346,7 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   private restoreId() {
-    if (this.initialOptions.id_method && this.initialOptions.id_method !== 'cookie-less') {
+    if (this.initialOptions?.id_method !== 'cookie-less') {
       if (this.userIdPersistence) {
         let props = this.userIdPersistence.restore();
         if (props) {
