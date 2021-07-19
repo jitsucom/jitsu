@@ -102,5 +102,8 @@ func evaluateReformatted(req *EvaluateTemplateRequest) (string, string, error) {
 		return "", "", err
 	}
 	res, err := tableNameExtractor.Extract(req.Object)
+	if err != nil {
+		err = fmt.Errorf("%v\ntemplate body:\n%v\n", err, tableNameExtractor.Expression)
+	}
 	return res, tableNameExtractor.Format(), err
 }
