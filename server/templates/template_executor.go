@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/safego"
 	"strings"
-	"sync"
 	"text/template"
 	"text/template/parse"
 )
@@ -58,21 +58,11 @@ func (gte *goTemplateExecutor) isPlainText() bool {
 		gte.template.Tree.Root.Nodes[0].Type() == parse.NodeText
 }
 
-type jsTemplateExecutor struct {
-	jsFunction func(map[string]interface{}) interface{}
-	transformedExpression string
-}
-
 type asyncJsTemplateExecutor struct {
 	incoming chan events.Event
 	results chan interface{}
 	transformedExpression string
 	loadingError error
-}
-
-type pooledTemplateExecutor struct {
-	pool sync.Pool
-	expression string
 }
 
 func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (*asyncJsTemplateExecutor, error) {
@@ -89,7 +79,7 @@ func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (
 	}
 
 	jte := &asyncJsTemplateExecutor{make(chan events.Event), make(chan interface{}), script, nil}
-	go jte.start(extraFunctions)
+	safego.RunWithRestart(func() { jte.start(extraFunctions) })
 	_, err = jte.ProcessEvent(events.Event{})
 	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
 		//we need to test that js function is properly loaded because that happens in asyncJsTemplateExecutor's goroutine
@@ -137,42 +127,6 @@ func (jte *asyncJsTemplateExecutor) Format() string {
 
 func (jte *asyncJsTemplateExecutor) Expression() string {
 	return jte.transformedExpression
-}
-
-func (pte *pooledTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
-	jte := pte.pool.Get().(*asyncJsTemplateExecutor)
-	defer pte.pool.Put(jte)
-	return jte.ProcessEvent(event)
-}
-
-func (pte *pooledTemplateExecutor) Format() string {
-	return "javascript"
-}
-
-func (pte *pooledTemplateExecutor) Expression() string {
-	return pte.expression
-}
-
-func (jte *jsTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
-	return ProcessEvent(jte.jsFunction, event)
-}
-func (jte *jsTemplateExecutor) Format() string {
-	return "javascript"
-}
-
-func (jte *jsTemplateExecutor) Expression() string {
-	return jte.transformedExpression
-}
-
-func (jte *jsTemplateExecutor) load(extraFunctions template.FuncMap) error {
-	//loads javascript into vm instance
-	function, err := LoadTemplateScript(jte.transformedExpression, extraFunctions)
-	if err != nil {
-		return fmt.Errorf("%s: %v", jsLoadingErrorText, err)
-	} else {
-		jte.jsFunction = function
-		return nil
-	}
 }
 
 type constTemplateExecutor struct {
