@@ -1,4 +1,4 @@
-import { isValidFullIsoDate } from '@util/validation/date';
+import { isValidFullIsoDate } from 'utils/validation/date';
 
 const isoDateValidator = (errorMessage: string) => ({
   validator: (rule, value) => !value

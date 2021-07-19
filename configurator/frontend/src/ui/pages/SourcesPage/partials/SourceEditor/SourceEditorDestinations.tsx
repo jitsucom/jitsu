@@ -1,26 +1,29 @@
 // @Libs
-import React, { useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
+import { observer } from 'mobx-react-lite';
 import { Form } from 'antd';
 // @Constants
-import { SOURCE_CONNECTED_DESTINATION } from '@./embeddedDocs/sourcesConnectedItems';
+import { SOURCE_CONNECTED_DESTINATION } from 'embeddedDocs/sourcesConnectedItems';
 // @Components
-import { NameWithPicture, ConnectedItem, ConnectedItems } from '@component/ConnectedItems/ConnectedItems';
-import { TabDescription } from '@component/Tabs/TabDescription';
+import {
+  NameWithPicture,
+  ConnectedItem,
+  ConnectedItems
+} from 'ui/components/ConnectedItems/ConnectedItems';
+import { TabDescription } from 'ui/components/Tabs/TabDescription';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
-import { destinationsReferenceMap } from '@page/DestinationsPage/commons';
+import ApplicationServices from 'lib/services/ApplicationServices';
+import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { Destination } from '@catalog/destinations/types';
-// @Hooks
-import useLoader from '@hooks/useLoader';
+import { Destination } from 'catalog/destinations/types';
 // @Utils
-import { destinationsUtils } from '@page/DestinationsPage/DestinationsPage.utils';
+import { destinationsUtils } from 'ui/pages/DestinationsPage/DestinationsPage.utils';
+import { destinationsStore } from 'stores/destinations';
 
 export interface Props {
   form: FormInstance;
   initialValues: SourceData;
-  projectId: string;
   handleTouchAnyField: VoidFunc;
 }
 
@@ -34,30 +37,47 @@ function getDescription(reference: Destination) {
   }
 }
 
-const SourceEditorDestinations = ({ form, initialValues, projectId, handleTouchAnyField }: Props) => {
-  const services = useMemo(() => ApplicationServices.get(), []);
+const SourceEditorDestinationsComponent = ({
+  form,
+  initialValues,
+  handleTouchAnyField
+}: Props) => {
+  const destinations = destinationsStore.destinations;
 
-  const [, destinations] = useLoader(
-    async() => await services.storageService.get('destinations', projectId)
+  const destinationsList = useMemo<ConnectedItem[]>(
+    () =>
+      destinations?.map((dst: DestinationData) => {
+        const reference = destinationsReferenceMap[dst._type];
+        return {
+          id: dst._uid,
+          disabled:
+            reference.syncFromSourcesStatus === 'coming_soon' ||
+            reference.syncFromSourcesStatus === 'not_supported',
+          title: (
+            <NameWithPicture icon={reference.ui.icon}>
+              <b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}
+            </NameWithPicture>
+          ),
+          description: <i className="text-xs">{getDescription(reference)}</i>
+        };
+      }) ?? [],
+    [destinations]
   );
 
-  const destinationsList = useMemo<ConnectedItem[]>(() => destinations?.destinations?.map((dst: DestinationData) => {
-    const reference = destinationsReferenceMap[dst._type]
-    return {
-      id: dst._uid,
-      disabled: reference.syncFromSourcesStatus === 'coming_soon' || reference.syncFromSourcesStatus === 'not_supported',
-      title: <NameWithPicture icon={reference.ui.icon}><b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}</NameWithPicture>,
-      description: <i className="text-xs">{getDescription(reference)}</i>
-    };
-  }) ?? [], [destinations?.destinations]);
+  const preparedInitialValue = useMemo(
+    () => initialValues?.destinations ?? [],
+    [initialValues]
+  );
 
-  const preparedInitialValue = useMemo(() => initialValues?.destinations ?? [], [initialValues]);
+  const handleItemChange = useCallback(
+    (items: string[]) => {
+      const beenTouched =
+        JSON.stringify(items) !== JSON.stringify(initialValues.destinations);
 
-  const handleItemChange = useCallback((items: string[]) => {
-    const beenTouched = JSON.stringify(items) !== JSON.stringify(initialValues.destinations)
-
-    handleTouchAnyField(beenTouched);
-  }, [initialValues, handleTouchAnyField])
+      handleTouchAnyField(beenTouched);
+    },
+    [initialValues, handleTouchAnyField]
+  );
 
   return (
     <>
@@ -76,6 +96,8 @@ const SourceEditorDestinations = ({ form, initialValues, projectId, handleTouchA
     </>
   );
 };
+
+const SourceEditorDestinations = observer(SourceEditorDestinationsComponent);
 
 SourceEditorDestinations.displayName = 'SourceEditorDestinations';
 

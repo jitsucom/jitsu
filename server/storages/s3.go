@@ -3,10 +3,10 @@ package storages
 import (
 	"errors"
 	"fmt"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 )
@@ -15,13 +15,9 @@ import (
 type S3 struct {
 	Abstract
 
-	s3Adapter            *adapters.S3
-	processor            *schema.Processor
-	fallbackLogger       *logging.AsyncLogger
-	eventsCache          *caching.EventsCache
-	uniqueIDField        *identifiers.UniqueID
-	cachingConfiguration *CachingConfiguration
-	staged               bool
+	s3Adapter      *adapters.S3
+	fallbackLogger *logging.AsyncLogger
+	eventsCache    *caching.EventsCache
 }
 
 func init() {
@@ -46,17 +42,17 @@ func NewS3(config *Config) (Storage, error) {
 	}
 
 	s3 := &S3{
-		s3Adapter:            s3Adapter,
-		processor:            config.processor,
-		uniqueIDField:        config.uniqueIDField,
-		staged:               config.destination.Staged,
-		cachingConfiguration: config.destination.CachingConfiguration,
+		s3Adapter: s3Adapter,
 	}
 
 	//Abstract (SQLAdapters and tableHelpers and archive logger are omitted)
 	s3.destinationID = config.destinationID
+	s3.processor = config.processor
 	s3.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	s3.eventsCache = config.eventsCache
+	s3.uniqueIDField = config.uniqueIDField
+	s3.staged = config.destination.Staged
+	s3.cachingConfiguration = config.destination.CachingConfiguration
 
 	return s3, nil
 }
@@ -121,23 +117,9 @@ func (s3 *S3) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration
 }
 
-//GetUniqueIDField returns unique ID field configuration
-func (s3 *S3) GetUniqueIDField() *identifiers.UniqueID {
-	return s3.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (s3 *S3) IsCachingDisabled() bool {
-	return s3.cachingConfiguration != nil && s3.cachingConfiguration.Disabled
-}
-
 //Type returns S3 type
 func (s3 *S3) Type() string {
 	return S3Type
-}
-
-func (s3 *S3) IsStaging() bool {
-	return s3.staged
 }
 
 //Close closes fallback logger

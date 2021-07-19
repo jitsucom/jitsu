@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/panjf2000/ants/v2"
+	"go.uber.org/atomic"
 	"io/ioutil"
 	"net/http"
 	"time"
@@ -50,7 +51,7 @@ type HTTPAdapter struct {
 	destinationID string
 	retryCount    int
 	retryDelay    time.Duration
-	closed        bool
+	closed        *atomic.Bool
 }
 
 //NewHTTPAdapter returns configured HTTPAdapter and starts queue observing goroutine
@@ -72,6 +73,7 @@ func NewHTTPAdapter(config *HTTPAdapterConfiguration) (*HTTPAdapter, error) {
 		destinationID: config.DestinationID,
 		retryCount:    config.HTTPConfig.RetryCount,
 		retryDelay:    config.HTTPConfig.RetryDelay,
+		closed:        atomic.NewBool(false),
 	}
 
 	reqQueue, err := NewPersistentQueue("http_queue.dst="+config.DestinationID, config.Dir)
@@ -97,14 +99,14 @@ func NewHTTPAdapter(config *HTTPAdapterConfiguration) (*HTTPAdapter, error) {
 func (h *HTTPAdapter) startObserver() {
 	safego.RunWithRestart(func() {
 		for {
-			if h.closed {
+			if h.closed.Load() {
 				break
 			}
 
 			if h.workersPool.Free() > 0 {
 				retryableRequest, err := h.queue.DequeueBlock()
 				if err != nil {
-					if err == ErrQueueClosed && h.closed {
+					if err == ErrQueueClosed && h.closed.Load() {
 						continue
 					}
 
@@ -241,7 +243,7 @@ func (h *HTTPAdapter) doRequest(req *Request) error {
 //Close closes underlying queue, workers pool and HTTP client
 //returns err if occurred
 func (h *HTTPAdapter) Close() (err error) {
-	h.closed = true
+	h.closed.Store(true)
 	err = h.queue.Close()
 
 	h.workersPool.Release()

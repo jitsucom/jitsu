@@ -4,11 +4,11 @@ import { Modal } from 'antd';
 import { useHistory } from 'react-router-dom';
 // @Components
 import { EmptyListView } from './EmptyListView';
-import { reloadPage } from '@./lib/commons/utils';
+import { reloadPage } from 'lib/commons/utils';
 // @Commons
-import { createFreeDatabase } from '@./lib/commons/createFreeDatabase';
-import ApplicationServices from '@./lib/services/ApplicationServices';
-import { useServices } from '@./hooks/useServices';
+import { createFreeDatabase } from 'lib/commons/createFreeDatabase';
+import ApplicationServices from 'lib/services/ApplicationServices';
+import { useServices } from 'hooks/useServices';
 
 export interface Props {
   title: ReactNode;

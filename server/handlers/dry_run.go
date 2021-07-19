@@ -49,8 +49,10 @@ func (drh *DryRunHandler) Handle(c *gin.Context) {
 		return
 	}
 
+	reqContext := getRequestContext(c)
+
 	//** Context enrichment **
-	enrichment.ContextEnrichmentStep(payload, c.GetString(middleware.TokenName), c, drh.preprocessor, storage.GetUniqueIDField())
+	enrichment.ContextEnrichmentStep(payload, c.GetString(middleware.TokenName), reqContext, drh.preprocessor, storage.GetUniqueIDField())
 
 	dataSchema, err := storage.DryRun(payload)
 	if err != nil {

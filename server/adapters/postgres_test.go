@@ -13,6 +13,40 @@ import (
 	"testing"
 )
 
+func TestDeduplicateObjects(t *testing.T) {
+	table := &Table{
+		Name:     "test_deduplicate",
+		Columns:  Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
+		PKFields: map[string]bool{"field1": true, "field2": true},
+	}
+
+	//no duplications
+	oneBucket := deduplicateObjects(table, []map[string]interface{}{
+		{"field1": "1", "field2": "2", "field3": "3"},
+		{"field1": "1", "field2": "22", "field3": "4"},
+		{"field1": "11", "field2": "2", "field3": "5"},
+	})
+	require.Equal(t, 1, len(oneBucket))
+
+	//3 duplications
+	threeBuckets := deduplicateObjects(table, []map[string]interface{}{
+		{"field1": "1", "field2": "2", "field3": "3"},
+		{"field1": "1", "field2": "2", "field3": "4"},
+		{"field1": "1", "field2": "2", "field3": "5"},
+	})
+	require.Equal(t, 3, len(threeBuckets))
+
+	//3 duplications
+	threeBucketsAgain := deduplicateObjects(table, []map[string]interface{}{
+		{"field1": "1", "field2": "2", "field3": "3"},
+		{"field1": "1", "field2": "2", "field3": "4"},
+		{"field1": "1", "field2": "2", "field3": "5"},
+		{"field1": "1", "field2": "22", "field3": "4"},
+		{"field1": "1", "field2": "22", "field3": "5"},
+	})
+	require.Equal(t, 3, len(threeBucketsAgain))
+}
+
 func TestBulkInsert(t *testing.T) {
 	table := &Table{
 		Name:    "test_insert",

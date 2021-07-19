@@ -1,7 +1,7 @@
 // @Components
 import { Button } from 'antd';
 // @Services
-import ApplicationServices from '@./lib/services/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @styles
 import styles from './OnboardingTourSuccess.module.less';
 

@@ -2,11 +2,11 @@
 import moment from 'moment';
 import { Card, Collapse, Input } from 'antd';
 // @Services
-import ApplicationServices from '@service/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 // @Hooks
-import useLoader from '@hooks/useLoader';
+import useLoader from 'hooks/useLoader';
 // @Types
-import { Event } from '@./lib/components/EventsStream/EventsStream';
+import { Event } from 'lib/components/EventsStream/EventsStream';
 // @Styles
 import styles from './CodeDebugger.module.less';
 import { useMemo, useState } from 'react';

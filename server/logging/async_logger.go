@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/safego"
+	"go.uber.org/atomic"
 	"io"
 )
 
@@ -14,7 +15,7 @@ type AsyncLogger struct {
 	logCh              chan interface{}
 	showInGlobalLogger bool
 
-	closed bool
+	closed atomic.Bool
 }
 
 //NewAsyncLogger creates AsyncLogger and run goroutine that's read from channel and write to file
@@ -23,7 +24,7 @@ func NewAsyncLogger(writer io.WriteCloser, showInGlobalLogger bool) *AsyncLogger
 
 	safego.RunWithRestart(func() {
 		for {
-			if logger.closed {
+			if logger.closed.Load() {
 				break
 			}
 
@@ -64,7 +65,7 @@ func (al *AsyncLogger) ConsumeAny(object interface{}) {
 
 //Close underlying log file writer
 func (al *AsyncLogger) Close() (resultErr error) {
-	al.closed = true
+	al.closed.Store(true)
 
 	if err := al.writer.Close(); err != nil {
 		return fmt.Errorf("Error closing writer: %v", err)

@@ -6,7 +6,7 @@ import LogRocket from 'logrocket';
 import murmurhash from 'murmurhash';
 import { isNullOrUndef } from '../commons/utils';
 import { jitsuClient, JitsuClient } from '@jitsu/sdk-js';
-import { getIntercom, initIntercom } from '@service/intercom-wrapper';
+import { getIntercom, initIntercom } from 'lib/services/intercom-wrapper';
 
 type ConsoleMessageListener = (level: string, ...args) => void;
 

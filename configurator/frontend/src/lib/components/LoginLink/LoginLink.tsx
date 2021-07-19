@@ -1,12 +1,12 @@
 import { useHistory, useLocation, useParams } from 'react-router-dom';
-import { useServices } from '@hooks/useServices';
+import { useServices } from 'hooks/useServices';
 import React, { useState } from 'react';
 import { Card } from 'antd';
-import { Preloader } from '@./lib/components/components';
+import { Preloader } from 'lib/components/components';
 import CheckCircleOutlined from '@ant-design/icons/lib/icons/CheckCircleOutlined';
 import CloseCircleOutlined from '@ant-design/icons/lib/icons/CloseCircleOutlined'
 import * as QueryString from 'query-string'
-import { reloadPage } from '@./lib/commons/utils';
+import { reloadPage } from 'lib/commons/utils';
 
 export function LoginLink() {
   const location = useLocation();

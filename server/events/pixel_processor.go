@@ -1,10 +1,8 @@
 package events
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"net/url"
 )
@@ -34,7 +32,7 @@ type PixelProcessor struct {
 }
 
 // NewPixelProcessor returns configured PixelProcessor
-func NewPixelProcessor() Processor {
+func NewPixelProcessor() *PixelProcessor {
 	return &PixelProcessor{
 		urlField:          jsonutils.NewJSONPath("/url"),
 		hostField:         jsonutils.NewJSONPath("/doc_host"),
@@ -55,13 +53,13 @@ func NewPixelProcessor() Processor {
 }
 
 // Preprocess set some values from request header into event
-func (pp *PixelProcessor) Preprocess(event Event, c *gin.Context) {
+func (pp *PixelProcessor) Preprocess(event Event, reqContext *RequestContext) {
 	compatibilityMode := false
 	if _, ok := event[compatField]; ok {
 		compatibilityMode = true
 	}
 
-	referer := c.Request.Header.Get("Referer")
+	referer := reqContext.Referer
 	refURL, err := url.Parse(referer)
 	if err != nil {
 		logging.SystemErrorf("error parsing Referer [%s] in pixel processor: %v", referer, err)
@@ -70,10 +68,10 @@ func (pp *PixelProcessor) Preprocess(event Event, c *gin.Context) {
 	host := refURL.Host
 	docPath := refURL.Path
 	docSearch := refURL.RawQuery
-	userAgent := c.Request.UserAgent()
+	userAgent := reqContext.UserAgent
 	utcTime := timestamp.NowUTC()
-	anonymID, ok := c.Get(middleware.JitsuAnonymIDCookie)
-	if !ok {
+	anonymID := reqContext.JitsuAnonymousID
+	if anonymID == "" {
 		logging.SystemError("anonym ID value wasn't found in the context")
 	}
 
@@ -103,7 +101,7 @@ func (pp *PixelProcessor) Postprocess(event Event, eventID string, destinationID
 
 // Type returns preprocessor type
 func (pp *PixelProcessor) Type() string {
-	return PixelPreprocessorType
+	return pixelPreprocessorType
 }
 
 //setIfNotExist uses JSONPath SetIfNotExist func and log error if occurred

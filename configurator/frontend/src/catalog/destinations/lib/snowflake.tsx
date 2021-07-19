@@ -44,7 +44,7 @@ const destination = {
     Snowflake is a fast and scalable data warehouse. Jitsu can works with Snowflake both in stream and batch modes. For batching, you'll
     need to provide an access either to Amazon S3 or to Google's Cloud storage bucket
   </>,
-  syncFromSourcesStatus: 'coming_soon',
+  syncFromSourcesStatus: 'supported',
   id: 'snowflake',
   type: 'database',
   displayName: 'Snowflake',

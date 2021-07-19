@@ -10,7 +10,7 @@ import { randomId } from 'utils/numbers';
 import { User, Project } from 'lib/services/model';
 // @Styles
 import styles from './OnboardingTourNames.module.less'
-import ApplicationServices from '@./lib/services/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 
 type OnboardingTourNamesStepProps = {
    user: User;

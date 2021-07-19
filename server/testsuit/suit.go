@@ -14,6 +14,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/routers"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
@@ -23,6 +24,7 @@ import (
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/jitsucom/jitsu/server/users"
+	"github.com/jitsucom/jitsu/server/wal"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"net/http"
@@ -62,6 +64,7 @@ type suiteBuilder struct {
 	segmentCompatRequestFieldsMapper events.Mapper
 	globalUsersRecognitionConfig     *storages.UsersRecognition
 	systemService                    *system.Service
+	eventsCache                      *caching.EventsCache
 
 	metaStorage        meta.Storage
 	destinationService *destinations.Service
@@ -136,6 +139,7 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 		recognitionService:               dummyRecognitionService,
 		destinationService:               destinationService,
 		systemService:                    systemService,
+		eventsCache:                      caching.NewEventsCache(metaStorage, 100),
 	}
 }
 
@@ -174,9 +178,8 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 //WithDestinationService overrides destinations.Service with input data configured
 func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder {
 	monitor := coordination.NewInMemoryService([]string{})
-	eventsCache := caching.NewEventsCache(sb.metaStorage, 100)
 	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(context.Background(), "/tmp", monitor, eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, 0)
+	destinationsFactory := storages.NewFactory(context.Background(), "/tmp", monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
@@ -200,10 +203,20 @@ func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
 //Build returns Suit and runs HTTP server
 //performs ping check before return
 func (sb *suiteBuilder) Build(t *testing.T) Suit {
+	//event processors
+	apiProcessor := events.NewAPIProcessor()
+	jsProcessor := events.NewJsProcessor(sb.recognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
+	pixelProcessor := events.NewPixelProcessor()
+	segmentProcessor := events.NewSegmentProcessor(sb.recognitionService)
+	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor)
+
+	multiplexingService := multiplexing.NewService(sb.destinationService, sb.eventsCache)
+	walService := wal.NewService("/tmp", &logging.AsyncLogger{}, multiplexingService, processorHolder)
+	appconfig.Instance.ScheduleWriteAheadLogClosing(walService)
+
 	router := routers.SetupRouter("", sb.metaStorage, sb.destinationService, sources.NewTestService(), synchronization.NewTestTaskService(),
-		sb.recognitionService, fallback.NewTestService(), coordination.NewInMemoryService([]string{}),
-		caching.NewEventsCache(sb.metaStorage, 100), sb.systemService,
-		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper)
+		fallback.NewTestService(), coordination.NewInMemoryService([]string{}), sb.eventsCache, sb.systemService,
+		sb.segmentRequestFieldsMapper, sb.segmentCompatRequestFieldsMapper, processorHolder, multiplexingService, walService)
 
 	server := &http.Server{
 		Addr:              sb.httpAuthority,

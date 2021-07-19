@@ -1,9 +1,7 @@
 package storages
 
 import (
-	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -21,19 +19,15 @@ type AwsRedshift struct {
 
 	s3Adapter                     *adapters.S3
 	redshiftAdapter               *adapters.AwsRedshift
-	processor                     *schema.Processor
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
-	uniqueIDField                 *identifiers.UniqueID
-	staged                        bool
-	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
 	RegisterStorage(RedshiftType, NewAwsRedshift)
 }
 
-//NewAwsRedshift return AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
+//NewAwsRedshift returns AwsRedshift and start goroutine for aws redshift batch storage or for stream consumer depend on destination mode
 func NewAwsRedshift(config *Config) (Storage, error) {
 	redshiftConfig := config.destination.DataSource
 	if err := redshiftConfig.Validate(); err != nil {
@@ -80,31 +74,26 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 	ar := &AwsRedshift{
 		s3Adapter:                     s3Adapter,
 		redshiftAdapter:               redshiftAdapter,
-		processor:                     config.processor,
 		usersRecognitionConfiguration: config.usersRecognition,
-		uniqueIDField:                 config.uniqueIDField,
-		staged:                        config.destination.Staged,
-		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	//Abstract
 	ar.destinationID = config.destinationID
+	ar.processor = config.processor
 	ar.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	ar.eventsCache = config.eventsCache
 	ar.tableHelpers = []*TableHelper{tableHelper}
 	ar.sqlAdapters = []adapters.SQLAdapter{redshiftAdapter}
 	ar.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	ar.uniqueIDField = config.uniqueIDField
+	ar.staged = config.destination.Staged
+	ar.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
 	ar.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, ar, tableHelper)
 	ar.streamingWorker.start()
 
 	return ar, nil
-}
-
-func (ar *AwsRedshift) DryRun(payload events.Event) ([]adapters.TableField, error) {
-	_, tableHelper := ar.getAdapters()
-	return dryRun(payload, ar.processor, tableHelper)
 }
 
 //Store process events and stores with storeTable() func
@@ -174,9 +163,9 @@ func (ar *AwsRedshift) storeTable(fdata *schema.ProcessedFile, table *adapters.T
 	return nil
 }
 
-//SyncStore isn't supported
+// SyncStore is used in storing chunk of pulled data to AwsRedshift with processing
 func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	return errors.New("RedShift doesn't support sync store")
+	return syncStoreImpl(ar, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //Update updates record in Redshift
@@ -208,23 +197,9 @@ func (ar *AwsRedshift) GetUsersRecognition() *UserRecognitionConfiguration {
 	return ar.usersRecognitionConfiguration
 }
 
-//GetUniqueIDField returns unique ID field configuration
-func (ar *AwsRedshift) GetUniqueIDField() *identifiers.UniqueID {
-	return ar.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (ar *AwsRedshift) IsCachingDisabled() bool {
-	return ar.cachingConfiguration != nil && ar.cachingConfiguration.Disabled
-}
-
 //Type returns Redshift type
 func (ar *AwsRedshift) Type() string {
 	return RedshiftType
-}
-
-func (ar *AwsRedshift) IsStaging() bool {
-	return ar.staged
 }
 
 //Close closes AwsRedshift adapter, fallback logger and streaming worker

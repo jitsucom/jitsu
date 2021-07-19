@@ -6,7 +6,7 @@ import styles from './EmptyList.module.less';
 // @Icons
 import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
 import CheckOutlined from '@ant-design/icons/lib/icons/CheckOutlined';
-import { handleError } from '@./lib/components/components';
+import { handleError } from 'lib/components/components';
 
 type CommonProps = {
   title: ReactNode;

@@ -1,22 +1,20 @@
 // @Libs
-import React, { Dispatch, SetStateAction, useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Route, Switch } from 'react-router-dom';
+import { observer } from 'mobx-react-lite';
 // @Pages
 import { DestinationsList } from './partials/DestinationsList/DestinationsList';
 import { DestinationEditor } from './partials/DestinationEditor/DestinationEditor';
+// @Store
+import { destinationsStore, DestinationsStoreState } from 'stores/destinations';
+import { sourcesStore, SourcesStoreState } from 'stores/sources';
 // @Routes
 import { destinationPageRoutes } from './DestinationsPage.routes';
-// @Hooks
-import useLoader from '@hooks/useLoader';
-// @Services
-import ApplicationServices from '@service/ApplicationServices';
-// @Hocs
-import { getComponent } from '@hocs/getComponent';
 // @Components
-import { CenteredError, CenteredSpin } from '@./lib/components/components';
+import { CenteredError, CenteredSpin } from 'lib/components/components';
 // @Types
-import { PageProps } from '@./navigation';
-import { BreadcrumbsProps } from '@component/Breadcrumbs/Breadcrumbs';
+import { PageProps } from 'navigation';
+import { BreadcrumbsProps } from 'ui/components/Breadcrumbs/Breadcrumbs';
 
 export interface CollectionDestinationData {
   destinations: DestinationData[];
@@ -25,32 +23,17 @@ export interface CollectionDestinationData {
 
 export interface CommonDestinationPageProps {
   setBreadcrumbs: (breadcrumbs: BreadcrumbsProps) => void;
-  destinations: DestinationData[];
-  updateDestinations: Dispatch<SetStateAction<any>>;
   editorMode?: 'edit' | 'add';
-  sources: SourceData[];
-  sourcesError: any;
-  updateSources: Dispatch<SetStateAction<any>>;
 }
 
-export const DestinationsPage = (props: PageProps) => {
-  const services = ApplicationServices.get();
+const DestinationsPageComponent = ({setBreadcrumbs}: PageProps) => {
 
-  const [sourcesError, sourcesData, updateSources] = useLoader(async() => await services.storageService.get('sources', services.activeProject.id));
-  const [error, destinations, updateDestinations] = useLoader(async() => await services.storageService.get('destinations', services.activeProject.id));
-
-  const additionalProps = useMemo(() => ({
-    setBreadcrumbs: props.setBreadcrumbs,
-    destinations: destinations?.destinations ?? [],
-    updateDestinations,
-    sources: sourcesData?.sources ?? [],
-    sourcesError,
-    updateSources
-  }), [props.setBreadcrumbs, destinations, updateDestinations, sourcesData, sourcesError, updateSources]);
-
-  if (error) {
-    return <CenteredError error={error} />;
-  } else if (!destinations || (!sourcesData && !sourcesError)) {
+  if (destinationsStore.state === DestinationsStoreState.GLOBAL_ERROR) {
+    return <CenteredError error={destinationsStore.error} />;
+  } else if (
+    destinationsStore.state === DestinationsStoreState.GLOBAL_LOADING || 
+    sourcesStore.state === SourcesStoreState.GLOBAL_LOADING
+  ) {
     return <CenteredSpin />;
   }
 
@@ -59,22 +42,27 @@ export const DestinationsPage = (props: PageProps) => {
       <Route
         path={destinationPageRoutes.root}
         exact
-        render={getComponent<CommonDestinationPageProps>(DestinationsList, additionalProps)}
-      />
+      >
+        <DestinationsList {...{setBreadcrumbs}}/>
+      </Route>
       <Route
         path={destinationPageRoutes.newDestination}
         strict={false}
         exact
-        render={getComponent<CommonDestinationPageProps>(DestinationEditor, { ...additionalProps, editorMode: 'add' })}
-      />
+      >
+        <DestinationEditor {...{setBreadcrumbs, editorMode: 'add'}}/>
+      </Route>
       <Route
         path={destinationPageRoutes.editDestination}
         strict={false}
         exact
-        render={getComponent<CommonDestinationPageProps>(DestinationEditor, { ...additionalProps, editorMode: 'edit' })}
-      />
+      >
+        <DestinationEditor {...{setBreadcrumbs, editorMode: 'edit'}}/>
+      </Route>
     </Switch>
   );
 };
+
+const DestinationsPage = observer(DestinationsPageComponent);
 
 export default DestinationsPage;

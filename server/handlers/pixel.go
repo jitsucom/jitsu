@@ -69,7 +69,9 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 		}
 	}
 
-	err = ph.multiplexingService.AcceptRequest(ph.processor, c, strToken, []events.Event{event})
+	reqContext := getRequestContext(c)
+
+	err = ph.multiplexingService.AcceptRequest(ph.processor, reqContext, strToken, []events.Event{event})
 	if err != nil {
 		code := http.StatusBadRequest
 		if err == multiplexing.ErrNoDestinations {

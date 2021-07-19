@@ -6,14 +6,14 @@ import { CaretRightOutlined } from '@ant-design/icons';
 // @DocsComponents
 import { getCurlDocumentation, getEmbeddedHtml, getNPMDocumentation } from 'lib/commons/api-documentation';
 // @Components
-import { LabelWithTooltip } from '@component/LabelWithTooltip/LabelWithTooltip';
+import { LabelWithTooltip } from 'ui/components/LabelWithTooltip/LabelWithTooltip';
 import {
   CodeInline,
   CodeSnippet
 } from 'lib/components/components';
 
 import styles from './OnboardingClientDocs.module.less';
-import { useServices } from '@./hooks/useServices';
+import { useServices } from 'hooks/useServices';
 
 export type UserAPIToken = {
   uid: string;

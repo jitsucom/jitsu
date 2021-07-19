@@ -1,7 +1,7 @@
 // @Libs
 import React from 'react';
 // @Types
-import { Tab } from '@component/Tabs/TabsConfigurator';
+import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 // @Styles
 import styles from './PopoverErrorsContent.module.less';
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import * as monacoEditor from 'monaco-editor';
 import MonacoEditor from 'react-monaco-editor';
 import { Props } from './CodeEditor.types';
@@ -25,19 +25,23 @@ monacoEditor.editor.defineTheme('own-theme', {
   }
 });
 
-const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, language = 'json' }: Props) => {
+const CodeEditorComponent = ({
+  handleChange: handleChangeProp,
+  initialValue,
+  language = 'json'
+}: Props) => {
   const defaultValue = !initialValue
     ? ''
     : typeof initialValue === 'string'
-      ? initialValue
-      : JSON.stringify(initialValue);
+    ? initialValue
+    : JSON.stringify(initialValue);
 
   const handleChange = (e: IKeyboardEvent) => {
     const model = ref.current.editor.getModel();
     const value = model.getValue();
 
     handleChangeProp(value);
-  }
+  };
 
   const ref = useRef<MonacoEditor>();
 
@@ -80,7 +84,7 @@ const CodeEditorComponent = ({ handleChange: handleChangeProp, initialValue, lan
         overviewRulerLanes: 0
       }}
     />
-  )
+  );
 };
 
 CodeEditorComponent.displayName = 'CodeEditor';

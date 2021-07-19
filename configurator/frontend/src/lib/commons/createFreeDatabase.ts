@@ -1,7 +1,7 @@
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Utils
-import ApiKeyHelper from '@service/ApiKeyHelper';
+import ApiKeyHelper from 'lib/services/ApiKeyHelper';
 
 export async function createFreeDatabase() {
   const services = ApplicationServices.get();

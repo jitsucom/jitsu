@@ -6,14 +6,13 @@ All event fields after [Mapping Step](/docs/how-it-works/architecture#mapping-st
 formatted as URL values and will be sent to Google Analytics with HTTP GET request.
 
 <Hint>
-Google Analytics destination supports only `stream` mode and <b>should have</b> mapping rules
-    compatible with Measurement protocol requirements.
+Google Analytics destination supports only <code inline="true">stream</code> mode and <b>should have</b> mapping rules
+  compatible with <a href="https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters">Measurement protocol requirements</a>. See mapping below
 </Hint>
 
 ## Filtering events
 
-For filtering events stream to prevent sending all events in GoogleAnalytics
-`table_name_template` is used. For more information see
+For filtering events stream to prevent sending all events to GoogleAnalytics `table_name_template` is used. For more information see
 [Table Names and Filters](/docs/configuration/table-names-and-filters#events-filtering).
 
 ## Configuration
@@ -28,7 +27,7 @@ destinations:
     google_analytics:
       tracking_id: UA-121905385-1
     data_layout:
-      table_name_template: '{{text template}}' #Optional. It is used for filtering events.
+      table_name_template: '$.event_type' #Optional. It is used for filtering events.
       mappings:
         keep_unmapped: false
         fields:

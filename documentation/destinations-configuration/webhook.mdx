@@ -3,7 +3,7 @@
 
 **Jitsu** supports any HTTP destinations. WebHook destination can send configurable HTTP requests based on input JS/API event objects.
 For instance WebHook destination can send notifications about important conversion events to [Slack](https://slack.com/) or another notification channel.
-URL and Body might be configured with [GO text/template](https://golang.org/pkg/text/template/). It allows to enrich HTTP request with data from JS/API events.
+URL and Body might be configured [JavaScript functions](/docs/configuration/javascript-functions). It allows enriching HTTP request with data from JS/API events.
 
 <Hint>
     WebHook destination supports only <code inline={true}>stream</code> mode.
@@ -25,28 +25,28 @@ destinations:
     type: webhook
     mode: stream
     webhook:
-      url: https://my_domain.com/notification #or https://my_domain.com/{{.event_type}}/notification
+      url: https://my_domain.com/notification #or `https://my_domain.com/${_.event_type}/notification`
       method: POST
       body: |-
              {
-               "user": "{{.user.email}}",
-               "time": "{{._timestamp}}",
-               "conversion_id": "{{.conversion.id}}"
+               "user": _.user?.email,
+               "time": _._timestamp,
+               "conversion_id": _.conversion.id
              }
       headers:
         authorization: <my_authorization_token>
         content-type: application/json
     data_layout:
-      table_name_template: '{{text template}}' #Optional. It is used for filtering events.
+      table_name_template: '$.event_type' #Optional. It is used for filtering events.
 ```
 
 ## WebHook Configuration Parameters
 
 | Parameter | Description |
 | :--- | :--- |
-| `url` (required) | HTTP URL. Can be a string constant or a string with [GO text/template](https://golang.org/pkg/text/template/) |
+| `url` (required) | HTTP URL. Can be a string constant or [JavaScript function](/docs/configuration/javascript-functions) |
 | `method`| HTTP method. Optional. Default value is: `GET`|
-| `body`| HTTP request JSON body. Can be a JSON constant or a JSON with [GO text/template](https://golang.org/pkg/text/template/) |
+| `body`| HTTP request JSON body. Can be a JSON constant or [JavaScript function](/docs/configuration/javascript-functions) returning Object |
 | `headers`| HTTP headers Map. All HTTP requests will be enriched with configured HTTP headers. |
 
 ## Slack Example
@@ -67,7 +67,7 @@ destinations:
               "type": "section",
               "text": {
                 "type": "mrkdwn",
-                "text": "User {{.user.email}} has created order #{{.conversion.order_id}}: {{.conversion.price}} {{.conversion.currency}}!"
+                "text": `User ${_.user?.email} has created order #${_.conversion.order_id}: ${_.conversion.price} ${_.conversion.currency}!`
               }
             }
           ]
@@ -75,5 +75,5 @@ destinations:
       headers:
         content-type: application/json
     data_layout:
-      table_name_template: '{{if eq .event_type "conversion"}}{{.event_type}}{{else}}{{end}}' #Consumes only conversions
+      table_name_template: '_.event_type == "conversion" && _.event_type' #Consumes only conversions
 ```

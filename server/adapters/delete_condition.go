@@ -19,7 +19,7 @@ type DeleteConditions struct {
 
 //IsEmpty returns true if there is no conditions
 func (dc *DeleteConditions) IsEmpty() bool {
-	return len(dc.Conditions) == 0
+	return dc == nil || len(dc.Conditions) == 0
 }
 
 //DeleteByTimeChunkCondition return delete condition that removes objects based on eventn_ctx_time_interval value

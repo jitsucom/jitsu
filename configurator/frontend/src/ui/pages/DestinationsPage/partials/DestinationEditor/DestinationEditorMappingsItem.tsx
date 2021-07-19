@@ -2,9 +2,9 @@
 import { Col, Form, Input, Row, Select } from 'antd';
 import cn from 'classnames';
 // @Constants
-import { MAPPING_NAMES } from '@./constants/mapping';
+import { MAPPING_NAMES } from 'constants/mapping';
 // @Utils
-import { isValidJsonPointer } from '@util/validation/jsonPointer';
+import { isValidJsonPointer } from 'utils/validation/jsonPointer';
 // @Styles
 import styles from './DestinationEditor.module.less';
 // @Types

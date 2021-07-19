@@ -1,17 +1,22 @@
 import { generatePath, NavLink } from 'react-router-dom';
-import ApplicationServices from '@service/ApplicationServices';
+import ApplicationServices from 'lib/services/ApplicationServices';
 import { ReactNode, useState } from 'react';
-import { CenteredError, CenteredSpin, handleError, withProgressBar } from '@./lib/components/components';
+import {
+  CenteredError,
+  CenteredSpin,
+  handleError,
+  withProgressBar
+} from 'lib/components/components';
 import { Button, Table, Tag } from 'antd';
 import RedoOutlined from '@ant-design/icons/lib/icons/RedoOutlined';
 import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
 import moment, { Moment } from 'moment';
-import { colorMap, Task, TaskId, TaskStatus } from '@page/TaskLogs/utils';
-import { taskLogsViewerRoute } from '@page/TaskLogs/TaskLogViewer';
-import useLoader from '@hooks/useLoader';
-import { useServices } from '@hooks/useServices';
-import { useForceUpdate } from '@hooks/useForceUpdate';
-import { sourcesPageRoutes } from '@page/SourcesPage/SourcesPage.routes';
+import { colorMap, Task, TaskId, TaskStatus } from 'ui/pages/TaskLogs/utils';
+import { taskLogsViewerRoute } from 'ui/pages/TaskLogs/TaskLogViewer';
+import useLoader from 'hooks/useLoader';
+import { useServices } from 'hooks/useServices';
+import { useForceUpdate } from 'hooks/useForceUpdate';
+import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 
 export type TasksTableProps = {
   source: SourceData,
