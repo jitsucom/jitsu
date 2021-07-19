@@ -1,4 +1,4 @@
-declare type DestinationType = 'postgres' | 'bigquery' | 'redshift' | 'clickhouse' | 'snowflake' | 'facebook' | 'google_analytics' | 'webhook';
+declare type DestinationType = 'postgres' | 'bigquery' | 'redshift' | 'clickhouse' | 'snowflake' | 'facebook' | 'google_analytics' | 'webhook' | 'mySQL';
 
 declare interface DestinationData {
   readonly _type: DestinationType;

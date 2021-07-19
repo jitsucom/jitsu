@@ -1,4 +1,5 @@
 import postgresDestination from './postgres';
+import mySQLDestination from './mySQL';
 import bigQueryDestination from './bigquery';
 import redshiftDestination from './redshift';
 import clickHouseDestination from './clickhouse';
@@ -12,6 +13,7 @@ import hubspotDestination from './hubspot';
 
 export {
   postgresDestination,
+  mySQLDestination,
   bigQueryDestination,
   redshiftDestination,
   clickHouseDestination,
