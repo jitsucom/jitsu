@@ -32,7 +32,7 @@ EventNative accepts the following parameters.
     </tr>
     <tr>
         <td>cookie_name<br />(<span style={{whiteSpace: 'nowrap'}}>data-cookie-name</span>)</td>
-        <td>Name of tracking cookie (`__eventn_id` by default)</td>
+        <td>Name of tracking cookie (<code inline="true">__eventn_id</code> by default)</td>
     </tr>
     <tr>
         <td>segment_hook<br />(<span style={{whiteSpace: 'nowrap'}}>data-tracking-host</span>)</td>
@@ -47,8 +47,12 @@ EventNative accepts the following parameters.
         <td>If event JSON should have a structure compatible with an old version. Read more about compat mode in <a href="/docs/sending-data/js-sdk/migrating">Migration Guide</a></td>
     </tr>
     <tr>
-      <td>gdpr<br />(<span style={{whiteSpace: 'nowrap'}}>data-gdpr</span>)</td>
-      <td>If set to true, Jitsu won't set any cookies and will enrich event with daily anonymous ID based on hashed user IP, user agent and day on the backend side.</td>
+      <td>id_method<br />(<span style={{whiteSpace: 'nowrap'}}>data-id-method</span>)</td>
+      <td>If set to <code inline="true">cookie-less</code> value, Jitsu won't set identification cookie and will enrich event with anonymous ID based on hashed user IP and user agent on the backend side.</td>
+    </tr>
+    <tr>
+      <td>privacy_policy<br />(<span style={{whiteSpace: 'nowrap'}}>data-privacy-policy</span>)</td>
+      <td>If set to <code inline="true">ip-three-octets</code> value, Jitsu replaces last octet in client IP address with 1 on the backend side. (like <code inline="true">10.10.10.10 -> 10.10.10.1</code>)</td>
     </tr>
     </tbody>
 </table>
