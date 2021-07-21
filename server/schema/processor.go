@@ -208,7 +208,7 @@ func (p *Processor) foldLongFields(header *BatchHeader, object map[string]interf
 //cutName converts input name that exceeds maxLen to lower length string by cutting parts between '_' to 2 symbols.
 //if name len is still greater then returns maxLen symbols from the end of the name
 func cutName(name string, maxLen int) string {
-	if len(name) < maxLen {
+	if len(name) <= maxLen {
 		return name
 	}
 
