@@ -34,7 +34,7 @@ var (
 	//StorageConstructors is used in all destinations init() methods
 	StorageConstructors = make(map[string]func(*Config) (Storage, error))
 
-	maxColumnNameLengthPerType = map[string]int{
+	maxColumnNameLengthByDestinationType = map[string]int{
 		RedshiftType:  115,
 		BigQueryType:  300,
 		PostgresType:  59,
@@ -294,7 +294,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		typeResolver = schema.NewTypeResolver()
 	}
 
-	maxColumnNameLength, _ := maxColumnNameLengthPerType[destination.Type]
+	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
 
 	processor, err := schema.NewProcessor(destinationID, tableName, fieldMapper, enrichmentRules, flattener, typeResolver,
 		destination.BreakOnError, uniqueIDField, maxColumnNameLength)
