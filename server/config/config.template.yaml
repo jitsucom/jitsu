@@ -403,7 +403,7 @@ destinations:
 # my_amplitude:
 #   type: amplitude
 #   destinations: [ "destination_id5" ]
-#   collections: [ "active_users", "annotations", "average_sessions", "events", "new_users" ]
+#   collections: [ "active_users", "annotations", "average_sessions", "cohorts", "events", "new_users" ]
 #   config:
 #     api_key: "<AMPLITUDE_API_KEY>"
 #     secret_key: "<AMPLITUDE_SECRET_KEY>"

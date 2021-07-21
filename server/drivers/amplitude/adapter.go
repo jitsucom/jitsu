@@ -21,6 +21,7 @@ const amplitudeLayout = "20060102T15"
 const AmplitudeActiveUsers = "active_users"
 const AmplitudeAnnotations = "annotations"
 const AmplitudeAverageSessions = "average_sessions"
+const AmplitudeCohorts = "cohorts"
 const AmplitudeEvents = "events"
 const AmplitudeNewUsers = "new_users"
 
@@ -208,6 +209,34 @@ func (a *AmplitudeAdapter) GetAnnotations() ([]map[string]interface{}, error) {
 	return annotationsArray, nil
 }
 
+func (a *AmplitudeAdapter) GetCohorts() ([]map[string]interface{}, error) {
+	url := fmt.Sprintf("%v/api/3/cohorts", amplitudeURL)
+
+	request := &adapters.Request{
+		URL:     url,
+		Method:  "GET",
+		Headers: map[string]string{},
+	}
+
+	request.Headers["Authorization"] = a.authToken
+
+	status, response, err := a.doRequest(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("Request does not return OK status [%v]: %v", status, string(response))
+	}
+
+	cohortsArray, err := parseCohorts(response)
+	if err != nil {
+		return nil, err
+	}
+
+	return cohortsArray, nil
+}
+
 func (a *AmplitudeAdapter) doRequest(request *adapters.Request) (int, []byte, error) {
 	var httpRequest *http.Request
 	var err error
@@ -330,24 +359,79 @@ type annotationData struct {
 	Details string `mapstructure:"details" json:"details,omitempty" yaml:"details,omitempty"`
 }
 
-type annotationResponse struct {
+func (a *annotationData) exportToMap() map[string]interface{} {
+	result := map[string]interface{}{
+		"id":      a.ID,
+		"date":    a.Date,
+		"label":   a.Label,
+		"details": a.Details,
+	}
+	return result
+}
+
+type annotationsResponse struct {
 	Data []annotationData `mapstructure:"data" json:"data,omitempty" yaml:"data,omitempty"`
 }
 
 func parseAnnotations(income []byte) ([]map[string]interface{}, error) {
-	response := &annotationResponse{}
+	response := &annotationsResponse{}
 	if err := json.Unmarshal(income, &response); err != nil {
 		return nil, err
 	}
 
 	array := make([]map[string]interface{}, 0)
 	for i := 0; i < len(response.Data); i++ {
-		item := map[string]interface{}{
-			"id":      response.Data[i].ID,
-			"date":    response.Data[i].Date,
-			"label":   response.Data[i].Label,
-			"details": response.Data[i].Details,
-		}
+		item := response.Data[i].exportToMap()
+		array = append(array, item)
+	}
+
+	return array, nil
+}
+
+type cohortData struct {
+	AppId        string   `mapstructure:"appId" json:"appId,omitempty" yaml:"appId,omitempty"`
+	Archived     bool     `mapstructure:"archived" json:"archived,omitempty" yaml:"archived,omitempty"`
+	Description  string   `mapstructure:"description" json:"description,omitempty" yaml:"description,omitempty"`
+	ID           string   `mapstructure:"id" json:"id,omitempty" yaml:"id,omitempty"`
+	LastComputed string   `mapstructure:"lastComputed" json:"lastComputed,omitempty" yaml:"lastComputed,omitempty"`
+	LastMod      string   `mapstructure:"lastMod" json:"lastMod,omitempty" yaml:"lastMod,omitempty"`
+	Name         string   `mapstructure:"name" json:"name,omitempty" yaml:"name,omitempty"`
+	Owners       []string `mapstructure:"owners" json:"owners,omitempty" yaml:"owners,omitempty"`
+	Published    bool     `mapstructure:"published" json:"published,omitempty" yaml:"published,omitempty"`
+	Size         int      `mapstructure:"size" json:"size,omitempty" yaml:"size,omitempty"`
+	Type         string   `mapstructure:"type" json:"type,omitempty" yaml:"type,omitempty"`
+}
+
+func (c *cohortData) exportToMap() map[string]interface{} {
+	result := map[string]interface{}{
+		"appId":        c.AppId,
+		"archived":     c.Archived,
+		"description":  c.Description,
+		"id":           c.ID,
+		"lastComputed": c.LastComputed,
+		"lastMod":      c.LastMod,
+		"name":         c.Name,
+		"owners":       c.Owners,
+		"published":    c.Published,
+		"size":         c.Size,
+		"type":         c.Type,
+	}
+	return result
+}
+
+type cohortsResponse struct {
+	Cohorts []cohortData `mapstructure:"cohorts" json:"cohorts,omitempty" yaml:"cohorts,omitempty"`
+}
+
+func parseCohorts(income []byte) ([]map[string]interface{}, error) {
+	response := &cohortsResponse{}
+	if err := json.Unmarshal(income, &response); err != nil {
+		return nil, err
+	}
+
+	array := make([]map[string]interface{}, 0)
+	for i := 0; i < len(response.Cohorts); i++ {
+		item := response.Cohorts[i].exportToMap()
 		array = append(array, item)
 	}
 
