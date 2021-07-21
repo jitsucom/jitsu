@@ -15,61 +15,49 @@ import (
 var ErrSkipObject = errors.New("Table name template return empty string. This object will be skipped.")
 
 type Processor struct {
-	identifier           string
-	tableNameExtractor   *TableNameExtractor
-	lookupEnrichmentStep *enrichment.LookupEnrichmentStep
-	mappingStep          *MappingStep
-	breakOnError         bool
-	uniqueIDField        *identifiers.UniqueID
+	identifier              string
+	tableNameExtractor      *TableNameExtractor
+	lookupEnrichmentStep    *enrichment.LookupEnrichmentStep
+	mappingStep             *MappingStep
+	pulledEventsMappingStep *MappingStep
+	breakOnError            bool
+	uniqueIDField           *identifiers.UniqueID
 }
 
 func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
 	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID) (*Processor, error) {
 	mappingStep := NewMappingStep(fieldMapper, flattener, typeResolver)
+	pulledEventsMappingStep := NewMappingStep(&DummyMapper{}, flattener, typeResolver)
 	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Processor{
-		identifier:           destinationID,
-		tableNameExtractor:   tableNameExtractor,
-		lookupEnrichmentStep: enrichment.NewLookupEnrichmentStep(enrichmentRules),
-		mappingStep:          mappingStep,
-		breakOnError:         breakOnError,
-		uniqueIDField:        uniqueIDField,
+		identifier:              destinationID,
+		tableNameExtractor:      tableNameExtractor,
+		lookupEnrichmentStep:    enrichment.NewLookupEnrichmentStep(enrichmentRules),
+		mappingStep:             mappingStep,
+		pulledEventsMappingStep: pulledEventsMappingStep,
+		breakOnError:            breakOnError,
+		uniqueIDField:           uniqueIDField,
 	}, nil
 }
 
 //ProcessEvent returns table representation, processed flatten object
 func (p *Processor) ProcessEvent(event map[string]interface{}) (*BatchHeader, events.Event, error) {
-	return p.processObject(event, map[string]bool{}, true)
+	return p.processObject(event, map[string]bool{})
 }
 
 //ProcessEvents processes events objects
 //returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //All failed events are moved to separate collection for sending to fallback
 func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*ProcessedFile, *events.FailedEvents, error) {
-	return p.process(fileName, objects, alreadyUploadedTables, false, true)
-}
-
-//ProcessPulledEvents processes events objects
-//returns array of processed objects per table like {"table1": []objects, "table2": []objects},
-//or error if at least 1 was occurred
-func (p *Processor) ProcessPulledEvents(fileName string, objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
-	flatData, _, err := p.process(fileName, objects, map[string]bool{}, true, false)
-	return flatData, err
-}
-
-//ProcessEvents process events objects
-//returns array of processed objects per table like {"table1": []objects, "table2": []objects},
-//All failed events are moved to separate collection for sending to fallback
-func (p *Processor) process(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, breakOnErr, allowSkip bool) (map[string]*ProcessedFile, *events.FailedEvents, error) {
 	failedEvents := events.NewFailedEvents()
 	filePerTable := map[string]*ProcessedFile{}
 
 	for _, event := range objects {
-		batchHeader, processedObject, err := p.processObject(event, alreadyUploadedTables, allowSkip)
+		batchHeader, processedObject, err := p.processObject(event, alreadyUploadedTables)
 		if err != nil {
 			//handle skip object functionality
 			if err == ErrSkipObject {
@@ -78,7 +66,7 @@ func (p *Processor) process(fileName string, objects []map[string]interface{}, a
 				}
 
 				counters.SkipEvents(p.identifier, 1)
-			} else if p.breakOnError || breakOnErr {
+			} else if p.breakOnError {
 				return nil, nil, err
 			} else {
 				eventBytes, _ := json.Marshal(event)
@@ -115,18 +103,49 @@ func (p *Processor) process(fileName string, objects []map[string]interface{}, a
 	return filePerTable, failedEvents, nil
 }
 
+//ProcessPulledEvents processes events objects without applying mapping rules
+//returns array of processed objects under tablename
+//or error if at least 1 was occurred
+func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
+	var pf *ProcessedFile
+	for _, event := range objects {
+		batchHeader, processedObject, err := p.pulledEventsMappingStep.Execute(tableName, event)
+		if err != nil {
+			return nil, err
+		}
+
+		//don't process empty and skipped object
+		if batchHeader.Exists() {
+			if pf == nil {
+				pf = &ProcessedFile{
+					FileName:    tableName,
+					BatchHeader: batchHeader,
+					payload:     []map[string]interface{}{processedObject},
+					eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
+				}
+			} else {
+				pf.BatchHeader.Fields.Merge(batchHeader.Fields)
+				pf.payload = append(pf.payload, processedObject)
+				pf.eventsSrc[events.ExtractSrc(event)]++
+			}
+		}
+	}
+
+	return map[string]*ProcessedFile{tableName: pf}, nil
+}
+
 //processObject checks if table name in skipTables => return empty Table for skipping or
 //skips object if tableNameExtractor returns empty string, 'null' or 'false'
 //returns table representation of object and flatten, mapped object
 //1. extract table name
 //2. execute enrichment.LookupEnrichmentStep and MappingStep
 //or ErrSkipObject/another error
-func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool, allowSkip bool) (*BatchHeader, map[string]interface{}, error) {
+func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool) (*BatchHeader, map[string]interface{}, error) {
 	tableName, err := p.tableNameExtractor.Extract(object)
 	if err != nil {
 		return nil, nil, err
 	}
-	if allowSkip && (tableName == "" || tableName == "null" || tableName == "false") {
+	if tableName == "" || tableName == "null" || tableName == "false" {
 		return nil, nil, ErrSkipObject
 	}
 
