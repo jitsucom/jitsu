@@ -270,7 +270,7 @@ func TestProcessFact(t *testing.T) {
 			&BatchHeader{TableName: "events_2020_08", Fields: Fields{
 				"_timestamp":           NewField(typing.TIMESTAMP),
 				"fieldwithverybigname": NewField(typing.INT64),
-				"ro_fi_wi_ve_bi_name":  NewField(typing.INT64),
+				"ro_fi_wi_ve_big_name": NewField(typing.INT64),
 				"na_in_ob_wi_bi_na_fi": NewField(typing.INT64),
 				"wi_bi_na_fi_wi_bi_na": NewField(typing.INT64),
 			}},
@@ -278,7 +278,7 @@ func TestProcessFact(t *testing.T) {
 				"_timestamp":           testTime,
 				"fieldwithverybigname": 224,
 				"na_in_ob_wi_bi_na_fi": 2244,
-				"ro_fi_wi_ve_bi_name":  123,
+				"ro_fi_wi_ve_big_name": 123,
 				"wi_bi_na_fi_wi_bi_na": 1233,
 			},
 			"",
