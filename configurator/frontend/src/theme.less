@@ -156,6 +156,16 @@
   text-decoration: underline
 }
 
+// Antd Badge "processing" colors override
+
+.ant-badge-status-processing {
+  background-color: @link-color;
+}
+
+.ant-badge-status-processing::after {
+  border: 1px solid @link-color;
+}
+
 //Without this one, buttons looks weirdly aligned
 //.ant-btn-loading-icon {
 //  vertical-align: baseline !important;

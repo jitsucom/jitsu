@@ -1,16 +1,32 @@
 /* eslint-disable */
-import React from 'react';
-import { CodeInline, LoadableComponent, StatCard } from '../components';
-import ApplicationServices from '../../services/ApplicationServices';
-import { Button, Card, Col, Row } from 'antd';
-import './StatusPage.less';
-
-import moment, { Moment, unitOfTime } from 'moment';
-import { isNullOrUndef, withDefaultVal } from '../../commons/utils';
+// @Libs
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer
+} from 'recharts';
+import React, { useEffect } from 'react';
+import moment from 'moment';
+import Xarrow from 'react-xarrows';
+import LeaderLine from 'leader-line-new';
 import { NavLink } from 'react-router-dom';
+import { observer } from 'mobx-react-lite';
+import { Button, Card, Col, Row, Badge } from 'antd';
+// @Components
+import { EntityIcon } from 'lib/components/EntityIcon/EntityIcon';
+import { EntityCard } from 'lib/components/EntityCard/EntityCard';
+import { CodeInline, LoadableComponent, StatCard } from 'lib/components/components';
+// @Store
+import { sourcesStore } from 'stores/sources';
+import { destinationsStore } from 'stores/destinations';
+// @Icons
 import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
-import { BarChart, LineChart, Line, Bar, Legend, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined'
+import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
+// @Services
 import {
   addSeconds,
   DatePoint,
@@ -18,8 +34,12 @@ import {
   StatService,
   StatServiceImpl
 } from 'lib/services/stat';
-
-
+import ApplicationServices from 'lib/services/ApplicationServices';
+// @Utils
+import { withDefaultVal } from 'lib/commons/utils';
+// @Styles
+import styles from './Connections.module.less';
+import './StatusPage.less';
 
 type State = {
   designationsCount?: number;
@@ -33,9 +53,152 @@ interface Props {
   timeInUTC?: boolean;
 }
 
+const ConnectionsLinesComponent: React.FC = () => {
+  return (
+    <>
+      {sourcesStore.sources.reduce(
+        (connections, { sourceId, destinations }) => {
+          debugger;
+          return [
+            ...connections,
+            ...destinations.map((destinationUid) => (
+              <Xarrow start={sourceId} end={destinationUid} />
+            ))
+          ];
+        },
+        []
+      )}
+    </>
+  );
+};
 
+const ConnectionsLines = observer(ConnectionsLinesComponent);
 
-export default class StatusPage extends LoadableComponent<Props, State> {
+ConnectionsLines.displayName = 'ConnectionsLines';
+
+const connections = {};
+
+const StatusPageComponent: React.FC = () => {
+  const drawLines = () => {
+    sourcesStore.sources.map(({ sourceId, destinations }) => {
+      destinations.forEach((destinationUid) => {
+        connections[`${sourceId}-${destinationUid}`] = new LeaderLine(
+          document.getElementById(sourceId),
+          document.getElementById(destinationUid),
+          { endPlug: 'behind', size: 4 }
+        );
+      });
+    });
+  };
+
+  useEffect(() => {
+    drawLines();
+  }, []);
+
+  return (
+    <div className="flex justify-center w-full h-full">
+      <div className="flex items-stretch w-full h-full max-w-3xl">
+        <Column className="max-w-xs">
+          {sourcesStore.sources.map(({ sourceId, sourceType, connected }) => {
+            return (
+              <CardContainer id={sourceId}>
+                <EntityCard
+                  name={sourceId}
+                  message={<EntityMessage connectionTestOk={connected} />}
+                  icon={
+                    <EntityIconWrapper>
+                      <EntityIcon
+                        entityType="source"
+                        entitySubType={sourceType}
+                      />
+                    </EntityIconWrapper>
+                  }
+                />
+              </CardContainer>
+            );
+          })}
+        </Column>
+
+        <Column />
+
+        <Column className="max-w-xs">
+          {destinationsStore.destinations.map(
+            ({ _id, _uid, _type, _connectionTestOk }) => {
+              return (
+                <CardContainer id={_uid}>
+                  <EntityCard
+                    name={_id}
+                    message={
+                      <EntityMessage connectionTestOk={_connectionTestOk} />
+                    }
+                    icon={
+                      <EntityIconWrapper>
+                        <EntityIcon
+                          entityType="destination"
+                          entitySubType={_type}
+                        />
+                      </EntityIconWrapper>
+                    }
+                  />
+                </CardContainer>
+              );
+            }
+          )}
+        </Column>
+      </div>
+      {/* <ConnectionsLines /> */}
+    </div>
+  );
+};
+
+const StatusPage = observer(StatusPageComponent);
+StatusPage.displayName = 'StatusPage';
+
+export default StatusPage;
+
+const EntityMessage: React.FC<{ connectionTestOk: boolean }> = ({
+  connectionTestOk
+}) => {
+  return (
+    <div>
+      <Badge
+        size="default"
+        status={connectionTestOk ? 'processing' : 'error'}
+        text={
+          connectionTestOk ? (
+            <span className={styles.processing}>{'Connected'}</span>
+          ) : (
+            <span className={styles.error}>{'Connection test failed'}</span>
+          )
+        }
+      />
+    </div>
+  );
+};
+
+const EntityIconWrapper: React.FC = ({ children }) => {
+  return (
+    <div className="flex justify-center items-center h-14 w-14 m-3">
+      {children}
+    </div>
+  );
+};
+
+const Column: React.FC<{ className?: string }> = ({ className, children }) => {
+  return (
+    <div className={`flex flex-col flex-auto ${className}`}>{children}</div>
+  );
+};
+
+const CardContainer: React.FC<{ id: string }> = ({ id, children }) => {
+  return (
+    <div key={id} className={`my-2`} id={id}>
+      {children}
+    </div>
+  );
+};
+
+export class _StatusPage extends LoadableComponent<Props, State> {
   private readonly services: ApplicationServices;
   private stats: StatService;
   private timeInUTC: boolean;
@@ -44,7 +207,11 @@ export default class StatusPage extends LoadableComponent<Props, State> {
     super(props, context);
     this.timeInUTC = withDefaultVal(this.props.timeInUTC, true);
     this.services = ApplicationServices.get();
-    this.stats = new StatServiceImpl(this.services.backendApiClient, this.services.activeProject, this.timeInUTC);
+    this.stats = new StatServiceImpl(
+      this.services.backendApiClient,
+      this.services.activeProject,
+      this.timeInUTC
+    );
     this.state = {};
   }
 
@@ -71,10 +238,19 @@ export default class StatusPage extends LoadableComponent<Props, State> {
         <div className="status-page-cards-row">
           <Row gutter={16}>
             <Col span={8}>
-              <StatCard value={this.state.designationsCount} title="Total destinations" bordered={false} />
+              <StatCard
+                value={this.state.designationsCount}
+                title="Total destinations"
+                bordered={false}
+              />
             </Col>
             <Col span={8}>
-              <StatCard value={this.state.dailyComparison.current} valuePrev={this.state.dailyComparison.previous} title={'Today'} bordered={false} />
+              <StatCard
+                value={this.state.dailyComparison.current}
+                valuePrev={this.state.dailyComparison.previous}
+                title={'Today'}
+                bordered={false}
+              />
             </Col>
             <Col span={8}>
               <StatCard
@@ -110,7 +286,13 @@ export default class StatusPage extends LoadableComponent<Props, State> {
     if (granularity === 'day') {
       return base;
     } else {
-      return base + ' ' + this.padZero(date.getHours()) + ':' + this.padZero(date.getMinutes());
+      return (
+        base +
+        ' ' +
+        this.padZero(date.getHours()) +
+        ':' +
+        this.padZero(date.getMinutes())
+      );
     }
   }
 
@@ -137,22 +319,49 @@ export default class StatusPage extends LoadableComponent<Props, State> {
   }
 
   async getNumberOfDestinations() {
-    let destinations = await this.services.storageService.get('destinations', this.services.activeProject.id);
-    return destinations && destinations.destinations ? destinations.destinations.length : 0;
+    let destinations = await this.services.storageService.get(
+      'destinations',
+      this.services.activeProject.id
+    );
+    return destinations && destinations.destinations
+      ? destinations.destinations.length
+      : 0;
   }
 
   protected renderError(e: Error): React.ReactNode {
-
-    return <div className="w-2/4 mx-auto mt-3"><Card title={<><span className="text-warning"><WarningOutlined /></span> Dashboard cannot be displayed</>} bordered={false}>
-      <div>Connection to Jitsu server cannot be established. That's not a critical error, you still will be able to configure
-        Jitsu. However, statistic and monitoring for Jitsu Nodes won't be available. To fix that:
-        <ul className="mt-5">
-          <li>Make sure that <CodeInline>jitsu.base_url</CodeInline> property is set in Jitsu Configurator yaml file</li>
-          <li>If <CodeInline>jitsu.base_url</CodeInline> is set, make sure that this URL is accessible (not blocked by firewall) from Jitsu Configurator</li>
-        </ul>
+    return (
+      <div className="w-2/4 mx-auto mt-3">
+        <Card
+          title={
+            <>
+              <span className="text-warning">
+                <WarningOutlined />
+              </span>{' '}
+              Dashboard cannot be displayed
+            </>
+          }
+          bordered={false}
+        >
+          <div>
+            Connection to Jitsu server cannot be established. That's not a
+            critical error, you still will be able to configure Jitsu. However,
+            statistic and monitoring for Jitsu Nodes won't be available. To fix
+            that:
+            <ul className="mt-5">
+              <li>
+                Make sure that <CodeInline>jitsu.base_url</CodeInline> property
+                is set in Jitsu Configurator yaml file
+              </li>
+              <li>
+                If <CodeInline>jitsu.base_url</CodeInline> is set, make sure
+                that this URL is accessible (not blocked by firewall) from Jitsu
+                Configurator
+              </li>
+            </ul>
+          </div>
+        </Card>
       </div>
-    </Card></div>
-
+    );
   }
 
   formatDate(d: Date) {

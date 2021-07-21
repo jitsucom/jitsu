@@ -10,7 +10,7 @@ import {
 // @Icons
 import { ExclamationCircleFilled } from '@ant-design/icons';
 // @Components
-import { NotificationCard } from './partials/NotificationCard/NotificationCard';
+import { NotificationCard } from '../NotificationCard/NotificationCard';
 // @Styles
 import styles from './Notifications.module.less';
 
@@ -18,13 +18,11 @@ const makeIcon = (
   notificationType: NotificationData['type'],
   notificationIcon?: React.ReactNode
 ): React.ReactNode => {
-  const typeIcon = makeIconByNotificationType(notificationType);
-  return notificationIcon
-    ? makeIconWithBadge(notificationIcon, typeIcon)
-    : typeIcon;
+  const badge = makeBadgeByNotificationType(notificationType);
+  return notificationIcon ? makeIconWithBadge(notificationIcon, badge) : badge;
 };
 
-const makeIconByNotificationType = (
+const makeBadgeByNotificationType = (
   type: NotificationData['type']
 ): React.ReactNode => {
   switch (type) {

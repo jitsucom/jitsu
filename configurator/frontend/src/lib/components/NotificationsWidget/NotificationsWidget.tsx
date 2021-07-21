@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { Badge, Drawer, Button } from 'antd';
 import { observer } from 'mobx-react-lite';
 // @Components
-import { Notifications } from './Notifications';
+import { Notifications } from '../Notifications/Notifications';
 // @Store
 import { inAppNotificationsStore } from 'stores/inAppNotifications';
 // @Icons
