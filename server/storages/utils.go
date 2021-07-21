@@ -42,38 +42,9 @@ func isConnectionError(err error) bool {
 func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	adapter, tableHelper := storage.getAdapters()
 
-	processor := storage.Processor()
-	if processor == nil {
-		return fmt.Errorf("Storage '%v' of '%v' type was badly configured", storage.ID(), storage.Type())
-	}
-
-	var failedEvents *events.FailedEvents
-	var flatDataPerTable map[string]*schema.ProcessedFile
-	var err error
-	//API Connectors sync
-	if overriddenDataSchema != nil {
-		flatDataPerTable, err = processor.ProcessPulledEvents(overriddenDataSchema.TableName, objects)
-		if err != nil {
-			return err
-		}
-
-		if len(overriddenDataSchema.Fields) > 0 {
-			// enrich overridden schema types
-			flatDataPerTable[overriddenDataSchema.TableName].BatchHeader.Fields.OverrideTypes(overriddenDataSchema.Fields)
-		}
-	} else {
-		//Update call with single object
-		flatDataPerTable, failedEvents, err = processor.ProcessEvents(timeIntervalValue, objects, map[string]bool{})
-		if err != nil {
-			return err
-		}
-
-		if !failedEvents.IsEmpty() {
-			for _, e := range failedEvents.Events {
-				err = multierror.Append(err, errors.New(e.Error))
-			}
-			return err
-		}
+	flatDataPerTable, err := processData(storage, overriddenDataSchema, objects, timeIntervalValue)
+	if err != nil {
+		return err
 	}
 
 	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
@@ -94,4 +65,41 @@ func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, ob
 	}
 
 	return nil
+}
+
+func processData(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (map[string]*schema.ProcessedFile, error) {
+	processor := storage.Processor()
+	if processor == nil {
+		return nil, fmt.Errorf("Storage '%v' of '%v' type was badly configured", storage.ID(), storage.Type())
+	}
+
+	//API Connectors sync
+	if overriddenDataSchema != nil {
+		flatDataPerTable, err := processor.ProcessPulledEvents(overriddenDataSchema.TableName, objects)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(overriddenDataSchema.Fields) > 0 {
+			// enrich overridden schema types
+			flatDataPerTable[overriddenDataSchema.TableName].BatchHeader.Fields.OverrideTypes(overriddenDataSchema.Fields)
+		}
+
+		return flatDataPerTable, nil
+	}
+
+	//Update call with single object
+	flatDataPerTable, failedEvents, err := processor.ProcessEvents(timeIntervalValue, objects, map[string]bool{})
+	if err != nil {
+		return nil, err
+	}
+
+	if !failedEvents.IsEmpty() {
+		for _, e := range failedEvents.Events {
+			err = multierror.Append(err, errors.New(e.Error))
+		}
+		return nil, err
+	}
+
+	return flatDataPerTable, nil
 }
