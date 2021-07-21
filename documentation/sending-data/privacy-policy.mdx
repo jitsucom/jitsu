@@ -1,0 +1,49 @@
+# Privacy Policy
+
+Privacy is very important. At Jitsu we value people's privacy, so we've added supporting of analytics collection without gathering any personal data
+or personally identifiable information (PII), without using cookies and respecting your customers privacy.
+Jitsu is flexible and can comply with the cookie law and the privacy regulations such
+EU General Data Protection Regulation ([GDPR](https://gdpr.eu/)), California Consumer Privacy Act ([CCPA](https://oag.ca.gov/privacy/ccpa)),
+The Privacy and Electronic Communications Regulations ([PECR](https://ico.org.uk/for-organisations/guide-to-pecr/)).
+
+## Cookie Banner
+
+Since Jitsu is capable of collecting analytics events without setting cookies, just based on visitors IP addresses and User Agents
+you can get rid of annoying cookie banner. Simultaneously, if you've already had "Strictly necessary cookies" on your website or web application,
+and a cookie banner must be shown to every customer then you are able to configure switching on/off cookie's usage in Jitsu JS SDK initialization based on visitors decision.
+
+написать про то какие куки используются и как (прям для copy paste в banner)
+## Cookies usage
+
+
+
+
+##Analytics without 3-rd party cookies
+//TODO mb del
+When you self-host, your data is all yours. This means your users’ data is not sent to any third-party, not even PostHog. The privacy of your users is preserved, and it is easier to comply with legislation such as GDPR and cookie laws.
+PostHog gives you full control over all the data from your users, while allowing you to do powerful analytics.
+
+## Tracking based on IP and User-Agent
+
+
+## Configuration
+
+To initialize **Jitsu**, please use:
+
+```javascript
+const { jitsuClient } = require('@jitsu/sdk-js');
+const jitsu = jitsuClient({
+    key: "[API_KEY]",
+    id_method: 'cookie-less',
+    anonymize_ip: true
+});
+```
+
+```html
+<script src="%%SERVER%%/s/lib.js"
+        data-key="JITSU_API_KEY"
+        data-id-method="cookie-less"
+        data-anonymize-ip="true"
+        defer></script>
+<script>
+```

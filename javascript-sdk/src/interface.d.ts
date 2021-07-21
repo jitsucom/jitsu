@@ -76,12 +76,6 @@ export type JitsuFunction = (action: 'track' | 'id' | 'set', eventType: string, 
 export type IdMethod = 'cookie' | 'ls' | 'cookie-less'
 
 /**
- * Privacy policy configuration:
- *  - ip-three-octets (customer IP will be stored with '1' instead of the last octet like '10.10.10.10' -> '10.10.10.1')
- */
-export type PrivacyPolicy = 'ip-three-octets'
-
-/**
  * Configuration options of EventNative
  */
 export type JitsuOptions = {
@@ -146,7 +140,7 @@ export type JitsuOptions = {
   randomize_url?: boolean
 
   /**
-   * If eventNative should capture third-party cookies: either array
+   * If Jitsu should capture third-party cookies: either array
    * of cookies name or false if the features should be disabled
    *
    * @default GA/Segment/Fb cookies: ['_ga': '_fbp', '_ym_uid', 'ajs_user_id', 'ajs_anonymous_id']
@@ -159,9 +153,10 @@ export type JitsuOptions = {
   id_method?: IdMethod
 
   /**
-   * Privacy policy configuration. See comment on PrivacyPolicy.
+   * If set to true, Jitsu replaces last octet in client IP address with 1 on the backend side
+   * e.g. 10.10.10.10 -> 10.10.10.1
    */
-  privacy_policy?: PrivacyPolicy
+  anonymize_ip?: boolean
 
   /**
    * Log level. 'WARN' if not set

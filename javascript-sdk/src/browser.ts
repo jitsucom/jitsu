@@ -7,7 +7,7 @@ const jsFileName = "lib.js"
 const jitsuProps = [
   'use_beacon_api', 'cookie_domain', 'tracking_host', 'cookie_name',
   'key', 'ga_hook', 'segment_hook', 'randomize_url', 'capture_3rd_party_cookies',
-  'id_method', 'log_level', 'compat_mode', 'id_method', 'privacy_policy'
+  'id_method', 'log_level', 'compat_mode', 'id_method', 'anonymize_ip'
 ];
 
 

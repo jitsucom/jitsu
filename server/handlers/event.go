@@ -193,11 +193,6 @@ func extractIP(c *gin.Context) string {
 
 func getRequestContext(c *gin.Context) *events.RequestContext {
 	clientIP := extractIP(c)
-	if c.Query(middleware.PrivacyPolicyQueryParameter) == middleware.IPThreeOctetsPolicy {
-		ipParts := strings.Split(clientIP, ".")
-		ipParts[len(ipParts)-1] = "1"
-		clientIP = strings.Join(ipParts, ".")
-	}
 
 	var jitsuAnonymousID string
 	cookieLess := c.Query(middleware.CookieLessQueryParameter) == "true"
@@ -210,6 +205,13 @@ func getRequestContext(c *gin.Context) *events.RequestContext {
 		if ok {
 			jitsuAnonymousID = fmt.Sprint(anonymID)
 		}
+	}
+
+	//mask last octet after generating anonymous ID
+	if c.Query(middleware.AnonymizeIPQueryParameter) == "true" {
+		ipParts := strings.Split(clientIP, ".")
+		ipParts[len(ipParts)-1] = "1"
+		clientIP = strings.Join(ipParts, ".")
 	}
 
 	return &events.RequestContext{

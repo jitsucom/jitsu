@@ -51,8 +51,8 @@ EventNative accepts the following parameters.
       <td>If set to <code inline="true">cookie-less</code> value, Jitsu won't set identification cookie and will enrich event with anonymous ID based on hashed user IP and user agent on the backend side.</td>
     </tr>
     <tr>
-      <td>privacy_policy<br />(<span style={{whiteSpace: 'nowrap'}}>data-privacy-policy</span>)</td>
-      <td>If set to <code inline="true">ip-three-octets</code> value, Jitsu replaces last octet in client IP address with 1 on the backend side. (like <code inline="true">10.10.10.10 -> 10.10.10.1</code>)</td>
+      <td>anonymize_ip<br />(<span style={{whiteSpace: 'nowrap'}}>data-anonymize-ip</span>)</td>
+      <td>If set to <code inline="true">true</code> value, Jitsu replaces last octet in client IP address with 1 on the backend side. (like <code inline="true">10.10.10.10 -> 10.10.10.1</code>)</td>
     </tr>
     </tbody>
 </table>

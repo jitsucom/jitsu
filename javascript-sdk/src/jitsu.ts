@@ -192,10 +192,10 @@ class JitsuClientImpl implements JitsuClient {
 
   sendJson(json: any): Promise<void> {
     let cookieLess = this.initialOptions?.id_method === 'cookie-less' ? '&cookie_less=true' : ''
-    let privacyPolicy = this.initialOptions?.privacy_policy ? `&privacy_policy=${this.initialOptions.privacy_policy}` : ''
-    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${cookieLess}${privacyPolicy}`;
+    let anonymizeIp = this.initialOptions?.anonymize_ip ? `&anonymize_ip=true` : ''
+    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${cookieLess}${anonymizeIp}`;
     if (this.randomizeUrl) {
-      url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${cookieLess}${privacyPolicy}`;
+      url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${cookieLess}${anonymizeIp}`;
     }
 
     let jsonString = JSON.stringify(json);

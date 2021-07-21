@@ -5,7 +5,7 @@
   "event_type": "pageview",
   "eventn_ctx_event_id":"mockeduuid",
   "user": {
-    "anonymous_id": "ef13c1c79a004c50207010fe30e799a8"
+    "anonymous_id": "c48e863c1710f147ad11fd2715f99d7a"
   },
   "ids": {},
   "user_agent": "Go-http-client/1.1",
