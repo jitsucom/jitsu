@@ -171,6 +171,10 @@ func (bq *BigQuery) Update(object map[string]interface{}) error {
 
 // SyncStore is used in storing chunk of pulled data to BigQuery with processing
 func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
+	if len(objects) == 0 {
+		return nil
+	}
+
 	_, tableHelper := bq.getAdapters()
 
 	flatDataPerTable, err := processData(bq, overriddenDataSchema, objects, timeIntervalValue)
