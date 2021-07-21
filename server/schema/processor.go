@@ -10,6 +10,7 @@ import (
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/maputils"
+	"strings"
 )
 
 var ErrSkipObject = errors.New("Table name template return empty string. This object will be skipped.")
@@ -22,10 +23,11 @@ type Processor struct {
 	pulledEventsMappingStep *MappingStep
 	breakOnError            bool
 	uniqueIDField           *identifiers.UniqueID
+	maxColumnNameLen        int
 }
 
 func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper events.Mapper, enrichmentRules []enrichment.Rule,
-	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID) (*Processor, error) {
+	flattener Flattener, typeResolver TypeResolver, breakOnError bool, uniqueIDField *identifiers.UniqueID, maxColumnNameLen int) (*Processor, error) {
 	mappingStep := NewMappingStep(fieldMapper, flattener, typeResolver)
 	pulledEventsMappingStep := NewMappingStep(&DummyMapper{}, flattener, typeResolver)
 	tableNameExtractor, err := NewTableNameExtractor(tableNameFuncExpression)
@@ -41,6 +43,7 @@ func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper eve
 		pulledEventsMappingStep: pulledEventsMappingStep,
 		breakOnError:            breakOnError,
 		uniqueIDField:           uniqueIDField,
+		maxColumnNameLen:        maxColumnNameLen,
 	}, nil
 }
 
@@ -115,19 +118,23 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 		}
 
 		//don't process empty and skipped object
-		if batchHeader.Exists() {
-			if pf == nil {
-				pf = &ProcessedFile{
-					FileName:    tableName,
-					BatchHeader: batchHeader,
-					payload:     []map[string]interface{}{processedObject},
-					eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
-				}
-			} else {
-				pf.BatchHeader.Fields.Merge(batchHeader.Fields)
-				pf.payload = append(pf.payload, processedObject)
-				pf.eventsSrc[events.ExtractSrc(event)]++
+		if !batchHeader.Exists() {
+			continue
+		}
+
+		foldedBatchHeader, foldedObject, _ := p.foldLongFields(batchHeader, processedObject)
+
+		if pf == nil {
+			pf = &ProcessedFile{
+				FileName:    tableName,
+				BatchHeader: foldedBatchHeader,
+				payload:     []map[string]interface{}{foldedObject},
+				eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
 			}
+		} else {
+			pf.BatchHeader.Fields.Merge(foldedBatchHeader.Fields)
+			pf.payload = append(pf.payload, foldedObject)
+			pf.eventsSrc[events.ExtractSrc(event)]++
 		}
 	}
 
@@ -141,7 +148,9 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 //2. execute enrichment.LookupEnrichmentStep and MappingStep
 //or ErrSkipObject/another error
 func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool) (*BatchHeader, map[string]interface{}, error) {
-	tableName, err := p.tableNameExtractor.Extract(object)
+	objectCopy := maputils.CopyMap(object)
+
+	tableName, err := p.tableNameExtractor.Extract(objectCopy)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -155,9 +164,80 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 		return &BatchHeader{}, nil, nil
 	}
 
-	objectCopy := maputils.CopyMap(object)
-
 	p.lookupEnrichmentStep.Execute(objectCopy)
 
-	return p.mappingStep.Execute(tableName, objectCopy)
+	bh, mappedObject, err := p.mappingStep.Execute(tableName, objectCopy)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return p.foldLongFields(bh, mappedObject)
+}
+
+//foldLongFields replace all column names with truncated values if they exceed the limit
+//uses cutName under the hood
+func (p *Processor) foldLongFields(header *BatchHeader, object map[string]interface{}) (*BatchHeader, map[string]interface{}, error) {
+	if p.maxColumnNameLen <= 0 {
+		return header, object, nil
+	}
+
+	changes := map[string]string{}
+	for name := range header.Fields {
+		if len(name) > p.maxColumnNameLen {
+			newName := cutName(name, p.maxColumnNameLen)
+			if name != newName {
+				changes[name] = newName
+			}
+		}
+	}
+
+	for oldName, newName := range changes {
+		field, _ := header.Fields[oldName]
+		delete(header.Fields, oldName)
+		header.Fields[newName] = field
+
+		if value, ok := object[oldName]; ok {
+			delete(object, oldName)
+			object[newName] = value
+		}
+	}
+
+	return header, object, nil
+}
+
+//cutName converts input name that exceeds maxLen to lower length string by cutting parts between '_' to 2 symbols.
+//if name len is still greater then returns maxLen symbols from the end of the name
+func cutName(name string, maxLen int) string {
+	if len(name) < maxLen {
+		return name
+	}
+
+	//just cut from the beginning
+	if !strings.Contains(name, "_") {
+		return name[len(name)-maxLen:]
+	}
+
+	var replaced bool
+	replace := ""
+	for _, part := range strings.Split(name, "_") {
+		if replace != "" {
+			replace += "_"
+		}
+
+		if len(part) > 2 {
+			newPart := part[:2]
+			name = strings.ReplaceAll(name, replace+part, replace+newPart)
+			replaced = true
+			break
+		} else {
+			replace += part
+		}
+	}
+
+	if !replaced {
+		//case when ab_ac_ad and maxLen = 6
+		return name[len(name)-maxLen:]
+	}
+
+	return cutName(name, maxLen)
 }
