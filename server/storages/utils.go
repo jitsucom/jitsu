@@ -40,6 +40,10 @@ func isConnectionError(err error) bool {
 
 // syncStoreImpl implements common behaviour used to storing chunk of pulled data to any storages with processing
 func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
+	if len(objects) == 0 {
+		return nil
+	}
+
 	adapter, tableHelper := storage.getAdapters()
 
 	flatDataPerTable, err := processData(storage, overriddenDataSchema, objects, timeIntervalValue)
