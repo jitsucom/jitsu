@@ -34,6 +34,7 @@ func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	}
 
 	known := collection.Name == AmplitudeActiveUsers ||
+		collection.Name == AmplitudeAnnotations ||
 		collection.Name == AmplitudeAverageSessions ||
 		collection.Name == AmplitudeEvents ||
 		collection.Name == AmplitudeNewUsers
@@ -81,6 +82,7 @@ func TestAmplitude(sourceConfig *base.SourceConfig) error {
 
 	collectionNames := []string{
 		AmplitudeActiveUsers,
+		AmplitudeAnnotations,
 		AmplitudeAverageSessions,
 		AmplitudeEvents,
 		AmplitudeNewUsers,
@@ -120,6 +122,11 @@ func (a *Amplitude) Close() error {
 func (a *Amplitude) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	var intervals []*base.TimeInterval
 
+	if a.collection.Name == AmplitudeAnnotations {
+		intervals = append(intervals, base.NewTimeInterval(base.ALL, time.Time{}))
+		return intervals, nil
+	}
+
 	daysBackToLoad := base.DefaultDaysBackToLoad
 	if a.collection.DaysBackToLoad > 0 {
 		daysBackToLoad = a.collection.DaysBackToLoad
@@ -149,6 +156,8 @@ func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval) ([]map[string]int
 	switch a.collection.Name {
 	case AmplitudeActiveUsers:
 		array, err = a.adapter.GetUsers(interval, AmplitudeActiveUsers)
+	case AmplitudeAnnotations:
+		array, err = a.adapter.GetAnnotations()
 	case AmplitudeAverageSessions:
 		array, err = a.adapter.GetSessions(interval)
 	case AmplitudeEvents:
