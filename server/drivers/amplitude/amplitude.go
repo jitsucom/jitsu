@@ -36,6 +36,7 @@ func NewAmplitude(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	known := collection.Name == AmplitudeActiveUsers ||
 		collection.Name == AmplitudeAnnotations ||
 		collection.Name == AmplitudeAverageSessions ||
+		collection.Name == AmplitudeCohorts ||
 		collection.Name == AmplitudeEvents ||
 		collection.Name == AmplitudeNewUsers
 
@@ -84,6 +85,7 @@ func TestAmplitude(sourceConfig *base.SourceConfig) error {
 		AmplitudeActiveUsers,
 		AmplitudeAnnotations,
 		AmplitudeAverageSessions,
+		AmplitudeCohorts,
 		AmplitudeEvents,
 		AmplitudeNewUsers,
 	}
@@ -122,7 +124,7 @@ func (a *Amplitude) Close() error {
 func (a *Amplitude) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	var intervals []*base.TimeInterval
 
-	if a.collection.Name == AmplitudeAnnotations {
+	if a.collection.Name == AmplitudeAnnotations || a.collection.Name == AmplitudeCohorts {
 		intervals = append(intervals, base.NewTimeInterval(base.ALL, time.Time{}))
 		return intervals, nil
 	}
@@ -160,6 +162,8 @@ func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval) ([]map[string]int
 		array, err = a.adapter.GetAnnotations()
 	case AmplitudeAverageSessions:
 		array, err = a.adapter.GetSessions(interval)
+	case AmplitudeCohorts:
+		array, err = a.adapter.GetCohorts()
 	case AmplitudeEvents:
 		array, err = a.adapter.GetEvents(interval)
 	case AmplitudeNewUsers:
