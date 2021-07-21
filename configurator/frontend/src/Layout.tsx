@@ -10,7 +10,7 @@ import {
   withHome,
   Breadcrumbs
 } from 'ui/components/Breadcrumbs/Breadcrumbs';
-import { NotificationsWidget } from 'lib/components/Notifications/NotificationsWidget';
+import { NotificationsWidget } from 'lib/components/NotificationsWidget/NotificationsWidget';
 import { CurrentPlan } from 'ui/components/CurrentPlan/CurrentPlan';
 import { handleError } from 'lib/components/components';
 // @Icons
