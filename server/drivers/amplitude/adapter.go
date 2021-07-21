@@ -19,6 +19,7 @@ const amplitudeURL = "https://amplitude.com"
 const amplitudeLayout = "20060102T15"
 
 const AmplitudeActiveUsers = "active_users"
+const AmplitudeAnnotations = "annotations"
 const AmplitudeAverageSessions = "average_sessions"
 const AmplitudeEvents = "events"
 const AmplitudeNewUsers = "new_users"
@@ -179,6 +180,34 @@ func (a *AmplitudeAdapter) GetSessions(interval *base.TimeInterval) ([]map[strin
 	return sessionsArray, nil
 }
 
+func (a *AmplitudeAdapter) GetAnnotations() ([]map[string]interface{}, error) {
+	url := fmt.Sprintf("%v/api/2/annotations", amplitudeURL)
+
+	request := &adapters.Request{
+		URL:     url,
+		Method:  "GET",
+		Headers: map[string]string{},
+	}
+
+	request.Headers["Authorization"] = a.authToken
+
+	status, response, err := a.doRequest(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if status != http.StatusOK {
+		return nil, fmt.Errorf("Request does not return OK status [%v]: %v", status, string(response))
+	}
+
+	annotationsArray, err := parseAnnotations(response)
+	if err != nil {
+		return nil, err
+	}
+
+	return annotationsArray, nil
+}
+
 func (a *AmplitudeAdapter) doRequest(request *adapters.Request) (int, []byte, error) {
 	var httpRequest *http.Request
 	var err error
@@ -292,4 +321,35 @@ func simplifyArrayValue(array []float64) interface{} {
 		return value
 	}
 	return array
+}
+
+type annotationData struct {
+	ID      int    `mapstructure:"id" json:"id,omitempty" yaml:"id,omitempty"`
+	Date    string `mapstructure:"date" json:"date,omitempty" yaml:"date,omitempty"`
+	Label   string `mapstructure:"label" json:"label,omitempty" yaml:"label,omitempty"`
+	Details string `mapstructure:"details" json:"details,omitempty" yaml:"details,omitempty"`
+}
+
+type annotationResponse struct {
+	Data []annotationData `mapstructure:"data" json:"data,omitempty" yaml:"data,omitempty"`
+}
+
+func parseAnnotations(income []byte) ([]map[string]interface{}, error) {
+	response := &annotationResponse{}
+	if err := json.Unmarshal(income, &response); err != nil {
+		return nil, err
+	}
+
+	array := make([]map[string]interface{}, 0)
+	for i := 0; i < len(response.Data); i++ {
+		item := map[string]interface{}{
+			"id":      response.Data[i].ID,
+			"date":    response.Data[i].Date,
+			"label":   response.Data[i].Label,
+			"details": response.Data[i].Details,
+		}
+		array = append(array, item)
+	}
+
+	return array, nil
 }
