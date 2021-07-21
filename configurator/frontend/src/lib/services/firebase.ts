@@ -75,12 +75,12 @@ export class FirebaseUserService implements UserService {
     let fbUserPromise = new Promise<firebase.User>((resolve, reject) => {
       let unregister = firebase.auth().onAuthStateChanged(
         /**
-         * 
-         * 
-         * mock onAuthStateChanged implementation so 
+         *
+         *
+         * mock onAuthStateChanged implementation so
          * that it always returns a valid user
-         * 
-         * 
+         *
+         *
          */
         (user: firebase.User) => {
           if (user) {
@@ -272,7 +272,7 @@ export class FirebaseUserService implements UserService {
   }
 
   async becomeUser(email: string): Promise<void> {
-    let token = (await this.backendApi.get(`/become?user_id=${email}`))[
+    let token = (await this.backendApi.get(`/become`, {urlParams: {user_id: email}}))[
       'token'
     ];
     await firebase.auth().signInWithCustomToken(token);

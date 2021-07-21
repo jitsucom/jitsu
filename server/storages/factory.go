@@ -33,6 +33,13 @@ var (
 	ErrUnknownDestination = errors.New("Unknown destination type")
 	//StorageConstructors is used in all destinations init() methods
 	StorageConstructors = make(map[string]func(*Config) (Storage, error))
+
+	maxColumnNameLengthByDestinationType = map[string]int{
+		RedshiftType:  115,
+		BigQueryType:  300,
+		PostgresType:  59,
+		SnowflakeType: 251,
+	}
 )
 
 //DestinationConfig is a destination configuration for serialization
@@ -287,7 +294,10 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		typeResolver = schema.NewTypeResolver()
 	}
 
-	processor, err := schema.NewProcessor(destinationID, tableName, fieldMapper, enrichmentRules, flattener, typeResolver, destination.BreakOnError, uniqueIDField)
+	maxColumnNameLength, _ := maxColumnNameLengthByDestinationType[destination.Type]
+
+	processor, err := schema.NewProcessor(destinationID, tableName, fieldMapper, enrichmentRules, flattener, typeResolver,
+		destination.BreakOnError, uniqueIDField, maxColumnNameLength)
 	if err != nil {
 		return nil, nil, err
 	}
