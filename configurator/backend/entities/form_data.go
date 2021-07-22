@@ -8,11 +8,11 @@ type MySQLFormData struct {
 	TableName string   `firestore:"tableName" json:"tableName"`
 	PKFields  []string `firestore:"pkFields" json:"pkFields"`
 
-	Db       string      `firestore:"mySQLDatabase" json:"mySQLDatabase"`
-	Host     string      `firestore:"mySQLHost" json:"mySQLHost"`
-	Password string      `firestore:"mySQLPassword" json:"mySQLPassword"`
-	Port     json.Number `firestore:"mySQLPort" json:"mySQLPort"`
-	Username string      `firestore:"mySQLUser" json:"mySQLUser"`
+	Db       string      `firestore:"mysqlDatabase" json:"mysqlDatabase"`
+	Host     string      `firestore:"mysqlHost" json:"mysqlHost"`
+	Password string      `firestore:"mysqlPassword" json:"mysqlPassword"`
+	Port     json.Number `firestore:"mysqlPort" json:"mysqlPort"`
+	Username string      `firestore:"mysqlUser" json:"mysqlUser"`
 }
 
 //PostgresFormData entity is stored in main storage (Firebase/Redis)

@@ -6,7 +6,7 @@ import {
   hubspotDestination,
   googleAnalyticsDestination,
   postgresDestination,
-  mySQLDestination,
+  mysqlDestination,
   redshiftDestination,
   snowflakeDestination,
   webhookDestination
@@ -14,7 +14,7 @@ import {
 
 export const destinationsReferenceMap = {
   postgres: postgresDestination,
-  mySQL: mySQLDestination,
+  mysql: mysqlDestination,
   bigquery: bigQueryDestination,
   redshift: redshiftDestination,
   clickhouse: clickHouseDestination,
