@@ -8,42 +8,30 @@ The Privacy and Electronic Communications Regulations ([PECR](https://ico.org.uk
 
 ## Cookie Banner
 
-Since Jitsu is capable of collecting analytics events without setting cookies, just based on visitors IP addresses and User Agents
-you can get rid of annoying cookie banner. Simultaneously, if you've already had "Strictly necessary cookies" on your website or web application,
-and a cookie banner must be shown to every customer then you are able to configure switching on/off cookie's usage in Jitsu JS SDK initialization based on visitors decision.
-
-написать про то какие куки используются и как (прям для copy paste в banner)
-## Cookies usage
-
-
-
-
-##Analytics without 3-rd party cookies
-//TODO mb del
-When you self-host, your data is all yours. This means your users’ data is not sent to any third-party, not even PostHog. The privacy of your users is preserved, and it is easier to comply with legislation such as GDPR and cookie laws.
-PostHog gives you full control over all the data from your users, while allowing you to do powerful analytics.
-
-## Tracking based on IP and User-Agent
-
+Jitsu JS SDK doesn't require a cookie banner. Since Jitsu is capable of collecting analytics events without setting cookies.
+Server processes analytics events and sets anonymous ids just based on visitors IP address and User Agent.
+When you use self-hosted instance, your data is all yours (your users data is not sent to any third-party).
 
 ## Configuration
 
-To initialize **Jitsu**, please use:
+To initialize **Jitsu** compatible with cookies law, please use:
 
 ```javascript
 const { jitsuClient } = require('@jitsu/sdk-js');
 const jitsu = jitsuClient({
     key: "[API_KEY]",
-    id_method: 'cookie-less',
-    anonymize_ip: true
+    privacy_policy: 'strict'
 });
 ```
 
+or
 ```html
 <script src="%%SERVER%%/s/lib.js"
         data-key="JITSU_API_KEY"
-        data-id-method="cookie-less"
-        data-anonymize-ip="true"
+        data-privacy-policy="true"
         defer></script>
 <script>
 ```
+
+With this configuration Jitsu doesn't set any cookie at all and doesn't enrich analytics events with visitor IP address
+(only with three octets like `10.10.10.10` -> `10.10.10.1`)
