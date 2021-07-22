@@ -314,7 +314,7 @@ export const allSingerTaps: SingerTap[] = [
     pic: logos.tap_google_ads,
     displayName: 'Google Ads (AdWords)',
     tap: 'tap-adwords',
-    stable: true,
+    stable: false,
     hasNativeEquivalent: false,
     parameters: customParameters('tap-adwords', {
       customConfig: [
