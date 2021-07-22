@@ -275,7 +275,7 @@ export const googlePlay: SourceConnector = {
     <path fill="#fbc02d" d="M41.398,23.071c-0.796-0.429-8.1-4.676-8.1-4.676l-0.061-0.035l-5.556,5.523l5.601,5.562c4.432-2.559,7.761-4.48,8.059-4.653C42.285,24.248,42.194,23.5,41.398,23.071z"/>
   </svg>,
   documentation: {
-    overview: <>The Google Play connector can sync <b>earnings</b> (financial report) and <b>sales</b> (statistics about sales). Jitsu synchronizes data by monthly chunks. </>,
+    overview: <>The Google Play connector can sync <b>earnings</b> (financial report) and <b>sales</b> (statistics about sales).</>,
     connection: googleServiceAuthDocumentation({
       oauthEnabled: true,
       serviceAccountEnabled: true,
