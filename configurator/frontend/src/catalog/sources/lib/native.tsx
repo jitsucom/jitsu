@@ -40,14 +40,20 @@ export const facebook: SourceConnector = {
       displayName: 'Report Fields',
       id: 'fields',
       type: selectionType(['bid_amount', 'adlabels', 'creative', 'status', 'created_time', 'updated_time', 'targeting', 'effective_status', 'campaign_id', 'adset_id', 'conversion_specs', 'recommendations', 'id', 'bid_info', 'last_updated_by_app_id', 'tracking_specs', 'bid_type', 'name', 'account_id', 'source_ad_id']),
-      required: true
+      required: true,
+      documentation: <>
+        Ads fields to download
+      </>
     },
     {
       applyOnlyTo: 'insights',
       displayName: 'Report Fields',
       id: 'fields',
       type: selectionType(['account_currency', 'account_id', 'account_name', 'ad_id', 'ad_name', 'adset_id', 'adset_name', 'campaign_id', 'campaign_name', 'objective', 'buying_type', 'cpc', 'cpm', 'cpp', 'ctr', 'estimated_ad_recall_rate', 'estimated_ad_recallers', 'reach', 'unique_clicks', 'unique_ctr', 'frequency', 'actions', 'conversions', 'spend', 'impressions']),
-      required: true
+      required: true,
+      documentation: <>
+        Insights fields to download
+      </>
     },
     {
       displayName: 'Level of data',
@@ -399,7 +405,7 @@ export const redis: SourceConnector = {
       type: stringType,
       required: true,
       documentation: <>
-        Your Redis host
+        Redis host
       </>
     },
     {
@@ -409,7 +415,7 @@ export const redis: SourceConnector = {
       defaultValue: 6379,
       required: true,
       documentation: <>
-        Your Redis port
+        Redis port
       </>
     },
     {
@@ -417,7 +423,7 @@ export const redis: SourceConnector = {
       id: 'config.password',
       type: passwordType,
       documentation: <>
-        Your Redis password. Leave it empty if your Redis doesn't have a password.
+        Redis password. Leave it empty if your Redis doesn't have a password.
       </>
     }
   ],
