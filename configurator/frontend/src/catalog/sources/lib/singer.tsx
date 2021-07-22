@@ -894,9 +894,9 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    pic: logos.tap_mySQL,
+    pic: logos.tap_mysql,
     displayName: 'MySQL',
-    tap: 'tap-mySQL',
+    tap: 'tap-mysql',
     stable: true,
     hasNativeEquivalent: false
   },
