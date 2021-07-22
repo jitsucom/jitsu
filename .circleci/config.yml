@@ -29,10 +29,17 @@ jobs:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: test
       - image: circleci/redis
+      - image: circleci/mysql:8.0.25
+        environment:
+          MYSQL_ROOT_PASSWORD: test_root_password
+          MYSQL_USER: test_user
+          MYSQL_PASSWORD: test_password
+          MYSQL_DATABASE: test_database
     environment:
       PG_TEST_PORT: 5432
       CH_TEST_PORT: 8123
       REDIS_TEST_PORT: 6379
+      MYSQL_TEST_PORT: 3306
       TEST_RESULTS: /tmp/test-results
       GO111MODULE: "on"
     steps:
