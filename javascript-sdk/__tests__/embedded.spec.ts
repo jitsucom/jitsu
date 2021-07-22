@@ -72,6 +72,23 @@ test('test embedded explicit id method', async () => {
   server.clearRequestLog();
 });
 
+test('test privacy policy', async () => {
+  server.clearRequestLog();
+  await runUrl(browser, server.getUrl('/test-case/embed-privacy-policy.html?gclid=1'));
+  let requestLog = server.requestLog;
+  expect(requestLog.length).toBe(2);
+  expect(requestLog[0].api_key).toBe("Test");
+  expect(requestLog[0].click_id.gclid).toBe("1");
+  expect(requestLog[0].user.anonymous_id).toBe('')
+  expect(requestLog[0].user.anonymous_id).toBe(requestLog[1].user.anonymous_id)
+  expect(requestLog[1].user.anonymous_id).toBe('')
+  expect(requestLog[1].extra).toBe(1)
+  expect(requestLog[1].persistent_prop1).toBe(2)
+  expect(requestLog[1].persistent_prop2).toBe(3)
+  expect(requestLog[1].persistent_prop3).toBe(undefined)
+  server.clearRequestLog();
+});
+
 afterAll(async () => {
   server.stop();
   await browser.close();

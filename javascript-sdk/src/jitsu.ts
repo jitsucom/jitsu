@@ -96,6 +96,15 @@ class CookiePersistence implements Persistence {
   }
 }
 
+class NoPersistence implements Persistence {
+  public save(props: Record<string, any>) {
+  }
+
+  restore(): Record<string, any> | undefined {
+    return undefined;
+  }
+}
+
 const defaultCompatMode = false;
 
 export function jitsuClient(opts?: JitsuOptions): JitsuClient {
@@ -255,6 +264,11 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   init(options: JitsuOptions) {
+    if (options.privacy_policy === 'strict') {
+      options.id_method = 'cookie-less'
+      options.anonymize_ip = true
+      options.system_cookies = 'strict'
+    }
     if (options.log_level) {
       setRootLogLevel(options.log_level);
     }
@@ -273,8 +287,17 @@ class JitsuClientImpl implements JitsuClient {
     this.idCookieName = options.cookie_name || '__eventn_id';
     this.apiKey = options.key;
 
-    this.userIdPersistence = new CookiePersistence(this.cookieDomain, this.idCookieName + '_usr');
-    this.propsPersistance = new CookiePersistence(this.cookieDomain, this.idCookieName + '_props');
+    if (this.initialOptions.system_cookies === 'strict'){
+      this.propsPersistance = new NoPersistence();
+    }else{
+      this.propsPersistance = new CookiePersistence(this.cookieDomain, this.idCookieName + '_props');
+    }
+
+    if (this.initialOptions.id_method === 'cookie-less'){
+      this.userIdPersistence = new NoPersistence();
+    }else{
+      this.userIdPersistence = new CookiePersistence(this.cookieDomain, this.idCookieName + '_usr');
+    }
 
     if (this.propsPersistance) {
       const restored = this.propsPersistance.restore();
@@ -346,12 +369,10 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   private restoreId() {
-    if (this.initialOptions?.id_method !== 'cookie-less') {
-      if (this.userIdPersistence) {
-        let props = this.userIdPersistence.restore();
-        if (props) {
-          this.userProperties = { ...props, ...this.userProperties };
-        }
+    if (this.userIdPersistence) {
+      let props = this.userIdPersistence.restore();
+      if (props) {
+        this.userProperties = { ...props, ...this.userProperties };
       }
     }
   }
