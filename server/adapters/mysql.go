@@ -29,17 +29,18 @@ const (
 	mySQLDeleteQueryTemplate     = "DELETE FROM `%s`.`%s` WHERE %s"
 	mySQLAddColumnTemplate       = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
 	mySQLDropPrimaryKeyTemplate  = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
+	mySQLPrimaryKeyMaxLength     = 16
 	mySQLValuesLimit             = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
 	SchemaToMySQL = map[typing.DataType]string{
-		typing.STRING:    "VARCHAR(255) CHARACTER SET utf8",
+		typing.STRING:    "TEXT",
 		typing.INT64:     "BIGINT",
 		typing.FLOAT64:   "DECIMAL(38,18)",
 		typing.TIMESTAMP: "TIMESTAMP",
 		typing.BOOL:      "BOOLEAN",
-		typing.UNKNOWN:   "VARCHAR(255) CHARACTER SET utf8",
+		typing.UNKNOWN:   "TEXT",
 	}
 )
 
@@ -447,8 +448,10 @@ func (m *MySQL) columnDDL(name string, column Column, pkFields map[string]bool) 
 func (m *MySQL) getDefaultValueStatement(sqlType string) string {
 	//get default value based on type
 	normalizedSqlType := strings.ToLower(sqlType)
-	if strings.Contains(normalizedSqlType, "var") || strings.Contains(normalizedSqlType, "text") {
+	if strings.Contains(normalizedSqlType, "var") {
 		return "DEFAULT ''"
+	} else if strings.Contains(normalizedSqlType, "text") {
+		return "DEFAULT ('')"
 	}
 
 	return "DEFAULT 0"
@@ -462,7 +465,14 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 
 	var quotedColumnNames []string
 	for _, column := range table.GetPKFields() {
-		quotedColumnNames = append(quotedColumnNames, m.quote(column))
+		columnType := table.Columns[column].SQLType
+		var quoted string
+		if columnType == SchemaToMySQL[typing.STRING] || columnType == SchemaToMySQL[typing.UNKNOWN] {
+			quoted = fmt.Sprintf("%s(%d)", m.quote(column), mySQLPrimaryKeyMaxLength)
+		} else {
+			quoted = m.quote(column)
+		}
+		quotedColumnNames = append(quotedColumnNames, quoted)
 	}
 
 	statement := fmt.Sprintf(mySQLAlterPrimaryKeyTemplate,
