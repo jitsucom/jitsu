@@ -159,11 +159,24 @@ export type JitsuOptions = {
   anonymize_ip?: boolean
 
   /**
+   * Privacy policy configuration for comply with the cookie law. If set to 'strict'
+   * id_method = 'cookie-less', anonymize_ip = true and system_cookies = 'strict' will be set.
+   * Currently only 'strict' is supported
+   */
+  privacy_policy?: 'strict'
+
+  /**
+   * Jitsu sets system cookies see (propsPersistance)
+   * If set to 'strict', Jitsu won't keep system properties between pages
+   */
+  system_cookies?: 'strict'
+
+  /**
    * Log level. 'WARN' if not set
    */
   log_level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'NONE';
 
-  //NOTE: If any property is added here, please make sure it's added to browset.ts jitsuProps as well
+  //NOTE: If any property is added here, please make sure it's added to browser.ts jitsuProps as well
 };
 
 /**

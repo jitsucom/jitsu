@@ -54,5 +54,14 @@ EventNative accepts the following parameters.
       <td>anonymize_ip<br />(<span style={{whiteSpace: 'nowrap'}}>data-anonymize-ip</span>)</td>
       <td>If set to <code inline="true">true</code> value, Jitsu replaces last octet in client IP address with 1 on the backend side. (like <code inline="true">10.10.10.10 -> 10.10.10.1</code>)</td>
     </tr>
+    <tr>
+      <td>system_cookies<br />(<span style={{whiteSpace: 'nowrap'}}>data-system-cookies</span>)</td>
+      <td>If set to <code inline="true">strict</code> value, Jitsu won't keep system properties between pages</td>
+    </tr>
+    <tr>
+      <td>privacy_policy<br />(<span style={{whiteSpace: 'nowrap'}}>data-privacy-policy</span>)</td>
+      <td>If set to <code inline="true">strict</code> value, Jitsu becomes compliant with cookie laws (GDPR, CCPA, PECR): doesn't set any cookies and replaces last octet in client IP address with 1 on the backend side. (like <code inline="true">10.10.10.10 -> 10.10.10.1</code>)
+        Read more about <a href="/docs/sending-data/privacy-policy">Privacy Policy</a></td>
+    </tr>
     </tbody>
 </table>
