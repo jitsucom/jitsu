@@ -29,7 +29,7 @@ const (
 	mySQLDeleteQueryTemplate     = "DELETE FROM `%s`.`%s` WHERE %s"
 	mySQLAddColumnTemplate       = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
 	mySQLDropPrimaryKeyTemplate  = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
-	mySQLPrimaryKeyMaxLength     = 16
+	mySQLPrimaryKeyMaxLength     = 32
 	mySQLValuesLimit             = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
