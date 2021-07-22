@@ -1,4 +1,4 @@
-import { Card } from 'antd';
+import { Card, Typography } from 'antd';
 import styles from './NotificationCard.module.less';
 
 type NotificationCardProps = {
@@ -17,7 +17,7 @@ export const NotificationCard: React.FC<NotificationCardProps> = ({
   onClick
 }) => {
   return (
-    <button className={styles.card} onClick={onClick}>
+    <button className={`w-full ${styles.card}`} onClick={onClick}>
       <Card
         title={<NotificationTitle title={title} icon={icon} />}
         size={size}
@@ -36,23 +36,41 @@ type NotificationTitleProps = {
   size?: 'small' | 'default';
 };
 
+const ELLIPSIS_SUFFIX_LENGTH = 5;
+
 const NotificationTitle: React.FC<NotificationTitleProps> = ({
   title,
   icon,
   time,
   size = 'small'
 }) => {
+  const parsedTitle =
+    typeof title === 'string'
+      
+      ? {
+              start: title.slice(0, title.length - ELLIPSIS_SUFFIX_LENGTH),
+              end: title.slice(-ELLIPSIS_SUFFIX_LENGTH )
+            }
+      
+      : null;
+
   return (
-    <div className="flex items-center mt-1.5">
+    <div className="flex items-center mt-1.5 w-full">
       {icon && (
         <div className="flex justify-center items-center flex-initial flex-shrink-0 mr-2.5">
           {icon}
         </div>
       )}
       {typeof title === 'string' ? (
-        <h6 className={`block mb-0 text-${size === 'small' ? 'sm' : 'base'}`}>
-          {title}
-        </h6>
+        <Typography.Text
+          className={`flex-1 text-left min-w-0
+            text-${size === 'small' ? 'sm' : 'base'}`}
+          ellipsis={{
+            suffix: parsedTitle.end
+          }}
+        >
+          {parsedTitle.start}
+        </Typography.Text>
       ) : (
         title
       )}
