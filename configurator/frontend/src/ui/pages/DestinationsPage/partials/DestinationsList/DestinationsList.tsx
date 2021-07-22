@@ -6,8 +6,8 @@ import { Button, Dropdown, Modal } from 'antd';
 import ApplicationServices from 'lib/services/ApplicationServices';
 import {
   destinationsReferenceList,
-  destinationsReferenceMap,
-} from 'ui/pages/DestinationsPage/commons';
+  destinationsReferenceMap
+} from 'catalog/destinations/lib';
 // @Store
 import { destinationsStore } from 'stores/destinations';
 import { sourcesStore } from 'stores/sources';

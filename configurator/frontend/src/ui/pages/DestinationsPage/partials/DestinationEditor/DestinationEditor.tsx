@@ -16,7 +16,7 @@ import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLib
 // @Store
 import { destinationsStore } from 'stores/destinations';
 // @CatalogDestinations
-import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
+import { destinationsReferenceMap } from 'catalog/destinations/lib';
 // @Types
 import { FormInstance } from 'antd/es';
 import { Destination } from 'catalog/destinations/types';

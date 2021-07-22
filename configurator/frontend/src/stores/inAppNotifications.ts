@@ -1,8 +1,10 @@
 // @Libs
-import { allSources } from 'catalog/sources/lib';
 import { makeAutoObservable } from 'mobx';
 import React from 'react';
-import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
+// @Reference
+import { destinationsReferenceMap } from 'catalog/destinations/lib';
+import { allSources } from 'catalog/sources/lib';
+// @Routes
 import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPage.routes';
 import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 // @Stores
@@ -37,7 +39,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
     );
   }
 
-  private get orphanSources(): SourceData[] {
+  private get orphanConnectors(): SourceData[] {
     return this._sourcesStore.sources.filter(
       ({ destinations }) => !destinations?.length
     );
@@ -53,7 +55,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
         icon: destinationsReferenceMap[_type].ui.icon,
         editEntityRoute: `${destinationPageRoutes.edit}/${_id}`
       })),
-      ...this.orphanSources.map(({ sourceId, sourceType }) => ({
+      ...this.orphanConnectors.map(({ sourceId, sourceType }) => ({
         id: sourceId,
         title: sourceId,
         message: `The source does not have any linked destinations to send events to. Data sync is stopped.`,
