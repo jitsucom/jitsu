@@ -31,7 +31,7 @@ func TestMySQLStreamInsert(t *testing.T) {
 
 	configTemplate := `{"destinations": {
   			"test_mySQL_store": {
-        		"type": "mySQL",
+        		"type": "mysql",
         		"mode": "stream",
 				"only_tokens": ["c2stoken"],
         		"datasource": {
