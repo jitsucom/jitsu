@@ -2,6 +2,7 @@ import { intType, passwordType, selectionType, SourceConnector, stringType } fro
 import { googleServiceAuthDocumentation } from '../lib/documentation';
 
 import { googleAuthConfigParameters } from '../lib/commonParams';
+import * as React from 'react';
 
 export const facebook: SourceConnector = {
   pic: <svg viewBox="0 0 36 36" fill="url(#gradient)">
@@ -18,13 +19,20 @@ export const facebook: SourceConnector = {
     overview: <>The Facebook connector pulls data from <a href="https://developers.facebook.com/docs/marketing-api/insights/">Facebook Insights API</a>. The connector
       is  highly configurable and can pull data broken down by any dimensions from ads-, adset-, campaign- or account-level data
     </>,
-    connection: googleServiceAuthDocumentation({
-      oauthEnabled: true,
-      serviceAccountEnabled: true,
-      scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
-      serviceName: 'Google Analytics',
-      apis: ['Google Analytics API']
-    })
+    connection: <>
+      <h1>1. Obtain Facebook Account ID</h1>
+      Facebook has a great article about <a href="https://www.facebook.com/business/help/1492627900875762">How to get Facebook Account ID</a>
+      <h1>2. Generate Short-lived (1 hour) Facebook Access token</h1>
+      <ul>
+        <li>Go to <a href="https://developers.facebook.com/tools/explorer">Facebook Graph API Explorer</a> page</li>
+        <li>Select Facebook app which has access to your Facebook advertisements data</li>
+        <li>Select User token</li>
+        <li>Select two permissions: <code>read_insights</code> and <code>ads_read</code></li>
+        <li>Click Generate Access Token</li>
+      </ul>
+      <h1>3. Generate Long-lived (60 days) Facebook Access token</h1>
+      For generating long lived access token please read <a href="https://developers.facebook.com/docs/pages/access-tokens/#get-a-long-lived-user-access-token">Facebook article</a>
+    </>
   },
   collectionParameters: [
     {
@@ -266,6 +274,16 @@ export const googlePlay: SourceConnector = {
     <path fill="#d32f2f" d="M8.417,43.802c0.532-0.308,15.284-8.825,24.865-14.357l-5.601-5.562L7.5,43.947C7.748,44.038,8.066,44.004,8.417,43.802z"/>
     <path fill="#fbc02d" d="M41.398,23.071c-0.796-0.429-8.1-4.676-8.1-4.676l-0.061-0.035l-5.556,5.523l5.601,5.562c4.432-2.559,7.761-4.48,8.059-4.653C42.285,24.248,42.194,23.5,41.398,23.071z"/>
   </svg>,
+  documentation: {
+    overview: <>The Google Play connector can sync <b>earnings</b> (financial report) and <b>sales</b> (statistics about sales).</>,
+    connection: googleServiceAuthDocumentation({
+      oauthEnabled: true,
+      serviceAccountEnabled: true,
+      scopes: ['https://www.googleapis.com/auth/devstorage.read_only'],
+      serviceName: 'Google Play',
+      apis: ['Cloud Storage']
+    })
+  },
   displayName: 'Google Play',
   id: 'google_play',
   collectionTypes: ['earnings', 'sales'],
@@ -278,7 +296,7 @@ export const googlePlay: SourceConnector = {
       required: true,
       documentation:
         <>
-          Identifier of Google Play account
+          Identifier of your Google Play account
         </>
     },
     ...googleAuthConfigParameters({})
@@ -311,7 +329,10 @@ export const firebase: SourceConnector = {
       displayName: 'Firestore Collection',
       id: 'collection',
       type: stringType,
-      required: true
+      required: true,
+      documentation: <>
+        Firestore collection ID
+      </>
     }
   ],
   configParameters: [
@@ -320,7 +341,10 @@ export const firebase: SourceConnector = {
       displayName: 'Project ID',
       id: 'config.project_id',
       type: stringType,
-      required: true
+      required: true,
+      documentation: <>
+        Firebase Project ID from the Project Settings page.
+      </>
     }
   ]
 }
