@@ -138,7 +138,7 @@ func TestProcessFilePayload(t *testing.T) {
 			[]events.FailedEvent{},
 		},
 	}
-	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"))
+	p, err := NewProcessor("test", `{{if .event_type}}{{if eq .event_type "skipped"}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}{{else}}{{.event_type}}_{{._timestamp.Format "2006_01"}}{{end}}`, &DummyMapper{}, []enrichment.Rule{}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 0)
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -254,6 +254,35 @@ func TestProcessFact(t *testing.T) {
 			},
 			"",
 		},
+		{
+			"input fields exceed the name len limit",
+			map[string]interface{}{
+				"_timestamp":                    "2020-08-02T18:23:58.057807Z",
+				"root_field_with_very_big_name": 123,
+				"rootfieldwithverybigname":      224,
+				"root_object_with_big_name": map[string]interface{}{
+					"innder_object_with_big_name": map[string]interface{}{
+						"field_with_big_name": 1233,
+						"field":               2244,
+					},
+				},
+			},
+			&BatchHeader{TableName: "events_2020_08", Fields: Fields{
+				"_timestamp":           NewField(typing.TIMESTAMP),
+				"fieldwithverybigname": NewField(typing.INT64),
+				"ro_fi_wi_ve_big_name": NewField(typing.INT64),
+				"na_in_ob_wi_bi_na_fi": NewField(typing.INT64),
+				"wi_bi_na_fi_wi_bi_na": NewField(typing.INT64),
+			}},
+			events.Event{
+				"_timestamp":           testTime,
+				"fieldwithverybigname": 224,
+				"na_in_ob_wi_bi_na_fi": 2244,
+				"ro_fi_wi_ve_big_name": 123,
+				"wi_bi_na_fi_wi_bi_na": 1233,
+			},
+			"",
+		},
 	}
 	appconfig.Init(false, "")
 	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
@@ -278,7 +307,7 @@ func TestProcessFact(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"))
+	p, err := NewProcessor("test", `events_{{._timestamp.Format "2006_01"}}`, fieldMapper, []enrichment.Rule{uaRule, ipRule}, NewFlattener(), NewTypeResolver(), false, identifiers.NewUniqueID("/eventn_ctx/event_id"), 20)
 
 	require.NoError(t, err)
 	for _, tt := range tests {
@@ -296,4 +325,14 @@ func TestProcessFact(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCutName(t *testing.T) {
+	require.Equal(t, "ountry", cutName("firstnamelastnamemiddlenamecountry", 6))
+	require.Equal(t, "test", cutName("test", 12))
+	require.Equal(t, "fi_la_mi_co", cutName("firstname_lastname_middlename_country", 12))
+	require.Equal(t, "fi_la_mi_co", cutName("fi_lastname_middlename_country", 12))
+	require.Equal(t, "fi_la_mi_co", cutName("fi_la_middlename_country", 12))
+	require.Equal(t, "fi_la_mi_co", cutName("fi_lastname_mi_country", 12))
+	require.Equal(t, "_la_mi_co_ci", cutName("fi_la_mi_co_ci", 12))
 }
