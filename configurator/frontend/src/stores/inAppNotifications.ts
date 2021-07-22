@@ -9,7 +9,9 @@ import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPag
 import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 // @Stores
 import { destinationsStore } from './destinations';
+import { apiKeysStore, UserApiKey } from './apiKeys';
 import { sourcesStore } from './sources';
+import { apiKeysReferenceMap } from 'catalog/apiKeys/lib';
 
 export type NotificationData = {
   id: string;
@@ -27,10 +29,22 @@ interface IInAppNotificationsStore {
 
 class InAppNotificationsStore implements IInAppNotificationsStore {
   private _destinationsStore = destinationsStore;
-  private _sourcesStore = sourcesStore;
+  private _apiKeysStore = apiKeysStore;
+  private _connectorsStore = sourcesStore;
 
   constructor() {
     makeAutoObservable(this);
+  }
+
+  private get orphanApiKeys(): UserApiKey[] {
+    return this._apiKeysStore.apiKeys.filter(({uid}) => {
+      const keyIsConnected = this._destinationsStore.destinations.reduce(
+        (isConnected, destination) => 
+          isConnected || destination._onlyKeys.some(keyUid => keyUid === uid), 
+        false
+      )
+      return !keyIsConnected;
+    });
   }
 
   private get orphanDestinations(): DestinationData[] {
@@ -40,7 +54,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
   }
 
   private get orphanConnectors(): SourceData[] {
-    return this._sourcesStore.sources.filter(
+    return this._connectorsStore.sources.filter(
       ({ destinations }) => !destinations?.length
     );
   }
@@ -55,10 +69,18 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
         icon: destinationsReferenceMap[_type].ui.icon,
         editEntityRoute: `${destinationPageRoutes.edit}/${_id}`
       })),
+      ...this.orphanApiKeys.map(({uid}) => ({
+        id: uid,
+        title: `API Key ${uid}`,
+        message: `The API key is not linked to any destination. Events from pixels using this key will be lost.`,
+        type: 'danger' as const,
+        icon: apiKeysReferenceMap.js.icon,
+        editEntityRoute: `/api_keys`
+      })),
       ...this.orphanConnectors.map(({ sourceId, sourceType }) => ({
         id: sourceId,
         title: sourceId,
-        message: `The source does not have any linked destinations to send events to. Data sync is stopped.`,
+        message: `The source does not have a linked destination to send events to. Data sync is stopped.`,
         type: 'danger' as const,
         icon: allSources.find(({ id }) => id === sourceType)?.pic,
         editEntityRoute: `${sourcesPageRoutes.edit}/${sourceId}`

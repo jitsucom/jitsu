@@ -62,7 +62,7 @@ const NotificationsComponent: React.FC<NotificationsProps> = ({
         <>
           {notifications.map(
             ({ id, title, message, type, icon, editEntityRoute }) => (
-              <div key={id} className="my-2">
+              <div key={id} className="my-2 w-full">
                 <NotificationCard
                   title={title}
                   message={message}
