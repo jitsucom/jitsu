@@ -33,7 +33,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
 
   private get orphanDestinations(): DestinationData[] {
     return this._destinationsStore.destinations.filter(
-      ({ _onlyKeys }) => !_onlyKeys?.length
+      ({ _onlyKeys, _sources }) => !_onlyKeys?.length && !_sources?.length
     );
   }
 
@@ -48,7 +48,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
       ...this.orphanDestinations.map(({ _id, _type }) => ({
         id: _id,
         title: _id,
-        message: `The destination does not have any linked API keys and thus will not recieve events.`,
+        message: `The destination does not have any linked Connectors or API keys and thus will not recieve data.`,
         type: 'danger' as const,
         icon: destinationsReferenceMap[_type].ui.icon,
         editEntityRoute: `${destinationPageRoutes.edit}/${_id}`
