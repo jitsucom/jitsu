@@ -14,6 +14,18 @@ export const facebook: SourceConnector = {
     <path d="M15 35.8C6.5 34.3 0 26.9 0 18 0 8.1 8.1 0 18 0s18 8.1 18 18c0 8.9-6.5 16.3-15 17.8l-1-.8h-4l-1 .8z"/>
     <path fill="white" d="M25 23l.8-5H21v-3.5c0-1.4.5-2.5 2.7-2.5H26V7.4c-1.3-.2-2.7-.4-4-.4-4.1 0-7 2.5-7 7v4h-4.5v5H15v12.7c1 .2 2 .3 3 .3s2-.1 3-.3V23h4z"/>
   </svg>,
+  documentation: {
+    overview: <>The Facebook connector pulls data from <a href="https://developers.facebook.com/docs/marketing-api/insights/">Facebook Insights API</a>. The connector
+      is  highly configurable and can pull data broken down by any dimensions from ads-, adset-, campaign- or account-level data
+    </>,
+    connection: googleServiceAuthDocumentation({
+      oauthEnabled: true,
+      serviceAccountEnabled: true,
+      scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
+      serviceName: 'Google Analytics',
+      apis: ['Google Analytics API']
+    })
+  },
   collectionParameters: [
     {
       applyOnlyTo: 'ads',
@@ -280,6 +292,16 @@ export const firebase: SourceConnector = {
     <path fill="#ff6f00" d="M8.008 36.986L8.208 36.829 25.737 22.488 20.793 13.012z"/>
     <path fill="#ffc400" d="M8,37l26.666-25.713c0.559-0.539,1.492-0.221,1.606,0.547L40,37l-15,8.743 c-0.609,0.342-1.352,0.342-1.961,0L8,37z"/>
   </svg>,
+  documentation: {
+      overview: <>The Firebase connector can sync users and any collection from the Firestore cloud.</>,
+      connection: googleServiceAuthDocumentation({
+          oauthEnabled: false,
+          serviceAccountEnabled: true,
+          scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
+          serviceName: 'Firebase Analytics',
+          apis: ['Firebase API']
+      })
+  },
   displayName: 'Firebase',
   id: 'firebase',
   collectionTypes: ['users', 'firestore'],
