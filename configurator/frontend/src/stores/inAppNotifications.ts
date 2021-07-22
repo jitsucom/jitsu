@@ -3,6 +3,8 @@ import { allSources } from 'catalog/sources/lib';
 import { makeAutoObservable } from 'mobx';
 import React from 'react';
 import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
+import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPage.routes';
+import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 // @Stores
 import { destinationsStore } from './destinations';
 import { sourcesStore } from './sources';
@@ -13,6 +15,7 @@ export type NotificationData = {
   message: string;
   type: 'danger' | 'error' | 'warning' | 'info';
   icon?: React.ReactNode;
+  editEntityRoute: string;
 };
 
 interface IInAppNotificationsStore {
@@ -47,14 +50,16 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
         title: _id,
         message: `The destination does not have any linked API keys and thus will not recieve events.`,
         type: 'danger' as const,
-        icon: destinationsReferenceMap[_type].ui.icon
+        icon: destinationsReferenceMap[_type].ui.icon,
+        editEntityRoute: `${destinationPageRoutes.edit}/${_id}`
       })),
       ...this.orphanSources.map(({ sourceId, sourceType }) => ({
         id: sourceId,
         title: sourceId,
         message: `The source does not have any linked destinations to send events to. Data sync is stopped.`,
         type: 'danger' as const,
-        icon: allSources.find(({ id }) => id === sourceType)?.pic
+        icon: allSources.find(({ id }) => id === sourceType)?.pic,
+        editEntityRoute: `${sourcesPageRoutes.edit}/${sourceId}`
       }))
     ];
   }
