@@ -1238,7 +1238,7 @@ export const allSingerTaps: SingerTap[] = [
           type: isoUtcDateType,
           required: true,
           defaultValue: '2020-01-01T00:00:00.000Z',
-          documentation: <>Data since start date will be synced</>
+          documentation: <>Jitsu will sync Stipe data since Start Date</>
         }
       ]
     }),
