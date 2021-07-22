@@ -71,7 +71,7 @@ export type JitsuFunction = (action: 'track' | 'id' | 'set', eventType: string, 
  * User identification method:
  *  - cookie (based on cookie)
  *  - ls (localstorage)
- *  - cookie-less (without any information stored locally; currently unsupported)
+ *  - cookie-less (without any information stored locally)
  */
 export type IdMethod = 'cookie' | 'ls' | 'cookie-less'
 
@@ -140,7 +140,7 @@ export type JitsuOptions = {
   randomize_url?: boolean
 
   /**
-   * If eventNative should capture third-party cookies: either array
+   * If Jitsu should capture third-party cookies: either array
    * of cookies name or false if the features should be disabled
    *
    * @default GA/Segment/Fb cookies: ['_ga': '_fbp', '_ym_uid', 'ajs_user_id', 'ajs_anonymous_id']
@@ -148,16 +148,35 @@ export type JitsuOptions = {
   capture_3rd_party_cookies?: string[] | false;
 
   /**
-   * See comment on IdMethod. Currently only 'cookie' is supported
+   * See comment on IdMethod. Currently only 'cookie' and 'cookie-less' are supported
    */
   id_method?: IdMethod
+
+  /**
+   * If set to true, Jitsu replaces last octet in client IP address with 1 on the backend side
+   * e.g. 10.10.10.10 -> 10.10.10.1
+   */
+  anonymize_ip?: boolean
+
+  /**
+   * Privacy policy configuration for comply with the cookie law. If set to 'strict'
+   * id_method = 'cookie-less', anonymize_ip = true and system_cookies = 'strict' will be set.
+   * Currently only 'strict' is supported
+   */
+  privacy_policy?: 'strict'
+
+  /**
+   * Jitsu sets system cookies see (propsPersistance)
+   * If set to 'strict', Jitsu won't keep system properties between pages
+   */
+  system_cookies?: 'strict'
 
   /**
    * Log level. 'WARN' if not set
    */
   log_level?: 'DEBUG' | 'INFO' | 'WARN' | 'ERROR' | 'NONE';
 
-  //NOTE: If any property is added here, please make sure it's added to browset.ts jitsuProps as well
+  //NOTE: If any property is added here, please make sure it's added to browser.ts jitsuProps as well
 };
 
 /**

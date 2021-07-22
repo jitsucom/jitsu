@@ -28,7 +28,7 @@ const (
 
 	createTableCHTemplate            = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
 	createDistributedTableCHTemplate = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
-	dropDistributedTableCHTemplate   = `DROP TABLE "%s"."dist_%s" %s`
+	dropDistributedTableCHTemplate   = `DROP TABLE IF EXISTS "%s"."dist_%s" %s`
 
 	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
 	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
@@ -452,13 +452,22 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 
 //DropTable drops table in transaction
 func (ch *ClickHouse) DropTable(table *Table) error {
+	wrappedTx, err := ch.OpenTx()
+	if err != nil {
+		return err
+	}
+
 	query := fmt.Sprintf(dropTableCHTemplate, ch.database, table.Name)
 	ch.queryLogger.LogDDL(query)
 
-	_, err := ch.dataSource.ExecContext(ch.ctx, query)
+	_, err = wrappedTx.tx.ExecContext(ch.ctx, query)
 
 	if err != nil {
 		return fmt.Errorf("Error dropping [%s] table: %v", table.Name, err)
+	}
+
+	if ch.cluster != "" {
+		ch.dropDistributedTableInTransaction(wrappedTx, table.Name)
 	}
 
 	return nil
