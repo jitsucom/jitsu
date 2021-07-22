@@ -2,7 +2,6 @@ package storages
 
 import (
 	"fmt"
-	"github.com/jitsucom/jitsu/server/identifiers"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -144,60 +143,7 @@ func (m *MySQL) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) e
 
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
 func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
-	_, tableHelper := m.getAdapters()
-	flatData, err := m.processor.ProcessPulledEvents(timeIntervalValue, objects)
-	if err != nil {
-		return err
-	}
-
-	deleteConditions := adapters.DeleteByTimeChunkCondition(timeIntervalValue)
-
-	//table schema overridden
-	if overriddenDataSchema != nil && len(overriddenDataSchema.Fields) > 0 {
-		var data []map[string]interface{}
-		//ignore table multiplexing from mapping step
-		for _, fdata := range flatData {
-			data = append(data, fdata.GetPayload()...)
-			//enrich overridden schema with new fields (some system fields or e.g. after lookup step)
-			overriddenDataSchema.Fields.Add(fdata.BatchHeader.Fields)
-		}
-
-		table := tableHelper.MapTableSchema(overriddenDataSchema)
-
-		dbSchema, err := tableHelper.EnsureTable(m.ID(), table, cacheTable)
-		if err != nil {
-			return err
-		}
-		start := time.Now()
-		if err = m.adapter.BulkUpdate(dbSchema, data, deleteConditions); err != nil {
-			return err
-		}
-		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", m.ID(), len(data), time.Now().Sub(start).Seconds())
-
-		return nil
-	}
-
-	//plain flow
-	for _, fdata := range flatData {
-		table := tableHelper.MapTableSchema(fdata.BatchHeader)
-
-		//overridden table destinationID
-		if overriddenDataSchema != nil && overriddenDataSchema.TableName != "" {
-			table.Name = overriddenDataSchema.TableName
-		}
-
-		dbSchema, err := tableHelper.EnsureTable(m.ID(), table, cacheTable)
-		if err != nil {
-			return err
-		}
-		start := time.Now()
-		if err = m.adapter.BulkUpdate(dbSchema, fdata.GetPayload(), deleteConditions); err != nil {
-			return err
-		}
-		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", m.ID(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
-	}
-
-	return nil
+	return syncStoreImpl(m, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //Update uses SyncStore under the hood
@@ -210,26 +156,12 @@ func (m *MySQL) GetUsersRecognition() *UserRecognitionConfiguration {
 	return m.usersRecognitionConfiguration
 }
 
-//GetUniqueIDField returns unique ID field configuration
-func (m *MySQL) GetUniqueIDField() *identifiers.UniqueID {
-	return m.uniqueIDField
-}
-
-//IsCachingDisabled returns true if caching is disabled in destination configuration
-func (m *MySQL) IsCachingDisabled() bool {
-	return m.cachingConfiguration != nil && m.cachingConfiguration.Disabled
-}
-
-//Type returns Facebook type
+//Type returns MySQL type
 func (m *MySQL) Type() string {
 	return MySQLType
 }
 
-func (m *MySQL) IsStaging() bool {
-	return m.staged
-}
-
-//Close closes Postgres adapter, fallback logger and streaming worker
+//Close closes MySQL adapter, fallback logger and streaming worker
 func (m *MySQL) Close() (multiErr error) {
 	if err := m.adapter.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing postgres datasource: %v", m.ID(), err))
