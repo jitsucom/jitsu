@@ -13,6 +13,7 @@ type RequestContext struct {
 	ClientIP         string `json:"client_ip,omitempty"`
 	Referer          string `json:"referer,omitempty"`
 	JitsuAnonymousID string `json:"jitsu_anonymous_id,omitempty"`
+	CookieLess       bool   `json:"cookie_less,omitempty"`
 }
 
 // Processor is used in preprocessing and postprocessing events before and after consuming(storing)

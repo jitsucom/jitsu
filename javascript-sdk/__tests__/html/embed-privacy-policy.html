@@ -1,0 +1,28 @@
+<html>
+<head>
+    <!--
+       Jitsu tracking one-liner. By default, pageview event is sent
+    -->
+    <script src="%%SERVER%%/s/lib.js"
+            data-key="Test"
+            data-log-level="debug"
+            data-privacy-policy="strict"
+            defer></script>
+    <script>
+      setTimeout(() => {
+        console.log("Testing delayed tracking");
+        let jitsu = window.jitsu = window.jitsu || (function(){(window.jitsuQ = window.jitsuQ || []).push(arguments);})
+
+        jitsu('set', {persistent_prop1: 2})
+        jitsu('set', {persistent_prop2: 3}, {eventType: "additional_event"})
+        jitsu('set', {persistent_prop3: 3}, {eventType: "non_existing_event"})
+
+        jitsu('track', 'additional_event', {extra: 1});
+      }, 500)
+    </script>
+</head>
+<body>
+    <h1>Testing %%SERVER%%</h1>
+</body>
+
+</html>
