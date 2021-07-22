@@ -39,25 +39,14 @@ const DestinationsPageComponent = ({setBreadcrumbs}: PageProps) => {
 
   return (
     <Switch>
-      <Route
-        path={destinationPageRoutes.root}
-        exact
-      >
-        <DestinationsList {...{setBreadcrumbs}}/>
+      <Route path={destinationPageRoutes.root} exact>
+        <DestinationsList {...{ setBreadcrumbs }} />
       </Route>
-      <Route
-        path={destinationPageRoutes.newDestination}
-        strict={false}
-        exact
-      >
-        <DestinationEditor {...{setBreadcrumbs, editorMode: 'add'}}/>
+      <Route path={destinationPageRoutes.newExact} strict={false} exact>
+        <DestinationEditor {...{ setBreadcrumbs, editorMode: 'add' }} />
       </Route>
-      <Route
-        path={destinationPageRoutes.editDestination}
-        strict={false}
-        exact
-      >
-        <DestinationEditor {...{setBreadcrumbs, editorMode: 'edit'}}/>
+      <Route path={destinationPageRoutes.editExact} strict={false} exact>
+        <DestinationEditor {...{ setBreadcrumbs, editorMode: 'edit' }} />
       </Route>
     </Switch>
   );

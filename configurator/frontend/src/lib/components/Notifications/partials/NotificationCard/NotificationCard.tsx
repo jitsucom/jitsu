@@ -6,16 +6,18 @@ type NotificationCardProps = {
   message: string;
   size?: 'small' | 'default';
   icon?: React.ReactNode;
+  onClick?: () => void;
 };
 
 export const NotificationCard: React.FC<NotificationCardProps> = ({
   title,
   message,
   size = 'small',
-  icon
+  icon,
+  onClick
 }) => {
   return (
-    <div className={styles.card}>
+    <button className={styles.card} onClick={onClick}>
       <Card
         title={<NotificationTitle title={title} icon={icon} />}
         size={size}
@@ -23,7 +25,7 @@ export const NotificationCard: React.FC<NotificationCardProps> = ({
       >
         <Card.Meta description={message} />
       </Card>
-    </div>
+    </button>
   );
 };
 

@@ -41,7 +41,7 @@ const NotificationsWidgetComponent: React.FC = () => {
       >
         <div className="h-full overflow-y-auto">
           <div className="box-border px-4 py-2">
-            <Notifications />
+            <Notifications handleCloseContainer={handleCloseDrawer} />
           </div>
         </div>
       </Drawer>

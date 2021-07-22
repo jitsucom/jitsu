@@ -75,7 +75,7 @@ const DestinationsListComponent = ({
           title: dst.displayName,
           id: dst.id,
           icon: dst.ui.icon,
-          link: generatePath(destinationPageRoutes.newDestination, {
+          link: generatePath(destinationPageRoutes.newExact, {
             type: dst.id
           })
         }))}
@@ -145,7 +145,7 @@ const DestinationsListComponent = ({
                 {
                   onClick: () =>
                     history.push(
-                      generatePath(destinationPageRoutes.editDestination, {
+                      generatePath(destinationPageRoutes.editExact, {
                         id: dst._id
                       })
                     ),
