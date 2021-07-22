@@ -1,7 +1,6 @@
 package storages
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"time"
@@ -20,12 +19,8 @@ type MySQL struct {
 	Abstract
 
 	adapter                       *adapters.MySQL
-	processor                     *schema.Processor
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
-	uniqueIDField                 *identifiers.UniqueID
-	staged                        bool
-	cachingConfiguration          *CachingConfiguration
 }
 
 func init() {
@@ -40,7 +35,7 @@ func NewMySQL(config *Config) (Storage, error) {
 	}
 	//enrich with default parameters
 	if mConfig.Port.String() == "" {
-		mConfig.Port = json.Number("3306")
+		mConfig.Port = "3306"
 		logging.Warnf("[%s] port wasn't provided. Will be used default one: %s", config.destinationID, mConfig.Port.String())
 	}
 	//schema and database are synonyms in MySQL
@@ -60,20 +55,20 @@ func NewMySQL(config *Config) (Storage, error) {
 
 	m := &MySQL{
 		adapter:                       adapter,
-		processor:                     config.processor,
 		usersRecognitionConfiguration: config.usersRecognition,
-		uniqueIDField:                 config.uniqueIDField,
-		staged:                        config.destination.Staged,
-		cachingConfiguration:          config.destination.CachingConfiguration,
 	}
 
 	//Abstract
 	m.destinationID = config.destinationID
+	m.processor = config.processor
 	m.fallbackLogger = config.loggerFactory.CreateFailedLogger(config.destinationID)
 	m.eventsCache = config.eventsCache
 	m.tableHelpers = []*TableHelper{tableHelper}
 	m.sqlAdapters = []adapters.SQLAdapter{adapter}
 	m.archiveLogger = config.loggerFactory.CreateStreamingArchiveLogger(config.destinationID)
+	m.uniqueIDField = config.uniqueIDField
+	m.staged = config.destination.Staged
+	m.cachingConfiguration = config.destination.CachingConfiguration
 
 	//streaming worker (queue reading)
 	m.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, m, tableHelper)
