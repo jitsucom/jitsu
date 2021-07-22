@@ -154,7 +154,7 @@ func (m *MySQL) toDeleteQuery(conditions *DeleteConditions) (string, []interface
 	var queryConditions []string
 	var values []interface{}
 	for _, condition := range conditions.Conditions {
-		quotedField := m.quot(condition.Field)
+		quotedField := m.quote(condition.Field)
 		queryConditions = append(queryConditions, quotedField+" "+condition.Clause+" ?")
 		values = append(values, condition.Value)
 	}
@@ -356,23 +356,11 @@ func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, ob
 	return nil
 }
 
-//TODO incompatible with mySQL
-//getCastClause returns ::SQL_TYPE clause or empty string
-//$1::type, $2::type, $3, etc
-func (m *MySQL) getCastClause(name string) string {
-	castType, ok := m.sqlTypes[name]
-	if ok {
-		return "::" + castType.Type
-	}
-
-	return ""
-}
-
 //executeInsert executes insert with mySQLInsertTemplate
 func (m *MySQL) executeInsert(wrappedTx *Transaction, table *Table, headerWithoutQuotes []string, placeholders string, valueArgs []interface{}) error {
 	var quotedHeader []string
 	for _, columnName := range headerWithoutQuotes {
-		quotedHeader = append(quotedHeader, fmt.Sprintf("`%s`", columnName))
+		quotedHeader = append(quotedHeader, m.quote(columnName))
 	}
 
 	statement := fmt.Sprintf(mySQLInsertTemplate, m.config.Schema, table.Name, strings.Join(quotedHeader, ","), placeholders)
@@ -394,7 +382,7 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 	var headerWithQuotes []string
 	for name := range table.Columns {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
-		headerWithQuotes = append(headerWithQuotes, m.quot(name))
+		headerWithQuotes = append(headerWithQuotes, m.quote(name))
 		placeholders += "?,"
 	}
 	placeholders = "(" + removeLastComma(placeholders) + ")"
@@ -417,7 +405,6 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 			value, _ := row[column]
 			values = append(values, value)
 		}
-		//TODO remove values duplication, add named placeholders instead of ?
 		values = append(values, values...)
 
 		m.queryLogger.LogQueryWithValues(statement, values)
@@ -434,7 +421,7 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 func (m *MySQL) buildUpdateSection(header []string) string {
 	var updateColumns []string
 	for _, columnName := range header {
-		updateColumns = append(updateColumns, fmt.Sprintf("%s=?", m.quot(columnName)))
+		updateColumns = append(updateColumns, fmt.Sprintf("%s=?", m.quote(columnName)))
 	}
 	return strings.Join(updateColumns, ",")
 }
@@ -453,7 +440,7 @@ func (m *MySQL) columnDDL(name string, column Column, pkFields map[string]bool) 
 		notNullClause = " NOT NULL " + m.getDefaultValueStatement(sqlType)
 	}
 
-	return fmt.Sprintf("%s %s%s", m.quot(name), sqlType, notNullClause)
+	return fmt.Sprintf("%s %s%s", m.quote(name), sqlType, notNullClause)
 }
 
 //getDefaultValueStatement returns default value statement for creating column
@@ -475,7 +462,7 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 
 	var quotedColumnNames []string
 	for _, column := range table.GetPKFields() {
-		quotedColumnNames = append(quotedColumnNames, m.quot(column))
+		quotedColumnNames = append(quotedColumnNames, m.quote(column))
 	}
 
 	statement := fmt.Sprintf(mySQLAlterPrimaryKeyTemplate,
@@ -522,10 +509,10 @@ func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) e
 }
 
 func (m *MySQL) buildConstraintName(tableName string) string {
-	return m.quot(fmt.Sprintf("%s_%s_pk", m.config.Schema, tableName))
+	return m.quote(fmt.Sprintf("%s_%s_pk", m.config.Schema, tableName))
 }
 
-func (m *MySQL) quot(str string) string {
+func (m *MySQL) quote(str string) string {
 	return fmt.Sprintf("`%s`", str)
 }
 
@@ -591,7 +578,7 @@ func (m *MySQL) buildInsertPayload(valuesMap map[string]interface{}) ([]string, 
 	values := make([]interface{}, len(valuesMap), len(valuesMap))
 	i := 0
 	for name, value := range valuesMap {
-		quotedHeader[i] = m.quot(name)
+		quotedHeader[i] = m.quote(name)
 		header[i] = name
 
 		placeholders[i] = "?"
