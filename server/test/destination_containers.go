@@ -123,7 +123,7 @@ func NewMySQLContainer(ctx context.Context) (*MySQLContainer, error) {
 			Image:        "mysql:8.0.25",
 			ExposedPorts: []string{mySQLDefaultPort},
 			Env:          dbSettings,
-			WaitingFor:   tcWait.ForLog("port: 3306  MySQL Community Server - GPL"),
+			WaitingFor:   tcWait.ForLog("port: 3306  MySQL Community Server - GPL").WithPollInterval(time.Second * 2),
 		},
 		Started: true,
 	})
