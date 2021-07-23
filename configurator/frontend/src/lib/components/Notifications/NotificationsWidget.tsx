@@ -14,8 +14,11 @@ import styles from './NotificationsWidget.module.less';
 const NotificationsWidgetComponent: React.FC = () => {
   const hasNotifications = inAppNotificationsStore.hasNotifications;
   const [showDrawer, setShowDrawer] = useState<boolean>(false);
-  const handleOpenDrawer = useCallback<VoidFunc>(() => setShowDrawer(true), []);
-  const handleCloseDrawer = useCallback<VoidFunc>(
+  const handleOpenDrawer = useCallback<(...args: any) => void>(
+    () => setShowDrawer(true),
+    []
+  );
+  const handleCloseDrawer = useCallback<(...args: any) => void>(
     () => setShowDrawer(false),
     []
   );

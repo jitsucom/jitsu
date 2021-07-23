@@ -18,7 +18,7 @@ import styles from './DestinationEditor.module.less';
 export interface Props {
   form: FormInstance;
   initialValues: DestinationMapping;
-  handleTouchAnyField: VoidFunc;
+  handleTouchAnyField: (...args: any) => void;
 }
 
 const DestinationEditorMappings = ({ form, initialValues, handleTouchAnyField }: Props) => {
