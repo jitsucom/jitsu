@@ -4,6 +4,7 @@ declare interface Option {
 }
 
 declare type VoidFunc = (...args: any) => void;
+declare type AsyncVoidFunction = () => Promise<void>;
 
 declare interface AnyObject {
   [key: string]: any;
