@@ -33,7 +33,7 @@ export interface Props {
   form: FormInstance;
   destination: Destination;
   initialValues: DestinationData;
-  handleTouchAnyField: VoidFunc;
+  handleTouchAnyField: (...args: any) => void;
 }
 
 const DestinationEditorConnectorsComponent = ({

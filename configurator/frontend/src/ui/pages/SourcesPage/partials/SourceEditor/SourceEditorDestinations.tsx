@@ -23,7 +23,7 @@ import { destinationsStore } from 'stores/destinations';
 export interface Props {
   form: FormInstance;
   initialValues: SourceData;
-  handleTouchAnyField: VoidFunc;
+  handleTouchAnyField: (...args: any) => void;
 }
 
 function getDescription(reference: Destination) {

@@ -3,7 +3,7 @@ declare interface Option {
   displayName: string;
 }
 
-declare type VoidFunc = (...args: any) => void;
+declare type VoidFunction = () => void;
 declare type AsyncVoidFunction = () => Promise<void>;
 
 declare interface AnyObject {
