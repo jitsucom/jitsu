@@ -8,6 +8,7 @@ interface ISourcesStore {
   sources: SourceData[];
   state: SourcesStoreState;
   error: string;
+  getSourceById(id: string): SourceData;
   pullSources: (
     showGlobalLoader: boolean
   ) => Generator<Promise<unknown>, void, unknown>;
@@ -79,6 +80,10 @@ class SourcesStore implements ISourcesStore {
 
   public get error() {
     return this._errorMessage;
+  }
+
+  public getSourceById(id: string) {
+    return this._sources.find(({ sourceId }) => id === sourceId);
   }
 
   public *pullSources(showGlobalLoader?: boolean) {

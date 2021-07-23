@@ -1,6 +1,5 @@
 // @Libs
-import { useEffect, useMemo } from 'react';
-import { Route, Switch } from 'react-router-dom';
+import { Route, Switch, useParams } from 'react-router-dom';
 import { observer } from 'mobx-react-lite';
 // @Pages
 import { DestinationsList } from './partials/DestinationsList/DestinationsList';
@@ -28,6 +27,8 @@ export interface CommonDestinationPageProps {
 
 const DestinationsPageComponent = ({setBreadcrumbs}: PageProps) => {
 
+  const params = useParams<unknown>();
+
   if (destinationsStore.state === DestinationsStoreState.GLOBAL_ERROR) {
     return <CenteredError error={destinationsStore.error} />;
   } else if (
@@ -46,7 +47,14 @@ const DestinationsPageComponent = ({setBreadcrumbs}: PageProps) => {
         <DestinationEditor {...{ setBreadcrumbs, editorMode: 'add' }} />
       </Route>
       <Route path={destinationPageRoutes.editExact} strict={false} exact>
-        <DestinationEditor {...{ setBreadcrumbs, editorMode: 'edit' }} />
+        <DestinationEditor
+          /**
+           * key changes forcing react to re-mount the component and
+           * to assemble a fresh form
+           */
+          key={params?.['id'] || 'static_key'}
+          {...{ setBreadcrumbs, editorMode: 'edit' }}
+        />
       </Route>
     </Switch>
   );

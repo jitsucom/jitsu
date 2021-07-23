@@ -1,6 +1,5 @@
 // @Libs
-import { useMemo } from 'react';
-import { Route, Switch } from 'react-router-dom';
+import { Route, Switch, useParams } from 'react-router-dom';
 import { observer } from 'mobx-react-lite';
 // @Routes
 import { sourcesPageRoutes } from './SourcesPage.routes';
@@ -30,7 +29,8 @@ export interface CommonSourcePageProps {
 }
 
 const SourcesPageComponent = ({setBreadcrumbs}: PageProps) => {
-  const services = useMemo(() => ApplicationServices.get(), []);
+
+  const params = useParams<unknown>();
 
   if (sourcesStore.state === SourcesStoreState.GLOBAL_ERROR) {
     return <CenteredError error={sourcesStore.error} />;
@@ -40,32 +40,20 @@ const SourcesPageComponent = ({setBreadcrumbs}: PageProps) => {
 
   return (
     <Switch>
-      <Route
-        path={sourcesPageRoutes.root}
-        exact
-      >
-        <SourcesList {...{setBreadcrumbs}} />
+      <Route path={sourcesPageRoutes.root} exact>
+        <SourcesList {...{ setBreadcrumbs }} />
       </Route>
-      <Route
-        path={sourcesPageRoutes.addExact}
-        strict={false}
-        exact
-      >
-        <SourceEditor {...{setBreadcrumbs, editorMode: 'add' }} />
+      <Route path={sourcesPageRoutes.addExact} strict={false} exact>
+        <SourceEditor {...{ setBreadcrumbs, editorMode: 'add' }} />
       </Route>
-      <Route
-        path={sourcesPageRoutes.add}
-        strict={false}
-        exact
-      >
+      <Route path={sourcesPageRoutes.add} strict={false} exact>
         <AddSourceDialog />
       </Route>
-      <Route
-        path={sourcesPageRoutes.editExact}
-        strict={false}
-        exact
-      >
-        <SourceEditor {...{ setBreadcrumbs, editorMode: 'edit' }} />
+      <Route path={sourcesPageRoutes.editExact} strict={false} exact>
+        <SourceEditor
+          key={params?.['sourceId'] || 'static_key'}
+          {...{ setBreadcrumbs, editorMode: 'edit' }}
+        />
       </Route>
     </Switch>
   );

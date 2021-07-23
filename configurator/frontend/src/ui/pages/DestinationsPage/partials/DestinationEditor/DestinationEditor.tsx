@@ -1,5 +1,11 @@
 // @Libs
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Card, Form, message } from 'antd';
 import cn from 'classnames';
@@ -96,11 +102,8 @@ const DestinationEditor = ({
 
   const destinationReference = useMemo<Destination>(() => {
     if (params.type) {
-      debugger;
       return destinationsReferenceMap[params.type];
     }
-    const deb = destinationsReferenceMap[getDestinationData(params)._type];
-    debugger;
     return destinationsReferenceMap[getDestinationData(params)._type];
   }, [params.type, params.id]);
 
@@ -184,75 +187,73 @@ const DestinationEditor = ({
   );
 
   const tabsInitialData: Tab<DestinationTabKey>[] = [
-      {
-        key: 'config',
-        name: 'Connection Properties',
-        getComponent: (form: FormInstance) => (
-          <DestinationEditorConfig
-            form={form}
-            destinationReference={destinationReference}
-            destinationData={destinationData.current}
-            handleTouchAnyField={validateAndTouchField(0)}
-          />
-        ),
-        form: Form.useForm()[0],
-        touched: false
-      },
-      {
-        key: 'mappings',
-        name: 'Mappings',
-        getComponent: (form: FormInstance) => (
-          <DestinationEditorMappings
-            form={form}
-            initialValues={destinationData.current._mappings}
-            handleTouchAnyField={validateAndTouchField(1)}
-          />
-        ),
-        form: Form.useForm()[0],
-        touched: false
-      },
-      {
-        key: 'sources',
-        name: 'Linked Connectors & API Keys',
-        getComponent: (form: FormInstance) => (
-          <DestinationEditorConnectors
-            form={form}
-            initialValues={destinationData.current}
-            destination={destinationReference}
-            handleTouchAnyField={validateAndTouchField(2)}
-          />
-        ),
-        form: Form.useForm()[0],
-        errorsLevel: 'warning',
-        touched: false
-      },
-      {
-        key: 'settings',
-        name: 'Configuration Templates',
-        touched: false,
-        getComponent: () => (
-          <DestinationEditorMappingsLibrary
-            handleDataUpdate={handleUseLibrary}
-          />
-        )
-      },
-      {
-        key: 'statistics',
-        name: (
-          <ComingSoon
-            render="Statistics"
-            documentation={
-              <>
-                A detailed statistics on how many events have been sent to the
-                destinations
-              </>
-            }
-          />
-        ),
-        isDisabled: true,
-        touched: false
-      }
-    ]
+    {
+      key: 'config',
+      name: 'Connection Properties',
+      getComponent: (form: FormInstance) => (
+        <DestinationEditorConfig
+          form={form}
+          destinationReference={destinationReference}
+          destinationData={destinationData.current}
+          handleTouchAnyField={validateAndTouchField(0)}
+        />
+      ),
+      form: Form.useForm()[0],
+      touched: false
+    },
+    {
+      key: 'mappings',
+      name: 'Mappings',
+      getComponent: (form: FormInstance) => (
+        <DestinationEditorMappings
+          form={form}
+          initialValues={destinationData.current._mappings}
+          handleTouchAnyField={validateAndTouchField(1)}
+        />
+      ),
+      form: Form.useForm()[0],
+      touched: false
+    },
+    {
+      key: 'sources',
+      name: 'Linked Connectors & API Keys',
+      getComponent: (form: FormInstance) => (
+        <DestinationEditorConnectors
+          form={form}
+          initialValues={destinationData.current}
+          destination={destinationReference}
+          handleTouchAnyField={validateAndTouchField(2)}
+        />
+      ),
+      form: Form.useForm()[0],
+      errorsLevel: 'warning',
+      touched: false
+    },
+    {
+      key: 'settings',
+      name: 'Configuration Templates',
+      touched: false,
+      getComponent: () => (
+        <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary} />
+      )
+    },
+    {
+      key: 'statistics',
+      name: (
+        <ComingSoon
+          render="Statistics"
+          documentation={
+            <>
+              A detailed statistics on how many events have been sent to the
+              destinations
+            </>
+          }
+        />
+      ),
+      isDisabled: true,
+      touched: false
+    }
+  ];
 
   const destinationsTabs = useRef<Tab<DestinationTabKey>[]>(tabsInitialData);
 
@@ -288,7 +289,6 @@ const DestinationEditor = ({
   }, [validateTabForm, forceUpdate]);
 
   const handleSaveDestination = useCallback(() => {
-    debugger;
     submittedOnce.current = true;
 
     setDestinationSaving(true);
@@ -299,7 +299,6 @@ const DestinationEditor = ({
         .map((tab: Tab) => validateTabForm(tab))
     )
       .then(async (allValues) => {
-        debugger;
         destinationData.current = {
           ...destinationData.current,
           ...allValues.reduce((result: any, current: any) => {
@@ -382,29 +381,23 @@ const DestinationEditor = ({
     editorMode === 'edit' &&
     connectedSourcesNum === 0 &&
     !destinationData.current?._onlyKeys?.length;
-
+    
   useEffect(() => {
-    debugger;
-    destinationData.current = getDestinationData(params);
-    destinationsTabs.current = tabsInitialData;
-    setBreadcrumbs(
-      withHome({
-        elements: [
-          { title: 'Destinations', link: destinationPageRoutes.root },
-          {
-            title: (
-              <PageHeader
-                title={destinationReference.displayName}
-                icon={destinationReference.ui.icon}
-                mode={editorMode}
-              />
-            )
-          }
-        ]
-      })
-    );
-    forceUpdate();
-  }, [params.id, params.type]);
+    setBreadcrumbs(withHome({
+      elements: [
+        { title: 'Destinations', link: destinationPageRoutes.root },
+        {
+          title: (
+            <PageHeader 
+              title={destinationReference.displayName} 
+              icon={destinationReference.ui.icon}
+              mode={editorMode}
+            />
+          )
+        }
+      ]
+    }));
+  }, [destinationReference, setBreadcrumbs]);
 
   return (
     <>
