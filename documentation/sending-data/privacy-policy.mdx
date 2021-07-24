@@ -1,0 +1,37 @@
+# Privacy Policy
+
+**Privacy is important**. At Jitsu we value people's privacy, so we've added supporting of analytics collection
+without gathering any personal data, personally identifiable information (PII), cookies and respecting your customers privacy.
+Jitsu is flexible and can comply with the cookie law and the privacy regulations such as
+EU General Data Protection Regulation ([GDPR](https://gdpr.eu/)), California Consumer Privacy Act ([CCPA](https://oag.ca.gov/privacy/ccpa)),
+The Privacy and Electronic Communications Regulations ([PECR](https://ico.org.uk/for-organisations/guide-to-pecr/)).
+
+## Cookie Banner
+
+Jitsu JS SDK doesn't require a cookie banner. Since Jitsu is capable of collecting analytics events without setting cookies.
+Server processes analytics events and sets anonymous ids just based on visitors IP address and User Agent.
+When you use self-hosted instance, your data is all yours (your users data is not sent to any third-party).
+
+## Configuration (in beta)
+
+To initialize **Jitsu** compatible with cookies law, please use:
+
+```javascript
+const { jitsuClient } = require('@jitsu/sdk-js');
+const jitsu = jitsuClient({
+    key: "[API_KEY]",
+    privacy_policy: 'strict'
+});
+```
+
+or
+```html
+<script src="%%SERVER%%/s/lib.js"
+        data-key="JITSU_API_KEY"
+        data-privacy-policy="strict"
+        defer></script>
+<script>
+```
+
+With this configuration Jitsu doesn't set any cookie at all and doesn't enrich analytics events with visitor IP address
+(only with three octets like `10.10.10.10` -> `10.10.10.1`)

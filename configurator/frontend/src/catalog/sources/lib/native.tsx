@@ -2,6 +2,7 @@ import { intType, passwordType, selectionType, SourceConnector, stringType } fro
 import { googleServiceAuthDocumentation } from '../lib/documentation';
 
 import { googleAuthConfigParameters } from '../lib/commonParams';
+import * as React from 'react';
 
 export const facebook: SourceConnector = {
   pic: <svg viewBox="0 0 36 36" fill="url(#gradient)">
@@ -14,20 +15,45 @@ export const facebook: SourceConnector = {
     <path d="M15 35.8C6.5 34.3 0 26.9 0 18 0 8.1 8.1 0 18 0s18 8.1 18 18c0 8.9-6.5 16.3-15 17.8l-1-.8h-4l-1 .8z"/>
     <path fill="white" d="M25 23l.8-5H21v-3.5c0-1.4.5-2.5 2.7-2.5H26V7.4c-1.3-.2-2.7-.4-4-.4-4.1 0-7 2.5-7 7v4h-4.5v5H15v12.7c1 .2 2 .3 3 .3s2-.1 3-.3V23h4z"/>
   </svg>,
+  documentation: {
+    overview: <>The Facebook connector pulls data from <a href="https://developers.facebook.com/docs/marketing-api/insights/">Facebook Insights API</a>. The connector
+      is  highly configurable and can pull data broken down by any dimensions from ads-, adset-, campaign- or account-level data
+    </>,
+    connection: <>
+      <h1>1. Obtain Facebook Account ID</h1>
+      Facebook has a great article about <a href="https://www.facebook.com/business/help/1492627900875762">How to get Facebook Account ID</a>
+      <h1>2. Generate Short-lived (1 hour) Facebook Access token</h1>
+      <ul>
+        <li>Go to <a href="https://developers.facebook.com/tools/explorer">Facebook Graph API Explorer</a> page</li>
+        <li>Select Facebook app which has access to your Facebook advertisements data</li>
+        <li>Select User token</li>
+        <li>Select two permissions: <code>read_insights</code> and <code>ads_read</code></li>
+        <li>Click Generate Access Token</li>
+      </ul>
+      <h1>3. Generate Long-lived (60 days) Facebook Access token</h1>
+      For generating long lived access token please read <a href="https://developers.facebook.com/docs/pages/access-tokens/#get-a-long-lived-user-access-token">Facebook article</a>
+    </>
+  },
   collectionParameters: [
     {
       applyOnlyTo: 'ads',
       displayName: 'Report Fields',
       id: 'fields',
       type: selectionType(['bid_amount', 'adlabels', 'creative', 'status', 'created_time', 'updated_time', 'targeting', 'effective_status', 'campaign_id', 'adset_id', 'conversion_specs', 'recommendations', 'id', 'bid_info', 'last_updated_by_app_id', 'tracking_specs', 'bid_type', 'name', 'account_id', 'source_ad_id']),
-      required: true
+      required: true,
+      documentation: <>
+        Ads fields to download
+      </>
     },
     {
       applyOnlyTo: 'insights',
       displayName: 'Report Fields',
       id: 'fields',
       type: selectionType(['account_currency', 'account_id', 'account_name', 'ad_id', 'ad_name', 'adset_id', 'adset_name', 'campaign_id', 'campaign_name', 'objective', 'buying_type', 'cpc', 'cpm', 'cpp', 'ctr', 'estimated_ad_recall_rate', 'estimated_ad_recallers', 'reach', 'unique_clicks', 'unique_ctr', 'frequency', 'actions', 'conversions', 'spend', 'impressions']),
-      required: true
+      required: true,
+      documentation: <>
+        Insights fields to download
+      </>
     },
     {
       displayName: 'Level of data',
@@ -254,6 +280,16 @@ export const googlePlay: SourceConnector = {
     <path fill="#d32f2f" d="M8.417,43.802c0.532-0.308,15.284-8.825,24.865-14.357l-5.601-5.562L7.5,43.947C7.748,44.038,8.066,44.004,8.417,43.802z"/>
     <path fill="#fbc02d" d="M41.398,23.071c-0.796-0.429-8.1-4.676-8.1-4.676l-0.061-0.035l-5.556,5.523l5.601,5.562c4.432-2.559,7.761-4.48,8.059-4.653C42.285,24.248,42.194,23.5,41.398,23.071z"/>
   </svg>,
+  documentation: {
+    overview: <>The Google Play connector can sync <b>earnings</b> (financial report) and <b>sales</b> (statistics about sales).</>,
+    connection: googleServiceAuthDocumentation({
+      oauthEnabled: true,
+      serviceAccountEnabled: true,
+      scopes: ['https://www.googleapis.com/auth/devstorage.read_only'],
+      serviceName: 'Google Play',
+      apis: ['Cloud Storage']
+    })
+  },
   displayName: 'Google Play',
   id: 'google_play',
   collectionTypes: ['earnings', 'sales'],
@@ -266,7 +302,7 @@ export const googlePlay: SourceConnector = {
       required: true,
       documentation:
         <>
-          Identifier of Google Play account
+          Identifier of your Google Play account
         </>
     },
     ...googleAuthConfigParameters({})
@@ -280,6 +316,16 @@ export const firebase: SourceConnector = {
     <path fill="#ff6f00" d="M8.008 36.986L8.208 36.829 25.737 22.488 20.793 13.012z"/>
     <path fill="#ffc400" d="M8,37l26.666-25.713c0.559-0.539,1.492-0.221,1.606,0.547L40,37l-15,8.743 c-0.609,0.342-1.352,0.342-1.961,0L8,37z"/>
   </svg>,
+  documentation: {
+      overview: <>The Firebase connector can sync users and any collection from the Firestore cloud.</>,
+      connection: googleServiceAuthDocumentation({
+          oauthEnabled: false,
+          serviceAccountEnabled: true,
+          scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
+          serviceName: 'Firebase Analytics',
+          apis: ['Firebase API']
+      })
+  },
   displayName: 'Firebase',
   id: 'firebase',
   collectionTypes: ['users', 'firestore'],
@@ -289,7 +335,10 @@ export const firebase: SourceConnector = {
       displayName: 'Firestore Collection',
       id: 'collection',
       type: stringType,
-      required: true
+      required: true,
+      documentation: <>
+        Firestore collection ID
+      </>
     }
   ],
   configParameters: [
@@ -298,7 +347,10 @@ export const firebase: SourceConnector = {
       displayName: 'Project ID',
       id: 'config.project_id',
       type: stringType,
-      required: true
+      required: true,
+      documentation: <>
+        Firebase Project ID from the Project Settings page.
+      </>
     }
   ]
 }
@@ -353,7 +405,7 @@ export const redis: SourceConnector = {
       type: stringType,
       required: true,
       documentation: <>
-        Your Redis host
+        Redis host
       </>
     },
     {
@@ -363,7 +415,7 @@ export const redis: SourceConnector = {
       defaultValue: 6379,
       required: true,
       documentation: <>
-        Your Redis port
+        Redis port
       </>
     },
     {
@@ -371,7 +423,7 @@ export const redis: SourceConnector = {
       id: 'config.password',
       type: passwordType,
       documentation: <>
-        Your Redis password. Leave it empty if your Redis doesn't have a password.
+        Redis password. Leave it empty if your Redis doesn't have a password.
       </>
     }
   ],
