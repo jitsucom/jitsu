@@ -81,36 +81,25 @@ func TestAmplitude(sourceConfig *base.SourceConfig) error {
 		return err
 	}
 
-	collectionNames := []string{
-		AmplitudeActiveUsers,
-		AmplitudeAnnotations,
-		AmplitudeAverageSessions,
-		AmplitudeCohorts,
-		AmplitudeEvents,
-		AmplitudeNewUsers,
+	collection := &base.Collection{
+		Name:           AmplitudeEvents,
+		DaysBackToLoad: 1,
 	}
 
-	for _, name := range collectionNames {
-		collection := &base.Collection{
-			Name:           name,
-			DaysBackToLoad: 10,
-		}
+	amplitude := &Amplitude{
+		adapter:    adapter,
+		config:     config,
+		collection: collection,
+	}
 
-		amplitude := &Amplitude{
-			adapter:    adapter,
-			config:     config,
-			collection: collection,
-		}
+	intervals, err := amplitude.GetAllAvailableIntervals()
+	if err != nil {
+		return err
+	}
 
-		intervals, err := amplitude.GetAllAvailableIntervals()
-		if err != nil {
+	for _, interval := range intervals {
+		if _, err := amplitude.GetObjectsFor(interval); err != nil {
 			return err
-		}
-
-		for _, interval := range intervals {
-			if _, err := amplitude.GetObjectsFor(interval); err != nil {
-				return err
-			}
 		}
 	}
 
