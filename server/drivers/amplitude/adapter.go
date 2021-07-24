@@ -15,18 +15,21 @@ import (
 	"github.com/jitsucom/jitsu/server/parsers"
 )
 
-const amplitudeURL = "https://amplitude.com"
-const amplitudeLayout = "20060102T15"
+const (
+	amplitudeURL        = "https://amplitude.com"
+	amplitudeLayout     = "20060102T15"
+	authorizationHeader = "Authorization"
 
-const AmplitudeActiveUsers = "active_users"
-const AmplitudeAnnotations = "annotations"
-const AmplitudeAverageSessions = "average_sessions"
-const AmplitudeCohorts = "cohorts"
-const AmplitudeEvents = "events"
-const AmplitudeNewUsers = "new_users"
+	AmplitudeActiveUsers     = "active_users"
+	AmplitudeAnnotations     = "annotations"
+	AmplitudeAverageSessions = "average_sessions"
+	AmplitudeCohorts         = "cohorts"
+	AmplitudeEvents          = "events"
+	AmplitudeNewUsers        = "new_users"
 
-const typeActiveUsers = "active"
-const typeNewUsers = "new"
+	typeActiveUsers = "active"
+	typeNewUsers    = "new"
+)
 
 type AmplitudeAdapter struct {
 	httpClient *http.Client
@@ -82,12 +85,12 @@ func (a *AmplitudeAdapter) GetEvents(interval *base.TimeInterval) ([]map[string]
 	url := fmt.Sprintf("%v/api/2/export?start=%s&end=%s", amplitudeURL, start, end)
 
 	request := &adapters.Request{
-		URL:     url,
-		Method:  "GET",
-		Headers: map[string]string{},
+		URL:    url,
+		Method: "GET",
+		Headers: map[string]string{
+			authorizationHeader: a.authToken,
+		},
 	}
-
-	request.Headers["Authorization"] = a.authToken
 
 	status, response, err := a.doRequest(request)
 	if err != nil {
@@ -127,12 +130,12 @@ func (a *AmplitudeAdapter) GetUsers(interval *base.TimeInterval, collectionName 
 	url := fmt.Sprintf("%v/api/2/users?start=%s&end=%s&m=%s", amplitudeURL, start, end, userType)
 
 	request := &adapters.Request{
-		URL:     url,
-		Method:  "GET",
-		Headers: map[string]string{},
+		URL:    url,
+		Method: "GET",
+		Headers: map[string]string{
+			authorizationHeader: a.authToken,
+		},
 	}
-
-	request.Headers["Authorization"] = a.authToken
 
 	status, response, err := a.doRequest(request)
 	if err != nil {
@@ -157,12 +160,12 @@ func (a *AmplitudeAdapter) GetSessions(interval *base.TimeInterval) ([]map[strin
 	url := fmt.Sprintf("%v/api/2/sessions/average?start=%s&end=%s", amplitudeURL, start, end)
 
 	request := &adapters.Request{
-		URL:     url,
-		Method:  "GET",
-		Headers: map[string]string{},
+		URL:    url,
+		Method: "GET",
+		Headers: map[string]string{
+			authorizationHeader: a.authToken,
+		},
 	}
-
-	request.Headers["Authorization"] = a.authToken
 
 	status, response, err := a.doRequest(request)
 	if err != nil {
@@ -185,12 +188,12 @@ func (a *AmplitudeAdapter) GetAnnotations() ([]map[string]interface{}, error) {
 	url := fmt.Sprintf("%v/api/2/annotations", amplitudeURL)
 
 	request := &adapters.Request{
-		URL:     url,
-		Method:  "GET",
-		Headers: map[string]string{},
+		URL:    url,
+		Method: "GET",
+		Headers: map[string]string{
+			authorizationHeader: a.authToken,
+		},
 	}
-
-	request.Headers["Authorization"] = a.authToken
 
 	status, response, err := a.doRequest(request)
 	if err != nil {
@@ -213,12 +216,12 @@ func (a *AmplitudeAdapter) GetCohorts() ([]map[string]interface{}, error) {
 	url := fmt.Sprintf("%v/api/3/cohorts", amplitudeURL)
 
 	request := &adapters.Request{
-		URL:     url,
-		Method:  "GET",
-		Headers: map[string]string{},
+		URL:    url,
+		Method: "GET",
+		Headers: map[string]string{
+			authorizationHeader: a.authToken,
+		},
 	}
-
-	request.Headers["Authorization"] = a.authToken
 
 	status, response, err := a.doRequest(request)
 	if err != nil {
