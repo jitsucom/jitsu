@@ -40,7 +40,7 @@ destinations:
       <td><b>keep_unmapped</b>
       </td>
       <td>if true - all not mapped fields will be added to the result JSON as-is.
-        <p>if false - only fields that were mentioned in mapping rules will be added
+        <p>if false - only fields that were mentioned in mapping rules with actions <b>move</b> will be added
           to the result JSON. Default value: <b>true</b>
         </p>
       </td>
@@ -70,7 +70,7 @@ destinations:
           path.</p>
         <p><b>remove</b> - remove value from <b>src </b>JSON path</p>
         <p><b>cast</b> - take into account SQL type from <b>type</b> field and apply
-          it to <b>src</b> JSON path node in SQL statements (creates/updated tables
+          it to <b>dst</b> JSON path node in SQL statements (creates/updated tables
           and inserts with <b>src</b> field)</p>
         <p><b>constant </b>- put the value from <b>value </b>field into <b>dst </b>JSON
           path node</p>
