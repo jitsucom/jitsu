@@ -81,7 +81,6 @@ func setupMySQLDatabase(t *testing.T, table *Table) (*test.MySQLContainer, *MySQ
 		Username:   container.Username,
 		Password:   container.Password,
 		Db:         container.Database,
-		Schema:     container.Database,
 		Parameters: map[string]string{"tls": "false"},
 	}
 	adapter, err := NewMySQL(ctx, dsConfig, &logging.QueryLogger{}, typing.SQLTypes{})
