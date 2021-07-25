@@ -80,9 +80,9 @@ func (m *MySQL) Insert(eventContext *EventContext) error {
 
 	var statement string
 	if len(eventContext.Table.PKFields) == 0 {
-		statement = fmt.Sprintf(mySQLInsertTemplate, m.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
+		statement = fmt.Sprintf(mySQLInsertTemplate, m.config.Db, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
 	} else {
-		statement = fmt.Sprintf(mySQLMergeTemplate, m.config.Schema, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", m.buildUpdateSection(columnsWithoutQuotes))
+		statement = fmt.Sprintf(mySQLMergeTemplate, m.config.Db, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", m.buildUpdateSection(columnsWithoutQuotes))
 		values = append(values, values...)
 	}
 
@@ -141,7 +141,7 @@ func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, delet
 
 func (m *MySQL) deleteInTransaction(wrappedTx *Transaction, table *Table, deleteConditions *DeleteConditions) error {
 	deleteCondition, values := m.toDeleteQuery(deleteConditions)
-	query := fmt.Sprintf(mySQLDeleteQueryTemplate, m.config.Schema, table.Name, deleteCondition)
+	query := fmt.Sprintf(mySQLDeleteQueryTemplate, m.config.Db, table.Name, deleteCondition)
 	m.queryLogger.LogQueryWithValues(query, values)
 
 	if _, err := wrappedTx.tx.ExecContext(m.ctx, query, values...); err != nil {
@@ -219,7 +219,7 @@ func (m *MySQL) Close() error {
 
 func (m *MySQL) getTable(tableName string) (*Table, error) {
 	table := &Table{Name: tableName, Columns: map[string]Column{}, PKFields: map[string]bool{}}
-	rows, err := m.dataSource.QueryContext(m.ctx, mySQLTableSchemaQuery, m.config.Schema, tableName)
+	rows, err := m.dataSource.QueryContext(m.ctx, mySQLTableSchemaQuery, m.config.Db, tableName)
 	if err != nil {
 		return nil, fmt.Errorf("Error querying table [%s] schema: %v", tableName, err)
 	}
@@ -247,9 +247,9 @@ func (m *MySQL) getTable(tableName string) (*Table, error) {
 
 func (m *MySQL) getPrimaryKeys(tableName string) (map[string]bool, error) {
 	primaryKeys := map[string]bool{}
-	pkFieldsRows, err := m.dataSource.QueryContext(m.ctx, mySQLPrimaryKeyFieldsQuery, m.config.Schema, tableName)
+	pkFieldsRows, err := m.dataSource.QueryContext(m.ctx, mySQLPrimaryKeyFieldsQuery, m.config.Db, tableName)
 	if err != nil {
-		return nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", m.config.Schema, tableName, err)
+		return nil, fmt.Errorf("Error querying primary keys for [%s.%s] table: %v", m.config.Db, tableName, err)
 	}
 
 	defer pkFieldsRows.Close()
@@ -364,7 +364,7 @@ func (m *MySQL) executeInsert(wrappedTx *Transaction, table *Table, headerWithou
 		quotedHeader = append(quotedHeader, m.quote(columnName))
 	}
 
-	statement := fmt.Sprintf(mySQLInsertTemplate, m.config.Schema, table.Name, strings.Join(quotedHeader, ","), placeholders)
+	statement := fmt.Sprintf(mySQLInsertTemplate, m.config.Db, table.Name, strings.Join(quotedHeader, ","), placeholders)
 
 	m.queryLogger.LogQueryWithValues(statement, valueArgs)
 
@@ -389,7 +389,7 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 	placeholders = "(" + removeLastComma(placeholders) + ")"
 
 	statement := fmt.Sprintf(mySQLMergeTemplate,
-		m.config.Schema,
+		m.config.Db,
 		table.Name,
 		strings.Join(headerWithQuotes, ","),
 		placeholders,
@@ -476,7 +476,7 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 	}
 
 	statement := fmt.Sprintf(mySQLAlterPrimaryKeyTemplate,
-		m.config.Schema, table.Name, m.buildConstraintName(table.Name), strings.Join(quotedColumnNames, ","))
+		m.config.Db, table.Name, m.buildConstraintName(table.Name), strings.Join(quotedColumnNames, ","))
 	m.queryLogger.LogDDL(statement)
 
 	_, err := wrappedTx.tx.ExecContext(m.ctx, statement)
@@ -499,7 +499,7 @@ func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) e
 
 	//sorting columns asc
 	sort.Strings(columnsDDL)
-	query := fmt.Sprintf(mySQLCreateTableTemplate, m.config.Schema, table.Name, strings.Join(columnsDDL, ", "))
+	query := fmt.Sprintf(mySQLCreateTableTemplate, m.config.Db, table.Name, strings.Join(columnsDDL, ", "))
 	m.queryLogger.LogDDL(query)
 
 	_, err := wrappedTx.tx.ExecContext(m.ctx, query)
@@ -519,7 +519,7 @@ func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) e
 }
 
 func (m *MySQL) buildConstraintName(tableName string) string {
-	return m.quote(fmt.Sprintf("%s_%s_pk", m.config.Schema, tableName))
+	return m.quote(fmt.Sprintf("%s_%s_pk", m.config.Db, tableName))
 }
 
 func (m *MySQL) quote(str string) string {
@@ -533,7 +533,7 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 	//patch columns
 	for columnName, column := range patchTable.Columns {
 		columnDDL := m.columnDDL(columnName, column, pkFields)
-		query := fmt.Sprintf(mySQLAddColumnTemplate, m.config.Schema, patchTable.Name, columnDDL)
+		query := fmt.Sprintf(mySQLAddColumnTemplate, m.config.Db, patchTable.Name, columnDDL)
 		m.queryLogger.LogDDL(query)
 
 		_, err := wrappedTx.tx.ExecContext(m.ctx, query)
@@ -566,11 +566,11 @@ func (m *MySQL) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTable
 
 //delete primary key
 func (m *MySQL) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *Table) error {
-	query := fmt.Sprintf(mySQLDropPrimaryKeyTemplate, m.config.Schema, table.Name)
+	query := fmt.Sprintf(mySQLDropPrimaryKeyTemplate, m.config.Db, table.Name)
 	m.queryLogger.LogDDL(query)
 	_, err := wrappedTx.tx.ExecContext(m.ctx, query)
 	if err != nil {
-		return fmt.Errorf("Failed to drop primary key constraint for table %s.%s: %v", m.config.Schema, table.Name, err)
+		return fmt.Errorf("Failed to drop primary key constraint for table %s.%s: %v", m.config.Db, table.Name, err)
 	}
 
 	return nil

@@ -40,7 +40,6 @@ func TestMySQLPrimaryKeyRemoval(t *testing.T) {
 		Host:       container.Host,
 		Port:       json.Number(fmt.Sprint(container.Port)),
 		Db:         container.Database,
-		Schema:     container.Database,
 		Username:   container.Username,
 		Password:   container.Password,
 		Parameters: map[string]string{"tls": "false"},
