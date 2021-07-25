@@ -14,8 +14,11 @@ import styles from './NotificationsWidget.module.less';
 const NotificationsWidgetComponent: React.FC = () => {
   const hasNotifications = inAppNotificationsStore.hasNotifications;
   const [showDrawer, setShowDrawer] = useState<boolean>(false);
-  const handleOpenDrawer = useCallback<VoidFunc>(() => setShowDrawer(true), []);
-  const handleCloseDrawer = useCallback<VoidFunc>(
+  const handleOpenDrawer = useCallback<(...args: any) => void>(
+    () => setShowDrawer(true),
+    []
+  );
+  const handleCloseDrawer = useCallback<(...args: any) => void>(
     () => setShowDrawer(false),
     []
   );
@@ -41,7 +44,7 @@ const NotificationsWidgetComponent: React.FC = () => {
       >
         <div className="h-full overflow-y-auto">
           <div className="box-border px-4 py-2">
-            <Notifications />
+            <Notifications handleCloseContainer={handleCloseDrawer} />
           </div>
         </div>
       </Drawer>

@@ -12,7 +12,7 @@ export interface Props {
   destinationData: DestinationData;
   destinationReference: Destination;
   form: FormInstance;
-  handleTouchAnyField: VoidFunc;
+  handleTouchAnyField: (...args: any) => void;
 }
 
 const DestinationEditorConfig = ({ destinationData, destinationReference, form, handleTouchAnyField }: Props) => {

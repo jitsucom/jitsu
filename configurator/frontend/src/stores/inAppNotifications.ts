@@ -1,11 +1,17 @@
 // @Libs
-import { allSources } from 'catalog/sources/lib';
 import { makeAutoObservable } from 'mobx';
 import React from 'react';
-import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
+// @Reference
+import { destinationsReferenceMap } from 'catalog/destinations/lib';
+import { allSources } from 'catalog/sources/lib';
+// @Routes
+import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPage.routes';
+import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 // @Stores
 import { destinationsStore } from './destinations';
+import { apiKeysStore, UserApiKey } from './apiKeys';
 import { sourcesStore } from './sources';
+import { apiKeysReferenceMap } from 'catalog/apiKeys/lib';
 
 export type NotificationData = {
   id: string;
@@ -13,6 +19,7 @@ export type NotificationData = {
   message: string;
   type: 'danger' | 'error' | 'warning' | 'info';
   icon?: React.ReactNode;
+  editEntityRoute: string;
 };
 
 interface IInAppNotificationsStore {
@@ -22,20 +29,32 @@ interface IInAppNotificationsStore {
 
 class InAppNotificationsStore implements IInAppNotificationsStore {
   private _destinationsStore = destinationsStore;
-  private _sourcesStore = sourcesStore;
+  private _apiKeysStore = apiKeysStore;
+  private _connectorsStore = sourcesStore;
 
   constructor() {
     makeAutoObservable(this);
   }
 
+  private get orphanApiKeys(): UserApiKey[] {
+    return this._apiKeysStore.apiKeys.filter(({uid}) => {
+      const keyIsConnected = this._destinationsStore.destinations.reduce(
+        (isConnected, destination) => 
+          isConnected || destination._onlyKeys.some(keyUid => keyUid === uid), 
+        false
+      )
+      return !keyIsConnected;
+    });
+  }
+
   private get orphanDestinations(): DestinationData[] {
     return this._destinationsStore.destinations.filter(
-      ({ _onlyKeys }) => !_onlyKeys?.length
+      ({ _onlyKeys, _sources }) => !_onlyKeys?.length && !_sources?.length
     );
   }
 
-  private get orphanSources(): SourceData[] {
-    return this._sourcesStore.sources.filter(
+  private get orphanConnectors(): SourceData[] {
+    return this._connectorsStore.sources.filter(
       ({ destinations }) => !destinations?.length
     );
   }
@@ -45,16 +64,26 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
       ...this.orphanDestinations.map(({ _id, _type }) => ({
         id: _id,
         title: _id,
-        message: `The destination does not have any linked API keys and thus will not recieve events.`,
+        message: `The destination does not have any linked Connectors or API keys and thus will not recieve data.`,
         type: 'danger' as const,
-        icon: destinationsReferenceMap[_type].ui.icon
+        icon: destinationsReferenceMap[_type].ui.icon,
+        editEntityRoute: `${destinationPageRoutes.edit}/${_id}`
       })),
-      ...this.orphanSources.map(({ sourceId, sourceType }) => ({
+      ...this.orphanApiKeys.map(({uid}) => ({
+        id: uid,
+        title: `API Key ${uid}`,
+        message: `The API key is not linked to any destination. Events from pixels using this key will be lost.`,
+        type: 'danger' as const,
+        icon: apiKeysReferenceMap.js.icon,
+        editEntityRoute: `/api_keys`
+      })),
+      ...this.orphanConnectors.map(({ sourceId, sourceType }) => ({
         id: sourceId,
         title: sourceId,
-        message: `The source does not have any linked destinations to send events to. Data sync is stopped.`,
+        message: `The source does not have a linked destination to send events to. Data sync is stopped.`,
         type: 'danger' as const,
-        icon: allSources.find(({ id }) => id === sourceType)?.pic
+        icon: allSources.find(({ id }) => id === sourceType)?.pic,
+        editEntityRoute: `${sourcesPageRoutes.edit}/${sourceId}`
       }))
     ];
   }

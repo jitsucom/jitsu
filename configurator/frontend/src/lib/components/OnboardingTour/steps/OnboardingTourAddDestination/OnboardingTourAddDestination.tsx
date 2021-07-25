@@ -16,7 +16,7 @@ import {
   destinationsReferenceList,
   destinationsReferenceMap,
   DestinationStrictType
-} from 'ui/pages/DestinationsPage/commons';
+} from 'catalog/destinations/lib';
 // @Hooks
 import { useServices } from 'hooks/useServices';
 // @Utils
