@@ -309,14 +309,6 @@ const DestinationEditor = ({
           }, {})
         };
 
-        const updatedSources = await destinationEditorUtils.updateSources(
-          sources,
-          destinationData.current,
-          services.activeProject.id
-        );
-
-        sourcesStore.editSources(updatedSources);
-
         // ToDo: remove this code after _mappings refactoring
         destinationData.current = {
           ...destinationData.current,
@@ -337,7 +329,7 @@ const DestinationEditor = ({
           if (editorMode === 'add')
             destinationsStore.addDestination(destinationData.current);
           if (editorMode === 'edit')
-            destinationsStore.editDestination(destinationData.current);
+            destinationsStore.editDestinations(destinationData.current);
 
           destinationsTabs.current.forEach((tab: Tab) => (tab.touched = false));
 
