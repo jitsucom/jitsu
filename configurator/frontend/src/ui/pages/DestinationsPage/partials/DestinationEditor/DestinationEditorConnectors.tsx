@@ -181,10 +181,7 @@ const DestinationEditorConnectorsComponent = ({
                   fieldName="_sources"
                   itemsList={sourcesList}
                   warningMessage={<p>Please, choose at least one source.</p>}
-                  initialValues={destinationEditorUtils.getCheckedSources(
-                    sources,
-                    initialValues
-                  )}
+                  initialValues={initialValues?._sources}
                   handleItemChange={handleItemChange('_sources')}
                 />
               )}

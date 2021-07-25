@@ -45,17 +45,9 @@ const DestinationsListComponent = ({
     (id: string) => async () => {
       const appServices = ApplicationServices.get();
 
-      const destinationToDelete = destinationsStore.destinations.find(
-        (dest) => dest._id === id
-      );
+      const destinationToDelete = destinationsStore.getDestinationById(id);
 
       try {
-        const updatedSources = destinationEditorUtils.updateSources(
-          sourcesStore.sources,
-          destinationToDelete,
-          appServices.activeProject.id
-        );
-        sourcesStore.editSources(updatedSources);
         destinationsStore.deleteDestination(destinationToDelete);
       } catch (errors) {
         handleError(
