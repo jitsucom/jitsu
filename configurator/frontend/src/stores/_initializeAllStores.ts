@@ -3,16 +3,21 @@ import { apiKeysStore } from './apiKeys';
 import { destinationsStore } from './destinations';
 import { sourcesStore } from './sources';
 
-export const initializeAllStores = (): Promise<
+const initalizeStoresData = (): Promise<
   [
     PromiseSettledResult<void>,
     PromiseSettledResult<void>,
     PromiseSettledResult<void>
   ]
-> => {
-  return Promise.allSettled([
+> =>
+  Promise.allSettled([
     flowResult(apiKeysStore.pullApiKeys(true)),
     flowResult(destinationsStore.pullDestinations(true)),
     flowResult(sourcesStore.pullSources(true))
   ]);
+
+export const initializeAllStores = async (): Promise<void> => {
+  destinationsStore.injectSourcesStore(sourcesStore);
+  sourcesStore.injectDestinationsStore(destinationsStore);
+  await initalizeStoresData();
 };

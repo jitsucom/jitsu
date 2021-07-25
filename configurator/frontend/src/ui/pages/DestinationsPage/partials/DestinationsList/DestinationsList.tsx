@@ -6,8 +6,8 @@ import { Button, Dropdown, Modal } from 'antd';
 import ApplicationServices from 'lib/services/ApplicationServices';
 import {
   destinationsReferenceList,
-  destinationsReferenceMap,
-} from 'ui/pages/DestinationsPage/commons';
+  destinationsReferenceMap
+} from 'catalog/destinations/lib';
 // @Store
 import { destinationsStore } from 'stores/destinations';
 import { sourcesStore } from 'stores/sources';
@@ -45,17 +45,9 @@ const DestinationsListComponent = ({
     (id: string) => async () => {
       const appServices = ApplicationServices.get();
 
-      const destinationToDelete = destinationsStore.destinations.find(
-        (dest) => dest._id === id
-      );
+      const destinationToDelete = destinationsStore.getDestinationById(id);
 
       try {
-        const updatedSources = destinationEditorUtils.updateSources(
-          sourcesStore.sources,
-          destinationToDelete,
-          appServices.activeProject.id
-        );
-        sourcesStore.editSources(updatedSources);
         destinationsStore.deleteDestination(destinationToDelete);
       } catch (errors) {
         handleError(
@@ -75,7 +67,7 @@ const DestinationsListComponent = ({
           title: dst.displayName,
           id: dst.id,
           icon: dst.ui.icon,
-          link: generatePath(destinationPageRoutes.newDestination, {
+          link: generatePath(destinationPageRoutes.newExact, {
             type: dst.id
           })
         }))}
@@ -145,7 +137,7 @@ const DestinationsListComponent = ({
                 {
                   onClick: () =>
                     history.push(
-                      generatePath(destinationPageRoutes.editDestination, {
+                      generatePath(destinationPageRoutes.editExact, {
                         id: dst._id
                       })
                     ),

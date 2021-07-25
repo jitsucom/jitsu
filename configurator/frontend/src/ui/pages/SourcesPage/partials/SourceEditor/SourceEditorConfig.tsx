@@ -20,7 +20,7 @@ export interface Props {
   isCreateForm: boolean;
   sources: SourceData[];
   initialValues: SourceData;
-  handleTouchAnyField: VoidFunc;
+  handleTouchAnyField: (...args: any) => void;
 }
 
 const SourceEditorConfigComponent = ({

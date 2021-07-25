@@ -38,6 +38,17 @@ func (f Fields) Merge(other Fields) {
 	}
 }
 
+//OverrideTypes check if field exists in other then put its type
+func (f Fields) OverrideTypes(other Fields) {
+	for otherName, otherField := range other {
+		if currentField, ok := f[otherName]; ok {
+			//override type occurrences
+			currentField.typeOccurrence = otherField.typeOccurrence
+			currentField.dataType = otherField.dataType
+		}
+	}
+}
+
 //Add all new fields from other to current instance
 //if field exists - skip it
 func (f Fields) Add(other Fields) {
