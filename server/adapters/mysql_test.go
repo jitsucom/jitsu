@@ -11,16 +11,27 @@ import (
 	"gotest.tools/assert"
 	"math/rand"
 	"testing"
+	"time"
 )
+
+var timestamps = [...]time.Time{
+	// future after 2038 year
+	time.Date(2521, time.July, 10, 10, 50, 10, 17, time.UTC),
+	// after 1970 year
+	time.Date(2021, time.July, 10, 10, 50, 10, 17, time.UTC),
+	// before 1970 year
+	time.Date(1910, time.July, 10, 10, 50, 10, 17, time.UTC),
+}
 
 func TestMySQLBulkInsert(t *testing.T) {
 	table := &Table{
 		Name: "test_insert",
 		Columns: Columns{
-			"field1": Column{SchemaToMySQL[typing.INT64]},
-			"field2": Column{SchemaToMySQL[typing.STRING]},
-			"field3": Column{SchemaToMySQL[typing.STRING]},
-			"user":   Column{SchemaToMySQL[typing.STRING]},
+			"field1":          Column{SchemaToMySQL[typing.STRING]},
+			"field2":          Column{SchemaToMySQL[typing.STRING]},
+			"field3":          Column{SchemaToMySQL[typing.INT64]},
+			"user":            Column{SchemaToMySQL[typing.STRING]},
+			"_interval_start": Column{SchemaToMySQL[typing.TIMESTAMP]},
 		},
 	}
 	container, mySQL := setupMySQLDatabase(t, table)
@@ -36,10 +47,11 @@ func TestMySQLBulkMerge(t *testing.T) {
 	table := &Table{
 		Name: "test_merge",
 		Columns: Columns{
-			"field1": Column{SchemaToMySQL[typing.INT64]},
-			"field2": Column{SchemaToMySQL[typing.STRING]},
-			"field3": Column{SchemaToMySQL[typing.STRING]},
-			"user":   Column{SchemaToMySQL[typing.STRING]},
+			"field1":          Column{SchemaToMySQL[typing.STRING]},
+			"field2":          Column{SchemaToMySQL[typing.STRING]},
+			"field3":          Column{SchemaToMySQL[typing.INT64]},
+			"user":            Column{SchemaToMySQL[typing.STRING]},
+			"_interval_start": Column{SchemaToMySQL[typing.TIMESTAMP]},
 		},
 		PKFields: map[string]bool{"field1": true},
 	}
@@ -89,6 +101,7 @@ func createObjectsForMySQL(num int) []map[string]interface{} {
 		object["field2"] = fmt.Sprint(rand.Int())
 		object["field3"] = rand.Int()
 		object["user"] = fmt.Sprint(rand.Int())
+		object["_interval_start"] = timestamps[i%len(timestamps)]
 		objects = append(objects, object)
 	}
 	return objects

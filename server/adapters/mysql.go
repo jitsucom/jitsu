@@ -38,7 +38,7 @@ var (
 		typing.STRING:    "TEXT",
 		typing.INT64:     "BIGINT",
 		typing.FLOAT64:   "DECIMAL(38,18)",
-		typing.TIMESTAMP: "TIMESTAMP",
+		typing.TIMESTAMP: "DATETIME", // TIMESTAMP type only supports values from 1970 to 2038, DATETIME doesn't have such constrains
 		typing.BOOL:      "BOOLEAN",
 		typing.UNKNOWN:   "TEXT",
 	}
