@@ -35,7 +35,7 @@ const ConnectionsPageComponent: React.FC = () => {
         [..._onlyKeys, ..._sources].forEach((sourceId) => {
           const start = document.getElementById(sourceId);
           const end = document.getElementById(_uid);
-          if (start && end)
+          if (start && end && !connectionLines[`${sourceId}-${_uid}`])
             connectionLines[`${sourceId}-${_uid}`] = new LeaderLine(
               start,
               end,
