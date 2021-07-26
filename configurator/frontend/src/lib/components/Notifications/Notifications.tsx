@@ -10,21 +10,20 @@ import {
 // @Icons
 import { ExclamationCircleFilled } from '@ant-design/icons';
 // @Components
-import { NotificationCard } from './partials/NotificationCard/NotificationCard';
+import { NotificationCard } from '../NotificationCard/NotificationCard';
 // @Styles
 import styles from './Notifications.module.less';
+import { useHistory } from 'react-router-dom';
 
 const makeIcon = (
   notificationType: NotificationData['type'],
   notificationIcon?: React.ReactNode
 ): React.ReactNode => {
-  const typeIcon = makeIconByNotificationType(notificationType);
-  return notificationIcon
-    ? makeIconWithBadge(notificationIcon, typeIcon)
-    : typeIcon;
+  const badge = makeBadgeByNotificationType(notificationType);
+  return notificationIcon ? makeIconWithBadge(notificationIcon, badge) : badge;
 };
 
-const makeIconByNotificationType = (
+const makeBadgeByNotificationType = (
   type: NotificationData['type']
 ): React.ReactNode => {
   switch (type) {
@@ -46,21 +45,34 @@ const makeIconWithBadge = (
   );
 };
 
-const NotificationsComponent: React.FC = () => {
+type NotificationsProps = {
+  handleCloseContainer?: () => void | Promise<void>;
+};
+
+const NotificationsComponent: React.FC<NotificationsProps> = ({
+  handleCloseContainer
+}) => {
+  const history = useHistory();
   const notifications = inAppNotificationsStore.notifications;
   return (
     <div className="h-full">
       {notifications.length ? (
         <>
-          {notifications.map(({ id, title, message, type, icon }) => (
-            <div key={id} className="my-2">
-              <NotificationCard
-                title={title}
-                message={message}
-                icon={makeIcon(type, icon)}
-              />
-            </div>
-          ))}
+          {notifications.map(
+            ({ id, title, message, type, icon, editEntityRoute }) => (
+              <div key={id} className="my-2 w-full">
+                <NotificationCard
+                  title={title}
+                  message={message}
+                  icon={makeIcon(type, icon)}
+                  onClick={() => {
+                    handleCloseContainer?.();
+                    history.replace(editEntityRoute);
+                  }}
+                />
+              </div>
+            )
+          )}
         </>
       ) : (
         <div>
