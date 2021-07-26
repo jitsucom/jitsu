@@ -346,11 +346,7 @@ func parseDashboard(income []byte, fieldName string) ([]map[string]interface{}, 
 
 func simplifyArrayValue(array []float64) interface{} {
 	if len(array) == 1 {
-		value := array[0]
-		if value == float64(int(value)) {
-			return int(value)
-		}
-		return value
+		return array[0]
 	}
 	return array
 }
