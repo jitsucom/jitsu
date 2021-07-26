@@ -5,8 +5,8 @@ import ApplicationServices from 'lib/services/ApplicationServices';
 import { isArray } from 'utils/typeCheck';
 // @Utils
 import { randomId } from 'utils/numbers';
-import { toArrayIfNot } from 'utils/array';
-import { destinationsStore, IDestinationsStore } from './destinations';
+import { toArrayIfNot } from 'utils/arrays';
+import { IDestinationsStore } from './destinations';
 import { intersection, without } from 'lodash';
 
 export type UserApiKey = {

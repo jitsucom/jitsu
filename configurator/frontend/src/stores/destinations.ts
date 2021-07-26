@@ -4,7 +4,7 @@ import { flowResult, makeAutoObservable } from 'mobx';
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Utils
 import { intersection, without } from 'lodash';
-import { toArrayIfNot } from 'utils/array';
+import { toArrayIfNot } from 'utils/arrays';
 import { ISourcesStore, sourcesStore } from './sources';
 import { apiKeysStore, IApiKeysStore } from './apiKeys';
 
