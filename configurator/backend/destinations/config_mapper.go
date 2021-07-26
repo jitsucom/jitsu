@@ -163,7 +163,7 @@ func mapMySQL(md *entities.Destination) (*enstorages.DestinationConfig, error) {
 	if mySQLFormData.DisableTLS {
 		parameters = map[string]string{"tls": "false"}
 	} else {
-		parameters = map[string]string{"tls": "true"}
+		parameters = map[string]string{"tls": "preferred"}
 	}
 
 	return &enstorages.DestinationConfig{
