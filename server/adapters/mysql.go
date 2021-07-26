@@ -7,6 +7,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/typing"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"sort"
 	"strings"
 	"time"
@@ -26,9 +27,11 @@ const (
 	mySQLInsertTemplate          = "INSERT INTO `%s`.`%s` (%s) VALUES %s"
 	mySQLAlterPrimaryKeyTemplate = "ALTER TABLE `%s`.`%s` ADD CONSTRAINT %s PRIMARY KEY (%s)"
 	mySQLMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) VALUES %s ON DUPLICATE KEY UPDATE %s"
+	mySQLBulkMergeTemplate       = "INSERT INTO `%s`.`%s` (%s) SELECT * FROM (SELECT %s FROM `%s`.`%s`) AS tmp ON DUPLICATE KEY UPDATE %s"
 	mySQLDeleteQueryTemplate     = "DELETE FROM `%s`.`%s` WHERE %s"
 	mySQLAddColumnTemplate       = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
 	mySQLDropPrimaryKeyTemplate  = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
+	mySQLDropTableTemplate       = "DROP TABLE `%s`.`%s`"
 	mySQLPrimaryKeyMaxLength     = 32
 	mySQLValuesLimit             = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
@@ -79,27 +82,45 @@ func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *loggin
 	return &MySQL{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToMySQL)}, nil
 }
 
-//Insert provided object in mySQL with typecasts
-//uses upsert (merge on conflict) if primary_keys are configured
-func (m *MySQL) Insert(eventContext *EventContext) error {
-	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := m.buildInsertPayload(eventContext.ProcessedEvent)
+//Type returns MySQL type
+func (MySQL) Type() string {
+	return "MySQL"
+}
 
-	var statement string
-	if len(eventContext.Table.PKFields) == 0 {
-		statement = fmt.Sprintf(mySQLInsertTemplate, m.config.Db, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
-	} else {
-		statement = fmt.Sprintf(mySQLMergeTemplate, m.config.Db, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", m.buildUpdateSection(columnsWithoutQuotes))
-		values = append(values, values...)
-	}
-
-	m.queryLogger.LogQueryWithValues(statement, values)
-
-	_, err := m.dataSource.ExecContext(m.ctx, statement, values...)
+//OpenTx opens underline sql transaction and return wrapped instance
+func (m *MySQL) OpenTx() (*Transaction, error) {
+	tx, err := m.dataSource.BeginTx(m.ctx, nil)
 	if err != nil {
-		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, statement, values, err)
+		return nil, err
 	}
 
-	return nil
+	return &Transaction{tx: tx, dbType: m.Type()}, nil
+}
+
+//CreateTable creates database table with name,columns provided in Table representation
+func (m *MySQL) CreateTable(table *Table) error {
+	wrappedTx, err := m.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	err = m.createTableInTransaction(wrappedTx, table)
+	if err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
+//PatchTableSchema adds new columns(from provided Table) to existing table
+func (m *MySQL) PatchTableSchema(patchTable *Table) error {
+	wrappedTx, err := m.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	return m.patchTableSchemaInTransaction(wrappedTx, patchTable)
 }
 
 //GetTableSchema returns table (name,columns with name and types) representation wrapped in Table struct
@@ -123,6 +144,44 @@ func (m *MySQL) GetTableSchema(tableName string) (*Table, error) {
 	return table, nil
 }
 
+//Insert provided object in mySQL with typecasts
+//uses upsert (merge on conflict) if primary_keys are configured
+func (m *MySQL) Insert(eventContext *EventContext) error {
+	columnsWithoutQuotes, columnsWithQuotes, placeholders, values := m.buildInsertPayload(eventContext.ProcessedEvent)
+
+	var statement string
+	if len(eventContext.Table.PKFields) == 0 {
+		statement = fmt.Sprintf(mySQLInsertTemplate, m.config.Db, eventContext.Table.Name, strings.Join(columnsWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
+	} else {
+		statement = fmt.Sprintf(mySQLMergeTemplate, m.config.Db, eventContext.Table.Name, strings.Join(columnsWithQuotes, ","), "("+strings.Join(placeholders, ", ")+")", m.buildUpdateSection(columnsWithoutQuotes))
+		values = append(values, values...)
+	}
+
+	m.queryLogger.LogQueryWithValues(statement, values)
+
+	_, err := m.dataSource.ExecContext(m.ctx, statement, values...)
+	if err != nil {
+		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, statement, values, err)
+	}
+
+	return nil
+}
+
+//BulkInsert runs bulkStoreInTransaction
+func (m *MySQL) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	wrappedTx, err := m.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err = m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
 //BulkUpdate deletes with deleteConditions and runs bulkStoreInTransaction
 func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
 	wrappedTx, err := m.OpenTx()
@@ -131,8 +190,7 @@ func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, delet
 	}
 
 	if !deleteConditions.IsEmpty() {
-		err := m.deleteInTransaction(wrappedTx, table, deleteConditions)
-		if err != nil {
+		if err := m.deleteInTransaction(wrappedTx, table, deleteConditions); err != nil {
 			wrappedTx.Rollback()
 			return err
 		}
@@ -142,6 +200,22 @@ func (m *MySQL) BulkUpdate(table *Table, objects []map[string]interface{}, delet
 		wrappedTx.Rollback()
 		return err
 	}
+
+	return wrappedTx.DirectCommit()
+}
+
+//DropTable drops table in transaction
+func (m *MySQL) DropTable(table *Table) error {
+	wrappedTx, err := m.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err := m.dropTableInTransaction(wrappedTx, table); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
 	return wrappedTx.DirectCommit()
 }
 
@@ -166,56 +240,6 @@ func (m *MySQL) toDeleteQuery(conditions *DeleteConditions) (string, []interface
 		values = append(values, condition.Value)
 	}
 	return strings.Join(queryConditions, conditions.JoinCondition), values
-}
-
-//PatchTableSchema adds new columns(from provided Table) to existing table
-func (m *MySQL) PatchTableSchema(patchTable *Table) error {
-	wrappedTx, err := m.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	return m.patchTableSchemaInTransaction(wrappedTx, patchTable)
-}
-
-//Type returns MySQL type
-func (MySQL) Type() string {
-	return "MySQL"
-}
-
-//OpenTx opens underline sql transaction and return wrapped instance
-func (m *MySQL) OpenTx() (*Transaction, error) {
-	tx, err := m.dataSource.BeginTx(m.ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return &Transaction{tx: tx, dbType: m.Type()}, nil
-}
-
-//CreateTable creates database table with name,columns provided in Table representation
-func (m *MySQL) CreateTable(table *Table) error {
-	wrappedTx, err := m.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	return m.createTableInTransaction(wrappedTx, table)
-}
-
-//BulkInsert runs bulkStoreInTransaction
-func (m *MySQL) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	wrappedTx, err := m.OpenTx()
-	if err != nil {
-		return err
-	}
-
-	if err = m.bulkStoreInTransaction(wrappedTx, table, objects); err != nil {
-		wrappedTx.Rollback()
-		return err
-	}
-
-	return wrappedTx.DirectCommit()
 }
 
 //Close underlying sql.DB
@@ -293,12 +317,24 @@ func mySQLDriverConnectionString(config *DataSourceConfig) string {
 	return connectionString
 }
 
+//bulkStoreInTransaction checks PKFields and uses bulkInsert or bulkMerge
+//in bulkMerge - deduplicate objects
+//if there are any duplicates, do the job 2 times
 func (m *MySQL) bulkStoreInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	if len(table.PKFields) == 0 {
 		return m.bulkInsertInTransaction(wrappedTx, table, objects)
 	}
 
-	return m.bulkMergeInTransaction(wrappedTx, table, objects)
+	//deduplication for bulkMerge success (it fails if there is any duplicate)
+	deduplicatedObjectsBuckets := deduplicateObjects(table, objects)
+
+	for _, objectsBucket := range deduplicatedObjectsBuckets {
+		if err := m.bulkMergeInTransaction(wrappedTx, table, objectsBucket); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 //Must be used when table has no primary keys. Inserts data in batches to improve performance.
@@ -381,44 +417,66 @@ func (m *MySQL) executeInsert(wrappedTx *Transaction, table *Table, headerWithou
 	return nil
 }
 
-//Must be used only if table has primary key fields. Slower than bulkInsert as each query executed separately.
-//Prefer to use bulkStoreInTransaction instead of calling this method directly
+//bulkMergeInTransaction creates tmp table without duplicates
+//inserts all data into tmp table and using bulkMergeTemplate merges all data to main table
 func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	var placeholders string
-	var headerWithoutQuotes []string
-	var headerWithQuotes []string
-	for name := range table.Columns {
-		headerWithoutQuotes = append(headerWithoutQuotes, name)
-		headerWithQuotes = append(headerWithQuotes, m.quote(name))
-		placeholders += "?,"
+	tmpTable := &Table{
+		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers(),
+		Columns:        table.Columns,
+		PKFields:       map[string]bool{},
+		DeletePkFields: false,
+		Version:        0,
 	}
-	placeholders = "(" + removeLastComma(placeholders) + ")"
 
-	statement := fmt.Sprintf(mySQLMergeTemplate,
-		m.config.Db,
-		table.Name,
-		strings.Join(headerWithQuotes, ","),
-		placeholders,
-		m.buildUpdateSection(headerWithoutQuotes),
-	)
-	mergeStmt, err := wrappedTx.tx.PrepareContext(m.ctx, statement)
+	err := m.createTableInTransaction(wrappedTx, tmpTable)
 	if err != nil {
-		return fmt.Errorf("Error preparing bulk merge statement [%s] table %s statement: %v", statement, table.Name, err)
+		return fmt.Errorf("Error creating temporary table: %v", err)
 	}
 
-	for _, row := range objects {
-		var values []interface{}
-		for _, column := range headerWithoutQuotes {
-			value := m.mapColumnValue(row[column])
-			values = append(values, value)
-		}
-		values = append(values, values...)
+	err = m.bulkInsertInTransaction(wrappedTx, tmpTable, objects)
+	if err != nil {
+		return fmt.Errorf("Error inserting in temporary table: %v", err)
+	}
 
-		m.queryLogger.LogQueryWithValues(statement, values)
-		_, err = mergeStmt.ExecContext(m.ctx, values...)
-		if err != nil {
-			return fmt.Errorf("Error bulk merging in %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
-		}
+	//insert from select
+	var setValues []string
+	var headerWithQuotes []string
+	var aliases []string
+	i := 0
+	for name := range table.Columns {
+		quotedColumnName := m.quote(name)
+		alias := fmt.Sprintf("c_%d", i)
+		headerWithQuotes = append(headerWithQuotes, quotedColumnName)
+		aliases = append(aliases, fmt.Sprintf("%s AS %s", quotedColumnName, alias))
+		setValues = append(setValues, fmt.Sprintf("%s = %s", quotedColumnName, alias))
+		i++
+	}
+
+	insertFromSelectStatement := fmt.Sprintf(mySQLBulkMergeTemplate,
+		m.config.Db, table.Name,
+		strings.Join(headerWithQuotes, ", "),
+		strings.Join(aliases, ", "),
+		m.config.Db, tmpTable.Name,
+		strings.Join(setValues, ", "))
+	m.queryLogger.LogQuery(insertFromSelectStatement)
+
+	_, err = wrappedTx.tx.ExecContext(m.ctx, insertFromSelectStatement)
+	if err != nil {
+		return fmt.Errorf("Error bulk merging in %s table with statement: %s: %v", table.Name, insertFromSelectStatement, err)
+	}
+
+	//delete tmp table
+	return m.dropTableInTransaction(wrappedTx, tmpTable)
+}
+
+func (m *MySQL) dropTableInTransaction(wrappedTx *Transaction, table *Table) error {
+	query := fmt.Sprintf(mySQLDropTableTemplate, m.config.Db, table.Name)
+	m.queryLogger.LogDDL(query)
+
+	_, err := wrappedTx.tx.ExecContext(m.ctx, query)
+
+	if err != nil {
+		return fmt.Errorf("Error dropping [%s] table: %v", table.Name, err)
 	}
 
 	return nil
@@ -511,17 +569,15 @@ func (m *MySQL) createTableInTransaction(wrappedTx *Transaction, table *Table) e
 	_, err := wrappedTx.tx.ExecContext(m.ctx, query)
 
 	if err != nil {
-		wrappedTx.Rollback()
-		return fmt.Errorf("Error creating [%s] table: %v", table.Name, err)
+		return fmt.Errorf("Error creating [%s] table with statement [%s]: %v", table.Name, query, err)
 	}
 
 	err = m.createPrimaryKeyInTransaction(wrappedTx, table)
 	if err != nil {
-		wrappedTx.Rollback()
 		return err
 	}
 
-	return wrappedTx.tx.Commit()
+	return nil
 }
 
 func (m *MySQL) buildConstraintName(tableName string) string {
