@@ -72,7 +72,7 @@ func TestMySQLBulkMerge(t *testing.T) {
 	require.NoError(t, err, "Failed to bulk merge objects")
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
-	assert.Equal(t, rows, 	recordsCount)
+	assert.Equal(t, rows, recordsCount)
 }
 
 func setupMySQLDatabase(t *testing.T, table *Table) (*test.MySQLContainer, *MySQL) {
@@ -102,7 +102,7 @@ func createObjectsForMySQL(num int) []map[string]interface{} {
 	var objects []map[string]interface{}
 	for i := 0; i < num; i++ {
 		object := make(map[string]interface{})
-		object["field1"] = fmt.Sprint(rand.Int())
+		object["field1"] = fmt.Sprintf("100000-%d", i)
 		object["field2"] = fmt.Sprint(rand.Int())
 		object["field3"] = rand.Int()
 		object["user"] = fmt.Sprint(rand.Int())
