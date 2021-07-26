@@ -35,6 +35,10 @@ EventNative accepts the following parameters.
         <td>Name of tracking cookie (<code inline="true">__eventn_id</code> by default)</td>
     </tr>
     <tr>
+        <td>cookie_domain<br />(<span style={{whiteSpace: 'nowrap'}}>data-cookie-domain</span>)</td>
+        <td>Domain of the tracking cookie (by default this is <code inline="true">location.hostname</code> with any <code inline="true">www.</code> subdomain removed)</td>
+    </tr>
+    <tr>
         <td>segment_hook<br />(<span style={{whiteSpace: 'nowrap'}}>data-tracking-host</span>)</td>
         <td>If set to true, Jitsu will automatically listen to Segment's analytics.js events and collect them.</td>
     </tr>
