@@ -10,6 +10,7 @@ import { addToArrayIfNotDuplicate, toArrayIfNot } from 'utils/array';
 
 export interface ISourcesStore {
   sources: SourceData[];
+  hasSources: boolean;
   state: SourcesStoreState;
   error: string;
   getSourceById(id: string): SourceData;
@@ -148,6 +149,10 @@ class SourcesStore implements ISourcesStore {
 
   public get sources() {
     return this._sources;
+  }
+
+  public get hasSources(): boolean {
+    return !!this._sources.length;
   }
 
   public get state() {

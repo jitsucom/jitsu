@@ -1,19 +1,21 @@
 // @Libs
-import { makeAutoObservable } from 'mobx';
+import { flowResult, makeAutoObservable } from 'mobx';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Utils
 import { intersection, without } from 'lodash';
 import { toArrayIfNot } from 'utils/array';
 import { ISourcesStore, sourcesStore } from './sources';
+import { apiKeysStore, IApiKeysStore } from './apiKeys';
 
 export interface IDestinationsStore {
   destinations: DestinationData[];
+  hasDestinations: boolean;
   state: DestinationsStoreState;
   error: string;
-  injectSourcesStore(sourcesStore: ISourcesStore): void;
-  getDestinationById(id: string): DestinationData | null;
-  getDestinationByUid(uid: string): DestinationData | null;
+  injectSourcesStore: (sourcesStore: ISourcesStore) => void;
+  getDestinationById: (id: string) => DestinationData | null;
+  getDestinationByUid: (uid: string) => DestinationData | null;
   pullDestinations: (
     showGlobalLoader: boolean
   ) => Generator<Promise<unknown>, void, unknown>;
@@ -27,6 +29,7 @@ export interface IDestinationsStore {
     destinationsToUpdate: DestinationData | DestinationData[],
     options?: EditDestinationsOptions
   ) => Generator<Promise<unknown>, void, unknown>;
+  createFreeDatabase: () => Generator<Promise<unknown>, void, unknown>;
 }
 
 type EditDestinationsOptions = {
@@ -63,13 +66,12 @@ const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } =
   DestinationsStoreState;
 
 const services = ApplicationServices.get();
-
-const _sourcesStore = sourcesStore;
 class DestinationsStore implements IDestinationsStore {
   private _destinations: DestinationData[] = [];
   private _state: DestinationsStoreState = GLOBAL_LOADING;
   private _errorMessage: string = '';
   private _sourcesStore: ISourcesStore | undefined;
+  private _apiKeysStore: IApiKeysStore = apiKeysStore;
 
   constructor() {
     makeAutoObservable(this);
@@ -164,6 +166,10 @@ class DestinationsStore implements IDestinationsStore {
 
   public get destinations() {
     return this._destinations;
+  }
+
+  public get hasDestinations(): boolean {
+    return !!this._destinations.length;
   }
 
   public getDestinationById(id: string): DestinationData | null {
@@ -265,6 +271,20 @@ class DestinationsStore implements IDestinationsStore {
     } finally {
       this._state = IDLE;
     }
+  }
+
+  public *createFreeDatabase() {
+    const { destinations } =
+      (yield services.initializeDefaultDestination()) as {
+        destinations: DestinationData[];
+      };
+    const freeDatabaseDestination = destinations[0];
+    yield flowResult(this._apiKeysStore.generateAddInitialApiKeyIfNeeded());
+    const linkedFreeDatabaseDestination: DestinationData = {
+      ...freeDatabaseDestination,
+      _onlyKeys: [this._apiKeysStore.apiKeys[0].uid]
+    };
+    yield flowResult(this.addDestination(linkedFreeDatabaseDestination));
   }
 }
 

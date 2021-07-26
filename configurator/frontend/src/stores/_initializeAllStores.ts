@@ -17,6 +17,7 @@ const initalizeStoresData = (): Promise<
   ]);
 
 export const initializeAllStores = async (): Promise<void> => {
+  apiKeysStore.injectDestinationsStore(destinationsStore);
   destinationsStore.injectSourcesStore(sourcesStore);
   sourcesStore.injectDestinationsStore(destinationsStore);
   await initalizeStoresData();
