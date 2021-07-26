@@ -25,7 +25,8 @@ import Icon, {
   WechatOutlined,
   UserOutlined,
   UserSwitchOutlined,
-  LogoutOutlined
+  LogoutOutlined,
+  PartitionOutlined
 } from '@ant-design/icons';
 import logo from 'icons/logo.svg';
 import classNames from 'classnames';
@@ -48,46 +49,59 @@ export const ApplicationMenu: React.FC<{}> = () => {
   const location = usePageLocation().canonicalPath;
   const services = useServices();
 
-  let key = location === '/' || location === '' ?
-    'dashboard' :
-    location;
+  let key = location === '/' || location === '' ? 'dashboard' : location;
 
   if (key.charAt(0) === '/') {
     key = key.substr(1);
   }
-  return <Menu selectable={false} focusable={false} mode="inline" selectedKeys={[key]} className="border-0">
-    <Menu.Item key="dashboard" icon={<AreaChartOutlined/>}>
-      <NavLink to="/dashboard" activeClassName="selected">
-        Dashboard
-      </NavLink>
-    </Menu.Item>
-    <Menu.Item key="api_keys" icon={<UnlockOutlined/>}>
-      <NavLink to="/api_keys" activeClassName="selected">
-        Events API
-      </NavLink>
-    </Menu.Item>
-    <Menu.Item key="sources" icon={<ApiOutlined/>}>
-      <NavLink to="/sources" activeClassName="selected">
-        Connectors
-      </NavLink>
-    </Menu.Item>
-    <Menu.Item key="destinations" icon={<NotificationOutlined/>}>
-      <NavLink to="/destinations" activeClassName="selected">
-        Destinations
-      </NavLink>
-    </Menu.Item>
-    {services.features.enableCustomDomains && <Menu.Item key="domains" icon={<CloudOutlined/>}>
-      <NavLink to="/domains" activeClassName="selected">
-        Custom Domains
-      </NavLink>
-    </Menu.Item>}
-    <Menu.Item key="cfg_download" icon={<DownloadOutlined/>}>
-      <NavLink to="/cfg_download" activeClassName="selected">
-        Generate Config
-      </NavLink>
-    </Menu.Item>
-  </Menu>
-}
+  return (
+    <Menu
+      selectable={false}
+      focusable={false}
+      mode="inline"
+      selectedKeys={[key]}
+      className="border-0"
+    >
+      <Menu.Item key="dashboard" icon={<AreaChartOutlined />}>
+        <NavLink to="/dashboard" activeClassName="selected">
+          Dashboard
+        </NavLink>
+      </Menu.Item>
+      <Menu.Item key="connections" icon={<PartitionOutlined />}>
+        <NavLink to="/connections" activeClassName="selected">
+          Connections
+        </NavLink>
+      </Menu.Item>
+      <Menu.Item key="api_keys" icon={<UnlockOutlined />}>
+        <NavLink to="/api_keys" activeClassName="selected">
+          Events API
+        </NavLink>
+      </Menu.Item>
+      <Menu.Item key="sources" icon={<ApiOutlined />}>
+        <NavLink to="/sources" activeClassName="selected">
+          Connectors
+        </NavLink>
+      </Menu.Item>
+      <Menu.Item key="destinations" icon={<NotificationOutlined />}>
+        <NavLink to="/destinations" activeClassName="selected">
+          Destinations
+        </NavLink>
+      </Menu.Item>
+      {services.features.enableCustomDomains && (
+        <Menu.Item key="domains" icon={<CloudOutlined />}>
+          <NavLink to="/domains" activeClassName="selected">
+            Custom Domains
+          </NavLink>
+        </Menu.Item>
+      )}
+      <Menu.Item key="cfg_download" icon={<DownloadOutlined />}>
+        <NavLink to="/cfg_download" activeClassName="selected">
+          Generate Config
+        </NavLink>
+      </Menu.Item>
+    </Menu>
+  );
+};
 
 export const ApplicationSidebar: React.FC<{}> = () => {
   const services = useServices();

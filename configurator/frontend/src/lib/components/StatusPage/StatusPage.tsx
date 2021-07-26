@@ -9,20 +9,16 @@ import {
   Tooltip,
   ResponsiveContainer
 } from 'recharts';
-import React, { useEffect } from 'react';
+import React from 'react';
 import moment from 'moment';
-import Xarrow from 'react-xarrows';
-import LeaderLine from 'leader-line-new';
 import { NavLink } from 'react-router-dom';
-import { observer } from 'mobx-react-lite';
-import { Button, Card, Col, Row, Badge } from 'antd';
+import { Button, Card, Col, Row } from 'antd';
 // @Components
-import { EntityIcon } from 'lib/components/EntityIcon/EntityIcon';
-import { EntityCard } from 'lib/components/EntityCard/EntityCard';
-import { CodeInline, LoadableComponent, StatCard } from 'lib/components/components';
-// @Store
-import { sourcesStore } from 'stores/sources';
-import { destinationsStore } from 'stores/destinations';
+import {
+  CodeInline,
+  LoadableComponent,
+  StatCard
+} from 'lib/components/components';
 // @Icons
 import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
@@ -38,7 +34,6 @@ import ApplicationServices from 'lib/services/ApplicationServices';
 // @Utils
 import { withDefaultVal } from 'lib/commons/utils';
 // @Styles
-import styles from './Connections.module.less';
 import './StatusPage.less';
 
 type State = {
@@ -53,152 +48,7 @@ interface Props {
   timeInUTC?: boolean;
 }
 
-const ConnectionsLinesComponent: React.FC = () => {
-  return (
-    <>
-      {sourcesStore.sources.reduce(
-        (connections, { sourceId, destinations }) => {
-          debugger;
-          return [
-            ...connections,
-            ...destinations.map((destinationUid) => (
-              <Xarrow start={sourceId} end={destinationUid} />
-            ))
-          ];
-        },
-        []
-      )}
-    </>
-  );
-};
-
-const ConnectionsLines = observer(ConnectionsLinesComponent);
-
-ConnectionsLines.displayName = 'ConnectionsLines';
-
-const connections = {};
-
-const StatusPageComponent: React.FC = () => {
-  const drawLines = () => {
-    sourcesStore.sources.map(({ sourceId, destinations }) => {
-      destinations.forEach((destinationUid) => {
-        connections[`${sourceId}-${destinationUid}`] = new LeaderLine(
-          document.getElementById(sourceId),
-          document.getElementById(destinationUid),
-          { endPlug: 'behind', size: 4 }
-        );
-      });
-    });
-  };
-
-  useEffect(() => {
-    drawLines();
-  }, []);
-
-  return (
-    <div className="flex justify-center w-full h-full">
-      <div className="flex items-stretch w-full h-full max-w-3xl">
-        <Column className="max-w-xs">
-          {sourcesStore.sources.map(({ sourceId, sourceType, connected }) => {
-            return (
-              <CardContainer id={sourceId}>
-                <EntityCard
-                  name={sourceId}
-                  message={<EntityMessage connectionTestOk={connected} />}
-                  icon={
-                    <EntityIconWrapper>
-                      <EntityIcon
-                        entityType="source"
-                        entitySubType={sourceType}
-                      />
-                    </EntityIconWrapper>
-                  }
-                />
-              </CardContainer>
-            );
-          })}
-        </Column>
-
-        <Column />
-
-        <Column className="max-w-xs">
-          {destinationsStore.destinations.map(
-            ({ _id, _uid, _type, _connectionTestOk }) => {
-              return (
-                <CardContainer id={_uid}>
-                  <EntityCard
-                    name={_id}
-                    message={
-                      <EntityMessage connectionTestOk={_connectionTestOk} />
-                    }
-                    icon={
-                      <EntityIconWrapper>
-                        <EntityIcon
-                          entityType="destination"
-                          entitySubType={_type}
-                        />
-                      </EntityIconWrapper>
-                    }
-                  />
-                </CardContainer>
-              );
-            }
-          )}
-        </Column>
-      </div>
-      {/* <ConnectionsLines /> */}
-    </div>
-  );
-};
-
-const StatusPage = observer(StatusPageComponent);
-StatusPage.displayName = 'StatusPage';
-
-export default StatusPage;
-
-const EntityMessage: React.FC<{ connectionTestOk: boolean }> = ({
-  connectionTestOk
-}) => {
-  return (
-    <div>
-      <Badge
-        size="default"
-        status={connectionTestOk ? 'processing' : 'error'}
-        text={
-          connectionTestOk ? (
-            <span className={styles.processing}>{'Connected'}</span>
-          ) : (
-            <span className={styles.error}>{'Connection test failed'}</span>
-          )
-        }
-      />
-    </div>
-  );
-};
-
-const EntityIconWrapper: React.FC = ({ children }) => {
-  return (
-    <div className="flex justify-center items-center h-14 w-14 m-3">
-      {children}
-    </div>
-  );
-};
-
-const Column: React.FC<{ className?: string }> = ({ className, children }) => {
-  return (
-    <div className={`flex flex-col flex-auto ${className}`}>{children}</div>
-  );
-};
-
-const CardContainer: React.FC<{ id: string }> = ({ id, children }) => {
-  return (
-    <div key={id} className={`my-2`} id={id}>
-      {children}
-    </div>
-  );
-};
-
-export class _StatusPage extends LoadableComponent<Props, State> {
+export default class StatusPage extends LoadableComponent<Props, State> {
   private readonly services: ApplicationServices;
   private stats: StatService;
   private timeInUTC: boolean;

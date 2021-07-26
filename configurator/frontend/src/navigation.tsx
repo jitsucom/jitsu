@@ -34,32 +34,38 @@ const SourcesPage = React.lazy(
   () => import('ui/pages/SourcesPage/SourcesPage')
 );
 const StatusPage = React.lazy(() => import('./lib/components/StatusPage/StatusPage'));
-const PasswordForm = React.lazy(() => import('./lib/components/PasswordForm/PasswordForm'));
-const DownloadConfig = React.lazy(() => import('./lib/components/DownloadConfig/DownloadConfig'));
+const ConnectionsPage = React.lazy(
+  () => import('ui/pages/ConnectionsPage/ConnectionsPage')
+);
+const PasswordForm = React.lazy(
+  () => import('./lib/components/PasswordForm/PasswordForm')
+);
+const DownloadConfig = React.lazy(
+  () => import('./lib/components/DownloadConfig/DownloadConfig')
+);
 
 export type PageLocation = {
-  canonicalPath: string
-  id: string
-}
+  canonicalPath: string;
+  id: string;
+};
 
 export function usePageLocation(): PageLocation {
   const location = useLocation().pathname;
 
-  let canonicalPath = location === '/' || location === '' ?
-    'dashboard' :
-    location;
+  let canonicalPath =
+    location === '/' || location === '' ? 'dashboard' : location;
 
-  let id = (canonicalPath.startsWith('/')
-    ? canonicalPath.substr(1)
-    : canonicalPath).replace('/', '');
+  let id = (
+    canonicalPath.startsWith('/') ? canonicalPath.substr(1) : canonicalPath
+  ).replace('/', '');
 
-  return { canonicalPath, id }
+  return { canonicalPath, id };
 }
 
 export type PageProps = {
-  setBreadcrumbs?: (header: ReactNode) => void,
-  [propName: string]: any
-}
+  setBreadcrumbs?: (header: ReactNode) => void;
+  [propName: string]: any;
+};
 
 export class Page {
   readonly _component: ExoticComponent | React.Component | React.FC;
@@ -73,7 +79,7 @@ export class Page {
   readonly doNotWrap: boolean;
 
   public getPrefixedPath(): string[] {
-    return this.path.map((el) => el.startsWith('/') ? el : '/' + el);
+    return this.path.map((el) => (el.startsWith('/') ? el : '/' + el));
   }
 
   constructor(
@@ -95,10 +101,16 @@ export class Page {
   }
 }
 
-export const SELFHOSTED_PAGES: Page[] = [new Page('Jitsu | setup', ['/', '/setup'], SetupForm)];
+export const SELFHOSTED_PAGES: Page[] = [
+  new Page('Jitsu | setup', ['/', '/setup'], SetupForm)
+];
 
 export const PUBLIC_PAGES: Page[] = [
-  new Page('Jitsu | login with magic link', ['/login-link/:emailEncoded?'], LoginLink),
+  new Page(
+    'Jitsu | login with magic link',
+    ['/login-link/:emailEncoded?'],
+    LoginLink
+  ),
   new Page('Jitsu | login', ['/', '/dashboard', '/login'], LoginForm),
   new Page('Jitsu | register', ['/register'], SignupForm),
   new Page('Jitsu | reset password', ['/reset_password/:resetId'], PasswordForm)
@@ -106,8 +118,19 @@ export const PUBLIC_PAGES: Page[] = [
 
 export const PRIVATE_PAGES: Page[] = [
   new Page('Test Component', '/test', ComponentTest, 'Component Test'),
-  new Page('Jitsu | recent events', '/events_stream', EventsStream, 'Recent events'),
+  new Page(
+    'Jitsu | recent events',
+    '/events_stream',
+    EventsStream,
+    'Recent events'
+  ),
   new Page('Jitsu | dashboard', ['/dashboard', ''], StatusPage, 'Dashboard'),
+  new Page(
+    'Jitsu | connections',
+    '/connections',
+    ConnectionsPage,
+    'Connections'
+  ),
   new Page(
     'Jitsu | edit destinations',
     Object.keys(destinationPageRoutes).map((key) => destinationPageRoutes[key]),
@@ -127,12 +150,12 @@ export const PRIVATE_PAGES: Page[] = [
     CustomDomains,
     'Custom tracking domains'
   ),
-  new Page('Jitsu | reset password', ['/reset_password/:resetId'], PasswordForm, '', true),
   new Page(
-    'Jitsu | sources',
-    Object.keys(sourcesPageRoutes).map((key) => sourcesPageRoutes[key]),
-    SourcesPage,
-    'Sources'
+    'Jitsu | reset password',
+    ['/reset_password/:resetId'],
+    PasswordForm,
+    '',
+    true
   ),
   new Page(
     'Jitsu | sources',
@@ -141,21 +164,17 @@ export const PRIVATE_PAGES: Page[] = [
     'Sources'
   ),
   new Page(
-    'Jitsu | task logs',
-    taskLogsPageRoute,
-    TaskLogsPage,
-    'Task Logs'
+    'Jitsu | sources',
+    Object.keys(sourcesPageRoutes).map((key) => sourcesPageRoutes[key]),
+    SourcesPage,
+    'Sources'
   ),
+  new Page('Jitsu | task logs', taskLogsPageRoute, TaskLogsPage, 'Task Logs'),
   new Page(
     'Jitsu | Task Logs View',
     taskLogsViewerRoute,
     TaskLogViewer,
     'Task Logs'
   ),
-  new Page(
-    'Jitsu | Settings',
-    settingsPageRoutes,
-    SettingsPage,
-    'Settings'
-  )
+  new Page('Jitsu | Settings', settingsPageRoutes, SettingsPage, 'Settings')
 ];
