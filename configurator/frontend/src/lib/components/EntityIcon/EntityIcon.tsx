@@ -2,7 +2,7 @@
 import { memo } from 'react';
 // @Data
 import { destinationsReferenceMap } from 'catalog/destinations/lib';
-import { allSources } from 'catalog/sources/lib';
+import { allSourcesMap } from 'catalog/sources/lib';
 import { apiKeysReferenceMap } from 'catalog/apiKeys/lib';
 
 type EntityIconProps = DestinationIconProps | SourceIconProps | ApiKeyIconProps;
@@ -28,11 +28,11 @@ const EntityIconComponent: React.FC<EntityIconProps> = ({
 }) => {
   switch (entityType) {
     case 'source':
-      return allSources.find(({ id }) => id === entitySubType)?.pic;
+      return allSourcesMap[entitySubType]?.pic || null;
     case 'destination':
-      return destinationsReferenceMap[entitySubType].ui.icon;
+      return destinationsReferenceMap[entitySubType]?.ui?.icon || null;
     case 'api_key':
-      return apiKeysReferenceMap.js.icon;
+      return apiKeysReferenceMap.js.icon || null;
     default:
       return null;
   }

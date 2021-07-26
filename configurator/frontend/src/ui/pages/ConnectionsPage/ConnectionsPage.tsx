@@ -20,8 +20,6 @@ import { destinationsReferenceList } from 'catalog/destinations/lib';
 import { destinationPageRoutes } from '../DestinationsPage/DestinationsPage.routes';
 // @Styles
 import styles from './ConnectionsPage.module.less';
-import { createFreeDatabase } from 'lib/commons/createFreeDatabase';
-import { flowResult } from 'mobx';
 import { useServices } from 'hooks/useServices';
 
 const CONNECTION_LINE_SIZE = 3;
@@ -127,7 +125,7 @@ const ConnectionsPageComponent: React.FC = () => {
                 );
               }),
               ...sourcesStore.sources.map(
-                ({ sourceId, sourceType, connected }) => {
+                ({ sourceId, sourceProtoType, connected }) => {
                   return (
                     <CardContainer id={sourceId}>
                       <EntityCard
@@ -138,7 +136,7 @@ const ConnectionsPageComponent: React.FC = () => {
                           <IconWrapper sizePx={14}>
                             <EntityIcon
                               entityType="source"
-                              entitySubType={sourceType}
+                              entitySubType={sourceProtoType}
                             />
                           </IconWrapper>
                         }

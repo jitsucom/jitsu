@@ -79,7 +79,7 @@ export const ApplicationMenu: React.FC<{}> = () => {
       </Menu.Item>
       <Menu.Item key="sources" icon={<ApiOutlined />}>
         <NavLink to="/sources" activeClassName="selected">
-          Connectors
+          Sources
         </NavLink>
       </Menu.Item>
       <Menu.Item key="destinations" icon={<NotificationOutlined />}>
