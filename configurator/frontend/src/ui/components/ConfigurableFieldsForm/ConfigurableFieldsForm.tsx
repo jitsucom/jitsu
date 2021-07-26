@@ -34,7 +34,7 @@ export interface Props {
   form: FormInstance;
   initialValues: any;
   namePrefix?: string;
-  handleTouchAnyField: VoidFunc;
+  handleTouchAnyField: (...args: any) => void;
 }
 
 export const FormItemName = {

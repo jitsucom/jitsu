@@ -1,13 +1,19 @@
 // @Libs
-import { makeAutoObservable, flow } from 'mobx';
+import { makeAutoObservable } from 'mobx';
+// @Store
+import { IDestinationsStore } from './destinations';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
-import { isArray } from 'utils/typeCheck';
+// @Utils
+import { intersection, without } from 'lodash';
+import { addToArrayIfNotDuplicate, toArrayIfNot } from 'utils/array';
 
-interface ISourcesStore {
+export interface ISourcesStore {
   sources: SourceData[];
+  hasSources: boolean;
   state: SourcesStoreState;
   error: string;
+  getSourceById(id: string): SourceData;
   pullSources: (
     showGlobalLoader: boolean
   ) => Generator<Promise<unknown>, void, unknown>;
@@ -16,9 +22,18 @@ interface ISourcesStore {
     source: SourceData
   ) => Generator<Promise<unknown>, void, unknown>;
   editSources: (
-    newData: SourceData | SourceData[]
+    newData: SourceData | SourceData[],
+    options?: EditSourcesOptions
   ) => Generator<Promise<unknown>, void, unknown>;
 }
+
+type EditSourcesOptions = {
+  updateDestinations?: boolean;
+};
+
+const EDIT_SOURCES_DEFAULT_OPTIONS: EditSourcesOptions = {
+  updateDestinations: true
+};
 
 enum SourceStoreGeneralState {
   'IDLE' = 'IDLE'
@@ -51,6 +66,7 @@ class SourcesStore implements ISourcesStore {
   private _sources: SourceData[] = [];
   private _state: SourcesStoreState = GLOBAL_LOADING;
   private _errorMessage: string = '';
+  private _destinatinonsStore: IDestinationsStore | undefined;
 
   constructor() {
     makeAutoObservable(this);
@@ -69,8 +85,74 @@ class SourcesStore implements ISourcesStore {
     if (stateIsErrored) this._state = IDLE;
   }
 
+  private updateDestinationsLinksBySourcesUpdates(
+    _updatedSources: SourceData | SourceData[]
+  ): void {
+    const updatedSources: SourceData[] = toArrayIfNot(_updatedSources);
+    const updatedDestinationsMap: { [key: string]: DestinationData } = {};
+    updatedSources.forEach((source) => {
+      this._destinatinonsStore.destinations.forEach((destination) => {
+        const destinationLinkedToSoucre = !!destination._sources?.includes(
+          source.sourceId
+        );
+        const destinationNeedsToBeLinked = !!source.destinations?.includes(
+          destination._uid
+        );
+        if (destinationLinkedToSoucre === destinationNeedsToBeLinked) return;
+
+        const updatedDestination =
+          updatedDestinationsMap[destination._uid] || destination;
+        if (destinationNeedsToBeLinked) {
+          updatedDestinationsMap[destination._uid] = {
+            ...updatedDestination,
+            _sources: [...(updatedDestination._sources || []), source.sourceId]
+          };
+        } else {
+          updatedDestinationsMap[destination._uid] = {
+            ...updatedDestination,
+            _sources: (updatedDestination._sources || []).filter(
+              (sourceId) => sourceId !== source.sourceId
+            )
+          };
+        }
+      });
+    });
+    const updatedDestinationsList = Object.values(updatedDestinationsMap);
+    if (updatedDestinationsList.length)
+      this._destinatinonsStore.editDestinations(updatedDestinationsList, {
+        updateSources: false
+      });
+  }
+
+  private unlinkDeletedSourcesFromDestinations(
+    _deletedSources: SourceData | SourceData[]
+  ) {
+    const deletedSources = toArrayIfNot(_deletedSources);
+    const deletedSourcesIds = deletedSources.map(({ sourceId }) => sourceId);
+    const updatedDestinationsInitialAccumulator: DestinationData[] = [];
+    const updatedDestinations = this._destinatinonsStore.destinations.reduce(
+      (updatedDestinations, destination) => {
+        if (!intersection(destination._sources, deletedSourcesIds).length)
+          return updatedDestinations;
+        const updated: DestinationData = {
+          ...destination,
+          _sources: without(destination._sources || [], ...deletedSourcesIds)
+        };
+        return [...updatedDestinations, updated];
+      },
+      updatedDestinationsInitialAccumulator
+    );
+    this._destinatinonsStore.editDestinations(updatedDestinations, {
+      updateSources: false
+    });
+  }
+
   public get sources() {
     return this._sources;
+  }
+
+  public get hasSources(): boolean {
+    return !!this._sources.length;
   }
 
   public get state() {
@@ -79,6 +161,14 @@ class SourcesStore implements ISourcesStore {
 
   public get error() {
     return this._errorMessage;
+  }
+
+  public injectDestinationsStore(destinationsStore: IDestinationsStore): void {
+    this._destinatinonsStore = destinationsStore;
+  }
+
+  public getSourceById(id: string) {
+    return this._sources.find(({ sourceId }) => id === sourceId);
   }
 
   public *pullSources(showGlobalLoader?: boolean) {
@@ -111,6 +201,7 @@ class SourcesStore implements ISourcesStore {
         services.activeProject.id
       );
       this._sources = updatedSources;
+      this.updateDestinationsLinksBySourcesUpdates(sourceToAdd);
     } catch (error) {
       throw error;
     } finally {
@@ -131,6 +222,7 @@ class SourcesStore implements ISourcesStore {
         services.activeProject.id
       );
       this._sources = updatedSources;
+      this.unlinkDeletedSourcesFromDestinations(sourceToDelete);
     } catch (error) {
       throw error;
     } finally {
@@ -138,11 +230,11 @@ class SourcesStore implements ISourcesStore {
     }
   }
 
-  public *editSources(_sourcesToUpdate: SourceData | SourceData[]) {
-    const sourcesToUpdate: SourceData[] = isArray(_sourcesToUpdate)
-      ? _sourcesToUpdate
-      : [_sourcesToUpdate];
-
+  public *editSources(
+    _sourcesToUpdate: SourceData | SourceData[],
+    options = EDIT_SOURCES_DEFAULT_OPTIONS
+  ) {
+    const sourcesToUpdate: SourceData[] = toArrayIfNot(_sourcesToUpdate);
     this.resetError();
     this._state = BACKGROUND_LOADING;
     const updatedSources = this._sources.map((source) => {
@@ -159,6 +251,8 @@ class SourcesStore implements ISourcesStore {
         services.activeProject.id
       );
       this._sources = updatedSources;
+      if (options.updateDestinations)
+        this.updateDestinationsLinksBySourcesUpdates(sourcesToUpdate);
     } catch (error) {
       throw error;
     } finally {
