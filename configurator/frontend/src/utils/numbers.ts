@@ -1,4 +1,4 @@
-import { naturalSort } from './array';
+import { naturalSort } from './arrays';
 
 function randomId(len?: number) {
   const str =
