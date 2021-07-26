@@ -159,7 +159,12 @@ func mapMySQL(md *entities.Destination) (*enstorages.DestinationConfig, error) {
 		return nil, fmt.Errorf("Error unmarshaling MySQL form data: %v", err)
 	}
 
-	parameters := map[string]string{"tls": "false"}
+	var parameters map[string]string
+	if mySQLFormData.DisableTLS {
+		parameters = map[string]string{"tls": "false"}
+	} else {
+		parameters = map[string]string{"tls": "true"}
+	}
 
 	return &enstorages.DestinationConfig{
 		Type: enstorages.MySQLType,

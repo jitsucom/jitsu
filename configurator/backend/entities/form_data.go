@@ -13,6 +13,7 @@ type MySQLFormData struct {
 	Password string      `firestore:"mysqlPassword" json:"mysqlPassword"`
 	Port     json.Number `firestore:"mysqlPort" json:"mysqlPort"`
 	Username string      `firestore:"mysqlUser" json:"mysqlUser"`
+	DisableTLS bool        `firestore:"mysqlDisableTLS" json:"mysqlDisableTLS"`
 }
 
 //PostgresFormData entity is stored in main storage (Firebase/Redis)

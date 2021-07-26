@@ -67,8 +67,10 @@ func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *loggin
 		return nil, err
 	}
 
-	//set default value
-	dataSource.SetConnMaxLifetime(10 * time.Minute)
+	//set default values
+	dataSource.SetConnMaxLifetime(3 * time.Minute)
+	dataSource.SetMaxOpenConns(50)
+	dataSource.SetMaxIdleConns(50)
 
 	return &MySQL{ctx: ctx, config: config, dataSource: dataSource, queryLogger: queryLogger, sqlTypes: reformatMappings(sqlTypes, SchemaToMySQL)}, nil
 }
