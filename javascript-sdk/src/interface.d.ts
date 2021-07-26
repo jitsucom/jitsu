@@ -76,7 +76,7 @@ export type JitsuFunction = (action: 'track' | 'id' | 'set', eventType: string, 
 export type IdMethod = 'cookie' | 'ls' | 'cookie-less'
 
 /**
- * Configuration options of EventNative
+ * Configuration options of Jitsu
  */
 export type JitsuOptions = {
 
