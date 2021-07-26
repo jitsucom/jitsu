@@ -46,14 +46,11 @@ const NotificationTitle: React.FC<NotificationTitleProps> = ({
 }) => {
   const parsedTitle =
     typeof title === 'string'
-      
       ? {
-              start: title.slice(0, title.length - ELLIPSIS_SUFFIX_LENGTH),
-              end: title.slice(-ELLIPSIS_SUFFIX_LENGTH )
-            }
-      
+          start: title.slice(0, title.length - ELLIPSIS_SUFFIX_LENGTH),
+          end: title.slice(-ELLIPSIS_SUFFIX_LENGTH)
+        }
       : null;
-
   return (
     <div className="flex items-center mt-1.5 w-full">
       {icon && (

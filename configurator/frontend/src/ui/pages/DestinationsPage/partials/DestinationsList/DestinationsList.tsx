@@ -10,7 +10,6 @@ import {
 } from 'catalog/destinations/lib';
 // @Store
 import { destinationsStore } from 'stores/destinations';
-import { sourcesStore } from 'stores/sources';
 // @Components
 import { handleError } from 'lib/components/components';
 import { DropDownList } from 'ui/components/DropDownList/DropDownList';
@@ -31,7 +30,6 @@ import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPag
 import { CommonDestinationPageProps } from 'ui/pages/DestinationsPage/DestinationsPage';
 import { Destination } from 'catalog/destinations/types';
 import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
-import { destinationEditorUtils } from 'ui/pages/DestinationsPage/partials/DestinationEditor/DestinationEditor.utils';
 import { observer } from 'mobx-react-lite';
 
 const DestinationsListComponent = ({
@@ -43,8 +41,6 @@ const DestinationsListComponent = ({
 
   const deleteDestination = useCallback(
     (id: string) => async () => {
-      const appServices = ApplicationServices.get();
-
       const destinationToDelete = destinationsStore.getDestinationById(id);
 
       try {

@@ -1,8 +1,9 @@
 // @Libs
 import { memo } from 'react';
 // @Data
-import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
+import { destinationsReferenceMap } from 'catalog/destinations/lib';
 import { allSources } from 'catalog/sources/lib';
+import { apiKeysReferenceMap } from 'catalog/apiKeys/lib';
 
 type EntityIconProps = DestinationIconProps | SourceIconProps | ApiKeyIconProps;
 
@@ -31,7 +32,7 @@ const EntityIconComponent: React.FC<EntityIconProps> = ({
     case 'destination':
       return destinationsReferenceMap[entitySubType].ui.icon;
     case 'api_key':
-      return null;
+      return apiKeysReferenceMap.js.icon;
     default:
       return null;
   }
