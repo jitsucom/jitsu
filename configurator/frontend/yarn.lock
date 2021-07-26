@@ -8219,6 +8219,11 @@ last-call-webpack-plugin@^3.0.0:
     lodash "^4.17.5"
     webpack-sources "^1.1.0"
 
+leader-line-new@^1.1.9:
+  version "1.1.9"
+  resolved "https://registry.yarnpkg.com/leader-line-new/-/leader-line-new-1.1.9.tgz#22f5e5708dc54cb32beadffa015bc228a0fe61dc"
+  integrity sha512-x56aRYaqJTA4aAS2fgbSpvWKY3IxRXDSFeGkNBmCQ3LX44B3F1HEjcBTkCiK5I3W0nPWeUTWe7dTt59VtdfFWw==
+
 less-loader@^6.1.0:
   version "6.2.0"
   resolved "https://registry.npmjs.org/less-loader/-/less-loader-6.2.0.tgz"

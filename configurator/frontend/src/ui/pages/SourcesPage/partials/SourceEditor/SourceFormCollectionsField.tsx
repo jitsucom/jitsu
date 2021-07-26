@@ -13,7 +13,7 @@ export interface Props {
   field: FormListFieldData;
   initialValue: any;
   documentation?: React.ReactNode;
-  handleFormFieldsChange: VoidFunc;
+  handleFormFieldsChange: (...args: any) => void;
 }
 
 const SourceFormCollectionsFieldComponent = ({
