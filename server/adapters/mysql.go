@@ -56,6 +56,10 @@ type MySQL struct {
 
 //NewMySQL returns configured MySQL adapter instance
 func NewMySQL(ctx context.Context, config *DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*MySQL, error) {
+	if _, ok := config.Parameters["tls"]; !ok {
+		// similar to postgres default value of sslmode option
+		config.Parameters["tls"] = "preferred"
+	}
 	connectionString := mySQLDriverConnectionString(config)
 	dataSource, err := sql.Open("mysql", connectionString)
 	if err != nil {
@@ -329,7 +333,7 @@ func (m *MySQL) bulkInsertInTransaction(wrappedTx *Transaction, table *Table, ob
 		}
 
 		for i, column := range headerWithoutQuotes {
-			value, _ := row[column]
+			value := m.mapColumnValue(row[column])
 			valueArgs = append(valueArgs, value)
 
 			_, err = placeholdersBuilder.WriteString("?")
@@ -405,7 +409,7 @@ func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, obj
 	for _, row := range objects {
 		var values []interface{}
 		for _, column := range headerWithoutQuotes {
-			value, _ := row[column]
+			value := m.mapColumnValue(row[column])
 			values = append(values, value)
 		}
 		values = append(values, values...)
@@ -469,7 +473,7 @@ func (m *MySQL) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *Tab
 	for _, column := range table.GetPKFields() {
 		columnType := table.Columns[column].SQLType
 		var quoted string
-		if columnType == SchemaToMySQL[typing.STRING] || columnType == SchemaToMySQL[typing.UNKNOWN] {
+		if columnType == SchemaToMySQL[typing.STRING] {
 			quoted = fmt.Sprintf("%s(%d)", m.quote(column), mySQLPrimaryKeyMaxLength)
 		} else {
 			quoted = m.quote(column)
@@ -599,4 +603,14 @@ func (m *MySQL) buildInsertPayload(valuesMap map[string]interface{}) ([]string, 
 	}
 
 	return header, quotedHeader, placeholders, values
+}
+
+func (m *MySQL) mapColumnValue(columnVal interface{}) interface{} {
+	if datetime, ok := columnVal.(time.Time); ok {
+		if datetime.IsZero() {
+			// workaround for time.Time{} default value because of mysql driver internals
+			return time.Date(1, 1, 1, 0, 0, 0, 1, time.UTC)
+		}
+	}
+	return columnVal
 }

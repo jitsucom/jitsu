@@ -19,11 +19,16 @@ var timestamps = [...]time.Time{
 	time.Date(2521, time.July, 10, 10, 50, 10, 17, time.UTC),
 	// after 1970 year
 	time.Date(2021, time.July, 10, 10, 50, 10, 17, time.UTC),
+	// same as time.Time{}
+	{},
+	// same as time.Time{}
+	time.Date(1, 1, 1, 0, 0, 0, 0, time.UTC),
 	// before 1970 year
 	time.Date(1910, time.July, 10, 10, 50, 10, 17, time.UTC),
 }
 
 func TestMySQLBulkInsert(t *testing.T) {
+	recordsCount := len(timestamps)
 	table := &Table{
 		Name: "test_insert",
 		Columns: Columns{
@@ -36,14 +41,15 @@ func TestMySQLBulkInsert(t *testing.T) {
 	}
 	container, mySQL := setupMySQLDatabase(t, table)
 	defer container.Close()
-	err := mySQL.BulkInsert(table, createObjectsForMySQL(5))
-	require.NoError(t, err, "Failed to bulk insert 5 objects")
+	err := mySQL.BulkInsert(table, createObjectsForMySQL(recordsCount))
+	require.NoError(t, err, fmt.Sprintf("Failed to bulk insert %d objects", recordsCount))
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
-	assert.Equal(t, rows, 5)
+	assert.Equal(t, rows, recordsCount)
 }
 
 func TestMySQLBulkMerge(t *testing.T) {
+	recordsCount := len(timestamps)
 	table := &Table{
 		Name: "test_merge",
 		Columns: Columns{
@@ -57,8 +63,8 @@ func TestMySQLBulkMerge(t *testing.T) {
 	}
 	container, mySQL := setupMySQLDatabase(t, table)
 	defer container.Close()
-	// store 8 objects with 3 id duplications, the result must be 5 objects
-	objects := createObjectsForMySQL(5)
+	// store recordsCount + 3 objects with 3 id duplications, the result must be 	recordsCount objects
+	objects := createObjectsForMySQL(recordsCount)
 	objects = append(objects, objects[0])
 	objects = append(objects, objects[2])
 	objects = append(objects, objects[3])
@@ -66,7 +72,7 @@ func TestMySQLBulkMerge(t *testing.T) {
 	require.NoError(t, err, "Failed to bulk merge objects")
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
-	assert.Equal(t, rows, 5)
+	assert.Equal(t, rows, 	recordsCount)
 }
 
 func setupMySQLDatabase(t *testing.T, table *Table) (*test.MySQLContainer, *MySQL) {
