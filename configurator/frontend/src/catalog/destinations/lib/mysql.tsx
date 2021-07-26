@@ -57,6 +57,16 @@ const mysqlDestination = {
             displayName: 'Password',
             required: true,
             type: passwordType
+        },
+        {
+            id: '_formData.mysqlDisableTLS',
+            displayName: 'Disable TLS',
+            required: true,
+            type: booleanType,
+            defaultValue: false,
+            documentation: <>
+                All connections to MySQL will be unsecured (non-TLS). We do not recommend to disable TLS. Disabled TLS can be used with MySQL that is installed on the local machine.
+            </>
         }
     ]
 
