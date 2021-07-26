@@ -163,6 +163,7 @@ func mapMySQL(md *entities.Destination) (*enstorages.DestinationConfig, error) {
 	if mySQLFormData.DisableTLS {
 		parameters = map[string]string{"tls": "false"}
 	} else {
+		// similar to postgres default value of sslmode option
 		parameters = map[string]string{"tls": "preferred"}
 	}
 
