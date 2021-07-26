@@ -41,11 +41,12 @@ export const EntityCard: React.FC<EntityCardProps> = ({
     </Link>
   ) : (
     <div className={styles.card}>
-      <Card size={size} bordered={false}>
+      <Card size={size} bordered={false} className="pr-5">
         <Card.Meta
           title={<EntityCardTitle>{name}</EntityCardTitle>}
           avatar={icon}
           description={message}
+          className="pr-4"
         />
       </Card>
     </div>

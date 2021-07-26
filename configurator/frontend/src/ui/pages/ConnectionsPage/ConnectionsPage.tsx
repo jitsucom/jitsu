@@ -41,6 +41,8 @@ const ConnectionsPageComponent: React.FC = () => {
               end,
               {
                 endPlug: 'behind',
+                startSocket: 'right',
+                endSocket: 'left',
                 color: CONNECTION_LINE_COLOR,
                 size: CONNECTION_LINE_SIZE
               }
@@ -110,7 +112,7 @@ const ConnectionsPageComponent: React.FC = () => {
                 return (
                   <CardContainer id={uid}>
                     <EntityCard
-                      name={<ApiKeyCardTitle title={`API Key ${uid}`} />}
+                      name={<CardTitle title={`API Key ${uid}`} />}
                       message={<EntityMessage connectionTestOk={true} />}
                       link="/api_keys"
                       icon={
@@ -129,7 +131,7 @@ const ConnectionsPageComponent: React.FC = () => {
                   return (
                     <CardContainer id={sourceId}>
                       <EntityCard
-                        name={sourceId}
+                        name={<CardTitle title={sourceId} />}
                         message={<EntityMessage connectionTestOk={connected} />}
                         link={`/sources/edit/${sourceId}`}
                         icon={
@@ -193,7 +195,7 @@ const ConnectionsPageComponent: React.FC = () => {
                 return (
                   <CardContainer id={_uid}>
                     <EntityCard
-                      name={_id}
+                      name={<CardTitle title={_id} />}
                       message={
                         <EntityMessage connectionTestOk={_connectionTestOk} />
                       }
@@ -298,9 +300,9 @@ const CardContainer: React.FC<{ id: string }> = ({ id, children }) => {
   );
 };
 
-const ELLIPSIS_SUFFIX_LENGTH = 4;
+const ELLIPSIS_SUFFIX_LENGTH = 3;
 
-const ApiKeyCardTitle: React.FC<{ title: string }> = ({ title }) => {
+const CardTitle: React.FC<{ title: string }> = ({ title }) => {
   const parsedTitle = {
     start: title.slice(0, title.length - ELLIPSIS_SUFFIX_LENGTH),
     end: title.slice(-ELLIPSIS_SUFFIX_LENGTH)
