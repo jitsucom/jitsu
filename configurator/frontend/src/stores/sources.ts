@@ -6,7 +6,7 @@ import { IDestinationsStore } from './destinations';
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Utils
 import { intersection, without } from 'lodash';
-import { addToArrayIfNotDuplicate, toArrayIfNot } from 'utils/array';
+import { addToArrayIfNotDuplicate, toArrayIfNot } from 'utils/arrays';
 
 export interface ISourcesStore {
   sources: SourceData[];
