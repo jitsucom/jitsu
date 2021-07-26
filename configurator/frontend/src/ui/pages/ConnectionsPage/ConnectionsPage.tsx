@@ -20,8 +20,6 @@ import { destinationsReferenceList } from 'catalog/destinations/lib';
 import { destinationPageRoutes } from '../DestinationsPage/DestinationsPage.routes';
 // @Styles
 import styles from './ConnectionsPage.module.less';
-import { createFreeDatabase } from 'lib/commons/createFreeDatabase';
-import { flowResult } from 'mobx';
 import { useServices } from 'hooks/useServices';
 
 const CONNECTION_LINE_SIZE = 3;
@@ -37,12 +35,14 @@ const ConnectionsPageComponent: React.FC = () => {
         [..._onlyKeys, ..._sources].forEach((sourceId) => {
           const start = document.getElementById(sourceId);
           const end = document.getElementById(_uid);
-          if (start && end)
+          if (start && end && !connectionLines[`${sourceId}-${_uid}`])
             connectionLines[`${sourceId}-${_uid}`] = new LeaderLine(
               start,
               end,
               {
                 endPlug: 'behind',
+                startSocket: 'right',
+                endSocket: 'left',
                 color: CONNECTION_LINE_COLOR,
                 size: CONNECTION_LINE_SIZE
               }
@@ -112,7 +112,7 @@ const ConnectionsPageComponent: React.FC = () => {
                 return (
                   <CardContainer id={uid}>
                     <EntityCard
-                      name={<ApiKeyCardTitle title={`API Key ${uid}`} />}
+                      name={<CardTitle title={`API Key ${uid}`} />}
                       message={<EntityMessage connectionTestOk={true} />}
                       link="/api_keys"
                       icon={
@@ -127,18 +127,18 @@ const ConnectionsPageComponent: React.FC = () => {
                 );
               }),
               ...sourcesStore.sources.map(
-                ({ sourceId, sourceType, connected }) => {
+                ({ sourceId, sourceProtoType, connected }) => {
                   return (
                     <CardContainer id={sourceId}>
                       <EntityCard
-                        name={sourceId}
+                        name={<CardTitle title={sourceId} />}
                         message={<EntityMessage connectionTestOk={connected} />}
                         link={`/sources/edit/${sourceId}`}
                         icon={
                           <IconWrapper sizePx={14}>
                             <EntityIcon
                               entityType="source"
-                              entitySubType={sourceType}
+                              entitySubType={sourceProtoType}
                             />
                           </IconWrapper>
                         }
@@ -195,7 +195,7 @@ const ConnectionsPageComponent: React.FC = () => {
                 return (
                   <CardContainer id={_uid}>
                     <EntityCard
-                      name={_id}
+                      name={<CardTitle title={_id} />}
                       message={
                         <EntityMessage connectionTestOk={_connectionTestOk} />
                       }
@@ -300,9 +300,9 @@ const CardContainer: React.FC<{ id: string }> = ({ id, children }) => {
   );
 };
 
-const ELLIPSIS_SUFFIX_LENGTH = 4;
+const ELLIPSIS_SUFFIX_LENGTH = 3;
 
-const ApiKeyCardTitle: React.FC<{ title: string }> = ({ title }) => {
+const CardTitle: React.FC<{ title: string }> = ({ title }) => {
   const parsedTitle = {
     start: title.slice(0, title.length - ELLIPSIS_SUFFIX_LENGTH),
     end: title.slice(-ELLIPSIS_SUFFIX_LENGTH)
