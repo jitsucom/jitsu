@@ -63,7 +63,7 @@ func TestMySQLBulkMerge(t *testing.T) {
 	}
 	container, mySQL := setupMySQLDatabase(t, table)
 	defer container.Close()
-	// store recordsCount + 3 objects with 3 id duplications, the result must be 	recordsCount objects
+	// store recordsCount + 3 objects with 3 id duplications, the result must be recordsCount objects
 	objects := createObjectsForMySQL(recordsCount)
 	objects = append(objects, objects[0])
 	objects = append(objects, objects[2])
