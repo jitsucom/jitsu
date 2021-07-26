@@ -40,7 +40,7 @@ func NewMySQL(config *Config) (Storage, error) {
 	//schema and database are synonyms in MySQL
 	//default connect timeout seconds
 	if _, ok := mConfig.Parameters["timeout"]; !ok {
-		mConfig.Parameters["timeout"] = "600"
+		mConfig.Parameters["timeout"] = "600s"
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
