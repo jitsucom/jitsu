@@ -5,6 +5,9 @@ import ApplicationServices from 'lib/services/ApplicationServices';
 import { isArray } from 'utils/typeCheck';
 // @Utils
 import { randomId } from 'utils/numbers';
+import { toArrayIfNot } from 'utils/array';
+import { destinationsStore, IDestinationsStore } from './destinations';
+import { intersection, without } from 'lodash';
 
 export type UserApiKey = {
   uid: string;
@@ -67,6 +70,7 @@ class ApiKeysStore implements IApiKeysStore {
   private _apiKeys: UserApiKey[] = [];
   private _state: ApiKeysStoreState = GLOBAL_LOADING;
   private _errorMessage: string = '';
+  private _destinationsStore: IDestinationsStore = destinationsStore;
 
   constructor() {
     makeAutoObservable(this);
@@ -92,6 +96,35 @@ class ApiKeysStore implements IApiKeysStore {
       jsAuth: this.generateApiToken('js'),
       origins: []
     };
+  }
+
+  private removeDeletedApiKeysFromDestinations(
+    _deletedApiKeys: UserApiKey | UserApiKey[]
+  ) {
+    const deletedApiKeysUids = toArrayIfNot(_deletedApiKeys).map(
+      (key) => key.uid
+    );
+    const updatedDestinationsInitialAccumulator: DestinationData[] = [];
+    const updatedDestinations: DestinationData[] =
+      this._destinationsStore.destinations.reduce(
+        (updatedDestinations, destination) => {
+          const destinationHasDeletedKeys = !!intersection(
+            destination._onlyKeys,
+            deletedApiKeysUids
+          ).length;
+          if (!destinationHasDeletedKeys) return updatedDestinations;
+          const updated: DestinationData = {
+            ...destination,
+            _onlyKeys: without(destination._onlyKeys, ...deletedApiKeysUids)
+          };
+          return [...updatedDestinations, updated];
+        },
+        updatedDestinationsInitialAccumulator
+      );
+    if (updatedDestinations.length)
+      this._destinationsStore.editDestinations(updatedDestinations, {
+        updateSources: false
+      });
   }
 
   public get apiKeys() {
@@ -169,6 +202,7 @@ class ApiKeysStore implements IApiKeysStore {
         services.activeProject.id
       );
       this._apiKeys = updatedApiKeys;
+      this.removeDeletedApiKeysFromDestinations(apiKeyToDelete);
     } catch (error) {
       throw error;
     } finally {
