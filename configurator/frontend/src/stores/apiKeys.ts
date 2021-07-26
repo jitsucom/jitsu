@@ -17,10 +17,12 @@ export type UserApiKey = {
   comment?: string;
 };
 
-interface IApiKeysStore {
+export interface IApiKeysStore {
   apiKeys: UserApiKey[];
+  hasApiKeys: boolean;
   state: ApiKeysStoreState;
   error: string;
+  injectDestinationsStore: (store: IDestinationsStore) => void;
   generateApiToken(type: string, len?: number): string;
   pullApiKeys: (
     showGlobalLoader: boolean
@@ -70,7 +72,7 @@ class ApiKeysStore implements IApiKeysStore {
   private _apiKeys: UserApiKey[] = [];
   private _state: ApiKeysStoreState = GLOBAL_LOADING;
   private _errorMessage: string = '';
-  private _destinationsStore: IDestinationsStore = destinationsStore;
+  private _destinationsStore: IDestinationsStore | undefined;
 
   constructor() {
     makeAutoObservable(this);
@@ -131,12 +133,20 @@ class ApiKeysStore implements IApiKeysStore {
     return this._apiKeys;
   }
 
+  public get hasApiKeys(): boolean {
+    return !!this._apiKeys.length;
+  }
+
   public get state() {
     return this._state;
   }
 
   public get error() {
     return this._errorMessage;
+  }
+
+  public injectDestinationsStore(store: IDestinationsStore): void {
+    this._destinationsStore = store;
   }
 
   public generateApiToken(type: string, len?: number): string {
@@ -167,7 +177,7 @@ class ApiKeysStore implements IApiKeysStore {
 
   public *generateAddInitialApiKeyIfNeeded() {
     if (!!this.apiKeys.length) return;
-    yield flowResult(this.generateAddApiKey);
+    yield flowResult(this.generateAddApiKey());
   }
 
   public *generateAddApiKey() {

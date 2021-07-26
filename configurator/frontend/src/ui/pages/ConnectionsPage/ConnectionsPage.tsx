@@ -1,5 +1,5 @@
 // @Libs
-import { Badge, Button, Dropdown, Typography } from 'antd';
+import { Badge, Button, Dropdown, Empty, Typography } from 'antd';
 import React, { useCallback, useEffect } from 'react';
 import { observer } from 'mobx-react-lite';
 import LeaderLine from 'leader-line-new';
@@ -20,6 +20,9 @@ import { destinationsReferenceList } from 'catalog/destinations/lib';
 import { destinationPageRoutes } from '../DestinationsPage/DestinationsPage.routes';
 // @Styles
 import styles from './ConnectionsPage.module.less';
+import { createFreeDatabase } from 'lib/commons/createFreeDatabase';
+import { flowResult } from 'mobx';
+import { useServices } from 'hooks/useServices';
 
 const CONNECTION_LINE_SIZE = 3;
 const CONNECTION_LINE_COLOR = '#415969';
@@ -49,12 +52,6 @@ const ConnectionsPageComponent: React.FC = () => {
     );
   };
 
-  const cleanupObsoleteLines = () => {
-    // Object.keys(connectionLines).forEach((key) => {
-    //   if (!connectionLines[key]) delete connectionLines[key];
-    // });
-  };
-
   const eraseLines = () => {
     Object.entries(connectionLines).forEach(([key, line]) => {
       line.remove();
@@ -82,7 +79,6 @@ const ConnectionsPageComponent: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    cleanupObsoleteLines();
     drawLines();
     return () => {
       eraseLines();
@@ -110,45 +106,53 @@ const ConnectionsPageComponent: React.FC = () => {
             </div>
           }
         >
-          {apiKeysStore.apiKeys.map(({ uid }) => {
-            return (
-              <CardContainer id={uid}>
-                <EntityCard
-                  name={<ApiKeyCardTitle title={`API Key ${uid}`} />}
-                  message={<EntityMessage connectionTestOk={true} />}
-                  link="/api_keys"
-                  icon={
-                    <IconWrapper sizePx={14}>
-                      <EntityIcon entityType="api_key" />
-                    </IconWrapper>
-                  }
-                  onMouseEnter={() => handleCardMouseEnter(uid)}
-                  onMouseLeave={handleCardMouseLeave}
-                />
-              </CardContainer>
-            );
-          })}
-          {sourcesStore.sources.map(({ sourceId, sourceType, connected }) => {
-            return (
-              <CardContainer id={sourceId}>
-                <EntityCard
-                  name={sourceId}
-                  message={<EntityMessage connectionTestOk={connected} />}
-                  link={`/sources/edit/${sourceId}`}
-                  icon={
-                    <IconWrapper sizePx={14}>
-                      <EntityIcon
-                        entityType="source"
-                        entitySubType={sourceType}
+          {apiKeysStore.hasApiKeys || sourcesStore.hasSources ? (
+            [
+              ...apiKeysStore.apiKeys.map(({ uid }) => {
+                return (
+                  <CardContainer id={uid}>
+                    <EntityCard
+                      name={<ApiKeyCardTitle title={`API Key ${uid}`} />}
+                      message={<EntityMessage connectionTestOk={true} />}
+                      link="/api_keys"
+                      icon={
+                        <IconWrapper sizePx={14}>
+                          <EntityIcon entityType="api_key" />
+                        </IconWrapper>
+                      }
+                      onMouseEnter={() => handleCardMouseEnter(uid)}
+                      onMouseLeave={handleCardMouseLeave}
+                    />
+                  </CardContainer>
+                );
+              }),
+              ...sourcesStore.sources.map(
+                ({ sourceId, sourceType, connected }) => {
+                  return (
+                    <CardContainer id={sourceId}>
+                      <EntityCard
+                        name={sourceId}
+                        message={<EntityMessage connectionTestOk={connected} />}
+                        link={`/sources/edit/${sourceId}`}
+                        icon={
+                          <IconWrapper sizePx={14}>
+                            <EntityIcon
+                              entityType="source"
+                              entitySubType={sourceType}
+                            />
+                          </IconWrapper>
+                        }
+                        onMouseEnter={() => handleCardMouseEnter(sourceId)}
+                        onMouseLeave={handleCardMouseLeave}
                       />
-                    </IconWrapper>
-                  }
-                  onMouseEnter={() => handleCardMouseEnter(sourceId)}
-                  onMouseLeave={handleCardMouseLeave}
-                />
-              </CardContainer>
-            );
-          })}
+                    </CardContainer>
+                  );
+                }
+              )
+            ]
+          ) : (
+            <SourcesEmptyList />
+          )}
         </Column>
 
         <Column />
@@ -162,6 +166,7 @@ const ConnectionsPageComponent: React.FC = () => {
               </h3>
               <Dropdown
                 trigger={['click']}
+                placement="bottomRight"
                 overlay={
                   <DropDownList
                     hideFilter
@@ -184,30 +189,34 @@ const ConnectionsPageComponent: React.FC = () => {
             </div>
           }
         >
-          {destinationsStore.destinations.map(
-            ({ _id, _uid, _type, _connectionTestOk }) => {
-              return (
-                <CardContainer id={_uid}>
-                  <EntityCard
-                    name={_id}
-                    message={
-                      <EntityMessage connectionTestOk={_connectionTestOk} />
-                    }
-                    link={`/destinations/edit/${_id}`}
-                    icon={
-                      <IconWrapper sizePx={14}>
-                        <EntityIcon
-                          entityType="destination"
-                          entitySubType={_type}
-                        />
-                      </IconWrapper>
-                    }
-                    onMouseEnter={() => handleCardMouseEnter(_uid)}
-                    onMouseLeave={handleCardMouseLeave}
-                  />
-                </CardContainer>
-              );
-            }
+          {destinationsStore.hasDestinations ? (
+            destinationsStore.destinations.map(
+              ({ _id, _uid, _type, _connectionTestOk }) => {
+                return (
+                  <CardContainer id={_uid}>
+                    <EntityCard
+                      name={_id}
+                      message={
+                        <EntityMessage connectionTestOk={_connectionTestOk} />
+                      }
+                      link={`/destinations/edit/${_id}`}
+                      icon={
+                        <IconWrapper sizePx={14}>
+                          <EntityIcon
+                            entityType="destination"
+                            entitySubType={_type}
+                          />
+                        </IconWrapper>
+                      }
+                      onMouseEnter={() => handleCardMouseEnter(_uid)}
+                      onMouseLeave={handleCardMouseLeave}
+                    />
+                  </CardContainer>
+                );
+              }
+            )
+          ) : (
+            <DestinationsEmptyList />
           )}
         </Column>
       </div>
@@ -309,4 +318,36 @@ const ApiKeyCardTitle: React.FC<{ title: string }> = ({ title }) => {
       {parsedTitle.start}
     </Typography.Text>
   );
+};
+
+const DestinationsEmptyList: React.FC = () => {
+  const services = useServices();
+  return (
+    <Empty
+      className="mt-20"
+      description={
+        <span>
+          The list is empty.{' '}
+          {services.features.createDemoDatabase && (
+            <>
+              You can add a destination manually or{' '}
+              <Button
+                type="link"
+                size="small"
+                className={styles.linkButton}
+                onClick={() => destinationsStore.createFreeDatabase()}
+              >
+                create a free demo database
+              </Button>{' '}
+              if you are just trying it out.
+            </>
+          )}
+        </span>
+      }
+    />
+  );
+};
+
+const SourcesEmptyList: React.FC = () => {
+  return <Empty className="mt-20" description={`The list is empty`} />;
 };
