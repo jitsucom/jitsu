@@ -69,17 +69,30 @@ func NewFieldMapper(newStyleMappings *Mapping) (events.Mapper, typing.SQLTypes, 
 
 //Map changes input object and applies deletes and mappings
 func (fm *FieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
-	mappedObject := object
-	if !fm.keepUnmappedFields {
-		mappedObject = make(map[string]interface{})
-	}
+	mappedObject := make(map[string]interface{})
 
 	err := applyMapping(object, mappedObject, fm.rules)
 	if err != nil {
 		return nil, err
 	}
 
-	return mappedObject, nil
+	//return only mapped fields
+	if !fm.keepUnmappedFields {
+		return mappedObject, nil
+	}
+
+	//enrich result with unmapped fields + mapped fields
+	result := make(map[string]interface{})
+	for k, v := range object {
+		result[k] = v
+	}
+
+	for k, v := range mappedObject {
+		result[k] = v
+	}
+
+	return result, nil
+
 }
 
 //Map returns object as is
