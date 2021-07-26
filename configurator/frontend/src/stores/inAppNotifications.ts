@@ -3,7 +3,7 @@ import { makeAutoObservable } from 'mobx';
 import React from 'react';
 // @Reference
 import { destinationsReferenceMap } from 'catalog/destinations/lib';
-import { allSources } from 'catalog/sources/lib';
+import { allSourcesMap } from 'catalog/sources/lib';
 // @Routes
 import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPage.routes';
 import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
@@ -37,12 +37,12 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
   }
 
   private get orphanApiKeys(): UserApiKey[] {
-    return this._apiKeysStore.apiKeys.filter(({uid}) => {
+    return this._apiKeysStore.apiKeys.filter(({ uid }) => {
       const keyIsConnected = this._destinationsStore.destinations.reduce(
-        (isConnected, destination) => 
-          isConnected || destination._onlyKeys.some(keyUid => keyUid === uid), 
+        (isConnected, destination) =>
+          isConnected || destination._onlyKeys.some((keyUid) => keyUid === uid),
         false
-      )
+      );
       return !keyIsConnected;
     });
   }
@@ -69,7 +69,7 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
         icon: destinationsReferenceMap[_type].ui.icon,
         editEntityRoute: `${destinationPageRoutes.edit}/${_id}`
       })),
-      ...this.orphanApiKeys.map(({uid}) => ({
+      ...this.orphanApiKeys.map(({ uid }) => ({
         id: uid,
         title: `API Key ${uid}`,
         message: `The API key is not linked to any destination. Events from pixels using this key will be lost.`,
@@ -77,12 +77,12 @@ class InAppNotificationsStore implements IInAppNotificationsStore {
         icon: apiKeysReferenceMap.js.icon,
         editEntityRoute: `/api_keys`
       })),
-      ...this.orphanConnectors.map(({ sourceId, sourceType }) => ({
+      ...this.orphanConnectors.map(({ sourceId, sourceProtoType }) => ({
         id: sourceId,
         title: sourceId,
         message: `The source does not have a linked destination to send events to. Data sync is stopped.`,
         type: 'danger' as const,
-        icon: allSources.find(({ id }) => id === sourceType)?.pic,
+        icon: allSourcesMap[sourceProtoType]?.pic,
         editEntityRoute: `${sourcesPageRoutes.edit}/${sourceId}`
       }))
     ];
