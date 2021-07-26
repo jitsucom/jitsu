@@ -18,7 +18,10 @@ import { MAPPING_ROW_PROPS_MAP } from 'constants/mapping';
 import { MAPPING_LIBRARY } from 'embeddedDocs/mappingsLibrary';
 
 interface Props {
-  handleDataUpdate: (newMappings: DestinationMapping, newTableName?: string) => void;
+  handleDataUpdate: (
+    newMappings: DestinationMapping,
+    newTableName?: string
+  ) => Promise<void>;
 }
 
 const DestinationEditorMappingsLibrary = ({ handleDataUpdate }: Props) => {

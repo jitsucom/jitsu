@@ -37,7 +37,7 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'Amplitude',
     tap: 'tap-amplitude',
     stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: true
   },
   {
     pic: logos.tap_appsflyer,

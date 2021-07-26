@@ -1,5 +1,6 @@
 export const destinationPageRoutes = {
   root: '/destinations',
-  newDestination: '/destinations/new/:type/:tabName?',
-  editDestination: '/destinations/edit/:id/:tabName?'
-}
+  edit: '/destinations/edit',
+  newExact: '/destinations/new/:type/:tabName?',
+  editExact: '/destinations/edit/:id/:tabName?'
+};

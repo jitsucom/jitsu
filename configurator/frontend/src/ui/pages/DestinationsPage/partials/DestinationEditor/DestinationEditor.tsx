@@ -1,5 +1,11 @@
 // @Libs
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Card, Form, message } from 'antd';
 import cn from 'classnames';
@@ -16,7 +22,7 @@ import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLib
 // @Store
 import { destinationsStore } from 'stores/destinations';
 // @CatalogDestinations
-import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
+import { destinationsReferenceMap } from 'catalog/destinations/lib';
 // @Types
 import { FormInstance } from 'antd/es';
 import { Destination } from 'catalog/destinations/types';
@@ -84,45 +90,36 @@ const DestinationEditor = ({
   const urlParams = useParams<DestinationURLParams>();
   const params = paramsByProps || urlParams;
 
-  const sources = sourcesStore.sources;
-
-  const [testConnecting, setTestConnecting] = useState<boolean>(false);
-  const [testConnectingPopover, switchTestConnectingPopover] = useState<boolean>(false);
-
-  const [savePopover, switchSavePopover] = useState<boolean>(false);
-  const [destinationSaving, setDestinationSaving] = useState<boolean>(false);
-
   const [activeTabKey, setActiveTabKey] = useState<DestinationTabKey>('config');
+  const [savePopover, switchSavePopover] = useState<boolean>(false);
+  const [testConnecting, setTestConnecting] = useState<boolean>(false);
+  const [destinationSaving, setDestinationSaving] = useState<boolean>(false);
+  const [testConnectingPopover, switchTestConnectingPopover] =
+    useState<boolean>(false);
 
-  const destinationData = useRef<DestinationData>(
-    destinationsStore.destinations.find(dst => dst._id === params.id) || {
-      _id: getUniqueAutoIncId(params.type, destinationsStore.destinations.map(dst => dst._id)),
-      _uid: randomId(),
-      _type: params.type,
-      _mappings: { _keepUnmappedFields: true },
-      _comment: null,
-      _onlyKeys: []
-    } as DestinationData
-  );
+  const sources = sourcesStore.sources;
+  const destinationData = useRef<DestinationData>(getDestinationData(params));
 
   const destinationReference = useMemo<Destination>(() => {
     if (params.type) {
-      return destinationsReferenceMap[params.type]
+      return destinationsReferenceMap[params.type];
     }
-
-    return destinationsReferenceMap[destinationData.current._type];
-  }, [params.type]);
+    return destinationsReferenceMap[getDestinationData(params)._type];
+  }, [params.type, params.id]);
 
   const submittedOnce = useRef<boolean>(false);
 
-  const handleUseLibrary = async(newMappings: DestinationMapping, newTableName?: string) => {
+  const handleUseLibrary = async (
+    newMappings: DestinationMapping,
+    newTableName?: string
+  ) => {
     destinationData.current = {
       ...destinationData.current,
       _formData: {
         ...destinationData.current._formData,
-        tableName: newTableName ?
-          newTableName :
-          destinationData.current._formData?.tableName
+        tableName: newTableName
+          ? newTableName
+          : destinationData.current._formData?.tableName
       },
       _mappings: newMappings
     };
@@ -150,99 +147,37 @@ const DestinationEditor = ({
     message.success('Mappings library has been successfully set');
   };
 
-  const destinationsTabs = useRef<Tab<DestinationTabKey>[]>([{
-    key: 'config',
-    name: 'Connection Properties',
-    getComponent: (form: FormInstance) =>
-      <DestinationEditorConfig
-        form={form}
-        destinationReference={destinationReference}
-        destinationData={destinationData.current}
-        handleTouchAnyField={validateAndTouchField(0)}
-      />,
-    form: Form.useForm()[0],
-    touched: false
-  },
-  {
-    key: 'mappings',
-    name: 'Mappings',
-    getComponent: (form: FormInstance) =>
-      <DestinationEditorMappings
-        form={form}
-        initialValues={destinationData.current?._mappings}
-        handleTouchAnyField={validateAndTouchField(1)}
-      />,
-    form: Form.useForm()[0],
-    touched: false
-  },
-  {
-    key: 'sources',
-    name: 'Linked Connectors & API Keys',
-    getComponent: (form: FormInstance) =>
-      <DestinationEditorConnectors
-        form={form}
-        initialValues={destinationData.current}
-        destination={destinationReference}
-        handleTouchAnyField={validateAndTouchField(2)}
-      />,
-    form: Form.useForm()[0],
-    errorsLevel: 'warning',
-    touched: false
-  },
-  {
-    key: 'settings',
-    name: 'Configuration Templates',
-    touched: false,
-    getComponent: () => <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary}/>
-  },
-  {
-    key: 'statistics',
-    name: <ComingSoon render="Statistics"
-      documentation={<>A detailed statistics on how many events have been sent to the
-                          destinations</>}/>,
-    isDisabled: true,
-    touched: false
-  }]);
+  const validateTabForm = useCallback(
+    async (tab: Tab) => {
+      const tabForm = tab.form;
 
-  const handleCancel = useCallback(() => {
-    onCancel
-      ? onCancel()
-      : history.push(destinationPageRoutes.root)
-  }, [history, onCancel]);
+      try {
+        if (tab.key === 'sources') {
+          const _sources = tabForm.getFieldsValue()?._sources;
 
-  const testConnectingPopoverClose = useCallback(() => switchTestConnectingPopover(false), []);
-  const savePopoverClose = useCallback(() => switchSavePopover(false), []);
-
-  const validateTabForm = useCallback(async(tab: Tab) => {
-    const form = tab.form;
-
-    try {
-      if (tab.key === 'sources') {
-        const _sources = form.getFieldsValue()?._sources;
-
-        if (!_sources) {
-          tab.errorsCount = 1;
+          if (!_sources) {
+            tab.errorsCount = 1;
+          }
         }
+
+        tab.errorsCount = 0;
+
+        return await tabForm.validateFields();
+      } catch (errors) {
+        // ToDo: check errors count for fields with few validation rules
+        tab.errorsCount = errors.errorFields?.length;
+        throw errors;
+      } finally {
+        forceUpdate();
       }
-
-      tab.errorsCount = 0;
-
-      return await form.validateFields();
-    } catch (errors) {
-      // ToDo: check errors count for fields with few validation rules
-      tab.errorsCount = errors.errorFields?.length;
-
-      throw errors;
-    } finally {
-      forceUpdate();
-    }
-  }, [forceUpdate]);
+    },
+    [forceUpdate]
+  );
 
   const validateAndTouchField = useCallback(
     (index: number) => (value: boolean) => {
-      destinationsTabs.current[index].touched = value === undefined ?
-        true :
-        value;
+      destinationsTabs.current[index].touched =
+        value === undefined ? true : value;
 
       if (submittedOnce.current) {
         validateTabForm(destinationsTabs.current[index]);
@@ -251,7 +186,89 @@ const DestinationEditor = ({
     [validateTabForm]
   );
 
-  const handleTestConnection = useCallback(async() => {
+  const tabsInitialData: Tab<DestinationTabKey>[] = [
+    {
+      key: 'config',
+      name: 'Connection Properties',
+      getComponent: (form: FormInstance) => (
+        <DestinationEditorConfig
+          form={form}
+          destinationReference={destinationReference}
+          destinationData={destinationData.current}
+          handleTouchAnyField={validateAndTouchField(0)}
+        />
+      ),
+      form: Form.useForm()[0],
+      touched: false
+    },
+    {
+      key: 'mappings',
+      name: 'Mappings',
+      getComponent: (form: FormInstance) => (
+        <DestinationEditorMappings
+          form={form}
+          initialValues={destinationData.current._mappings}
+          handleTouchAnyField={validateAndTouchField(1)}
+        />
+      ),
+      form: Form.useForm()[0],
+      touched: false
+    },
+    {
+      key: 'sources',
+      name: 'Linked Connectors & API Keys',
+      getComponent: (form: FormInstance) => (
+        <DestinationEditorConnectors
+          form={form}
+          initialValues={destinationData.current}
+          destination={destinationReference}
+          handleTouchAnyField={validateAndTouchField(2)}
+        />
+      ),
+      form: Form.useForm()[0],
+      errorsLevel: 'warning',
+      touched: false
+    },
+    {
+      key: 'settings',
+      name: 'Configuration Templates',
+      touched: false,
+      getComponent: () => (
+        <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary} />
+      )
+    },
+    {
+      key: 'statistics',
+      name: (
+        <ComingSoon
+          render="Statistics"
+          documentation={
+            <>
+              A detailed statistics on how many events have been sent to the
+              destinations
+            </>
+          }
+        />
+      ),
+      isDisabled: true,
+      touched: false
+    }
+  ];
+
+  const destinationsTabs = useRef<Tab<DestinationTabKey>[]>(tabsInitialData);
+
+  const handleCancel = useCallback(() => {
+    onCancel ? onCancel() : history.push(destinationPageRoutes.root);
+  }, [history, onCancel]);
+
+  const testConnectingPopoverClose = useCallback(
+    () => switchTestConnectingPopover(false),
+    []
+  );
+
+  const savePopoverClose = useCallback(() => switchSavePopover(false), []);
+
+  const handleTestConnection = useCallback(async () => {
     setTestConnecting(true);
 
     const tab = destinationsTabs.current[0];
@@ -259,7 +276,8 @@ const DestinationEditor = ({
     try {
       const config = await validateTabForm(tab);
 
-      destinationData.current._formData = makeObjectFromFieldsValues<DestinationData>(config)._formData;
+      destinationData.current._formData =
+        makeObjectFromFieldsValues<DestinationData>(config)._formData;
 
       await destinationEditorUtils.testConnection(destinationData.current);
     } catch (error) {
@@ -271,14 +289,16 @@ const DestinationEditor = ({
   }, [validateTabForm, forceUpdate]);
 
   const handleSaveDestination = useCallback(() => {
-
     submittedOnce.current = true;
 
     setDestinationSaving(true);
 
-    Promise
-      .all(destinationsTabs.current.filter((tab: Tab) => !!tab.form).map((tab: Tab) => validateTabForm(tab)))
-      .then(async allValues => {
+    Promise.all(
+      destinationsTabs.current
+        .filter((tab: Tab) => !!tab.form)
+        .map((tab: Tab) => validateTabForm(tab))
+    )
+      .then(async (allValues) => {
         destinationData.current = {
           ...destinationData.current,
           ...allValues.reduce((result: any, current: any) => {
@@ -288,14 +308,6 @@ const DestinationEditor = ({
             };
           }, {})
         };
-
-        const updatedSources = await destinationEditorUtils.updateSources(
-          sources,
-          destinationData.current,
-          services.activeProject.id
-        );
-
-        sourcesStore.editSources(updatedSources);
 
         // ToDo: remove this code after _mappings refactoring
         destinationData.current = {
@@ -317,7 +329,7 @@ const DestinationEditor = ({
           if (editorMode === 'add')
             destinationsStore.addDestination(destinationData.current);
           if (editorMode === 'edit')
-            destinationsStore.editDestination(destinationData.current);
+            destinationsStore.editDestinations(destinationData.current);
 
           destinationsTabs.current.forEach((tab: Tab) => (tab.touched = false));
 
@@ -343,19 +355,37 @@ const DestinationEditor = ({
         setDestinationSaving(false);
         !disableForceUpdateOnSave && forceUpdate();
       });
-  }, [sources, history, validateTabForm, forceUpdate, editorMode, services.activeProject.id, services.storageService]);
+  }, [
+    sources,
+    history,
+    validateTabForm,
+    forceUpdate,
+    editorMode,
+    services.activeProject.id,
+    services.storageService
+  ]);
 
-  const connectedSourcesNum = sources.filter(src => (src.destinations || []).includes(destinationData.current._uid)).length;
+  const connectedSourcesNum = sources.filter((src) =>
+    (src.destinations || []).includes(destinationData.current._uid)
+  ).length;
 
-  const isAbleToConnectItems = () => editorMode === 'edit' && connectedSourcesNum === 0 && !destinationData.current?._onlyKeys?.length;
-
+  const isAbleToConnectItems = () =>
+    editorMode === 'edit' &&
+    connectedSourcesNum === 0 &&
+    !destinationData.current?._onlyKeys?.length;
+    
   useEffect(() => {
     setBreadcrumbs(withHome({
       elements: [
         { title: 'Destinations', link: destinationPageRoutes.root },
         {
-          title: <PageHeader title={destinationReference.displayName} icon={destinationReference.ui.icon}
-            mode={editorMode}/>
+          title: (
+            <PageHeader 
+              title={destinationReference.displayName} 
+              icon={destinationReference.ui.icon}
+              mode={editorMode}
+            />
+          )
         }
       ]
     }));
@@ -363,19 +393,25 @@ const DestinationEditor = ({
 
   return (
     <>
-      <div className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}>
+      <div
+        className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}
+      >
         <div className={styles.mainArea} id="dst-editor-tabs">
-          {
-            isAbleToConnectItems() && (
-              <Card className={styles.linkedWarning}>
-                <WarningOutlined className={styles.warningIcon}/>
-                <article>
-                  This destination is not linked to any API keys or Connector.
-                  You <span className={styles.pseudoLink} onClick={() => setActiveTabKey('sources')}>can link the destination here</span>.
-                </article>
-              </Card>
-            )
-          }
+          {isAbleToConnectItems() && (
+            <Card className={styles.linkedWarning}>
+              <WarningOutlined className={styles.warningIcon} />
+              <article>
+                This destination is not linked to any API keys or Connector. You{' '}
+                <span
+                  className={styles.pseudoLink}
+                  onClick={() => setActiveTabKey('sources')}
+                >
+                  can link the destination here
+                </span>
+                .
+              </article>
+            </Card>
+          )}
 
           <TabsConfigurator
             type="card"
@@ -390,7 +426,11 @@ const DestinationEditor = ({
           <EditorButtons
             save={{
               isRequestPending: destinationSaving,
-              isPopoverVisible: savePopover && destinationsTabs.current.some((tab: Tab) => tab.errorsCount > 0),
+              isPopoverVisible:
+                savePopover &&
+                destinationsTabs.current.some(
+                  (tab: Tab) => tab.errorsCount > 0
+                ),
               handlePress: handleSaveDestination,
               handlePopoverClose: savePopoverClose,
               titleText: 'Destination editor errors',
@@ -398,7 +438,9 @@ const DestinationEditor = ({
             }}
             test={{
               isRequestPending: testConnecting,
-              isPopoverVisible: testConnectingPopover && destinationsTabs.current[0].errorsCount > 0,
+              isPopoverVisible:
+                testConnectingPopover &&
+                destinationsTabs.current[0].errorsCount > 0,
               handlePress: handleTestConnection,
               handlePopoverClose: testConnectingPopoverClose,
               titleText: 'Connection Properties errors',
@@ -409,11 +451,32 @@ const DestinationEditor = ({
         </div>
       </div>
 
-      <Prompt message={destinationEditorUtils.getPromptMessage(destinationsTabs.current)}/>
+      <Prompt
+        message={destinationEditorUtils.getPromptMessage(
+          destinationsTabs.current
+        )}
+      />
     </>
   );
-};
+};;
 
 DestinationEditor.displayName = 'DestinationEditor';
 
 export { DestinationEditor }
+
+const getDestinationData = (params: {
+  id?: string;
+  type?: string;
+}): DestinationData =>
+  destinationsStore.destinations.find((dst) => dst._id === params.id) ||
+  ({
+    _id: getUniqueAutoIncId(
+      params.type,
+      destinationsStore.destinations.map((dst) => dst._id)
+    ),
+    _uid: randomId(),
+    _type: params.type,
+    _mappings: { _keepUnmappedFields: true },
+    _comment: null,
+    _onlyKeys: []
+  } as DestinationData);
