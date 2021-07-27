@@ -6,7 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 )
 
-//Transaction is sql transaction wrapper. Used for handling and log errors with db type (postgres, redshift, clickhouse or snowflake)
+//Transaction is sql transaction wrapper. Used for handling and log errors with db type (postgres, mySQL, redshift, clickhouse or snowflake)
 //on Commit() and Rollback() calls
 //Use DirectCommit() if you need not to swallow an error on commit
 type Transaction struct {

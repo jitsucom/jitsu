@@ -69,17 +69,39 @@ func NewFieldMapper(newStyleMappings *Mapping) (events.Mapper, typing.SQLTypes, 
 
 //Map changes input object and applies deletes and mappings
 func (fm *FieldMapper) Map(object map[string]interface{}) (map[string]interface{}, error) {
-	mappedObject := object
-	if !fm.keepUnmappedFields {
-		mappedObject = make(map[string]interface{})
-	}
+	mappedObject := make(map[string]interface{})
 
-	err := applyMapping(object, mappedObject, fm.rules)
+	fieldToRemove, err := applyMapping(object, mappedObject, fm.rules)
 	if err != nil {
 		return nil, err
 	}
 
-	return mappedObject, nil
+	//return only mapped fields
+	if !fm.keepUnmappedFields {
+		//remove fields with action REMOVE
+		for _, field := range fieldToRemove {
+			field.GetAndRemove(mappedObject)
+		}
+		return mappedObject, nil
+	}
+
+	//enrich result with unmapped fields + mapped fields
+	result := make(map[string]interface{})
+	for k, v := range object {
+		result[k] = v
+	}
+
+	for k, v := range mappedObject {
+		result[k] = v
+	}
+
+	//remove fields with action REMOVE
+	for _, field := range fieldToRemove {
+		field.GetAndRemove(result)
+	}
+
+	return result, nil
+
 }
 
 //Map returns object as is
@@ -87,7 +109,8 @@ func (DummyMapper) Map(object map[string]interface{}) (map[string]interface{}, e
 	return object, nil
 }
 
-func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*MappingRule) error {
+func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*MappingRule) ([]jsonutils.JSONPath, error) {
+	var fieldsToRemoveAfterMove []jsonutils.JSONPath
 	var fieldsToRemove []jsonutils.JSONPath
 	for _, rule := range rules {
 		switch rule.action {
@@ -98,30 +121,30 @@ func applyMapping(sourceObj, destinationObj map[string]interface{}, rules []*Map
 			if ok {
 				err := rule.destination.Set(destinationObj, value)
 				if err != nil {
-					return err
+					return nil, err
 				}
 
-				fieldsToRemove = append(fieldsToRemove, rule.source)
+				fieldsToRemoveAfterMove = append(fieldsToRemoveAfterMove, rule.source)
 			}
 		case CAST:
 			//will be handled in adapters
 		case CONSTANT:
 			err := rule.destination.Set(destinationObj, rule.value)
 			if err != nil {
-				return err
+				return nil, err
 			}
 		default:
 			msg := fmt.Sprintf("Unknown mapping type action: [%s]", rule.action)
 			logging.SystemError(msg)
-			return errors.New(msg)
+			return nil, errors.New(msg)
 		}
 	}
 
-	for _, fieldToRemove := range fieldsToRemove {
-		fieldToRemove.GetAndRemove(sourceObj)
+	for _, fieldToRemoveAfterMove := range fieldsToRemoveAfterMove {
+		fieldToRemoveAfterMove.GetAndRemove(sourceObj)
 	}
 
-	return nil
+	return fieldsToRemove, nil
 }
 
 //ConvertOldMappings converts old style mappings into new style
