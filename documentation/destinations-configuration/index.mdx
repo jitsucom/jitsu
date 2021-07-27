@@ -6,7 +6,7 @@ Each destination is represented by YAML node of `destinations` section in the co
 ```yaml
 destinations:
   destination_name1:
-    type: postgres | snowflake | redshift | s3 | bigquery | clickhouse | google_analytics | facebook | amplitude
+    type: postgres | snowflake | redshift | s3 | bigquery | clickhouse | mysql | google_analytics | facebook | amplitude | hubspot
     mode: stream | batch #Optional. Default value is 'batch'
     only_tokens: [] #Optinal. Default value is array with all authorization tokens
     staged: true | false #Optional. Default value is false
@@ -143,6 +143,8 @@ Example of URL content:
 <LargeLink href="/docs/destinations-configuration/bigquery" title="Google BigQuery"/>
 
 <LargeLink href="/docs/destinations-configuration/clickhouse-destination" title="Clickhouse"/>
+
+<LargeLink href="/docs/destinations-configuration/mysql" title="MySQL"/>
 
 ### Services
 

@@ -527,7 +527,7 @@ func (p *Postgres) bulkInsertInTransaction(wrappedTx *Transaction, table *Table,
 //inserts all data into tmp table and using bulkMergeTemplate merges all data to main table
 func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
-		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers(),
+		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers()[:5],
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,
