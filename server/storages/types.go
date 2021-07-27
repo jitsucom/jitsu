@@ -14,6 +14,7 @@ const (
 	RedshiftType        = "redshift"
 	BigQueryType        = "bigquery"
 	PostgresType        = "postgres"
+	MySQLType           = "mysql"
 	ClickHouseType      = "clickhouse"
 	S3Type              = "s3"
 	SnowflakeType       = "snowflake"

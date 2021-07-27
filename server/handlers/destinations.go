@@ -124,6 +124,18 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 		hubspotAdapter := adapters.NewTestHubSpot(config.HubSpot)
 		return hubspotAdapter.TestAccess()
+	case storages.MySQLType:
+		if err := config.DataSource.Validate(); err != nil {
+			return err
+		}
+
+		mySQL, err := adapters.NewMySQL(context.Background(), config.DataSource, nil, typing.SQLTypes{})
+		if err != nil {
+			return err
+		}
+
+		mySQL.Close()
+		return nil
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}

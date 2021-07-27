@@ -13,6 +13,7 @@ services:
     volumes:
       - ./compose-data/configurator/data/logs:/home/configurator/data/logs
       - ./compose-data/server/data/logs:/home/eventnative/data/logs
+      - ./compose-data/server/data/logs/events:/home/eventnative/data/logs/events
     restart: always
     ports:
       - "8000:8000"
