@@ -421,7 +421,7 @@ func (m *MySQL) executeInsert(wrappedTx *Transaction, table *Table, headerWithou
 //inserts all data into tmp table and using bulkMergeTemplate merges all data to main table
 func (m *MySQL) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
-		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers(),
+		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers()[:5],
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,
