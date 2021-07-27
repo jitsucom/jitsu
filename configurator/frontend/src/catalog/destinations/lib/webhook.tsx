@@ -12,7 +12,7 @@ const icon = <svg viewBox="0 0 256 239" version="1.1" xmlns="http://www.w3.org/2
 const webhookDestination = {
   description: <>
     Jitsu can send events from JS SDK or Events API to Google Analytics API to any HTTP(s) endpoint. Data format
-    is fully configurable with an easy template language.
+    is fully configurable with an easy template language
   </>,
   syncFromSourcesStatus: 'not_supported',
   id: 'webhook',
