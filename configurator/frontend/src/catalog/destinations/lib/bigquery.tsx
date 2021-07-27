@@ -45,7 +45,7 @@ const bigQueryDestination: Destination = {
       <li><b>Serverless architecture</b>. </li>
       <li><b>Pay-as-you go</b></li>
     </ul>
-    Jitsu supports can <a href="https://cloud.google.com/bigquery/streaming-data-into-bigquery">stream</a> and <a href="https://cloud.google.com/bigquery/docs/batch-loading-data">batch</a> data to Google BigQuery.
+    Jitsu can <a href="https://cloud.google.com/bigquery/streaming-data-into-bigquery">stream</a> and <a href="https://cloud.google.com/bigquery/docs/batch-loading-data">batch</a> data to Google BigQuery.
     Streaming will get data to BQ immediately, however Google charges for each streamed record, while batching is free. Streaming is the fastest way to get started, but batching will be cheaper for large volumes.
   </>,
   syncFromSourcesStatus: 'supported',
