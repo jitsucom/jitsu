@@ -151,6 +151,6 @@ const destination = {
       (cfg) => cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 's3')
     )
   ]
-} as const;
+} as Destination;
 
 export default destination;

@@ -7,6 +7,8 @@ import { intersection, without } from 'lodash';
 import { toArrayIfNot } from 'utils/arrays';
 import { ISourcesStore, sourcesStore } from './sources';
 import { apiKeysStore, IApiKeysStore } from './apiKeys';
+import { destinationsReferenceMap} from "../catalog/destinations/lib";
+import { Destination } from '../catalog/destinations/types';
 
 export interface IDestinationsStore {
   destinations: DestinationData[];
@@ -68,6 +70,7 @@ const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } =
 const services = ApplicationServices.get();
 class DestinationsStore implements IDestinationsStore {
   private _destinations: DestinationData[] = [];
+  private _hiddenDestinations: DestinationData[] = [];
   private _state: DestinationsStoreState = GLOBAL_LOADING;
   private _errorMessage: string = '';
   private _sourcesStore: ISourcesStore | undefined;
@@ -168,6 +171,14 @@ class DestinationsStore implements IDestinationsStore {
     return this._destinations;
   }
 
+  public get hiddenDestinations() {
+    return this._hiddenDestinations;
+  }
+
+  public get allDestinations() {
+    return [...this._destinations, ...this._hiddenDestinations];
+  }
+
   public get hasDestinations(): boolean {
     return !!this._destinations.length;
   }
@@ -188,6 +199,15 @@ class DestinationsStore implements IDestinationsStore {
     return this._errorMessage;
   }
 
+  private filterDestinations(destinations: DestinationData[], hidden: boolean) {
+    return destinations ? destinations.filter(v => (destinationsReferenceMap[v._type].hidden ? true : false) == hidden ) : []
+  }
+
+  private setDestinations(value: DestinationData[]) {
+    this._destinations = this.filterDestinations(value, false);
+    this._hiddenDestinations = this.filterDestinations(value, true);
+  }
+
   public *pullDestinations(showGlobalLoader?: boolean) {
     this.resetError();
     this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING;
@@ -196,7 +216,7 @@ class DestinationsStore implements IDestinationsStore {
         'destinations',
         services.activeProject.id
       );
-      this._destinations = destinations || [];
+      this.setDestinations(destinations)
     } catch (error) {
       this.setError(
         GLOBAL_ERROR,
@@ -210,14 +230,14 @@ class DestinationsStore implements IDestinationsStore {
   public *addDestination(destinationToAdd: DestinationData) {
     this.resetError();
     this._state = BACKGROUND_LOADING;
-    const updatedDestinations = [...this._destinations, destinationToAdd];
+    const updatedDestinations = [...this.allDestinations, destinationToAdd];
     try {
       const result = yield services.storageService.save(
         'destinations',
         { destinations: updatedDestinations },
         services.activeProject.id
       );
-      this._destinations = updatedDestinations;
+      this.setDestinations(updatedDestinations)
       this.updateSourcesLinksByDestinationsUpdates(destinationToAdd);
     } catch (error) {
       throw error;
@@ -229,7 +249,7 @@ class DestinationsStore implements IDestinationsStore {
   public *deleteDestination(destinationToDelete: DestinationData) {
     this.resetError();
     this._state = BACKGROUND_LOADING;
-    const updatedDestinations = this._destinations.filter(
+    const updatedDestinations = this.allDestinations.filter(
       ({ _uid }) => _uid !== destinationToDelete._uid
     );
     try {
@@ -238,7 +258,7 @@ class DestinationsStore implements IDestinationsStore {
         { destinations: updatedDestinations },
         services.activeProject.id
       );
-      this._destinations = updatedDestinations;
+      this.setDestinations(updatedDestinations)
       this.unlinkDeletedDestinationsFromSources(destinationToDelete);
     } finally {
       this._state = IDLE;
@@ -252,7 +272,7 @@ class DestinationsStore implements IDestinationsStore {
     const destinationsToUpdate = toArrayIfNot(_destinationsToUpdate);
     this.resetError();
     this._state = BACKGROUND_LOADING;
-    const updatedDestinations = this._destinations.map((destination) => {
+    const updatedDestinations = this.allDestinations.map((destination) => {
       const destinationToReplace = destinationsToUpdate.find(
         ({ _uid }) => _uid === destination._uid
       );
@@ -265,7 +285,7 @@ class DestinationsStore implements IDestinationsStore {
         { destinations: updatedDestinations },
         services.activeProject.id
       );
-      this._destinations = updatedDestinations;
+      this.setDestinations(updatedDestinations)
       if (options.updateSources)
         this.updateSourcesLinksByDestinationsUpdates(_destinationsToUpdate);
     } finally {

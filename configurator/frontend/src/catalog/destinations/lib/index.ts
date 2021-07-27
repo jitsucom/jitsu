@@ -10,6 +10,7 @@ import googleAnalyticsDestination from './googleAnalytics';
 import webhookDestination from './webhook';
 import amplitudeDestination from './amplitude';
 import hubspotDestination from './hubspot';
+import dbtcloudDestination from './dbtcloud';
 
 export {
   postgresDestination,
@@ -22,7 +23,8 @@ export {
   googleAnalyticsDestination,
   webhookDestination,
   amplitudeDestination,
-  hubspotDestination
+  hubspotDestination,
+  dbtcloudDestination
 }
 
 export const destinationsReferenceMap = {
@@ -36,7 +38,8 @@ export const destinationsReferenceMap = {
   google_analytics: googleAnalyticsDestination,
   webhook: webhookDestination,
   amplitude: amplitudeDestination,
-  hubspot: hubspotDestination
+  hubspot: hubspotDestination,
+  dbtcloud: dbtcloudDestination
 } as const;
 
 export const destinationsReferenceList = Object.values(

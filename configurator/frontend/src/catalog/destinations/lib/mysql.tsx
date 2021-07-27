@@ -70,6 +70,6 @@ const mysqlDestination = {
         }
     ]
 
-} as const;
+} as Destination;
 
 export default mysqlDestination;

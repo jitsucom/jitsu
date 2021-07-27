@@ -75,6 +75,6 @@ const facebookDestination = {
     }
 
   ]
-}  as const;
+}  as Destination;
 
 export default facebookDestination;

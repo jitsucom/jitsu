@@ -3,6 +3,7 @@ package synchronization
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
@@ -196,6 +197,44 @@ func (te *TaskExecutor) execute(i interface{}) {
 		msg := fmt.Sprintf("Error updating success task [%s] in meta.Storage: %v", task.ID, err)
 		te.handleError(task, taskLogger, msg, true)
 		return
+	}
+	te.onSuccess(task, taskLogger)
+}
+
+func (te *TaskExecutor) onSuccess(task *meta.Task, taskLogger *TaskLogger) {
+	var dbtClouds = te.destinationService.GetDestinationsByType(storages.DbtCloudType)
+	for _, storageProxy := range dbtClouds {
+		storage, ok := storageProxy.Get()
+		if ok {
+			dbtCloud := storage.(*storages.DbtCloud)
+			if dbtCloud.Enabled() {
+				eventID := uuid.New()
+				event := events.Event{
+					"event_type":  storages.SourceSuccessEventType,
+					"source":      task.Source,
+					"status":      task.Status,
+					timestamp.Key: task.FinishedAt,
+					"finished_at": task.FinishedAt,
+					"started_at":  task.StartedAt,
+				}
+				eventContext := &adapters.EventContext{
+					DestinationID:  storage.ID(),
+					EventID:        eventID,
+					Src:            task.Source,
+					RawEvent:       event,
+					ProcessedEvent: event,
+					Table: &adapters.Table{
+						Name: storage.ID(),
+					},
+				}
+				if err := (*dbtCloud).Insert(eventContext); err != nil {
+					logging.Errorf("dbt Cloud failed for source: %s taskId: %s", task.Source, task.ID)
+					taskLogger.ERROR("dbt Cloud failed for source: %s taskId: %s", task.Source, task.ID)
+				} else {
+					taskLogger.INFO("Successful run of source: %s taskId: %s triggered dbt Cloud: %s", task.Source, task.ID, dbtCloud.ID())
+				}
+			}
+		}
 	}
 }
 

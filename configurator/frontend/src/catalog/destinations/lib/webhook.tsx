@@ -1,5 +1,6 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
 import { arrayOf, jsonType, selectionType, stringType } from '../../sources/types';
+import {Destination} from "../types";
 
 const icon = (
   <svg
@@ -83,6 +84,6 @@ const webhookDestination = {
     connectCmd: null,
     title: cfg => cfg['_formData']['method'] + ' ' + cfg['_formData']['url']
   }
-} as const;
+} as Destination;
 
 export default webhookDestination;

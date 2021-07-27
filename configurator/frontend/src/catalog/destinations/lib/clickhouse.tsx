@@ -82,6 +82,6 @@ const destination = {
       type: stringType
     }
   ]
-} as const;
+} as Destination;
 
 export default destination;
