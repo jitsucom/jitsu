@@ -116,7 +116,7 @@ const ConnectionsPageComponent: React.FC = () => {
                       message={<EntityMessage connectionTestOk={true} />}
                       link="/api_keys"
                       icon={
-                        <IconWrapper sizePx={14}>
+                        <IconWrapper sizeTailwind={12}>
                           <EntityIcon entityType="api_key" />
                         </IconWrapper>
                       }
@@ -135,7 +135,7 @@ const ConnectionsPageComponent: React.FC = () => {
                         message={<EntityMessage connectionTestOk={connected} />}
                         link={`/sources/edit/${sourceId}`}
                         icon={
-                          <IconWrapper sizePx={14}>
+                          <IconWrapper sizeTailwind={12}>
                             <EntityIcon
                               entityType="source"
                               entitySubType={sourceProtoType}
@@ -201,7 +201,7 @@ const ConnectionsPageComponent: React.FC = () => {
                       }
                       link={`/destinations/edit/${_id}`}
                       icon={
-                        <IconWrapper sizePx={14}>
+                        <IconWrapper sizeTailwind={12}>
                           <EntityIcon
                             entityType="destination"
                             entitySubType={_type}
@@ -269,10 +269,13 @@ const EntityMessage: React.FC<{ connectionTestOk: boolean }> = ({
   );
 };
 
-const IconWrapper: React.FC<{ sizePx: number }> = ({ children, sizePx }) => {
+const IconWrapper: React.FC<{ sizeTailwind: number }> = ({
+  children,
+  sizeTailwind
+}) => {
   return (
     <div
-      className={`flex justify-center items-center h-${sizePx} w-${sizePx} m-3`}
+      className={`flex justify-center items-center h-${sizeTailwind} w-${sizeTailwind} m-3`}
     >
       {children}
     </div>
