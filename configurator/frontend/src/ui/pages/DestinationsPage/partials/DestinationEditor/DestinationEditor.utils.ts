@@ -1,8 +1,6 @@
 import ApplicationServices from 'lib/services/ApplicationServices';
 import Marshal from 'lib/commons/marshalling';
 import { closeableMessage, handleError } from 'lib/components/components';
-import { message } from 'antd';
-import { firstToLower } from 'lib/commons/utils';
 import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 
 const destinationEditorUtils = {
@@ -25,62 +23,6 @@ const destinationEditorUtils = {
       if (!hideMessage) {
         handleError(error, 'Unable to test connection with filled data');
       }
-    }
-  },
-  getCheckedSources: (sources: SourceData[], data: DestinationData) => {
-    return sources?.reduce((accumulator: string[], current: SourceData) => {
-      if (current.destinations?.find((uid: string) => data._uid === uid)) {
-        accumulator.push(current.sourceId);
-      }
-
-      return accumulator;
-    }, []);
-  },
-  updateSources: (
-    sources: SourceData[],
-    destination: DestinationData,
-    projectId: string
-  ) => {
-    const result = sources.reduce(
-      (accumulator: SourceData[], current: SourceData) => {
-        if (destination._sources?.includes(current.sourceId)) {
-          if (!current.destinations) current = { ...current, destinations: [] };
-          current = {
-            ...current,
-            destinations: current?.destinations?.find(
-                        (dst: string) => !destination._sources?.includes(destination._uid)
-                      )
-              ? current?.destinations
-              : [...current?.destinations, destination._uid]
-          };
-        } else {
-          current = {
-            ...current,
-            destinations: current?.destinations?.filter(
-                      (dst: string) => dst !== destination._uid
-                    )
-          };
-        }
-        return [...accumulator, current];
-      },
-      []
-    );
-
-    try {
-      ApplicationServices.get().storageService.save(
-        'sources',
-        { sources: result },
-        projectId
-      );
-
-      return result;
-    } catch (error) {
-      message.warn(
-        `Destination will be saved, but connected sources will not by the reason: '${firstToLower(
-          error.message ?? 'Failed to save connected sources data'
-        )}'. Data will not be piped to this destination`,
-        10
-      );
     }
   },
   getPromptMessage: (tabs: Tab[]) => () =>

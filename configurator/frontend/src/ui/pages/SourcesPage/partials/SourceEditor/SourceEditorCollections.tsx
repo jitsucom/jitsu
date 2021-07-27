@@ -26,7 +26,7 @@ export interface Props {
   form: FormInstance;
   initialValues: SourceData;
   connectorSource: SourceConnector;
-  handleTouchAnyField: VoidFunc;
+  handleTouchAnyField: (...args: any) => void;
 }
 
 const SourceEditorCollections = ({ form, initialValues, connectorSource, handleTouchAnyField }: Props) => {

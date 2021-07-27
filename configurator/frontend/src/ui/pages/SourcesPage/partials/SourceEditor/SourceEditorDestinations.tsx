@@ -11,9 +11,8 @@ import {
   ConnectedItems
 } from 'ui/components/ConnectedItems/ConnectedItems';
 import { TabDescription } from 'ui/components/Tabs/TabDescription';
-// @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
-import { destinationsReferenceMap } from 'ui/pages/DestinationsPage/commons';
+// @Reference
+import { destinationsReferenceMap } from 'catalog/destinations/lib';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { Destination } from 'catalog/destinations/types';
@@ -24,7 +23,7 @@ import { destinationsStore } from 'stores/destinations';
 export interface Props {
   form: FormInstance;
   initialValues: SourceData;
-  handleTouchAnyField: VoidFunc;
+  handleTouchAnyField: (...args: any) => void;
 }
 
 function getDescription(reference: Destination) {

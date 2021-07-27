@@ -21,7 +21,7 @@ import (
 )
 
 //Test postgres adapter with primary keys and without (make sure primary keys are deleted)
-func TestPrimaryKeyRemoval(t *testing.T) {
+func TestPostgresPrimaryKeyRemoval(t *testing.T) {
 	telemetry.InitTest()
 	viper.Set("server.log.path", "")
 

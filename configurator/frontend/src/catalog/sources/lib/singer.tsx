@@ -824,13 +824,6 @@ export const allSingerTaps: SingerTap[] = [
     }
   },
   {
-    pic: logos.tap_mysql,
-    displayName: 'MySQL',
-    tap: 'tap-mysql',
-    stable: true,
-    hasNativeEquivalent: false
-  },
-  {
     pic: logos.tap_onfleet,
     displayName: 'Onfleet',
     tap: 'tap-onfleet',
@@ -897,6 +890,13 @@ export const allSingerTaps: SingerTap[] = [
     pic: logos.tap_postgresql,
     displayName: 'PostgreSQL',
     tap: 'tap-postgres',
+    stable: true,
+    hasNativeEquivalent: false
+  },
+  {
+    pic: logos.tap_mysql,
+    displayName: 'MySQL',
+    tap: 'tap-mysql',
     stable: true,
     hasNativeEquivalent: false
   },

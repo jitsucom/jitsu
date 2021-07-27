@@ -10,6 +10,8 @@ const icon = (
     id="Layer_1"
     xmlns="http://www.w3.org/2000/svg"
     xmlnsXlink="http://www.w3.org/1999/xlink"
+    height="100%"
+    width="100%"
     x="0px"
     y="0px"
     viewBox="0 0 200 200"
@@ -39,10 +41,8 @@ const amplitudeDestination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to{' '}
-      <a href="https://developers.amplitude.com/docs/http-api-v2>">
-        Amplitude API
-      </a>
-      .
+      <a href="https://developers.amplitude.com/docs/http-api-v2>">Amplitude API</a>. Amplitude is an real-time analytics platform for marketers {' '}
+      that can build dashboards to filter new users by country, user activity, retention rate and funnel audiences by custom events
     </>
   ),
   syncFromSourcesStatus: 'not_supported',
