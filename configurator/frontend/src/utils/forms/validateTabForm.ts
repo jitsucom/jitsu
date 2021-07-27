@@ -1,9 +1,9 @@
 import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 
 interface Options {
-  forceUpdate: VoidFunc;
-  beforeValidate?: VoidFunc;
-  errorCb?: VoidFunc;
+  forceUpdate: (...args: any) => void;
+  beforeValidate?: (...args: any) => void;
+  errorCb?: (...args: any) => void;
 }
 
 const validateTabForm = async(tab: Tab, { forceUpdate, beforeValidate, errorCb }: Options) => {
