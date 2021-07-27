@@ -7,8 +7,8 @@ const icon = <svg viewBox="0 0 25.6 25.6" xmlns="http://www.w3.org/2000/svg">
 </svg>
 
 const mysqlDestination = {
-    description: <>MySQL is a one of the most popular databases. While it's not suitable for large datasets (more than 100m events), it can be easily deployed on your own infrastructure<br/><br />
-        Jitsu works with MySQL both in stream and batch mode</>,
+    description: <>MySQL is a one of the most popular databases. It can be easily deployed on your own infrastructure<br/><br />
+        Jitsu supports both stream and batch mode</>,
     syncFromSourcesStatus: 'supported',
     id: 'mysql',
     type: 'database',
