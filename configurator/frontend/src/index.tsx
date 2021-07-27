@@ -10,8 +10,7 @@ import App from './App';
 import './index.less';
 import { getBaseUIPath } from 'lib/commons/pathHelper';
 
-const history = createBrowserHistory();
-history.push(getBaseUIPath());
+const history = createBrowserHistory({ basename: getBaseUIPath() });
 
 ReactDOM.render(
   <Router history={history}>
