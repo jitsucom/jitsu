@@ -1,7 +1,10 @@
 package storages
 
 import (
+	"context"
 	"fmt"
+	"github.com/go-sql-driver/mysql"
+	"github.com/jitsucom/jitsu/server/typing"
 	"time"
 
 	"github.com/hashicorp/go-multierror"
@@ -44,7 +47,7 @@ func NewMySQL(config *Config) (Storage, error) {
 	}
 
 	queryLogger := config.loggerFactory.CreateSQLQueryLogger(config.destinationID)
-	adapter, err := adapters.NewMySQL(config.ctx, mConfig, queryLogger, config.sqlTypes)
+	adapter, err := CreateMySQLAdapter(config.ctx, *mConfig, queryLogger, config.sqlTypes)
 	if err != nil {
 		return nil, err
 	}
@@ -73,6 +76,41 @@ func NewMySQL(config *Config) (Storage, error) {
 	m.streamingWorker.start()
 
 	return m, nil
+}
+
+//CreateMySQLAdapter creates mysql adapter with database
+//if database doesn't exist - mysql returns error. In this case connect without database and create it
+func CreateMySQLAdapter(ctx context.Context, config adapters.DataSourceConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*adapters.MySQL, error) {
+	mySQLAdapter, err := adapters.NewMySQL(ctx, &config, queryLogger, sqlTypes)
+	if err != nil {
+		if mErr, ok := err.(*mysql.MySQLError); ok {
+			//db doesn't exist
+			if mErr.Number == 1049 {
+				mySQLDB := config.Db
+				config.Db = ""
+				mySQLAdapter, err := adapters.NewMySQL(ctx, &config, queryLogger, sqlTypes)
+				if err != nil {
+					return nil, err
+				}
+				config.Db = mySQLDB
+				//create DB and reconnect
+				err = mySQLAdapter.CreateDB(config.Db)
+				if err != nil {
+					return nil, err
+				}
+				mySQLAdapter.Close()
+
+				mySQLAdapter, err = adapters.NewMySQL(ctx, &config, queryLogger, sqlTypes)
+				if err != nil {
+					return nil, err
+				}
+				return mySQLAdapter, nil
+			}
+		}
+		return nil, err
+	}
+
+	return mySQLAdapter, nil
 }
 
 func (m *MySQL) DryRun(payload events.Event) ([]adapters.TableField, error) {

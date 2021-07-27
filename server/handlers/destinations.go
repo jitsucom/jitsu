@@ -125,17 +125,11 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		hubspotAdapter := adapters.NewTestHubSpot(config.HubSpot)
 		return hubspotAdapter.TestAccess()
 	case storages.MySQLType:
-		if err := config.DataSource.Validate(); err != nil {
-			return err
+		eventContext.Table.Columns = adapters.Columns{
+			uniqueIDField: adapters.Column{SQLType: "text"},
+			timestamp.Key: adapters.Column{SQLType: "DATETIME"},
 		}
-
-		mySQL, err := adapters.NewMySQL(context.Background(), config.DataSource, nil, typing.SQLTypes{})
-		if err != nil {
-			return err
-		}
-
-		mySQL.Close()
-		return nil
+		return testMySQL(config, eventContext)
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}
@@ -441,6 +435,42 @@ func testSnowflake(config *storages.DestinationConfig, eventContext *adapters.Ev
 		if err = snowflake.Insert(eventContext); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+//testMySQL connects to MySQL, creates table, write 1 test record, deletes table
+//returns err if has occurred
+func testMySQL(config *storages.DestinationConfig, eventContext *adapters.EventContext) error {
+	if err := config.DataSource.Validate(); err != nil {
+		return err
+	}
+
+	if config.DataSource.Port.String() == "" {
+		config.DataSource.Port = "3306"
+	}
+
+	mysql, err := storages.CreateMySQLAdapter(context.Background(), *config.DataSource, &logging.QueryLogger{}, typing.SQLTypes{})
+	if err != nil {
+		return err
+	}
+
+	if err = mysql.CreateTable(eventContext.Table); err != nil {
+		mysql.Close()
+		return err
+	}
+
+	defer func() {
+		if err := mysql.DropTable(eventContext.Table); err != nil {
+			logging.Errorf("Error dropping table in test connection: %v", err)
+		}
+
+		mysql.Close()
+	}()
+
+	if err = mysql.Insert(eventContext); err != nil {
+		return err
 	}
 
 	return nil
