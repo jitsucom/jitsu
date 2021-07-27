@@ -134,6 +134,6 @@ const postgresDestination = {
     }
   ]
 
-} as const;
+} as Destination;
 
 export default postgresDestination;

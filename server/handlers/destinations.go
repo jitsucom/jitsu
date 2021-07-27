@@ -124,6 +124,12 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 		hubspotAdapter := adapters.NewTestHubSpot(config.HubSpot)
 		return hubspotAdapter.TestAccess()
+	case storages.DbtCloudType:
+		if err := config.DbtCloud.Validate(); err != nil {
+			return err
+		}
+		dbtCloudAdapter := adapters.NewTestDbtCloud(config.DbtCloud)
+		return dbtCloudAdapter.TestAccess()
 	case storages.MySQLType:
 		eventContext.Table.Columns = adapters.Columns{
 			uniqueIDField: adapters.Column{SQLType: "text"},

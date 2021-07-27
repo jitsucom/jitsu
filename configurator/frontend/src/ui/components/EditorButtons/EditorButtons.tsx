@@ -62,11 +62,13 @@ const EditorButtons = ({
         >Test connection</Button>
       </Popover>
 
+        {handleCancel && (
       <Button
         type="default"
         size="large"
         onClick={handleCancel}
         danger>Cancel</Button>
+        )}
     </>
   );
 };

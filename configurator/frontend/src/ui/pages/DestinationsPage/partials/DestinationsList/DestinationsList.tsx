@@ -59,7 +59,7 @@ const DestinationsListComponent = ({
     () => (
       <DropDownList
         hideFilter
-        list={destinationsReferenceList.map((dst: Destination) => ({
+        list={destinationsReferenceList.filter(v => !v.hidden).map((dst: Destination) => ({
           title: dst.displayName,
           id: dst.id,
           icon: dst.ui.icon,

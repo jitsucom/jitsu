@@ -4,6 +4,7 @@ import {
   tableName
 } from './common';
 import { stringType } from '../../sources/types';
+import {Destination} from "../types";
 
 const icon = (
   <svg
@@ -74,6 +75,6 @@ const amplitudeDestination = {
       )
     }
   ]
-} as const;
+} as Destination;
 
 export default amplitudeDestination;

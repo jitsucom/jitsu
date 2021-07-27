@@ -52,12 +52,16 @@ type DestinationParams = {
   type?: DestinationType;
   id?: string;
   tabName?: string;
+  //For editor that lives separately from destination list page
+  standalone?: string;
 }
 
 type DestinationURLParams = {
   type?: string;
   id?: string;
   tabName?: string;
+  //For editor that lives separately from destination list page
+  standalone?: string;
 }
 
 type ConfigProps = {paramsByProps?: DestinationParams}
@@ -166,7 +170,7 @@ const DestinationEditor = ({
       } catch (errors) {
         // ToDo: check errors count for fields with few validation rules
         tab.errorsCount = errors.errorFields?.length;
-        throw errors;
+        return null;
       } finally {
         forceUpdate();
       }
@@ -212,7 +216,8 @@ const DestinationEditor = ({
         />
       ),
       form: Form.useForm()[0],
-      touched: false
+      touched: false,
+      isHidden: params.standalone == "true"
     },
     {
       key: 'sources',
@@ -227,18 +232,21 @@ const DestinationEditor = ({
       ),
       form: Form.useForm()[0],
       errorsLevel: 'warning',
-      touched: false
+      touched: false,
+      isHidden: params.standalone == "true"
     },
     {
       key: 'settings',
       name: 'Configuration Templates',
       touched: false,
+      isHidden: params.standalone == "true",
       getComponent: () => (
         <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary} />
       )
     },
     {
       key: 'statistics',
+      isHidden: params.standalone == "true",
       name: (
         <ComingSoon
           render="Statistics"
@@ -334,10 +342,13 @@ const DestinationEditor = ({
           destinationsTabs.current.forEach((tab: Tab) => (tab.touched = false));
 
           if (destinationData.current._connectionTestOk) {
-            message.success('New destination has been added!');
+            if (editorMode === 'add')
+              message.success(`New ${destinationData.current._type} has been added!`);
+            if (editorMode === 'edit')
+              message.success(`${destinationData.current._type} has been saved!`);
           } else {
             closeableMessage.warn(
-              `Destination has been saved, but test has failed with '${firstToLower(
+              `${destinationData.current._type} has been saved, but test has failed with '${firstToLower(
                 destinationData.current._connectionErrorMessage
               )}'. Data will not be piped to this destination`
             );
@@ -372,22 +383,25 @@ const DestinationEditor = ({
   const isAbleToConnectItems = () =>
     editorMode === 'edit' &&
     connectedSourcesNum === 0 &&
-    !destinationData.current?._onlyKeys?.length;
+    !destinationData.current?._onlyKeys?.length &&
+      !destinationsReferenceMap[params.type].hidden
     
   useEffect(() => {
-    setBreadcrumbs(withHome({
-      elements: [
-        { title: 'Destinations', link: destinationPageRoutes.root },
-        {
-          title: (
-            <PageHeader 
-              title={destinationReference.displayName} 
+    let breadCrumbs = []
+    if (!params.standalone) {
+      breadCrumbs.push({ title: 'Destinations', link: destinationPageRoutes.root })
+    }
+    breadCrumbs.push({
+      title: (
+          <PageHeader
+              title={destinationReference.displayName}
               icon={destinationReference.ui.icon}
-              mode={editorMode}
-            />
-          )
-        }
-      ]
+              mode={params.standalone ? 'edit' : editorMode}
+          />
+      )
+    })
+    setBreadcrumbs(withHome({
+      elements: breadCrumbs
     }));
   }, [destinationReference, setBreadcrumbs]);
 
@@ -412,7 +426,6 @@ const DestinationEditor = ({
               </article>
             </Card>
           )}
-
           <TabsConfigurator
             type="card"
             className={styles.tabCard}
@@ -446,7 +459,7 @@ const DestinationEditor = ({
               titleText: 'Connection Properties errors',
               tabsList: [destinationsTabs.current[0]]
             }}
-            handleCancel={handleCancel}
+            handleCancel={params.standalone ? undefined : handleCancel}
           />
         </div>
       </div>
@@ -468,11 +481,11 @@ const getDestinationData = (params: {
   id?: string;
   type?: string;
 }): DestinationData =>
-  destinationsStore.destinations.find((dst) => dst._id === params.id) ||
+  destinationsStore.allDestinations.find((dst) => dst._id === params.id) ||
   ({
     _id: getUniqueAutoIncId(
       params.type,
-      destinationsStore.destinations.map((dst) => dst._id)
+      destinationsStore.allDestinations.map((dst) => dst._id)
     ),
     _uid: randomId(),
     _type: params.type,

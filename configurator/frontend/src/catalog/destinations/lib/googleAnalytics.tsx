@@ -48,6 +48,6 @@ const googleAnalytics = {
     connectCmd: null,
     title: cfg => cfg['_formData']['gaTrackingId']
   }
-} as const;
+} as Destination;
 
 export default googleAnalytics;

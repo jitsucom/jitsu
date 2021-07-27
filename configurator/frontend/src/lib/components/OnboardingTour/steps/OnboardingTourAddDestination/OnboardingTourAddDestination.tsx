@@ -17,6 +17,8 @@ import {
   destinationsReferenceMap,
   DestinationStrictType
 } from 'catalog/destinations/lib';
+import { Destination } from 'catalog/destinations/types';
+
 // @Hooks
 import { useServices } from 'hooks/useServices';
 // @Utils
@@ -30,9 +32,9 @@ type ExtractDatabaseOrWebhook<T> = T extends {readonly type: 'database'}
 
 const destinationsToOffer = destinationsReferenceList.filter(
   (dest): dest is ExtractDatabaseOrWebhook<DestinationStrictType> => {
-    return dest.type === 'database' || dest.id === 'webhook';
+    return !dest.hidden && (dest.type === 'database' || dest.id === 'webhook');
   }
-)
+).map(d => d as Destination)
 
 type NamesOfDestinationsToOffer = (typeof destinationsToOffer)[number]['id'];
 

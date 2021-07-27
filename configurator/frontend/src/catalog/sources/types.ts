@@ -23,6 +23,10 @@ export const stringType: ParameterType<string> = {
   typeName: 'string'
 }
 
+export const descriptionType: ParameterType<string> = {
+  typeName: 'description'
+}
+
 export const intType: ParameterType<bigint> = {
   typeName: 'int'
 }

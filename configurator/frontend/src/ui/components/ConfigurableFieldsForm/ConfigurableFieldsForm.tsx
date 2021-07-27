@@ -43,7 +43,7 @@ export const FormItemName = {
   }
 }
 
-const debuggableFields = ['_formData.tableName', '_formData.body', '_formData.url']
+const debuggableFields = ['_formData.tableName', '_formData.body', '_formData.url', '_formData.dbtCause']
 const isDebugSupported = function(id) {return debuggableFields.includes(id)}
 
 const services = ApplicationServices.get();
@@ -57,17 +57,20 @@ const ConfigurableFieldsForm = ({
   const debugModalsStates = {
     '_formData.tableName': useState<boolean>(false),
     '_formData.body': useState<boolean>(false),
-    '_formData.url': useState<boolean>(false)
+    '_formData.url': useState<boolean>(false),
+    '_formData.dbtCause': useState<boolean>(false)
   };
   const debugModalsValues = {
     '_formData.tableName': useRef<string>(),
     '_formData.body': useRef<string>(),
-    '_formData.url': useRef<string>()
+    '_formData.url': useRef<string>(),
+    '_formData.dbtCause': useRef<string>()
   };
   const debugModalsReformat = {
     '_formData.tableName': true,
     '_formData.body': false,
-    '_formData.url': false
+    '_formData.url': false,
+    '_formData.dbtCause': false
   };
 
   const handleTouchField = debounce(handleTouchAnyField, 1000);
@@ -78,7 +81,6 @@ const ConfigurableFieldsForm = ({
     (id: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
       const value = e.target.value.replace(/\D/g, '');
       form.setFieldsValue({ [id]: value });
-      debugModalsValues[id].current = value;
     },
     [form]
   );
@@ -166,6 +168,10 @@ const ConfigurableFieldsForm = ({
       const fieldsValue = form.getFieldsValue();
 
       switch (type?.typeName) {
+        case 'description':
+          return (
+              <div style={{paddingTop: 5}} dangerouslySetInnerHTML={{__html: defaultValue}}/>
+          );
         case 'password':
           return (
             <Input.Password
@@ -244,7 +250,7 @@ const ConfigurableFieldsForm = ({
           return (
             <Switch
               onChange={handleChangeSwitch(id)}
-              checked={get(fieldsValue, id)}
+              defaultChecked={getInitialValue(id, false,'','')}
             />
           );
 

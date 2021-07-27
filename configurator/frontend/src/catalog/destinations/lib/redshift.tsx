@@ -93,6 +93,6 @@ const destination = {
       (cfg) => cfg?._formData?.mode !== 'batch'
     )
   ]
-} as const;
+} as Destination;
 
 export default destination;

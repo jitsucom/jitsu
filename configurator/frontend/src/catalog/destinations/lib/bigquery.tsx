@@ -99,6 +99,6 @@ const bigQueryDestination: Destination = {
     }
   ]
 
-} as const;
+} as Destination;
 
 export default bigQueryDestination;

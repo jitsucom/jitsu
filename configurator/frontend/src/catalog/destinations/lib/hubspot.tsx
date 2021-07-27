@@ -60,6 +60,6 @@ const hubspotDestination = {
       </>
     }
   ]
-}  as const;
+}  as Destination;
 
 export default hubspotDestination;
