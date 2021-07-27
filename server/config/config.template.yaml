@@ -399,6 +399,15 @@ destinations:
 #      project_id: "firebase_project_id"
 #      key: {<SERVICE_ACCOUNT_KEY_JSON>}
 
+# ### Amplitude https://jitsu.com/docs/sources-configuration/amplitude
+# my_amplitude:
+#   type: amplitude
+#   destinations: [ "destination_id5" ]
+#   collections: [ "active_users", "annotations", "average_sessions", "cohorts", "events", "new_users" ]
+#   config:
+#     api_key: "<AMPLITUDE_API_KEY>"
+#     secret_key: "<AMPLITUDE_SECRET_KEY>"
+
 
 
 ### Retrospective users recognition global configuration https://jitsu.com/docs/other-features/retrospective-user-recognition

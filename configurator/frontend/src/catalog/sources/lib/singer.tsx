@@ -37,7 +37,7 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'Amplitude',
     tap: 'tap-amplitude',
     stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: true
   },
   {
     pic: logos.tap_appsflyer,
@@ -314,7 +314,7 @@ export const allSingerTaps: SingerTap[] = [
     pic: logos.tap_google_ads,
     displayName: 'Google Ads (AdWords)',
     tap: 'tap-adwords',
-    stable: true,
+    stable: false,
     hasNativeEquivalent: false,
     parameters: customParameters('tap-adwords', {
       customConfig: [
@@ -1238,10 +1238,95 @@ export const allSingerTaps: SingerTap[] = [
           type: isoUtcDateType,
           required: true,
           defaultValue: '2020-01-01T00:00:00.000Z',
-          documentation: <>Start date</>
+          documentation: <>Jitsu will sync Stipe data since Start Date</>
         }
       ]
-    })
+    }),
+    documentation: {
+      overview: (
+        <>
+          The Stripe Connector pulls the following entities from{' '}
+          <a href="https://stripe.com/docs/api">Stripe API</a>{' '}
+          {': '}
+          <a href="https://stripe.com/docs/api/balance_transactions/list">
+            Balance Transactions
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/charges/list">
+            Charges
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/coupons/list">
+            Coupons
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/customers/list">
+            Customers
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/disputes/list">
+            Disputes
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/events/list">
+            Events
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/invoices/list">
+            Invoices
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/invoiceitems/list">
+            Invoice Items
+          </a>
+          <a href="https://stripe.com/docs/api/invoices/invoice_lines">
+            Invoice Line Items
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/payouts/list">
+            Payouts
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/plans/list">
+            Plans
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/products/list">
+            Products
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/subscriptions/list">
+            Subscriptions
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/subscription_items/list">
+            Subscription Items
+          </a>
+          {', '}
+          <a href="https://stripe.com/docs/api/transfers/list">
+            Transfers
+          </a>
+          {', '}
+          <a href="https://api.slack.com/methods/usergroups.list">
+            User Groups
+          </a>
+        </>
+      ),
+      connection: (
+        <ul>
+          <li>
+            Go to the{' '}
+            <a href="https://dashboard.stripe.com/apikeys">
+              Stripe Dashboard
+            </a>{' '}
+            page
+          </li>
+          <li>
+            Save your Account ID (in format: acct_....) and Secret Key (in format: sk_live_....)
+          </li>
+        </ul>
+      )
+    }
   },
   {
     pic: logos.tap_surveymonkey,

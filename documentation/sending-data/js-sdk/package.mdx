@@ -100,7 +100,7 @@ jitsu.set({ project : 'X' })
 will make jitsu to send `{project: 'X'}` with each `jitsu.track()` call. Use:
 
  * `jitsu.set({ project : 'X' }, { eventType: 'pageview' })` to associate properties only with specific event type
- * `jitsu.set({ project : 'X' }, { persist: true })` to not persist properties in cookies across sessions
+ * `jitsu.set({ project : 'X' }, { persist: false })` to not persist properties in cookies across sessions
 
 
 ## Intercepting Segment events

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
+
+	_ "github.com/jitsucom/jitsu/server/drivers/amplitude"
 	"github.com/jitsucom/jitsu/server/drivers/base"
-	_ "github.com/jitsucom/jitsu/server/drivers/base"
 	_ "github.com/jitsucom/jitsu/server/drivers/facebook_marketing"
 	_ "github.com/jitsucom/jitsu/server/drivers/firebase"
 	_ "github.com/jitsucom/jitsu/server/drivers/google_analytics"
@@ -16,7 +18,6 @@ import (
 	"github.com/jitsucom/jitsu/server/scheduling"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/spf13/cast"
-	"time"
 )
 
 var (

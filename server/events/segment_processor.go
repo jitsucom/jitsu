@@ -1,5 +1,7 @@
 package events
 
+import "github.com/jitsucom/jitsu/server/logging"
+
 //SegmentProcessor preprocess client integration events
 type SegmentProcessor struct {
 	usersRecognition Recognition
@@ -11,8 +13,15 @@ func NewSegmentProcessor(usersRecognition Recognition) *SegmentProcessor {
 }
 
 //Preprocess adds src value
+//sets user anonymous ID if GDPR
 func (sp *SegmentProcessor) Preprocess(event Event, reqContext *RequestContext) {
 	event[SrcKey] = "segment_api"
+
+	if reqContext.CookieLess {
+		if err := UserAnonymIDPath.Set(event, reqContext.JitsuAnonymousID); err != nil {
+			logging.SystemErrorf("Error setting generated Jitsu anonymous ID: %v", err)
+		}
+	}
 }
 
 //Postprocess puts event into recognition Service

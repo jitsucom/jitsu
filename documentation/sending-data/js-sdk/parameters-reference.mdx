@@ -32,7 +32,11 @@ EventNative accepts the following parameters.
     </tr>
     <tr>
         <td>cookie_name<br />(<span style={{whiteSpace: 'nowrap'}}>data-cookie-name</span>)</td>
-        <td>Name of tracking cookie (`__eventn_id` by default)</td>
+        <td>Name of tracking cookie (<code inline="true">__eventn_id</code> by default)</td>
+    </tr>
+    <tr>
+        <td>cookie_domain<br />(<span style={{whiteSpace: 'nowrap'}}>data-cookie-domain</span>)</td>
+        <td>Domain of the tracking cookie (by default this is <code inline="true">location.hostname</code> with any <code inline="true">www.</code> subdomain removed)</td>
     </tr>
     <tr>
         <td>segment_hook<br />(<span style={{whiteSpace: 'nowrap'}}>data-tracking-host</span>)</td>
@@ -45,6 +49,23 @@ EventNative accepts the following parameters.
     <tr>
         <td>compat_mode<br />(<span style={{whiteSpace: 'nowrap'}}>data-compat-mode</span>)</td>
         <td>If event JSON should have a structure compatible with an old version. Read more about compat mode in <a href="/docs/sending-data/js-sdk/migrating">Migration Guide</a></td>
+    </tr>
+    <tr>
+      <td>id_method<br />(<span style={{whiteSpace: 'nowrap'}}>data-id-method</span>)</td>
+      <td>If set to <code inline="true">cookie-less</code> value, Jitsu won't set identification cookie and will enrich event with anonymous ID based on hashed user IP and user agent on the backend side.</td>
+    </tr>
+    <tr>
+      <td>anonymize_ip<br />(<span style={{whiteSpace: 'nowrap'}}>data-anonymize-ip</span>)</td>
+      <td>If set to <code inline="true">true</code> value, Jitsu replaces last octet in client IP address with 1 on the backend side. (like <code inline="true">10.10.10.10 -> 10.10.10.1</code>)</td>
+    </tr>
+    <tr>
+      <td>system_cookies<br />(<span style={{whiteSpace: 'nowrap'}}>data-system-cookies</span>)</td>
+      <td>If set to <code inline="true">strict</code> value, Jitsu won't keep system properties between pages</td>
+    </tr>
+    <tr>
+      <td>privacy_policy<br />(<span style={{whiteSpace: 'nowrap'}}>data-privacy-policy</span>)</td>
+      <td>If set to <code inline="true">strict</code> value, Jitsu becomes compliant with cookie laws (GDPR, CCPA, PECR): doesn't set any cookies and replaces last octet in client IP address with 1 on the backend side. (like <code inline="true">10.10.10.10 -> 10.10.10.1</code>)
+        Read more about <a href="/docs/sending-data/privacy-policy">Privacy Policy</a></td>
     </tr>
     </tbody>
 </table>

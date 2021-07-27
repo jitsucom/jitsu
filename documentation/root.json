@@ -21,6 +21,7 @@
         "sending-data/segment-api",
         "sending-data/gif-pixel-api",
         "sending-data/mobile-api",
+        "sending-data/privacy-mode",
         "sending-data/javascript-reference"
       ]
     },
