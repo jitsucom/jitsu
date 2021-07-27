@@ -14,14 +14,7 @@ var (
 //InitDefault initializes default lookup enrichment rules
 //must be called after appconfig.Init()
 func InitDefault(srcIP, dstIP, srcUA, dstUA string) {
-	DefaultJsIPRule = &IPLookupRule{
-		source:      jsonutils.NewJSONPath(srcIP),
-		destination: jsonutils.NewJSONPath(dstIP),
-		geoResolver: appconfig.Instance.GeoResolver,
-		enrichmentConditionFunc: func(m map[string]interface{}) bool {
-			src := events.ExtractSrc(m)
-			return src != "api"
-		}}
+	DefaultJsIPRule, _ = NewIPLookupRule(jsonutils.NewJSONPath(srcIP), jsonutils.NewJSONPath(dstIP))
 	DefaultJsUaRule = &UserAgentParseRule{
 		source:      jsonutils.NewJSONPath(srcUA),
 		destination: jsonutils.NewJSONPath(dstUA),

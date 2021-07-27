@@ -11,6 +11,7 @@ import (
 )
 
 const (
+	AmplitudeType       = "amplitude"
 	FbMarketingType     = "facebook_marketing"
 	FirebaseType        = "firebase"
 	GoogleAnalyticsType = "google_analytics"

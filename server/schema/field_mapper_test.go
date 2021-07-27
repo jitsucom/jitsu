@@ -49,14 +49,8 @@ func TestOldStyleMap(t *testing.T) {
 		{
 			"Map unflatten object error",
 			[]string{
-				"/key1 -> /key10",
-				"/key2/subkey2-> /key11",
-				"/key4/subkey1 ->",
-				"/key4/subkey3 ->",
-				"/key4/subkey4 -> /key4",
-				"/key5 -> /key6/subkey1",
-				"/key3/subkey1 -> /key7",
-				"/key3 -> /key2/subkey1",
+				"/key2 -> /key6",
+				"/key3 -> /key6/subkey1",
 			},
 			map[string]interface{}{
 				"key1": map[string]interface{}{
@@ -76,23 +70,8 @@ func TestOldStyleMap(t *testing.T) {
 				},
 				"key5": 888,
 			},
-			map[string]interface{}{
-				"key10": map[string]interface{}{
-					"subkey1": map[string]interface{}{
-						"subsubkey1": 123,
-						"subsubkey2": 123,
-					},
-				},
-				"key2": "value",
-				"key3": 999,
-				"key4": map[string]interface{}{
-					"subkey2": 123,
-				},
-				"key6": map[string]interface{}{
-					"subkey1": 888,
-				},
-			},
-			"Value 999 wasn't set into /key2/subkey1: key2 node isn't an object",
+			nil,
+			"Value 999 wasn't set into /key6/subkey1: key6 node isn't an object",
 		},
 		{
 			"Map unflatten object ok",
@@ -283,28 +262,32 @@ func TestOldStyleStrictMap(t *testing.T) {
 	}
 }
 
-func TestNewStyleStrictMap(t *testing.T) {
+func TestNewStyleMap(t *testing.T) {
 	tests := []struct {
 		name           string
 		mappings       []MappingField
+		keepUnmapped   bool
 		inputObject    map[string]interface{}
 		expectedObject map[string]interface{}
 	}{
 		{
 			"nil input object",
 			nil,
+			false,
 			nil,
 			nil,
 		},
 		{
 			"Empty mappings and input object",
 			nil,
+			false,
 			map[string]interface{}{},
 			map[string]interface{}{},
 		},
 		{
 			"Dummy mapper doesn't change input json",
 			nil,
+			false,
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": 123,
@@ -332,6 +315,7 @@ func TestNewStyleStrictMap(t *testing.T) {
 				{Src: "/key3", Dst: "/key2_subkey1", Action: MOVE},
 				{Dst: "/key10/subkey1/subsubkey1", Action: CAST, Type: "date"},
 			},
+			false,
 			map[string]interface{}{
 				"key1": map[string]interface{}{
 					"subkey1": map[string]interface{}{
@@ -378,6 +362,7 @@ func TestNewStyleStrictMap(t *testing.T) {
 				{Src: "/_timestamp", Dst: "/_timestamp", Action: MOVE},
 				{Src: "/_timestamp", Dst: "/timestamp", Action: MOVE},
 			},
+			false,
 			map[string]interface{}{
 				"_timestamp": "2020-10-26T09:43:47.374118Z",
 				"api_key":    "key",
@@ -400,14 +385,35 @@ func TestNewStyleStrictMap(t *testing.T) {
 				"timestamp": "2020-10-26T09:43:47.374118Z",
 			},
 		},
+		{
+			"Map real event with keep unmapped true",
+			[]MappingField{
+				{Src: "/src", Dst: "/src", Action: MOVE},
+				{Src: "/_timestamp", Dst: "/_timestamp", Action: MOVE},
+				{Src: "/_timestamp", Dst: "/timestamp", Action: MOVE},
+			},
+			true,
+			map[string]interface{}{
+				"_timestamp": "2020-10-26T09:43:47.374118Z",
+				"api_key":    "key",
+				"src":        "eventn",
+				"event_type": "pages",
+			},
+			map[string]interface{}{
+				"_timestamp": "2020-10-26T09:43:47.374118Z",
+				"src":        "eventn",
+				"api_key":    "key",
+				"timestamp":  "2020-10-26T09:43:47.374118Z",
+				"event_type": "pages",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for _, field := range tt.mappings {
 				require.NoError(t, field.Validate())
 			}
-			f := false
-			mapper, _, err := NewFieldMapper(&Mapping{KeepUnmapped: &f, Fields: tt.mappings})
+			mapper, _, err := NewFieldMapper(&Mapping{KeepUnmapped: &tt.keepUnmapped, Fields: tt.mappings})
 			require.NoError(t, err)
 
 			actualObject, _ := mapper.Map(tt.inputObject)

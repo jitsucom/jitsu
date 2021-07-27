@@ -2,6 +2,7 @@ import { intType, passwordType, selectionType, SourceConnector, stringType } fro
 import { googleServiceAuthDocumentation } from '../lib/documentation';
 
 import { googleAuthConfigParameters } from '../lib/commonParams';
+import * as React from 'react';
 
 export const facebook: SourceConnector = {
   pic: <svg viewBox="0 0 36 36" fill="url(#gradient)">
@@ -14,20 +15,45 @@ export const facebook: SourceConnector = {
     <path d="M15 35.8C6.5 34.3 0 26.9 0 18 0 8.1 8.1 0 18 0s18 8.1 18 18c0 8.9-6.5 16.3-15 17.8l-1-.8h-4l-1 .8z"/>
     <path fill="white" d="M25 23l.8-5H21v-3.5c0-1.4.5-2.5 2.7-2.5H26V7.4c-1.3-.2-2.7-.4-4-.4-4.1 0-7 2.5-7 7v4h-4.5v5H15v12.7c1 .2 2 .3 3 .3s2-.1 3-.3V23h4z"/>
   </svg>,
+  documentation: {
+    overview: <>The Facebook connector pulls data from <a href="https://developers.facebook.com/docs/marketing-api/insights/">Facebook Insights API</a>. The connector
+      is  highly configurable and can pull data broken down by any dimensions from ads-, adset-, campaign- or account-level data
+    </>,
+    connection: <>
+      <h1>1. Obtain Facebook Account ID</h1>
+      Facebook has a great article about <a href="https://www.facebook.com/business/help/1492627900875762">How to get Facebook Account ID</a>
+      <h1>2. Generate Short-lived (1 hour) Facebook Access token</h1>
+      <ul>
+        <li>Go to <a href="https://developers.facebook.com/tools/explorer">Facebook Graph API Explorer</a> page</li>
+        <li>Select Facebook app which has access to your Facebook advertisements data</li>
+        <li>Select User token</li>
+        <li>Select two permissions: <code>read_insights</code> and <code>ads_read</code></li>
+        <li>Click Generate Access Token</li>
+      </ul>
+      <h1>3. Generate Long-lived (60 days) Facebook Access token</h1>
+      For generating long lived access token please read <a href="https://developers.facebook.com/docs/pages/access-tokens/#get-a-long-lived-user-access-token">Facebook article</a>
+    </>
+  },
   collectionParameters: [
     {
       applyOnlyTo: 'ads',
       displayName: 'Report Fields',
       id: 'fields',
       type: selectionType(['bid_amount', 'adlabels', 'creative', 'status', 'created_time', 'updated_time', 'targeting', 'effective_status', 'campaign_id', 'adset_id', 'conversion_specs', 'recommendations', 'id', 'bid_info', 'last_updated_by_app_id', 'tracking_specs', 'bid_type', 'name', 'account_id', 'source_ad_id']),
-      required: true
+      required: true,
+      documentation: <>
+        Ads fields to download
+      </>
     },
     {
       applyOnlyTo: 'insights',
       displayName: 'Report Fields',
       id: 'fields',
       type: selectionType(['account_currency', 'account_id', 'account_name', 'ad_id', 'ad_name', 'adset_id', 'adset_name', 'campaign_id', 'campaign_name', 'objective', 'buying_type', 'cpc', 'cpm', 'cpp', 'ctr', 'estimated_ad_recall_rate', 'estimated_ad_recallers', 'reach', 'unique_clicks', 'unique_ctr', 'frequency', 'actions', 'conversions', 'spend', 'impressions']),
-      required: true
+      required: true,
+      documentation: <>
+        Insights fields to download
+      </>
     },
     {
       displayName: 'Level of data',
@@ -254,6 +280,16 @@ export const googlePlay: SourceConnector = {
     <path fill="#d32f2f" d="M8.417,43.802c0.532-0.308,15.284-8.825,24.865-14.357l-5.601-5.562L7.5,43.947C7.748,44.038,8.066,44.004,8.417,43.802z"/>
     <path fill="#fbc02d" d="M41.398,23.071c-0.796-0.429-8.1-4.676-8.1-4.676l-0.061-0.035l-5.556,5.523l5.601,5.562c4.432-2.559,7.761-4.48,8.059-4.653C42.285,24.248,42.194,23.5,41.398,23.071z"/>
   </svg>,
+  documentation: {
+    overview: <>The Google Play connector can sync <b>earnings</b> (financial report) and <b>sales</b> (statistics about sales).</>,
+    connection: googleServiceAuthDocumentation({
+      oauthEnabled: true,
+      serviceAccountEnabled: true,
+      scopes: ['https://www.googleapis.com/auth/devstorage.read_only'],
+      serviceName: 'Google Play',
+      apis: ['Cloud Storage']
+    })
+  },
   displayName: 'Google Play',
   id: 'google_play',
   collectionTypes: ['earnings', 'sales'],
@@ -266,7 +302,7 @@ export const googlePlay: SourceConnector = {
       required: true,
       documentation:
         <>
-          Identifier of Google Play account
+          Identifier of your Google Play account
         </>
     },
     ...googleAuthConfigParameters({})
@@ -280,6 +316,16 @@ export const firebase: SourceConnector = {
     <path fill="#ff6f00" d="M8.008 36.986L8.208 36.829 25.737 22.488 20.793 13.012z"/>
     <path fill="#ffc400" d="M8,37l26.666-25.713c0.559-0.539,1.492-0.221,1.606,0.547L40,37l-15,8.743 c-0.609,0.342-1.352,0.342-1.961,0L8,37z"/>
   </svg>,
+  documentation: {
+      overview: <>The Firebase connector can sync users and any collection from the Firestore cloud.</>,
+      connection: googleServiceAuthDocumentation({
+          oauthEnabled: false,
+          serviceAccountEnabled: true,
+          scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
+          serviceName: 'Firebase Analytics',
+          apis: ['Firebase API']
+      })
+  },
   displayName: 'Firebase',
   id: 'firebase',
   collectionTypes: ['users', 'firestore'],
@@ -289,7 +335,10 @@ export const firebase: SourceConnector = {
       displayName: 'Firestore Collection',
       id: 'collection',
       type: stringType,
-      required: true
+      required: true,
+      documentation: <>
+        Firestore collection ID
+      </>
     }
   ],
   configParameters: [
@@ -298,7 +347,10 @@ export const firebase: SourceConnector = {
       displayName: 'Project ID',
       id: 'config.project_id',
       type: stringType,
-      required: true
+      required: true,
+      documentation: <>
+        Firebase Project ID from the Project Settings page.
+      </>
     }
   ]
 }
@@ -353,7 +405,7 @@ export const redis: SourceConnector = {
       type: stringType,
       required: true,
       documentation: <>
-        Your Redis host
+        Redis host
       </>
     },
     {
@@ -363,7 +415,7 @@ export const redis: SourceConnector = {
       defaultValue: 6379,
       required: true,
       documentation: <>
-        Your Redis port
+        Redis port
       </>
     },
     {
@@ -371,7 +423,7 @@ export const redis: SourceConnector = {
       id: 'config.password',
       type: passwordType,
       documentation: <>
-        Your Redis password. Leave it empty if your Redis doesn't have a password.
+        Redis password. Leave it empty if your Redis doesn't have a password.
       </>
     }
   ],
@@ -384,4 +436,80 @@ export const redis: SourceConnector = {
   }
 }
 
-export const allNativeConnectors = [facebook, redis, firebase, googleAnalytics, googlePlay];
+export const amplitude: SourceConnector = {
+  pic: <svg
+    id="Layer_1"
+    xmlns="http://www.w3.org/2000/svg"
+    xmlnsXlink="http://www.w3.org/1999/xlink"
+    x="0px"
+    y="0px"
+    viewBox="0 0 200 200"
+    enableBackground="new 0 0 200 200"
+    xmlSpace="preserve"
+  >
+    <g id="Random-Assignments_2_">
+      <g id="Amplitude-logomark" transform="translate(-10.000000, -10.000000)">
+        <g id="Amplitude_logomark" transform="translate(10.000000, 10.000000)">
+          <path
+            id="Shape"
+            fill="#00A7CF"
+            d="M89.3,50.5c-0.5-0.7-1.1-1-1.7-1c-0.5,0-0.9,0.2-1.3,0.4C81.5,53.7,75,69.6,69.6,90.7l4.8,0.1 c9.4,0.1,19.1,0.2,28.7,0.4c-2.5-9.6-4.9-17.9-7.1-24.5C92.7,56.8,90.6,52.5,89.3,50.5z"
+          />
+          <path
+            id="Shape_1_"
+            fill="#00A7CF"
+            d="M100,10c-49.7,0-90,40.3-90,90s40.3,90,90,90s90-40.3,90-90S149.7,10,100,10z M164.7,101.6 L164.7,101.6c-0.1,0.1-0.2,0.2-0.3,0.2l-0.1,0.1c-0.1,0-0.1,0.1-0.2,0.1c-0.1,0-0.1,0.1-0.2,0.1l0,0c-0.7,0.4-1.4,0.5-2.2,0.5 H119c0.3,1.4,0.7,3,1.1,4.8c2.3,10.1,8.5,36.9,15.1,36.9h0.1h0.1h0.1c5.1,0,7.8-7.4,13.5-23.8l0.1-0.2c0.9-2.6,2-5.6,3.1-8.7 l0.3-0.8l0,0c0.4-1,1.5-1.5,2.5-1.1c1,0.3,1.6,1.4,1.4,2.4l0,0l-0.2,0.8c-0.6,1.9-1.2,4.6-2,7.6c-3.4,14.2-8.6,35.7-21.9,35.7 h-0.1c-8.6-0.1-13.7-13.8-15.9-19.7c-4.1-11-7.2-22.7-10.2-34H66.9l-8.1,26.1l-0.1-0.1c-1,1.6-2.9,2.3-4.6,1.8s-3-2.1-3-4v-0.1 l0.5-2.9c1.1-6.7,2.5-13.7,4-20.7H38.9l-0.1-0.1c-3.1-0.5-5.3-3.1-5.3-6.2c0-3,2.1-5.6,5.1-6.1c0.6-0.1,1.3-0.1,1.9-0.1h0.8 c5.3,0.1,10.8,0.2,16.9,0.3c8.7-35.1,18.7-53,29.8-53c11.9,0,20.8,27.2,27.9,53.7l0,0.1c14.5,0.3,30.1,0.7,45.1,1.8l0.6,0.1 c0.2,0,0.5,0,0.7,0.1h0.1l0.1,0h0c1.8,0.4,3.3,1.7,3.7,3.5C166.8,98.6,166.2,100.5,164.7,101.6z"
+          />
+        </g>
+      </g>
+    </g>
+  </svg>,
+  documentation: {
+    overview: <>The Amplitude connector pulls data from <a href="https://developers.amplitude.com/docs/http-api-v2">Amplitude API</a>.{' '}
+      The connector can sync <b>active users</b>, <b>new users</b>, <b>annotations</b>, <b>average sessions</b>, <b>cohorts</b> and <b>events</b>.
+    </>,
+    connection: (
+      <>
+        <ul>
+          <li>
+            Go to the{' '}
+            <a href="https://analytics.amplitude.com/">
+              Amplitude Project settings
+            </a>{' '}
+            page
+          </li>
+          <li>
+            Save API Key and Secret Key value. It is used as API Secret in Jitsu UI.
+            Only Amplitude Admins and Managers can view API credentials on Amplitude project settings page.
+          </li>
+        </ul>
+      </>
+    )
+  },
+  displayName: 'Amplitude',
+  id: 'amplitude',
+  collectionTypes: ['active_users', 'annotations', 'average_sessions', 'cohorts', 'events', 'new_users'],
+  configParameters: [
+    {
+      displayName: 'API Key',
+      id: 'config.api_key',
+      type: stringType,
+      required: true,
+      documentation: <>
+        Amplitude API Key from project settings page. Only Amplitude Admins and Managers can view the API Key.
+      </>
+    },
+    {
+      displayName: 'Secret Key',
+      id: 'config.secret_key',
+      type: stringType,
+      required: true,
+      documentation: <>
+        Amplitude Secret Key from project settings page. Only Amplitude Admins and Managers can view the Secret Key.
+      </>
+    }
+  ],
+  collectionParameters: []
+}
+
+export const allNativeConnectors = [facebook, redis, firebase, googleAnalytics, googlePlay, amplitude];
