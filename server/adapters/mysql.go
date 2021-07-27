@@ -23,17 +23,18 @@ const (
 									column_name AS name
 								FROM information_schema.columns
 								WHERE table_schema = ? AND table_name = ? AND column_key = 'PRI'`
-	mySQLCreateTableTemplate     = "CREATE TABLE `%s`.`%s` (%s)"
-	mySQLInsertTemplate          = "INSERT INTO `%s`.`%s` (%s) VALUES %s"
-	mySQLAlterPrimaryKeyTemplate = "ALTER TABLE `%s`.`%s` ADD CONSTRAINT %s PRIMARY KEY (%s)"
-	mySQLMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) VALUES %s ON DUPLICATE KEY UPDATE %s"
-	mySQLBulkMergeTemplate       = "INSERT INTO `%s`.`%s` (%s) SELECT * FROM (SELECT %s FROM `%s`.`%s`) AS tmp ON DUPLICATE KEY UPDATE %s"
-	mySQLDeleteQueryTemplate     = "DELETE FROM `%s`.`%s` WHERE %s"
-	mySQLAddColumnTemplate       = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
-	mySQLDropPrimaryKeyTemplate  = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
-	mySQLDropTableTemplate       = "DROP TABLE `%s`.`%s`"
-	mySQLPrimaryKeyMaxLength     = 32
-	mySQLValuesLimit             = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
+	mySQLCreateDBIfNotExistsTemplate = "CREATE DATABASE IF NOT EXISTS `%s`"
+	mySQLCreateTableTemplate         = "CREATE TABLE `%s`.`%s` (%s)"
+	mySQLInsertTemplate              = "INSERT INTO `%s`.`%s` (%s) VALUES %s"
+	mySQLAlterPrimaryKeyTemplate     = "ALTER TABLE `%s`.`%s` ADD CONSTRAINT %s PRIMARY KEY (%s)"
+	mySQLMergeTemplate               = "INSERT INTO `%s`.`%s` (%s) VALUES %s ON DUPLICATE KEY UPDATE %s"
+	mySQLBulkMergeTemplate           = "INSERT INTO `%s`.`%s` (%s) SELECT * FROM (SELECT %s FROM `%s`.`%s`) AS tmp ON DUPLICATE KEY UPDATE %s"
+	mySQLDeleteQueryTemplate         = "DELETE FROM `%s`.`%s` WHERE %s"
+	mySQLAddColumnTemplate           = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
+	mySQLDropPrimaryKeyTemplate      = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
+	mySQLDropTableTemplate           = "DROP TABLE `%s`.`%s`"
+	mySQLPrimaryKeyMaxLength         = 32
+	mySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
 
 var (
@@ -95,6 +96,18 @@ func (m *MySQL) OpenTx() (*Transaction, error) {
 	}
 
 	return &Transaction{tx: tx, dbType: m.Type()}, nil
+}
+
+//CreateDB creates database instance if doesn't exist
+func (m *MySQL) CreateDB(dbName string) error {
+	query := fmt.Sprintf(mySQLCreateDBIfNotExistsTemplate, dbName)
+	m.queryLogger.LogDDL(query)
+	_, err := m.dataSource.ExecContext(m.ctx, query)
+	if err != nil {
+		return fmt.Errorf("Error creating [%s] db with statement [%s]: %v", dbName, query, err)
+	}
+
+	return nil
 }
 
 //CreateTable creates database table with name,columns provided in Table representation
