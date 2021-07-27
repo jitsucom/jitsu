@@ -21,11 +21,18 @@ const (
 	pgDatabase    = "test"
 	pgSchema      = "public"
 
+	mySQLDefaultPort  = "3306/tcp"
+	mySQLRootPassword = "test_root_password"
+	mySQLUser         = "test_user"
+	mySQLPassword     = "test_password"
+	mySQLDatabase     = "test_database"
+
 	chDatabase           = "default"
 	chDatasourceTemplate = "http://default:@localhost:%d/default?read_timeout=5m&timeout=5m&enable_http_compression=1"
 
 	envClickhousePortVariable = "CH_TEST_PORT"
 	envPostgresPortVariable   = "PG_TEST_PORT"
+	envMySQLPortVariable      = "MYSQL_TEST_PORT"
 )
 
 //PostgresContainer is a Postgres testcontainer
@@ -36,6 +43,17 @@ type PostgresContainer struct {
 	Port      int
 	Database  string
 	Schema    string
+	Username  string
+	Password  string
+}
+
+//MySQLContainer is a MySQL testcontainer
+type MySQLContainer struct {
+	Container testcontainers.Container
+	Context   context.Context
+	Host      string
+	Port      int
+	Database  string
 	Username  string
 	Password  string
 }
@@ -83,6 +101,47 @@ func NewPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 		Schema: pgSchema, Database: pgDatabase, Username: pgUser, Password: pgPassword}, nil
 }
 
+//NewMySQLContainer creates new MySQL test container if MYSQL_TEST_PORT is not defined. Otherwise uses db at defined port.
+//This logic is required for running test at CI environment
+func NewMySQLContainer(ctx context.Context) (*MySQLContainer, error) {
+	if os.Getenv(envMySQLPortVariable) != "" {
+		port, err := strconv.Atoi(os.Getenv(envMySQLPortVariable))
+		if err != nil {
+			return nil, err
+		}
+		return &MySQLContainer{Context: ctx, Host: "localhost", Port: port,
+			Database: mySQLDatabase, Username: mySQLUser, Password: mySQLPassword}, nil
+	}
+	dbSettings := make(map[string]string, 0)
+	dbSettings["MYSQL_ROOT_PASSWORD"] = mySQLRootPassword
+	dbSettings["MYSQL_USER"] = mySQLUser
+	dbSettings["MYSQL_PASSWORD"] = mySQLPassword
+	dbSettings["MYSQL_DATABASE"] = mySQLDatabase
+
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: testcontainers.ContainerRequest{
+			Image:        "mysql:8.0.25",
+			ExposedPorts: []string{mySQLDefaultPort},
+			Env:          dbSettings,
+			WaitingFor:   tcWait.ForLog("port: 3306  MySQL Community Server - GPL"),
+		},
+		Started: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+	host, err := container.Host(ctx)
+	if err != nil {
+		return nil, err
+	}
+	port, err := container.MappedPort(ctx, "3306")
+	if err != nil {
+		return nil, err
+	}
+	return &MySQLContainer{Container: container, Context: ctx, Host: host, Port: port.Int(),
+		Database: mySQLDatabase, Username: mySQLUser, Password: mySQLPassword}, nil
+}
+
 //CountRows returns row count in DB table with name = table
 //or error if occurred
 func (pgc *PostgresContainer) CountRows(table string) (int, error) {
@@ -99,6 +158,25 @@ func (pgc *PostgresContainer) CountRows(table string) (int, error) {
 			return 0, err
 		}
 
+		return -1, err
+	}
+	defer rows.Close()
+	rows.Next()
+	var count int
+	err = rows.Scan(&count)
+	return count, err
+}
+
+func (mc *MySQLContainer) CountRows(table string) (int, error) {
+	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
+	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		mc.Username, mc.Password, mc.Host, mc.Port, mc.Database)
+	dataSource, err := sql.Open("mysql", connectionString)
+	if err != nil {
+		return -1, err
+	}
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT count(*) FROM %s", table))
+	if err != nil {
 		return -1, err
 	}
 	defer rows.Close()
@@ -152,12 +230,71 @@ func (pgc *PostgresContainer) GetAllSortedRows(table, orderClause string) ([]map
 	return objects, nil
 }
 
-//Close terminates underlying docker container
+//GetAllSortedRows returns all selected row from table ordered according to orderClause
+//or error if occurred
+func (mc *MySQLContainer) GetAllSortedRows(table, orderClause string) ([]map[string]interface{}, error) {
+	// [user[:password]@][net[(addr)]]/dbname[?param1=value1&paramN=valueN]
+	connectionString := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+		mc.Username, mc.Password, mc.Host, mc.Port, mc.Database)
+	dataSource, err := sql.Open("mysql", connectionString)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := dataSource.Query(fmt.Sprintf("SELECT * from %s %s", table, orderClause))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cols, _ := rows.Columns()
+
+	objects := []map[string]interface{}{}
+	for rows.Next() {
+		columns := make([]interface{}, len(cols))
+		columnPointers := make([]interface{}, len(cols))
+		for i := range columns {
+			columnPointers[i] = &columns[i]
+		}
+
+		// Scan the result into the column pointers...
+		if err := rows.Scan(columnPointers...); err != nil {
+			return nil, err
+		}
+
+		// Create our map, and retrieve the value for each column from the pointers slice,
+		// storing it in the map with the name of the column as the key.
+		object := make(map[string]interface{})
+		for i, colName := range cols {
+			val := *(columnPointers[i].(*interface{}))
+			if val == nil {
+				object[colName] = nil
+			} else {
+				object[colName] = string((val).([]uint8))
+			}
+		}
+
+		objects = append(objects, object)
+	}
+
+	return objects, nil
+}
+
+//Close terminates underlying postgres docker container
 func (pgc *PostgresContainer) Close() {
 	if pgc.Container != nil {
 		err := pgc.Container.Terminate(pgc.Context)
 		if err != nil {
-			logging.Error("Failed to stop container")
+			logging.Error("Failed to stop postgres container")
+		}
+	}
+}
+
+//Close terminates underlying mysql docker container
+func (mc *MySQLContainer) Close() {
+	if mc.Container != nil {
+		err := mc.Container.Terminate(mc.Context)
+		if err != nil {
+			logging.Error("Failed to stop MySQL container")
 		}
 	}
 }
