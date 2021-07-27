@@ -1,7 +1,6 @@
 // @Libs
 import ReactDOM from 'react-dom';
-import { Router } from 'react-router-dom';
-import { createBrowserHistory } from 'history';
+import { BrowserRouter } from 'react-router-dom';
 // @MobX
 import 'stores/_setupMobx';
 // @App component
@@ -10,11 +9,11 @@ import App from './App';
 import './index.less';
 import { getBaseUIPath } from 'lib/commons/pathHelper';
 
-const history = createBrowserHistory({ basename: getBaseUIPath() });
+const BASE_PATH = getBaseUIPath();
 
 ReactDOM.render(
-  <Router history={history}>
+  <BrowserRouter basename={BASE_PATH}>
     <App />
-  </Router>,
+  </BrowserRouter>,
   document.getElementById('root')
 );
