@@ -27,6 +27,7 @@ export {
 
 export const destinationsReferenceMap = {
   postgres: postgresDestination,
+  mysql: mysqlDestination,
   bigquery: bigQueryDestination,
   redshift: redshiftDestination,
   clickhouse: clickHouseDestination,
