@@ -6,6 +6,8 @@ export const jsApiKey: ApiKeyReferenceData = {
     <svg
       xmlns="http://www.w3.org/2000/svg"
       aria-label="JavaScript"
+      height="100%"
+      width="100%"
       viewBox="0 0 512 512"
     >
       <rect width="512" height="512" fill="#f7df1e" rx="15%" />
