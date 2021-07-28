@@ -199,7 +199,7 @@ func TestCors(t *testing.T) {
 	}
 }
 
-func TestEventEndpoint(t *testing.T) {
+func TestIncomingEvent(t *testing.T) {
 	uuid.InitMock()
 	binding.EnableDecoderUseNumber = true
 
@@ -336,6 +336,60 @@ func TestEventEndpoint(t *testing.T) {
 			"/api/v1/event?token=c2stoken&cookie_less=true&anonymize_ip=true",
 			"test_data/event_input_2.0.json",
 			"test_data/fact_output_cookie_less_anonymize_ip.json",
+			"",
+			http.StatusOK,
+			"",
+		},
+		{
+			"Segment function track event",
+			"/api/v1/segment?token=s2stoken",
+			"test_data/segment_function_track_event_input.json",
+			"test_data/segment_function_track_event_output.json",
+			"",
+			http.StatusOK,
+			"",
+		},
+		{
+			"Segment function compat track event",
+			"/api/v1/segment/compat?token=s2stoken",
+			"test_data/segment_function_track_event_input.json",
+			"test_data/segment_function_track_event_compat_output.json",
+			"",
+			http.StatusOK,
+			"",
+		},
+		{
+			"Segment function identify event",
+			"/api/v1/segment?token=s2stoken",
+			"test_data/segment_function_identify_event_input.json",
+			"test_data/segment_function_identify_event_output.json",
+			"",
+			http.StatusOK,
+			"",
+		},
+		{
+			"Segment function compat identify event",
+			"/api/v1/segment/compat?token=s2stoken",
+			"test_data/segment_function_identify_event_input.json",
+			"test_data/segment_function_identify_event_compat_output.json",
+			"",
+			http.StatusOK,
+			"",
+		},
+		{
+			"Segment function page event",
+			"/api/v1/segment?token=s2stoken",
+			"test_data/segment_function_page_event_input.json",
+			"test_data/segment_function_page_event_output.json",
+			"",
+			http.StatusOK,
+			"",
+		},
+		{
+			"Segment function compat page event",
+			"/api/v1/segment/compat?token=s2stoken",
+			"test_data/segment_function_page_event_input.json",
+			"test_data/segment_function_page_event_compat_output.json",
 			"",
 			http.StatusOK,
 			"",
