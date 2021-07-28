@@ -20,6 +20,7 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/panjf2000/ants/v2"
+	"strings"
 	"time"
 )
 
@@ -136,7 +137,6 @@ func (te *TaskExecutor) execute(i interface{}) {
 		te.handleError(task, taskLogger, msg, true)
 		return
 	}
-
 	//get destinations
 	var destinationStorages []storages.Storage
 	for _, destinationID := range sourceUnit.DestinationIDs {
@@ -202,7 +202,20 @@ func (te *TaskExecutor) execute(i interface{}) {
 }
 
 func (te *TaskExecutor) onSuccess(task *meta.Task, taskLogger *TaskLogger) {
-	var dbtClouds = te.destinationService.GetDestinationsByType(storages.DbtCloudType)
+	//trying acquire projectId from sourceId
+	parts := strings.SplitN(task.Source, ".", 2)
+	if len(parts) < 2 {
+		logging.Errorf("Cannot find onSuccess destinations for task: %s", task.ID)
+		taskLogger.ERROR("Cannot find onSuccess destinations")
+		return
+	}
+	projectId := parts[0]
+	var dbtClouds = te.destinationService.GetDestinationsByType(projectId, storages.DbtCloudType)
+	if len(dbtClouds) > 1 {
+		logging.Errorf("Multiple onSuccess syncs not supported. Task: %s", task.ID)
+		taskLogger.ERROR("Multiple onSuccess syncs not supported")
+		return
+	}
 	for _, storageProxy := range dbtClouds {
 		storage, ok := storageProxy.Get()
 		if ok {
@@ -228,10 +241,10 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, taskLogger *TaskLogger) {
 					},
 				}
 				if err := (*dbtCloud).Insert(eventContext); err != nil {
-					logging.Errorf("dbt Cloud failed for source: %s taskId: %s", task.Source, task.ID)
-					taskLogger.ERROR("dbt Cloud failed for source: %s taskId: %s", task.Source, task.ID)
+					logging.Errorf("%s failed for task: %s, err: %v", dbtCloud.Type(), task.ID, err)
+					taskLogger.ERROR("%s failed: %v", dbtCloud.Type(), err)
 				} else {
-					taskLogger.INFO("Successful run of source: %s taskId: %s triggered dbt Cloud: %s", task.Source, task.ID, dbtCloud.ID())
+					taskLogger.INFO("Successful run triggered %s: %s", dbtCloud.Type(), dbtCloud.ID())
 				}
 			}
 		}
