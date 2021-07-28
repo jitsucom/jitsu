@@ -19,10 +19,12 @@ export type UserApiKey = {
 
 export interface IApiKeysStore {
   apiKeys: UserApiKey[];
+  firstLinkedKey: UserApiKey | null;
   hasApiKeys: boolean;
   state: ApiKeysStoreState;
   error: string;
   injectDestinationsStore: (store: IDestinationsStore) => void;
+  getKeyByUid: (uid: string) => UserApiKey | null;
   generateApiToken(type: string, len?: number): string;
   pullApiKeys: (
     showGlobalLoader: boolean
@@ -133,6 +135,14 @@ class ApiKeysStore implements IApiKeysStore {
     return this._apiKeys;
   }
 
+  public get firstLinkedKey() {
+    const firstLinkedDestination = this._destinationsStore.destinations.find(
+      ({ _onlyKeys }) => _onlyKeys.length
+    );
+    if (!firstLinkedDestination) return null;
+    return this.getKeyByUid(firstLinkedDestination._onlyKeys[0]);
+  }
+
   public get hasApiKeys(): boolean {
     return !!this._apiKeys.length;
   }
@@ -147,6 +157,10 @@ class ApiKeysStore implements IApiKeysStore {
 
   public injectDestinationsStore(store: IDestinationsStore): void {
     this._destinationsStore = store;
+  }
+
+  public getKeyByUid(uid: string): UserApiKey | null {
+    return this.apiKeys.find((key) => key.uid === uid) || null;
   }
 
   public generateApiToken(type: string, len?: number): string {
