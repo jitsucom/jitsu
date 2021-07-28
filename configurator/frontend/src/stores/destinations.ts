@@ -3,10 +3,10 @@ import { flowResult, makeAutoObservable } from 'mobx';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Utils
-import { intersection, without } from 'lodash';
+import { intersection, union, without } from 'lodash';
 import { toArrayIfNot } from 'utils/arrays';
 import { ISourcesStore, sourcesStore } from './sources';
-import { apiKeysStore, IApiKeysStore } from './apiKeys';
+import { apiKeysStore, IApiKeysStore, UserApiKey } from './apiKeys';
 
 export interface IDestinationsStore {
   destinations: DestinationData[];
@@ -30,6 +30,10 @@ export interface IDestinationsStore {
     options?: EditDestinationsOptions
   ) => Generator<Promise<unknown>, void, unknown>;
   createFreeDatabase: () => Generator<Promise<unknown>, void, unknown>;
+  linkApiKeysToDestinations: (
+    apiKeys: UserApiKey | UserApiKey[],
+    destinations: DestinationData | DestinationData[]
+  ) => Generator<Promise<unknown>, void, unknown>;
 }
 
 type EditDestinationsOptions = {
@@ -285,6 +289,24 @@ class DestinationsStore implements IDestinationsStore {
       _onlyKeys: [this._apiKeysStore.apiKeys[0].uid]
     };
     yield flowResult(this.addDestination(linkedFreeDatabaseDestination));
+  }
+
+  public *linkApiKeysToDestinations(
+    _apiKeys: UserApiKey | UserApiKey[],
+    _destinations: DestinationData | DestinationData[]
+  ) {
+    const apiKeysUids = toArrayIfNot(_apiKeys).map((key) => key.uid);
+    const destinations = toArrayIfNot(_destinations);
+
+    const updatedDestinations: DestinationData[] = destinations.reduce<
+      DestinationData[]
+    >((updatedDestinations, destination) => {
+      const updated: DestinationData = {
+        ...destination,
+        _onlyKeys: union(destination._onlyKeys, apiKeysUids)
+      };
+      return [];
+    }, []);
   }
 }
 

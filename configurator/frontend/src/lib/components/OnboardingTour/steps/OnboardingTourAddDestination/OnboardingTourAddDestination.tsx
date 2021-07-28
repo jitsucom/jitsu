@@ -18,8 +18,8 @@ import {
 // @Hooks
 import { useServices } from 'hooks/useServices';
 // @Utils
-import ApiKeyHelper from 'lib/services/ApiKeyHelper';
 import { flowResult } from 'mobx';
+import { apiKeysStore } from 'stores/apiKeys';
 
 type ExtractDatabaseOrWebhook<T> = T extends { readonly type: 'database' }
   ? T
@@ -69,8 +69,6 @@ export const OnboardingTourAddDestination: React.FC<Props> = function ({
   const onAfterCustomDestinationCreated = useCallback<
     () => Promise<void>
   >(async () => {
-    const helper = new ApiKeyHelper(services);
-    await helper.init();
 
     // if user created a destination at this step, it is his first destination
     const destination = destinationsStore.destinations[0];
@@ -91,9 +89,9 @@ export const OnboardingTourAddDestination: React.FC<Props> = function ({
     );
 
     // user might have multiple keys - we are using the first one
-    let key = helper.keys[0];
-    if (!key) key = await helper.createNewAPIKey();
-    await helper.linkKeyToDestination(key, destination);
+    await flowResult(apiKeysStore.generateAddInitialApiKeyIfNeeded());
+    const key = apiKeysStore.apiKeys[0];
+    await destinationsStore.linkApiKeysToDestinations(key, destination);
 
     handleGoNext();
   }, [services, handleGoNext]);
