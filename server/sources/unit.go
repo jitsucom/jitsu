@@ -6,9 +6,10 @@ import (
 )
 
 type Unit struct {
-	SourceType          string
-	DriverPerCollection map[string]driversbase.Driver
-	DestinationIDs      []string
+	SourceType               string
+	DriverPerCollection      map[string]driversbase.Driver
+	DestinationIDs           []string
+	PostHandleDestinationIDs []string
 
 	hash uint64
 }
