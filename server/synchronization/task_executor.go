@@ -240,7 +240,7 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLog
 					Name: storage.ID(),
 				},
 			}
-			if err := (*dbtCloud).Insert(eventContext); err != nil {
+			if err := dbtCloud.Insert(eventContext); err != nil {
 				logging.Errorf("%s failed for task: %s, err: %v", dbtCloud.Type(), task.ID, err)
 				taskLogger.ERROR("%s failed: %v", dbtCloud.Type(), err)
 			} else {
