@@ -89,7 +89,11 @@ export const OnboardingTourAddDestination: React.FC<Props> = function ({
     );
 
     // user might have multiple keys - we are using the first one
-    await flowResult(apiKeysStore.generateAddInitialApiKeyIfNeeded());
+    await flowResult(
+      apiKeysStore.generateAddInitialApiKeyIfNeeded(
+        'Auto-generated during the onboarding'
+      )
+    );
     const key = apiKeysStore.apiKeys[0];
     await destinationsStore.linkApiKeysToDestinations(key, destination);
 

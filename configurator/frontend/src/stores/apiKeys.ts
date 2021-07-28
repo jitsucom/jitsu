@@ -29,12 +29,12 @@ export interface IApiKeysStore {
   pullApiKeys: (
     showGlobalLoader: boolean
   ) => Generator<Promise<unknown>, void, unknown>;
-  generateAddInitialApiKeyIfNeeded: () => Generator<
-    Promise<unknown>,
-    void,
-    unknown
-  >;
-  generateAddApiKey: () => Generator<Promise<unknown>, void, unknown>;
+  generateAddInitialApiKeyIfNeeded: (
+    note?: string
+  ) => Generator<Promise<unknown>, void, unknown>;
+  generateAddApiKey: (
+    note?: string
+  ) => Generator<Promise<unknown>, void, unknown>;
   deleteApiKey: (
     apiKey: UserApiKey
   ) => Generator<Promise<unknown>, void, unknown>;
@@ -93,11 +93,12 @@ class ApiKeysStore implements IApiKeysStore {
     if (stateIsErrored) this._state = IDLE;
   }
 
-  private generateApiKey(): UserApiKey {
+  private generateApiKey(comment?: string): UserApiKey {
     return {
       uid: this.generateApiToken('', 6),
       serverAuth: this.generateApiToken('s2s'),
       jsAuth: this.generateApiToken('js'),
+      comment,
       origins: []
     };
   }
@@ -189,15 +190,15 @@ class ApiKeysStore implements IApiKeysStore {
     }
   }
 
-  public *generateAddInitialApiKeyIfNeeded() {
+  public *generateAddInitialApiKeyIfNeeded(note?: string) {
     if (!!this.apiKeys.length) return;
-    yield flowResult(this.generateAddApiKey());
+    yield flowResult(this.generateAddApiKey(note));
   }
 
-  public *generateAddApiKey() {
+  public *generateAddApiKey(note?: string) {
     this.resetError();
     this._state = BACKGROUND_LOADING;
-    const newApiKey = this.generateApiKey();
+    const newApiKey = this.generateApiKey(note);
     const updatedApiKeys = [...this._apiKeys, newApiKey];
     try {
       const result = yield services.storageService.save(
