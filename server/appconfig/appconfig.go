@@ -59,7 +59,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.destinations_reload_sec", 5)
 	viper.SetDefault("server.sources_reload_sec", 7)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
-	viper.SetDefault("server.sync_tasks.store_logs.last_runs", 10)
+	viper.SetDefault("server.sync_tasks.store_logs.last_runs", -1)
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("server.disable_skip_events_warn", false)
 	viper.SetDefault("server.cache.events.size", 100)

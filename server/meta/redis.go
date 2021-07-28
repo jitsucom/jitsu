@@ -534,22 +534,24 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ... string) (in
 	defer conn.Close()
 
 	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
-	args := []string{taskIndexKey}
-	args = append(args, taskIDs...)
+	args := []interface{}{taskIndexKey} //need interface{} type to conform conn.Do method variadic signature bellow
+	for _, id := range taskIDs {
+		args = append(args, id)
+	}
 
-	removed, err := redis.Int(conn.Do("ZREM", args))
+	removed, err := redis.Int(conn.Do("ZREM", args...))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return 0, err
 	}
 	logging.Infof("Removed %d of %d from index %s", removed, len(taskIDs), taskIndexKey)
 
-	taskKeys := make([]string, len(taskIDs))
+	taskKeys := make([]interface{}, len(taskIDs))
 	for _, id := range taskIDs {
 		taskKeys = append(taskKeys, "sync_tasks#" + id)
 	}
 
-	removed, err =  redis.Int(conn.Do("DEL", taskKeys))
+	removed, err =  redis.Int(conn.Do("DEL", taskKeys...))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		//no point to return error. we have already cleared index
@@ -557,12 +559,12 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ... string) (in
 	}
 	logging.Infof("Removed %d of %d from tasks. source:%s collection:%s", removed, len(taskIDs), sourceID, collection)
 
-	taskLogKeys := make([]string, len(taskKeys))
-	for _, tKey := range taskKeys {
-		taskLogKeys = append(taskLogKeys, tKey + ":logs")
+	taskLogKeys := make([]interface{}, len(taskIDs))
+	for _, id := range taskIDs {
+		taskLogKeys = append(taskLogKeys, "sync_tasks#" + id + ":logs")
 	}
 
-	removed, err =  redis.Int(conn.Do("DEL", taskLogKeys))
+	removed, err =  redis.Int(conn.Do("DEL", taskLogKeys...))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		//no point to return error. we have already cleared index
