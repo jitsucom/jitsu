@@ -504,6 +504,74 @@ func (r *Redis) UpsertTask(task *Task) error {
 	return nil
 }
 
+//GetAllTaskIDs returns all source's tasks ids by collection
+func (r *Redis) GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+	//get index
+	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
+	var commandName string
+	var args []interface{}
+	if descendingOrder {
+		commandName = "ZREVRANGEBYSCORE"
+		args = []interface{}{taskIndexKey, "+inf", "-inf"}
+	} else {
+		commandName = "ZRANGEBYSCORE"
+		args = []interface{}{taskIndexKey, "-inf", "+inf"}
+	}
+	taskIDs, err := redis.Strings(conn.Do(commandName, args...))
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return nil, err
+	}
+	return taskIDs, nil
+}
+
+//RemoveTasks tasks with provided taskIds from specified source's collections.
+//All task logs removed as well
+func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ... string) (int, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
+	args := []string{taskIndexKey}
+	args = append(args, taskIDs...)
+
+	removed, err := redis.Int(conn.Do("ZREM", args))
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return 0, err
+	}
+	logging.Infof("Removed %d of %d from index %s", removed, len(taskIDs), taskIndexKey)
+
+	taskKeys := make([]string, len(taskIDs))
+	for _, id := range taskIDs {
+		taskKeys = append(taskKeys, "sync_tasks#" + id)
+	}
+
+	removed, err =  redis.Int(conn.Do("DEL", taskKeys))
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		//no point to return error. we have already cleared index
+		logging.Errorf("failed to remove tasks. source:%s collection:%s tasks:%v err:%v", sourceID, collection, taskIDs, err)
+	}
+	logging.Infof("Removed %d of %d from tasks. source:%s collection:%s", removed, len(taskIDs), sourceID, collection)
+
+	taskLogKeys := make([]string, len(taskKeys))
+	for _, tKey := range taskKeys {
+		taskLogKeys = append(taskLogKeys, tKey + ":logs")
+	}
+
+	removed, err =  redis.Int(conn.Do("DEL", taskLogKeys))
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		//no point to return error. we have already cleared index
+		logging.Errorf("failed to remove task logs. source:%s collection:%s tasks:%v err:%v", sourceID, collection, taskIDs, err)
+	}
+	logging.Infof("Removed logs from %d of %d tasks. source:%s collection:%s", removed, len(taskIDs), sourceID, collection)
+	return removed, nil
+}
+
 //GetAllTasks returns all source's tasks by collection and time criteria
 func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error) {
 	conn := r.pool.Get()
