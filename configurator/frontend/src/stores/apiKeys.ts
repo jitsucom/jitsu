@@ -19,20 +19,22 @@ export type UserApiKey = {
 
 export interface IApiKeysStore {
   apiKeys: UserApiKey[];
+  firstLinkedKey: UserApiKey | null;
   hasApiKeys: boolean;
   state: ApiKeysStoreState;
   error: string;
   injectDestinationsStore: (store: IDestinationsStore) => void;
+  getKeyByUid: (uid: string) => UserApiKey | null;
   generateApiToken(type: string, len?: number): string;
   pullApiKeys: (
     showGlobalLoader: boolean
   ) => Generator<Promise<unknown>, void, unknown>;
-  generateAddInitialApiKeyIfNeeded: () => Generator<
-    Promise<unknown>,
-    void,
-    unknown
-  >;
-  generateAddApiKey: () => Generator<Promise<unknown>, void, unknown>;
+  generateAddInitialApiKeyIfNeeded: (
+    note?: string
+  ) => Generator<Promise<unknown>, void, unknown>;
+  generateAddApiKey: (
+    note?: string
+  ) => Generator<Promise<unknown>, void, unknown>;
   deleteApiKey: (
     apiKey: UserApiKey
   ) => Generator<Promise<unknown>, void, unknown>;
@@ -91,11 +93,12 @@ class ApiKeysStore implements IApiKeysStore {
     if (stateIsErrored) this._state = IDLE;
   }
 
-  private generateApiKey(): UserApiKey {
+  private generateApiKey(comment?: string): UserApiKey {
     return {
       uid: this.generateApiToken('', 6),
       serverAuth: this.generateApiToken('s2s'),
       jsAuth: this.generateApiToken('js'),
+      comment,
       origins: []
     };
   }
@@ -133,6 +136,14 @@ class ApiKeysStore implements IApiKeysStore {
     return this._apiKeys;
   }
 
+  public get firstLinkedKey() {
+    const firstLinkedDestination = this._destinationsStore.destinations.find(
+      ({ _onlyKeys }) => _onlyKeys.length
+    );
+    if (!firstLinkedDestination) return null;
+    return this.getKeyByUid(firstLinkedDestination._onlyKeys[0]);
+  }
+
   public get hasApiKeys(): boolean {
     return !!this._apiKeys.length;
   }
@@ -147,6 +158,10 @@ class ApiKeysStore implements IApiKeysStore {
 
   public injectDestinationsStore(store: IDestinationsStore): void {
     this._destinationsStore = store;
+  }
+
+  public getKeyByUid(uid: string): UserApiKey | null {
+    return this.apiKeys.find((key) => key.uid === uid) || null;
   }
 
   public generateApiToken(type: string, len?: number): string {
@@ -175,15 +190,15 @@ class ApiKeysStore implements IApiKeysStore {
     }
   }
 
-  public *generateAddInitialApiKeyIfNeeded() {
+  public *generateAddInitialApiKeyIfNeeded(note?: string) {
     if (!!this.apiKeys.length) return;
-    yield flowResult(this.generateAddApiKey());
+    yield flowResult(this.generateAddApiKey(note));
   }
 
-  public *generateAddApiKey() {
+  public *generateAddApiKey(note?: string) {
     this.resetError();
     this._state = BACKGROUND_LOADING;
-    const newApiKey = this.generateApiKey();
+    const newApiKey = this.generateApiKey(note);
     const updatedApiKeys = [...this._apiKeys, newApiKey];
     try {
       const result = yield services.storageService.save(
