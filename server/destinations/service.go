@@ -138,18 +138,6 @@ func (s *Service) GetDestinationByID(id string) (storages.StorageProxy, bool) {
 	return unit.storage, true
 }
 
-func (s *Service) GetDestinationsByType(projectId, typ string) []storages.StorageProxy {
-	s.RLock()
-	defer s.RUnlock()
-	res := make([]storages.StorageProxy, 0)
-	for id, str := range s.unitsByID {
-		if str.storage.Type() == typ && strings.HasPrefix(id, projectId)  {
-			res = append(res, str.storage)
-		}
-	}
-	return res
-}
-
 func (s *Service) GetDestinations(tokenID string) (storages []storages.StorageProxy) {
 	s.RLock()
 	defer s.RUnlock()
