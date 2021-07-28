@@ -198,19 +198,21 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 }
 //cleanup removes data and logs for old tasks if its number exceed limit set via storeTasksLogsForLastRuns
 func (ts *TaskService) cleanup(sourceID, collection, taskId string) {
-	logging.Infof("CLEANUP %d", ts.storeTasksLogsForLastRuns)
 	if ts.storeTasksLogsForLastRuns > 0 {
 		taskIds, err := ts.metaStorage.GetAllTaskIDs(sourceID, collection, true)
 		if err != nil {
 			logging.Errorf("task %s failed to get task IDs to perform cleanup: %v", taskId, err)
 		}
 		if len(taskIds) > ts.storeTasksLogsForLastRuns {
+			logging.Infof("task %s cleanup: need to keep %v of total %v", taskId, ts.storeTasksLogsForLastRuns, len(taskIds))
 			taskIdsToDelete := taskIds[ts.storeTasksLogsForLastRuns:]
 			removed, err := ts.metaStorage.RemoveTasks(sourceID, collection, taskIdsToDelete...)
 			if err != nil {
 				logging.Errorf("task %s failed to remove tasks while cleanup: %v", taskId, err)
 			}
 			logging.Infof("task %s cleanup: removed %v of total %v", taskId, removed, len(taskIds))
+		} else {
+			logging.Infof("task %s cleanup: no need. current size: %v. limit: %v", taskId,  len(taskIds), ts.storeTasksLogsForLastRuns)
 		}
 	}
 }
