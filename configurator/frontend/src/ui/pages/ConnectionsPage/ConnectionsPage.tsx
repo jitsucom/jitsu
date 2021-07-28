@@ -29,7 +29,7 @@ const CONNECTION_LINE_HIGHLIGHTED_COLOR = '#878afc';
 const connectionLines: { [key: string]: LeaderLine } = {};
 
 const ConnectionsPageComponent: React.FC = () => {
-  const drawLines = () => {
+  const updateLines = () => {
     destinationsStore.destinations.forEach(
       ({ _uid, _onlyKeys = [], _sources = [] }) => {
         [..._onlyKeys, ..._sources].forEach((sourceId) => {
@@ -79,11 +79,15 @@ const ConnectionsPageComponent: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    drawLines();
+    updateLines();
     return () => {
       eraseLines();
     };
-  }, []);
+  }, [
+    destinationsStore.destinations,
+    sourcesStore.sources,
+    apiKeysStore.apiKeys
+  ]);
 
   return (
     <div className="flex justify-center w-full h-full">
