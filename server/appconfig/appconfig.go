@@ -94,7 +94,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("compatibility.segment.endpoint", []string{
 		"/context/page/title -> /page_title",
 		"/context/page -> /doc",
+		"/context/page/referrer -> /referer",
 		"/page->",
+		"/traits -> /user",
 		"/context/traits -> /user",
 		"/traits->",
 		"/context/userAgent -> /user_agent",
@@ -134,7 +136,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("compatibility.segment_compat.endpoint", []string{
 		"/context/page/title -> /eventn_ctx/page_title",
 		"/context/page -> /eventn_ctx/doc",
+		"/context/page/referrer -> /eventn_ctx/referer",
 		"/page->",
+		"/traits -> /eventn_ctx/user",
 		"/context/traits -> /eventn_ctx/user",
 		"/traits->",
 		"/context/userAgent -> /eventn_ctx/user_agent",
