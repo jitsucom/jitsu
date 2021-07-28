@@ -19,8 +19,8 @@ const (
 
 //DbtCloudConfig is a dto for parsing DbtCloud configuration
 type DbtCloudConfig struct {
-	AccountId int    `mapstructure:"accountId" json:"accountId,omitempty" yaml:"account_id,omitempty"`
-	JobId     int    `mapstructure:"jobId" json:"jobId,omitempty" yaml:"job_id,omitempty"`
+	AccountId int    `mapstructure:"account_id" json:"account_id,omitempty" yaml:"account_id,omitempty"`
+	JobId     int    `mapstructure:"job_id" json:"job_id,omitempty" yaml:"job_id,omitempty"`
 	Cause     string `mapstructure:"cause" json:"cause,omitempty" yaml:"cause,omitempty"`
 	Token     string `mapstructure:"token" json:"token,omitempty" yaml:"token,omitempty"`
 	Enabled   bool   `mapstructure:"enabled" json:"enabled,omitempty" yaml:"enabled,omitempty"`
@@ -33,13 +33,13 @@ func (dcc *DbtCloudConfig) Validate() error {
 	}
 	switch {
 	case dcc.AccountId == 0:
-		return errors.New("'AccountId' is required parameter")
+		return errors.New("'account_id' is required parameter")
 	case dcc.JobId == 0:
-		return errors.New("'JobId' is required parameter")
+		return errors.New("'job_id' is required parameter")
 	case dcc.Cause == "":
-		return errors.New("'Cause' is required parameter")
+		return errors.New("'cause' is required parameter")
 	case dcc.Token == "":
-		return errors.New("'Token' is required parameter")
+		return errors.New("'token' is required parameter")
 	}
 	return nil
 }
