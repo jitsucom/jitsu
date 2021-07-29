@@ -31,6 +31,8 @@ import {
   StatServiceImpl
 } from 'lib/services/stat';
 import ApplicationServices from 'lib/services/ApplicationServices';
+import { destinationsStore, DestinationsStoreState } from 'stores/destinations';
+
 // @Utils
 import { withDefaultVal } from 'lib/commons/utils';
 // @Styles
@@ -169,13 +171,7 @@ export default class StatusPage extends LoadableComponent<Props, State> {
   }
 
   async getNumberOfDestinations() {
-    let destinations = await this.services.storageService.get(
-      'destinations',
-      this.services.activeProject.id
-    );
-    return destinations && destinations.destinations
-      ? destinations.destinations.length
-      : 0;
+    return destinationsStore.destinations.length ;
   }
 
   protected renderError(e: Error): React.ReactNode {

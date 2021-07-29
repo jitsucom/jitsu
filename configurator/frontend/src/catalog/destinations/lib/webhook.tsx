@@ -36,6 +36,7 @@ const webhookDestination = {
   id: 'webhook',
   type: 'other',
   displayName: 'WebHook',
+  hidden: false,
   parameters: [
     modeParameter('stream'),
     tableName(filteringExpressionDocumentation),

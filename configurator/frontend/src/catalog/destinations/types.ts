@@ -7,8 +7,9 @@ export type Destination = {
     displayName: string
     description?: ReactNode
     ui?: DestinationUI
-    parameters: readonly Parameter[],
+    parameters: readonly Parameter[]
     syncFromSourcesStatus: 'supported' | 'coming_soon' | 'not_supported'
+    hidden?: boolean
 }
 
 /**

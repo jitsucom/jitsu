@@ -29,6 +29,7 @@ import Icon, {
   PartitionOutlined
 } from '@ant-design/icons';
 import logo from 'icons/logo.svg';
+import { ReactComponent as DbtCloudIcon } from 'icons/dbtCloud.svg';
 import classNames from 'classnames';
 // @Model
 import { Permission, User } from 'lib/services/model';
@@ -80,6 +81,11 @@ export const ApplicationMenu: React.FC<{}> = () => {
       <Menu.Item key="destinations" icon={<NotificationOutlined />}>
         <NavLink to="/destinations" activeClassName="selected">
           Destinations
+        </NavLink>
+      </Menu.Item>
+      <Menu.Item key="dbtcloud" icon={<DbtCloudIcon />}>
+        <NavLink to="/dbtcloud" activeClassName="selected">
+          dbt Cloud
         </NavLink>
       </Menu.Item>
       {services.features.enableCustomDomains && (

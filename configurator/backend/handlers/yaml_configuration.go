@@ -106,13 +106,17 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 			//destinationIDs = append(destinationIDs, projectID+"."+destinationID)
 			destinationIDs = append(destinationIDs, destinationID)
 		}
-
-		mappedConfig, err := mapSourceConfig(source, destinationIDs)
+		postHandleDestinationIds := make([]string, 0)
+		for _, d := range projectDestinations {
+			if d.Type == enstorages.DbtCloudType {
+				postHandleDestinationIds = append(postHandleDestinationIds, d.UID)
+			}
+		}
+		mappedConfig, err := mapSourceConfig(source, destinationIDs, postHandleDestinationIds)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, middleware.ErrResponse(fmt.Sprintf("Failed to map source [%s] config", sourceID), err))
 			return
 		}
-
 		mappedSources[sourceID] = &mappedConfig
 	}
 

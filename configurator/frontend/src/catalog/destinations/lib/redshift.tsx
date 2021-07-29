@@ -1,5 +1,3 @@
-import * as React from 'react';
-import { Destination } from '../types';
 import { modeParameter, s3Credentials, tableName } from './common';
 import { stringType, passwordType, booleanType } from '../../sources/types';
 
@@ -38,6 +36,7 @@ const destination = {
   id: 'redshift',
   type: 'database',
   displayName: 'Redshift',
+  hidden: false,
   ui: {
     title: (cfg) => cfg._formData.redshiftHost,
     connectCmd: (cfg: object) => {

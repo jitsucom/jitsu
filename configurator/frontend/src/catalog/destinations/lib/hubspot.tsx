@@ -1,7 +1,5 @@
-import { Destination } from '../types';
 import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
 import { stringType } from '../../sources/types';
-import * as React from 'react';
 
 const icon = (
   <svg
@@ -33,6 +31,7 @@ const hubspotDestination = {
   id: 'hubspot',
   type: 'other',
   displayName: 'HubSpot',
+  hidden: false,
   ui: {
     icon,
     title: (cfg) => `Hub ID: ${cfg._formData.hubID}`,

@@ -37,6 +37,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		config, err = mapAmplitude(destination)
 	case enstorages.HubSpotType:
 		config, err = mapHubSpot(destination)
+	case enstorages.DbtCloudType:
+		config, err = mapDbtCloud(destination)
 	case enstorages.MySQLType:
 		config, err = mapMySQL(destination)
 	default:
@@ -429,6 +431,41 @@ func mapHubSpot(hDestination *entities.Destination) (*enstorages.DestinationConf
 		},
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: hFormData.TableName,
+		},
+	}, nil
+}
+
+func mapDbtCloud(hDestination *entities.Destination) (*enstorages.DestinationConfig, error) {
+	b, err := json.Marshal(hDestination.Data)
+	if err != nil {
+		return nil, fmt.Errorf("Error marshaling dbtcloud config destination: %v", err)
+	}
+
+	dbtFormData := &entities.DbtCloudFormData{}
+	err = json.Unmarshal(b, dbtFormData)
+	if err != nil {
+		return nil, fmt.Errorf("Error unmarshaling dbtcloud form data: %v", err)
+	}
+	accountId, err := dbtFormData.AccountId.Int64()
+	if err != nil {
+		return nil, fmt.Errorf("Error unmarshaling dbtcloud form data: %v", err)
+	}
+	jobId, err := dbtFormData.JobId.Int64()
+	if err != nil {
+		return nil, fmt.Errorf("Error unmarshaling dbtcloud form data: %v", err)
+	}
+	return &enstorages.DestinationConfig{
+		Type: enstorages.DbtCloudType,
+		Mode: enstorages.StreamMode,
+		DbtCloud: &enadapters.DbtCloudConfig{
+			AccountId: int(accountId),
+			JobId:     int(jobId),
+			Cause:     dbtFormData.Cause,
+			Token:     dbtFormData.Token,
+			Enabled:   dbtFormData.Enabled,
+		},
+		DataLayout: &enstorages.DataLayout{
+			TableNameTemplate: "",
 		},
 	}, nil
 }

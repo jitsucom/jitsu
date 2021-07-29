@@ -7,7 +7,6 @@ import { useHistory } from 'react-router-dom';
 // @Components
 import { EmptyListView } from './EmptyListView';
 // @Commons
-import ApplicationServices from 'lib/services/ApplicationServices';
 import { useServices } from 'hooks/useServices';
 import { destinationsStore } from 'stores/destinations';
 
@@ -16,8 +15,6 @@ export interface Props {
   list?: ReactElement;
   unit: string;
 }
-
-const services = ApplicationServices.get();
 
 const EmptyListComponent = ({ title, list, unit }: Props) => {
   const router = useHistory();

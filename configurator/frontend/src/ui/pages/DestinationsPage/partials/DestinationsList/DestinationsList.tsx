@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
 import { Button, Dropdown, Modal } from 'antd';
 // @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
 import {
   destinationsReferenceList,
   destinationsReferenceMap
@@ -59,7 +58,7 @@ const DestinationsListComponent = ({
     () => (
       <DropDownList
         hideFilter
-        list={destinationsReferenceList.map((dst: Destination) => ({
+        list={destinationsReferenceList.filter(v => !v.hidden).map((dst: Destination) => ({
           title: dst.displayName,
           id: dst.id,
           icon: dst.ui.icon,
