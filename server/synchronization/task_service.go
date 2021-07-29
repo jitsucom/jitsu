@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/storages"
@@ -193,7 +194,7 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 	if err != nil {
 		return "", fmt.Errorf("Error pushing sync task to the Queue: %v", err)
 	}
-	go ts.cleanup(sourceID, collection, task.ID)
+	safego.Run(func() {ts.cleanup(sourceID, collection, task.ID)})
 	return task.ID, nil
 }
 //cleanup removes data and logs for old tasks if its number exceed limit set via storeTasksLogsForLastRuns
