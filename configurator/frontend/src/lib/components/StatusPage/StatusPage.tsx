@@ -171,8 +171,7 @@ export default class StatusPage extends LoadableComponent<Props, State> {
   }
 
   async getNumberOfDestinations() {
-    let destinations = destinationsStore.destinations;
-    return destinations ? destinations.length : 0;
+    return destinationsStore.destinations.length ;
   }
 
   protected renderError(e: Error): React.ReactNode {

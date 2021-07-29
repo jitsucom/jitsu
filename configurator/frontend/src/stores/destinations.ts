@@ -12,6 +12,8 @@ import { Destination } from '../catalog/destinations/types';
 
 export interface IDestinationsStore {
   destinations: DestinationData[];
+  hiddenDestinations: DestinationData[];
+  allDestinations: DestinationData[];
   hasDestinations: boolean;
   state: DestinationsStoreState;
   error: string;
