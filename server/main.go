@@ -294,8 +294,9 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(sourceService)
 
+	storeTasksLogsForLastRuns := viper.GetInt("server.sync_tasks.store_logs.last_runs")
 	//Create sync task service
-	taskService := synchronization.NewTaskService(sourceService, destinationsService, metaStorage, coordinationService)
+	taskService := synchronization.NewTaskService(sourceService, destinationsService, metaStorage, coordinationService, storeTasksLogsForLastRuns)
 
 	//Start cron scheduler
 	if taskService.IsConfigured() {
