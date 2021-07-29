@@ -24,8 +24,16 @@ const dbtcloudDestination = {
             displayName: 'Description',
             required: false,
             type: descriptionType,
-            defaultValue: `Setup triggering of <b>dbt Cloud</b> Job on successful run of Sources.<br>
-        See <a target="_blank" href="https://docs.getdbt.com/dbt-cloud/api#operation/triggerRun">dbt Cloud API Docs</a>.`
+            defaultValue: (
+                <span>
+                    Setup triggering of <b>dbt Cloud</b> Job on successful run of Sources.
+                    <br />
+                    See {' '}
+                    <a target="_blank" href="https://docs.getdbt.com/dbt-cloud/api#operation/triggerRun">
+                        dbt Cloud API Docs
+                    </a>.
+                </span>
+            )
         },
         {
             id: '_formData.dbtEnabled',
