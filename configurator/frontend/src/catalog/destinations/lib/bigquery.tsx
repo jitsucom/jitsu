@@ -37,7 +37,7 @@ const icon = (
 );
 
 
-const bigQueryDestination: Destination = {
+const bigQueryDestination = {
   description: (
     <>
       <a href="https://cloud.google.com/bigquery">Google BigQuery</a> is a fast,

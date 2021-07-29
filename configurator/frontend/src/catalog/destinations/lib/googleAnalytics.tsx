@@ -1,7 +1,5 @@
-import { Destination } from '../types';
 import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
 import { stringType } from '../../sources/types';
-import * as React from "react";
 
 const icon = (
   <svg

@@ -1,5 +1,3 @@
-import * as React from 'react';
-import { Destination } from '../types';
 import { modeParameter, s3Credentials, tableName } from './common';
 import { stringType, passwordType, booleanType } from '../../sources/types';
 
