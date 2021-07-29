@@ -25,6 +25,9 @@ const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/Cu
 const DestinationsPage = React.lazy(
   () => import('ui/pages/DestinationsPage/DestinationsPage')
 );
+const DbtCloudPage = React.lazy(
+    () => import('ui/pages/DbtCloud/DbtCloudPage')
+);
 
 const EventsStream = React.lazy(() => import('./lib/components/EventsStream/EventsStream'));
 const LoginForm = React.lazy(() => import('./lib/components/LoginForm/LoginForm'));
@@ -140,6 +143,12 @@ export const PRIVATE_PAGES: Page[] = [
     Object.keys(destinationPageRoutes).map((key) => destinationPageRoutes[key]),
     DestinationsPage,
     'Edit destinations'
+  ),
+  new Page(
+      'dbt Cloud integration',
+      '/dbtcloud',
+      DbtCloudPage,
+      'dbt Cloud'
   ),
   new Page(
     'Jitsu | download config',

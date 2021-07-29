@@ -1,7 +1,5 @@
-import { Destination } from '../types';
 import { modeParameter, tableName } from './common';
 import { arrayOf, stringType } from '../../sources/types';
-import * as React from 'react';
 import { ReactNode } from 'react';
 
 let icon: ReactNode = (
@@ -30,6 +28,7 @@ const destination = {
   id: 'clickhouse',
   type: 'database',
   displayName: 'ClickHouse',
+  hidden: false,
   ui: {
     icon,
     title: cfg => cfg?._formData?.ch_dsns_list?.length

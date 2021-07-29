@@ -23,6 +23,7 @@ const (
 	WebHookType         = "webhook"
 	AmplitudeType       = "amplitude"
 	HubSpotType         = "hubspot"
+	DbtCloudType        = "dbtcloud"
 )
 
 //Storage is a destination representation
@@ -50,6 +51,7 @@ type StorageProxy interface {
 	GetUniqueIDField() *identifiers.UniqueID
 	IsCachingDisabled() bool
 	ID() string
+	Type() string
 }
 
 //StoreResult is used as a Batch storing result

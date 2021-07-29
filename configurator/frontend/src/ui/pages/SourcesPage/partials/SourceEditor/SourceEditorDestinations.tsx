@@ -50,8 +50,7 @@ const SourceEditorDestinationsComponent = ({
         return {
           id: dst._uid,
           disabled:
-            reference.syncFromSourcesStatus === 'coming_soon' ||
-            reference.syncFromSourcesStatus === 'not_supported',
+              reference.syncFromSourcesStatus !== 'supported',
           title: (
             <NameWithPicture icon={reference.ui.icon}>
               <b>{reference.displayName}</b>: {destinationsUtils.getTitle(dst)}

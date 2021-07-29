@@ -1,4 +1,3 @@
-import { Destination } from '../types';
 import { modeParameter, tableName } from './common';
 import { intType, stringType, passwordType, booleanType } from '../../sources/types';
 
@@ -13,6 +12,7 @@ const mysqlDestination = {
     id: 'mysql',
     type: 'database',
     displayName: 'MySQL',
+    hidden: false,
     ui: {
         icon: icon,
         connectCmd: (cfg: object) => null,
