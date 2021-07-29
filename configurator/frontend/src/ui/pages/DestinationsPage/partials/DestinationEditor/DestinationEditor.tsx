@@ -1,5 +1,5 @@
 // @Libs
-import React, {
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -380,11 +380,11 @@ const DestinationEditor = ({
     (src.destinations || []).includes(destinationData.current._uid)
   ).length;
 
-  const isAbleToConnectItems = () =>
+  const isAbleToConnectItems = (): boolean => 
     editorMode === 'edit' &&
     connectedSourcesNum === 0 &&
     !destinationData.current?._onlyKeys?.length &&
-      !destinationsReferenceMap[params.type].hidden
+      !destinationsReferenceMap[params.type]?.hidden
     
   useEffect(() => {
     let breadCrumbs = []
