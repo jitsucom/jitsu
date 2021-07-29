@@ -34,7 +34,7 @@ const destinationsToOffer = destinationsReferenceList.filter(
   (dest): dest is ExtractDatabaseOrWebhook<DestinationStrictType> => {
     return !dest.hidden && (dest.type === 'database' || dest.id === 'webhook');
   }
-).map(d => d as Destination)
+)
 
 type NamesOfDestinationsToOffer = (typeof destinationsToOffer)[number]['id'];
 
