@@ -12,10 +12,10 @@ const dbtcloudDestination = {
         All other types of events are ignored.
     </>,
     syncFromSourcesStatus: 'not_supported',
-    hidden: true,
     id: 'dbtcloud',
     type: 'other',
     displayName: 'dbt Cloud',
+    hidden: true,
     ui: {
         icon,
         title: (cfg) => `Account ID: ${cfg._formData.dbtAccountId} Job ID: ${cfg._formData.dbtJobId}`,
@@ -75,6 +75,6 @@ const dbtcloudDestination = {
             </>
         },
     ]
-}  as Destination;
+}  as const;
 
 export default dbtcloudDestination;

@@ -30,6 +30,7 @@ const destination = {
   id: 'clickhouse',
   type: 'database',
   displayName: 'ClickHouse',
+  hidden: false,
   ui: {
     icon,
     title: cfg => cfg?._formData?.ch_dsns_list?.length
@@ -82,6 +83,6 @@ const destination = {
       type: stringType
     }
   ]
-} as Destination;
+} as const;
 
 export default destination;

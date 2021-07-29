@@ -68,6 +68,7 @@ const postgresDestination = {
   id: 'postgres',
   type: 'database',
   displayName: 'Postgres SQL',
+  hidden: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => {

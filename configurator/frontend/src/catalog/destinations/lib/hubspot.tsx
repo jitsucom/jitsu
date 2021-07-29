@@ -33,6 +33,7 @@ const hubspotDestination = {
   id: 'hubspot',
   type: 'other',
   displayName: 'HubSpot',
+  hidden: false,
   ui: {
     icon,
     title: (cfg) => `Hub ID: ${cfg._formData.hubID}`,

@@ -41,6 +41,7 @@ const facebookDestination = {
   id: 'facebook',
   type: 'other',
   displayName: 'Facebook',
+  hidden: false,
   ui: {
     icon,
     title: (cfg) => `Pixel ID: ${cfg._formData.fbPixelId}`,
@@ -75,6 +76,6 @@ const facebookDestination = {
     }
 
   ]
-}  as Destination;
+}  as const;
 
 export default facebookDestination;

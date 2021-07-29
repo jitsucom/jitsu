@@ -32,7 +32,9 @@ type ExtractDatabaseOrWebhook<T> = T extends {readonly type: 'database'}
 
 const destinationsToOffer = destinationsReferenceList.filter(
   (dest): dest is ExtractDatabaseOrWebhook<DestinationStrictType> => {
-    return !dest.hidden && (dest.type === 'database' || dest.id === 'webhook');
+    return (
+      !dest['hidden'] && (dest.type === 'database' || dest.id === 'webhook')
+    );
   }
 ).map(d => d as Destination)
 

@@ -63,6 +63,7 @@ const destination = {
   id: 'snowflake',
   type: 'database',
   displayName: 'Snowflake',
+  hidden: false,
   ui: {
     icon,
     title: (cfg) => cfg._formData?.snowflakeDB,
@@ -151,6 +152,6 @@ const destination = {
       (cfg) => cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 's3')
     )
   ]
-} as Destination;
+} as const;
 
 export default destination;
