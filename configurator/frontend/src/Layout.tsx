@@ -47,14 +47,9 @@ import styles from './Layout.module.less';
 import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
 
 export const ApplicationMenu: React.FC<{}> = () => {
-  const location = usePageLocation().canonicalPath;
+  const key = usePageLocation().mainMenuKey;
   const services = useServices();
 
-  let key = location === '/' || location === '' ? 'dashboard' : location;
-
-  if (key.charAt(0) === '/') {
-    key = key.substr(1);
-  }
   return (
     <Menu
       selectable={false}
@@ -63,14 +58,14 @@ export const ApplicationMenu: React.FC<{}> = () => {
       selectedKeys={[key]}
       className="border-0"
     >
-      <Menu.Item key="dashboard" icon={<AreaChartOutlined />}>
-        <NavLink to="/dashboard" activeClassName="selected">
-          Dashboard
-        </NavLink>
-      </Menu.Item>
       <Menu.Item key="connections" icon={<PartitionOutlined />}>
         <NavLink to="/connections" activeClassName="selected">
           Connections
+        </NavLink>
+      </Menu.Item>
+      <Menu.Item key="dashboard" icon={<AreaChartOutlined />}>
+        <NavLink to="/dashboard" activeClassName="selected">
+          Dashboard
         </NavLink>
       </Menu.Item>
       <Menu.Item key="api_keys" icon={<UnlockOutlined />}>

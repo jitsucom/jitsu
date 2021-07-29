@@ -51,6 +51,8 @@ type Storage interface {
 	GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error)
 	GetLastTask(sourceID, collection string) (*Task, error)
 	GetTask(taskID string) (*Task, error)
+	GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error)
+	RemoveTasks(sourceID, collection string, taskIDs ... string) (int, error)
 
 	//task logs
 	AppendTaskLog(taskID string, now time.Time, system, message, level string) error
