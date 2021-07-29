@@ -59,6 +59,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.destinations_reload_sec", 5)
 	viper.SetDefault("server.sources_reload_sec", 7)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
+	viper.SetDefault("server.sync_tasks.store_logs.last_runs", -1)
 	viper.SetDefault("server.disable_version_reminder", false)
 	viper.SetDefault("server.disable_skip_events_warn", false)
 	viper.SetDefault("server.cache.events.size", 100)
@@ -94,7 +95,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("compatibility.segment.endpoint", []string{
 		"/context/page/title -> /page_title",
 		"/context/page -> /doc",
+		"/context/page/referrer -> /referer",
 		"/page->",
+		"/traits -> /user",
 		"/context/traits -> /user",
 		"/traits->",
 		"/context/userAgent -> /user_agent",
@@ -134,7 +137,9 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("compatibility.segment_compat.endpoint", []string{
 		"/context/page/title -> /eventn_ctx/page_title",
 		"/context/page -> /eventn_ctx/doc",
+		"/context/page/referrer -> /eventn_ctx/referer",
 		"/page->",
+		"/traits -> /eventn_ctx/user",
 		"/context/traits -> /eventn_ctx/user",
 		"/traits->",
 		"/context/userAgent -> /eventn_ctx/user_agent",

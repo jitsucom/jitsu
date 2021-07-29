@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/storages"
@@ -48,6 +49,7 @@ type TaskService struct {
 	metaStorage        meta.Storage
 	monitorKeeper      storages.MonitorKeeper
 
+	storeTasksLogsForLastRuns int
 	configured bool
 }
 
@@ -58,13 +60,13 @@ func NewTestTaskService() *TaskService {
 
 //NewTaskService returns configured TaskService instance
 func NewTaskService(sourceService *sources.Service, destinationService *destinations.Service,
-	metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper) *TaskService {
+	metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper, storeTasksLogsForLastRuns int) *TaskService {
 	if !sourceService.IsConfigured() {
 		return &TaskService{}
 	}
 
 	return &TaskService{sourceService: sourceService, destinationService: destinationService, metaStorage: metaStorage,
-		monitorKeeper: monitorKeeper, configured: true}
+		monitorKeeper: monitorKeeper, configured: true, storeTasksLogsForLastRuns: storeTasksLogsForLastRuns}
 }
 
 //ScheduleSyncFunc is used in scheduling.CronScheduler for scheduling sync of source&collection with retry
@@ -188,13 +190,32 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 	if err != nil {
 		return "", fmt.Errorf("Error saving sync task: %v", err)
 	}
-
 	err = ts.metaStorage.PushTask(&task)
 	if err != nil {
 		return "", fmt.Errorf("Error pushing sync task to the Queue: %v", err)
 	}
-
+	safego.Run(func() {ts.cleanup(sourceID, collection, task.ID)})
 	return task.ID, nil
+}
+//cleanup removes data and logs for old tasks if its number exceed limit set via storeTasksLogsForLastRuns
+func (ts *TaskService) cleanup(sourceID, collection, taskId string) {
+	if ts.storeTasksLogsForLastRuns > 0 {
+		taskIds, err := ts.metaStorage.GetAllTaskIDs(sourceID, collection, true)
+		if err != nil {
+			logging.Errorf("task %s failed to get task IDs to perform cleanup: %v", taskId, err)
+		}
+		if len(taskIds) > ts.storeTasksLogsForLastRuns {
+			logging.Infof("task %s cleanup: need to keep %v of total %v", taskId, ts.storeTasksLogsForLastRuns, len(taskIds))
+			taskIdsToDelete := taskIds[ts.storeTasksLogsForLastRuns:]
+			removed, err := ts.metaStorage.RemoveTasks(sourceID, collection, taskIdsToDelete...)
+			if err != nil {
+				logging.Errorf("task %s failed to remove tasks while cleanup: %v", taskId, err)
+			}
+			logging.Infof("task %s cleanup: removed %v of total %v", taskId, removed, len(taskIds))
+		} else {
+			logging.Infof("task %s cleanup: no need. current size: %v. limit: %v", taskId,  len(taskIds), ts.storeTasksLogsForLastRuns)
+		}
+	}
 }
 
 //GetTask return task by id
