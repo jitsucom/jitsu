@@ -47,19 +47,22 @@ const DownloadConfig = React.lazy(
 export type PageLocation = {
   canonicalPath: string;
   id: string;
+  mainMenuKey: string;
 };
 
 export function usePageLocation(): PageLocation {
   const location = useLocation().pathname;
 
-  let canonicalPath =
-    location === '/' || location === '' ? 'dashboard' : location;
+  const canonicalPath =
+    location === '/' || location === '' ? '/connections' : location;
 
-  let id = (
+  const id = (
     canonicalPath.startsWith('/') ? canonicalPath.substr(1) : canonicalPath
   ).replace('/', '');
 
-  return { canonicalPath, id };
+  const mainMenuKey = canonicalPath.split('/')[1];
+
+  return { canonicalPath, id, mainMenuKey };
 }
 
 export type PageProps = {
@@ -117,20 +120,21 @@ export const PUBLIC_PAGES: Page[] = [
 ];
 
 export const PRIVATE_PAGES: Page[] = [
+  new Page(
+    'Jitsu | connections',
+    ['/connections', ''],
+    ConnectionsPage,
+    'Connections'
+  ),
   new Page('Test Component', '/test', ComponentTest, 'Component Test'),
+  new Page('Jitsu | dashboard', '/dashboard', StatusPage, 'Dashboard'),
   new Page(
     'Jitsu | recent events',
     '/events_stream',
     EventsStream,
     'Recent events'
   ),
-  new Page('Jitsu | dashboard', ['/dashboard', ''], StatusPage, 'Dashboard'),
-  new Page(
-    'Jitsu | connections',
-    '/connections',
-    ConnectionsPage,
-    'Connections'
-  ),
+
   new Page(
     'Jitsu | edit destinations',
     Object.keys(destinationPageRoutes).map((key) => destinationPageRoutes[key]),
