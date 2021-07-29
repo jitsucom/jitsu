@@ -1,13 +1,14 @@
 // @Libs
-import { memo, ReactElement, ReactNode, useCallback, useMemo } from 'react';
+import { ReactElement, ReactNode, useCallback, useMemo } from 'react';
 import { Modal } from 'antd';
+import { flowResult } from 'mobx';
+import { observer } from 'mobx-react-lite';
 import { useHistory } from 'react-router-dom';
 // @Components
 import { EmptyListView } from './EmptyListView';
-import { reloadPage } from 'lib/commons/utils';
 // @Commons
-import { createFreeDatabase } from 'lib/commons/createFreeDatabase';
 import { useServices } from 'hooks/useServices';
+import { destinationsStore } from 'stores/destinations';
 
 export interface Props {
   title: ReactNode;
@@ -19,23 +20,38 @@ const EmptyListComponent = ({ title, list, unit }: Props) => {
   const router = useHistory();
   const services = useServices();
 
-  const needShowCreateDemoDatabase = useMemo<boolean>(() => services.features.createDemoDatabase, [
-    services.features.createDemoDatabase
-  ]);
+  const needShowCreateDemoDatabase = useMemo<boolean>(
+    () => services.features.createDemoDatabase,
+    [services.features.createDemoDatabase]
+  );
 
-  const handleCreateFreeDatabase = useCallback<() => Promise<void>>(async() => {
-    await createFreeDatabase();
+  const handleCreateFreeDatabase = useCallback<
+    () => Promise<void>
+  >(async () => {
+    await flowResult(destinationsStore.createFreeDatabase());
     const modal = Modal.info({
       title: 'New destination has been created',
-      content: <>
-        We have created a Postgres database for you. Also we made sure that <a onClick={() => {
-          modal.destroy();
-          router.push('/api_keys');
-        }}>API key</a> has been created and linked to current destination.
-        <br />
-        Read more on how to send data to Jitsu with <a href="https://jitsu.com/docs/sending-data/js-sdk">JavaScript SDK</a> or <a href="https://jitsu.com/docs/sending-data/api">HTTP API</a>
-      </>,
-      onOk: () => reloadPage()
+      content: (
+        <>
+          We have created a Postgres database for you. Also we made sure that{' '}
+          <a
+            onClick={() => {
+              modal.destroy();
+              router.push('/api_keys');
+            }}
+          >
+            API key
+          </a>{' '}
+          has been created and linked to current destination.
+          <br />
+          Read more on how to send data to Jitsu with{' '}
+          <a href="https://jitsu.com/docs/sending-data/js-sdk">
+            JavaScript SDK
+          </a>{' '}
+          or <a href="https://jitsu.com/docs/sending-data/api">HTTP API</a>
+        </>
+      ),
+      onOk: () => modal.destroy()
     });
   }, [router]);
 
@@ -50,6 +66,7 @@ const EmptyListComponent = ({ title, list, unit }: Props) => {
   );
 };
 
-EmptyListComponent.displayName = 'EmptyList';
+const EmptyList = observer(EmptyListComponent);
+EmptyList.displayName = 'EmptyList';
 
-export const EmptyList = memo(EmptyListComponent);
+export { EmptyList };

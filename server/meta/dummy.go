@@ -43,9 +43,14 @@ func (d *Dummy) UpsertTask(task *Task) error { return nil }
 func (d *Dummy) GetAllTasks(sourceID, collection string, from, to time.Time, limit int) ([]Task, error) {
 	return nil, nil
 }
+func (d *Dummy) GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error) {
+	return nil, nil
+}
 func (d *Dummy) GetLastTask(sourceID, collection string) (*Task, error) { return nil, nil }
 func (d *Dummy) GetTask(taskID string) (*Task, error)                   { return nil, nil }
-
+func (d *Dummy) RemoveTasks(sourceID, collection string, taskIDs ... string) (int, error) {
+	return 0, nil
+}
 func (d *Dummy) AppendTaskLog(taskID string, now time.Time, system, message, level string) error {
 	return nil
 }
