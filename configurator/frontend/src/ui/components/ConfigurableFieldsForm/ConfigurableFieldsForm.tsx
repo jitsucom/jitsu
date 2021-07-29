@@ -170,7 +170,9 @@ const ConfigurableFieldsForm = ({
       switch (type?.typeName) {
         case 'description':
           return (
-              <div style={{paddingTop: 5}} dangerouslySetInnerHTML={{__html: defaultValue}}/>
+            <div className="pt-1.5" >
+              {defaultValue}
+            </div>
           );
         case 'password':
           return (
