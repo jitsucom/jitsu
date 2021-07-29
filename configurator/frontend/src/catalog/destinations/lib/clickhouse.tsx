@@ -1,7 +1,5 @@
-import { Destination } from '../types';
 import { modeParameter, tableName } from './common';
 import { arrayOf, stringType } from '../../sources/types';
-import * as React from 'react';
 import { ReactNode } from 'react';
 
 let icon: ReactNode = (

@@ -1,7 +1,5 @@
-import { Destination } from '../types';
 import { hiddenValue, modeParameter, s3Credentials, tableName } from './common';
 import { Function, jsonType, passwordType, singleSelectionType, stringType } from '../../sources/types';
-import * as React from "react";
 
 const icon = (
   <svg

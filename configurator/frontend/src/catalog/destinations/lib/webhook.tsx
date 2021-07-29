@@ -1,6 +1,5 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
 import { arrayOf, jsonType, selectionType, stringType } from '../../sources/types';
-import {Destination} from "../types";
 
 const icon = (
   <svg
