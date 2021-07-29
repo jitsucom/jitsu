@@ -19,6 +19,7 @@
         "sending-data/js-sdk",
         "sending-data/api",
         "sending-data/segment-api",
+        "sending-data/segment-integration",
         "sending-data/gif-pixel-api",
         "sending-data/mobile-api",
         "sending-data/privacy-mode",
