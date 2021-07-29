@@ -4,7 +4,6 @@ import {
   tableName
 } from './common';
 import { stringType } from '../../sources/types';
-import {Destination} from "../types";
 
 const icon = (
   <svg
@@ -42,14 +41,19 @@ const amplitudeDestination = {
   description: (
     <>
       Jitsu can send events from JS SDK or Events API to{' '}
-      <a href="https://developers.amplitude.com/docs/http-api-v2>">Amplitude API</a>. Amplitude is an real-time analytics platform for marketers {' '}
-      that can build dashboards to filter new users by country, user activity, retention rate and funnel audiences by custom events
+      <a href="https://developers.amplitude.com/docs/http-api-v2>">
+        Amplitude API
+      </a>
+      . Amplitude is an real-time analytics platform for marketers that can
+      build dashboards to filter new users by country, user activity, retention
+      rate and funnel audiences by custom events
     </>
   ),
   syncFromSourcesStatus: 'not_supported',
   id: 'amplitude',
   type: 'other',
   displayName: 'Amplitude',
+  hidden: false,
   ui: {
     icon,
     title: (cfg) =>
@@ -75,6 +79,6 @@ const amplitudeDestination = {
       )
     }
   ]
-} as Destination;
+} as const;
 
 export default amplitudeDestination;

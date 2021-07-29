@@ -37,6 +37,7 @@ const webhookDestination = {
   id: 'webhook',
   type: 'other',
   displayName: 'WebHook',
+  hidden: false,
   parameters: [
     modeParameter('stream'),
     tableName(filteringExpressionDocumentation),
@@ -84,6 +85,6 @@ const webhookDestination = {
     connectCmd: null,
     title: cfg => cfg['_formData']['method'] + ' ' + cfg['_formData']['url']
   }
-} as Destination;
+} as const;
 
 export default webhookDestination;

@@ -32,6 +32,7 @@ const googleAnalytics = {
   id: 'google_analytics',
   type: 'other',
   displayName: 'GoogleAnalytics',
+  hidden: false,
   parameters: [
     modeParameter('stream'),
     tableName(filteringExpressionDocumentation),
@@ -48,6 +49,6 @@ const googleAnalytics = {
     connectCmd: null,
     title: cfg => cfg['_formData']['gaTrackingId']
   }
-} as Destination;
+} as const;
 
 export default googleAnalytics;

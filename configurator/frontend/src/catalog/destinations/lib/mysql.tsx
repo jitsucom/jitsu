@@ -13,6 +13,7 @@ const mysqlDestination = {
     id: 'mysql',
     type: 'database',
     displayName: 'MySQL',
+    hidden: false,
     ui: {
         icon: icon,
         connectCmd: (cfg: object) => null,
@@ -70,6 +71,6 @@ const mysqlDestination = {
         }
     ]
 
-} as Destination;
+} as const;
 
 export default mysqlDestination;

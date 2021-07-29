@@ -38,6 +38,7 @@ const destination = {
   id: 'redshift',
   type: 'database',
   displayName: 'Redshift',
+  hidden: false,
   ui: {
     title: (cfg) => cfg._formData.redshiftHost,
     connectCmd: (cfg: object) => {
@@ -93,6 +94,6 @@ const destination = {
       (cfg) => cfg?._formData?.mode !== 'batch'
     )
   ]
-} as Destination;
+} as const;
 
 export default destination;

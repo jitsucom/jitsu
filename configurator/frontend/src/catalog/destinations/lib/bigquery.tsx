@@ -38,24 +38,45 @@ const icon = (
 
 
 const bigQueryDestination: Destination = {
-  description: <>
-    <a href="https://cloud.google.com/bigquery">Google BigQuery</a> is a fast, scalable,
-    and easy-to-use data warehouse. Main advantages of Google BiqQuery are:
-    <ul>
-      <li><b>Serverless architecture</b>. </li>
-      <li><b>Pay-as-you go</b></li>
-    </ul>
-    Jitsu can <a href="https://cloud.google.com/bigquery/streaming-data-into-bigquery">stream</a> and <a href="https://cloud.google.com/bigquery/docs/batch-loading-data">batch</a> data to Google BigQuery.
-    Streaming will get data to BQ immediately, however Google charges for each streamed record, while batching is free. Streaming is the fastest way to get started, but batching will be cheaper for large volumes.
-  </>,
+  description: (
+    <>
+      <a href="https://cloud.google.com/bigquery">Google BigQuery</a> is a fast,
+      scalable, and easy-to-use data warehouse. Main advantages of Google
+      BiqQuery are:
+      <ul>
+        <li>
+          <b>Serverless architecture</b>.{' '}
+        </li>
+        <li>
+          <b>Pay-as-you go</b>
+        </li>
+      </ul>
+      Jitsu can{' '}
+      <a href="https://cloud.google.com/bigquery/streaming-data-into-bigquery">
+        stream
+      </a>{' '}
+      and{' '}
+      <a href="https://cloud.google.com/bigquery/docs/batch-loading-data">
+        batch
+      </a>{' '}
+      data to Google BigQuery. Streaming will get data to BQ immediately,
+      however Google charges for each streamed record, while batching is free.
+      Streaming is the fastest way to get started, but batching will be cheaper
+      for large volumes.
+    </>
+  ),
   syncFromSourcesStatus: 'supported',
   id: 'bigquery',
   type: 'database',
   displayName: 'BigQuery',
+  hidden: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => {
-      return `echo '${cfg['_formData']['bqJSONKey'].replaceAll('\n', ' ')}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`
+      return `echo '${cfg['_formData']['bqJSONKey'].replaceAll(
+        '\n',
+        ' '
+      )}' > bqkey.json;\\\ngcloud auth activate-service-account --key-file bqkey.json;\\\nbq query "SELECT 1;"`;
     },
     title: (cfg: object) => {
       return cfg['_formData']['pghost'];
@@ -83,22 +104,33 @@ const bigQueryDestination: Destination = {
     {
       id: '_formData.bqJSONKey',
       displayName: 'Access Key',
-      documentation: <>Google Service Account JSON for BigQuery. <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">Read more about Google Authorization</a></>,
+      documentation: (
+        <>
+          Google Service Account JSON for BigQuery.{' '}
+          <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">
+            Read more about Google Authorization
+          </a>
+        </>
+      ),
       required: true,
       type: jsonType
     },
     {
       id: '_formData.bqGCSBucket',
-      documentation: <>Name of GCS Bucket. The bucket should be accessible with the same Access Key as dataset</>,
+      documentation: (
+        <>
+          Name of GCS Bucket. The bucket should be accessible with the same
+          Access Key as dataset
+        </>
+      ),
       displayName: 'GCS Bucket',
       required: true,
       type: stringType,
       constant: hiddenValue('', (cfg) => {
-        return cfg?._formData?.mode !== 'batch'
+        return cfg?._formData?.mode !== 'batch';
       })
     }
   ]
-
-} as Destination;
+} as const;
 
 export default bigQueryDestination;
