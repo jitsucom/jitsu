@@ -544,9 +544,9 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ... string) (in
 	if err != nil && err != redis.ErrNil {
 		return 0, err
 	}
-	logging.Infof("Removed %d of %d from index %s", removed, len(taskIDs), taskIndexKey)
+	logging.Debugf("Removed %d of %d from index %s", removed, len(taskIDs), taskIndexKey)
 
-	taskKeys := make([]interface{}, len(taskIDs))
+	taskKeys := make([]interface{}, 0, len(taskIDs))
 	for _, id := range taskIDs {
 		taskKeys = append(taskKeys, "sync_tasks#" + id)
 	}
@@ -556,10 +556,10 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ... string) (in
 	if err != nil && err != redis.ErrNil {
 		//no point to return error. we have already cleared index
 		logging.Errorf("failed to remove tasks. source:%s collection:%s tasks:%v err:%v", sourceID, collection, taskIDs, err)
+	} else {
+		logging.Debugf("Removed %d of %d from tasks. source:%s collection:%s", removed, len(taskIDs), sourceID, collection)
 	}
-	logging.Infof("Removed %d of %d from tasks. source:%s collection:%s", removed, len(taskIDs), sourceID, collection)
-
-	taskLogKeys := make([]interface{}, len(taskIDs))
+	taskLogKeys := make([]interface{}, 0, len(taskIDs))
 	for _, id := range taskIDs {
 		taskLogKeys = append(taskLogKeys, "sync_tasks#" + id + ":logs")
 	}
@@ -569,8 +569,9 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ... string) (in
 	if err != nil && err != redis.ErrNil {
 		//no point to return error. we have already cleared index
 		logging.Errorf("failed to remove task logs. source:%s collection:%s tasks:%v err:%v", sourceID, collection, taskIDs, err)
+	} else {
+		logging.Debugf("Removed logs from %d of %d tasks. source:%s collection:%s", removed, len(taskIDs), sourceID, collection)
 	}
-	logging.Infof("Removed logs from %d of %d tasks. source:%s collection:%s", removed, len(taskIDs), sourceID, collection)
 	return removed, nil
 }
 
