@@ -17,7 +17,6 @@ import {
   destinationsReferenceMap,
   DestinationStrictType
 } from 'catalog/destinations/lib';
-import { Destination } from 'catalog/destinations/types';
 
 // @Hooks
 import { useServices } from 'hooks/useServices';
@@ -30,8 +29,10 @@ type ExtractDatabaseOrWebhook<T> = T extends {readonly type: 'database'}
     ? T
     : never;
 
+type FilterHidden<T> = T extends {readonly hidden: false} ? T : never;
+
 const destinationsToOffer = destinationsReferenceList.filter(
-  (dest): dest is ExtractDatabaseOrWebhook<DestinationStrictType> => {
+  (dest): dest is FilterHidden<ExtractDatabaseOrWebhook<DestinationStrictType>> => {
     return !dest.hidden && (dest.type === 'database' || dest.id === 'webhook');
   }
 )
