@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/multiplexing"
@@ -24,6 +26,12 @@ const (
 
 	noDestinationsErrTemplate = "No destination is configured for token [%q] (or only staged ones)"
 )
+
+//EventResponse is a dto for sending operation status and delete_cookie flag
+type EventResponse struct {
+	Status       string `json:"status"`
+	DeleteCookie bool   `json:"delete_cookie,omitempty"`
+}
 
 //CachedEvent is a dto for events cache
 type CachedEvent struct {
@@ -99,7 +107,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, middleware.OKResponse())
+	c.JSON(http.StatusOK, EventResponse{Status: "ok", DeleteCookie: reqContext.CookiesLawCompliant})
 }
 
 //GetHandler returns cached events by destination_ids
@@ -193,6 +201,44 @@ func extractIP(c *gin.Context) string {
 
 func getRequestContext(c *gin.Context) *events.RequestContext {
 	clientIP := extractIP(c)
+	var compliant *bool
+
+	//cookies
+	cookiePolicy := c.Query(middleware.CookiePolicyParameter)
+	switch cookiePolicy {
+	case middleware.ComplyValue:
+		if compliant == nil {
+			value := getCompliant(clientIP)
+			compliant = &value
+		}
+
+		if !*compliant {
+			cookiePolicy = middleware.StrictValue
+		}
+	case middleware.KeepValue:
+	case middleware.StrictValue:
+	default:
+		logging.SystemErrorf("Unknown value %q for %q query parameter", middleware.IPPolicyParameter, ipPolicy)
+	}
+
+	//ip address
+	ipPolicy := c.Query(middleware.IPPolicyParameter)
+	switch ipPolicy {
+	case middleware.ComplyValue:
+		value := getCompliant(clientIP)
+		compliant = &value
+
+		if !value {
+			clientIP = getThreeOctets(clientIP)
+			ipPolicy = middleware.StrictValue
+		}
+
+	case middleware.StrictValue:
+		clientIP = getThreeOctets(clientIP)
+	case middleware.KeepValue:
+	default:
+		logging.SystemErrorf("Unknown value %q for %q query parameter", middleware.IPPolicyParameter, ipPolicy)
+	}
 
 	var jitsuAnonymousID string
 	cookieLess := c.Query(middleware.CookieLessQueryParameter) == "true"
@@ -209,16 +255,42 @@ func getRequestContext(c *gin.Context) *events.RequestContext {
 
 	//mask last octet after generating anonymous ID
 	if c.Query(middleware.AnonymizeIPQueryParameter) == "true" {
-		ipParts := strings.Split(clientIP, ".")
-		ipParts[len(ipParts)-1] = "1"
-		clientIP = strings.Join(ipParts, ".")
+
 	}
 
 	return &events.RequestContext{
-		UserAgent:        c.Request.UserAgent(),
-		ClientIP:         clientIP,
-		Referer:          c.Request.Referer(),
-		JitsuAnonymousID: jitsuAnonymousID,
-		CookieLess:       cookieLess,
+		UserAgent:           c.Request.UserAgent(),
+		ClientIP:            clientIP,
+		Referer:             c.Request.Referer(),
+		JitsuAnonymousID:    jitsuAnonymousID,
+		CookieLess:          cookieLess,
+		CookiesLawCompliant: *compliant,
 	}
+}
+
+func getThreeOctets(ip string) string {
+	ipParts := strings.Split(ip, ".")
+	ipParts[len(ipParts)-1] = "1"
+	return strings.Join(ipParts, ".")
+}
+
+//getCompliant returns true if geo data has been detected and ip isn't from EU or UK
+func getCompliant(ip string) bool {
+	ipThreeOctets := getThreeOctets(ip)
+
+	if appconfig.Instance.GeoResolver.Type() != geo.MaxmindType {
+		return false
+	}
+
+	data, err := appconfig.Instance.GeoResolver.Resolve(ipThreeOctets)
+	if err != nil {
+		logging.SystemErrorf("Error resolving IP %q into geo data: %v", ipThreeOctets, err)
+		return false
+	}
+
+	if _, ok := geo.EUCountries[data.Country]; ok || data.Country == geo.UKCountry {
+		return false
+	}
+
+	return true
 }

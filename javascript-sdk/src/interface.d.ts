@@ -156,7 +156,7 @@ export type JitsuOptions = {
    * If set to true, Jitsu replaces last octet in client IP address with 1 on the backend side
    * e.g. 10.10.10.10 -> 10.10.10.1
    */
-  anonymize_ip?: boolean
+  //anonymize_ip?: boolean
 
   /**
    * Privacy policy configuration for comply with the cookie law. If set to 'strict'
@@ -169,7 +169,12 @@ export type JitsuOptions = {
    * Jitsu sets system cookies see (propsPersistance)
    * If set to 'strict', Jitsu won't keep system properties between pages
    */
-  system_cookies?: 'strict'
+  //system_cookies?: 'strict'
+
+
+//TODO
+  ip_policy?: 'keep' | 'strict' | 'comply'
+  cookie_policy?: 'keep' | 'strict' | 'comply'
 
   /**
    * Log level. 'WARN' if not set
@@ -245,7 +250,7 @@ export type EventPayload = {
   [propName: string]: any          //payload is extendable, any extra properties can be added here
 }
 
-export type Transport = (url: string, jsonPayload: string) => Promise<void>
+export type Transport = (url: string, jsonPayload: string, errorHandle: (status: number, response: any) => any) => Promise<void>
 
 /**
  * Type of event source

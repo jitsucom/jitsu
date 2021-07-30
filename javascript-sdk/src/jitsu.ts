@@ -1,4 +1,5 @@
 import {
+  deleteCookie,
   generateId,
   generateRandom,
   getCookie,
@@ -31,14 +32,16 @@ const VERSION_INFO = {
 
 const JITSU_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
 
-const xmlHttpReqTransport: Transport = (url: string, json: string): Promise<void> => {
+const xmlHttpReqTransport: Transport = (url: string, json: string, postHandle: (status: number, response: any) => any): Promise<void> => {
   let req = new XMLHttpRequest();
   return new Promise((resolve, reject) => {
     req.onerror = (e) => {
       getLogger().error('Failed to send', json, e);
+      postHandle(-1, {})
       reject(new Error(`Failed to send JSON. See console logs`))
     };
     req.onload = () => {
+      postHandle(req.status, req.response)
       if (req.status !== 200) {
         getLogger().warn(`Failed to send data to ${url} (#${req.status} - ${req.statusText})`, json);
         reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
@@ -62,6 +65,7 @@ const beaconTransport: Transport = (url: string, json: string): Promise<void> =>
 interface Persistence {
   save(props: Record<string, any>)
   restore(): Record<string, any> | undefined
+  delete()
 }
 
 class CookiePersistence implements Persistence {
@@ -94,6 +98,10 @@ class CookiePersistence implements Persistence {
     }
     return undefined;
   }
+
+  delete() {
+    deleteCookie(this.cookieName)
+  }
 }
 
 class NoPersistence implements Persistence {
@@ -103,6 +111,8 @@ class NoPersistence implements Persistence {
   restore(): Record<string, any> | undefined {
     return undefined;
   }
+
+  delete(){}
 }
 
 const defaultCompatMode = false;
@@ -199,19 +209,29 @@ class JitsuClientImpl implements JitsuClient {
     return this.sendJson(e);
   }
 
+  postHandle(status: number, response: any): any{
+    if (this.initialOptions.cookie_policy === 'comply'){
+      if (status !== 200 || response?.delete_cookie === true) {
+        this.userIdPersistence.delete()
+        this.propsPersistance.delete()
+        deleteCookie(this.idCookieName)
+      }
+    }
+  }
+
   sendJson(json: any): Promise<void> {
-    let cookieLess = this.initialOptions?.id_method === 'cookie-less' ? '&cookie_less=true' : ''
-    let anonymizeIp = this.initialOptions?.anonymize_ip ? `&anonymize_ip=true` : ''
-    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${cookieLess}${anonymizeIp}`;
+    let cookiePolicy = this.initialOptions?.cookie_policy !== 'keep' ? `&cookie_policy=${this.initialOptions.cookie_policy}` : ''
+    let ipPolicy = this.initialOptions?.ip_policy !== 'keep' ? `&ip_policy=${this.initialOptions.ip_policy}` : ''
+    let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${cookiePolicy}${ipPolicy}`;
     if (this.randomizeUrl) {
-      url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${cookieLess}${anonymizeIp}`;
+      url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${cookiePolicy}${ipPolicy}`;
     }
 
     let jsonString = JSON.stringify(json);
     if (this.initialOptions?.use_beacon_api && navigator.sendBeacon) {
-      return beaconTransport(url, jsonString);
+      return beaconTransport(url, jsonString, ()=>{});
     } else {
-      return xmlHttpReqTransport(url, jsonString);
+      return xmlHttpReqTransport(url, jsonString, this.postHandle);
     }
   }
 
@@ -264,10 +284,22 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   init(options: JitsuOptions) {
+    if (!options.cookie_policy){
+      options.cookie_policy = 'keep'
+    }
+    if (!options.ip_policy){
+      options.ip_policy = 'keep'
+    }
     if (options.privacy_policy === 'strict') {
-      options.id_method = 'cookie-less'
-      options.anonymize_ip = true
-      options.system_cookies = 'strict'
+      options.cookie_policy = 'strict'
+      options.ip_policy = 'strict'
+     // options.id_method = 'cookie-less'
+      //options.anonymize_ip = true
+      //options.system_cookies = 'strict'
+    }
+    //can't handle delete cookie response when beacon api
+    if (options.cookie_policy === 'comply' && options.use_beacon_api && navigator.sendBeacon){
+      options.cookie_policy = 'strict'
     }
     if (options.log_level) {
       setRootLogLevel(options.log_level);
@@ -287,13 +319,13 @@ class JitsuClientImpl implements JitsuClient {
     this.idCookieName = options.cookie_name || '__eventn_id';
     this.apiKey = options.key;
 
-    if (this.initialOptions.system_cookies === 'strict'){
+    if (this.initialOptions.cookie_policy === 'strict'){
       this.propsPersistance = new NoPersistence();
     }else{
       this.propsPersistance = new CookiePersistence(this.cookieDomain, this.idCookieName + '_props');
     }
 
-    if (this.initialOptions.id_method === 'cookie-less'){
+    if (this.initialOptions.cookie_policy === 'strict'){
       this.userIdPersistence = new NoPersistence();
     }else{
       this.userIdPersistence = new CookiePersistence(this.cookieDomain, this.idCookieName + '_usr');
@@ -322,7 +354,7 @@ class JitsuClientImpl implements JitsuClient {
     if (options.segment_hook) {
       interceptSegmentCalls(this);
     }
-    if (options.id_method !== 'cookie-less'){
+    if (options.cookie_policy !== 'strict'){
       this.anonymousId = this.getAnonymousId();
     }
     this.initialized = true;
