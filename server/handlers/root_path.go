@@ -70,16 +70,20 @@ func (rph *RootPathHandler) Handler(c *gin.Context) {
 	if rph.service.ShouldBeRedirected() {
 		redirectSchema := c.GetHeader("X-Forwarded-Proto")
 		redirectHost := c.GetHeader("X-Forwarded-Host")
-		redirectPort := c.GetHeader("X-Forwarded-Port")
+		//redirectPort := c.GetHeader("X-Forwarded-Port")
+		host := c.GetHeader("X-Real-Host")
+		logging.Infof("real host: %s", host)
 		if rph.redirectToHttps {
 			redirectSchema = "https"
+			host = redirectHost
 		}
 
-		redirectURL := redirectSchema + "://" + redirectHost
+		redirectURL := redirectSchema + "://" + host
+		logging.Infof("redirect URL: %s", redirectURL)
 		//don't add port if https
-		if redirectPort != "" && !rph.redirectToHttps {
+		/*if redirectPort != "" && !rph.redirectToHttps {
 			redirectURL += ":" + redirectPort
-		}
+		}*/
 		c.Redirect(http.StatusTemporaryRedirect, redirectURL+viper.GetString("server.configurator_url"))
 		return
 	}
