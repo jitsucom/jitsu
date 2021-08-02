@@ -28,7 +28,7 @@ func (jp *JsProcessor) Preprocess(event Event, reqContext *RequestContext) {
 		}
 	}
 
-	if reqContext.CookieLess {
+	if !reqContext.CookiesLawCompliant {
 		if err := UserAnonymIDPath.Set(event, reqContext.JitsuAnonymousID); err != nil {
 			logging.SystemErrorf("Error setting generated Jitsu anonymous ID: %v", err)
 		}

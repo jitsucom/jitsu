@@ -49,7 +49,7 @@ func TestPostgresStreamInsert(t *testing.T) {
 
 	destinationConfig := fmt.Sprintf(configTemplate, postgresContainer.Host, postgresContainer.Port, postgresContainer.Database, postgresContainer.Schema, postgresContainer.Username, postgresContainer.Password)
 
-	testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock().WithDestinationService(t, destinationConfig).Build(t)
+	testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock(nil).WithDestinationService(t, destinationConfig).Build(t)
 	defer testSuite.Close()
 
 	time.Sleep(100 * time.Millisecond)

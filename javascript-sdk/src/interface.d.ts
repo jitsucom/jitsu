@@ -71,9 +71,17 @@ export type JitsuFunction = (action: 'track' | 'id' | 'set', eventType: string, 
  * User identification method:
  *  - cookie (based on cookie)
  *  - ls (localstorage)
- *  - cookie-less (without any information stored locally)
+ *  Currently only 'cookie' is supported
  */
-export type IdMethod = 'cookie' | 'ls' | 'cookie-less'
+export type IdMethod = 'cookie' | 'ls'
+
+/**
+ * Policy configuration affects cookies storage and IP handling.
+ *  - strict: Jitsu doesn't store cookies and replaces last octet in IP address (10.10.10.10 -> 10.10.10.1)
+ *  - keep: Jitsu uses cookies for user identification and saves full IP
+ *  - comply: Jitsu checks customer country and tries to comply with Regulation laws (such as GDPR, UK's GDPR (PECR) and California's GDPR (CCPA)
+ */
+export type Policy = 'strict' | 'keep' | 'comply'
 
 /**
  * Configuration options of Jitsu
@@ -153,23 +161,21 @@ export type JitsuOptions = {
   id_method?: IdMethod
 
   /**
-   * If set to true, Jitsu replaces last octet in client IP address with 1 on the backend side
-   * e.g. 10.10.10.10 -> 10.10.10.1
-   */
-  anonymize_ip?: boolean
-
-  /**
-   * Privacy policy configuration for comply with the cookie law. If set to 'strict'
-   * id_method = 'cookie-less', anonymize_ip = true and system_cookies = 'strict' will be set.
+   * Privacy policy configuration makes all policies strict to comply with the cookies law. If set to 'strict'
+   * ip_policy = 'strict' and cookie_policy = 'strict' will be set.
    * Currently only 'strict' is supported
    */
   privacy_policy?: 'strict'
 
   /**
-   * Jitsu sets system cookies see (propsPersistance)
-   * If set to 'strict', Jitsu won't keep system properties between pages
+   * IP policy see Policy
    */
-  system_cookies?: 'strict'
+  ip_policy?: Policy
+
+  /**
+   * Cookie policy see Policy
+   */
+  cookie_policy?: Policy
 
   /**
    * Log level. 'WARN' if not set
