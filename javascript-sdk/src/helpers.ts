@@ -36,7 +36,7 @@ export const setCookie = (name: string, value: string, expire: number, domain: s
 };
 
 export const deleteCookie = (name: string) => {
-  document.cookie = name+'=; Max-Age=-99999999;';
+  document.cookie = name+'= ; expires = Thu, 01 Jan 1970 00:00:00 GMT';
 }
 
 export const generateId = () => Math.random().toString(36).substring(2, 12);

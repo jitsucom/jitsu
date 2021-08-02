@@ -18,7 +18,8 @@ import {
   EventPayload,
   EventSrc,
   JitsuClient,
-  JitsuOptions, Policy,
+  JitsuOptions,
+  Policy,
   Transport,
   UserProps
 } from './interface'
@@ -212,16 +213,6 @@ class JitsuClientImpl implements JitsuClient {
     return this.sendJson(e);
   }
 
-  postHandle(status: number, response: any): any{
-    if (this.cookiePolicy === 'comply'){
-      if (status !== 200 || response?.delete_cookie === true) {
-        this.userIdPersistence.delete()
-        this.propsPersistance.delete()
-        deleteCookie(this.idCookieName)
-      }
-    }
-  }
-
   sendJson(json: any): Promise<void> {
     let cookiePolicy = this.cookiePolicy !== 'keep' ? `&cookie_policy=${this.cookiePolicy}` : ''
     let ipPolicy = this.ipPolicy !== 'keep' ? `&ip_policy=${this.ipPolicy}` : ''
@@ -229,12 +220,26 @@ class JitsuClientImpl implements JitsuClient {
     if (this.randomizeUrl) {
       url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${cookiePolicy}${ipPolicy}`;
     }
-
     let jsonString = JSON.stringify(json);
     if (this.beaconApi) {
-      return beaconTransport(url, jsonString, ()=> {});
+      return beaconTransport(url, jsonString, () => {});
     } else {
-      return xmlHttpReqTransport(url, jsonString, this.postHandle);
+      if (this.cookiePolicy === 'strict' || this.cookiePolicy === 'comply') {
+        return xmlHttpReqTransport(url, jsonString, (function(status, response) {
+          if (status === 200) {
+            let data = JSON.parse(response);
+            if (!data['delete_cookie']) {
+              return
+            }
+          }
+          let w = window as any;
+          w.jitsuClient.userIdPersistence.delete()
+          w.jitsuClient.propsPersistance.delete()
+          deleteCookie(w.jitsuClient.idCookieName)
+        }));
+      } else {
+        return xmlHttpReqTransport(url, jsonString, () => {});
+      }
     }
   }
 
@@ -362,6 +367,7 @@ class JitsuClientImpl implements JitsuClient {
       this.anonymousId = this.getAnonymousId();
     }
     this.initialized = true;
+    window.jitsuClient = this
   }
 
   interceptAnalytics(analytics: any) {
