@@ -174,14 +174,18 @@ const ConnectionsPageComponent: React.FC = () => {
                 overlay={
                   <DropDownList
                     hideFilter
-                    list={destinationsReferenceList.map((dst) => ({
-                      title: dst.displayName,
-                      id: dst.id,
-                      icon: dst.ui.icon,
-                      link: generatePath(destinationPageRoutes.newExact, {
-                        type: dst.id
-                      })
-                    }))}
+                    list={destinationsReferenceList
+                      .filter((dst) => !dst['hidden'])
+                      .map((dst) => {
+                        return {
+                          title: dst.displayName,
+                          id: dst.id,
+                          icon: dst.ui.icon,
+                          link: generatePath(destinationPageRoutes.newExact, {
+                            type: dst.id
+                          })
+                        };
+                      })}
                   />
                 }
                 className="flex-initial"

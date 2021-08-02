@@ -17,7 +17,7 @@ func NewSegmentProcessor(usersRecognition Recognition) *SegmentProcessor {
 func (sp *SegmentProcessor) Preprocess(event Event, reqContext *RequestContext) {
 	event[SrcKey] = "segment_api"
 
-	if reqContext.CookieLess {
+	if !reqContext.CookiesLawCompliant {
 		if err := UserAnonymIDPath.Set(event, reqContext.JitsuAnonymousID); err != nil {
 			logging.SystemErrorf("Error setting generated Jitsu anonymous ID: %v", err)
 		}

@@ -56,7 +56,10 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 		return
 	}
 
-	ph.extractOrSetAnonymIDCookie(c, event)
+	reqContext := getRequestContext(c)
+	if reqContext.CookiesLawCompliant {
+		reqContext.JitsuAnonymousID = ph.extractOrSetAnonymIDCookie(c, event, reqContext)
+	}
 
 	var strToken string
 	token, ok := event[middleware.TokenName]
@@ -68,8 +71,6 @@ func (ph *PixelHandler) Handle(c *gin.Context) {
 			strToken = fmt.Sprint(token)
 		}
 	}
-
-	reqContext := getRequestContext(c)
 
 	err = ph.multiplexingService.AcceptRequest(ph.processor, reqContext, strToken, []events.Event{event})
 	if err != nil {
@@ -126,15 +127,10 @@ func (ph *PixelHandler) parseEvent(c *gin.Context) (events.Event, error) {
 //extractOrSetAnonymIDCookie if no anoymous id found:
 // 1. gets cookie value (anonym ID)
 // 2. generates and set it if doesn't exist
-// Note: do nothing if query parameter gdpr=true is provided
-func (ph *PixelHandler) extractOrSetAnonymIDCookie(c *gin.Context, event events.Event) {
-	if c.Query(middleware.CookieLessQueryParameter) == "true" {
-		return
-	}
-
+//returns anonymous id
+func (ph *PixelHandler) extractOrSetAnonymIDCookie(c *gin.Context, event events.Event, reqContext *events.RequestContext) string {
 	if anonymID, ok := ph.anonymIDPath.Get(event); ok {
-		c.Set(middleware.JitsuAnonymIDCookie, anonymID)
-		return
+		return fmt.Sprint(anonymID)
 	}
 
 	anonymID, err := c.Cookie(middleware.JitsuAnonymIDCookie)
@@ -159,8 +155,9 @@ func (ph *PixelHandler) extractOrSetAnonymIDCookie(c *gin.Context, event events.
 			})
 		} else {
 			logging.Errorf("Error extracting cookie %q: %v", middleware.JitsuAnonymIDCookie, err)
+			return ""
 		}
 	}
 
-	c.Set(middleware.JitsuAnonymIDCookie, anonymID)
+	return anonymID
 }
