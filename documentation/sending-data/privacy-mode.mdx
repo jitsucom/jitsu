@@ -80,10 +80,7 @@ or
 ```
 
 <Hint>
-  If privacy mode is off, you should collect a cookie consent for residents of EU and UK. Jitsu uses cookie only for
-  analytics, so they fall under analytics (or functional) cookies category.
-  <br /><br />
-  The good idea is to switch <code inline="true">cookie_policy</code> and <code inline="true">ip_policy</code> to <code inline="true">strict</code> value only for those users who didn't consent to cookies or ip address.
+  Geo targeting works only if <a href="/docs/other-features/geo-data-resolution#maxmind">MaxMind</a> is configured. If MaxMind configuration isn't provided the behavior will be like in <code inline="true">strict</code> mode.
 </Hint>
 
 
