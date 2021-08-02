@@ -33,29 +33,6 @@ const VERSION_INFO = {
 
 const JITSU_VERSION = `${VERSION_INFO.version}/${VERSION_INFO.env}@${VERSION_INFO.date}`;
 
-const xmlHttpReqTransport: Transport = (url: string, json: string, postHandle: (status: number, response: any) => any): Promise<void> => {
-  let req = new XMLHttpRequest();
-  return new Promise((resolve, reject) => {
-    req.onerror = (e) => {
-      getLogger().error('Failed to send', json, e);
-      postHandle(-1, {})
-      reject(new Error(`Failed to send JSON. See console logs`))
-    };
-    req.onload = () => {
-      postHandle(req.status, req.response)
-      if (req.status !== 200) {
-        getLogger().warn(`Failed to send data to ${url} (#${req.status} - ${req.statusText})`, json);
-        reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
-      }
-      resolve();
-    }
-    req.open('POST', url);
-    req.setRequestHeader('Content-Type', 'application/json');
-    req.send(json)
-    getLogger().debug('sending json', json);
-  });
-}
-
 const beaconTransport: Transport = (url: string, json: string): Promise<void> => {
   getLogger().debug('Sending beacon', json);
   const blob = new Blob([json], { type: 'text/plain' });
@@ -224,22 +201,47 @@ class JitsuClientImpl implements JitsuClient {
     if (this.beaconApi) {
       return beaconTransport(url, jsonString, () => {});
     } else {
-      if (this.cookiePolicy === 'strict' || this.cookiePolicy === 'comply') {
-        return xmlHttpReqTransport(url, jsonString, (function(status, response) {
-          if (status === 200) {
-            let data = JSON.parse(response);
-            if (!data['delete_cookie']) {
-              return
-            }
-          }
-          let w = window as any;
-          w.jitsuClient.userIdPersistence.delete()
-          w.jitsuClient.propsPersistance.delete()
-          deleteCookie(w.jitsuClient.idCookieName)
-        }));
-      } else {
-        return xmlHttpReqTransport(url, jsonString, () => {});
+      return this.xmlHttpReqTransport(url, jsonString)
+    }
+  }
+
+  xmlHttpReqTransport(url: string, json: string): Promise<void> {
+    let req = new XMLHttpRequest();
+    return new Promise((resolve, reject) => {
+      req.onerror = (e) => {
+        getLogger().error('Failed to send', json, e);
+        this.postHandle(-1, {})
+        reject(new Error(`Failed to send JSON. See console logs`))
+      };
+      req.onload = () => {
+        this.postHandle(req.status, req.response)
+        if (req.status !== 200) {
+          getLogger().warn(`Failed to send data to ${url} (#${req.status} - ${req.statusText})`, json);
+          reject(new Error(`Failed to send JSON. Error code: ${req.status}. See logs for details`))
+        }
+        resolve();
       }
+      req.open('POST', url);
+      req.setRequestHeader('Content-Type', 'application/json');
+      req.send(json)
+      getLogger().debug('sending json', json);
+    });
+  }
+
+  postHandle(status: number, response: any): any{
+    if (this.cookiePolicy === 'strict' || this.cookiePolicy === 'comply') {
+      if (status === 200) {
+        let data = response;
+        if (typeof response === 'string'){
+          data = JSON.parse(response);
+        }
+        if (!data['delete_cookie']) {
+          return
+        }
+      }
+      this.userIdPersistence.delete()
+      this.propsPersistance.delete()
+      deleteCookie(this.idCookieName)
     }
   }
 
@@ -367,7 +369,6 @@ class JitsuClientImpl implements JitsuClient {
       this.anonymousId = this.getAnonymousId();
     }
     this.initialized = true;
-    window.jitsuClient = this
   }
 
   interceptAnalytics(analytics: any) {
