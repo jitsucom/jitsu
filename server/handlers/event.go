@@ -107,7 +107,7 @@ func (eh *EventHandler) PostHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, EventResponse{Status: "ok", DeleteCookie: reqContext.CookiesLawCompliant})
+	c.JSON(http.StatusOK, EventResponse{Status: "ok", DeleteCookie: !reqContext.CookiesLawCompliant})
 }
 
 //GetHandler returns cached events by destination_ids
@@ -202,60 +202,51 @@ func extractIP(c *gin.Context) string {
 func getRequestContext(c *gin.Context) *events.RequestContext {
 	clientIP := extractIP(c)
 	var compliant *bool
+	cookiesLawCompliant := true
 
 	//cookies
 	cookiePolicy := c.Query(middleware.CookiePolicyParameter)
-	switch cookiePolicy {
-	case middleware.ComplyValue:
-		if compliant == nil {
-			value := getCompliant(clientIP)
+	if cookiePolicy != "" {
+		switch cookiePolicy {
+		case middleware.ComplyValue:
+			value := complyWithCookieLaws(clientIP)
 			compliant = &value
+			cookiesLawCompliant = value
+		case middleware.KeepValue:
+			cookiesLawCompliant = true
+		case middleware.StrictValue:
+			cookiesLawCompliant = false
+		default:
+			logging.SystemErrorf("Unknown value %q for %q query parameter", middleware.CookiePolicyParameter, cookiePolicy)
 		}
+	}
 
-		if !*compliant {
-			cookiePolicy = middleware.StrictValue
-		}
-	case middleware.KeepValue:
-	case middleware.StrictValue:
-	default:
-		logging.SystemErrorf("Unknown value %q for %q query parameter", middleware.IPPolicyParameter, ipPolicy)
+	var jitsuAnonymousID string
+	if !cookiesLawCompliant {
+		//cookie less
+		userIdentifier := clientIP + c.Request.UserAgent()
+		jitsuAnonymousID = fmt.Sprintf("%x", md5.Sum([]byte(userIdentifier)))
 	}
 
 	//ip address
 	ipPolicy := c.Query(middleware.IPPolicyParameter)
-	switch ipPolicy {
-	case middleware.ComplyValue:
-		value := getCompliant(clientIP)
-		compliant = &value
+	if ipPolicy != "" {
+		switch ipPolicy {
+		case middleware.ComplyValue:
+			if compliant == nil {
+				value := complyWithCookieLaws(clientIP)
+				compliant = &value
+			}
 
-		if !value {
+			if !*compliant {
+				clientIP = getThreeOctets(clientIP)
+			}
+		case middleware.KeepValue:
+		case middleware.StrictValue:
 			clientIP = getThreeOctets(clientIP)
-			ipPolicy = middleware.StrictValue
+		default:
+			logging.SystemErrorf("Unknown value %q for %q query parameter", middleware.IPPolicyParameter, ipPolicy)
 		}
-
-	case middleware.StrictValue:
-		clientIP = getThreeOctets(clientIP)
-	case middleware.KeepValue:
-	default:
-		logging.SystemErrorf("Unknown value %q for %q query parameter", middleware.IPPolicyParameter, ipPolicy)
-	}
-
-	var jitsuAnonymousID string
-	cookieLess := c.Query(middleware.CookieLessQueryParameter) == "true"
-	if cookieLess {
-		//cookie less
-		userIdentifier := clientIP + c.Request.UserAgent()
-		jitsuAnonymousID = fmt.Sprintf("%x", md5.Sum([]byte(userIdentifier)))
-	} else {
-		anonymID, ok := c.Get(middleware.JitsuAnonymIDCookie)
-		if ok {
-			jitsuAnonymousID = fmt.Sprint(anonymID)
-		}
-	}
-
-	//mask last octet after generating anonymous ID
-	if c.Query(middleware.AnonymizeIPQueryParameter) == "true" {
-
 	}
 
 	return &events.RequestContext{
@@ -263,8 +254,7 @@ func getRequestContext(c *gin.Context) *events.RequestContext {
 		ClientIP:            clientIP,
 		Referer:             c.Request.Referer(),
 		JitsuAnonymousID:    jitsuAnonymousID,
-		CookieLess:          cookieLess,
-		CookiesLawCompliant: *compliant,
+		CookiesLawCompliant: cookiesLawCompliant,
 	}
 }
 
@@ -274,8 +264,8 @@ func getThreeOctets(ip string) string {
 	return strings.Join(ipParts, ".")
 }
 
-//getCompliant returns true if geo data has been detected and ip isn't from EU or UK
-func getCompliant(ip string) bool {
+//complyWithCookieLaws returns true if geo data has been detected and ip isn't from EU or UK
+func complyWithCookieLaws(ip string) bool {
 	ipThreeOctets := getThreeOctets(ip)
 
 	if appconfig.Instance.GeoResolver.Type() != geo.MaxmindType {

@@ -213,6 +213,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusUnauthorized,
 			`{"message":"The token is not found","error":""}`,
+			false,
 		},
 		{
 			"Unauthorized s2s endpoint",
@@ -222,6 +223,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusUnauthorized,
 			`{"message":"The token isn't a server token. Please use s2s integration token","error":""}`,
+			false,
 		},
 		{
 			"Unauthorized c2s endpoint with s2s token",
@@ -231,6 +233,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusUnauthorized,
 			`{"message":"The token is not found","error":""}`,
+			false,
 		},
 		{
 			"C2S event 1.0 consuming test",
@@ -240,6 +243,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"S2S API 1.0 event consuming test",
@@ -249,6 +253,7 @@ func TestIncomingEvent(t *testing.T) {
 			"s2stoken",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"S2S API malformed event test",
@@ -258,6 +263,7 @@ func TestIncomingEvent(t *testing.T) {
 			"s2stoken",
 			http.StatusBadRequest,
 			`{"message":"Error parsing events body: error parsing HTTP body: invalid character 'a' looking for beginning of object key string","error":""}`,
+			false,
 		},
 		{
 			"Randomized c2s endpoint 1.0",
@@ -267,6 +273,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"C2S event 2.0 consuming test",
@@ -276,6 +283,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"S2S API 2.0 event consuming test",
@@ -285,6 +293,7 @@ func TestIncomingEvent(t *testing.T) {
 			"s2stoken",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"Mobile API single event",
@@ -294,6 +303,7 @@ func TestIncomingEvent(t *testing.T) {
 			"c2stoken",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"Mobile API events array",
@@ -303,6 +313,7 @@ func TestIncomingEvent(t *testing.T) {
 			"c2stoken",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"Mobile API events with template",
@@ -312,33 +323,37 @@ func TestIncomingEvent(t *testing.T) {
 			"c2stoken",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
-			"Cookie-less test",
-			"/api/v1/event?token=c2stoken&cookie_less=true",
+			"Cookie policy strict",
+			"/api/v1/event?token=c2stoken&cookie_policy=strict",
 			"test_data/event_input_2.0.json",
 			"test_data/fact_output_cookie_less.json",
 			"",
 			http.StatusOK,
 			"",
+			true,
 		},
 		{
-			"Anonymize IP test",
-			"/api/v1/event?token=c2stoken&anonymize_ip=true",
+			"IP policy strict",
+			"/api/v1/event?token=c2stoken&ip_policy=strict",
 			"test_data/event_input_2.0.json",
 			"test_data/fact_output_anonymize_ip.json",
 			"",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
-			"Cookie-less and anonymize ip test",
-			"/api/v1/event?token=c2stoken&cookie_less=true&anonymize_ip=true",
+			"Cookie and ip policies strict",
+			"/api/v1/event?token=c2stoken&cookie_policy=strict&ip_policy=strict",
 			"test_data/event_input_2.0.json",
 			"test_data/fact_output_cookie_less_anonymize_ip.json",
 			"",
 			http.StatusOK,
 			"",
+			true,
 		},
 		{
 			"Segment function track event",
@@ -348,6 +363,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"Segment function compat track event",
@@ -357,6 +373,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"Segment function identify event",
@@ -366,6 +383,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"Segment function compat identify event",
@@ -375,6 +393,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"Segment function page event",
@@ -384,6 +403,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusOK,
 			"",
+			false,
 		},
 		{
 			"Segment function compat page event",
@@ -393,6 +413,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			http.StatusOK,
 			"",
+			false,
 		},
 	}
 	for _, tt := range tests {
@@ -427,7 +448,11 @@ func TestIncomingEvent(t *testing.T) {
 				require.NoError(t, err)
 				resp.Body.Close()
 
-				require.Equal(t, `{"status":"ok"}`, string(b))
+				if tt.ExpectedDeleteCookie {
+					require.Equal(t, `{"status":"ok","delete_cookie":true}`, string(b))
+				} else {
+					require.Equal(t, `{"status":"ok"}`, string(b))
+				}
 
 				time.Sleep(200 * time.Millisecond)
 
@@ -574,10 +599,10 @@ func TestPixelEndpoint(t *testing.T) {
 			"",
 		},
 		{
-			"Event without context data and anonym id cookie-less",
-			"/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2&cookie_less=true",
+			"Event without context data and anonym id cookie strict",
+			"/api/v1/p.gif?data=ewogICJ0b2tlbiI6ImMyc3Rva2VuIiwKICAiZXZlbnRfdHlwZSI6ICJvcGVuX2VtYWlsIgp9&object.field_1=value1&field2=value2&cookie_policy=strict",
 			"",
-			"test_data/pixel_event_cookie_less_output.json",
+			"test_data/pixel_event_cookie_policy_strict_output.json",
 			"",
 			"",
 		},

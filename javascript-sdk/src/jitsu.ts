@@ -18,7 +18,7 @@ import {
   EventPayload,
   EventSrc,
   JitsuClient,
-  JitsuOptions,
+  JitsuOptions, Policy,
   Transport,
   UserProps
 } from './interface'
@@ -145,6 +145,9 @@ class JitsuClientImpl implements JitsuClient {
   private _3pCookies: Record<string, boolean> = {};
   private initialOptions?: JitsuOptions;
   private compatMode: boolean;
+  private cookiePolicy: Policy = 'keep';
+  private ipPolicy: Policy = 'keep';
+  private beaconApi: boolean = false;
 
   id(props: UserProps, doNotSendEvent?: boolean): Promise<void> {
     this.userProperties = { ...this.userProperties, ...props }
@@ -210,7 +213,7 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   postHandle(status: number, response: any): any{
-    if (this.initialOptions.cookie_policy === 'comply'){
+    if (this.cookiePolicy === 'comply'){
       if (status !== 200 || response?.delete_cookie === true) {
         this.userIdPersistence.delete()
         this.propsPersistance.delete()
@@ -220,16 +223,16 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   sendJson(json: any): Promise<void> {
-    let cookiePolicy = this.initialOptions?.cookie_policy !== 'keep' ? `&cookie_policy=${this.initialOptions.cookie_policy}` : ''
-    let ipPolicy = this.initialOptions?.ip_policy !== 'keep' ? `&ip_policy=${this.initialOptions.ip_policy}` : ''
+    let cookiePolicy = this.cookiePolicy !== 'keep' ? `&cookie_policy=${this.cookiePolicy}` : ''
+    let ipPolicy = this.ipPolicy !== 'keep' ? `&ip_policy=${this.ipPolicy}` : ''
     let url = `${this.trackingHost}/api/v1/event?token=${this.apiKey}${cookiePolicy}${ipPolicy}`;
     if (this.randomizeUrl) {
       url = `${this.trackingHost}/api.${generateRandom()}?p_${generateRandom()}=${this.apiKey}${cookiePolicy}${ipPolicy}`;
     }
 
     let jsonString = JSON.stringify(json);
-    if (this.initialOptions?.use_beacon_api && navigator.sendBeacon) {
-      return beaconTransport(url, jsonString, ()=>{});
+    if (this.beaconApi) {
+      return beaconTransport(url, jsonString, ()=> {});
     } else {
       return xmlHttpReqTransport(url, jsonString, this.postHandle);
     }
@@ -284,22 +287,23 @@ class JitsuClientImpl implements JitsuClient {
   }
 
   init(options: JitsuOptions) {
-    if (!options.cookie_policy){
-      options.cookie_policy = 'keep'
+    if (options.ip_policy){
+      this.ipPolicy = options.ip_policy
     }
-    if (!options.ip_policy){
-      options.ip_policy = 'keep'
+    if (options.cookie_policy){
+      this.cookiePolicy = options.cookie_policy
     }
     if (options.privacy_policy === 'strict') {
-      options.cookie_policy = 'strict'
-      options.ip_policy = 'strict'
-     // options.id_method = 'cookie-less'
-      //options.anonymize_ip = true
-      //options.system_cookies = 'strict'
+      this.ipPolicy = 'strict'
+      this.cookiePolicy = 'strict'
     }
+    if (options.use_beacon_api && navigator.sendBeacon){
+      this.beaconApi = true
+    }
+
     //can't handle delete cookie response when beacon api
-    if (options.cookie_policy === 'comply' && options.use_beacon_api && navigator.sendBeacon){
-      options.cookie_policy = 'strict'
+    if (this.cookiePolicy === 'comply' && this.beaconApi){
+      this.cookiePolicy = 'strict'
     }
     if (options.log_level) {
       setRootLogLevel(options.log_level);
@@ -319,13 +323,13 @@ class JitsuClientImpl implements JitsuClient {
     this.idCookieName = options.cookie_name || '__eventn_id';
     this.apiKey = options.key;
 
-    if (this.initialOptions.cookie_policy === 'strict'){
+    if (this.cookiePolicy === 'strict'){
       this.propsPersistance = new NoPersistence();
     }else{
       this.propsPersistance = new CookiePersistence(this.cookieDomain, this.idCookieName + '_props');
     }
 
-    if (this.initialOptions.cookie_policy === 'strict'){
+    if (this.cookiePolicy === 'strict'){
       this.userIdPersistence = new NoPersistence();
     }else{
       this.userIdPersistence = new CookiePersistence(this.cookieDomain, this.idCookieName + '_usr');
@@ -354,7 +358,7 @@ class JitsuClientImpl implements JitsuClient {
     if (options.segment_hook) {
       interceptSegmentCalls(this);
     }
-    if (options.cookie_policy !== 'strict'){
+    if (this.cookiePolicy !== 'strict'){
       this.anonymousId = this.getAnonymousId();
     }
     this.initialized = true;
