@@ -48,7 +48,7 @@ type suit struct {
 
 //SuiteBuilder is a test Suit builder
 type SuiteBuilder interface {
-	WithGeoDataMock() SuiteBuilder
+	WithGeoDataMock(geoDataMock *geo.Data) SuiteBuilder
 	WithMetaStorage(t *testing.T) SuiteBuilder
 	WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder
 	WithUserRecognition(t *testing.T) SuiteBuilder
@@ -144,16 +144,19 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 }
 
 //WithGeoDataMock overrides geo.Data and GeoResolver with mock
-func (sb *suiteBuilder) WithGeoDataMock() SuiteBuilder {
-	geoDataMock := &geo.Data{
-		Country: "US",
-		City:    "New York",
-		Lat:     79.01,
-		Lon:     22.02,
-		Zip:     "14101",
-		Region:  "",
+func (sb *suiteBuilder) WithGeoDataMock(geoDataMock *geo.Data) SuiteBuilder {
+	if geoDataMock == nil {
+		geoDataMock = &geo.Data{
+			Country: "US",
+			City:    "New York",
+			Lat:     79.01,
+			Lon:     22.02,
+			Zip:     "14101",
+			Region:  "",
+		}
 	}
-	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock}
+	//in case when ip_policy=strict or comply
+	appconfig.Instance.GeoResolver = geo.Mock{"10.10.10.10": geoDataMock, "10.10.10.1": geoDataMock}
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),

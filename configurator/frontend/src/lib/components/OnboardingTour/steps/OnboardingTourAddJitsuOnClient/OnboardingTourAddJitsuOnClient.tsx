@@ -32,6 +32,7 @@ export const OnboardingTourAddJitsuOnClient: React.FC<Props> = observer(
         }
 
         let unlinkedKey = apiKeysStore.apiKeys[0];
+        
 
         // at this point, all destinations can only be unlinked (or null)
         const unlinkedDestination = destinationsStore.destinations[0];
