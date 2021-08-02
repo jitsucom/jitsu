@@ -251,7 +251,7 @@ export type EventPayload = {
   [propName: string]: any          //payload is extendable, any extra properties can be added here
 }
 
-export type Transport = (url: string, jsonPayload: string, errorHandle: (status: number, response: any) => any) => Promise<void>
+export type Transport = (url: string, jsonPayload: string) => Promise<void>
 
 /**
  * Type of event source
