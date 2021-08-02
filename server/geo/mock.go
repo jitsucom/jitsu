@@ -11,3 +11,7 @@ func (m Mock) Resolve(ip string) (*Data, error) {
 	}
 	return data, nil
 }
+
+func (m Mock) Type() string {
+	return "mock"
+}
