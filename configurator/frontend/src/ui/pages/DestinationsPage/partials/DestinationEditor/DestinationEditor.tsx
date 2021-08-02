@@ -40,6 +40,7 @@ import { firstToLower } from 'lib/commons/utils';
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
+import { DestinationNotFound } from '../DestinationNotFound/DestinationNotFound';
 
 type DestinationTabKey =
   | 'config'
@@ -97,7 +98,7 @@ const DestinationEditor = ({
   const sources = sourcesStore.sources;
   const destinationData = useRef<DestinationData>(getDestinationData(params));
 
-  const destinationReference = useMemo<Destination>(() => {
+  const destinationReference = useMemo<Destination | null | undefined>(() => {
     if (params.type) {
       return destinationsReferenceMap[params.type];
     }
@@ -387,9 +388,11 @@ const DestinationEditor = ({
           {
             title: (
               <PageHeader
-                title={destinationReference.displayName}
-                icon={destinationReference.ui.icon}
-                mode={editorMode}
+                title={
+                  destinationReference?.displayName || 'Destination Not Found'
+                }
+                icon={destinationReference?.ui.icon}
+                mode={destinationReference ? editorMode : null}
               />
             )
           }
@@ -398,7 +401,9 @@ const DestinationEditor = ({
     );
   }, [destinationReference, setBreadcrumbs]);
 
-  return (
+  debugger;
+
+  return destinationReference ? (
     <>
       <div
         className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}
@@ -464,6 +469,8 @@ const DestinationEditor = ({
         )}
       />
     </>
+  ) : (
+    <DestinationNotFound destinationId={params.id} />
   );
 };;
 
