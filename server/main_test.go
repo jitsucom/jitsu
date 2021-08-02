@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/testsuit"
 	"io/ioutil"
 	"net"
@@ -356,6 +357,16 @@ func TestIncomingEvent(t *testing.T) {
 			true,
 		},
 		{
+			"Cookie and ip policies comply",
+			"/api/v1/event?token=c2stoken&cookie_policy=comply&ip_policy=comply",
+			"test_data/event_input_2.0.json",
+			"test_data/fact_output_cookie_less_anonymize_ip.json",
+			"",
+			http.StatusOK,
+			"",
+			true,
+		},
+		{
 			"Segment function track event",
 			"/api/v1/segment?token=s2stoken",
 			"test_data/segment_function_track_event_input.json",
@@ -511,7 +522,7 @@ func TestSegmentAPIEndpoint(t *testing.T) {
 
 			SetTestDefaultParams()
 
-			testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock().Build(t)
+			testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock(nil).Build(t)
 			defer testSuite.Close()
 
 			sendSegmentRequests(t, "http://"+testSuite.HTTPAuthority()+tt.ReqURN)
@@ -679,6 +690,136 @@ func TestPixelEndpoint(t *testing.T) {
 					}
 
 					require.True(t, exists, "Expected Jitsu cookie doesn't exist in the response")
+				}
+			}
+		})
+	}
+}
+
+func TestIPCookiePolicyComply(t *testing.T) {
+	uuid.InitMock()
+	binding.EnableDecoderUseNumber = true
+
+	SetTestDefaultParams()
+	tests := []struct {
+		Name                 string
+		ReqURN               string
+		ReqBodyPath          string
+		GeoData              *geo.Data
+		ExpectedJSONPath     string
+		ExpectedDeleteCookie bool
+	}{
+		{
+			"Cookie policy comply UK",
+			"/api/v1/event?token=c2stoken&cookie_policy=comply&ip_policy=comply",
+			"test_data/event_input_2.0.json",
+			&geo.Data{
+				Country: "UK",
+				City:    "Brighton",
+				Lat:     50.8284,
+				Lon:     -0.13947,
+				Region:  "England",
+			},
+			"test_data/fact_output_ip_cookie_comply_false.json",
+			true,
+		},
+		{
+			"Cookie policy comply EU",
+			"/api/v1/event?token=c2stoken&cookie_policy=comply&ip_policy=comply",
+			"test_data/event_input_2.0.json",
+			&geo.Data{
+				Country: "UK",
+				City:    "Brighton",
+				Lat:     50.8284,
+				Lon:     -0.13947,
+				Region:  "England",
+			},
+			"test_data/fact_output_ip_cookie_comply_false.json",
+			true,
+		},
+		{
+			"Cookie policy comply USA",
+			"/api/v1/event?token=c2stoken&cookie_policy=comply&ip_policy=comply",
+			"test_data/event_input_2.0.json",
+			&geo.Data{
+				Country: "US",
+				City:    "New York",
+				Lat:     79.01,
+				Lon:     22.02,
+				Zip:     "14101",
+			},
+			"test_data/fact_output_ip_cookie_comply_true.json",
+			false,
+		},
+		{
+			"Cookie policy comply RUS",
+			"/api/v1/event?token=c2stoken&cookie_policy=comply&ip_policy=comply",
+			"test_data/event_input_2.0.json",
+			&geo.Data{
+				Country: "RU",
+				City:    "Moscow",
+				Lat:     55.752220,
+				Lon:     37.615560,
+			},
+			"test_data/fact_output_ip_cookie_comply_true.json",
+			false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.Name, func(t *testing.T) {
+			testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock(tt.GeoData).Build(t)
+			defer testSuite.Close()
+
+			b, err := ioutil.ReadFile(tt.ReqBodyPath)
+			require.NoError(t, err)
+
+			//check http POST
+			apiReq, err := http.NewRequest("POST", "http://"+testSuite.HTTPAuthority()+tt.ReqURN, bytes.NewBuffer(b))
+			require.NoError(t, err)
+
+			apiReq.Header.Add("x-real-ip", "10.10.10.10")
+			resp, err := http.DefaultClient.Do(apiReq)
+			require.NoError(t, err)
+
+			require.Equal(t, http.StatusOK, resp.StatusCode, "HTTP cods aren't equal")
+
+			b, err = ioutil.ReadAll(resp.Body)
+			require.NoError(t, err)
+
+			resp.Body.Close()
+			if tt.ExpectedDeleteCookie {
+				require.Equal(t, `{"status":"ok","delete_cookie":true}`, string(b))
+			} else {
+				require.Equal(t, `{"status":"ok"}`, string(b))
+			}
+
+			if tt.ExpectedDeleteCookie {
+				require.Equal(t, `{"status":"ok","delete_cookie":true}`, string(b))
+			} else {
+				require.Equal(t, `{"status":"ok"}`, string(b))
+			}
+
+			time.Sleep(200 * time.Millisecond)
+
+			expectedAllBytes, err := ioutil.ReadFile(tt.ExpectedJSONPath)
+			require.NoError(t, err)
+
+			actualBytes := logging.InstanceMock.Data
+
+			if expectedAllBytes[0] == '{' {
+				require.Equal(t, 1, len(actualBytes))
+				test.JSONBytesEqual(t, expectedAllBytes, actualBytes[0], "Logged facts aren't equal")
+			} else {
+				//array
+				expectedEvents := []interface{}{}
+				require.NoError(t, json.Unmarshal(expectedAllBytes, &expectedEvents))
+
+				require.Equal(t, len(expectedEvents), len(actualBytes), "Logged facts count isn't equal with actual one")
+				for i, expected := range expectedEvents {
+					actualEvent := actualBytes[i]
+					expectedBytes, err := json.Marshal(expected)
+					require.NoError(t, err)
+					test.JSONBytesEqual(t, expectedBytes, actualEvent, "Logged facts aren't equal")
 				}
 			}
 		})

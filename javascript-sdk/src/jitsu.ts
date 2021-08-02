@@ -199,7 +199,7 @@ class JitsuClientImpl implements JitsuClient {
     }
     let jsonString = JSON.stringify(json);
     if (this.beaconApi) {
-      return beaconTransport(url, jsonString, () => {});
+      return beaconTransport(url, jsonString);
     } else {
       return this.xmlHttpReqTransport(url, jsonString)
     }
