@@ -290,7 +290,6 @@ const DestinationEditor = ({
     submittedOnce.current = true;
 
     setDestinationSaving(true);
-    debugger;
 
     Promise.all(
       destinationsTabs.current
@@ -325,13 +324,11 @@ const DestinationEditor = ({
             true
           );
 
-          debugger;
-
           if (editorMode === 'add')
             await flowResult(
               destinationsStore.addDestination(destinationData.current)
             );
-          debugger;
+
           if (editorMode === 'edit')
             await flowResult(
               destinationsStore.editDestinations(destinationData.current)
@@ -401,7 +398,7 @@ const DestinationEditor = ({
     );
   }, [destinationReference, setBreadcrumbs]);
 
-  debugger;
+  
 
   return destinationReference ? (
     <>
