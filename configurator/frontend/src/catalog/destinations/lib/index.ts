@@ -42,9 +42,9 @@ export const destinationsReferenceMap = {
   dbtcloud: dbtcloudDestination
 } as const;
 
+export type DestinationReference =
+  typeof destinationsReferenceMap[keyof typeof destinationsReferenceMap];
+
 export const destinationsReferenceList = Object.values(
   destinationsReferenceMap
 );
-
-export type DestinationStrictType =
-  typeof destinationsReferenceMap[keyof typeof destinationsReferenceMap];

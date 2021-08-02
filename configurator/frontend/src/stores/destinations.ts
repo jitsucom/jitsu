@@ -7,8 +7,10 @@ import { intersection, union, without } from 'lodash';
 import { toArrayIfNot } from 'utils/arrays';
 import { ISourcesStore, sourcesStore } from './sources';
 import { apiKeysStore, IApiKeysStore, UserApiKey } from './apiKeys';
-import { destinationsReferenceMap} from "../catalog/destinations/lib";
-import { Destination } from '../catalog/destinations/types';
+import {
+  destinationsReferenceMap,
+  DestinationReference
+} from '../catalog/destinations/lib';
 
 export interface IDestinationsStore {
   destinations: DestinationData[];
@@ -20,6 +22,7 @@ export interface IDestinationsStore {
   injectSourcesStore: (sourcesStore: ISourcesStore) => void;
   getDestinationById: (id: string) => DestinationData | null;
   getDestinationByUid: (uid: string) => DestinationData | null;
+  getDestinationReferenceById: (id: string) => DestinationReference | null;
   pullDestinations: (
     showGlobalLoader: boolean
   ) => Generator<Promise<unknown>, void, unknown>;
@@ -189,14 +192,6 @@ class DestinationsStore implements IDestinationsStore {
     return !!this._destinations.length;
   }
 
-  public getDestinationById(id: string): DestinationData | null {
-    return this.destinations.find(({ _id }) => _id === id);
-  }
-
-  public getDestinationByUid(uid: string): DestinationData | null {
-    return this.destinations.find(({ _uid }) => _uid === uid);
-  }
-
   public get state() {
     return this._state;
   }
@@ -205,8 +200,26 @@ class DestinationsStore implements IDestinationsStore {
     return this._errorMessage;
   }
 
+  public getDestinationById(id: string): DestinationData | null {
+    return this.destinations.find(({ _id }) => _id === id);
+  }
+
+  public getDestinationByUid(uid: string): DestinationData | null {
+    return this.destinations.find(({ _uid }) => _uid === uid);
+  }
+
+  public getDestinationReferenceById(id: string): DestinationReference | null {
+    const destination: DestinationData | null = this.getDestinationById(id);
+    return destination ? destinationsReferenceMap[destination._type] : null;
+  }
+
   private filterDestinations(destinations: DestinationData[], hidden: boolean) {
-    return destinations ? destinations.filter(v => (destinationsReferenceMap[v._type].hidden ? true : false) == hidden ) : []
+    return destinations
+      ? destinations.filter(
+          (v) =>
+            (destinationsReferenceMap[v._type].hidden ? true : false) == hidden
+        )
+      : [];
   }
 
   private setDestinations(value: DestinationData[]) {
@@ -222,7 +235,7 @@ class DestinationsStore implements IDestinationsStore {
         'destinations',
         services.activeProject.id
       );
-      this.setDestinations(destinations)
+      this.setDestinations(destinations);
     } catch (error) {
       this.setError(
         GLOBAL_ERROR,
@@ -243,7 +256,7 @@ class DestinationsStore implements IDestinationsStore {
         { destinations: updatedDestinations },
         services.activeProject.id
       );
-      this.setDestinations(updatedDestinations)
+      this.setDestinations(updatedDestinations);
       this.updateSourcesLinksByDestinationsUpdates(destinationToAdd);
     } catch (error) {
       throw error;
@@ -264,7 +277,7 @@ class DestinationsStore implements IDestinationsStore {
         { destinations: updatedDestinations },
         services.activeProject.id
       );
-      this.setDestinations(updatedDestinations)
+      this.setDestinations(updatedDestinations);
       this.unlinkDeletedDestinationsFromSources(destinationToDelete);
     } finally {
       this._state = IDLE;
@@ -291,7 +304,7 @@ class DestinationsStore implements IDestinationsStore {
         { destinations: updatedDestinations },
         services.activeProject.id
       );
-      this.setDestinations(updatedDestinations)
+      this.setDestinations(updatedDestinations);
       if (options.updateSources)
         this.updateSourcesLinksByDestinationsUpdates(_destinationsToUpdate);
     } finally {
