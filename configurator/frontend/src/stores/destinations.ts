@@ -305,8 +305,10 @@ class DestinationsStore implements IDestinationsStore {
         ...destination,
         _onlyKeys: union(destination._onlyKeys, apiKeysUids)
       };
-      return [];
+      return [...updatedDestinations, updated];
     }, []);
+
+    yield flowResult(this.editDestinations(updatedDestinations));
   }
 }
 
