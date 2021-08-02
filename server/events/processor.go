@@ -9,11 +9,11 @@ const (
 
 //RequestContext is a dto for keeping request data like special headers or e.g. client IP address
 type RequestContext struct {
-	UserAgent        string `json:"user_agent,omitempty"`
-	ClientIP         string `json:"client_ip,omitempty"`
-	Referer          string `json:"referer,omitempty"`
-	JitsuAnonymousID string `json:"jitsu_anonymous_id,omitempty"`
-	CookieLess       bool   `json:"cookie_less,omitempty"`
+	UserAgent           string `json:"user_agent,omitempty"`
+	ClientIP            string `json:"client_ip,omitempty"`
+	Referer             string `json:"referer,omitempty"`
+	JitsuAnonymousID    string `json:"jitsu_anonymous_id,omitempty"`
+	CookiesLawCompliant bool   `json:"cookie_laws_compliant,omitempty"`
 }
 
 // Processor is used in preprocessing and postprocessing events before and after consuming(storing)

@@ -13,8 +13,9 @@ type Integration struct {
 	ExpectedJSONPath string
 	XAuthToken       string
 
-	ExpectedHTTPCode int
-	ExpectedErrMsg   string
+	ExpectedHTTPCode     int
+	ExpectedErrMsg       string
+	ExpectedDeleteCookie bool
 }
 
 //GetLocalAuthority returns host:port of local server
