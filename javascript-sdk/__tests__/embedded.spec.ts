@@ -30,8 +30,8 @@ test('test embedded no init', async () => {
 
 test('test segment intercept', async () => {
   server.clearRequestLog();
-  const {allRequests} = await runUrl(browser, server.getUrl('/test-case/segment-intercept.html?gclid=1&utm_source=UTM-SOURCE'));
-  expect(allRequests.filter(req => req.url().indexOf("https://api.segment.io/v1/") >= 0).length).toBe(server.requestLog.length);
+  const { allRequests } = await runUrl(browser, server.getUrl('/test-case/segment-intercept.html?gclid=1&utm_source=UTM-SOURCE'));
+  expect(allRequests.filter(req => req.url().indexOf('https://api.segment.io/v1/') >= 0).length).toBe(server.requestLog.length);
   console.log(`Request log (${server.requestLog.length})`, JSON.stringify(server.requestLog, null, 2))
   expect(server.requestLog.length).toBe(4);
   server.clearRequestLog();
@@ -41,23 +41,6 @@ test('test segment intercept', async () => {
 test('test embedded', async () => {
   server.clearRequestLog();
   await runUrl(browser, server.getUrl('/test-case/embed.html?gclid=1'));
-  let requestLog = server.requestLog;
-  expect(requestLog.length).toBe(2);
-  expect(requestLog[0].api_key).toBe("Test");
-  expect(requestLog[0].click_id.gclid).toBe("1");
-  expect(requestLog[0].user.anonymous_id).toBeDefined()
-  expect(requestLog[0].user.anonymous_id).toBe(requestLog[1].user.anonymous_id)
-  expect(requestLog[1].user.anonymous_id).toBeDefined()
-  expect(requestLog[1].extra).toBe(1)
-  expect(requestLog[1].persistent_prop1).toBe(2)
-  expect(requestLog[1].persistent_prop2).toBe(3)
-  expect(requestLog[1].persistent_prop3).toBe(undefined)
-  server.clearRequestLog();
-});
-
-test('test embedded explicit id method', async () => {
-  server.clearRequestLog();
-  await runUrl(browser, server.getUrl('/test-case/embed-explicit-id-method.html?gclid=1'));
   let requestLog = server.requestLog;
   expect(requestLog.length).toBe(2);
   expect(requestLog[0].api_key).toBe("Test");

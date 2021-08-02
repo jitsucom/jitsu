@@ -7,7 +7,7 @@
   "event_type": "open_email",
   "eventn_ctx_event_id": "mockeduuid",
   "field2": "value2",
-  "cookie_less":"true",
+  "cookie_policy":"strict",
   "object": {
     "field_1": "value1"
   },
