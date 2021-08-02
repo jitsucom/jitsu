@@ -16,14 +16,53 @@ import (
 	"github.com/oschwald/geoip2-golang"
 )
 
-var (
-	EmptyIP    = errors.New("IP is empty")
+const (
 	mmdbSuffix = ".mmdb"
+
+	MaxmindType = "maxmind"
+	DummyType   = "dummy"
+
+	UKCountry = "UK"
+)
+
+var (
+	EmptyIP = errors.New("IP is empty")
+
+	EUCountries = map[string]bool{
+		"BE": true,
+		"EL": true,
+		"LT": true,
+		"PT": true,
+		"BG": true,
+		"ES": true,
+		"LU": true,
+		"RO": true,
+		"CZ": true,
+		"FR": true,
+		"HU": true,
+		"SI": true,
+		"DK": true,
+		"HR": true,
+		"MT": true,
+		"SK": true,
+		"DE": true,
+		"IT": true,
+		"NL": true,
+		"FI": true,
+		"EE": true,
+		"CY": true,
+		"AT": true,
+		"SE": true,
+		"IE": true,
+		"LV": true,
+		"PL": true,
+	}
 )
 
 //Resolver is a geo based location data resolver
 type Resolver interface {
 	Resolve(ip string) (*Data, error)
+	Type() string
 }
 
 //Data is a geo location data dto
@@ -137,8 +176,16 @@ func (mr *MaxMindResolver) Resolve(ip string) (*Data, error) {
 	return data, nil
 }
 
+func (mr *MaxMindResolver) Type() string {
+	return MaxmindType
+}
+
 func (dr *DummyResolver) Resolve(ip string) (*Data, error) {
 	return nil, nil
+}
+
+func (dr *DummyResolver) Type() string {
+	return DummyType
 }
 
 func findMmdbFile(dir string) string {

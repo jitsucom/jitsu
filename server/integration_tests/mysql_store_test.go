@@ -49,7 +49,7 @@ func TestMySQLStreamInsert(t *testing.T) {
 
 	destinationConfig := fmt.Sprintf(configTemplate, mc.Host, mc.Port, mc.Database, mc.Username, mc.Password)
 
-	testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock().WithDestinationService(t, destinationConfig).Build(t)
+	testSuite := testsuit.NewSuiteBuilder(t).WithGeoDataMock(nil).WithDestinationService(t, destinationConfig).Build(t)
 	defer testSuite.Close()
 
 	time.Sleep(100 * time.Millisecond)
