@@ -1,13 +1,8 @@
 // @Libs
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Prompt, useHistory, useParams } from 'react-router-dom';
 import { Card, Form, message } from 'antd';
+import { flowResult } from 'mobx';
 import cn from 'classnames';
 // @Components
 import { TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
@@ -20,6 +15,7 @@ import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
 import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
 // @Store
+import { sourcesStore } from 'stores/sources';
 import { destinationsStore } from 'stores/destinations';
 // @CatalogDestinations
 import { destinationsReferenceMap } from 'catalog/destinations/lib';
@@ -44,9 +40,14 @@ import { firstToLower } from 'lib/commons/utils';
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
-import { sourcesStore } from 'stores/sources';
+import { DestinationNotFound } from '../DestinationNotFound/DestinationNotFound';
 
-type DestinationTabKey = 'config' | 'mappings' | 'sources' | 'settings' | 'statistics';
+type DestinationTabKey =
+  | 'config'
+  | 'mappings'
+  | 'sources'
+  | 'settings'
+  | 'statistics';
 
 type DestinationParams = {
   type?: DestinationType;
@@ -64,18 +65,15 @@ type DestinationURLParams = {
   standalone?: string;
 }
 
-type ConfigProps = {paramsByProps?: DestinationParams}
+type ConfigProps = { paramsByProps?: DestinationParams };
 
 type ControlsProps = {
   disableForceUpdateOnSave?: boolean;
   onAfterSaveSucceded?: () => void;
   onCancel?: () => void;
-}
+};
 
-type Props =
-  & CommonDestinationPageProps
-  & ConfigProps
-  & ControlsProps;
+type Props = CommonDestinationPageProps & ConfigProps & ControlsProps;
 
 const DestinationEditor = ({
   editorMode,
@@ -104,7 +102,7 @@ const DestinationEditor = ({
   const sources = sourcesStore.sources;
   const destinationData = useRef<DestinationData>(getDestinationData(params));
 
-  const destinationReference = useMemo<Destination>(() => {
+  const destinationReference = useMemo<Destination | null | undefined>(() => {
     if (params.type) {
       return destinationsReferenceMap[params.type];
     }
@@ -300,6 +298,7 @@ const DestinationEditor = ({
     submittedOnce.current = true;
 
     setDestinationSaving(true);
+    debugger;
 
     Promise.all(
       destinationsTabs.current
@@ -334,10 +333,17 @@ const DestinationEditor = ({
             true
           );
 
+          debugger;
+
           if (editorMode === 'add')
-            destinationsStore.addDestination(destinationData.current);
+            await flowResult(
+              destinationsStore.addDestination(destinationData.current)
+            );
+          debugger;
           if (editorMode === 'edit')
-            destinationsStore.editDestinations(destinationData.current);
+            await flowResult(
+              destinationsStore.editDestinations(destinationData.current)
+            );
 
           destinationsTabs.current.forEach((tab: Tab) => (tab.touched = false));
 
@@ -405,7 +411,9 @@ const DestinationEditor = ({
     }));
   }, [destinationReference, setBreadcrumbs]);
 
-  return (
+  debugger;
+
+  return destinationReference ? (
     <>
       <div
         className={cn('flex flex-col items-stretch flex-auto', styles.wrapper)}
@@ -470,6 +478,8 @@ const DestinationEditor = ({
         )}
       />
     </>
+  ) : (
+    <DestinationNotFound destinationId={params.id} />
   );
 };;
 
