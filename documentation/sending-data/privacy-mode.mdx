@@ -1,9 +1,5 @@
 # Privacy Mode
 
-<Hint>
-    This feature is available in <b>beta</b> version only.
-</Hint>
-
 Jitsu can work in *privacy mode* that makes it compatible with [GDPR](https://gdpr.eu/), [CCPA](https://oag.ca.gov/privacy/ccpa)
 (California's version of GDPR), [PECR](https://ico.org.uk/for-organisations/guide-to-pecr/) (UK's GDPR).
 In this mode Jitsu:
@@ -11,18 +7,7 @@ In this mode Jitsu:
  * Won't use cookies to identify users; instead of cookies, Jitsu will use fingerprints that are sufficiently enough to identify users.
  * Won't record full IP address of the user. Instead, only first 3 octets will be recorded which is just enough to resolve country, and city
 
-
-<Hint>
-    If privacy mode is off, you should collect a cookie consent for residents of EU, UK and California. Jitsu uses cookie only for
-    analytics, so they fall under analytics (or functional) cookies category.
-    <br /><br />
-    The good idea is to make switch on privacy mode for only those users who didn't consent to cookies,
-</Hint>
-
-
-## Configuration
-
-To switch off privacy mode use `privacy_policy` parameter (or `data-privacy-policy`) following configuration parameter:
+To switch on privacy mode use `privacy_policy` parameter (or `data-privacy-policy`) following configuration parameter:
 
 ```javascript
 const { jitsuClient } = require('@jitsu/sdk-js');
@@ -41,3 +26,65 @@ or
 <script>
 ```
 
+`privacy_policy=strict` is just a shortcut for `cookie_policy=strict` and `ip_policy=strict` configuration. You can configure them separately:
+
+```javascript
+const { jitsuClient } = require('@jitsu/sdk-js');
+const jitsu = jitsuClient({
+    key: "[API_KEY]",
+    ip_policy: 'strict' as Policy,
+    cookie_policy: 'strict' as Policy
+});
+```
+
+or
+```html
+<script src="%%SERVER%%/s/lib.js"
+        data-key="JITSU_API_KEY"
+        data-cookie-policy="strict"
+        data-ip-policy="strict"
+        defer></script>
+<script>
+```
+
+
+<Hint>
+  If privacy mode is off, you should collect a cookie consent for residents of EU and UK. Jitsu uses cookie only for
+  analytics, so they fall under analytics (or functional) cookies category.
+  <br /><br />
+  The good idea is to make switch on <code inline="true">cookie_policy</code> and <code inline="true">ip_policy</code> for only those users who didn't consent to cookies or ip address.
+</Hint>
+
+## Geo Targeting
+
+Jitsu can detect users country with [MaxMind](/docs/other-features/geo-data-resolution#maxmind) and if the country is in EU or is UK then the behavior will be like `privacy_policy=strict`.
+Otherwise, there won't be any restriction on using cookies or storing IP address. For using geo targeting use `comply` policy value like in the following example:
+
+```javascript
+const { jitsuClient } = require('@jitsu/sdk-js');
+const jitsu = jitsuClient({
+    key: "[API_KEY]",
+    cookie_policy: 'comply' as Policy,
+    ip_policy: 'comply' as Policy
+});
+```
+
+or
+```html
+<script src="%%SERVER%%/s/lib.js"
+        data-key="JITSU_API_KEY"
+        data-cookie-policy="comply"
+        data-ip-policy="comply"
+        defer></script>
+<script>
+```
+
+<Hint>
+  If privacy mode is off, you should collect a cookie consent for residents of EU and UK. Jitsu uses cookie only for
+  analytics, so they fall under analytics (or functional) cookies category.
+  <br /><br />
+  The good idea is to switch <code inline="true">cookie_policy</code> and <code inline="true">ip_policy</code> to <code inline="true">strict</code> value only for those users who didn't consent to cookies or ip address.
+</Hint>
+
+
+In addition, read [JS SDK parameters reference](/docs/sending-data/js-sdk/parameters-reference).
