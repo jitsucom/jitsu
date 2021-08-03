@@ -3,7 +3,7 @@ import {
   booleanType,
   dashDateType,
   intType,
-  isoUtcDateType,
+  isoUtcDateType, passwordType,
   stringType
 } from '../types';
 import { customParameters, SingerTap } from './helper';
@@ -898,7 +898,40 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'MySQL',
     tap: 'tap-mysql',
     stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: false,
+    parameters: customParameters('tap-mysql', {
+      customConfig: [
+        {
+          id: 'host',
+          displayName: 'Host',
+          type: stringType,
+          required: true
+        },
+        {
+          id: 'port',
+          displayName: 'Port',
+          type: intType,
+          required: true,
+          defaultValue: 3306
+        },
+        {
+          id: 'user',
+          displayName: 'Username',
+          type: stringType,
+          required: true
+        },
+        {
+          id: 'password',
+          displayName: 'Password',
+          type: passwordType,
+          required: true
+        }
+      ]
+    }),
+    documentation: {
+      overview: <>MySQL connector pulls data from the remote database</>,
+      connection: <>For connecting to MySQL you'll need host, port, username, password</>
+    }
   },
   {
     pic: logos.tap_quick_base,
