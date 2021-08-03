@@ -117,6 +117,8 @@ type Driver interface {
 	Type() string
 	//GetCollectionTable returns table name
 	GetCollectionTable() string
+	//DeleteAllFromCollectionTable deletes all data for collection table name
+	DeleteAll() error
 	//GetCollectionMetaKey returns key for storing signature in meta.Storage
 	GetCollectionMetaKey() string
 }

@@ -151,6 +151,10 @@ func (a *Amplitude) GetCollectionTable() string {
 	return a.collection.GetTableName()
 }
 
+func (a *Amplitude) DeleteAll() error {
+	return nil
+}
+
 func (a *Amplitude) GetObjectsFor(interval *base.TimeInterval) ([]map[string]interface{}, error) {
 	var err error
 	var array []map[string]interface{}

@@ -32,6 +32,7 @@ func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage
 
 //ClearCacheHandler deletes source state (signature) from meta.Storage
 func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
+	deleteWarehouseData := c.DefaultQuery("delete_warehouse_data", "false") == "true"
 	req := &ClearCacheRequest{}
 	if err := c.BindJSON(req); err != nil {
 		logging.Errorf("Error parsing clear cache request: %v", err)
@@ -68,6 +69,15 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 			msg := fmt.Sprintf("Error clearing cache for source: [%s] collection: [%s]: %v", req.Source, collection, err)
 			logging.Error(msg)
 			multiErr = multierror.Append(multiErr, err)
+		}
+		if deleteWarehouseData {
+			err = driver.DeleteAll()
+			if err != nil {
+				msg := fmt.Sprintf("Error deleting all data from warehouse for source: [%s] collection: [%s]: %v", req.Source, collection, err)
+				logging.Error(msg)
+				multiErr = multierror.Append(multiErr, err)
+			}
+
 		}
 	}
 
