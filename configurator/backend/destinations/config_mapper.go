@@ -277,25 +277,31 @@ func mapSnowflake(snowflakeDestination *entities.Destination) (*enstorages.Desti
 		return nil, fmt.Errorf("error marshaling Snowflake config destination: %v", err)
 	}
 
-	snowflakeFormData := &entities.SnowflakeFormData{}
-	err = json.Unmarshal(b, snowflakeFormData)
+	formData := &entities.SnowflakeFormData{}
+	err = json.Unmarshal(b, formData)
 	if err != nil {
 		return nil, fmt.Errorf("error unmarshaling Snowflake form data: %v", err)
 	}
 	var s3 *enadapters.S3Config
 	var gcs *enadapters.GoogleConfig
-	if snowflakeFormData.S3Bucket != "" {
-		s3 = &enadapters.S3Config{Region: snowflakeFormData.S3Region, Bucket: snowflakeFormData.S3Bucket, AccessKeyID: snowflakeFormData.S3AccessKey, SecretKey: snowflakeFormData.S3SecretKey}
-	} else if snowflakeFormData.GCSBucket != "" {
-		gcs = &enadapters.GoogleConfig{Bucket: snowflakeFormData.GCSBucket, KeyFile: snowflakeFormData.GCSKey}
+	if formData.S3Bucket != "" {
+		s3 = &enadapters.S3Config{Region: formData.S3Region, Bucket: formData.S3Bucket, AccessKeyID: formData.S3AccessKey, SecretKey: formData.S3SecretKey}
+	} else if formData.GCSBucket != "" {
+		gcs = &enadapters.GoogleConfig{Bucket: formData.GCSBucket, KeyFile: formData.GCSKey}
+	}
+	autoSuspend, err := formData.AutoSuspendSec.Int64()
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling Snowflake form data: %v", err)
 	}
 	return &enstorages.DestinationConfig{
 		Type: enstorages.SnowflakeType,
-		Mode: snowflakeFormData.Mode,
+		Mode: formData.Mode,
 		DataLayout: &enstorages.DataLayout{
-			TableNameTemplate: snowflakeFormData.TableName,
+			TableNameTemplate: formData.TableName,
 		},
-		Snowflake: &enadapters.SnowflakeConfig{Account: snowflakeFormData.Account, Warehouse: snowflakeFormData.Warehouse, Db: snowflakeFormData.DB, Schema: snowflakeFormData.Schema, Username: snowflakeFormData.Username, Password: snowflakeFormData.Password, Stage: snowflakeFormData.StageName},
+		Snowflake: &enadapters.SnowflakeConfig{Account: formData.Account, Warehouse: formData.Warehouse,
+			Db: formData.DB, Schema: formData.Schema, Username: formData.Username,
+			Password: formData.Password, Stage: formData.StageName, AutoSuspendSec: int(autoSuspend)},
 		S3:        s3,
 		Google:    gcs,
 	}, nil

@@ -4,15 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/jitsucom/jitsu/server/typing"
-
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/typing"
 	sf "github.com/snowflakedb/gosnowflake"
+	"time"
 )
 
 //Snowflake stores files to Snowflake in two modes:
@@ -25,6 +24,7 @@ type Snowflake struct {
 	snowflakeAdapter              *adapters.Snowflake
 	streamingWorker               *StreamingWorker
 	usersRecognitionConfiguration *UserRecognitionConfiguration
+	suspender					  *SnowflakeSuspender
 }
 
 func init() {
@@ -40,6 +40,15 @@ func NewSnowflake(config *Config) (Storage, error) {
 	if snowflakeConfig.Schema == "" {
 		snowflakeConfig.Schema = "PUBLIC"
 		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.destinationID, snowflakeConfig.Schema)
+	}
+	var suspender *SnowflakeSuspender
+	if snowflakeConfig.AutoSuspendSec > 0 {
+		dur := time.Duration(time.Second.Nanoseconds()*int64(snowflakeConfig.AutoSuspendSec))
+		var err error
+		suspender, err = AcquireSnowflakeSuspender(snowflakeConfig, dur, config.monitorKeeper)
+		if err != nil {
+			return nil, fmt.Errorf("failed to start Auto Suspender: %v", err)
+		}
 	}
 
 	//default client_session_keep_alive
@@ -106,6 +115,9 @@ func NewSnowflake(config *Config) (Storage, error) {
 	//streaming worker (queue reading)
 	snowflake.streamingWorker = newStreamingWorker(config.eventQueue, config.processor, snowflake, tableHelper)
 	snowflake.streamingWorker.start()
+	if suspender != nil {
+		snowflake.suspender = suspender
+	}
 
 	return snowflake, nil
 }
@@ -145,9 +157,16 @@ func CreateSnowflakeAdapter(ctx context.Context, s3Config *adapters.S3Config, co
 	return snowflakeAdapter, nil
 }
 
+func (s *Snowflake) Insert(eventContext *adapters.EventContext) (err error) {
+	s.suspender.Touch()
+	return s.Abstract.Insert(eventContext)
+}
+
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+	s.suspender.RegisterTaskStart()
+	defer s.suspender.RegisterTaskEnd()
 	_, tableHelper := s.getAdapters()
 	flatData, failedEvents, err := s.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
@@ -201,6 +220,8 @@ func (s *Snowflake) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 		return err
 	}
 
+	s.suspender.RegisterTaskStart()
+	defer s.suspender.RegisterTaskEnd()
 	if err := s.snowflakeAdapter.Copy(fdata.FileName, dbTable.Name, header); err != nil {
 		return fmt.Errorf("Error copying file [%s] from stage to snowflake: %v", fdata.FileName, err)
 	}
@@ -219,11 +240,14 @@ func (s *Snowflake) GetUsersRecognition() *UserRecognitionConfiguration {
 
 // SyncStore is used in storing chunk of pulled data to Snowflake with processing
 func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
+	s.suspender.RegisterTaskStart()
+	defer s.suspender.RegisterTaskEnd()
 	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
 //Update uses SyncStore under the hood
 func (s *Snowflake) Update(object map[string]interface{}) error {
+	s.suspender.Touch()
 	return s.SyncStore(nil, []map[string]interface{}{object}, "", true)
 }
 
@@ -248,6 +272,10 @@ func (s *Snowflake) Close() (multiErr error) {
 		if err := s.streamingWorker.Close(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing streaming worker: %v", s.ID(), err))
 		}
+	}
+
+	if s.suspender != nil {
+		ReleaseSnowflakeSuspender(s.suspender)
 	}
 
 	if err := s.close(); err != nil {

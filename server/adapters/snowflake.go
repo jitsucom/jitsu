@@ -57,6 +57,7 @@ type SnowflakeConfig struct {
 	Warehouse  string             `mapstructure:"warehouse" json:"warehouse,omitempty" yaml:"warehouse,omitempty"`
 	Stage      string             `mapstructure:"stage" json:"stage,omitempty" yaml:"stage,omitempty"`
 	Parameters map[string]*string `mapstructure:"parameters" json:"parameters,omitempty" yaml:"parameters,omitempty"`
+	AutoSuspendSec      int       `mapstructure:"auto_suspend" json:"auto_suspend,omitempty" yaml:"auto_suspend,omitempty"`
 }
 
 //Validate required fields in SnowflakeConfig

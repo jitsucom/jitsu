@@ -91,6 +91,8 @@ type SnowflakeFormData struct {
 
 	GCSBucket string      `firestore:"snowflakeGcsBucket" json:"snowflakeGcsBucket"`
 	GCSKey    interface{} `firestore:"snowflakeJSONKey" json:"snowflakeJSONKey"`
+
+	AutoSuspendSec json.Number `firestore:"snowflakeAutoSuspendSec" json:"snowflakeAutoSuspendSec"`
 }
 
 //GoogleAnalyticsFormData entity is stored in main storage (Firebase/Redis)

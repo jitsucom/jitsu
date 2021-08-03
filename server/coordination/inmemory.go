@@ -94,6 +94,32 @@ func (ims *InMemoryService) IncrementVersion(system string, collection string) (
 	return result, nil
 }
 
+func (ims *InMemoryService) UpdateLastRunTime(system string, lastRunTime time.Time)  error {
+	ims.versionMutex.Lock()
+	defer ims.versionMutex.Unlock()
+	lastRunTimeInt := lastRunTime.Unix()
+	identifier := getIdentifier(system, storages.LastRunTimeKey)
+	value, ok := ims.systemCollectionVersions[identifier]
+	if !ok {
+		ims.systemCollectionVersions[identifier] = &lastRunTimeInt
+	} else {
+		atomic.StoreInt64(value, lastRunTimeInt)
+	}
+	return nil
+}
+
+func (ims *InMemoryService) GetLastRunTime(system string) (time.Time, error) {
+	ims.versionMutex.Lock()
+	defer ims.versionMutex.Unlock()
+	identifier := getIdentifier(system, storages.LastRunTimeKey)
+	value, ok := ims.systemCollectionVersions[identifier]
+	if !ok {
+		return time.Unix(0, 0), nil
+	}
+	return time.Unix(*value, 0), nil
+}
+
+
 func (ims *InMemoryService) Close() error {
 	return nil
 }

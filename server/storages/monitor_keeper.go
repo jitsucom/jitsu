@@ -4,7 +4,10 @@ import (
 	"context"
 	"github.com/jitsucom/jitsu/server/logging"
 	"io"
+	"time"
 )
+
+const LastRunTimeKey = "last_run_time"
 
 type ResourceLock interface {
 	Unlock(ctx context.Context) error
@@ -29,6 +32,11 @@ type MonitorKeeper interface {
 
 	GetVersion(system string, collection string) (int64, error)
 	IncrementVersion(system string, collection string) (int64, error)
+
+	//GetLastRunTime returns last run time of some service to sync between instances
+	GetLastRunTime(system string) (time.Time, error)
+	UpdateLastRunTime(system string, lastRunTime time.Time) error
+
 }
 
 //RetryableLock hold lock, resource closer

@@ -181,6 +181,49 @@ func (es *EtcdService) IncrementVersion(system string, collection string) (int64
 	return version, putErr
 }
 
+func (es *EtcdService) UpdateLastRunTime(system string, lastRunTime time.Time) error {
+	ctx := context.Background()
+	key := system+"_"+storages.LastRunTimeKey
+	var err error
+	response, err := es.client.Get(ctx, key)
+	if err != nil {
+		return err
+	}
+	var value int64
+	if len(response.Kvs) > 0 {
+		value, err = strconv.ParseInt(string(response.Kvs[0].Value), 10, 64)
+		if err != nil {
+			return err
+		}
+	}
+	lastRunTimeInt := lastRunTime.Unix()
+
+	if lastRunTimeInt > value {
+		value = lastRunTimeInt
+		_, err = es.client.Put(ctx, key, strconv.FormatInt(value, 10))
+
+	}
+	return  err
+}
+
+func (es *EtcdService) GetLastRunTime(system string) (time.Time, error) {
+	ctx := context.Background()
+	key := system+"_"+storages.LastRunTimeKey
+	var err error
+	response, err := es.client.Get(ctx, key)
+	if err != nil {
+		return time.Time{}, err
+	}
+	var value int64
+	if len(response.Kvs) > 0 {
+		value, err = strconv.ParseInt(string(response.Kvs[0].Value), 10, 64)
+		if err != nil {
+			return time.Time{}, err
+		}
+	}
+	return time.Unix(value, 0), nil
+}
+
 //GetInstances returns instance names list from Etcd
 func (es *EtcdService) GetInstances() ([]string, error) {
 	r, err := es.client.Get(context.Background(), instancePrefix, clientv3.WithPrefix())
