@@ -137,6 +137,10 @@ func (f *Firebase) GetCollectionTable() string {
 	return f.collection.GetTableName()
 }
 
+func (f *Firebase) DeleteAll() error {
+	return nil
+}
+
 func (f *Firebase) GetCollectionMetaKey() string {
 	return f.collection.Name + "_" + f.GetCollectionTable()
 }

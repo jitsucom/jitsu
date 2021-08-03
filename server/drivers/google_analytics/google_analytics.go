@@ -175,6 +175,10 @@ func (g *GoogleAnalytics) GetCollectionTable() string {
 	return g.collection.GetTableName()
 }
 
+func (g *GoogleAnalytics) DeleteAll() error {
+	return nil
+}
+
 func (g *GoogleAnalytics) GetCollectionMetaKey() string {
 	return g.collection.Name + "_" + g.GetCollectionTable()
 }

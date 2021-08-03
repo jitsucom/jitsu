@@ -114,6 +114,10 @@ func (gp *GooglePlay) GetCollectionTable() string {
 	return gp.collection.GetTableName()
 }
 
+func (gp *GooglePlay) DeleteAll() error {
+	return nil
+}
+
 func (gp *GooglePlay) GetCollectionMetaKey() string {
 	return gp.collection.Name + "_" + gp.GetCollectionTable()
 }
