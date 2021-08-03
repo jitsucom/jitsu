@@ -184,12 +184,12 @@ func main() {
 	// Create full path to logs directory if it is necessary
 	logging.Infof("📂 Create log.path directory: %q", logEventPath)
 	if err := logging.EnsureDir(logEventPath); err != nil {
-		logging.Fatalf("log.path %q cannot be created!", logEventPath)
+		logging.Fatalf("log.path %q cannot be created: [%T] %v", logEventPath, err, err)
 	}
 
 	//check if log.path is writable
 	if !logging.IsDirWritable(logEventPath) {
-		logging.Fatal("log.path:", logEventPath, "must be writable! Since eventnative docker user and owner of mounted dir are different: Please use 'chmod 777 your_mount_dir'")
+		logging.Fatal("log.path:", logEventPath, "must be writable! Since eventnative docker user and owner of mounted dir are different: Please use 'chmod -R 777 your_mount_dir'")
 	}
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
