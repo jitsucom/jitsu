@@ -22,10 +22,15 @@ func BuildRequest(c *gin.Context) *Request {
 //BuildRequestWithQueryParams returns jitsu request from incoming gin.Context with additional query parameters
 func BuildRequestWithQueryParams(c *gin.Context, queryParamsToAdd map[string]string) *Request {
 	var queryParameters []string
-	originalQuery := c.Request.URL.Query().Encode()
-	if originalQuery != "" {
-		queryParameters = append(queryParameters, originalQuery)
+	//add origin query parameter only if it doesn't exist in queryParamsToAdd
+	for k, v := range c.Request.URL.Query() {
+		if _, ok := queryParamsToAdd[k]; !ok {
+			for _, value := range v {
+				queryParameters = append(queryParameters, k+"="+value)
+			}
+		}
 	}
+
 	for k, v := range queryParamsToAdd {
 		queryParameters = append(queryParameters, k+"="+v)
 	}
