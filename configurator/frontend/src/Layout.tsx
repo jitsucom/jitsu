@@ -325,12 +325,15 @@ export const SlackInvitationModal: React.FC<{visible: boolean, hide: () => void}
   </Modal>
 }
 
-const EmailIsNotConfirmedMessage: React.FC<{key: React.Key}> = ({ key }) => {
+const EmailIsNotConfirmedMessage: React.FC<{ messageKey: React.Key }> = ({
+  messageKey
+}) => {
   const services = useServices();
-  const [isSendingVerification, setIsSendingVerification] = useState<boolean>(false);
+  const [isSendingVerification, setIsSendingVerification] =
+    useState<boolean>(false);
 
-  const handleDestroyMessage = () => message.destroy(key);
-  const handleresendConfirmationLink = async() => {
+  const handleDestroyMessage = () => message.destroy(messageKey);
+  const handleresendConfirmationLink = async () => {
     setIsSendingVerification(true);
     try {
       await services.userService.sendConfirmationEmail();
@@ -338,49 +341,45 @@ const EmailIsNotConfirmedMessage: React.FC<{key: React.Key}> = ({ key }) => {
       setIsSendingVerification(false);
     }
     handleDestroyMessage();
-  }
+  };
   return (
     <span className="flex flex-col items-center mt-1">
       <span>
         <span>{'Email '}</span>
-        {
-          services.userService.getUser()?.email
-            ? (
-              <span className={`font-semibold ${styles.emailHighlight}`}>
-                {services.userService.getUser()?.email}
-              </span>
-            ) : ''
-        }
+        {services.userService.getUser()?.email ? (
+          <span className={`font-semibold ${styles.emailHighlight}`}>
+            {services.userService.getUser()?.email}
+          </span>
+        ) : (
+          ''
+        )}
         <span>
-          {
-            ` is not verified. Please, follow the instructions in your email 
-            to complete the verification process.`
-          }
+          {` is not verified. Please, follow the instructions in your email 
+            to complete the verification process.`}
         </span>
       </span>
       <span>
         <Button
           type="link"
           loading={isSendingVerification}
-          onClick={handleresendConfirmationLink}>
+          onClick={handleresendConfirmationLink}
+        >
           {'Resend verification link'}
         </Button>
-        <Button
-          type="text"
-          onClick={handleDestroyMessage}>
+        <Button type="text" onClick={handleDestroyMessage}>
           {'Close'}
         </Button>
       </span>
     </span>
   );
-}
+};
 
-const MESSAGE_KEY = 'email-not-confirmed-message'
+const MESSAGE_KEY = 'email-not-confirmed-message';
 
 export const emailIsNotConfirmedMessageConfig: MessageArgsProps = {
   type: 'error',
   key: MESSAGE_KEY,
   duration: null,
   icon: <>{null}</>,
-  content: <EmailIsNotConfirmedMessage key={MESSAGE_KEY} />
-}
+  content: <EmailIsNotConfirmedMessage messageKey={MESSAGE_KEY} />
+};

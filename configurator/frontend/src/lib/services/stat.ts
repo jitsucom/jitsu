@@ -34,8 +34,17 @@ export class EventsComparison {
 }
 
 type Granularity = 'day' | 'hour' | 'total';
+type Status = 'success' | 'skip' | 'error';
+type GenericStatisticsPoint<T extends string> = {
+  [key in T]: number;
+};
+type DestinationStatisticsPoint = GenericStatisticsPoint<Status>;
 
-export interface StatService {
+export type DestinationStatisticsDatePoint = DestinationStatisticsPoint & {
+  date: Moment;
+};
+
+export interface IStatisticsService {
   get(start: Date, end: Date, granularity: Granularity): Promise<DatePoint[]>;
 }
 
@@ -45,16 +54,11 @@ export function addSeconds(date: Date, seconds: number): Date {
   return res;
 }
 
-function roundDown(date: Date, granularity: Granularity): Date {
-  let res = new Date(date);
-  res.setMinutes(0, 0, 0);
-  if (granularity == 'day') {
-    res.setHours(0);
-  }
-  return res;
-}
-
-function emptySeries(from: Moment, to: Moment, granularity: Granularity): DatePoint[] {
+function emptySeries(
+  from: Moment,
+  to: Moment,
+  granularity: Granularity
+): DatePoint[] {
   let res: DatePoint[] = [];
   let end = moment(to)
     .utc()
@@ -69,7 +73,10 @@ function emptySeries(from: Moment, to: Moment, granularity: Granularity): DatePo
   return res;
 }
 
-function mergeSeries(lowPriority: DatePoint[], highPriority: DatePoint[]): DatePoint[] {
+function mergeSeries(
+  lowPriority: DatePoint[],
+  highPriority: DatePoint[]
+): DatePoint[] {
   return Object.entries({ ...index(lowPriority), ...index(highPriority) })
     .map(([key, val]) => {
       return { date: moment(key).utc(), events: val };
@@ -92,10 +99,10 @@ function index(series: DatePoint[]): Record<string, number> {
   return res;
 }
 
-export class StatServiceImpl implements StatService {
+export class StatisticsService implements IStatisticsService {
   private readonly api: BackendApiClient;
 
-  private readonly project: IProject;;
+  private readonly project: IProject;
 
   private readonly timeInUTC: boolean;
 
@@ -105,19 +112,70 @@ export class StatServiceImpl implements StatService {
     this.timeInUTC = timeInUTC;
   }
 
-  async get(
+  private combineDestinationStatisticsData(
+    entries: Array<[Status, DatePoint[]]>
+  ): DestinationStatisticsDatePoint[] {
+    if (!entries.length) return [];
+    return entries[0][1].map((_, idx) => {
+      return entries.reduce<DestinationStatisticsDatePoint>(
+        (point, entry) => {
+          return {
+            ...point,
+            date: entry[1][idx].date,
+            [entry[0]]: entry[1][idx].events
+          };
+        },
+        { date: entries[0][1][0].date, success: 0, skip: 0, error: 0 }
+      );
+    });
+  }
+
+  private getQuery(
     start: Date,
     end: Date,
-    granularity: Granularity
+    granularity: Granularity,
+    status?: Status,
+    destinationId?: string
+  ): string {
+    const queryParams = [
+      ['project_id', this.project.id],
+      ['start', start.toISOString()],
+      ['end', end.toISOString()],
+      ['granularity', granularity]
+    ];
+    if (status) queryParams.push(['status', status]);
+    if (destinationId) queryParams.push(['destination_id', destinationId]);
+    const query = queryParams.reduce<string>(
+      (query, [name, value]) => `${query}${name}=${value}&`,
+      ''
+    );
+    return query.substring(0, query.length - 1);
+  }
+
+  public async get(
+    start: Date,
+    end: Date,
+    granularity: Granularity,
+    status?: Status,
+    destinationId?: string
   ): Promise<DatePoint[]> {
-    let data = (
-      await this.api.get(
-        `/statistics?project_id=${
-          this.project.id
-        }&start=${start.toISOString()}&end=${end.toISOString()}&granularity=${granularity}`,
-        { proxy: true }
-      )
-    )['data'];
+    let response = await this.api.get(
+      `/statistics?${this.getQuery(
+        start,
+        end,
+        granularity,
+        status,
+        destinationId
+      )}`,
+      { proxy: true }
+    );
+
+    if (response['status'] !== 'ok') {
+      throw new Error('Failed to fetch statistics data');
+    }
+
+    const data = response['data'];
+
     return mergeSeries(
       emptySeries(moment(start).utc(), moment(end).utc(), granularity),
       data.map((el) => {
@@ -127,5 +185,23 @@ export class StatServiceImpl implements StatService {
         };
       })
     );
+  }
+
+  public async getDestinationStatistics(
+    start: Date,
+    end: Date,
+    granularity: Granularity,
+    destinationId: string
+  ): Promise<DestinationStatisticsDatePoint[]> {
+    const [successData, skipData, errorData] = await Promise.all([
+      this.get(start, end, granularity, 'success', destinationId),
+      this.get(start, end, granularity, 'skip', destinationId),
+      this.get(start, end, granularity, 'error', destinationId)
+    ]);
+    return this.combineDestinationStatisticsData([
+      ['success', successData],
+      ['skip', skipData],
+      ['error', errorData]
+    ]);
   }
 }

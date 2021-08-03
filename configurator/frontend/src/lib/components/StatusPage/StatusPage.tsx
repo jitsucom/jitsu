@@ -27,8 +27,8 @@ import {
   addSeconds,
   DatePoint,
   EventsComparison,
-  StatService,
-  StatServiceImpl
+  IStatisticsService,
+  StatisticsService
 } from 'lib/services/stat';
 import ApplicationServices from 'lib/services/ApplicationServices';
 import { destinationsStore, DestinationsStoreState } from 'stores/destinations';
@@ -52,14 +52,14 @@ interface Props {
 
 export default class StatusPage extends LoadableComponent<Props, State> {
   private readonly services: ApplicationServices;
-  private stats: StatService;
+  private stats: IStatisticsService;
   private timeInUTC: boolean;
 
   constructor(props: Props, context: any) {
     super(props, context);
     this.timeInUTC = withDefaultVal(this.props.timeInUTC, true);
     this.services = ApplicationServices.get();
-    this.stats = new StatServiceImpl(
+    this.stats = new StatisticsService(
       this.services.backendApiClient,
       this.services.activeProject,
       this.timeInUTC
@@ -171,7 +171,7 @@ export default class StatusPage extends LoadableComponent<Props, State> {
   }
 
   async getNumberOfDestinations() {
-    return destinationsStore.destinations.length ;
+    return destinationsStore.destinations.length;
   }
 
   protected renderError(e: Error): React.ReactNode {
