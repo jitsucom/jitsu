@@ -1,13 +1,13 @@
 # Privacy Mode
 
-Jitsu can work in *privacy mode* that makes it compatible with [GDPR](https://gdpr.eu/), [CCPA](https://oag.ca.gov/privacy/ccpa)
+Jitsu can work in *privacy mode* which makes it compatible with [GDPR](https://gdpr.eu/), [CCPA](https://oag.ca.gov/privacy/ccpa)
 (California's version of GDPR), [PECR](https://ico.org.uk/for-organisations/guide-to-pecr/) (UK's GDPR).
 In this mode Jitsu:
 
- * Won't use cookies to identify users; instead of cookies, Jitsu will use fingerprints that are sufficiently enough to identify users.
- * Won't record full IP address of the user. Instead, only first 3 octets will be recorded which is just enough to resolve country, and city
+ * Won't use cookies to identify users; instead of cookies, Jitsu will use fingerprints which is sufficient enough to identify users.
+ * Won't record the full IP address of the user. Instead, only the first 3 octets will be recorded which is just enough to resolve the country and city
 
-To switch on privacy mode use `privacy_policy` parameter (or `data-privacy-policy`) following configuration parameter:
+To switch on privacy mode, use the `privacy_policy` parameter (or `data-privacy-policy`) following the configuration parameter:
 
 ```javascript
 const { jitsuClient } = require('@jitsu/sdk-js');
