@@ -12,7 +12,8 @@ func (d *Dummy) DeleteSignature(sourceID, collection string) error              
 func (d *Dummy) SuccessEvents(id, namespace string, now time.Time, value int) error { return nil }
 func (d *Dummy) ErrorEvents(id, namespace string, now time.Time, value int) error   { return nil }
 func (d *Dummy) SkipEvents(id, namespace string, now time.Time, value int) error    { return nil }
-func (d *Dummy) GetProjectEventsWithGranularity(projectID string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
+func (d *Dummy) GetProjectSourceIDs(projectID string) ([]string, error)             { return []string{}, nil }
+func (d *Dummy) GetEventsWithGranularity(namespace, status string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
 	return nil, nil
 }
 
@@ -48,7 +49,7 @@ func (d *Dummy) GetAllTaskIDs(sourceID, collection string, descendingOrder bool)
 }
 func (d *Dummy) GetLastTask(sourceID, collection string) (*Task, error) { return nil, nil }
 func (d *Dummy) GetTask(taskID string) (*Task, error)                   { return nil, nil }
-func (d *Dummy) RemoveTasks(sourceID, collection string, taskIDs ... string) (int, error) {
+func (d *Dummy) RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error) {
 	return 0, nil
 }
 func (d *Dummy) AppendTaskLog(taskID string, now time.Time, system, message, level string) error {
