@@ -1,5 +1,5 @@
 import { hiddenValue, modeParameter, s3Credentials, tableName } from './common';
-import { Function, jsonType, passwordType, singleSelectionType, stringType } from '../../sources/types';
+import {Function, intType, jsonType, passwordType, singleSelectionType, stringType} from '../../sources/types';
 
 const icon = (
   <svg
@@ -107,6 +107,13 @@ const destination = {
       displayName: 'Password',
       required: true,
       type: passwordType
+    },
+    {
+      id: '_formData.snowflakeAutoSuspendSec',
+      displayName: 'Warehouse Auto Suspend (sec)',
+      required: false,
+      type: intType,
+      documentation: <>Automatically <a href={"https://docs.snowflake.com/en/user-guide/warehouses-tasks.html#starting-resuming-a-warehouse"}>suspend Snowflake Warehouse</a> after provided number of seconds. To enable set value greater than 0. Feature requires <b>Auto Resume to be enabled</b> on warehouse</>
     },
     {
       id: '_formData.snowflakeStageName',

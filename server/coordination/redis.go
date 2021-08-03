@@ -25,12 +25,16 @@ import (
 //** Versions **
 //systems:versions [system_collection, version] - hashtable with system+collection pair versions
 //
+//** Last Runs time **
+//systems:last_runs [system, last run] - hashtable with system pair last run time
+//
 //** Locking **
 //coordination:mutex#$system_$collection - redsync key for locking
 
 const (
 	heartbeatKey                 = "cluster:heartbeat"
 	systemsCollectionVersionsKey = "systems:versions"
+	systemsLastRunsKey = "systems:last_runs"
 )
 
 //RedisService is a redis implementation for Service
@@ -142,6 +146,30 @@ func (rs *RedisService) IncrementVersion(system string, collection string) (int6
 	}
 
 	return newVersion, nil
+}
+
+func (rs *RedisService) UpdateLastRunTime(system string, lastRunTime time.Time)  error {
+	conn := rs.pool.Get()
+	defer conn.Close()
+
+	_, err := redis.Int64(conn.Do("HSET", systemsLastRunsKey, system, lastRunTime.Unix()))
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+	return nil
+}
+
+func (rs *RedisService) GetLastRunTime(system string) (time.Time, error) {
+	conn := rs.pool.Get()
+	defer conn.Close()
+
+	value, err := redis.Int64(conn.Do("HGET", systemsLastRunsKey, system))
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return time.Time{}, err
+	}
+	return time.Unix(value, 0), nil
 }
 
 func (rs *RedisService) IsLocked(system string, collection string) (bool, error) {
