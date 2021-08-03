@@ -66,6 +66,8 @@ const (
 		"! Configuration documentation: https://jitsu.com/docs/configuration\n                            " +
 		"! Add config with `-cfg eventnative.yaml` parameter or put eventnative.yaml to <config_dir> and add mapping\n                            " +
 		"! -v <config_dir>/:/home/eventnative/data/config if you're using official Docker image"
+
+	logPathNotWritable = "Since eventnative docker user and owner of mounted dir are different: Please use 'chmod -R 777 your_mount_dir'"
 )
 
 var (
@@ -184,12 +186,12 @@ func main() {
 	// Create full path to logs directory if it is necessary
 	logging.Infof("📂 Create log.path directory: %q", logEventPath)
 	if err := logging.EnsureDir(logEventPath); err != nil {
-		logging.Fatalf("log.path %q cannot be created: [%T] %v", logEventPath, err, err)
+		logging.Fatalf("log.path: %q cannot be created: %v. %s", logEventPath, err, logPathNotWritable)
 	}
 
 	//check if log.path is writable
 	if !logging.IsDirWritable(logEventPath) {
-		logging.Fatal("log.path:", logEventPath, "must be writable! Since eventnative docker user and owner of mounted dir are different: Please use 'chmod -R 777 your_mount_dir'")
+		logging.Fatalf("log.path: %q must be writable! %s", logEventPath, logPathNotWritable)
 	}
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
