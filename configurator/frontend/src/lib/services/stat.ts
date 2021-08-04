@@ -34,7 +34,7 @@ export class EventsComparison {
 }
 
 type Granularity = 'day' | 'hour' | 'total';
-type Status = 'success' | 'skip' | 'error';
+type Status = 'success' | 'skip' | 'errors';
 type GenericStatisticsPoint<T extends string> = {
   [key in T]: number;
 };
@@ -125,7 +125,7 @@ export class StatisticsService implements IStatisticsService {
             [entry[0]]: entry[1][idx].events
           };
         },
-        { date: entries[0][1][0].date, success: 0, skip: 0, error: 0 }
+        { date: entries[0][1][0].date, success: 0, skip: 0, errors: 0 }
       );
     });
   }
@@ -196,12 +196,12 @@ export class StatisticsService implements IStatisticsService {
     const [successData, skipData, errorData] = await Promise.all([
       this.get(start, end, granularity, 'success', destinationId),
       this.get(start, end, granularity, 'skip', destinationId),
-      this.get(start, end, granularity, 'error', destinationId)
+      this.get(start, end, granularity, 'errors', destinationId)
     ]);
     return this.combineDestinationStatisticsData([
       ['success', successData],
       ['skip', skipData],
-      ['error', errorData]
+      ['errors', errorData]
     ]);
   }
 }
