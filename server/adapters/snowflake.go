@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	SuspendWarehouseSFQuery = `ALTER WAREHOUSE %s SUSPEND`
 	tableExistenceSFQuery   = `SELECT count(*) from INFORMATION_SCHEMA.COLUMNS where TABLE_SCHEMA = ? and TABLE_NAME = ?`
 	descSchemaSFQuery       = `desc table %s.%s`
 	copyStatementFileFormat = ` FILE_FORMAT=(TYPE= 'CSV', FIELD_DELIMITER = '||' SKIP_HEADER = 1 EMPTY_FIELD_AS_NULL = true) `
@@ -582,6 +583,12 @@ func (s *Snowflake) toDeleteQuery(conditions *DeleteConditions) (string, []inter
 //Close underlying sql.DB
 func (s *Snowflake) Close() (multiErr error) {
 	return s.dataSource.Close()
+}
+
+//SuspendWarehouse suspends snowflake warehouse preventing it from spending any more credits
+func (s *Snowflake) SuspendWarehouse() (err error) {
+	_, err = s.dataSource.Exec(fmt.Sprintf(SuspendWarehouseSFQuery, s.config.Warehouse))
+	return
 }
 
 //getCastClause returns ::SQL_TYPE clause or empty string
