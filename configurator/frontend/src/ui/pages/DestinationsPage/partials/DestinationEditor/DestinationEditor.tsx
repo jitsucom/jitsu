@@ -1,6 +1,6 @@
 // @Libs
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Prompt, useHistory, useParams } from 'react-router-dom';
+import { generatePath, Prompt, useHistory, useParams } from 'react-router-dom';
 import { Card, Form, message } from 'antd';
 import { flowResult } from 'mobx';
 import cn from 'classnames';
@@ -14,6 +14,7 @@ import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
 import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
+import { DestinationNotFound } from '../DestinationNotFound/DestinationNotFound';
 // @Store
 import { sourcesStore } from 'stores/sources';
 import { destinationsStore } from 'stores/destinations';
@@ -40,7 +41,6 @@ import { firstToLower } from 'lib/commons/utils';
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
-import { DestinationNotFound } from '../DestinationNotFound/DestinationNotFound';
 
 type DestinationTabKey =
   | 'config'
@@ -55,7 +55,7 @@ type DestinationParams = {
   tabName?: string;
   //For editor that lives separately from destination list page
   standalone?: string;
-}
+};
 
 type DestinationURLParams = {
   type?: string;
@@ -63,7 +63,7 @@ type DestinationURLParams = {
   tabName?: string;
   //For editor that lives separately from destination list page
   standalone?: string;
-}
+};
 
 type ConfigProps = { paramsByProps?: DestinationParams };
 
@@ -215,7 +215,7 @@ const DestinationEditor = ({
       ),
       form: Form.useForm()[0],
       touched: false,
-      isHidden: params.standalone == "true"
+      isHidden: params.standalone == 'true'
     },
     {
       key: 'sources',
@@ -231,33 +231,16 @@ const DestinationEditor = ({
       form: Form.useForm()[0],
       errorsLevel: 'warning',
       touched: false,
-      isHidden: params.standalone == "true"
+      isHidden: params.standalone == 'true'
     },
     {
       key: 'settings',
       name: 'Configuration Templates',
       touched: false,
-      isHidden: params.standalone == "true",
+      isHidden: params.standalone == 'true',
       getComponent: () => (
         <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary} />
       )
-    },
-    {
-      key: 'statistics',
-      isHidden: params.standalone == "true",
-      name: (
-        <ComingSoon
-          render="Statistics"
-          documentation={
-            <>
-              A detailed statistics on how many events have been sent to the
-              destinations
-            </>
-          }
-        />
-      ),
-      isDisabled: true,
-      touched: false
     }
   ];
 
@@ -266,6 +249,13 @@ const DestinationEditor = ({
   const handleCancel = useCallback(() => {
     onCancel ? onCancel() : history.push(destinationPageRoutes.root);
   }, [history, onCancel]);
+
+  const handleViewStatistics = () =>
+    history.push(
+      generatePath(destinationPageRoutes.statisticsExact, {
+        id: destinationData.current._id
+      })
+    );
 
   const testConnectingPopoverClose = useCallback(
     () => switchTestConnectingPopover(false),
@@ -346,12 +336,18 @@ const DestinationEditor = ({
 
           if (destinationData.current._connectionTestOk) {
             if (editorMode === 'add')
-              message.success(`New ${destinationData.current._type} has been added!`);
+              message.success(
+                `New ${destinationData.current._type} has been added!`
+              );
             if (editorMode === 'edit')
-              message.success(`${destinationData.current._type} has been saved!`);
+              message.success(
+                `${destinationData.current._type} has been saved!`
+              );
           } else {
             closeableMessage.warn(
-              `${destinationData.current._type} has been saved, but test has failed with '${firstToLower(
+              `${
+                destinationData.current._type
+              } has been saved, but test has failed with '${firstToLower(
                 destinationData.current._connectionErrorMessage
               )}'. Data will not be piped to this destination`
             );
@@ -383,32 +379,35 @@ const DestinationEditor = ({
     (src.destinations || []).includes(destinationData.current._uid)
   ).length;
 
-  const isAbleToConnectItems = (): boolean => 
+  const isAbleToConnectItems = (): boolean =>
     editorMode === 'edit' &&
     connectedSourcesNum === 0 &&
     !destinationData.current?._onlyKeys?.length &&
-      !destinationsReferenceMap[params.type]?.hidden
-    
+    !destinationsReferenceMap[params.type]?.hidden;
+
   useEffect(() => {
-    let breadCrumbs = []
+    let breadCrumbs = [];
     if (!params.standalone) {
-      breadCrumbs.push({ title: 'Destinations', link: destinationPageRoutes.root })
+      breadCrumbs.push({
+        title: 'Destinations',
+        link: destinationPageRoutes.root
+      });
     }
     breadCrumbs.push({
       title: (
-          <PageHeader
-              title={destinationReference.displayName}
-              icon={destinationReference.ui.icon}
-              mode={params.standalone ? 'edit' : editorMode}
-          />
+        <PageHeader
+          title={destinationReference.displayName}
+          icon={destinationReference.ui.icon}
+          mode={params.standalone ? 'edit' : editorMode}
+        />
       )
-    })
-    setBreadcrumbs(withHome({
-      elements: breadCrumbs
-    }));
+    });
+    setBreadcrumbs(
+      withHome({
+        elements: breadCrumbs
+      })
+    );
   }, [destinationReference, setBreadcrumbs]);
-
-  
 
   return destinationReference ? (
     <>
@@ -464,6 +463,7 @@ const DestinationEditor = ({
               titleText: 'Connection Properties errors',
               tabsList: [destinationsTabs.current[0]]
             }}
+            viewStatistics={editorMode === 'edit' && handleViewStatistics}
             handleCancel={params.standalone ? undefined : handleCancel}
           />
         </div>

@@ -32,7 +32,7 @@ import useLoader from 'hooks/useLoader';
 import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 // @Styles
 import styles from './DestinationStatistics.module.less';
-import { ArrowLeftOutlined } from '@ant-design/icons';
+import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
 
 type StatisticsPageParams = {
   id: string;
@@ -126,8 +126,9 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
       </div>
       <Button
         type="primary"
-        className="mt-4"
+        icon={<EditOutlined />}
         size="large"
+        className="mt-4"
         onClick={() =>
           history.push(
             generatePath(destinationPageRoutes.editExact, {
@@ -141,9 +142,9 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
       <Button
         type="ghost"
         icon={<ArrowLeftOutlined />}
+        size="large"
         className="mt-4"
         onClick={() => history.push(destinationPageRoutes.root)}
-        size="large"
       >
         {'Back to Destinations List'}
       </Button>
