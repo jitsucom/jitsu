@@ -7,23 +7,29 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	sf "github.com/snowflakedb/gosnowflake"
-	"strings"
 	"sync"
 	"time"
 )
 
 const (
-	alterQuery = `ALTER WAREHOUSE %s SUSPEND`
-	showQuery = `SHOW WAREHOUSES LIKE '%s'`
-
-	alreadySuspendedMsg = `Invalid state. Warehouse '%s' cannot be suspended.`
+	SnowflakeDefaultAutoSuspendSec = 5
+	suspendSnowflakeWarehouseQuery = `ALTER WAREHOUSE %s SUSPEND`
+	//ErrShowflakeInvalidState technically this error code goes with message 'Invalid state. Warehouse '%s' cannot be suspended.'
+	//message usually appears when warehouse already suspended
+	ErrShowflakeInvalidState = 90064
 )
 
-var (
-	globalMutex = sync.Mutex{}
-	suspenders    = make(map[string]*SnowflakeSuspender)
-	usageCounters = make(map[string]int)
-)
+var _snowflakeSuspenders struct{
+	sync.Mutex
+	suspenders map[string]*SnowflakeSuspender
+	usageCounters map[string]int
+}
+
+func init() {
+	_snowflakeSuspenders.suspenders = make(map[string]*SnowflakeSuspender)
+	_snowflakeSuspenders.usageCounters = make(map[string]int)
+}
+
 
 type SnowflakeSuspender struct {
 	sync.Mutex
@@ -41,10 +47,10 @@ type SnowflakeSuspender struct {
 }
 
 func AcquireSnowflakeSuspender(config *adapters.SnowflakeConfig, keepAwakeDuration time.Duration, monitorKeeper MonitorKeeper) (*SnowflakeSuspender, error) {
-	globalMutex.Lock()
-	defer globalMutex.Unlock()
+	_snowflakeSuspenders.Lock()
+	defer _snowflakeSuspenders.Unlock()
 	key := "snowflake_" + config.Account + "_" + config.Warehouse
-	suspender, ok := suspenders[key]
+	suspender, ok := _snowflakeSuspenders.suspenders[key]
 	if !ok {
 		cfg := &sf.Config{
 			Account:  config.Account,
@@ -73,25 +79,25 @@ func AcquireSnowflakeSuspender(config *adapters.SnowflakeConfig, keepAwakeDurati
 			stopped: 		   make(chan bool),
 		}
 		suspender.start()
-		suspenders[key] = suspender
-		usageCounters[key]++
+		_snowflakeSuspenders.suspenders[key] = suspender
+		_snowflakeSuspenders.usageCounters[key]++
 	}
 	return suspender, nil
 }
 
 func ReleaseSnowflakeSuspender(suspender *SnowflakeSuspender) {
-	globalMutex.Lock()
-	defer globalMutex.Unlock()
-	var usg = usageCounters[suspender.key]
+	_snowflakeSuspenders.Lock()
+	defer _snowflakeSuspenders.Unlock()
+	var usg = _snowflakeSuspenders.usageCounters[suspender.key]
 	switch {
 	case usg == 1:
-		delete(suspenders, suspender.key)
+		delete(_snowflakeSuspenders.suspenders, suspender.key)
 		suspender.stop()
-		usageCounters[suspender.key] = 0
+		_snowflakeSuspenders.usageCounters[suspender.key] = 0
 	case usg > 1:
-		usageCounters[suspender.key]--
+		_snowflakeSuspenders.usageCounters[suspender.key]--
 	default:
-		logging.Errorf("Trying to release orphaned SnowflakeSuspender: %v", suspender.key)
+		logging.SystemErrorf("Trying to release orphaned SnowflakeSuspender: %v", suspender.key)
 	}
 }
 
@@ -126,34 +132,41 @@ func (awk *SnowflakeSuspender) sync() {
 	logging.Debugf("Sync %v", awk)
 
 	if awk.lastRequestTime.After(awk.lastRequestTimeInStorage) {
-
 		//since we run every second, and we don't require to the second precision
 		//it is not critical if we overwrite more fresh value from other instance
 		err := awk.monitorKeeper.UpdateLastRunTime(awk.key, awk.lastRequestTime)
 		if err != nil {
 			logging.Errorf("failed to update last sql execution time for: %v err: %v", awk.key, err)
+			return
 		}
 		awk.lastRequestTimeInStorage = awk.lastRequestTime
-	} else if !awk.suspended && awk.runningTasksCount == 0 &&
+		return
+	}
+	if !awk.suspended && awk.runningTasksCount == 0 &&
 		time.Since(awk.lastRequestTime) > awk.keepAwakeDuration {
 		//check maybe other instances run sql and refreshed 'last run time'
 		tm, err := awk.monitorKeeper.GetLastRunTime(awk.key)
 		if err != nil {
-			logging.Errorf("failed to get last sql execution time for: %v err: %v", awk.key, err)
+			logging.Errorf("failed to refresh last sql execution time for: %v err: %v", awk.key, err)
+			return
 		}
 		if tm.Sub(awk.lastRequestTime).Seconds() >= 1 {
 			logging.Debugf("Sync %v fresh in storage: %v", awk.key, tm)
 			awk.lastRequestTimeInStorage = tm
 			awk.lastRequestTime = tm
-		} else {
-			logging.Infof("%v Suspending warehouse", awk.key)
-			_, err := awk.dataSource.Exec(fmt.Sprintf(alterQuery, awk.warehouse))
-			if err != nil && !strings.HasSuffix(err.Error(), fmt.Sprintf(alreadySuspendedMsg, awk.warehouse)) {
+			return
+		}
+
+		logging.Infof("%v Suspending warehouse", awk.key)
+		_, err = awk.dataSource.Exec(fmt.Sprintf(suspendSnowflakeWarehouseQuery, awk.warehouse))
+		if err != nil {
+			if sferr, ok := err.(*sf.SnowflakeError); !ok || sferr.Number != ErrShowflakeInvalidState {
 				logging.Errorf("error while suspending warehouse for: %v err: %v", awk.key, err)
-			} else {
-				awk.suspended = true
+				return
 			}
 		}
+		awk.suspended = true
+		return
 	}
 }
 

@@ -111,9 +111,10 @@ const destination = {
     {
       id: '_formData.snowflakeAutoSuspendSec',
       displayName: 'Warehouse Auto Suspend (sec)',
+      defaultValue: '5',
       required: false,
       type: intType,
-      documentation: <>Automatically <a href={"https://docs.snowflake.com/en/user-guide/warehouses-tasks.html#starting-resuming-a-warehouse"}>suspend Snowflake Warehouse</a> after provided number of seconds. To enable set value greater than 0. Feature requires <b>Auto Resume to be enabled</b> on warehouse</>
+      documentation: <>Automatically <a href={"https://docs.snowflake.com/en/user-guide/warehouses-tasks.html#starting-resuming-a-warehouse"}>suspend Snowflake Warehouse</a> after provided number of seconds.<br/>Default value: 5s. To disable set: -1<br/> Feature requires <b>Auto Resume</b> to be <b>enabled</b> on warehouse</>
     },
     {
       id: '_formData.snowflakeStageName',

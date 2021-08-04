@@ -42,10 +42,12 @@ func NewSnowflake(config *Config) (Storage, error) {
 		logging.Warnf("[%s] schema wasn't provided. Will be used default one: %s", config.destinationID, snowflakeConfig.Schema)
 	}
 	var suspender *SnowflakeSuspender
-	if snowflakeConfig.AutoSuspendSec > 0 {
-		dur := time.Duration(time.Second.Nanoseconds()*int64(snowflakeConfig.AutoSuspendSec))
+	if dur := snowflakeConfig.AutoSuspendSec; dur >= 0 {
+		if dur == 0 {
+			dur = SnowflakeDefaultAutoSuspendSec
+		}
 		var err error
-		suspender, err = AcquireSnowflakeSuspender(snowflakeConfig, dur, config.monitorKeeper)
+		suspender, err = AcquireSnowflakeSuspender(snowflakeConfig, time.Second * time.Duration(dur), config.monitorKeeper)
 		if err != nil {
 			return nil, fmt.Errorf("failed to start Auto Suspender: %v", err)
 		}
