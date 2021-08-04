@@ -21,7 +21,7 @@ const destinationEditorUtils = {
       dst._connectionErrorMessage = error.message ?? 'Failed to connect';
 
       if (!hideMessage) {
-        handleError(error, 'Unable to test connection with filled data');
+        handleError(error, 'Connection failed');
       }
     }
   },
