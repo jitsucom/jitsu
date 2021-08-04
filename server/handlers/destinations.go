@@ -397,9 +397,10 @@ func testSnowflake(config *storages.DestinationConfig, eventContext *adapters.Ev
 	if err != nil {
 		return err
 	}
+	defer snowflake.Close()
+	defer snowflake.SuspendWarehouse()
 
 	if err = snowflake.CreateTable(eventContext.Table); err != nil {
-		snowflake.Close()
 		return err
 	}
 
@@ -407,8 +408,6 @@ func testSnowflake(config *storages.DestinationConfig, eventContext *adapters.Ev
 		if err := snowflake.DropTable(eventContext.Table); err != nil {
 			logging.Errorf("Error dropping table in test connection: %v", err)
 		}
-
-		snowflake.Close()
 	}()
 
 	var header []string

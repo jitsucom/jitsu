@@ -13,7 +13,6 @@ import (
 
 const (
 	SnowflakeDefaultAutoSuspendSec = 5
-	suspendSnowflakeWarehouseQuery = `ALTER WAREHOUSE %s SUSPEND`
 	//ErrShowflakeInvalidState technically this error code goes with message 'Invalid state. Warehouse '%s' cannot be suspended.'
 	//message usually appears when warehouse already suspended
 	ErrShowflakeInvalidState = 90064
@@ -158,7 +157,7 @@ func (awk *SnowflakeSuspender) sync() {
 		}
 
 		logging.Infof("%v Suspending warehouse", awk.key)
-		_, err = awk.dataSource.Exec(fmt.Sprintf(suspendSnowflakeWarehouseQuery, awk.warehouse))
+		_, err = awk.dataSource.Exec(fmt.Sprintf(adapters.SuspendWarehouseSFQuery, awk.warehouse))
 		if err != nil {
 			if sferr, ok := err.(*sf.SnowflakeError); !ok || sferr.Number != ErrShowflakeInvalidState {
 				logging.Errorf("error while suspending warehouse for: %v err: %v", awk.key, err)
