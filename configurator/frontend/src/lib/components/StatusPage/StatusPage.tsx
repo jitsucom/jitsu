@@ -1,14 +1,5 @@
 /* eslint-disable */
 // @Libs
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from 'recharts';
 import React from 'react';
 import moment from 'moment';
 import { NavLink } from 'react-router-dom';
@@ -19,31 +10,31 @@ import {
   LoadableComponent,
   StatCard
 } from 'lib/components/components';
+import { StatisticsChart } from 'ui/components/StatisticsChart/StatisticsChart';
 // @Icons
 import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
 import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
 // @Services
 import {
   addSeconds,
-  DatePoint,
-  EventsComparison,
+  DetailedStatisticsDatePoint,
   IStatisticsService,
   StatisticsService
 } from 'lib/services/stat';
 import ApplicationServices from 'lib/services/ApplicationServices';
-import { destinationsStore, DestinationsStoreState } from 'stores/destinations';
-
+// @Store
+import { destinationsStore } from 'stores/destinations';
 // @Utils
 import { withDefaultVal } from 'lib/commons/utils';
 // @Styles
 import './StatusPage.less';
 
 type State = {
-  designationsCount?: number;
-  hourlyEvents?: DatePoint[];
-  dailyEvents?: DatePoint[];
-  hourlyComparison?: EventsComparison;
-  dailyComparison?: EventsComparison;
+  destinationsCount?: number;
+  hourlyEvents?: DetailedStatisticsDatePoint[];
+  dailyEvents?: DetailedStatisticsDatePoint[];
+  totalEventsLastHour?: number;
+  totalEventsToday?: number;
 };
 
 interface Props {
@@ -91,23 +82,21 @@ export default class StatusPage extends LoadableComponent<Props, State> {
           <Row gutter={16}>
             <Col span={8}>
               <StatCard
-                value={this.state.designationsCount}
+                value={this.state.destinationsCount}
                 title="Total destinations"
                 bordered={false}
               />
             </Col>
             <Col span={8}>
               <StatCard
-                value={this.state.dailyComparison.current}
-                valuePrev={this.state.dailyComparison.previous}
+                value={this.state.dailyEvents.slice(-1)[0].total}
                 title={'Today'}
                 bordered={false}
               />
             </Col>
             <Col span={8}>
               <StatCard
-                value={this.state.hourlyComparison.current}
-                valuePrev={this.state.hourlyComparison.previous}
+                value={this.state.hourlyEvents.slice(-1)[0].total}
                 title={`Last hour (${moment().utc().format('HH:[00]')} UTC) `}
                 bordered={false}
               />
@@ -118,12 +107,12 @@ export default class StatusPage extends LoadableComponent<Props, State> {
           <Row gutter={16}>
             <Col span={12}>
               <Card title="Events last 30 days" bordered={false}>
-                <Chart data={this.state.dailyEvents} granularity={'day'} />
+                <StatisticsChart data={this.state.dailyEvents} granularity={'day'} />
               </Card>
             </Col>
             <Col span={12}>
               <Card title="Events last 24 hours" bordered={false}>
-                <Chart data={this.state.hourlyEvents} granularity={'hour'} />
+                <StatisticsChart data={this.state.hourlyEvents} granularity={'hour'} />
               </Card>
             </Col>
           </Row>
@@ -132,45 +121,23 @@ export default class StatusPage extends LoadableComponent<Props, State> {
     );
   }
 
-  format(date: Date, granularity: 'day' | 'hour') {
-    let base = this.formatDate(date);
-
-    if (granularity === 'day') {
-      return base;
-    } else {
-      return (
-        base +
-        ' ' +
-        this.padZero(date.getHours()) +
-        ':' +
-        this.padZero(date.getMinutes())
-      );
-    }
-  }
-
-  padZero(val: any) {
-    let str = val + '';
-    return str.length > 1 ? str : '0' + str;
-  }
-
   async load(): Promise<State> {
     let now = new Date();
-    let [hourlyEvents, dailyEvents, designationsCount] = await Promise.all([
-      this.stats.get(addSeconds(now, -24 * 60 * 60), now, 'hour'),
-      this.stats.get(addSeconds(now, -30 * 24 * 60 * 60), now, 'day'),
-      this.getNumberOfDestinations()
+    let [hourlyEvents, dailyEvents] = await Promise.all([
+      this.stats.getDetailedStatistics(addSeconds(now, -24 * 60 * 60), now, 'hour'),
+      this.stats.getDetailedStatistics(addSeconds(now, -30 * 24 * 60 * 60), now, 'day')
     ]);
 
     return {
-      designationsCount,
-      hourlyEvents,
-      dailyEvents,
-      hourlyComparison: new EventsComparison(hourlyEvents, 'hour'),
-      dailyComparison: new EventsComparison(dailyEvents, 'day')
+      destinationsCount: this.getNumberOfDestinations(),
+      hourlyEvents: hourlyEvents.slice(0, -1),
+      dailyEvents: dailyEvents.slice(0, -1),
+      totalEventsLastHour: hourlyEvents.slice(-1)[0].total,
+      totalEventsToday: dailyEvents.slice(-1)[0].total
     };
   }
 
-  async getNumberOfDestinations() {
+  getNumberOfDestinations() {
     return destinationsStore.destinations.length;
   }
 
@@ -209,63 +176,6 @@ export default class StatusPage extends LoadableComponent<Props, State> {
       </div>
     );
   }
-
-  formatDate(d: Date) {
-    let month = '' + (d.getMonth() + 1),
-      day = '' + d.getDate(),
-      year = d.getFullYear();
-
-    if (month.length < 2) month = '0' + month;
-    if (day.length < 2) day = '0' + day;
-
-    return [year, month, day].join('-');
-  }
 }
 
-const testData = [
-  { name: 'Page A', uv: 4000, pv: 2400, amt: 2400 },
-  { name: 'Page B', uv: 3000, pv: 1398, amt: 2210 },
-  { name: 'Page C', uv: 2000, pv: 9800, amt: 2290 },
-  { name: 'Page D', uv: 2780, pv: 3908, amt: 2000 },
-  { name: 'Page E', uv: 1890, pv: 4800, amt: 2181 },
-  { name: 'Page F', uv: 2390, pv: 3800, amt: 2500 },
-  { name: 'Page G', uv: 3490, pv: 4300, amt: 2100 }
-];
 
-const CustomizedXAxisTick = (props) => (
-  <g transform={`translate(${props.x},${props.y})`}>
-    <text x={0} y={0} dy={16} fontSize="10" textAnchor="end" fill="white">
-      {props.payload.value}
-    </text>
-  </g>
-);
-
-const CustomizedYAxisTick = (props) => (
-  <g transform={`translate(${props.x},${props.y})`}>
-    <text x={0} y={0} fontSize="10" textAnchor="end" fill="white">
-      {new Intl.NumberFormat('en').format(props.payload.value)}
-    </text>
-  </g>
-);
-
-const Chart = ({ data, granularity }: { data: DatePoint[]; granularity: 'hour' | 'day' }) => (
-  <ResponsiveContainer width="100%" minHeight={300} minWidth={300}>
-    <LineChart
-      data={data.map((point) => ({
-        label: granularity == 'hour' ? point.date.format('HH:mm') : point.date.format('DD MMM'),
-        events: point.events
-      }))}
-    >
-      <XAxis dataKey="label" tick={<CustomizedXAxisTick />} stroke="#394e5a" />
-      <YAxis tick={<CustomizedYAxisTick />} stroke="#394e5a" />
-      <CartesianGrid strokeDasharray="3 3" stroke="#394e5a" />
-      <Tooltip
-        wrapperStyle={{ backgroundColor: '#22313a', border: '1px solid #394e5a' }}
-        itemStyle={{ color: '#9bbcd1' }}
-        labelStyle={{ color: '#dcf3ff' }}
-        formatter={(value) => new Intl.NumberFormat('en').format(value)}
-      />
-      <Line type="monotone" dataKey="events" stroke="#878afc" activeDot={{ r: 8 }} strokeWidth={2} />
-    </LineChart>
-  </ResponsiveContainer>
-);

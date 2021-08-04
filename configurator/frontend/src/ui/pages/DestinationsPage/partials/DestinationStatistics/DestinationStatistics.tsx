@@ -2,21 +2,14 @@
 import { Button, Card } from 'antd';
 import { useEffect } from 'react';
 import { generatePath, useHistory, useParams } from 'react-router-dom';
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis
-} from 'recharts';
 // @Store
 import { destinationsStore } from 'stores/destinations';
 // @Components
+import { StatisticsChart } from 'ui/components/StatisticsChart/StatisticsChart';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
 import { DestinationNotFound } from '../DestinationNotFound/DestinationNotFound';
+// @Icons
+import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
 // @Routes
 import { destinationPageRoutes } from '../../DestinationsPage.routes';
 // @Types
@@ -24,7 +17,7 @@ import { CommonDestinationPageProps } from '../../DestinationsPage';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 import {
-  DestinationStatisticsDatePoint,
+  DetailedStatisticsDatePoint,
   StatisticsService
 } from 'lib/services/stat';
 // @Utils
@@ -32,7 +25,6 @@ import useLoader from 'hooks/useLoader';
 import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 // @Styles
 import styles from './DestinationStatistics.module.less';
-import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
 
 type StatisticsPageParams = {
   id: string;
@@ -57,13 +49,13 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
 
   // Events last 30 days
   const [, monthData, , , isMonthDataLoading] = useLoader<
-    DestinationStatisticsDatePoint[]
+    DetailedStatisticsDatePoint[]
   >(async () => {
     const now = new Date();
     const yesterday = new Date(+now - 24 * 60 * 60 * 1000);
     const monthAgo = new Date(+now - 30 * 24 * 60 * 60 * 1000);
     return destinationUid
-      ? (await statisticsService.getDestinationStatistics(
+      ? (await statisticsService.getDetailedStatistics(
           monthAgo,
           yesterday,
           'day',
@@ -74,13 +66,13 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
 
   // Last 24 hours
   const [, dayData, , , isDayDataLoading] = useLoader<
-    DestinationStatisticsDatePoint[]
+    DetailedStatisticsDatePoint[]
   >(async () => {
     const now = new Date();
     const previousHour = new Date(+now - 60 * 60 * 1000);
     const dayAgo = new Date(+now - 24 * 60 * 60 * 1000);
     return destinationUid
-      ? (await statisticsService.getDestinationStatistics(
+      ? (await statisticsService.getDetailedStatistics(
           dayAgo,
           previousHour,
           'hour',
@@ -113,7 +105,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
           className="flex-auto w-full"
           loading={isMonthDataLoading || isDayDataLoading}
         >
-          <Chart data={monthData || []} granularity={'day'} />
+          <StatisticsChart data={monthData || []} granularity={'day'} />
         </Card>
         <Card
           title="Events last 24 hours"
@@ -121,7 +113,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
           className="flex-auto w-full"
           loading={isDayDataLoading || isMonthDataLoading}
         >
-          <Chart data={dayData || []} granularity={'hour'} />
+          <StatisticsChart data={dayData || []} granularity={'hour'} />
         </Card>
       </div>
       <Button
@@ -153,77 +145,3 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
     <DestinationNotFound destinationId={params.id} />
   );
 };
-
-const CustomizedXAxisTick = (props) => (
-  <g transform={`translate(${props.x},${props.y})`}>
-    <text x={0} y={0} dy={16} fontSize="10" textAnchor="end" fill="white">
-      {props.payload.value}
-    </text>
-  </g>
-);
-
-const CustomizedYAxisTick = (props) => (
-  <g transform={`translate(${props.x},${props.y})`}>
-    <text x={0} y={0} fontSize="10" textAnchor="end" fill="white">
-      {new Intl.NumberFormat('en').format(props.payload.value)}
-    </text>
-  </g>
-);
-
-const Chart = ({
-  data,
-  granularity
-}: {
-  data: DestinationStatisticsDatePoint[];
-  granularity: 'hour' | 'day';
-}) => (
-  <ResponsiveContainer width="100%" minHeight={300} minWidth={300}>
-    <LineChart
-      data={data.map((point) => ({
-        ...point,
-        date:
-          granularity == 'hour'
-            ? point.date.format('HH:mm')
-            : point.date.format('DD MMM')
-      }))}
-    >
-      <XAxis dataKey="date" tick={<CustomizedXAxisTick />} stroke="#394e5a" />
-      <YAxis tick={<CustomizedYAxisTick />} stroke="#394e5a" />
-      <CartesianGrid strokeDasharray="3 3" stroke="#394e5a" />
-      <Legend />
-      <Tooltip
-        wrapperStyle={{
-          backgroundColor: '#22313a',
-          border: '1px solid #394e5a'
-        }}
-        itemStyle={{ color: '#9bbcd1' }}
-        labelStyle={{ color: '#dcf3ff' }}
-        formatter={(value) => new Intl.NumberFormat('en').format(value)}
-      />
-      <Line
-        type="monotone"
-        dataKey="success"
-        stroke={'#2cc56f'}
-        // opacity={0.9}
-        activeDot={{ r: 8 }}
-        strokeWidth={2}
-      />
-      <Line
-        type="monotone"
-        dataKey="skip"
-        stroke={'#ffc021'}
-        // opacity={0.9}
-        activeDot={{ r: 8 }}
-        strokeWidth={2}
-      />
-      <Line
-        type="monotone"
-        dataKey="errors"
-        stroke={'#e53935'}
-        // opacity={0.9}
-        activeDot={{ r: 8 }}
-        strokeWidth={2}
-      />
-    </LineChart>
-  </ResponsiveContainer>
-);

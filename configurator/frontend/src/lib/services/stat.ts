@@ -2,9 +2,22 @@ import moment, { Moment, unitOfTime } from 'moment';
 import { BackendApiClient } from 'lib/services/ApplicationServices';
 import { IProject } from 'lib/services/model';
 
+
+type EventCountType = 'success' | 'skip' | 'errors';
+type Granularity = 'day' | 'hour' | 'total';
+type GenericStatisticsPoint<T extends string> = {
+  [key in T]: number;
+};
+type StatisticsPoint = GenericStatisticsPoint<EventCountType>;
+
 export type DatePoint = {
   date: Moment;
   events: number;
+};
+
+export type DetailedStatisticsDatePoint = StatisticsPoint & {
+  date: Moment;
+  total: number;
 };
 
 /**
@@ -28,24 +41,20 @@ export class EventsComparison {
     } else {
       this.current = series[series.length - 1].events;
       this.lastPeriod = series[series.length - 1].date;
-      this.previous = series.length > 1 ? series[series.length - 2].events : null;
+      this.previous =
+        series.length > 1 ? series[series.length - 2].events : null;
     }
   }
 }
 
-type Granularity = 'day' | 'hour' | 'total';
-type Status = 'success' | 'skip' | 'errors';
-type GenericStatisticsPoint<T extends string> = {
-  [key in T]: number;
-};
-type DestinationStatisticsPoint = GenericStatisticsPoint<Status>;
-
-export type DestinationStatisticsDatePoint = DestinationStatisticsPoint & {
-  date: Moment;
-};
-
 export interface IStatisticsService {
   get(start: Date, end: Date, granularity: Granularity): Promise<DatePoint[]>;
+  getDetailedStatistics(
+    start: Date,
+    end: Date,
+    granularity: Granularity,
+    destinationId?: string
+  ): Promise<DetailedStatisticsDatePoint[]>;
 }
 
 export function addSeconds(date: Date, seconds: number): Date {
@@ -113,19 +122,24 @@ export class StatisticsService implements IStatisticsService {
   }
 
   private combineDestinationStatisticsData(
-    entries: Array<[Status, DatePoint[]]>
-  ): DestinationStatisticsDatePoint[] {
+    entries: Array<[EventCountType, DatePoint[]]>
+  ): DetailedStatisticsDatePoint[] {
     if (!entries.length) return [];
     return entries[0][1].map((_, idx) => {
-      return entries.reduce<DestinationStatisticsDatePoint>(
+      return entries.reduce<DetailedStatisticsDatePoint>(
         (point, entry) => {
+          const date = entry[1][idx].date;
+          const name = entry[0];
+          const value = entry[1][idx].events;
+          const total = point.total + value;
           return {
             ...point,
-            date: entry[1][idx].date,
-            [entry[0]]: entry[1][idx].events
+            date,
+            total,
+            [name]: value,
           };
         },
-        { date: entries[0][1][0].date, success: 0, skip: 0, errors: 0 }
+        { date: entries[0][1][0].date, success: 0, skip: 0, errors: 0, total: 0 }
       );
     });
   }
@@ -134,7 +148,7 @@ export class StatisticsService implements IStatisticsService {
     start: Date,
     end: Date,
     granularity: Granularity,
-    status?: Status,
+    status?: EventCountType,
     destinationId?: string
   ): string {
     const queryParams = [
@@ -156,7 +170,7 @@ export class StatisticsService implements IStatisticsService {
     start: Date,
     end: Date,
     granularity: Granularity,
-    status?: Status,
+    status?: EventCountType,
     destinationId?: string
   ): Promise<DatePoint[]> {
     let response = await this.api.get(
@@ -187,12 +201,12 @@ export class StatisticsService implements IStatisticsService {
     );
   }
 
-  public async getDestinationStatistics(
+  public async getDetailedStatistics(
     start: Date,
     end: Date,
     granularity: Granularity,
-    destinationId: string
-  ): Promise<DestinationStatisticsDatePoint[]> {
+    destinationId?: string
+  ): Promise<DetailedStatisticsDatePoint[]> {
     const [successData, skipData, errorData] = await Promise.all([
       this.get(start, end, granularity, 'success', destinationId),
       this.get(start, end, granularity, 'skip', destinationId),
