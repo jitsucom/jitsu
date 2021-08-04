@@ -398,7 +398,9 @@ func testSnowflake(config *storages.DestinationConfig, eventContext *adapters.Ev
 		return err
 	}
 	defer snowflake.Close()
-	defer snowflake.SuspendWarehouse()
+	if config.Snowflake.AutoSuspendSec >= 0 {
+		defer snowflake.SuspendWarehouse()
+	}
 
 	if err = snowflake.CreateTable(eventContext.Table); err != nil {
 		return err
