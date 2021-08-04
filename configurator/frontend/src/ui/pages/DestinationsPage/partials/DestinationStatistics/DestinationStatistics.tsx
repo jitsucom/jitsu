@@ -1,7 +1,7 @@
 // @Libs
-import { Card } from 'antd';
+import { Button, Card } from 'antd';
 import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { generatePath, useHistory, useParams } from 'react-router-dom';
 import {
   CartesianGrid,
   Legend,
@@ -32,7 +32,7 @@ import useLoader from 'hooks/useLoader';
 import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 // @Styles
 import styles from './DestinationStatistics.module.less';
-import theme from 'theme.less';
+import { ArrowLeftOutlined } from '@ant-design/icons';
 
 type StatisticsPageParams = {
   id: string;
@@ -48,6 +48,7 @@ const statisticsService = new StatisticsService(
 export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
   setBreadcrumbs
 }) => {
+  const history = useHistory();
   const params = useParams<StatisticsPageParams>();
   const destinationUid = destinationsStore.getDestinationById(params.id)?._uid;
   const destinationReference = destinationsStore.getDestinationReferenceById(
@@ -104,23 +105,48 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
     setBreadcrumbs(withHome({ elements: breadcrumbs }));
   }, []);
   return destinationReference ? (
-    <div className={`flex items-start w-full h-full ${styles.container}`}>
-      <Card
-        title="Events last 30 days"
-        bordered={false}
-        className="flex-auto w-full"
-        loading={isMonthDataLoading || isDayDataLoading}
+    <div className="flex flex-col items-center w-full h-full">
+      <div className={`self-stretch flex items-start ${styles.container}`}>
+        <Card
+          title="Events last 30 days"
+          bordered={false}
+          className="flex-auto w-full"
+          loading={isMonthDataLoading || isDayDataLoading}
+        >
+          <Chart data={monthData || []} granularity={'day'} />
+        </Card>
+        <Card
+          title="Events last 24 hours"
+          bordered={false}
+          className="flex-auto w-full"
+          loading={isDayDataLoading || isMonthDataLoading}
+        >
+          <Chart data={dayData || []} granularity={'hour'} />
+        </Card>
+      </div>
+      <Button
+        type="primary"
+        className="mt-4"
+        size="large"
+        onClick={() =>
+          history.push(
+            generatePath(destinationPageRoutes.editExact, {
+              id: params.id
+            })
+          )
+        }
       >
-        <Chart data={monthData || []} granularity={'day'} />
-      </Card>
-      <Card
-        title="Events last 24 hours"
-        bordered={false}
-        className="flex-auto w-full"
-        loading={isDayDataLoading || isMonthDataLoading}
+        {'Edit Destination Settings'}
+      </Button>
+      <Button
+        type="ghost"
+        icon={<ArrowLeftOutlined />}
+        className="mt-4"
+        onClick={() => history.push(destinationPageRoutes.root)}
+        size="large"
       >
-        <Chart data={dayData || []} granularity={'hour'} />
-      </Card>
+        {'Back to Destinations List'}
+      </Button>
     </div>
   ) : (
     <DestinationNotFound destinationId={params.id} />
@@ -177,6 +203,7 @@ const Chart = ({
         type="monotone"
         dataKey="success"
         stroke={'#2cc56f'}
+        // opacity={0.9}
         activeDot={{ r: 8 }}
         strokeWidth={2}
       />
@@ -184,13 +211,15 @@ const Chart = ({
         type="monotone"
         dataKey="skip"
         stroke={'#ffc021'}
+        // opacity={0.9}
         activeDot={{ r: 8 }}
         strokeWidth={2}
       />
       <Line
         type="monotone"
-        dataKey="error"
+        dataKey="errors"
         stroke={'#e53935'}
+        // opacity={0.9}
         activeDot={{ r: 8 }}
         strokeWidth={2}
       />
