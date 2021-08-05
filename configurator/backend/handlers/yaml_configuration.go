@@ -74,12 +74,18 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(DestinationsGettingErrMsg, err))
 		return
 	}
+	postHandleDestinationIds := make([]string, 0)
+	for _, d := range projectDestinations {
+		if d.Type == enstorages.DbtCloudType {
+			postHandleDestinationIds = append(postHandleDestinationIds, d.UID)
+		}
+	}
 	mappedDestinations := make(map[string]*enstorages.DestinationConfig)
 	for _, destination := range projectDestinations {
 		//dots can't be serialized in yaml configuration
 		//destinationID := projectID + "." + destination.UID
 		destinationID := destination.UID
-		config, err := destinations.MapConfig(destinationID, destination, ch.defaultS3)
+		config, err := destinations.MapConfig(destinationID, destination, ch.defaultS3, postHandleDestinationIds)
 
 		if err != nil {
 			c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to build destinations response", err))
@@ -105,12 +111,6 @@ func (ch *ConfigHandler) Handler(c *gin.Context) {
 			//dots can't be serialized in yaml configuration
 			//destinationIDs = append(destinationIDs, projectID+"."+destinationID)
 			destinationIDs = append(destinationIDs, destinationID)
-		}
-		postHandleDestinationIds := make([]string, 0)
-		for _, d := range projectDestinations {
-			if d.Type == enstorages.DbtCloudType {
-				postHandleDestinationIds = append(postHandleDestinationIds, d.UID)
-			}
 		}
 		mappedConfig, err := mapSourceConfig(source, destinationIDs, postHandleDestinationIds)
 		if err != nil {

@@ -3,7 +3,6 @@ package synchronization
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
@@ -201,51 +200,21 @@ func (te *TaskExecutor) execute(i interface{}) {
 }
 
 func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLogger *TaskLogger) {
+	event := events.Event{
+		"event_type":  storages.SourceSuccessEventType,
+		"source":      task.Source,
+		"status":      task.Status,
+		timestamp.Key: task.FinishedAt,
+		"finished_at": task.FinishedAt,
+		"started_at":  task.StartedAt,
+	}
 	for _, id := range source.PostHandleDestinationIDs {
-		storageProxy, ok := te.destinationService.GetDestinationByID(id)
-		if !ok {
-			logging.Errorf("Cannot find postHandle destination: %v", id)
-			taskLogger.ERROR("Cannot find postHandle destination: %v", id)
-			continue
-		}
-		storage, ok := storageProxy.Get()
-		if !ok {
-			logging.Errorf("PostHandle destination %v is not ready", id)
-			taskLogger.ERROR("PostHandle destination %v is not ready", id)
-			continue
-		}
-		if storage.Type() != storages.DbtCloudType {
-			logging.Errorf("Only dbtCloud is supported as postHandle destination. Found: %v", storage.Type())
-			taskLogger.ERROR("Only dbtCloud is supported as postHandle destination. Found: %v", storage.Type())
-			continue
-		}
-		dbtCloud, ok := storage.(*storages.DbtCloud)
-		if dbtCloud.Enabled() {
-			eventID := uuid.New()
-			event := events.Event{
-				"event_type":  storages.SourceSuccessEventType,
-				"source":      task.Source,
-				"status":      task.Status,
-				timestamp.Key: task.FinishedAt,
-				"finished_at": task.FinishedAt,
-				"started_at":  task.StartedAt,
-			}
-			eventContext := &adapters.EventContext{
-				DestinationID:  storage.ID(),
-				EventID:        eventID,
-				Src:            task.Source,
-				RawEvent:       event,
-				ProcessedEvent: event,
-				Table: &adapters.Table{
-					Name: storage.ID(),
-				},
-			}
-			if err := dbtCloud.Insert(eventContext); err != nil {
-				logging.Errorf("%s failed for task: %s, err: %v", dbtCloud.Type(), task.ID, err)
-				taskLogger.ERROR("%s failed: %v", dbtCloud.Type(), err)
-			} else {
-				taskLogger.INFO("Successful run triggered %s: %s", dbtCloud.Type(), dbtCloud.ID())
-			}
+		err :=  te.destinationService.PostHandle(id, event)
+		if err != nil {
+			logging.Error(err)
+			taskLogger.ERROR(err.Error())
+		} else {
+			taskLogger.INFO("Successful run triggered postHandle destination: %s", id)
 		}
 	}
 }
