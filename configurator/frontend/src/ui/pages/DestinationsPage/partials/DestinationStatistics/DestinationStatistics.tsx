@@ -9,7 +9,7 @@ import { StatisticsChart } from 'ui/components/StatisticsChart/StatisticsChart';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
 import { DestinationNotFound } from '../DestinationNotFound/DestinationNotFound';
 // @Icons
-import { ArrowLeftOutlined, EditOutlined } from '@ant-design/icons';
+import { EditOutlined, UnorderedListOutlined } from '@ant-design/icons';
 // @Routes
 import { destinationPageRoutes } from '../../DestinationsPage.routes';
 // @Types
@@ -129,16 +129,16 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
           )
         }
       >
-        {'Edit Destination Settings'}
+        {'Destination Settings'}
       </Button>
       <Button
         type="ghost"
-        icon={<ArrowLeftOutlined />}
+        icon={<UnorderedListOutlined />}
         size="large"
         className="mt-4"
         onClick={() => history.push(destinationPageRoutes.root)}
       >
-        {'Back to Destinations List'}
+        {'Destinations List'}
       </Button>
     </div>
   ) : (

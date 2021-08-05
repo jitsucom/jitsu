@@ -1,13 +1,12 @@
 // @Libs
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { generatePath, Prompt, useHistory, useParams } from 'react-router-dom';
-import { Card, Form, message } from 'antd';
+import { Button, Card, Form, message } from 'antd';
 import { flowResult } from 'mobx';
 import cn from 'classnames';
 // @Components
 import { TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
 import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
-import { ComingSoon } from 'ui/components/ComingSoon/ComingSoon';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
 import { closeableMessage } from 'lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
@@ -40,7 +39,7 @@ import { firstToLower } from 'lib/commons/utils';
 // @Hooks
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
-import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
+import { AreaChartOutlined, WarningOutlined } from '@ant-design/icons';
 
 type DestinationTabKey =
   | 'config'
@@ -436,6 +435,17 @@ const DestinationEditor = ({
             tabsList={destinationsTabs.current}
             activeTabKey={activeTabKey}
             onTabChange={setActiveTabKey}
+            tabBarExtraContent={
+              <Button
+                size="large"
+                className="mr-3"
+                type="link"
+                onClick={handleViewStatistics}
+                icon={<AreaChartOutlined />}
+              >
+                Statistics
+              </Button>
+            }
           />
         </div>
 
@@ -463,7 +473,6 @@ const DestinationEditor = ({
               titleText: 'Connection Properties errors',
               tabsList: [destinationsTabs.current[0]]
             }}
-            viewStatistics={editorMode === 'edit' && handleViewStatistics}
             handleCancel={params.standalone ? undefined : handleCancel}
           />
         </div>

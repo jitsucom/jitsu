@@ -3,12 +3,12 @@ import { BackendApiClient } from 'lib/services/ApplicationServices';
 import { IProject } from 'lib/services/model';
 
 
-type EventCountType = 'success' | 'skip' | 'errors';
+export type EventsCountType = 'success' | 'skip' | 'errors';
 type Granularity = 'day' | 'hour' | 'total';
 type GenericStatisticsPoint<T extends string> = {
   [key in T]: number;
 };
-type StatisticsPoint = GenericStatisticsPoint<EventCountType>;
+type StatisticsPoint = GenericStatisticsPoint<EventsCountType>;
 
 export type DatePoint = {
   date: Moment;
@@ -122,7 +122,7 @@ export class StatisticsService implements IStatisticsService {
   }
 
   private combineDestinationStatisticsData(
-    entries: Array<[EventCountType, DatePoint[]]>
+    entries: Array<[EventsCountType, DatePoint[]]>
   ): DetailedStatisticsDatePoint[] {
     if (!entries.length) return [];
     return entries[0][1].map((_, idx) => {
@@ -136,10 +136,16 @@ export class StatisticsService implements IStatisticsService {
             ...point,
             date,
             total,
-            [name]: value,
+            [name]: value
           };
         },
-        { date: entries[0][1][0].date, success: 0, skip: 0, errors: 0, total: 0 }
+        {
+          date: entries[0][1][0].date,
+          success: 0,
+          skip: 0,
+          errors: 0,
+          total: 0
+        }
       );
     });
   }
@@ -148,7 +154,7 @@ export class StatisticsService implements IStatisticsService {
     start: Date,
     end: Date,
     granularity: Granularity,
-    status?: EventCountType,
+    status?: EventsCountType,
     destinationId?: string
   ): string {
     const queryParams = [
@@ -170,7 +176,7 @@ export class StatisticsService implements IStatisticsService {
     start: Date,
     end: Date,
     granularity: Granularity,
-    status?: EventCountType,
+    status?: EventsCountType,
     destinationId?: string
   ): Promise<DatePoint[]> {
     let response = await this.api.get(

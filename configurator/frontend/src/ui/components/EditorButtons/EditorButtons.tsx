@@ -21,11 +21,10 @@ interface ButtonProps {
 export interface Props {
   save: ButtonProps;
   test: ButtonProps;
-  viewStatistics?: VoidFunction;
   handleCancel: VoidFunction;
 }
 
-const EditorButtons = ({ test, save, viewStatistics, handleCancel }: Props) => {
+const EditorButtons = ({ test, save, handleCancel }: Props) => {
   return (
     <>
       <Popover
@@ -73,18 +72,6 @@ const EditorButtons = ({ test, save, viewStatistics, handleCancel }: Props) => {
           Test onnection
         </Button>
       </Popover>
-
-      {viewStatistics && (
-        <Button
-          size="large"
-          className="mr-3"
-          type="dashed"
-          onClick={viewStatistics}
-          icon={<AreaChartOutlined />}
-        >
-          Statistics
-        </Button>
-      )}
 
       {handleCancel && (
         <Button type="default" size="large" onClick={handleCancel} danger>

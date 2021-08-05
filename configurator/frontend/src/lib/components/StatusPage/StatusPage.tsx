@@ -89,14 +89,14 @@ export default class StatusPage extends LoadableComponent<Props, State> {
             </Col>
             <Col span={8}>
               <StatCard
-                value={this.state.dailyEvents.slice(-1)[0].total}
+                value={this.state.totalEventsToday}
                 title={'Today'}
                 bordered={false}
               />
             </Col>
             <Col span={8}>
               <StatCard
-                value={this.state.hourlyEvents.slice(-1)[0].total}
+                value={this.state.totalEventsLastHour}
                 title={`Last hour (${moment().utc().format('HH:[00]')} UTC) `}
                 bordered={false}
               />
@@ -107,12 +107,18 @@ export default class StatusPage extends LoadableComponent<Props, State> {
           <Row gutter={16}>
             <Col span={12}>
               <Card title="Events last 30 days" bordered={false}>
-                <StatisticsChart data={this.state.dailyEvents} granularity={'day'} />
+                <StatisticsChart
+                  data={this.state.dailyEvents}
+                  granularity={'day'}
+                />
               </Card>
             </Col>
             <Col span={12}>
               <Card title="Events last 24 hours" bordered={false}>
-                <StatisticsChart data={this.state.hourlyEvents} granularity={'hour'} />
+                <StatisticsChart
+                  data={this.state.hourlyEvents}
+                  granularity={'hour'}
+                />
               </Card>
             </Col>
           </Row>
