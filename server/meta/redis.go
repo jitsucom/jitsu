@@ -773,23 +773,14 @@ func (r *Redis) PushTask(task *Task) error {
 	return nil
 }
 
-//GetProjectSourceIDs returns project's sources iids
+//GetProjectSourceIDs returns project's sources ids
 func (r *Redis) GetProjectSourceIDs(projectID string) ([]string, error) {
-	conn := r.pool.Get()
-	defer conn.Close()
+	return r.getProjectIDs(projectID, sourceIndex)
+}
 
-	//get all source IDs from index
-	key := "sources_index:project#" + projectID
-	sourceIDs, err := redis.Strings(conn.Do("SMEMBERS", key))
-	if err != nil {
-		if err == redis.ErrNil {
-			return []string{}, nil
-		}
-
-		return nil, err
-	}
-
-	return sourceIDs, nil
+//GetProjectDestinationIDs returns project's destination ids
+func (r *Redis) GetProjectDestinationIDs(projectID string) ([]string, error) {
+	return r.getProjectIDs(projectID, destinationIndex)
 }
 
 //GetEventsWithGranularity returns events amount with time criteria by granularity, status and sources/destination ids
@@ -923,6 +914,25 @@ func (r *Redis) Type() string {
 
 func (r *Redis) Close() error {
 	return r.pool.Close()
+}
+
+//getProjectIDs returns project's entities with indexName
+func (r *Redis) getProjectIDs(projectID, indexName string) ([]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	//get all IDs from index
+	key := fmt.Sprintf("%s:project#%s", indexName, projectID)
+	IDs, err := redis.Strings(conn.Do("SMEMBERS", key))
+	if err != nil {
+		if err == redis.ErrNil {
+			return []string{}, nil
+		}
+
+		return nil, err
+	}
+
+	return IDs, nil
 }
 
 //ensureIDInIndex add id to corresponding index by projectID
