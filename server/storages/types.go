@@ -49,6 +49,7 @@ type StorageProxy interface {
 	io.Closer
 	Get() (Storage, bool)
 	GetUniqueIDField() *identifiers.UniqueID
+	GetPostHandleDestinations() []string
 	IsCachingDisabled() bool
 	ID() string
 	Type() string
