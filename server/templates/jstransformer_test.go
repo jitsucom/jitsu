@@ -37,8 +37,8 @@ var JSTemplateTest = []struct {
 	{"test_data/object_expression.js", object{"event_type": "important", "user": object{"email": "reg@ksense.io"}}, object{"user_id": nil, "event_type1": "important", "event_type2": "IMPORTANT", "user": object{"email": "reg@ksense.io"}}},
 	{"test_data/object_expression.js", object{"event_type": "important", "user": object{"email": "test@test.com"}}, object{"user_id": nil, "event_type1": "important", "event_type2": "IMPORTANT", "user": object{"email": "test@test.com"}}},
 
-	{"test_data/object_construct.js", object{}, object{"event_type1": nil, "event_type2": nil, "email": nil}},
-	{"test_data/object_construct.js", object{"event_type": "app_page"}, object{"event_type1": "app_page", "event_type2": "APP_PAGE", "email": nil}},
+	{"test_data/object_construct.js", object{}, object{"event_type1": nil, "event_type2": nil}},
+	{"test_data/object_construct.js", object{"event_type": "app_page"}, object{"event_type1": "app_page", "event_type2": "APP_PAGE"}},
 	{"test_data/object_construct.js", object{"event_type": "important", "user": object{"email": "reg@ksense.io"}}, object{"event_type1": "important", "event_type2": "IMPORTANT", "email": "reg@ksense.io"}},
 	{"test_data/object_construct.js", object{"event_type": "important", "user": object{"email": "test@test.com"}}, object{"event_type1": "important", "event_type2": "IMPORTANT", "email": "test@test.com"}},
 
