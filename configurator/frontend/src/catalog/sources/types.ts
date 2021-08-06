@@ -35,6 +35,10 @@ export const jsonType: ParameterType<string> = {
   typeName: 'json'
 }
 
+export const jsType: ParameterType<string> = {
+  typeName: 'javascript'
+}
+
 export const yamlType: ParameterType<string> = {
   typeName: 'yaml'
 }

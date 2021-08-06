@@ -119,6 +119,8 @@ const ConfigurableFieldsForm = ({
       calcValue = constantValue;
     } else if (type === 'json') {
       calcValue = {};
+    } else if (type === 'javascript') {
+      calcValue = 'return {}';
     } else if (type.indexOf('array/') === 0) {
       calcValue = [];
     } else {
@@ -217,6 +219,7 @@ const ConfigurableFieldsForm = ({
               type?.typeName
             );
           return <EditableList initialValue={value} />;
+        case 'javascript':
         case 'json': {
           const value = 
             form.getFieldValue(id) || 
@@ -231,7 +234,7 @@ const ConfigurableFieldsForm = ({
               <CodeEditor
                 handleChange={handleJsonChange(id)}
                 initialValue={value}
-                language="javascript"
+                language={type?.typeName}
               />
               <span
                 className='z-50 absolute top-2 right-3'
@@ -363,7 +366,7 @@ const ConfigurableFieldsForm = ({
                   className={cn(
                     'form-field_fixed-label',
                     styles.field,
-                    type?.typeName === 'json' && styles.jsonField
+                      (type?.typeName === 'json' || type?.typeName === 'javascript') && styles.jsonField
                   )}
                   name={formItemName}
                   label={
