@@ -49,10 +49,15 @@ func (dh *DestinationsHandler) GetHandler(c *gin.Context) {
 		if len(destinationsEntity.Destinations) == 0 {
 			continue
 		}
-
+		postHandleDestinationIds := make([]string, 0)
+		for _, d := range destinationsEntity.Destinations {
+			if d.Type == enstorages.DbtCloudType {
+				postHandleDestinationIds = append(postHandleDestinationIds, projectID+"."+d.UID)
+			}
+		}
 		for _, destination := range destinationsEntity.Destinations {
 			destinationID := projectID + "." + destination.UID
-			enDestinationConfig, err := destinations.MapConfig(destinationID, destination, dh.defaultS3)
+			enDestinationConfig, err := destinations.MapConfig(destinationID, destination, dh.defaultS3, postHandleDestinationIds)
 			if err != nil {
 				logging.Errorf("Error mapping destination config for destination type: %s id: %s projectID: %s err: %v", destination.Type, destination.UID, projectID, err)
 				continue
@@ -74,7 +79,7 @@ func (dh *DestinationsHandler) TestHandler(c *gin.Context) {
 		return
 	}
 
-	enDestinationConfig, err := destinations.MapConfig("test_connection", destinationEntity, dh.defaultS3)
+	enDestinationConfig, err := destinations.MapConfig("test_connection", destinationEntity, dh.defaultS3, nil)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to map [%s] firebase config to eventnative format", destinationEntity.Type), err))
 		return
