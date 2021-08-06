@@ -63,6 +63,7 @@ const dbtcloudDestination = {
         {
             id: '_formData.dbtCause',
             displayName: 'Cause',
+            defaultValue: '`${_.event_type} ID: ${_.source}`',
             required: true,
             type: stringType,
             documentation: <>

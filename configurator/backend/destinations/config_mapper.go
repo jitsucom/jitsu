@@ -13,7 +13,7 @@ import (
 
 const defaultPrimaryKey = "eventn_ctx_event_id"
 
-func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config) (*enstorages.DestinationConfig, error) {
+func MapConfig(destinationID string, destination *entities.Destination, defaultS3 *enadapters.S3Config, postHandleDestinations []string) (*enstorages.DestinationConfig, error) {
 	var config *enstorages.DestinationConfig
 	var err error
 	switch destination.Type {
@@ -86,6 +86,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 
 	//only keys
 	config.OnlyTokens = destination.OnlyKeys
+
+	config.PostHandleDestinations = postHandleDestinations
 
 	return config, nil
 }

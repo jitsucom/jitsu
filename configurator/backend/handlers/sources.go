@@ -51,18 +51,18 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse(SourcesGettingErrMsg, err))
 			return
 		}
+		postHandleDestinationIds := make([]string, 0)
+		for _, d := range dests {
+			if d.Type == enstorages.DbtCloudType {
+				postHandleDestinationIds = append(postHandleDestinationIds, projectID+"."+d.UID)
+			}
+		}
 		for _, source := range sourcesEntity.Sources {
 			sourceID := projectID + "." + source.SourceID
 
 			var destinationIDs []string
 			for _, destinationID := range source.Destinations {
 				destinationIDs = append(destinationIDs, projectID+"."+destinationID)
-			}
-			postHandleDestinationIds := make([]string, 0)
-			for _, d := range dests {
-				if d.Type == enstorages.DbtCloudType {
-					postHandleDestinationIds = append(postHandleDestinationIds, projectID+"."+d.UID)
-				}
 			}
 			mappedSourceConfig, err := mapSourceConfig(source, destinationIDs, postHandleDestinationIds)
 			if err != nil {
