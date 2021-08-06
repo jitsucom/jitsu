@@ -11,24 +11,32 @@ import {
 } from 'recharts';
 import { useReducer } from 'react';
 // @Types
-import {
-  DetailedStatisticsDatePoint,
-  EventsCountType
-} from 'lib/services/stat';
+import { Moment } from 'moment';
 // @Styles
 import styles from './StatisticsChart.module.less';
 
+type DataType = 'total' | 'success' | 'skip' | 'errors';
+
+type DataPoint = { date: Moment } & { [key in DataType]: number };
+
+type Props = {
+  data: DataPoint[];
+  granularity: 'hour' | 'day';
+  dataToDisplay?: DataType | DataType[];
+};
+
 type State = {
-  [key in `hide_${EventsCountType}_data`]: boolean;
+  [key in `hide_${DataType}_data`]: boolean;
 };
 
 const initialState: State = {
+  hide_total_data: false,
   hide_errors_data: false,
   hide_skip_data: false,
   hide_success_data: false
 };
 
-const reducer = (state: State, action: { type: EventsCountType }): State => {
+const reducer = (state: State, action: { type: DataType }): State => {
   const key = `hide_${action.type}_data`;
   return {
     ...state,
@@ -44,17 +52,15 @@ const commonLineProps = {
   strokeWidth: 2
 } as const;
 
-export const StatisticsChart = ({
+export const StatisticsChart: React.FC<Props> = ({
   data,
-  granularity
-}: {
-  data: DetailedStatisticsDatePoint[];
-  granularity: 'hour' | 'day';
+  granularity,
+  dataToDisplay = ['success', 'skip', 'errors']
 }) => {
   const [state, dispatch] = useReducer(reducer, initialState);
 
   const handleClickOnLegend = (event: React.MouseEvent) => {
-    const clickedDataType = event['value'] as EventsCountType;
+    const clickedDataType = event['value'] as DataType;
     dispatch({ type: clickedDataType });
   };
 
@@ -83,24 +89,38 @@ export const StatisticsChart = ({
           labelStyle={{ color: '#dcf3ff' }}
           formatter={(value) => new Intl.NumberFormat('en').format(value)}
         />
-        <Line
-          dataKey="success"
-          stroke={'#2cc56f'}
-          hide={state.hide_success_data}
-          {...commonLineProps}
-        />
-        <Line
-          dataKey="skip"
-          stroke={'#ffc021'}
-          hide={state.hide_skip_data}
-          {...commonLineProps}
-        />
-        <Line
-          dataKey="errors"
-          stroke={'#e53935'}
-          hide={state.hide_errors_data}
-          {...commonLineProps}
-        />
+        {dataToDisplay.includes('total') && (
+          <Line
+            dataKey="total"
+            stroke={'rgb(135, 138, 252)'}
+            hide={state.hide_total_data}
+            {...commonLineProps}
+          />
+        )}
+        {dataToDisplay.includes('success') && (
+          <Line
+            dataKey="success"
+            stroke={'#2cc56f'}
+            hide={state.hide_success_data}
+            {...commonLineProps}
+          />
+        )}
+        {dataToDisplay.includes('skip') && (
+          <Line
+            dataKey="skip"
+            stroke={'#ffc021'}
+            hide={state.hide_skip_data}
+            {...commonLineProps}
+          />
+        )}
+        {dataToDisplay.includes('errors') && (
+          <Line
+            dataKey="errors"
+            stroke={'#e53935'}
+            hide={state.hide_errors_data}
+            {...commonLineProps}
+          />
+        )}
       </LineChart>
     </ResponsiveContainer>
   );
