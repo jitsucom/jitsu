@@ -37,6 +37,7 @@ var templateTest = []templateTestData{
 	{"go_and_js_error", "error", "if (true) {{return func(){ .metric_type }}}", events.Event{"metric_type": "ogon", "app": "neagon"}, fmt.Errorf("2 errors occurred")},
 	{"golike_js", "javascript", "if (true) {var a = function(){ metric_type }} return $.metric_type", events.Event{"metric_type": "ogon", "app": "neagon"}, "ogon"},
 	{"js_load_error", "javascript", "class Rectangle {constructor() {}}", events.Event{"metric_type": "ogon", "app": "neagon"}, fmt.Errorf("JS LOADING ERROR")},
+	{"js_throw", "javascript", "throw new Error(\"test_error_throw\");", events.Event{"metric_type": "ogon", "app": "neagon"}, fmt.Errorf("javascript error: Error: test_error_throw")},
 
 	{"const: \"table_name\"", "constant", "\"table_name\"", events.Event{"metric_type": "ogon"}, "\"table_name\""},
 	{"const: table_name", "constant", "table_name", events.Event{"metric_type": "ogon"}, "table_name"},
