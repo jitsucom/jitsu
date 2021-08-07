@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/resources"
 	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/spf13/viper"
 	"strings"
 	"sync"
@@ -392,4 +394,41 @@ func (s *Service) Close() (multiErr error) {
 	}
 
 	return
+}
+
+
+func (s *Service) PostHandle(id string, event events.Event) error {
+	storageProxy, ok := s.GetDestinationByID(id)
+	if !ok {
+		return fmt.Errorf("Cannot find postHandle destination: %v", id)
+	}
+	storage, ok := storageProxy.Get()
+	if !ok {
+		return fmt.Errorf("PostHandle destination %v is not ready", id)
+	}
+	if storage.Type() != storages.DbtCloudType {
+		return fmt.Errorf("Type %v is not supported as postHandle destination. Destination: %v", storage.Type(), id)
+	}
+	dbtCloud, ok := storage.(*storages.DbtCloud)
+	if !dbtCloud.Enabled() {
+		return nil
+	}
+	eventID := uuid.New()
+
+	eventContext := &adapters.EventContext{
+		DestinationID:  storage.ID(),
+		EventID:        eventID,
+		Src:            fmt.Sprintf("%v", event["source"]),
+		RawEvent:       event,
+		ProcessedEvent: event,
+		Table: &adapters.Table{
+			Name: storage.ID(),
+		},
+	}
+	err2 := dbtCloud.Insert(eventContext)
+	if err2 != nil {
+		logging.Errorf("%s failed for source: %v, err: %v", dbtCloud.Type(), event["source"], err2)
+		return fmt.Errorf("%s failed: %v", dbtCloud.Type(), err2)
+	}
+	return nil
 }

@@ -8,7 +8,9 @@ import (
 )
 
 const (
-	SourceSuccessEventType  = "__SOURCE_SUCCESSFUL_RUN"
+	SourceSuccessEventType  = "SOURCE_SUCCESSFUL_RUN"
+	DestinationBatchEventType  = "DESTINATION_BATCH_RUN"
+
 	dbtCloudTableNameFilter = "return $.event_type == '" + SourceSuccessEventType + "' ? true : false"
 )
 

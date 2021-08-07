@@ -90,6 +90,10 @@ func (rsp *RetryableProxy) IsCachingDisabled() bool {
 		rsp.config.destination.CachingConfiguration.Disabled
 }
 
+func (rsp *RetryableProxy) GetPostHandleDestinations() []string {
+	return rsp.config.PostHandleDestinations
+}
+
 //Close stops underlying goroutine and close the storage
 func (rsp *RetryableProxy) Close() error {
 	rsp.closed.Store(true)

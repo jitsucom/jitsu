@@ -9,7 +9,9 @@ import (
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"io/ioutil"
 	"os"
 	"path"
@@ -62,7 +64,8 @@ func (u *PeriodicUploader) Start() {
 				time.Sleep(2 * time.Second)
 				continue
 			}
-
+			startTime := time.Now()
+			postHandlesMap := make(map[string]map[string]bool) //multimap postHandleDestinationId:destinationIds
 			files, err := filepath.Glob(u.fileMask)
 			if err != nil {
 				logging.SystemErrorf("Error finding files by %s mask: %v", u.fileMask, err)
@@ -154,7 +157,18 @@ func (u *PeriodicUploader) Start() {
 							counters.ErrorEvents(storage.ID(), result.RowsCount)
 
 							telemetry.ErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
-						} else {
+						} else  {
+							pHandles := storageProxy.GetPostHandleDestinations()
+							if pHandles != nil && result.RowsCount > 0 {
+								for _, pHandle := range pHandles {
+									mp, ok := postHandlesMap[pHandle]
+									if !ok {
+										mp = make(map[string]bool)
+										postHandlesMap[pHandle] = mp
+									}
+									mp[storage.ID()] = true
+								}
+							}
 							metrics.SuccessTokenEvents(tokenID, storage.ID(), result.RowsCount)
 							counters.SuccessEvents(storage.ID(), result.RowsCount)
 
@@ -174,8 +188,31 @@ func (u *PeriodicUploader) Start() {
 					}
 				}
 			}
+			u.postHandle(startTime, time.Now(), postHandlesMap)
+			time.Sleep(u.uploadEvery - time.Since(startTime))
 
-			time.Sleep(u.uploadEvery)
 		}
 	})
+}
+
+func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap map[string]map[string]bool) {
+	for phID, destsMap := range postHandlesMap {
+		dests := make([]string, 0, len(destsMap))
+		for k := range destsMap {
+			dests = append(dests, k)
+		}
+		event := events.Event{
+			"event_type":  storages.DestinationBatchEventType,
+			"source":	dests,
+			timestamp.Key: end,
+			"finished_at": end,
+			"started_at":  start,
+		}
+		err := u.destinationService.PostHandle(phID, event)
+		if err != nil {
+			logging.Error(err)
+		}
+		logging.Infof("Successful run of %v triggered postHandle destination: %s", dests, phID)
+	}
+
 }
