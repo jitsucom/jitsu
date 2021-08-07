@@ -52,7 +52,6 @@ import (
 const (
 	//incoming.tok=$token-$timestamp.log
 	uploaderFileMask   = "incoming.tok=*-20*.log"
-	uploaderLoadEveryS = 60
 	//streaming-archive.dst=$destinationID-$timestamp.log
 	streamArchiveFileMask = "streaming-archive*-20*.log"
 	streamArchiveEveryS   = 60
@@ -315,8 +314,9 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(taskExecutor)
 
+	uploaderRunInterval := viper.GetInt("server.uploader.run_interval_sec")
 	//Uploader must read event logger directory
-	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderLoadEveryS, destinationsService)
+	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, destinationsService)
 	if err != nil {
 		logging.Fatal("Error while creating file uploader", err)
 	}
