@@ -154,10 +154,6 @@ func (r *Redis) GetCollectionTable() string {
 	return r.collection.GetTableName()
 }
 
-func (r *Redis) DeleteAll() error {
-	return nil
-}
-
 //GetCollectionMetaKey returns collection meta key (key is used in meta storage)
 func (r *Redis) GetCollectionMetaKey() string {
 	return r.collection.Name + "_" + r.GetCollectionTable()

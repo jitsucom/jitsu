@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/drivers"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
@@ -21,12 +23,13 @@ type ClearCacheRequest struct {
 
 //SourcesHandler is used for testing sources connection and clean sync cache
 type SourcesHandler struct {
-	sourcesService *sources.Service
-	metaStorage    meta.Storage
+	sourcesService      *sources.Service
+	metaStorage         meta.Storage
+	destinationsService *destinations.Service
 }
 
 //NewSourcesHandler returns configured SourcesHandler instance
-func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage) *SourcesHandler {
+func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage, destinations *destinations.Service) *SourcesHandler {
 	return &SourcesHandler{sourcesService: sourcesService, metaStorage: metaStorage}
 }
 
@@ -71,13 +74,7 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 			multiErr = multierror.Append(multiErr, err)
 		}
 		if deleteWarehouseData {
-			err = driver.DeleteAll()
-			if err != nil {
-				msg := fmt.Sprintf("Error deleting all data from warehouse for source: [%s] collection: [%s]: %v", req.Source, collection, err)
-				logging.Error(msg)
-				multiErr = multierror.Append(multiErr, err)
-			}
-
+			sh.deleteWareHouseData(driver, source.DestinationIDs, req.Source, collection, multiErr)
 		}
 	}
 
@@ -87,6 +84,25 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, middleware.OKResponse())
+}
+
+func (sh *SourcesHandler) deleteWareHouseData(driver driversbase.Driver, destinationIds []string, sourceID string, collection string, multiErr error) {
+	if singerDriver, ok := driver.(*singer.Singer); ok {
+		for _, destId := range destinationIds {
+			if destProxy, okDestProxy := sh.destinationsService.GetDestinationByID(destId); okDestProxy {
+				if dest, okDest := destProxy.Get(); okDest {
+					for destTableName := range singerDriver.GetStreamTableNameMapping() {
+						err := dest.Clean(destTableName)
+						if err != nil {
+							msg := fmt.Sprintf("Error deleting all data from warehouse for: source: [%s], collection: [%s], tableName: [%s], destId: [%s]: %v", sourceID, collection, destTableName, destId, err)
+							logging.Error(msg)
+							multiErr = multierror.Append(multiErr, err)
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 //TestSourcesHandler tests source connection

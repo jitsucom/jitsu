@@ -87,6 +87,12 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 		rowsCount := len(stream.Objects)
 		//Sync stream
 		for _, storage := range rs.destinations {
+			if representation.NeedClean {
+				err := storage.Clean(stream.BatchHeader.TableName)
+				if err != nil {
+					logging.Warn("Storage cleaning failed, ignoring: %v", err)
+				}
+			}
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "", false)
 			if err != nil {
 				errMsg := fmt.Sprintf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)

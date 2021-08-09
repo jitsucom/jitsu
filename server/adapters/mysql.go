@@ -33,6 +33,7 @@ const (
 	mySQLAddColumnTemplate           = "ALTER TABLE `%s`.`%s` ADD COLUMN %s"
 	mySQLDropPrimaryKeyTemplate      = "ALTER TABLE `%s`.`%s` DROP PRIMARY KEY"
 	mySQLDropTableTemplate           = "DROP TABLE `%s`.`%s`"
+	mySQLTruncateTableTemplate       = "TRUNCATE TABLE `%s`.`%s`"
 	mySQLPrimaryKeyMaxLength         = 32
 	mySQLValuesLimit                 = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
@@ -253,6 +254,17 @@ func (m *MySQL) toDeleteQuery(conditions *DeleteConditions) (string, []interface
 		values = append(values, condition.Value)
 	}
 	return strings.Join(queryConditions, conditions.JoinCondition), values
+}
+
+func (m *MySQL) Clean(tableName string) error {
+	statement := fmt.Sprintf(mySQLTruncateTableTemplate, m.config.Db, tableName)
+	m.queryLogger.LogQuery(statement)
+	_, err := m.dataSource.ExecContext(m.ctx, statement)
+	if err != nil {
+		return fmt.Errorf("Error cleaning table %s using statement: %s: %v", tableName, statement, err)
+	}
+
+	return nil
 }
 
 //Close underlying sql.DB

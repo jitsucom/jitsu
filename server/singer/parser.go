@@ -9,6 +9,7 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/typing"
 	"io"
+	"strings"
 )
 
 const batchSize = 500
@@ -32,7 +33,8 @@ type Property struct {
 }
 
 type OutputRepresentation struct {
-	State interface{}
+	State     interface{}
+	NeedClean bool
 	//[streamName] - {}
 	Streams map[string]*StreamRepresentation
 }
@@ -55,6 +57,7 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 	scanner.Buffer(buf, 1024*1024)
 
 	records := 0
+	initialized := false
 	for scanner.Scan() {
 		lineBytes := scanner.Bytes()
 
@@ -84,7 +87,7 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 			}
 
 			outputPortion.State = state
-
+			outputPortion.NeedClean = !initialized && strings.Contains(string(lineBytes), "FULL_TABLE")
 			//persist batch and recreate variables
 			if records >= batchSize {
 				err := consumer.Consume(outputPortion)
@@ -97,6 +100,7 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 					stream.Objects = []map[string]interface{}{}
 				}
 				records = 0
+				initialized = true
 			}
 		case "RECORD":
 			records++
@@ -110,8 +114,8 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 			outputPortion.Streams[streamName].Objects = append(outputPortion.Streams[streamName].Objects, object)
 		default:
 			msg := fmt.Sprintf("Unknown Singer output line type: %s [%v]", objectType, lineObject)
-			logging.Error(msg)
-			logger.ERROR(msg)
+			logging.Warn(msg)
+			logger.WARN(msg)
 		}
 	}
 

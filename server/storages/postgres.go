@@ -165,6 +165,10 @@ func (p *Postgres) Type() string {
 	return PostgresType
 }
 
+func (p *Postgres) Clean(tableName string) error {
+	return p.adapter.Clean(tableName)
+}
+
 //Close closes Postgres adapter, fallback logger and streaming worker
 func (p *Postgres) Close() (multiErr error) {
 	if err := p.adapter.Close(); err != nil {
