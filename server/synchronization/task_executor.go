@@ -267,15 +267,17 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 				metrics.ErrorSourceEvents(task.Source, storage.ID(), rowsCount)
 				metrics.ErrorObjects(task.Source, rowsCount)
 				telemetry.Error(task.Source, storage.ID(), srcSource, rowsCount)
+				counters.ErrorEvents(storage.ID(), rowsCount)
 				return fmt.Errorf("Error storing %d source objects in [%s] destination: %v", rowsCount, storage.ID(), err)
 			}
 
 			metrics.SuccessSourceEvents(task.Source, storage.ID(), rowsCount)
 			metrics.SuccessObjects(task.Source, rowsCount)
 			telemetry.Event(task.Source, storage.ID(), srcSource, rowsCount)
+			counters.SuccessEvents(storage.ID(), rowsCount)
 		}
 
-		counters.SuccessSourceEvents(task.Source, len(objects))
+		counters.SuccessSourceEvents(task.Source, rowsCount)
 
 		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
 			logging.SystemErrorf("Unable to save source: [%s] collection: [%s] meta key: [%s] signature: %v", task.Source, task.Collection, collectionMetaKey, err)
