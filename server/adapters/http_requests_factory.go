@@ -68,3 +68,8 @@ func (wrf *WebhookRequestFactory) Create(object map[string]interface{}) (req *Re
 		Headers: wrf.headers,
 	}, nil
 }
+
+func (wrf *WebhookRequestFactory) Close() {
+	wrf.urlTmpl.Close()
+	wrf.bodyTmpl.Close()
+}
