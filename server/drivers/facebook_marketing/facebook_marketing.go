@@ -270,10 +270,6 @@ func (fm *FacebookMarketing) GetCollectionTable() string {
 	return fm.collection.GetTableName()
 }
 
-func (fm *FacebookMarketing) DeleteAll() error {
-	return nil
-}
-
 func (fm *FacebookMarketing) GetCollectionMetaKey() string {
 	return fm.collection.Name + "_" + fm.GetCollectionTable()
 }

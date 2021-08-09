@@ -234,10 +234,6 @@ func (s *Singer) GetCollectionTable() string {
 	return ""
 }
 
-func (s *Singer) DeleteAll() error {
-	return nil
-}
-
 func (s *Singer) GetCollectionMetaKey() string {
 	return s.tap
 }

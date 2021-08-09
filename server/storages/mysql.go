@@ -118,6 +118,10 @@ func (m *MySQL) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return dryRun(payload, m.processor, tableHelper)
 }
 
+func (m *MySQL) Clean(tableName string) error {
+	return m.adapter.Clean(tableName)
+}
+
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (m *MySQL) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
