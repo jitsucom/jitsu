@@ -99,12 +99,14 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 				metrics.ErrorSourceEvents(rs.task.Source, storage.ID(), rowsCount)
 				metrics.ErrorObjects(rs.task.Source, rowsCount)
 				telemetry.Error(rs.task.Source, storage.ID(), srcSource, rowsCount)
+				counters.ErrorEvents(storage.ID(), rowsCount)
 				return errors.New(errMsg)
 			}
 
 			metrics.SuccessSourceEvents(rs.task.Source, storage.ID(), rowsCount)
 			metrics.SuccessObjects(rs.task.Source, rowsCount)
 			telemetry.Event(rs.task.Source, storage.ID(), srcSource, rowsCount)
+			counters.SuccessEvents(storage.ID(), rowsCount)
 		}
 
 		counters.SuccessSourceEvents(rs.task.Source, len(stream.Objects))
