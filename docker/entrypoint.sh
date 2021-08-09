@@ -39,7 +39,7 @@ check_shutdown(){
 }
 
 ### CLI
-if [ "$1" == 'replay' ]; then
+if [ -n "$1" ]; then
   /home/eventnative/app/eventnative "$@"
   if [ $? != 0 ] ; then
     exit 1
@@ -81,7 +81,7 @@ trap graceful_exit SIGQUIT SIGTERM SIGINT SIGHUP
 /home/configurator/app/configurator -cfg=/home/configurator/data/config/configurator.yaml -cr=true -dhid=jitsu &
 PID_CONFIGURATOR=$!
 
-sleep 2
+sleep 4
 
 # Start Jitsu Server process
 /home/eventnative/app/eventnative -cfg=/home/eventnative/data/config/eventnative.yaml -cr=true -dhid=jitsu &
