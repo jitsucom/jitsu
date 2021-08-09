@@ -1,12 +1,18 @@
 package handlers
 
 import (
+	"bytes"
+	"compress/gzip"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/parsers"
+	"github.com/jitsucom/jitsu/server/storages"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 )
 
@@ -14,19 +20,15 @@ type BulkHandler struct {
 	destinationService *destinations.Service
 }
 
+func NewBulkHandler(destinationService *destinations.Service) *BulkHandler {
+	return &BulkHandler{
+		destinationService: destinationService,
+	}
+}
+
 //BulkLoadingHandler loads file of events as one batch
 func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
-	/*apiKey, ok := c.GetPostForm("api_key")
-	if !ok {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("'api_key' is a required form data parameter", nil))
-		return
-	}*/
-
-	destinationID, ok := c.GetPostForm("destination_id")
-	if !ok {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse("'destination_id' is a required form data parameter", nil))
-		return
-	}
+	apiKey := c.GetString(middleware.TokenName)
 
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -40,7 +42,7 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 		return
 	}
 
-	payload, err := ioutil.ReadAll(fileReader)
+	payload, err := readFileBytes(c.GetHeader("Content-Encoding"), fileReader)
 	fileReader.Close()
 	if err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("failed to read payload from input file", err))
@@ -53,7 +55,7 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 		return
 	}
 
-	if err := bh.upload(destinationID, objects); err != nil {
+	if err := bh.upload(apiKey, objects); err != nil {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("failed to process file payload", err))
 		return
 	}
@@ -62,20 +64,55 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 
 }
 
-func (bh *BulkHandler) upload(destinationID string, objects []map[string]interface{}) error {
-	storageProxy, ok := bh.destinationService.GetDestinationByID(destinationID)
-	if !ok {
-		return fmt.Errorf("Destination [%s] wasn't found", destinationID)
+func (bh *BulkHandler) upload(apiKey string, objects []map[string]interface{}) error {
+	var storageProxies []storages.StorageProxy
+	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(apiKey)
+	storageProxies = bh.destinationService.GetDestinations(tokenID)
+
+	for _, storageProxy := range storageProxies {
+		storage, ok := storageProxy.Get()
+		if !ok {
+			return fmt.Errorf("Destination [%s] hasn't been initialized yet", storage.ID())
+		}
+		if storage.IsStaging() {
+			return fmt.Errorf("Error running bulk loading for destination [%s] in staged mode, "+
+				"cannot be used to store data (only available for dry-run)", storage.ID())
+		}
+
+		if err := storage.SyncStore(nil, objects, "", false); err != nil {
+			return err
+		}
 	}
 
-	storage, ok := storageProxy.Get()
-	if !ok {
-		return fmt.Errorf("Destination [%s] hasn't been initialized yet", destinationID)
-	}
-	if storage.IsStaging() {
-		return fmt.Errorf("Error running fallback for destination [%s] in staged mode, "+
-			"cannot be used to store data (only available for dry-run)", destinationID)
+	return nil
+}
+
+//readFileBytes reads file from form data and returns byte payload or err if occurred
+//does unzip if file has been compressed
+func readFileBytes(contentEncoding string, file multipart.File) ([]byte, error) {
+	b, err := ioutil.ReadAll(file)
+	if err != nil {
+		return nil, err
 	}
 
-	return storage.SyncStore(nil, objects, "", false)
+	if contentEncoding == "" {
+		return b, nil
+	}
+
+	if contentEncoding != "gzip" {
+		return nil, errors.New("only 'gzip' encoding is supported")
+	}
+
+	reader, err := gzip.NewReader(bytes.NewBuffer(b))
+	if err != nil {
+		return nil, err
+	}
+
+	var resB bytes.Buffer
+	_, err = resB.ReadFrom(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return resB.Bytes(), nil
 }
