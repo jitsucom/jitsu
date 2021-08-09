@@ -50,7 +50,7 @@ type TaskService struct {
 	monitorKeeper      storages.MonitorKeeper
 
 	storeTasksLogsForLastRuns int
-	configured bool
+	configured                bool
 }
 
 //NewTestTaskService returns TaskService test instance (only for tests)
@@ -63,6 +63,10 @@ func NewTaskService(sourceService *sources.Service, destinationService *destinat
 	metaStorage meta.Storage, monitorKeeper storages.MonitorKeeper, storeTasksLogsForLastRuns int) *TaskService {
 	if !sourceService.IsConfigured() {
 		return &TaskService{}
+	}
+
+	if storeTasksLogsForLastRuns > 0 {
+		logging.Infof("[Sync Task Service] with last task limit: %d", storeTasksLogsForLastRuns)
 	}
 
 	return &TaskService{sourceService: sourceService, destinationService: destinationService, metaStorage: metaStorage,
@@ -194,27 +198,32 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 	if err != nil {
 		return "", fmt.Errorf("Error pushing sync task to the Queue: %v", err)
 	}
-	safego.Run(func() {ts.cleanup(sourceID, collection, task.ID)})
+	safego.Run(func() { ts.cleanup(sourceID, collection, task.ID) })
 	return task.ID, nil
 }
+
 //cleanup removes data and logs for old tasks if its number exceed limit set via storeTasksLogsForLastRuns
 func (ts *TaskService) cleanup(sourceID, collection, taskId string) {
-	if ts.storeTasksLogsForLastRuns > 0 {
-		taskIds, err := ts.metaStorage.GetAllTaskIDs(sourceID, collection, true)
+	if ts.storeTasksLogsForLastRuns <= 0 {
+		return
+	}
+
+	taskIds, err := ts.metaStorage.GetAllTaskIDs(sourceID, collection, true)
+	if err != nil {
+		logging.Errorf("task %s failed to get task IDs to perform cleanup: %v", taskId, err)
+		return
+	}
+
+	if len(taskIds) > ts.storeTasksLogsForLastRuns {
+		logging.Infof("task %s cleanup: need to keep %v of total %v", taskId, ts.storeTasksLogsForLastRuns, len(taskIds))
+		taskIdsToDelete := taskIds[ts.storeTasksLogsForLastRuns:]
+		removed, err := ts.metaStorage.RemoveTasks(sourceID, collection, taskIdsToDelete...)
 		if err != nil {
-			logging.Errorf("task %s failed to get task IDs to perform cleanup: %v", taskId, err)
+			logging.Errorf("task %s failed to remove tasks while cleanup: %v", taskId, err)
 		}
-		if len(taskIds) > ts.storeTasksLogsForLastRuns {
-			logging.Infof("task %s cleanup: need to keep %v of total %v", taskId, ts.storeTasksLogsForLastRuns, len(taskIds))
-			taskIdsToDelete := taskIds[ts.storeTasksLogsForLastRuns:]
-			removed, err := ts.metaStorage.RemoveTasks(sourceID, collection, taskIdsToDelete...)
-			if err != nil {
-				logging.Errorf("task %s failed to remove tasks while cleanup: %v", taskId, err)
-			}
-			logging.Infof("task %s cleanup: removed %v of total %v", taskId, removed, len(taskIds))
-		} else {
-			logging.Infof("task %s cleanup: no need. current size: %v. limit: %v", taskId,  len(taskIds), ts.storeTasksLogsForLastRuns)
-		}
+		logging.Infof("task %s cleanup: removed %v of total %v", taskId, removed, len(taskIds))
+	} else {
+		logging.Infof("task %s cleanup: no need. current size: %v. limit: %v", taskId, len(taskIds), ts.storeTasksLogsForLastRuns)
 	}
 }
 
