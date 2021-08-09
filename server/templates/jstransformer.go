@@ -23,21 +23,20 @@ func Transform(src string) (string, error) {
 			"proposal-optional-chaining",
 			"transform-template-literals",
 			"loop-protect",
-
 		},
-		"parserOpts":  map[string]interface{}{
-			"errorRecovery": true,
-			"strictMode": false,
+		"parserOpts": map[string]interface{}{
+			"errorRecovery":              true,
+			"strictMode":                 false,
 			"allowReturnOutsideFunction": true,
-			"allowSuperOutsideMethod": true},
+			"allowSuperOutsideMethod":    true},
 	})
 	if err != nil {
-		return "",err
+		return "", err
 	}
 	return `function ` + functionName + `(event) { 
 var $ = event;
 var _ = event;
-` + res +`
+` + res + `
 };`, nil
 }
 
@@ -64,7 +63,7 @@ func LoadTemplateScript(script string, extraFunctions template.FuncMap) (func(ma
 		}
 	}
 	//jitsuExportWrapperFunc skips undefined fields during exporting object from vm
-	var jitsuExportWrapperFunc = func(event map[string]interface{})(interface{}, error) {
+	var jitsuExportWrapperFunc = func(event map[string]interface{}) (interface{}, error) {
 		value, err := fn(event)
 		if err != nil {
 			return nil, err
@@ -96,7 +95,7 @@ func exportObject(o *goja.Object, vm *goja.Runtime) map[string]interface{} {
 	for _, itemName := range keys {
 		v := o.Get(itemName)
 		if v != nil {
-			if v.ExportType() == nil && v.String() == "undefined" {
+			if goja.IsUndefined(v) {
 				continue
 			}
 			m[itemName] = exportValue(&v, vm)
