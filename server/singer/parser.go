@@ -114,7 +114,7 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 			outputPortion.Streams[streamName].Objects = append(outputPortion.Streams[streamName].Objects, object)
 		default:
 			msg := fmt.Sprintf("Unknown Singer output line type: %s [%v]", objectType, lineObject)
-			logging.Warn(msg)
+			logging.Warnf(msg)
 			logger.WARN(msg)
 		}
 	}
