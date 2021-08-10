@@ -90,7 +90,7 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 			if representation.NeedClean {
 				err := storage.Clean(stream.BatchHeader.TableName)
 				if err != nil {
-					logging.Warn("Storage cleaning failed, ignoring: %v", err)
+					logging.Warnf("[%s] storage cleaning failed, ignoring: %v", storage.ID(), err)
 				}
 			}
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "", false)
