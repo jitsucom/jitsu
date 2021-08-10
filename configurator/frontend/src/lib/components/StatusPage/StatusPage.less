@@ -1,38 +1,23 @@
-.status-page-cards-row {
-  padding-bottom: 16px;
+@import "theme.less";
+
+.status-page_info-popover {
+  color: @secondaryText;
+  user-select: none;
 }
 
-.stat-card .ant-card-head-wrapper {
-  height: 50px;
-  min-height: 50px;
-  max-height: 50px;
+.status-page_info-popover:hover {
+  color: @link;
 }
 
-.status-page-empty-chart {
-  h3 {
-    text-align: center;
-    font-size: 90%;
-    color: gray;
-    text-decoration: underline;
-    margin-bottom: 0 !important;
-  }
-  p {
-    text-align: center;
-    font-size: 75%;
-    color: gray;
-    margin-top: 0 !important;
-    padding-top: 0 !important;
-  }
+.status-page-cards-row > * {
+  @apply mb-4;
 }
 
-.status-and-events-panel {
-  padding-bottom: 20px;
-  display: flex;
-  justify-content: flex-end;
-  .status-and-events-panel-main {
-    margin-right: 10px;
-    border-bottom: 1px dotted darkgray;
-  }
-  align-items: flex-end;
+.stat-card-number {
+  font-size: 35px;
+  font-weight: 500;
+  text-align: center;
 }
+
+
 

@@ -17,7 +17,7 @@ import styles from './StatisticsChart.module.less';
 
 type DataType = 'total' | 'success' | 'skip' | 'errors';
 
-type DataPoint = { date: Moment } & { [key in DataType]: number };
+type DataPoint = { date: Moment } & { [key in DataType]?: number };
 
 type Props = {
   data: DataPoint[];

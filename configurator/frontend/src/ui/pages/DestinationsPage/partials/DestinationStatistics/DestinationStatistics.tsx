@@ -17,6 +17,7 @@ import { CommonDestinationPageProps } from '../../DestinationsPage';
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 import {
+  DestinationsStatisticsDatePoint,
   DetailedStatisticsDatePoint,
   StatisticsService
 } from 'lib/services/stat';
@@ -49,13 +50,13 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
 
   // Events last 30 days
   const [, monthData, , , isMonthDataLoading] = useLoader<
-    DetailedStatisticsDatePoint[]
+    DestinationsStatisticsDatePoint[]
   >(async () => {
     const now = new Date();
     const yesterday = new Date(+now - 24 * 60 * 60 * 1000);
     const monthAgo = new Date(+now - 30 * 24 * 60 * 60 * 1000);
     return destinationUid
-      ? (await statisticsService.getDetailedStatistics(
+      ? (await statisticsService.getDetailedStatisticsByDestinations(
           monthAgo,
           yesterday,
           'day',
@@ -72,7 +73,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
     const previousHour = new Date(+now - 60 * 60 * 1000);
     const dayAgo = new Date(+now - 24 * 60 * 60 * 1000);
     return destinationUid
-      ? (await statisticsService.getDetailedStatistics(
+      ? (await statisticsService.getDetailedStatisticsByDestinations(
           dayAgo,
           previousHour,
           'hour',
