@@ -1,24 +1,39 @@
 import moment, { Moment, unitOfTime } from 'moment';
 import { BackendApiClient } from 'lib/services/ApplicationServices';
 import { IProject } from 'lib/services/model';
+/**
+ * Events that come directly from sources are in the `source` namespace.
+ * When events are processed internally in Jitsu thay may get multiplexed
+ * in order to get delivered to different destinations and are counted in
+ * the `destination` namespace. Total count of the `destination` events is
+ * greater or equal to the total count of the `source` events due to the
+ * multiplexing
+ */
+type EventsNamespace = 'source' | 'destination';
 
+type SourcesEventsCountType = 'success' | 'skip'
+type DestinationsEventsCountType = 'success' | 'skip' | 'errors'
+type EventsCountType = SourcesEventsCountType | DestinationsEventsCountType;
 
-export type EventsCountType = 'success' | 'skip' | 'errors';
 type Granularity = 'day' | 'hour' | 'total';
-type GenericStatisticsPoint<T extends string> = {
+
+type StatisticsPoint<T extends string> = {
   [key in T]: number;
 };
-type StatisticsPoint = GenericStatisticsPoint<EventsCountType>;
+type GenericDetailedStatisticsDatePoint<T extends string> = StatisticsPoint<T> & {
+  date: Moment;
+  total: number;
+}
 
 export type DatePoint = {
   date: Moment;
   events: number;
 };
 
-export type DetailedStatisticsDatePoint = StatisticsPoint & {
-  date: Moment;
-  total: number;
-};
+export type DetailedStatisticsDatePoint = GenericDetailedStatisticsDatePoint<EventsCountType>;
+
+export type SourcesStatisticsDatePoint = GenericDetailedStatisticsDatePoint<SourcesEventsCountType>;
+export type DestinationsStatisticsDatePoint = GenericDetailedStatisticsDatePoint<DestinationsEventsCountType>;
 
 /**
  * Information about events per current period and prev
@@ -48,13 +63,32 @@ export class EventsComparison {
 }
 
 export interface IStatisticsService {
-  get(start: Date, end: Date, granularity: Granularity): Promise<DatePoint[]>;
-  getDetailedStatistics(
+  get(
+    start: Date,
+    end: Date,
+    granularity: Granularity,
+    namespace?: 'source',
+    status?: SourcesEventsCountType
+  ): Promise<DatePoint[]>;
+  get(
+    start: Date,
+    end: Date,
+    granularity: Granularity,
+    namespace?: 'destination',
+    status?: DestinationsEventsCountType,
+    destinationId?: string
+  ): Promise<DatePoint[]>;
+  getDetailedStatisticsBySources(
+    start: Date,
+    end: Date,
+    granularity: Granularity,
+  ): Promise<SourcesStatisticsDatePoint[]>;
+  getDetailedStatisticsByDestinations(
     start: Date,
     end: Date,
     granularity: Granularity,
     destinationId?: string
-  ): Promise<DetailedStatisticsDatePoint[]>;
+  ): Promise<DestinationsStatisticsDatePoint[]>
 }
 
 export function addSeconds(date: Date, seconds: number): Date {
@@ -121,12 +155,13 @@ export class StatisticsService implements IStatisticsService {
     this.timeInUTC = timeInUTC;
   }
 
-  private combineDestinationStatisticsData(
-    entries: Array<[EventsCountType, DatePoint[]]>
-  ): DetailedStatisticsDatePoint[] {
+  private combineStatisticsData<K extends string>(
+    entries: Array<[K, DatePoint[]]>
+  ): GenericDetailedStatisticsDatePoint<K>[] {
     if (!entries.length) return [];
-    return entries[0][1].map((_, idx) => {
-      return entries.reduce<DetailedStatisticsDatePoint>(
+    const datePoints = entries[0][1];
+    return datePoints.map((_, idx) => {
+      return entries.reduce(
         (point, entry) => {
           const date = entry[1][idx].date;
           const name = entry[0];
@@ -139,21 +174,28 @@ export class StatisticsService implements IStatisticsService {
             [name]: value
           };
         },
-        {
-          date: entries[0][1][0].date,
-          success: 0,
-          skip: 0,
-          errors: 0,
-          total: 0
-        }
-      );
+        {total: 0}
+      ) as GenericDetailedStatisticsDatePoint<K>;
     });
+  }
+
+  private combineSourcesStatisticsData(
+    entries: Array<[SourcesEventsCountType, DatePoint[]]>
+  ): SourcesStatisticsDatePoint[] {
+    return this.combineStatisticsData(entries);
+  }
+
+  private combineDestinationsStatisticsData(
+    entries: Array<[DestinationsEventsCountType, DatePoint[]]>
+  ): DestinationsStatisticsDatePoint[] {
+    return this.combineStatisticsData(entries);
   }
 
   private getQuery(
     start: Date,
     end: Date,
     granularity: Granularity,
+    namespace: EventsNamespace,
     status?: EventsCountType,
     destinationId?: string
   ): string {
@@ -163,19 +205,21 @@ export class StatisticsService implements IStatisticsService {
       ['end', end.toISOString()],
       ['granularity', granularity]
     ];
+    if (namespace) queryParams.push(['namespace', namespace]);
     if (status) queryParams.push(['status', status]);
     if (destinationId) queryParams.push(['destination_id', destinationId]);
     const query = queryParams.reduce<string>(
       (query, [name, value]) => `${query}${name}=${value}&`,
       ''
     );
-    return query.substring(0, query.length - 1);
+    return query.substring(0, query.length - 1); // removes the last '&' symbol
   }
 
   public async get(
     start: Date,
     end: Date,
     granularity: Granularity,
+    namespace?: EventsNamespace,
     status?: EventsCountType,
     destinationId?: string
   ): Promise<DatePoint[]> {
@@ -184,6 +228,7 @@ export class StatisticsService implements IStatisticsService {
         start,
         end,
         granularity,
+        namespace,
         status,
         destinationId
       )}`,
@@ -207,21 +252,41 @@ export class StatisticsService implements IStatisticsService {
     );
   }
 
-  public async getDetailedStatistics(
+  public async getDetailedStatisticsBySources(
+    start: Date,
+    end: Date,
+    granularity: Granularity,
+  ): Promise<SourcesStatisticsDatePoint[]> {
+    const [successData, skipData] = await Promise.all([
+      this.get(start, end, granularity, 'source', 'success'),
+      this.get(start, end, granularity, 'source', 'skip')
+    ]);
+
+    const sourceDataEntries: [SourcesEventsCountType, DatePoint[]][] = [
+      ['success', successData],
+      ['skip', skipData]
+    ];
+    return this.combineSourcesStatisticsData(sourceDataEntries);
+  }
+
+  public async getDetailedStatisticsByDestinations(
     start: Date,
     end: Date,
     granularity: Granularity,
     destinationId?: string
-  ): Promise<DetailedStatisticsDatePoint[]> {
+  ): Promise<DestinationsStatisticsDatePoint[]> {
     const [successData, skipData, errorData] = await Promise.all([
-      this.get(start, end, granularity, 'success', destinationId),
-      this.get(start, end, granularity, 'skip', destinationId),
-      this.get(start, end, granularity, 'errors', destinationId)
+      this.get(start, end, granularity, 'destination', 'success', destinationId),
+      this.get(start, end, granularity, 'destination', 'skip', destinationId),
+      this.get(start, end, granularity, 'destination', 'errors', destinationId)
     ]);
-    return this.combineDestinationStatisticsData([
+
+    const destinationDataEntries: [DestinationsEventsCountType, DatePoint[]][] = [
       ['success', successData],
       ['skip', skipData],
       ['errors', errorData]
-    ]);
+    ];
+
+    return this.combineDestinationsStatisticsData(destinationDataEntries);
   }
 }

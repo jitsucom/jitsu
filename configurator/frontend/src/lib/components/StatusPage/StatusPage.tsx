@@ -3,36 +3,39 @@
 import React from 'react';
 import moment from 'moment';
 import { NavLink } from 'react-router-dom';
-import { Button, Card, Col, Row } from 'antd';
+import { Button, Card, CardProps, Col, Tooltip, Row } from 'antd';
 // @Components
-import {
-  CodeInline,
-  LoadableComponent,
-  StatCard
-} from 'lib/components/components';
+import { CodeInline, LoadableComponent } from 'lib/components/components';
 import { StatisticsChart } from 'ui/components/StatisticsChart/StatisticsChart';
 // @Icons
-import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
-import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
+import {
+  ReloadOutlined,
+  WarningOutlined,
+  QuestionCircleOutlined,
+  UnorderedListOutlined
+} from '@ant-design/icons';
 // @Services
 import {
   addSeconds,
-  DetailedStatisticsDatePoint,
+  DestinationsStatisticsDatePoint,
   IStatisticsService,
+  SourcesStatisticsDatePoint,
   StatisticsService
 } from 'lib/services/stat';
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Store
 import { destinationsStore } from 'stores/destinations';
 // @Utils
-import { withDefaultVal } from 'lib/commons/utils';
+import { numberFormat, withDefaultVal } from 'lib/commons/utils';
 // @Styles
 import './StatusPage.less';
 
 type State = {
   destinationsCount?: number;
-  hourlyEvents?: DetailedStatisticsDatePoint[];
-  dailyEvents?: DetailedStatisticsDatePoint[];
+  hourlyEventsBySources?: SourcesStatisticsDatePoint[];
+  dailyEventsBySources?: SourcesStatisticsDatePoint[];
+  hourlyEventsByDestinations?: DestinationsStatisticsDatePoint[];
+  dailyEventsByDestinations?: DestinationsStatisticsDatePoint[];
   totalEventsLastHour?: number;
   totalEventsToday?: number;
 };
@@ -66,7 +69,7 @@ export default class StatusPage extends LoadableComponent<Props, State> {
     let utcPostfix = this.timeInUTC ? ' [UTC]' : '';
     return (
       <>
-        <div className="status-and-events-panel">
+        {/* <div className="status-and-events-panel">
           <NavLink to="/events_stream" className="status-and-events-panel-main">
             Recent Events
           </NavLink>
@@ -77,69 +80,142 @@ export default class StatusPage extends LoadableComponent<Props, State> {
               this.reload();
             }}
           />
-        </div>
-        <div className="status-page-cards-row">
-          <Row gutter={16}>
-            <Col span={8}>
-              <StatCard
-                value={this.state.destinationsCount}
-                title="Total destinations"
-                bordered={false}
+        </div> */}
+        <Row gutter={16} className="status-page-cards-row">
+          <Col flex={10}>
+            <StatisticsCard
+              value={this.state.destinationsCount}
+              title="Total destinations"
+              bordered={false}
+            />
+          </Col>
+          <Col flex={10}>
+            <StatisticsCard
+              value={this.state.totalEventsToday}
+              title={'Today'}
+              bordered={false}
+            />
+          </Col>
+          <Col flex={10}>
+            <StatisticsCard
+              value={this.state.totalEventsLastHour}
+              title={`Last hour (${moment().utc().format('HH:[00]')} UTC) `}
+              bordered={false}
+            />
+          </Col>
+          <Col flex={1}>
+            <Card
+              bordered={false}
+              className="flex flex-col justify-center h-full"
+            >
+              <div className="flex flex-col items-stretch h-full">
+                <NavLink to="/events_stream">
+                  <Button
+                    type="ghost"
+                    size="large"
+                    icon={<UnorderedListOutlined />}
+                    className="w-full mb-2"
+                  >
+                    Recent Events
+                  </Button>
+                </NavLink>
+                <Button
+                  size="large"
+                  icon={<ReloadOutlined />}
+                  onClick={() => {
+                    this.reload();
+                  }}
+                >
+                  Reload
+                </Button>
+              </div>
+            </Card>
+          </Col>
+        </Row>
+        <Row gutter={16} className="status-page-cards-row">
+          <Col span={12}>
+            <Card
+              title={<span>Events from sources in the last 30 days</span>}
+              bordered={false}
+              extra={<SourcesEventsDocsTooltip />}
+            >
+              <StatisticsChart
+                data={this.state.dailyEventsBySources}
+                granularity={'day'}
+                dataToDisplay={['success', 'skip']}
               />
-            </Col>
-            <Col span={8}>
-              <StatCard
-                value={this.state.totalEventsToday}
-                title={'Today'}
-                bordered={false}
+            </Card>
+          </Col>
+          <Col span={12}>
+            <Card
+              title={<span>Events from sources in the last 24 hours</span>}
+              bordered={false}
+              extra={<SourcesEventsDocsTooltip />}
+            >
+              <StatisticsChart
+                data={this.state.hourlyEventsBySources}
+                granularity={'hour'}
+                dataToDisplay={['success', 'skip']}
               />
-            </Col>
-            <Col span={8}>
-              <StatCard
-                value={this.state.totalEventsLastHour}
-                title={`Last hour (${moment().utc().format('HH:[00]')} UTC) `}
-                bordered={false}
+            </Card>
+          </Col>
+        </Row>
+        <Row gutter={16} className="status-page-cards-row">
+          <Col span={12}>
+            <Card
+              title={<span>Events by destinations in the last 30 days</span>}
+              bordered={false}
+              extra={<DestinationsEventsDocsTooltip />}
+            >
+              <StatisticsChart
+                data={this.state.dailyEventsByDestinations}
+                granularity={'day'}
+                dataToDisplay={['success', 'skip', 'errors']}
               />
-            </Col>
-          </Row>
-        </div>
-        <div className="status-page-cards-row">
-          <Row gutter={16}>
-            <Col span={12}>
-              <Card title="Events last 30 days" bordered={false}>
-                <StatisticsChart
-                  data={this.state.dailyEvents}
-                  granularity={'day'}
-                />
-              </Card>
-            </Col>
-            <Col span={12}>
-              <Card title="Events last 24 hours" bordered={false}>
-                <StatisticsChart
-                  data={this.state.hourlyEvents}
-                  granularity={'hour'}
-                />
-              </Card>
-            </Col>
-          </Row>
-        </div>
+            </Card>
+          </Col>
+          <Col span={12}>
+            <Card
+              title={<span>Events by destinations in the last 24 hours</span>}
+              bordered={false}
+              extra={<DestinationsEventsDocsTooltip />}
+            >
+              <StatisticsChart
+                data={this.state.hourlyEventsByDestinations}
+                granularity={'hour'}
+                dataToDisplay={['success', 'skip', 'errors']}
+              />
+            </Card>
+          </Col>
+        </Row>
       </>
     );
   }
 
   async load(): Promise<State> {
-    let now = new Date();
-    let [hourlyEvents, dailyEvents] = await Promise.all([
-      this.stats.getDetailedStatistics(addSeconds(now, -24 * 60 * 60), now, 'hour'),
-      this.stats.getDetailedStatistics(addSeconds(now, -30 * 24 * 60 * 60), now, 'day')
+    const now = new Date();
+    const dayAgo = addSeconds(now, -24 * 60 * 60);
+    const monthAgo = addSeconds(now, -30 * 24 * 60 * 60);
+    const [
+      hourlyEventsBySources,
+      dailyEventsBySources,
+      hourlyEventsByDestinations,
+      dailyEventsByDestinations
+    ] = await Promise.all([
+      this.stats.getDetailedStatisticsBySources(dayAgo, now, 'hour'),
+      this.stats.getDetailedStatisticsBySources(monthAgo, now, 'day'),
+      this.stats.getDetailedStatisticsByDestinations(dayAgo, now, 'hour'),
+      this.stats.getDetailedStatisticsByDestinations(monthAgo, now, 'day')
     ]);
 
     return {
       destinationsCount: this.getNumberOfDestinations(),
-      hourlyEvents: hourlyEvents.slice(0, -1),
-      dailyEvents: dailyEvents.slice(0, -1),
-      totalEventsLastHour: hourlyEvents.slice(-1)[0].total,
-      totalEventsToday: dailyEvents.slice(-1)[0].total
+      hourlyEventsBySources: hourlyEventsBySources.slice(0, -1),
+      dailyEventsBySources: dailyEventsBySources.slice(0, -1),
+      hourlyEventsByDestinations: hourlyEventsByDestinations.slice(0, -1),
+      dailyEventsByDestinations: dailyEventsByDestinations.slice(0, -1),
+      totalEventsLastHour: hourlyEventsBySources.slice(-1)[0].total,
+      totalEventsToday: dailyEventsBySources.slice(-1)[0].total
     };
   }
 
@@ -183,5 +259,54 @@ export default class StatusPage extends LoadableComponent<Props, State> {
     );
   }
 }
+
+const StatisticsCard: React.FC<CardProps & { value: number }> = ({
+  value,
+  ...cardProps
+}) => {
+  const formatter = numberFormat({});
+  return (
+    <Card {...cardProps}>
+      <div className="stat-card-number">{formatter(value)}</div>
+    </Card>
+  );
+};
+
+const SourcesEventsDocsTooltip: React.FC = ({ children }) => {
+  const content = (
+    <div className="max-w-xs">
+      <p>
+        Events sent from sources may be count as skipped if and only if there
+        was no connected destination to send the events to
+      </p>
+    </div>
+  );
+  return (
+    <span className="cursor-pointer status-page_info-popover">
+      <Tooltip title={content}>
+        {children ? children : <QuestionCircleOutlined />}
+      </Tooltip>
+    </span>
+  );
+};
+
+const DestinationsEventsDocsTooltip: React.FC = ({ children }) => {
+  const content = (
+    <div className="max-w-xs">
+      <p>
+        Events sent from sources may be multiplexed in order to be sent to
+        different destinations. Therefore, total amount of destinations events
+        is greater or equal to the total amount of sources events
+      </p>
+    </div>
+  );
+  return (
+    <span className="cursor-pointer status-page_info-popover">
+      <Tooltip title={content}>
+        {children ? children : <QuestionCircleOutlined />}
+      </Tooltip>
+    </span>
+  );
+};
 
 

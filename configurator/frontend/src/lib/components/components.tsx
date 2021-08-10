@@ -75,18 +75,6 @@ export function CenteredError({ error }) {
     'Unknown error'}</div>;
 }
 
-export function StatCard({ value, ...otherProps }) {
-  const formatter = otherProps['format']
-    ? otherProps['format']
-    : numberFormat({});
-  const props = { ...otherProps };
-  return (
-    <Card className="stat-card" {...props}>
-      <div className="stat-card-number">{formatter(value)}</div>
-    </Card>
-  );
-}
-
 export function makeErrorHandler(errorDescription: string) {
   return (error) => handleError(error, errorDescription);
 }
