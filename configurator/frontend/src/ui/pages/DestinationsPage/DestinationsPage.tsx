@@ -14,6 +14,7 @@ import { CenteredError, CenteredSpin } from 'lib/components/components';
 // @Types
 import { PageProps } from 'navigation';
 import { BreadcrumbsProps } from 'ui/components/Breadcrumbs/Breadcrumbs';
+import { DestinationStatistics } from './partials/DestinationStatistics/DestinationStatistics';
 
 export interface CollectionDestinationData {
   destinations: DestinationData[];
@@ -25,14 +26,13 @@ export interface CommonDestinationPageProps {
   editorMode?: 'edit' | 'add';
 }
 
-const DestinationsPageComponent = ({setBreadcrumbs}: PageProps) => {
-
+const DestinationsPageComponent = ({ setBreadcrumbs }: PageProps) => {
   const params = useParams<unknown>();
 
   if (destinationsStore.state === DestinationsStoreState.GLOBAL_ERROR) {
     return <CenteredError error={destinationsStore.error} />;
   } else if (
-    destinationsStore.state === DestinationsStoreState.GLOBAL_LOADING || 
+    destinationsStore.state === DestinationsStoreState.GLOBAL_LOADING ||
     sourcesStore.state === SourcesStoreState.GLOBAL_LOADING
   ) {
     return <CenteredSpin />;
@@ -41,7 +41,7 @@ const DestinationsPageComponent = ({setBreadcrumbs}: PageProps) => {
   return (
     <Switch>
       <Route path={destinationPageRoutes.root} exact>
-        <DestinationsList {...{ setBreadcrumbs }} />
+        <DestinationsList setBreadcrumbs={setBreadcrumbs} />
       </Route>
       <Route path={destinationPageRoutes.newExact} strict={false} exact>
         <DestinationEditor {...{ setBreadcrumbs, editorMode: 'add' }} />
@@ -55,6 +55,9 @@ const DestinationsPageComponent = ({setBreadcrumbs}: PageProps) => {
           key={params?.['id'] || 'static_key'}
           {...{ setBreadcrumbs, editorMode: 'edit' }}
         />
+      </Route>
+      <Route path={destinationPageRoutes.statisticsExact} strict={false} exact>
+        <DestinationStatistics setBreadcrumbs={setBreadcrumbs} />
       </Route>
     </Switch>
   );
