@@ -29,6 +29,8 @@ const (
 	createTableCHTemplate            = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
 	createDistributedTableCHTemplate = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
 	dropDistributedTableCHTemplate   = `DROP TABLE IF EXISTS "%s"."dist_%s" %s`
+	cleanTableCHTemplate             = `TRUNCATE TABLE IF EXISTS "%s"."%s"`
+	cleanDistributedTableCHTemplate  = `TRUNCATE TABLE IF EXISTS "%s"."dist_%s" %s`
 
 	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
 	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
@@ -450,6 +452,29 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 	return wrappedTx.DirectCommit()
 }
 
+//Clean deletes all records in tableName table
+func (ch *ClickHouse) Clean(tableName string) error {
+	wrappedTx, err := ch.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	query := fmt.Sprintf(cleanTableCHTemplate, ch.database, tableName)
+	ch.queryLogger.LogDDL(query)
+
+	_, err = wrappedTx.tx.ExecContext(ch.ctx, query)
+
+	if err != nil {
+		return fmt.Errorf("Error cleaning [%s] table: %v", tableName, err)
+	}
+
+	if ch.cluster != "" {
+		ch.dropDistributedTableInTransaction(wrappedTx, tableName)
+	}
+
+	return nil
+}
+
 //DropTable drops table in transaction
 func (ch *ClickHouse) DropTable(table *Table) error {
 	wrappedTx, err := ch.OpenTx()
@@ -553,6 +578,16 @@ func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string
 	if err != nil {
 		logging.Errorf("Error creating distributed table statement with statement [%s] for [%s] : %v", originTableName, statement, err)
 		return
+	}
+}
+
+//clean distributed table, ignore errors
+func (ch *ClickHouse) cleanDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
+	query := fmt.Sprintf(cleanDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
+	ch.queryLogger.LogDDL(query)
+	_, err := wrappedTx.tx.ExecContext(ch.ctx, query)
+	if err != nil {
+		logging.Errorf("Error cleaning distributed table for [%s] with statement [%s]: %v", originTableName, query, err)
 	}
 }
 

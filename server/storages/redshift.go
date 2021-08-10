@@ -168,6 +168,10 @@ func (ar *AwsRedshift) SyncStore(overriddenDataSchema *schema.BatchHeader, objec
 	return syncStoreImpl(ar, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
+func (ar *AwsRedshift) Clean(tableName string) error {
+	return cleanImpl(ar, tableName)
+}
+
 //Update updates record in Redshift
 func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	_, tableHelper := ar.getAdapters()

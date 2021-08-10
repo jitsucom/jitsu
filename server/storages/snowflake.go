@@ -222,6 +222,10 @@ func (s *Snowflake) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 	return syncStoreImpl(s, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
+func (s *Snowflake) Clean(tableName string) error {
+	return cleanImpl(s, tableName)
+}
+
 //Update uses SyncStore under the hood
 func (s *Snowflake) Update(object map[string]interface{}) error {
 	return s.SyncStore(nil, []map[string]interface{}{object}, "", true)

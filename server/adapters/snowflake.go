@@ -33,6 +33,7 @@ const (
 	insertSFTemplate                    = `INSERT INTO %s.%s (%s) VALUES %s`
 	deleteSFTemplate                    = `DELETE FROM %s.%s WHERE %s`
 	dropSFTableTemplate                 = `DROP TABLE %s.%s`
+	cleanSFTableTemplate                = `TRUNCATE TABLE IF EXISTS %s.%s`
 )
 
 var (
@@ -386,6 +387,21 @@ func (s *Snowflake) DropTable(table *Table) error {
 	return wrappedTx.DirectCommit()
 }
 
+//Clean deletes all records in tableName table
+func (s *Snowflake) Clean(tableName string) error {
+	wrappedTx, err := s.OpenTx()
+	if err != nil {
+		return err
+	}
+
+	if err := s.cleanTableInTransaction(wrappedTx, tableName); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
+}
+
 //createTableInTransaction creates database table with name,columns provided in Table representation
 func (s *Snowflake) createTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	var columnsDDL []string
@@ -603,6 +619,19 @@ func (s *Snowflake) columnDDL(name string, column Column) string {
 	}
 
 	return fmt.Sprintf(`%s %s`, reformatValue(name), sqlColumnTypeDDL)
+}
+
+func (s *Snowflake) cleanTableInTransaction(wrappedTx *Transaction, tableName string) error {
+	query := fmt.Sprintf(cleanSFTableTemplate, s.config.Schema, tableName)
+	s.queryLogger.LogDDL(query)
+
+	_, err := wrappedTx.tx.ExecContext(s.ctx, query)
+
+	if err != nil {
+		return fmt.Errorf("Error cleaning [%s] table: %v", tableName, err)
+	}
+
+	return nil
 }
 
 //Snowflake has table with schema, table names and there
