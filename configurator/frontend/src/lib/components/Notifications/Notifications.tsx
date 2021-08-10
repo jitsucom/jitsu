@@ -67,7 +67,7 @@ const NotificationsComponent: React.FC<NotificationsProps> = ({
                   icon={makeIcon(type, icon)}
                   onClick={() => {
                     handleCloseContainer?.();
-                    history.replace(editEntityRoute);
+                    history.push(editEntityRoute);
                   }}
                 />
               </div>

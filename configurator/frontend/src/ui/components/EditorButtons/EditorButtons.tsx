@@ -5,7 +5,7 @@ import { Button, Popover } from 'antd';
 import { PopoverTitle } from 'ui/components/Popover/PopoverTitle';
 import { PopoverErrorsContent } from 'ui/components/Popover/PopoverErrorsContent';
 // @Icons
-import ApiOutlined from '@ant-design/icons/lib/icons/ApiOutlined';
+import { ApiOutlined, AreaChartOutlined } from '@ant-design/icons';
 // @Types
 import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 
@@ -21,19 +21,20 @@ interface ButtonProps {
 export interface Props {
   save: ButtonProps;
   test: ButtonProps;
-  handleCancel: () => void;
+  handleCancel: VoidFunction;
 }
 
-const EditorButtons = ({
-  test,
-  save,
-  handleCancel
-}: Props) => {
+const EditorButtons = ({ test, save, handleCancel }: Props) => {
   return (
     <>
       <Popover
         content={<PopoverErrorsContent tabsList={save.tabsList} />}
-        title={<PopoverTitle title={save.titleText} handleClose={save.handlePopoverClose}/>}
+        title={
+          <PopoverTitle
+            title={save.titleText}
+            handleClose={save.handlePopoverClose}
+          />
+        }
         trigger="click"
         visible={save.isPopoverVisible}
       >
@@ -43,12 +44,20 @@ const EditorButtons = ({
           className="mr-3"
           htmlType="button"
           loading={save.isRequestPending}
-          onClick={save.handlePress}>Save</Button>
+          onClick={save.handlePress}
+        >
+          Save
+        </Button>
       </Popover>
 
       <Popover
         content={<PopoverErrorsContent tabsList={test.tabsList} />}
-        title={<PopoverTitle title={test.titleText} handleClose={test.handlePopoverClose}/>}
+        title={
+          <PopoverTitle
+            title={test.titleText}
+            handleClose={test.handlePopoverClose}
+          />
+        }
         trigger="click"
         visible={test.isPopoverVisible}
       >
@@ -58,17 +67,17 @@ const EditorButtons = ({
           type="dashed"
           loading={test.isRequestPending}
           onClick={test.handlePress}
-          icon={<ApiOutlined/>}
-        >Test connection</Button>
+          icon={<ApiOutlined />}
+        >
+          Test onnection
+        </Button>
       </Popover>
 
-        {handleCancel && (
-      <Button
-        type="default"
-        size="large"
-        onClick={handleCancel}
-        danger>Cancel</Button>
-        )}
+      {handleCancel && (
+        <Button type="default" size="large" onClick={handleCancel} danger>
+          Cancel
+        </Button>
+      )}
     </>
   );
 };

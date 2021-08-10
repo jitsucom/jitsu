@@ -1,49 +1,43 @@
 /* eslint-disable */
 // @Libs
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer
-} from 'recharts';
 import React from 'react';
 import moment from 'moment';
 import { NavLink } from 'react-router-dom';
-import { Button, Card, Col, Row } from 'antd';
+import { Button, Card, CardProps, Col, Tooltip, Row } from 'antd';
 // @Components
-import {
-  CodeInline,
-  LoadableComponent,
-  StatCard
-} from 'lib/components/components';
+import { CodeInline, LoadableComponent } from 'lib/components/components';
+import { StatisticsChart } from 'ui/components/StatisticsChart/StatisticsChart';
 // @Icons
-import ReloadOutlined from '@ant-design/icons/lib/icons/ReloadOutlined';
-import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
+import {
+  ReloadOutlined,
+  WarningOutlined,
+  QuestionCircleOutlined,
+  UnorderedListOutlined
+} from '@ant-design/icons';
 // @Services
 import {
   addSeconds,
-  DatePoint,
-  EventsComparison,
-  StatService,
-  StatServiceImpl
+  DestinationsStatisticsDatePoint,
+  IStatisticsService,
+  SourcesStatisticsDatePoint,
+  StatisticsService
 } from 'lib/services/stat';
 import ApplicationServices from 'lib/services/ApplicationServices';
-import { destinationsStore, DestinationsStoreState } from 'stores/destinations';
-
+// @Store
+import { destinationsStore } from 'stores/destinations';
 // @Utils
-import { withDefaultVal } from 'lib/commons/utils';
+import { numberFormat, withDefaultVal } from 'lib/commons/utils';
 // @Styles
 import './StatusPage.less';
 
 type State = {
-  designationsCount?: number;
-  hourlyEvents?: DatePoint[];
-  dailyEvents?: DatePoint[];
-  hourlyComparison?: EventsComparison;
-  dailyComparison?: EventsComparison;
+  destinationsCount?: number;
+  hourlyEventsBySources?: SourcesStatisticsDatePoint[];
+  dailyEventsBySources?: SourcesStatisticsDatePoint[];
+  hourlyEventsByDestinations?: DestinationsStatisticsDatePoint[];
+  dailyEventsByDestinations?: DestinationsStatisticsDatePoint[];
+  totalEventsLastHour?: number;
+  totalEventsToday?: number;
 };
 
 interface Props {
@@ -52,14 +46,14 @@ interface Props {
 
 export default class StatusPage extends LoadableComponent<Props, State> {
   private readonly services: ApplicationServices;
-  private stats: StatService;
+  private stats: IStatisticsService;
   private timeInUTC: boolean;
 
   constructor(props: Props, context: any) {
     super(props, context);
     this.timeInUTC = withDefaultVal(this.props.timeInUTC, true);
     this.services = ApplicationServices.get();
-    this.stats = new StatServiceImpl(
+    this.stats = new StatisticsService(
       this.services.backendApiClient,
       this.services.activeProject,
       this.timeInUTC
@@ -75,103 +69,146 @@ export default class StatusPage extends LoadableComponent<Props, State> {
     let utcPostfix = this.timeInUTC ? ' [UTC]' : '';
     return (
       <>
-        <div className="status-and-events-panel">
-          <NavLink to="/events_stream" className="status-and-events-panel-main">
-            Recent Events
-          </NavLink>
-          <Button
-            className="status-and-events-panel-reload"
-            icon={<ReloadOutlined />}
-            onClick={() => {
-              this.reload();
-            }}
-          />
-        </div>
-        <div className="status-page-cards-row">
-          <Row gutter={16}>
-            <Col span={8}>
-              <StatCard
-                value={this.state.designationsCount}
-                title="Total destinations"
-                bordered={false}
+        <Row gutter={16} className="status-page-cards-row">
+          <Col flex={10}>
+            <StatisticsCard
+              value={this.state.destinationsCount}
+              title="Total destinations"
+              bordered={false}
+            />
+          </Col>
+          <Col flex={10}>
+            <StatisticsCard
+              value={this.state.totalEventsToday}
+              title={'Today'}
+              bordered={false}
+            />
+          </Col>
+          <Col flex={10}>
+            <StatisticsCard
+              value={this.state.totalEventsLastHour}
+              title={`Last hour (${moment().utc().format('HH:[00]')} UTC) `}
+              bordered={false}
+            />
+          </Col>
+          <Col flex={1}>
+            <Card
+              bordered={false}
+              className="flex flex-col justify-center h-full"
+            >
+              <div className="flex flex-col items-stretch h-full">
+                <NavLink to="/events_stream">
+                  <Button
+                    type="ghost"
+                    size="large"
+                    icon={<UnorderedListOutlined />}
+                    className="w-full mb-2"
+                  >
+                    Recent Events
+                  </Button>
+                </NavLink>
+                <Button
+                  size="large"
+                  icon={<ReloadOutlined />}
+                  onClick={() => {
+                    this.reload();
+                  }}
+                >
+                  Reload
+                </Button>
+              </div>
+            </Card>
+          </Col>
+        </Row>
+        <Row gutter={16} className="status-page-cards-row">
+          <Col span={12}>
+            <Card
+              title={<span>Events from sources in the last 30 days</span>}
+              bordered={false}
+              extra={<SourcesEventsDocsTooltip />}
+            >
+              <StatisticsChart
+                data={this.state.dailyEventsBySources}
+                granularity={'day'}
+                dataToDisplay={['success', 'skip']}
               />
-            </Col>
-            <Col span={8}>
-              <StatCard
-                value={this.state.dailyComparison.current}
-                valuePrev={this.state.dailyComparison.previous}
-                title={'Today'}
-                bordered={false}
+            </Card>
+          </Col>
+          <Col span={12}>
+            <Card
+              title={<span>Events from sources in the last 24 hours</span>}
+              bordered={false}
+              extra={<SourcesEventsDocsTooltip />}
+            >
+              <StatisticsChart
+                data={this.state.hourlyEventsBySources}
+                granularity={'hour'}
+                dataToDisplay={['success', 'skip']}
               />
-            </Col>
-            <Col span={8}>
-              <StatCard
-                value={this.state.hourlyComparison.current}
-                valuePrev={this.state.hourlyComparison.previous}
-                title={`Last hour (${moment().utc().format('HH:[00]')} UTC) `}
-                bordered={false}
+            </Card>
+          </Col>
+        </Row>
+        <Row gutter={16} className="status-page-cards-row">
+          <Col span={12}>
+            <Card
+              title={<span>Events by destinations in the last 30 days</span>}
+              bordered={false}
+              extra={<DestinationsEventsDocsTooltip />}
+            >
+              <StatisticsChart
+                data={this.state.dailyEventsByDestinations}
+                granularity={'day'}
+                dataToDisplay={['success', 'skip', 'errors']}
               />
-            </Col>
-          </Row>
-        </div>
-        <div className="status-page-cards-row">
-          <Row gutter={16}>
-            <Col span={12}>
-              <Card title="Events last 30 days" bordered={false}>
-                <Chart data={this.state.dailyEvents} granularity={'day'} />
-              </Card>
-            </Col>
-            <Col span={12}>
-              <Card title="Events last 24 hours" bordered={false}>
-                <Chart data={this.state.hourlyEvents} granularity={'hour'} />
-              </Card>
-            </Col>
-          </Row>
-        </div>
+            </Card>
+          </Col>
+          <Col span={12}>
+            <Card
+              title={<span>Events by destinations in the last 24 hours</span>}
+              bordered={false}
+              extra={<DestinationsEventsDocsTooltip />}
+            >
+              <StatisticsChart
+                data={this.state.hourlyEventsByDestinations}
+                granularity={'hour'}
+                dataToDisplay={['success', 'skip', 'errors']}
+              />
+            </Card>
+          </Col>
+        </Row>
       </>
     );
   }
 
-  format(date: Date, granularity: 'day' | 'hour') {
-    let base = this.formatDate(date);
-
-    if (granularity === 'day') {
-      return base;
-    } else {
-      return (
-        base +
-        ' ' +
-        this.padZero(date.getHours()) +
-        ':' +
-        this.padZero(date.getMinutes())
-      );
-    }
-  }
-
-  padZero(val: any) {
-    let str = val + '';
-    return str.length > 1 ? str : '0' + str;
-  }
-
   async load(): Promise<State> {
-    let now = new Date();
-    let [hourlyEvents, dailyEvents, designationsCount] = await Promise.all([
-      this.stats.get(addSeconds(now, -24 * 60 * 60), now, 'hour'),
-      this.stats.get(addSeconds(now, -30 * 24 * 60 * 60), now, 'day'),
-      this.getNumberOfDestinations()
+    const now = new Date();
+    const dayAgo = addSeconds(now, -24 * 60 * 60);
+    const monthAgo = addSeconds(now, -30 * 24 * 60 * 60);
+    const [
+      hourlyEventsBySources,
+      dailyEventsBySources,
+      hourlyEventsByDestinations,
+      dailyEventsByDestinations
+    ] = await Promise.all([
+      this.stats.getDetailedStatisticsBySources(dayAgo, now, 'hour'),
+      this.stats.getDetailedStatisticsBySources(monthAgo, now, 'day'),
+      this.stats.getDetailedStatisticsByDestinations(dayAgo, now, 'hour'),
+      this.stats.getDetailedStatisticsByDestinations(monthAgo, now, 'day')
     ]);
 
     return {
-      designationsCount,
-      hourlyEvents,
-      dailyEvents,
-      hourlyComparison: new EventsComparison(hourlyEvents, 'hour'),
-      dailyComparison: new EventsComparison(dailyEvents, 'day')
+      destinationsCount: this.getNumberOfDestinations(),
+      hourlyEventsBySources: hourlyEventsBySources.slice(0, -1),
+      dailyEventsBySources: dailyEventsBySources.slice(0, -1),
+      hourlyEventsByDestinations: hourlyEventsByDestinations.slice(0, -1),
+      dailyEventsByDestinations: dailyEventsByDestinations.slice(0, -1),
+      totalEventsLastHour: hourlyEventsBySources.slice(-1)[0].total,
+      totalEventsToday: dailyEventsBySources.slice(-1)[0].total
     };
   }
 
-  async getNumberOfDestinations() {
-    return destinationsStore.destinations.length ;
+  getNumberOfDestinations() {
+    return destinationsStore.destinations.length;
   }
 
   protected renderError(e: Error): React.ReactNode {
@@ -209,63 +246,55 @@ export default class StatusPage extends LoadableComponent<Props, State> {
       </div>
     );
   }
-
-  formatDate(d: Date) {
-    let month = '' + (d.getMonth() + 1),
-      day = '' + d.getDate(),
-      year = d.getFullYear();
-
-    if (month.length < 2) month = '0' + month;
-    if (day.length < 2) day = '0' + day;
-
-    return [year, month, day].join('-');
-  }
 }
 
-const testData = [
-  { name: 'Page A', uv: 4000, pv: 2400, amt: 2400 },
-  { name: 'Page B', uv: 3000, pv: 1398, amt: 2210 },
-  { name: 'Page C', uv: 2000, pv: 9800, amt: 2290 },
-  { name: 'Page D', uv: 2780, pv: 3908, amt: 2000 },
-  { name: 'Page E', uv: 1890, pv: 4800, amt: 2181 },
-  { name: 'Page F', uv: 2390, pv: 3800, amt: 2500 },
-  { name: 'Page G', uv: 3490, pv: 4300, amt: 2100 }
-];
+const StatisticsCard: React.FC<CardProps & { value: number }> = ({
+  value,
+  ...cardProps
+}) => {
+  const formatter = numberFormat({});
+  return (
+    <Card {...cardProps}>
+      <div className="stat-card-number">{formatter(value)}</div>
+    </Card>
+  );
+};
 
-const CustomizedXAxisTick = (props) => (
-  <g transform={`translate(${props.x},${props.y})`}>
-    <text x={0} y={0} dy={16} fontSize="10" textAnchor="end" fill="white">
-      {props.payload.value}
-    </text>
-  </g>
-);
+const SourcesEventsDocsTooltip: React.FC = ({ children }) => {
+  const content = (
+    <div className="max-w-xs">
+      <p>
+        Events sent from sources may be count as skipped if and only if there
+        was no connected destination to send the events to
+      </p>
+    </div>
+  );
+  return (
+    <span className="cursor-pointer status-page_info-popover">
+      <Tooltip title={content}>
+        {children ? children : <QuestionCircleOutlined />}
+      </Tooltip>
+    </span>
+  );
+};
 
-const CustomizedYAxisTick = (props) => (
-  <g transform={`translate(${props.x},${props.y})`}>
-    <text x={0} y={0} fontSize="10" textAnchor="end" fill="white">
-      {new Intl.NumberFormat('en').format(props.payload.value)}
-    </text>
-  </g>
-);
+const DestinationsEventsDocsTooltip: React.FC = ({ children }) => {
+  const content = (
+    <div className="max-w-xs">
+      <p>
+        Events sent from sources may be multiplexed in order to be sent to
+        different destinations. Therefore, total amount of destinations events
+        is greater or equal to the total amount of sources events
+      </p>
+    </div>
+  );
+  return (
+    <span className="cursor-pointer status-page_info-popover">
+      <Tooltip title={content}>
+        {children ? children : <QuestionCircleOutlined />}
+      </Tooltip>
+    </span>
+  );
+};
 
-const Chart = ({ data, granularity }: { data: DatePoint[]; granularity: 'hour' | 'day' }) => (
-  <ResponsiveContainer width="100%" minHeight={300} minWidth={300}>
-    <LineChart
-      data={data.map((point) => ({
-        label: granularity == 'hour' ? point.date.format('HH:mm') : point.date.format('DD MMM'),
-        events: point.events
-      }))}
-    >
-      <XAxis dataKey="label" tick={<CustomizedXAxisTick />} stroke="#394e5a" />
-      <YAxis tick={<CustomizedYAxisTick />} stroke="#394e5a" />
-      <CartesianGrid strokeDasharray="3 3" stroke="#394e5a" />
-      <Tooltip
-        wrapperStyle={{ backgroundColor: '#22313a', border: '1px solid #394e5a' }}
-        itemStyle={{ color: '#9bbcd1' }}
-        labelStyle={{ color: '#dcf3ff' }}
-        formatter={(value) => new Intl.NumberFormat('en').format(value)}
-      />
-      <Line type="monotone" dataKey="events" stroke="#878afc" activeDot={{ r: 8 }} strokeWidth={2} />
-    </LineChart>
-  </ResponsiveContainer>
-);
+
