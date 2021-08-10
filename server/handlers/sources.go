@@ -35,7 +35,7 @@ func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage
 
 //ClearCacheHandler deletes source state (signature) from meta.Storage
 func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
-	deleteWarehouseData := c.DefaultQuery("delete_warehouse_data", "false") == "true"
+	shouldDeleteWarehouseData := c.DefaultQuery("delete_warehouse_data", "false") == "true"
 	req := &ClearCacheRequest{}
 	if err := c.BindJSON(req); err != nil {
 		logging.Errorf("Error parsing clear cache request: %v", err)
@@ -73,8 +73,8 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 			logging.Error(msg)
 			multiErr = multierror.Append(multiErr, err)
 		}
-		if deleteWarehouseData {
-			sh.deleteWareHouseData(driver, source.DestinationIDs, req.Source, collection, multiErr)
+		if shouldDeleteWarehouseData {
+			multiErr = sh.deleteWareHouseData(driver, source.DestinationIDs, req.Source, collection, multiErr)
 		}
 	}
 
@@ -86,7 +86,7 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, middleware.OKResponse())
 }
 
-func (sh *SourcesHandler) deleteWareHouseData(driver driversbase.Driver, destinationIds []string, sourceID string, collection string, multiErr error) {
+func (sh *SourcesHandler) deleteWareHouseData(driver driversbase.Driver, destinationIds []string, sourceID string, collection string, multiErr error) error {
 	if singerDriver, ok := driver.(*singer.Singer); ok {
 		for _, destId := range destinationIds {
 			if destProxy, okDestProxy := sh.destinationsService.GetDestinationByID(destId); okDestProxy {
@@ -103,6 +103,7 @@ func (sh *SourcesHandler) deleteWareHouseData(driver driversbase.Driver, destina
 			}
 		}
 	}
+	return multiErr
 }
 
 //TestSourcesHandler tests source connection
