@@ -10,6 +10,7 @@ type SQLAdapter interface {
 	PatchTableSchema(schemaToAdd *Table) error
 	BulkInsert(table *Table, objects []map[string]interface{}) error
 	BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error
+	Clean(tableName string) error
 }
 
 //Adapter is an adapter for all destinations

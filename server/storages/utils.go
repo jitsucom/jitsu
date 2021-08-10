@@ -71,6 +71,12 @@ func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, ob
 	return nil
 }
 
+//cleanImpl implements common table cleaning
+func cleanImpl(storage Storage, tableName string) error {
+	adapter, _ := storage.getAdapters()
+	return adapter.Clean(tableName)
+}
+
 func processData(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (map[string]*schema.ProcessedFile, error) {
 	processor := storage.Processor()
 	if processor == nil {

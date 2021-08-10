@@ -58,7 +58,7 @@ const (
 	copyColumnTemplate                 = `UPDATE "%s"."%s" SET %s = %s`
 	dropColumnTemplate                 = `ALTER TABLE "%s"."%s" DROP COLUMN %s`
 	renameColumnTemplate               = `ALTER TABLE "%s"."%s" RENAME COLUMN %s TO %s`
-	postgresTruncateTableTemplate      = `TRUNCATE "%s"."%s"`
+	postgresCleanTableTemplate         = `TRUNCATE "%s"."%s"`
 	placeholdersStringBuildErrTemplate = `Error building placeholders string: %v`
 	postgresValuesLimit                = 65535 // this is a limitation of parameters one can pass as query values. If more parameters are passed, error is returned
 )
@@ -258,15 +258,19 @@ func (p *Postgres) Insert(eventContext *EventContext) error {
 	return nil
 }
 
+//Clean deletes all records in tableName table
 func (p *Postgres) Clean(tableName string) error {
-	statement := fmt.Sprintf(postgresTruncateTableTemplate, p.config.Schema, tableName)
-	p.queryLogger.LogQuery(statement)
-	_, err := p.dataSource.ExecContext(p.ctx, statement)
+	wrappedTx, err := p.OpenTx()
 	if err != nil {
-		return fmt.Errorf("Error cleaning table %s using statement: %s: %v", tableName, statement, err)
+		return err
 	}
 
-	return nil
+	if err := p.cleanTableInTransaction(wrappedTx, tableName); err != nil {
+		wrappedTx.Rollback()
+		return err
+	}
+
+	return wrappedTx.DirectCommit()
 }
 
 func (p *Postgres) getTable(tableName string) (*Table, error) {
@@ -573,6 +577,19 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 
 	//delete tmp table
 	return p.dropTableInTransaction(wrappedTx, tmpTable)
+}
+
+func (p *Postgres) cleanTableInTransaction(wrappedTx *Transaction, tableName string) error {
+	statement := fmt.Sprintf(postgresCleanTableTemplate, p.config.Schema, tableName)
+	p.queryLogger.LogDDL(statement)
+
+	_, err := wrappedTx.tx.ExecContext(p.ctx, statement)
+
+	if err != nil {
+		return fmt.Errorf("Error cleaning table %s using statement: %s: %v", tableName, statement, err)
+	}
+
+	return nil
 }
 
 func (p *Postgres) dropTableInTransaction(wrappedTx *Transaction, table *Table) error {

@@ -118,10 +118,6 @@ func (m *MySQL) DryRun(payload events.Event) ([]adapters.TableField, error) {
 	return dryRun(payload, m.processor, tableHelper)
 }
 
-func (m *MySQL) Clean(tableName string) error {
-	return m.adapter.Clean(tableName)
-}
-
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (m *MySQL) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
@@ -185,6 +181,10 @@ func (m *MySQL) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) e
 //SyncStore is used in storing chunk of pulled data to Postgres with processing
 func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return syncStoreImpl(m, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
+}
+
+func (m *MySQL) Clean(tableName string) error {
+	return cleanImpl(m, tableName)
 }
 
 //Update uses SyncStore under the hood

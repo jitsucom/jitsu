@@ -236,6 +236,10 @@ func (bq *BigQuery) DropTable(table *Table) error {
 	return nil
 }
 
+func (bq *BigQuery) Clean(tableName string) error {
+	return nil
+}
+
 func (bq *BigQuery) toDeleteQuery(conditions *DeleteConditions) string {
 	var queryConditions []string
 

@@ -46,6 +46,10 @@ func (a *AbstractHTTP) Type() string {
 	return "AbstractHTTP"
 }
 
+func (a *AbstractHTTP) Clean(tableName string) error {
+	return nil
+}
+
 //Close closes underlying HTTPAdapter
 func (a *AbstractHTTP) Close() error {
 	return a.httpAdapter.Close()

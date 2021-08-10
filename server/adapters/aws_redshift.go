@@ -349,6 +349,11 @@ func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}
 	return wrappedTx.DirectCommit()
 }
 
+//Clean deletes all records in tableName table
+func (ar *AwsRedshift) Clean(tableName string) error {
+	return ar.dataSourceProxy.Clean(tableName)
+}
+
 //DropTable drops table in transaction uses underlying postgres datasource
 func (ar *AwsRedshift) DropTable(table *Table) error {
 	return ar.dataSourceProxy.DropTable(table)
