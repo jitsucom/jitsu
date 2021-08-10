@@ -69,18 +69,6 @@ export default class StatusPage extends LoadableComponent<Props, State> {
     let utcPostfix = this.timeInUTC ? ' [UTC]' : '';
     return (
       <>
-        {/* <div className="status-and-events-panel">
-          <NavLink to="/events_stream" className="status-and-events-panel-main">
-            Recent Events
-          </NavLink>
-          <Button
-            className="status-and-events-panel-reload"
-            icon={<ReloadOutlined />}
-            onClick={() => {
-              this.reload();
-            }}
-          />
-        </div> */}
         <Row gutter={16} className="status-page-cards-row">
           <Col flex={10}>
             <StatisticsCard
