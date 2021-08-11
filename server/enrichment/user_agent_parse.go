@@ -4,17 +4,23 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/maputils"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/useragent"
+	"sync"
 )
 
 const UserAgentParse = "user_agent_parse"
 
+//UserAgentParseRule is a user-agent parse rule with cache
 type UserAgentParseRule struct {
 	source                  jsonutils.JSONPath
 	destination             jsonutils.JSONPath
 	uaResolver              useragent.Resolver
 	enrichmentConditionFunc func(map[string]interface{}) bool
+
+	mutex *sync.RWMutex
+	cache map[string]map[string]interface{}
 }
 
 func NewUserAgentParseRule(source, destination jsonutils.JSONPath) (*UserAgentParseRule, error) {
@@ -26,9 +32,12 @@ func NewUserAgentParseRule(source, destination jsonutils.JSONPath) (*UserAgentPa
 		enrichmentConditionFunc: func(m map[string]interface{}) bool {
 			return true
 		},
+		mutex: &sync.RWMutex{},
+		cache: map[string]map[string]interface{}{},
 	}, nil
 }
 
+//Execute returns parsed ua from cache or resolves with useragent.Resolver
 func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
 	if !uap.enrichmentConditionFunc(event) {
 		return
@@ -44,17 +53,27 @@ func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
 		return
 	}
 
-	parsedUa := uap.uaResolver.Resolve(ua)
+	//skip parsing if exists
+	uap.mutex.RLock()
+	parsedUAMap, ok := uap.cache[ua]
+	uap.mutex.RUnlock()
+	if !ok {
+		parsedUa := uap.uaResolver.Resolve(ua)
 
-	//convert all structs to map[string]interface{} for inner typecasting
-	result, err := parsers.ParseInterface(parsedUa)
-	if err != nil {
-		logging.SystemErrorf("Error converting ua parse node: %v", err)
-		return
+		var err error
+		//convert all structs to map[string]interface{} for inner typecasting
+		parsedUAMap, err = parsers.ParseInterface(parsedUa)
+		if err != nil {
+			logging.SystemErrorf("Error converting ua parse node: %v", err)
+			return
+		}
+		uap.mutex.Lock()
+		uap.cache[ua] = parsedUAMap
+		uap.mutex.Unlock()
 	}
 
 	//don't overwrite existent
-	err = uap.destination.SetIfNotExist(event, result)
+	err := uap.destination.SetIfNotExist(event, maputils.CopyMap(parsedUAMap))
 	if err != nil {
 		logging.SystemErrorf("Resolved useragent data wasn't set: %v", err)
 	}
