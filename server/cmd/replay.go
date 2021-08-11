@@ -429,6 +429,7 @@ func createProcessingBar(p *mpb.Progress, allFilesSize int64) *mpb.Bar {
 func createKBFileBar(p *mpb.Progress, filePath string, fileSize int64) *mpb.Bar {
 	return p.Add(fileSize,
 		mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler(au.Index(99, "█").String()).Tip("").Padding(au.Index(104, "░").String()).Rbound("╟")),
+		mpb.BarFillerClearOnComplete(),
 		mpb.PrependDecorators(
 			decor.Name(filepath.Base(filePath)),
 			decor.Percentage(decor.WCSyncSpace),
@@ -445,6 +446,7 @@ func createKBFileBar(p *mpb.Progress, filePath string, fileSize int64) *mpb.Bar 
 func createPartFileBar(p *mpb.Progress, filePath string, fileSize int64) *mpb.Bar {
 	return p.Add(fileSize,
 		mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler(au.Index(99, "█").String()).Tip("").Padding(au.Index(104, "░").String()).Rbound("╟")),
+		mpb.BarFillerClearOnComplete(),
 		mpb.PrependDecorators(
 			decor.Name(filepath.Base(filePath)),
 			decor.Percentage(decor.WCSyncSpace),
