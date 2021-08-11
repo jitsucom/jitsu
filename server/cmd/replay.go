@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	au "github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
@@ -21,7 +22,7 @@ import (
 )
 
 const (
-	maxChunkSize = 20 * 1024 * 1024 // 50 MB
+	maxChunkSize = 20 * 1024 * 1024 // 20 MB
 	dateLayout   = "2006-01-02"
 )
 
@@ -51,10 +52,10 @@ func init() {
 	rootCmd.AddCommand(replayCmd)
 
 	replayCmd.Flags().StringVar(&state, "state", "", "a path to file where Jitsu will save the state (files already uploaded)")
-	replayCmd.Flags().StringVar(&start, "start", "", "Treated as the beginning of the day UTC (YYYY-MM-DD 00:00:00.000Z). Optional. If missing, all files will be processed")
+	replayCmd.Flags().StringVar(&start, "start", "", "start date as YYYY-MM-DD. Treated as the beginning of the day UTC (YYYY-MM-DD 00:00:00.000Z). Optional. If missing, all files will be processed")
 	replayCmd.Flags().StringVar(&end, "end", "", "end date as YYYY-MM-DD. Treated as the end of the day UTC (YYYY-MM-DD 23:59:59.999Z). Optional. If missing, all will be processed")
 	replayCmd.Flags().StringVar(&host, "host", "http://localhost:8000", "Jitsu host")
-	replayCmd.Flags().Int64Var(&chunkSize, "chunk_size", maxChunkSize, "max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with chunk size and sent to Jitsu")
+	replayCmd.Flags().Int64Var(&chunkSize, "chunk_size", maxChunkSize, "max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with max size and sent to Jitsu")
 
 	replayCmd.Flags().StringVar(&apiKey, "api_key", "", "(required) Jitsu API Key. Data will be loaded into all destinations linked to this API Key.")
 	replayCmd.MarkFlagRequired("api_key")
@@ -62,6 +63,9 @@ func init() {
 
 //replay is a command main function:
 //read files from filesystem and sends them to Jitsu
+//operating:
+// 1. always with full path filenames
+// 2. always sends gzipped payloads to Jitsu
 //returns err if occurred
 func replay(inputFiles []string) error {
 	absoluteFileNames, err := reformatFileNames(inputFiles)
@@ -117,11 +121,25 @@ func replay(inputFiles []string) error {
 	for _, absFilePath := range filesToUpload {
 		fileStat, err := os.Stat(absFilePath)
 		if err != nil {
+			if writeErr := writeState(state, stateMap); writeErr != nil {
+				var multiErr error
+				multiErr = multierror.Append(multiErr, err)
+				multiErr = multierror.Append(multiErr, fmt.Errorf("Error saving state into the file [%s]: %v", state, writeErr))
+				return multiErr
+			}
 			return err
 		}
 
 		if err := uploadFile(progressBars, client, absFilePath, fileStat.Size()); err != nil {
-			return fmt.Errorf("uploading file: %s\nmessage: %v", absFilePath, err)
+			uploadErr := fmt.Errorf("uploading file: %s\nmessage: %v", absFilePath, err)
+			if writeErr := writeState(state, stateMap); writeErr != nil {
+				var multiErr error
+				multiErr = multierror.Append(multiErr, uploadErr)
+				multiErr = multierror.Append(multiErr, fmt.Errorf("Error saving state into the file [%s]: %v", state, writeErr))
+				return multiErr
+			}
+
+			return uploadErr
 		}
 		processedFiles++
 		globalBar.SetCurrent(processedFiles)
@@ -401,6 +419,10 @@ func doGzip(payload []byte) ([]byte, error) {
 	return gzipped.Bytes(), nil
 }
 
+//check all available colors:
+//for i:=0;i<255;i++{
+//		fmt.Println(i, " --- ", au.Index(uint8(i), "████████████████").String())
+//	}
 //createProcessingBar creates global progress bar
 func createProcessingBar(p *mpb.Progress, allFilesSize int64) *mpb.Bar {
 	return p.Add(allFilesSize,

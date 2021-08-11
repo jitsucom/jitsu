@@ -53,7 +53,6 @@ func (uap *UserAgentParseRule) Execute(event map[string]interface{}) {
 		return
 	}
 
-	//skip parsing if exists
 	uap.mutex.RLock()
 	parsedUAMap, ok := uap.cache[ua]
 	uap.mutex.RUnlock()
