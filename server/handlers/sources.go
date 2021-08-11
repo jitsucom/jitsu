@@ -35,7 +35,7 @@ func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage
 
 //ClearCacheHandler deletes source state (signature) from meta.Storage
 func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
-	shouldDeleteWarehouseData := c.DefaultQuery("delete_warehouse_data", "false") == "true"
+	shouldCleanWarehouse := c.DefaultQuery("delete_warehouse_data", "false") == "true"
 	req := &ClearCacheRequest{}
 	if err := c.BindJSON(req); err != nil {
 		logging.Errorf("Error parsing clear cache request: %v", err)
@@ -73,8 +73,8 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 			logging.Error(msg)
 			multiErr = multierror.Append(multiErr, err)
 		}
-		if shouldDeleteWarehouseData {
-			multiErr = sh.deleteWareHouseData(driver, source.DestinationIDs, req.Source, collection, multiErr)
+		if shouldCleanWarehouse {
+			multiErr = sh.cleanWarehouse(driver, source.DestinationIDs, req.Source, collection, multiErr)
 		}
 	}
 
@@ -86,7 +86,7 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, middleware.OKResponse())
 }
 
-func (sh *SourcesHandler) deleteWareHouseData(driver driversbase.Driver, destinationIds []string, sourceID string, collection string, multiErr error) error {
+func (sh *SourcesHandler) cleanWarehouse(driver driversbase.Driver, destinationIds []string, sourceID string, collection string, multiErr error) error {
 	if singerDriver, ok := driver.(*singer.Singer); ok {
 		for _, destId := range destinationIds {
 			if destProxy, okDestProxy := sh.destinationsService.GetDestinationByID(destId); okDestProxy {
@@ -94,7 +94,7 @@ func (sh *SourcesHandler) deleteWareHouseData(driver driversbase.Driver, destina
 					for destTableName := range singerDriver.GetStreamTableNameMapping() {
 						err := dest.Clean(destTableName)
 						if err != nil {
-							msg := fmt.Sprintf("Error deleting all data from warehouse for: source: [%s], collection: [%s], tableName: [%s], destId: [%s]: %v", sourceID, collection, destTableName, destId, err)
+							msg := fmt.Sprintf("Error cleaning warehouse for: source: [%s], collection: [%s], tableName: [%s], destId: [%s]: %v", sourceID, collection, destTableName, destId, err)
 							logging.Error(msg)
 							multiErr = multierror.Append(multiErr, err)
 						}
