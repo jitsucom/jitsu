@@ -61,7 +61,7 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	sourcesHandler := handlers.NewSourcesHandler(sourcesService, metaStorage)
 	pixelHandler := handlers.NewPixelHandler(multiplexingService, processorHolder.GetPixelPreprocessor())
 
-	bulkHandler := handlers.NewBulkHandler(destinations)
+	bulkHandler := handlers.NewBulkHandler(destinations, processorHolder.GetAPIPreprocessor())
 
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")

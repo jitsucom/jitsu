@@ -38,15 +38,6 @@ check_shutdown(){
   fi
 }
 
-### CLI
-if [ -n "$1" ]; then
-  /home/eventnative/app/eventnative "$@"
-  if [ $? != 0 ] ; then
-    exit 1
-  fi
-  exit 0
-fi
-
 ### Parameters
 # Jitsu port
 NGINX_PORT_VALUE=$PORT
