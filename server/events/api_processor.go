@@ -9,9 +9,11 @@ func NewAPIProcessor() *APIProcessor {
 	return &APIProcessor{}
 }
 
-//Preprocess puts src = api
+//Preprocess puts src = api if doesn't exist
 func (ap *APIProcessor) Preprocess(event Event, requestContext *RequestContext) {
-	event[SrcKey] = "api"
+	if _, ok := event[SrcKey]; !ok {
+		event[SrcKey] = "api"
+	}
 }
 
 //Postprocess does nothing

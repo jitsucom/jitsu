@@ -61,13 +61,17 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 	sourcesHandler := handlers.NewSourcesHandler(sourcesService, metaStorage, destinations)
 	pixelHandler := handlers.NewPixelHandler(multiplexingService, processorHolder.GetPixelPreprocessor())
 
+	bulkHandler := handlers.NewBulkHandler(destinations, processorHolder.GetAPIPreprocessor())
+
 	adminTokenMiddleware := middleware.AdminToken{Token: adminToken}
 	apiV1 := router.Group("/api/v1")
 	{
 		//client endpoint
 		apiV1.POST("/event", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
+		apiV1.POST("/events", middleware.TokenFuncAuth(jsEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
 		//server endpoint
-		apiV1.POST("/s2s/event", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server token. Please use s2s integration token"))
+		apiV1.POST("/s2s/event", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server secret token. Please use an s2s integration token"))
+		apiV1.POST("/s2s/events", middleware.TokenTwoFuncAuth(apiEventHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server secret token. Please use an s2s integration token"))
 		//Segment API
 		apiV1.POST("/segment/v1/batch", middleware.TokenFuncAuth(segmentHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, ""))
 		apiV1.POST("/segment", middleware.TokenFuncAuth(segmentHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, ""))
@@ -76,6 +80,8 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 		apiV1.POST("/segment/compat", middleware.TokenFuncAuth(segmentCompatHandler.PostHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, ""))
 		//Tracking pixel API
 		apiV1.GET("/p.gif", pixelHandler.Handle)
+		//bulk endpoint
+		apiV1.POST("/events/bulk", middleware.TokenTwoFuncAuth(bulkHandler.BulkLoadingHandler, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, "The token isn't a server token. Please use an s2s integration token"))
 
 		//Dry run
 		apiV1.POST("/events/dry-run", middleware.TokenTwoFuncAuth(dryRunHandler.Handle, appconfig.Instance.AuthorizationService.GetServerOrigins, appconfig.Instance.AuthorizationService.GetClientOrigins, ""))
@@ -91,13 +97,10 @@ func SetupRouter(adminToken string, metaStorage meta.Storage, destinations *dest
 
 		apiV1.GET("/statistics", adminTokenMiddleware.AdminAuth(statisticsHandler.GetHandler))
 
-		tasksRoute := apiV1.Group("/tasks")
-		{
-			tasksRoute.GET("/", adminTokenMiddleware.AdminAuth(taskHandler.GetAllHandler))
-			tasksRoute.GET("/:taskID", adminTokenMiddleware.AdminAuth(taskHandler.GetByIDHandler))
-			tasksRoute.POST("/", adminTokenMiddleware.AdminAuth(taskHandler.SyncHandler))
-			tasksRoute.GET("/:taskID/logs", adminTokenMiddleware.AdminAuth(taskHandler.TaskLogsHandler))
-		}
+		apiV1.GET("/tasks", adminTokenMiddleware.AdminAuth(taskHandler.GetAllHandler))
+		apiV1.GET("/tasks/:taskID", adminTokenMiddleware.AdminAuth(taskHandler.GetByIDHandler))
+		apiV1.POST("/tasks", adminTokenMiddleware.AdminAuth(taskHandler.SyncHandler))
+		apiV1.GET("/tasks/:taskID/logs", adminTokenMiddleware.AdminAuth(taskHandler.TaskLogsHandler))
 
 		apiV1.GET("/cluster", adminTokenMiddleware.AdminAuth(handlers.NewClusterHandler(clusterManager).Handler))
 		apiV1.GET("/events/cache", adminTokenMiddleware.AdminAuth(jsEventHandler.GetHandler))

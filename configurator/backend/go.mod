@@ -16,13 +16,13 @@ require (
 	github.com/lib/pq v1.10.2
 	github.com/prometheus/common v0.15.0 // indirect
 	github.com/satori/go.uuid v1.2.0
-	github.com/spf13/viper v1.7.1
+	github.com/spf13/viper v1.8.1
 	golang.org/x/crypto v0.0.0-20201016220609-9e8e0b390897
-	google.golang.org/api v0.29.0
-	google.golang.org/grpc v1.36.0
+	google.golang.org/api v0.44.0
+	google.golang.org/grpc v1.38.0
 	gopkg.in/alexcesaro/quotedprintable.v3 v3.0.0-20150716171945-2caba252f4dc // indirect
 	gopkg.in/mail.v2 v2.3.1
-	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
+	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 )
 
 replace (
