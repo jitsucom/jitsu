@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -95,6 +96,11 @@ func setAppWorkDir() {
 }
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "replay" {
+		cmd.Execute()
+		return
+	}
+
 	flag.Parse()
 
 	//Setup seed for globalRand

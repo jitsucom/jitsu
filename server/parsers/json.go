@@ -34,6 +34,10 @@ func ParseJSONFileWithFunc(b []byte, parseFunc func(b []byte) (map[string]interf
 		}
 	}
 
+	if readErr != nil && readErr != io.EOF {
+		return nil, readErr
+	}
+
 	return objects, nil
 }
 
