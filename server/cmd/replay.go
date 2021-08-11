@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	au "github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
@@ -121,38 +120,24 @@ func replay(inputFiles []string) error {
 	for _, absFilePath := range filesToUpload {
 		fileStat, err := os.Stat(absFilePath)
 		if err != nil {
-			if writeErr := writeState(state, stateMap); writeErr != nil {
-				var multiErr error
-				multiErr = multierror.Append(multiErr, err)
-				multiErr = multierror.Append(multiErr, fmt.Errorf("Error saving state into the file [%s]: %v", state, writeErr))
-				return multiErr
-			}
 			return err
 		}
 
 		if err := uploadFile(progressBars, client, absFilePath, fileStat.Size()); err != nil {
-			uploadErr := fmt.Errorf("uploading file: %s\nmessage: %v", absFilePath, err)
-			if writeErr := writeState(state, stateMap); writeErr != nil {
-				var multiErr error
-				multiErr = multierror.Append(multiErr, uploadErr)
-				multiErr = multierror.Append(multiErr, fmt.Errorf("Error saving state into the file [%s]: %v", state, writeErr))
-				return multiErr
-			}
-
-			return uploadErr
+			return fmt.Errorf("uploading file: %s\nmessage: %v", absFilePath, err)
 		}
 		processedFiles++
 		globalBar.SetCurrent(processedFiles)
 		stateMap[absFilePath] = true
+		//write state after every loaded file
+		if err := writeState(state, stateMap); err != nil {
+			return fmt.Errorf("Error saving state into the file [%s]: %v", state, err)
+		}
 	}
 
 	globalBar.SetCurrent(capacity)
 	//wait for globalBar filled
 	time.Sleep(time.Second)
-
-	if err := writeState(state, stateMap); err != nil {
-		return fmt.Errorf("Error saving state into the file [%s]: %v", state, err)
-	}
 
 	return nil
 }
