@@ -51,9 +51,10 @@ type Singer struct {
 	propertiesPath string
 	statePath      string
 
-	pathToConfigs    string
-	tableNamePrefix  string
-	streamTableNames map[string]string
+	pathToConfigs     string
+	tableNamePrefix   string
+	streamTableNames  map[string]string
+	streamReplication map[string]string
 
 	catalogDiscovered *atomic.Bool
 	closed            *atomic.Bool
@@ -100,14 +101,23 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 		return nil, fmt.Errorf("Error parsing singer catalog [%v]: %v", config.Catalog, err)
 	}
 
+	//parse singer properties as file path
+	propertiesPath, err := parseJSONAsFile(path.Join(pathToConfigs, propertiesFileName), config.Properties)
+	if err != nil {
+		return nil, fmt.Errorf("Error parsing singer properties [%v]: %v", config.Properties, err)
+	}
+
+	extractor, err := NewFileBasedSingerSettingsExtractor(catalogPath, propertiesPath)
+	if err != nil {
+		return nil, err
+	}
+
 	// ** Table names mapping **
 	tableNameMappings := config.StreamTableNames
-	if catalogPath != "" {
-		//extract table names mapping from catalog.json
-		tableNameMappingsFromCatalog, err := extractTableNamesMapping(catalogPath)
-		if err != nil {
-			logging.Errorf("[%s] Error parsing destination table names from Singer catalog.json: %v", sourceConfig.SourceID, err)
-		}
+	//extract table names mapping from catalog.json
+	if tableNameMappingsFromCatalog, err := extractor.ExtractTableNamesMappings(); err != nil {
+		logging.Errorf("[%s] Error parsing destination table names from Singer catalog.json: %v", sourceConfig.SourceID, err)
+	} else if len(tableNameMappingsFromCatalog) > 0 {
 		//override configuration
 		for stream, tableName := range tableNameMappingsFromCatalog {
 			tableNameMappings[stream] = tableName
@@ -119,10 +129,12 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 		logging.Infof("[%s] configured Singer stream - table names mapping: %s", sourceConfig.SourceID, string(b))
 	}
 
-	//parse singer properties as file path
-	propertiesPath, err := parseJSONAsFile(path.Join(pathToConfigs, propertiesFileName), config.Properties)
+	streamReplicationMappings, err := extractor.ExtractStreamReplicationMappings()
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing singer properties [%v]: %v", config.Properties, err)
+		logging.Errorf("[%s] Error extracting replication method for each stream: %v", sourceConfig.SourceID, err)
+	} else {
+		b, _ := json.MarshalIndent(streamReplicationMappings, "", "    ")
+		logging.Infof("[%s] configured Singer stream - replication method mappings: %s", sourceConfig.SourceID, string(b))
 	}
 
 	//parse singer state as file path
@@ -148,6 +160,7 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 		tableNamePrefix:   config.StreamTableNamesPrefix,
 		pathToConfigs:     pathToConfigs,
 		streamTableNames:  tableNameMappings,
+		streamReplication: streamReplicationMappings,
 		catalogDiscovered: catalogDiscovered,
 		closed:            atomic.NewBool(false),
 	}
@@ -417,6 +430,7 @@ func (s *Singer) logAndKill(taskLogger logging.TaskLogger, syncCmd *exec.Cmd, pa
 
 //doDiscover discovers tap catalog and returns catalog and properties paths
 //applies blacklist streams to taps and make other streams {"selected": true}
+//TODO add replication reading from cmd output
 func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, string, error) {
 	if !singer.Instance.IsTapReady(tap) {
 		return "", "", errNotReady
@@ -531,34 +545,4 @@ func parseJSONAsFile(newPath string, value interface{}) (string, error) {
 	default:
 		return "", errors.New("Unknown type. Value must be path to json file or raw json")
 	}
-}
-
-func extractTableNamesMapping(catalogPath string) (map[string]string, error) {
-	catalogBytes, err := ioutil.ReadFile(catalogPath)
-	if err != nil {
-		return nil, fmt.Errorf("Error reading catalog file: %v", err)
-	}
-
-	catalog := &SingerCatalog{}
-	err = json.Unmarshal(catalogBytes, catalog)
-	if err != nil {
-		return nil, err
-	}
-
-	streamTableNamesMapping := map[string]string{}
-
-	for _, stream := range catalog.Streams {
-		if stream.DestinationTableName != "" {
-			//add mapping stream
-			if stream.Stream != "" {
-				streamTableNamesMapping[stream.Stream] = stream.DestinationTableName
-			}
-			//add mapping tap_stream_id
-			if stream.TapStreamID != "" {
-				streamTableNamesMapping[stream.TapStreamID] = stream.DestinationTableName
-			}
-		}
-	}
-
-	return streamTableNamesMapping, nil
 }
