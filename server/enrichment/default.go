@@ -4,6 +4,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/jsonutils"
+	"sync"
 )
 
 var (
@@ -22,5 +23,8 @@ func InitDefault(srcIP, dstIP, srcUA, dstUA string) {
 		enrichmentConditionFunc: func(m map[string]interface{}) bool {
 			src := events.ExtractSrc(m)
 			return src != "api"
-		}}
+		},
+		mutex: &sync.RWMutex{},
+		cache: map[string]map[string]interface{}{},
+	}
 }
