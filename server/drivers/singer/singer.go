@@ -169,8 +169,6 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 		closed:            atomic.NewBool(false),
 	}
 
-	logging.Debugf("[%s] configured Singer: %+v", sourceConfig.SourceID, s)
-
 	safego.Run(s.EnsureTapAndCatalog)
 
 	return s, nil
@@ -436,7 +434,6 @@ func (s *Singer) logAndKill(taskLogger logging.TaskLogger, syncCmd *exec.Cmd, pa
 
 //doDiscover discovers tap catalog and returns catalog and properties paths
 //applies blacklist streams to taps and make other streams {"selected": true}
-//TODO add replication reading from cmd output
 func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, string, error) {
 	if !singer.Instance.IsTapReady(tap) {
 		return "", "", errNotReady

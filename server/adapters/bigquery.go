@@ -243,7 +243,6 @@ func (bq *BigQuery) DropTable(table *Table) error {
 func (bq *BigQuery) Clean(tableName string) error {
 	query := fmt.Sprintf(truncateBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName)
 	bq.queryLogger.LogQuery(query)
-	//TODO ignore error "table does not exist"
 	_, err := bq.client.Query(query).Read(bq.ctx)
 	return err
 }
