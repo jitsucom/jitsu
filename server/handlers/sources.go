@@ -94,7 +94,7 @@ func (sh *SourcesHandler) cleanWarehouse(driver driversbase.Driver, destinationI
 				for _, destTableName := range sh.getTableNames(driver) {
 					if err := dest.Clean(destTableName); err != nil {
 						if err == storages.ErrTableNotExist {
-							logging.Warnf("Table [%s] doesn't exist for: source: [%s], collection: [%s], destId: [%s]: %v", destTableName, sourceID, collection, destId)
+							logging.Warnf("Table [%s] doesn't exist for: source: [%s], collection: [%s], destId: [%s]", destTableName, sourceID, collection, destId)
 						} else {
 							msg := fmt.Sprintf("Error cleaning warehouse for: source: [%s], collection: [%s], tableName: [%s], destId: [%s]: %v", sourceID, collection, destTableName, destId, err)
 							logging.Error(msg)
