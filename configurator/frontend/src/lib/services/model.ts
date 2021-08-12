@@ -179,16 +179,22 @@ export type Domain = {
 export class ApiAccess {
   private _accessToken: string;
   private _refreshToken: string;
-  private _localStorageUpdateCallback: (accessToken: string, refreshToken: string) => void;
+  private _localStorageTokensUpdateCallback: (
+    accessToken: string,
+    refreshToken: string
+  ) => void;
 
   constructor(
     accessToken: string,
     refreshToken: string,
-    localStorageUpdateCallback: (accessToken: string, refreshToken: string) => void
+    localStorageTokensUpdateCallback: (
+      accessToken: string,
+      refreshToken: string
+    ) => void
   ) {
     this._accessToken = accessToken;
     this._refreshToken = refreshToken;
-    this._localStorageUpdateCallback = localStorageUpdateCallback;
+    this._localStorageTokensUpdateCallback = localStorageTokensUpdateCallback;
   }
 
   get accessToken(): string {
@@ -206,6 +212,6 @@ export class ApiAccess {
   updateTokens(accessToken: string, refreshToken: string) {
     this._accessToken = accessToken;
     this._refreshToken = refreshToken;
-    this._localStorageUpdateCallback(accessToken, refreshToken);
+    this._localStorageTokensUpdateCallback(accessToken, refreshToken);
   }
 }
