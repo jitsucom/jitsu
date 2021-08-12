@@ -6,9 +6,9 @@ import { setupMockServer } from 'utils/tests/tests-utils.mock-server';
 import SourcesPage from './SourcesPage';
 import { initializeApplication } from 'App';
 import { sourcesPageRoutes } from './SourcesPage.routes';
+import { allAirbyteSources } from 'catalog/sources/lib/__mocks__/airbyte';
 
-jest.mock('firebase/app');
-jest.mock('antd/lib/message');
+jest.mock('catalog/sources/lib/airbyte');
 
 const mockServer = setupMockServer();
 
@@ -27,14 +27,14 @@ const waitForSourcesLoaded = () => screen.findByText('Add source');
 const checkSourcesRenderedCorrectly = () => {
   // Each source is rendered
   mockSourcesList.forEach(({ sourceId }) => {
-    expect(screen.getByText(`${sourceId}`)).toBeInTheDocument();
+    expect(screen.getByText(sourceId)).toBeInTheDocument();
   });
   // Each source has edit and delete buttons
   expect(screen.getAllByText('Edit')).toHaveLength(mockSourcesList.length);
   expect(screen.getAllByText('Delete')).toHaveLength(mockSourcesList.length);
 };
 
-describe('loads sources, allows user to manipulate them', () => {
+describe('general functionality', () => {
   // Arrange
   beforeEach(async () => {
     window.history.replaceState({}, 'Root', sourcesPageRoutes.root);
