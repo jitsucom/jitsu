@@ -3,6 +3,7 @@ package singer
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/schema"
 	"io/ioutil"
 )
 
@@ -66,23 +67,35 @@ func (sse *SingerSettingsExtractor) LoadCatalog(jsonBytes []byte) error {
 	return nil
 }
 
-func (sse *SingerSettingsExtractor) ExtractTableNamesMappings() (map[string]string, error) {
+func (sse *SingerSettingsExtractor) ExtractTableNamesMappings(prefix string) (map[string]string, error) {
 	streamTableNamesMapping := map[string]string{}
 	if sse.Catalog == nil {
 		return streamTableNamesMapping, nil
 	}
 
 	for _, stream := range sse.Catalog.Streams {
-		if stream.DestinationTableName != "" {
-			//add mapping stream
-			if stream.Stream != "" {
-				streamTableNamesMapping[stream.Stream] = stream.DestinationTableName
-			}
-			//add mapping tap_stream_id
-			if stream.TapStreamID != "" {
-				streamTableNamesMapping[stream.TapStreamID] = stream.DestinationTableName
-			}
+		var streamName string
+		if stream.Stream != "" {
+			streamName = stream.Stream
+		} else {
+			streamName = stream.TapStreamID
 		}
+		var destTable string
+		if stream.DestinationTableName != "" {
+			destTable = stream.DestinationTableName
+		} else {
+			destTable = schema.TableName(prefix, streamName)
+		}
+
+		//add mapping stream
+		if stream.Stream != "" {
+			streamTableNamesMapping[stream.Stream] = destTable
+		}
+		//add mapping tap_stream_id
+		if stream.TapStreamID != "" {
+			streamTableNamesMapping[stream.TapStreamID] = destTable
+		}
+
 	}
 
 	return streamTableNamesMapping, nil

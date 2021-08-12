@@ -53,7 +53,7 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 	for streamName, stream := range representation.Streams {
 		tableName, ok := rs.streamTableNames[streamName]
 		if !ok {
-			tableName = rs.tableNamePrefix + streamName
+			tableName = schema.TableName(rs.tableNamePrefix, streamName)
 		}
 		stream.BatchHeader.TableName = schema.Reformat(tableName)
 

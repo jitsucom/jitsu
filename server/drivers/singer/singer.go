@@ -112,11 +112,14 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 	if err != nil {
 		return nil, err
 	}
-
+	prefix := config.StreamTableNamesPrefix
+	if prefix == "" {
+		prefix = sourceConfig.SourceID + "_"
+	}
 	// ** Table names mapping **
 	tableNameMappings := config.StreamTableNames
 	//extract table names mapping from catalog.json
-	if tableNameMappingsFromCatalog, err := extractor.ExtractTableNamesMappings(); err != nil {
+	if tableNameMappingsFromCatalog, err := extractor.ExtractTableNamesMappings(prefix); err != nil {
 		logging.Errorf("[%s] Error parsing destination table names from Singer catalog.json: %v", sourceConfig.SourceID, err)
 	} else if len(tableNameMappingsFromCatalog) > 0 {
 		//override configuration
@@ -158,13 +161,15 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 		catalogPath:       catalogPath,
 		propertiesPath:    propertiesPath,
 		statePath:         statePath,
-		tableNamePrefix:   config.StreamTableNamesPrefix,
+		tableNamePrefix:   prefix,
 		pathToConfigs:     pathToConfigs,
 		streamTableNames:  tableNameMappings,
 		StreamReplication: streamReplicationMappings,
 		catalogDiscovered: catalogDiscovered,
 		closed:            atomic.NewBool(false),
 	}
+
+	logging.Debugf("[%s] configured Singer: %+v", sourceConfig.SourceID, s)
 
 	safego.Run(s.EnsureTapAndCatalog)
 
