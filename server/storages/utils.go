@@ -13,6 +13,8 @@ import (
 	"github.com/jitsucom/jitsu/server/schema"
 )
 
+var ErrTableNotExist = errors.New("table doesn't exist")
+
 func dryRun(payload events.Event, processor *schema.Processor, tableHelper *TableHelper) ([]adapters.TableField, error) {
 	batchHeader, event, err := processor.ProcessEvent(payload)
 	if err != nil {
@@ -74,7 +76,12 @@ func syncStoreImpl(storage Storage, overriddenDataSchema *schema.BatchHeader, ob
 //cleanImpl implements common table cleaning
 func cleanImpl(storage Storage, tableName string) error {
 	adapter, _ := storage.getAdapters()
-	return adapter.Clean(tableName)
+	err := adapter.Clean(tableName)
+	msg := strings.ToLower(err.Error())
+	if strings.Contains(msg, "exist") {
+		return ErrTableNotExist
+	}
+	return err
 }
 
 func processData(storage Storage, overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string) (map[string]*schema.ProcessedFile, error) {

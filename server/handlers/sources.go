@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/sources"
+	"github.com/jitsucom/jitsu/server/storages"
 	"net/http"
 )
 
@@ -87,13 +88,14 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 }
 
 func (sh *SourcesHandler) cleanWarehouse(driver driversbase.Driver, destinationIds []string, sourceID string, collection string, multiErr error) error {
-	if singerDriver, ok := driver.(*singer.Singer); ok {
-		for _, destId := range destinationIds {
-			if destProxy, okDestProxy := sh.destinationsService.GetDestinationByID(destId); okDestProxy {
-				if dest, okDest := destProxy.Get(); okDest {
-					for destTableName := range singerDriver.GetStreamTableNameMapping() {
-						err := dest.Clean(destTableName)
-						if err != nil {
+	for _, destId := range destinationIds {
+		if destProxy, okDestProxy := sh.destinationsService.GetDestinationByID(destId); okDestProxy {
+			if dest, okDest := destProxy.Get(); okDest {
+				for _, destTableName := range sh.getTableNames(driver) {
+					if err := dest.Clean(destTableName); err != nil {
+						if err == storages.ErrTableNotExist {
+							logging.Warnf("Table [%s] doesn't exist for: source: [%s], collection: [%s], destId: [%s]: %v", destTableName, sourceID, collection, destId)
+						} else {
 							msg := fmt.Sprintf("Error cleaning warehouse for: source: [%s], collection: [%s], tableName: [%s], destId: [%s]: %v", sourceID, collection, destTableName, destId, err)
 							logging.Error(msg)
 							multiErr = multierror.Append(multiErr, err)
@@ -103,7 +105,21 @@ func (sh *SourcesHandler) cleanWarehouse(driver driversbase.Driver, destinationI
 			}
 		}
 	}
+
 	return multiErr
+}
+
+func (sh *SourcesHandler) getTableNames(driver driversbase.Driver) []string {
+	var tableNames []string
+	if singerDriver, ok := driver.(*singer.Singer); ok {
+		for _, destTableName := range singerDriver.GetStreamTableNameMapping() {
+			tableNames = append(tableNames, destTableName)
+		}
+	} else {
+		tableNames = append(tableNames, driver.GetCollectionTable())
+	}
+
+	return tableNames
 }
 
 //TestSourcesHandler tests source connection
