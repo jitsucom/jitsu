@@ -87,11 +87,12 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 		rowsCount := len(stream.Objects)
 		//Sync stream
 		for _, storage := range rs.destinations {
-			if representation.NeedClean {
+			if stream.NeedClean {
 				err := storage.Clean(stream.BatchHeader.TableName)
 				if err != nil {
 					logging.Warnf("[%s] storage cleaning failed, ignoring: %v", storage.ID(), err)
 				}
+				stream.NeedClean = false
 			}
 			err := storage.SyncStore(stream.BatchHeader, stream.Objects, "", false)
 			if err != nil {
