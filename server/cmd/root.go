@@ -2,10 +2,13 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	au "github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"os"
 )
+
+const serviceName = "cli"
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -18,6 +21,10 @@ var rootCmd = &cobra.Command{
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	if os.Getenv("SERVER_TELEMETRY_DISABLED_USAGE") != "true" {
+		telemetry.Init(serviceName, "", version, "", "")
+	}
+
 	err := rootCmd.Execute()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, au.Index(1, fmt.Sprintf("Error: %v", err)).String())

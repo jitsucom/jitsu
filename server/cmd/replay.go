@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	au "github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
 	"github.com/vbauerster/mpb/v7"
@@ -23,6 +24,8 @@ import (
 const (
 	maxChunkSize = 20 * 1024 * 1024 // 20 MB
 	dateLayout   = "2006-01-02"
+
+	version = "0.0.1"
 )
 
 var (
@@ -39,12 +42,22 @@ var replayCmd = &cobra.Command{
 	Short: "CLI for uploading data from local files into Jitsu destinations via API",
 	Long:  `Jitsu CLI tool for bulk uploading files with events into Jitsu. Common use case: upload archive logs (aka replay)`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if os.Getenv("SERVER_TELEMETRY_DISABLED_USAGE") != "true" {
+			var cs int64
+			if chunkSize != maxChunkSize {
+				cs = chunkSize
+			}
+			telemetry.CLIStart("replay", start != "" || end != "", state != "", cs)
+			telemetry.Flush()
+			time.Sleep(time.Second)
+		}
+
 		if len(args) == 0 {
 			return errors.New("requires at least 1 file as an arg")
 		}
 		return replay(args)
 	},
-	Version: "0.0.1",
+	Version: version,
 }
 
 func init() {
