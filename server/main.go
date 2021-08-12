@@ -52,7 +52,7 @@ import (
 //some inner parameters
 const (
 	//incoming.tok=$token-$timestamp.log
-	uploaderFileMask   = "incoming.tok=*-20*.log"
+	uploaderFileMask = "incoming.tok=*-20*.log"
 	//streaming-archive.dst=$destinationID-$timestamp.log
 	streamArchiveFileMask = "streaming-archive*-20*.log"
 	streamArchiveEveryS   = 60
@@ -374,10 +374,11 @@ func main() {
 
 	//event processors
 	apiProcessor := events.NewAPIProcessor()
+	bulkProcessor := events.NewBulkProcessor()
 	jsProcessor := events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
 	pixelProcessor := events.NewPixelProcessor()
 	segmentProcessor := events.NewSegmentProcessor(usersRecognitionService)
-	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor)
+	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
 	multiplexingService := multiplexing.NewService(destinationsService, eventsCache)
 	walService := wal.NewService(logEventPath, loggerFactory.CreateWriteAheadLogger(), multiplexingService, processorHolder)

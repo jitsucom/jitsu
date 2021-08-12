@@ -7,12 +7,15 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
+	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/storages"
+	"github.com/jitsucom/jitsu/server/telemetry"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
@@ -38,6 +41,7 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 	tokenID := appconfig.Instance.AuthorizationService.GetTokenID(apiKey)
 	storageProxies := bh.destinationService.GetDestinations(tokenID)
 	if len(storageProxies) == 0 {
+		counters.SkipSourceEvents(tokenID, 1)
 		c.JSON(http.StatusUnprocessableEntity, middleware.ErrResponse(fmt.Sprintf(noDestinationsErrTemplate, apiKey), nil))
 		return
 	}
@@ -55,12 +59,27 @@ func (bh *BulkHandler) BulkLoadingHandler(c *gin.Context) {
 		enrichment.ContextEnrichmentStep(object, apiKey, emptyContext, bh.processor, uniqueIDField)
 	}
 
+	rowsCount := len(eventObjects)
+
 	for _, storageProxy := range storageProxies {
 		if err := bh.upload(storageProxy, eventObjects); err != nil {
+
+			metrics.ErrorSourceEvents(tokenID, storageProxy.ID(), rowsCount)
+			metrics.ErrorObjects(tokenID, rowsCount)
+			telemetry.Error(tokenID, storageProxy.ID(), events.SrcBulk, rowsCount)
+			counters.ErrorEvents(storageProxy.ID(), rowsCount)
+
 			c.JSON(http.StatusBadRequest, middleware.ErrResponse("failed to process file payload", err))
 			return
 		}
+
+		metrics.SuccessSourceEvents(tokenID, storageProxy.ID(), rowsCount)
+		metrics.SuccessObjects(tokenID, rowsCount)
+		telemetry.Event(tokenID, storageProxy.ID(), events.SrcBulk, rowsCount)
+		counters.SuccessEvents(storageProxy.ID(), rowsCount)
 	}
+
+	counters.SuccessSourceEvents(tokenID, rowsCount)
 
 	c.JSON(http.StatusOK, middleware.OKResponse())
 }

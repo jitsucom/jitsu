@@ -5,6 +5,7 @@ const (
 	jsPreprocessorType      = "js"
 	pixelPreprocessorType   = "pixel"
 	segmentPreprocessorType = "segment"
+	bulkPreprocessorType    = "bulk"
 )
 
 //RequestContext is a dto for keeping request data like special headers or e.g. client IP address
@@ -30,12 +31,14 @@ type ProcessorHolder struct {
 }
 
 //NewProcessorHolder returns configured ProcessHolder with all processor types instances
-func NewProcessorHolder(apiProcessor *APIProcessor, jsProcessor *JsProcessor, pixelProcessor *PixelProcessor, segmentProcessor *SegmentProcessor) *ProcessorHolder {
+func NewProcessorHolder(apiProcessor *APIProcessor, jsProcessor *JsProcessor, pixelProcessor *PixelProcessor,
+	segmentProcessor *SegmentProcessor, bulkProcessor *BulkProcessor) *ProcessorHolder {
 	return &ProcessorHolder{map[string]Processor{
 		apiPreprocessorType:     apiProcessor,
 		jsPreprocessorType:      jsProcessor,
 		pixelPreprocessorType:   pixelProcessor,
 		segmentPreprocessorType: segmentProcessor,
+		bulkPreprocessorType:    bulkProcessor,
 	}}
 }
 
@@ -53,6 +56,10 @@ func (ph *ProcessorHolder) GetPixelPreprocessor() Processor {
 
 func (ph *ProcessorHolder) GetSegmentPreprocessor() Processor {
 	return ph.GetByType(segmentPreprocessorType)
+}
+
+func (ph *ProcessorHolder) GetBulkPreprocessor() Processor {
+	return ph.GetByType(bulkPreprocessorType)
 }
 
 func (ph *ProcessorHolder) GetByType(processorType string) Processor {
