@@ -29,7 +29,7 @@ var (
 	//command flags
 	state, start, end, host, apiKey string
 	chunkSize                       int64
-	disableProgressBars             bool
+	disableProgressBars             string
 	//command args
 	files []string
 )
@@ -66,7 +66,7 @@ func init() {
 	replayCmd.Flags().StringVar(&end, "end", "", "(optional) end date as YYYY-MM-DD. Treated as the end of the day UTC (YYYY-MM-DD 23:59:59.999Z). If missing, all will be processed")
 	replayCmd.Flags().StringVar(&host, "host", "http://localhost:8000", "(optional) Jitsu host")
 	replayCmd.Flags().Int64Var(&chunkSize, "chunk_size", maxChunkSize, "(optional) max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with max size and sent to Jitsu")
-	replayCmd.Flags().BoolVar(&disableProgressBars, "disable_progress_bars", false, "(optional) progress bars won't be displayed")
+	replayCmd.Flags().StringVar(&disableProgressBars, "disable_progress_bars", "false", "(optional) if true then progress bars won't be displayed")
 
 	replayCmd.Flags().StringVar(&apiKey, "api_key", "", "(required) Jitsu API Key. Data will be loaded into all destinations linked to this API Key.")
 	replayCmd.MarkFlagRequired("api_key")
@@ -124,10 +124,10 @@ func replay(inputFiles []string) error {
 
 	var globalBar ProgressBar
 	capacity := int64(len(filesToUpload))
-	if !disableProgressBars {
-		globalBar = NewParentMultiProgressBar(capacity)
-	} else {
+	if disableProgressBars == "true" {
 		globalBar = &DummyProgressBar{}
+	} else {
+		globalBar = NewParentMultiProgressBar(capacity)
 	}
 
 	client := newBulkClient(host, apiKey)
