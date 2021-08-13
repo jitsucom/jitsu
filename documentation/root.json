@@ -44,7 +44,8 @@
         "other-features/geo-data-resolution",
         "other-features/typecast",
         "other-features/admin-endpoints",
-        "other-features/application-metrics"
+        "other-features/application-metrics",
+        "other-features/cli"
       ]
     }
   ]
