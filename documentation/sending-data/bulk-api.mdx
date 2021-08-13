@@ -1,7 +1,8 @@
 # Bulk API
 
-Jitsu has bulk API. The endpoint can consume ~50,000 events in one HTTP request and store them into destinations synchronously.
-Common using use case is uploading archive files with analytics events. For reloading archive files you can use <a href="/docs/other-features/cli">Jitsu CLI</a>
+Jitsu has events bulk API. The endpoint can consume ~50,000 events in one HTTP request and store them into destinations synchronously.
+Common use case is uploading archive files with analytics events, which Jitsu writes when events stream from JS SDK or API is stored.
+For reloading archive files you can use <a href="/docs/other-features/cli">Jitsu CLI</a>.
 
 <APIMethod method="POST" path="/api/v1/events/bulk?token=$server_api_key_secret" title="Bulk events"/>
 
