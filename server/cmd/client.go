@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"fmt"
-	"github.com/vbauerster/mpb/v7"
 	"io/ioutil"
 	"mime/multipart"
 	"net/http"
@@ -29,7 +28,7 @@ func newBulkClient(host, apiKey string) *bulkClient {
 //sendGzippedMultiPart sends gzipped payload as multipart POST request
 //updates progress bar
 //returns error if occurred
-func (bc *bulkClient) sendGzippedMultiPart(fileProgressBar *mpb.Bar, filePath string, payload []byte) error {
+func (bc *bulkClient) sendGzippedMultiPart(fileProgressBar ProgressBar, filePath string, payload []byte) error {
 	body := new(bytes.Buffer)
 	mpw := multipart.NewWriter(body)
 	part, err := mpw.CreateFormFile("file", filepath.Base(filePath))
@@ -43,7 +42,7 @@ func (bc *bulkClient) sendGzippedMultiPart(fileProgressBar *mpb.Bar, filePath st
 	mpw.Close()
 
 	var req *http.Request
-	if fileProgressBar != nil {
+	if fileProgressBar != nil && fileProgressBar.Type() != dummyType {
 		proxyReader := fileProgressBar.ProxyReader(body)
 		defer proxyReader.Close()
 

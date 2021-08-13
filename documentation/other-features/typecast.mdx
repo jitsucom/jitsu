@@ -19,7 +19,7 @@ You can configure field SQL type in the mapping config section - see
 All fields with explicit SQL types from mapping rules will be explicitly cast with DWH typecast operators in SQL statements. For example, Postgres SQL insert with explicit SQL types:
 
 ```sql
-INSERT INTO schema.table (id, name, salary, currency) 
+INSERT INTO schema.table (id, name, salary, currency)
 VALUES ('1'::bigint, 'John', '20000'::numeric(38,18), 'USD')
 ```
 
@@ -36,10 +36,10 @@ VALUES ('1'::bigint, 'John', '20000'::numeric(38,18), 'USD')
         /
     INT64(2)
       /
-    BOOL(1) 
+    BOOL(1)
 ```
 
-  
+
 For example, in the following JSON batch field **salary** will have FLOAT64 type and field **id** will have STRING type.
 
 ```yaml
@@ -56,6 +56,7 @@ For example, in the following JSON batch field **salary** will have FLOAT64 type
 | **BigQuery** | boolean | integer | float | string | timestamp |
 | **ClickHouse** | UInt8 | Int64 | Float64 | String | DateTime |
 | **Snowflake** | boolean | bigint | numeric\(38,18\) | text | timestamp\(6\) |
+| **MySQL** | boolean | bigint | decimal\(38,18\) | text | datetime |
 
- 
+
 
