@@ -8,10 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/telemetry"
-	au "github.com/logrusorgru/aurora"
 	"github.com/spf13/cobra"
-	"github.com/vbauerster/mpb/v7"
-	"github.com/vbauerster/mpb/v7/decor"
 	"io"
 	"io/fs"
 	"io/ioutil"
@@ -32,6 +29,7 @@ var (
 	//command flags
 	state, start, end, host, apiKey string
 	chunkSize                       int64
+	disableProgressBars             bool
 	//command args
 	files []string
 )
@@ -63,11 +61,12 @@ var replayCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(replayCmd)
 
-	replayCmd.Flags().StringVar(&state, "state", "", "a path to file where Jitsu will save the state (files already uploaded)")
-	replayCmd.Flags().StringVar(&start, "start", "", "start date as YYYY-MM-DD. Treated as the beginning of the day UTC (YYYY-MM-DD 00:00:00.000Z). Optional. If missing, all files will be processed")
-	replayCmd.Flags().StringVar(&end, "end", "", "end date as YYYY-MM-DD. Treated as the end of the day UTC (YYYY-MM-DD 23:59:59.999Z). Optional. If missing, all will be processed")
-	replayCmd.Flags().StringVar(&host, "host", "http://localhost:8000", "Jitsu host")
-	replayCmd.Flags().Int64Var(&chunkSize, "chunk_size", maxChunkSize, "max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with max size and sent to Jitsu")
+	replayCmd.Flags().StringVar(&state, "state", "", "(optional) a path to file where Jitsu will save the state - already uploaded files names")
+	replayCmd.Flags().StringVar(&start, "start", "", "(optional) start date as YYYY-MM-DD. Treated as the beginning of the day UTC (YYYY-MM-DD 00:00:00.000Z). If missing, all files will be processed")
+	replayCmd.Flags().StringVar(&end, "end", "", "(optional) end date as YYYY-MM-DD. Treated as the end of the day UTC (YYYY-MM-DD 23:59:59.999Z). If missing, all will be processed")
+	replayCmd.Flags().StringVar(&host, "host", "http://localhost:8000", "(optional) Jitsu host")
+	replayCmd.Flags().Int64Var(&chunkSize, "chunk_size", maxChunkSize, "(optional) max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with max size and sent to Jitsu")
+	replayCmd.Flags().BoolVar(&disableProgressBars, "disable_progress_bars", false, "(optional) progress bars won't be displayed")
 
 	replayCmd.Flags().StringVar(&apiKey, "api_key", "", "(required) Jitsu API Key. Data will be loaded into all destinations linked to this API Key.")
 	replayCmd.MarkFlagRequired("api_key")
@@ -123,9 +122,13 @@ func replay(inputFiles []string) error {
 		return errors.New("all files are marked as uploaded in state. Nothing to replay.")
 	}
 
+	var globalBar ProgressBar
 	capacity := int64(len(filesToUpload))
-	progressBars := mpb.New()
-	globalBar := createProcessingBar(progressBars, capacity)
+	if !disableProgressBars {
+		globalBar = NewParentMultiProgressBar(capacity)
+	} else {
+		globalBar = &DummyProgressBar{}
+	}
 
 	client := newBulkClient(host, apiKey)
 
@@ -136,7 +139,7 @@ func replay(inputFiles []string) error {
 			return err
 		}
 
-		if err := uploadFile(progressBars, client, absFilePath, fileStat.Size()); err != nil {
+		if err := uploadFile(globalBar, client, absFilePath, fileStat.Size()); err != nil {
 			return fmt.Errorf("uploading file: %s\nmessage: %v", absFilePath, err)
 		}
 		processedFiles++
@@ -158,9 +161,9 @@ func replay(inputFiles []string) error {
 //uploadFile divides input file into chunks if size is grater then chunkSize
 //sends data to Jitsu
 //returns err if occurred
-func uploadFile(progressBars *mpb.Progress, client *bulkClient, filePath string, fileSize int64) error {
+func uploadFile(globalBar ProgressBar, client *bulkClient, filePath string, fileSize int64) error {
 	if fileSize > chunkSize {
-		return sendChunked(progressBars, filePath, fileSize, client.sendGzippedMultiPart)
+		return sendChunked(globalBar, filePath, fileSize, client.sendGzippedMultiPart)
 	}
 
 	//send the whole file
@@ -180,18 +183,18 @@ func uploadFile(progressBars *mpb.Progress, client *bulkClient, filePath string,
 	payloadSize := int64(len(payload))
 	processingTime := int64(float64(payloadSize) * 0.1)
 	capacity := payloadSize + processingTime
-	fileProgressBar := createKBFileBar(progressBars, filePath, capacity)
-
+	fileProgressBar := globalBar.createKBFileBar(filePath, capacity)
 	if err := client.sendGzippedMultiPart(fileProgressBar, filePath, payload); err != nil {
 		return err
 	}
 
 	fileProgressBar.SetCurrent(capacity)
+
 	return nil
 }
 
 //sendChunked reads file maxChunkSize bytes and sends each chunk separately
-func sendChunked(progressBars *mpb.Progress, filePath string, fileSize int64, sender func(fileProgressBar *mpb.Bar, filePath string, payload []byte) error) error {
+func sendChunked(progressBar ProgressBar, filePath string, fileSize int64, sender func(fileProgressBar ProgressBar, filePath string, payload []byte) error) error {
 	file, err := os.Open(filePath)
 	if err != nil {
 		return err
@@ -210,7 +213,7 @@ func sendChunked(progressBars *mpb.Progress, filePath string, fileSize int64, se
 		scanner = bufio.NewScanner(file)
 	}
 
-	fileProgressBar := createPartFileBar(progressBars, filePath, capacity)
+	fileProgressBar := progressBar.createPartFileBar(filePath, capacity)
 
 	cbuffer := make([]byte, 0, bufio.MaxScanTokenSize)
 	scanner.Buffer(cbuffer, bufio.MaxScanTokenSize*100)
@@ -415,59 +418,4 @@ func doGzip(payload []byte) ([]byte, error) {
 	}
 
 	return gzipped.Bytes(), nil
-}
-
-//check all available colors:
-//for i:=0;i<255;i++{
-//		fmt.Println(i, " --- ", au.Index(uint8(i), "████████████████").String())
-//	}
-//createProcessingBar creates global progress bar
-func createProcessingBar(p *mpb.Progress, allFilesSize int64) *mpb.Bar {
-	return p.Add(allFilesSize,
-		mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler(au.Index(93, "█").String()).Tip("").Padding(au.Index(99, "░").String()).Rbound("╟")),
-		mpb.PrependDecorators(
-			decor.Name("replay"),
-			decor.Percentage(decor.WCSyncSpace),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(
-				decor.CountersNoUnit("%d / %d files", decor.WCSyncWidth), au.Green("✓ done").String(),
-			),
-		),
-		mpb.BarPriority(9999999),
-	)
-}
-
-//createKBFileBar creates progress bar per file which counts parts
-func createKBFileBar(p *mpb.Progress, filePath string, fileSize int64) *mpb.Bar {
-	return p.Add(fileSize,
-		mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler(au.Index(99, "█").String()).Tip("").Padding(au.Index(104, "░").String()).Rbound("╟")),
-		mpb.BarFillerClearOnComplete(),
-		mpb.PrependDecorators(
-			decor.Name(filepath.Base(filePath)),
-			decor.Percentage(decor.WCSyncSpace),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(
-				decor.CountersKiloByte("%d / %d", decor.WCSyncWidth), au.Green("✓ done").String(),
-			),
-		),
-	)
-}
-
-//createPartFileBar creates progress bar per file which counts parts
-func createPartFileBar(p *mpb.Progress, filePath string, fileSize int64) *mpb.Bar {
-	return p.Add(fileSize,
-		mpb.NewBarFiller(mpb.BarStyle().Lbound("╢").Filler(au.Index(99, "█").String()).Tip("").Padding(au.Index(104, "░").String()).Rbound("╟")),
-		mpb.BarFillerClearOnComplete(),
-		mpb.PrependDecorators(
-			decor.Name(filepath.Base(filePath)),
-			decor.Percentage(decor.WCSyncSpace),
-		),
-		mpb.AppendDecorators(
-			decor.OnComplete(
-				decor.CountersNoUnit("%d / %d parts", decor.WCSyncWidth), au.Green("✓ done").String(),
-			),
-		),
-	)
 }
