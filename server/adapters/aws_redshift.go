@@ -350,8 +350,8 @@ func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}
 }
 
 //Clean deletes all records in tableName table
-func (ar *AwsRedshift) Clean(tableName string) error {
-	return ar.dataSourceProxy.Clean(tableName)
+func (ar *AwsRedshift) Truncate(tableName string) error {
+	return ar.dataSourceProxy.Truncate(tableName)
 }
 
 //DropTable drops table in transaction uses underlying postgres datasource
