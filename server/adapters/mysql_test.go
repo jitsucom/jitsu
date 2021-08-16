@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/jitsucom/jitsu/server/typing"
+	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/assert"
 	"math/rand"
@@ -46,6 +47,39 @@ func TestMySQLBulkInsert(t *testing.T) {
 	rows, err := container.CountRows(table.Name)
 	require.NoError(t, err, "Failed to count objects at "+table.Name)
 	assert.Equal(t, rows, recordsCount)
+}
+
+func TestMySQLTruncateExistingTable(t *testing.T) {
+	recordsCount := len(timestamps)
+	table := &Table{
+		Name: "test_insert",
+		Columns: Columns{
+			"field1":          Column{SchemaToMySQL[typing.STRING]},
+			"field2":          Column{SchemaToMySQL[typing.STRING]},
+			"field3":          Column{SchemaToMySQL[typing.INT64]},
+			"user":            Column{SchemaToMySQL[typing.STRING]},
+			"_interval_start": Column{SchemaToMySQL[typing.TIMESTAMP]},
+		},
+	}
+	container, mySQL := setupMySQLDatabase(t, table)
+	defer container.Close()
+	err := mySQL.BulkInsert(table, createObjectsForMySQL(recordsCount))
+	require.NoError(t, err, fmt.Sprintf("Failed to bulk insert %d objects", recordsCount))
+	rows, err := container.CountRows(table.Name)
+	require.NoError(t, err, "Failed to count objects at "+table.Name)
+	assert.Equal(t, rows, recordsCount)
+	err = mySQL.Truncate(table.Name)
+	require.NoError(t, err, "Failed to truncate table")
+	rows, err = container.CountRows(table.Name)
+	require.NoError(t, err, "Failed to count objects at "+table.Name)
+	assert.Equal(t, rows, 0)
+}
+
+func TestMySQLTruncateNonexistentTable(t *testing.T) {
+	container, mySQL := setupMySQLDatabase(t, nil)
+	defer container.Close()
+	err := mySQL.Truncate(uuid.NewV4().String())
+	require.ErrorIs(t, err, ErrTableNotExist)
 }
 
 func TestMySQLBulkMerge(t *testing.T) {
@@ -93,8 +127,10 @@ func setupMySQLDatabase(t *testing.T, table *Table) (*test.MySQLContainer, *MySQ
 	if err != nil {
 		t.Fatalf("Failed to create MySQL adapter: %v", err)
 	}
-	err = adapter.CreateTable(table)
-	require.NoError(t, err, "Failed to create table")
+	if table != nil {
+		err = adapter.CreateTable(table)
+		require.NoError(t, err, "Failed to create table")
+	}
 	return container, adapter
 }
 

@@ -388,7 +388,7 @@ func (s *Snowflake) DropTable(table *Table) error {
 }
 
 //Clean deletes all records in tableName table
-func (s *Snowflake) Clean(tableName string) error {
+func (s *Snowflake) Truncate(tableName string) error {
 	wrappedTx, err := s.OpenTx()
 	if err != nil {
 		return err

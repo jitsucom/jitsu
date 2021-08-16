@@ -29,7 +29,7 @@ const (
 	createTableCHTemplate            = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
 	createDistributedTableCHTemplate = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
 	dropDistributedTableCHTemplate   = `DROP TABLE IF EXISTS "%s"."dist_%s" %s`
-	cleanTableCHTemplate             = `TRUNCATE TABLE IF EXISTS "%s"."%s"`
+	truncateTableCHTemplate          = `TRUNCATE TABLE IF EXISTS "%s"."%s"`
 	cleanDistributedTableCHTemplate  = `TRUNCATE TABLE IF EXISTS "%s"."dist_%s" %s`
 
 	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
@@ -452,14 +452,14 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 	return wrappedTx.DirectCommit()
 }
 
-//Clean deletes all records in tableName table
-func (ch *ClickHouse) Clean(tableName string) error {
+//Truncate deletes all records in tableName table
+func (ch *ClickHouse) Truncate(tableName string) error {
 	wrappedTx, err := ch.OpenTx()
 	if err != nil {
 		return err
 	}
 
-	query := fmt.Sprintf(cleanTableCHTemplate, ch.database, tableName)
+	query := fmt.Sprintf(truncateTableCHTemplate, ch.database, tableName)
 	ch.queryLogger.LogDDL(query)
 
 	_, err = wrappedTx.tx.ExecContext(ch.ctx, query)
@@ -469,7 +469,7 @@ func (ch *ClickHouse) Clean(tableName string) error {
 	}
 
 	if ch.cluster != "" {
-		ch.dropDistributedTableInTransaction(wrappedTx, tableName)
+		ch.truncateDistributedTableInTransaction(wrappedTx, tableName)
 	}
 
 	return nil
@@ -614,7 +614,7 @@ func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string
 }
 
 //clean distributed table, ignore errors
-func (ch *ClickHouse) cleanDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
+func (ch *ClickHouse) truncateDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
 	query := fmt.Sprintf(cleanDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
 	ch.queryLogger.LogDDL(query)
 	_, err := wrappedTx.tx.ExecContext(ch.ctx, query)

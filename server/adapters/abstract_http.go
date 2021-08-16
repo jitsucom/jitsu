@@ -46,7 +46,7 @@ func (a *AbstractHTTP) Type() string {
 	return "AbstractHTTP"
 }
 
-func (a *AbstractHTTP) Clean(tableName string) error {
+func (a *AbstractHTTP) Truncate(tableName string) error {
 	return nil
 }
 

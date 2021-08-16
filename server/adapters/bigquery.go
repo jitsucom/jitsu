@@ -240,7 +240,7 @@ func (bq *BigQuery) DropTable(table *Table) error {
 }
 
 //Clean deletes all records in tableName table
-func (bq *BigQuery) Clean(tableName string) error {
+func (bq *BigQuery) Truncate(tableName string) error {
 	query := fmt.Sprintf(truncateBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName)
 	bq.queryLogger.LogQuery(query)
 	_, err := bq.client.Query(query).Read(bq.ctx)
