@@ -26,7 +26,7 @@ const dbtcloudDestination = {
             type: descriptionType,
             defaultValue: (
                 <span>
-                    Setup triggering of <b>dbt Cloud</b> Job on successful run of Sources.
+                    Setup triggering of <b>dbt Cloud</b> Job on successful run of Sources and Destinations in batch mode.
                     <br />
                     See {' '}
                     <a target="_blank" href="https://docs.getdbt.com/dbt-cloud/api#operation/triggerRun">
