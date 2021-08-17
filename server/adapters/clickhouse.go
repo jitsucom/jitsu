@@ -26,11 +26,11 @@ const (
 	onClusterCHClauseTemplate = ` ON CLUSTER "%s" `
 	columnCHNullableTemplate  = ` Nullable(%s) `
 
-	createTableCHTemplate            = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
-	createDistributedTableCHTemplate = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
-	dropDistributedTableCHTemplate   = `DROP TABLE IF EXISTS "%s"."dist_%s" %s`
-	truncateTableCHTemplate          = `TRUNCATE TABLE IF EXISTS "%s"."%s"`
-	cleanDistributedTableCHTemplate  = `TRUNCATE TABLE IF EXISTS "%s"."dist_%s" %s`
+	createTableCHTemplate              = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
+	createDistributedTableCHTemplate   = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
+	dropDistributedTableCHTemplate     = `DROP TABLE IF EXISTS "%s"."dist_%s" %s`
+	truncateTableCHTemplate            = `TRUNCATE TABLE IF EXISTS "%s"."%s"`
+	truncateDistributedTableCHTemplate = `TRUNCATE TABLE IF EXISTS "%s"."dist_%s" %s`
 
 	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
 	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
@@ -454,22 +454,19 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 
 //Truncate deletes all records in tableName table
 func (ch *ClickHouse) Truncate(tableName string) error {
-	wrappedTx, err := ch.OpenTx()
-	if err != nil {
+	sqlParams := SqlParams{
+		dataSource:  ch.dataSource,
+		queryLogger: ch.queryLogger,
+		ctx:         ch.ctx,
+	}
+
+	statement := fmt.Sprintf(truncateTableCHTemplate, ch.database, tableName)
+	if err := sqlParams.commonTruncate(tableName, statement); err != nil {
 		return err
 	}
-
-	query := fmt.Sprintf(truncateTableCHTemplate, ch.database, tableName)
-	ch.queryLogger.LogDDL(query)
-
-	_, err = wrappedTx.tx.ExecContext(ch.ctx, query)
-
-	if err != nil {
-		return fmt.Errorf("Error cleaning [%s] table: %v", tableName, err)
-	}
-
 	if ch.cluster != "" {
-		ch.truncateDistributedTableInTransaction(wrappedTx, tableName)
+		statement = fmt.Sprintf(truncateDistributedTableCHTemplate, ch.database, tableName, ch.getOnClusterClause())
+		return sqlParams.commonTruncate(tableName, statement)
 	}
 
 	return nil
@@ -613,9 +610,9 @@ func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string
 	}
 }
 
-//clean distributed table, ignore errors
+//truncate distributed table, ignore errors
 func (ch *ClickHouse) truncateDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
-	query := fmt.Sprintf(cleanDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
+	query := fmt.Sprintf(truncateDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
 	ch.queryLogger.LogDDL(query)
 	_, err := wrappedTx.tx.ExecContext(ch.ctx, query)
 	if err != nil {
