@@ -55,7 +55,7 @@ type Singer struct {
 	tableNamePrefix  string
 	streamTableNames map[string]string
 
-	StreamReplication map[string]string
+	streamReplication map[string]string
 
 	catalogDiscovered *atomic.Bool
 	closed            *atomic.Bool
@@ -164,7 +164,7 @@ func NewSinger(ctx context.Context, sourceConfig *base.SourceConfig, collection 
 		tableNamePrefix:   prefix,
 		pathToConfigs:     pathToConfigs,
 		streamTableNames:  tableNameMappings,
-		StreamReplication: streamReplicationMappings,
+		streamReplication: streamReplicationMappings,
 		catalogDiscovered: catalogDiscovered,
 		closed:            atomic.NewBool(false),
 	}
@@ -363,7 +363,7 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, portionConsum
 			}
 		}()
 
-		parsingErr = singer.StreamParseOutput(stdout, portionConsumer, taskLogger, s.StreamReplication)
+		parsingErr = singer.StreamParseOutput(stdout, portionConsumer, taskLogger, s.streamReplication)
 		if parsingErr != nil {
 			s.logAndKill(taskLogger, syncCmd, parsingErr)
 		}
