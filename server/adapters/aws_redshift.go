@@ -349,7 +349,7 @@ func (ar *AwsRedshift) BulkUpdate(table *Table, objects []map[string]interface{}
 	return wrappedTx.DirectCommit()
 }
 
-//Clean deletes all records in tableName table
+//Truncate deletes all records in tableName table
 func (ar *AwsRedshift) Truncate(tableName string) error {
 	return ar.dataSourceProxy.Truncate(tableName)
 }

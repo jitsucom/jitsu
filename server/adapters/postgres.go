@@ -575,19 +575,6 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 	return p.dropTableInTransaction(wrappedTx, tmpTable)
 }
 
-func (p *Postgres) cleanTableInTransaction(wrappedTx *Transaction, tableName string) error {
-	statement := fmt.Sprintf(postgresTruncateTableTemplate, p.config.Schema, tableName)
-	p.queryLogger.LogDDL(statement)
-
-	_, err := wrappedTx.tx.ExecContext(p.ctx, statement)
-
-	if err != nil {
-		return fmt.Errorf("Error cleaning table %s using statement: %s: %v", tableName, statement, err)
-	}
-
-	return nil
-}
-
 func (p *Postgres) dropTableInTransaction(wrappedTx *Transaction, table *Table) error {
 	query := fmt.Sprintf(dropTableTemplate, p.config.Schema, table.Name)
 	p.queryLogger.LogDDL(query)
