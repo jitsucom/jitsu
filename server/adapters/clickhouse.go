@@ -610,16 +610,6 @@ func (ch *ClickHouse) createDistributedTableInTransaction(originTableName string
 	}
 }
 
-//truncate distributed table, ignore errors
-func (ch *ClickHouse) truncateDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
-	query := fmt.Sprintf(truncateDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
-	ch.queryLogger.LogDDL(query)
-	_, err := wrappedTx.tx.ExecContext(ch.ctx, query)
-	if err != nil {
-		logging.Errorf("Error cleaning distributed table for [%s] with statement [%s]: %v", originTableName, query, err)
-	}
-}
-
 //drop distributed table, ignore errors
 func (ch *ClickHouse) dropDistributedTableInTransaction(wrappedTx *Transaction, originTableName string) {
 	query := fmt.Sprintf(dropDistributedTableCHTemplate, ch.database, originTableName, ch.getOnClusterClause())
