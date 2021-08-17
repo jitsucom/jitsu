@@ -23,6 +23,7 @@ const (
 	WebHookType         = "webhook"
 	AmplitudeType       = "amplitude"
 	HubSpotType         = "hubspot"
+	DbtCloudType        = "dbtcloud"
 )
 
 //Storage is a destination representation
@@ -48,8 +49,10 @@ type StorageProxy interface {
 	io.Closer
 	Get() (Storage, bool)
 	GetUniqueIDField() *identifiers.UniqueID
+	GetPostHandleDestinations() []string
 	IsCachingDisabled() bool
 	ID() string
+	Type() string
 }
 
 //StoreResult is used as a Batch storing result

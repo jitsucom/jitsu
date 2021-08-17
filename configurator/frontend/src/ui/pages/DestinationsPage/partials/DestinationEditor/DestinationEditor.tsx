@@ -1,19 +1,19 @@
 // @Libs
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Prompt, useHistory, useParams } from 'react-router-dom';
-import { Card, Form, message } from 'antd';
+import { generatePath, Prompt, useHistory, useParams } from 'react-router-dom';
+import { Button, Card, Form, message } from 'antd';
 import { flowResult } from 'mobx';
 import cn from 'classnames';
 // @Components
 import { TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
 import { EditorButtons } from 'ui/components/EditorButtons/EditorButtons';
-import { ComingSoon } from 'ui/components/ComingSoon/ComingSoon';
 import { PageHeader } from 'ui/components/PageHeader/PageHeader';
 import { closeableMessage } from 'lib/components/components';
 import { DestinationEditorConfig } from './DestinationEditorConfig';
 import { DestinationEditorConnectors } from './DestinationEditorConnectors';
 import { DestinationEditorMappings } from './DestinationEditorMappings';
 import { DestinationEditorMappingsLibrary } from './DestinationEditorMappingsLibrary';
+import { DestinationNotFound } from '../DestinationNotFound/DestinationNotFound';
 // @Store
 import { sourcesStore } from 'stores/sources';
 import { destinationsStore } from 'stores/destinations';
@@ -39,8 +39,7 @@ import { firstToLower } from 'lib/commons/utils';
 // @Hooks
 import { useForceUpdate } from 'hooks/useForceUpdate';
 // @Icons
-import WarningOutlined from '@ant-design/icons/lib/icons/WarningOutlined';
-import { DestinationNotFound } from '../DestinationNotFound/DestinationNotFound';
+import { AreaChartOutlined, WarningOutlined } from '@ant-design/icons';
 
 type DestinationTabKey =
   | 'config'
@@ -53,12 +52,16 @@ type DestinationParams = {
   type?: DestinationType;
   id?: string;
   tabName?: string;
+  //For editor that lives separately from destination list page
+  standalone?: string;
 };
 
 type DestinationURLParams = {
   type?: string;
   id?: string;
   tabName?: string;
+  //For editor that lives separately from destination list page
+  standalone?: string;
 };
 
 type ConfigProps = { paramsByProps?: DestinationParams };
@@ -164,7 +167,7 @@ const DestinationEditor = ({
       } catch (errors) {
         // ToDo: check errors count for fields with few validation rules
         tab.errorsCount = errors.errorFields?.length;
-        throw errors;
+        return null;
       } finally {
         forceUpdate();
       }
@@ -210,7 +213,8 @@ const DestinationEditor = ({
         />
       ),
       form: Form.useForm()[0],
-      touched: false
+      touched: false,
+      isHidden: params.standalone == 'true'
     },
     {
       key: 'sources',
@@ -225,31 +229,17 @@ const DestinationEditor = ({
       ),
       form: Form.useForm()[0],
       errorsLevel: 'warning',
-      touched: false
+      touched: false,
+      isHidden: params.standalone == 'true'
     },
     {
       key: 'settings',
       name: 'Configuration Templates',
       touched: false,
+      isHidden: params.standalone == 'true',
       getComponent: () => (
         <DestinationEditorMappingsLibrary handleDataUpdate={handleUseLibrary} />
       )
-    },
-    {
-      key: 'statistics',
-      name: (
-        <ComingSoon
-          render="Statistics"
-          documentation={
-            <>
-              A detailed statistics on how many events have been sent to the
-              destinations
-            </>
-          }
-        />
-      ),
-      isDisabled: true,
-      touched: false
     }
   ];
 
@@ -258,6 +248,13 @@ const DestinationEditor = ({
   const handleCancel = useCallback(() => {
     onCancel ? onCancel() : history.push(destinationPageRoutes.root);
   }, [history, onCancel]);
+
+  const handleViewStatistics = () =>
+    history.push(
+      generatePath(destinationPageRoutes.statisticsExact, {
+        id: destinationData.current._id
+      })
+    );
 
   const testConnectingPopoverClose = useCallback(
     () => switchTestConnectingPopover(false),
@@ -337,10 +334,19 @@ const DestinationEditor = ({
           destinationsTabs.current.forEach((tab: Tab) => (tab.touched = false));
 
           if (destinationData.current._connectionTestOk) {
-            message.success('New destination has been added!');
+            if (editorMode === 'add')
+              message.success(
+                `New ${destinationData.current._type} has been added!`
+              );
+            if (editorMode === 'edit')
+              message.success(
+                `${destinationData.current._type} has been saved!`
+              );
           } else {
             closeableMessage.warn(
-              `Destination has been saved, but test has failed with '${firstToLower(
+              `${
+                destinationData.current._type
+              } has been saved, but test has failed with '${firstToLower(
                 destinationData.current._connectionErrorMessage
               )}'. Data will not be piped to this destination`
             );
@@ -372,33 +378,35 @@ const DestinationEditor = ({
     (src.destinations || []).includes(destinationData.current._uid)
   ).length;
 
-  const isAbleToConnectItems = () =>
+  const isAbleToConnectItems = (): boolean =>
     editorMode === 'edit' &&
     connectedSourcesNum === 0 &&
-    !destinationData.current?._onlyKeys?.length;
+    !destinationData.current?._onlyKeys?.length &&
+    !destinationsReferenceMap[params.type]?.hidden;
 
   useEffect(() => {
+    let breadCrumbs = [];
+    if (!params.standalone) {
+      breadCrumbs.push({
+        title: 'Destinations',
+        link: destinationPageRoutes.root
+      });
+    }
+    breadCrumbs.push({
+      title: (
+        <PageHeader
+          title={destinationReference.displayName}
+          icon={destinationReference.ui.icon}
+          mode={params.standalone ? 'edit' : editorMode}
+        />
+      )
+    });
     setBreadcrumbs(
       withHome({
-        elements: [
-          { title: 'Destinations', link: destinationPageRoutes.root },
-          {
-            title: (
-              <PageHeader
-                title={
-                  destinationReference?.displayName || 'Destination Not Found'
-                }
-                icon={destinationReference?.ui.icon}
-                mode={destinationReference ? editorMode : null}
-              />
-            )
-          }
-        ]
+        elements: breadCrumbs
       })
     );
   }, [destinationReference, setBreadcrumbs]);
-
-  
 
   return destinationReference ? (
     <>
@@ -421,13 +429,23 @@ const DestinationEditor = ({
               </article>
             </Card>
           )}
-
           <TabsConfigurator
             type="card"
             className={styles.tabCard}
             tabsList={destinationsTabs.current}
             activeTabKey={activeTabKey}
             onTabChange={setActiveTabKey}
+            tabBarExtraContent={
+              <Button
+                size="large"
+                className="mr-3"
+                type="link"
+                onClick={handleViewStatistics}
+                icon={<AreaChartOutlined />}
+              >
+                Statistics
+              </Button>
+            }
           />
         </div>
 
@@ -455,7 +473,7 @@ const DestinationEditor = ({
               titleText: 'Connection Properties errors',
               tabsList: [destinationsTabs.current[0]]
             }}
-            handleCancel={handleCancel}
+            handleCancel={params.standalone ? undefined : handleCancel}
           />
         </div>
       </div>
@@ -479,11 +497,11 @@ const getDestinationData = (params: {
   id?: string;
   type?: string;
 }): DestinationData =>
-  destinationsStore.destinations.find((dst) => dst._id === params.id) ||
+  destinationsStore.allDestinations.find((dst) => dst._id === params.id) ||
   ({
     _id: getUniqueAutoIncId(
       params.type,
-      destinationsStore.destinations.map((dst) => dst._id)
+      destinationsStore.allDestinations.map((dst) => dst._id)
     ),
     _uid: randomId(),
     _type: params.type,

@@ -1,5 +1,5 @@
-let event_type1 = $.event_type;
-let event_type2 = $.event_type?.toUpperCase();
+let event_type1 = $.event_type || null;
+let event_type2 = $.event_type?.toUpperCase() || null;
 var email;
 if (event_type1 === 'important') {
     email = $.user?.email

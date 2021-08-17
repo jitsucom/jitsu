@@ -2,8 +2,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { generatePath, useHistory } from 'react-router-dom';
 import { Button, Dropdown, Modal } from 'antd';
+import { observer } from 'mobx-react-lite';
 // @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
 import {
   destinationsReferenceList,
   destinationsReferenceMap
@@ -16,21 +16,23 @@ import { DropDownList } from 'ui/components/DropDownList/DropDownList';
 import { ListItem } from 'ui/components/ListItem/ListItem';
 import { EmptyList } from 'ui/components/EmptyList/EmptyList';
 // @Icons
-import PlusOutlined from '@ant-design/icons/lib/icons/PlusOutlined';
-import ExclamationCircleOutlined from '@ant-design/icons/lib/icons/ExclamationCircleOutlined';
-import DeleteOutlined from '@ant-design/icons/lib/icons/DeleteOutlined';
-import EditOutlined from '@ant-design/icons/lib/icons/EditOutlined';
+import {
+  PlusOutlined,
+  ExclamationCircleOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  AreaChartOutlined
+} from '@ant-design/icons';
 // @Styles
 import styles from './DestinationsList.module.less';
 // @Utils
 import { destinationsUtils } from 'ui/pages/DestinationsPage/DestinationsPage.utils';
+import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
 // @Routes
 import { destinationPageRoutes } from 'ui/pages/DestinationsPage/DestinationsPage.routes';
 // @Types
 import { CommonDestinationPageProps } from 'ui/pages/DestinationsPage/DestinationsPage';
 import { Destination } from 'catalog/destinations/types';
-import { withHome } from 'ui/components/Breadcrumbs/Breadcrumbs';
-import { observer } from 'mobx-react-lite';
 
 const DestinationsListComponent = ({
   setBreadcrumbs
@@ -59,15 +61,16 @@ const DestinationsListComponent = ({
     () => (
       <DropDownList
         hideFilter
-        list={destinationsReferenceList.map((dst: Destination) => ({
-          title: dst.displayName,
-          id: dst.id,
-          icon: dst.ui.icon,
-          link: generatePath(destinationPageRoutes.newExact, {
-            type: dst.id
-          })
-        }))}
-        filterPlaceholder="Filter by destination name or id"
+        list={destinationsReferenceList
+          .filter((v) => !v.hidden)
+          .map((dst: Destination) => ({
+            title: dst.displayName,
+            id: dst.id,
+            icon: dst.ui.icon,
+            link: generatePath(destinationPageRoutes.newExact, {
+              type: dst.id
+            })
+          }))}
       />
     ),
     []
@@ -130,6 +133,16 @@ const DestinationsListComponent = ({
               id={dst._id}
               key={dst._id}
               actions={[
+                {
+                  onClick: () =>
+                    history.push(
+                      generatePath(destinationPageRoutes.statisticsExact, {
+                        id: dst._id
+                      })
+                    ),
+                  title: 'Statistics',
+                  icon: <AreaChartOutlined />
+                },
                 {
                   onClick: () =>
                     history.push(

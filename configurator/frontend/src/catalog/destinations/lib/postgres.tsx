@@ -1,4 +1,3 @@
-import { Destination } from '../types';
 import { modeParameter, tableName } from './common';
 import { intType, stringType, passwordType, booleanType } from '../../sources/types';
 
@@ -68,6 +67,7 @@ const postgresDestination = {
   id: 'postgres',
   type: 'database',
   displayName: 'Postgres SQL',
+  hidden: false,
   ui: {
     icon: icon,
     connectCmd: (cfg: object) => {

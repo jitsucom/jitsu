@@ -89,7 +89,7 @@ All fields from the **server** section are optional:
 | **metrics.prometheus.enabled** | boolean | see [Application Metrics](/docs/other-features/application-metrics) page. | `false` |
 | **telemetry.disabled.usage** | boolean | Flag for disabling telemetry. **Jitsu** collects usage metrics about how you use it and how it is working. **We don't collect any customer data**. | `false` |
 | **disable\_version\_reminder** | boolean | Flag for disabling log reminder banner about new **Jitsu** versions availability. | `false` |
-
+| **sync_tasks.store_logs.last_runs** | int | Logs for how many task runs must be kept in meta storage. Controlled on Source's collection level. When number of task runs for Source collection exceed provided value – old records get removed from meta storage. | `-1` unlimited number of logs |
 ### Log
 
 **Jitsu Server** supports destinations in streaming and batch modes. In the case of batch mode, all events are stored in JSON log files locally to **path** directory, and every **rotation\_min** minutes they are processed and pushed to destinations.

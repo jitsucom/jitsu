@@ -15,8 +15,9 @@ import { DestinationEditor } from 'ui/pages/DestinationsPage/partials/Destinatio
 import {
   destinationsReferenceList,
   destinationsReferenceMap,
-  DestinationStrictType
+  DestinationReference
 } from 'catalog/destinations/lib';
+
 // @Hooks
 import { useServices } from 'hooks/useServices';
 // @Utils
@@ -27,9 +28,13 @@ type ExtractDatabaseOrWebhook<T> = T extends { readonly type: 'database' }
   ? T
   : never;
 
+type FilterHidden<T> = T extends { readonly hidden: false } ? T : never;
+
 const destinationsToOffer = destinationsReferenceList.filter(
-  (dest): dest is ExtractDatabaseOrWebhook<DestinationStrictType> => {
-    return dest.type === 'database' || dest.id === 'webhook';
+  (
+    dest
+  ): dest is FilterHidden<ExtractDatabaseOrWebhook<DestinationReference>> => {
+    return !dest.hidden && (dest.type === 'database' || dest.id === 'webhook');
   }
 );
 

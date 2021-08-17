@@ -3,6 +3,7 @@ package typing
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"strings"
 	"time"
 
@@ -114,7 +115,7 @@ func ReformatValue(v interface{}) interface{} {
 	return interface{}(intValue)
 }
 
-// ReformatTimeValue processes string with ISO DateTime into time.Time
+// ReformatTimeValue processes string with ISO DateTime or Golang layout into time.Time
 func ReformatTimeValue(value interface{}) interface{} {
 	stringValue, ok := value.(string)
 	if !ok {
@@ -122,6 +123,11 @@ func ReformatTimeValue(value interface{}) interface{} {
 	}
 
 	timeValue, err := time.Parse(time.RFC3339Nano, stringValue)
+	if err == nil {
+		return timeValue
+	}
+
+	timeValue, err = time.Parse(timestamp.GolangLayout, stringValue)
 	if err == nil {
 		return timeValue
 	}

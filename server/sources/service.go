@@ -171,10 +171,11 @@ func (s *Service) init(sc map[string]driversbase.SourceConfig) {
 
 		s.Lock()
 		s.sources[name] = &Unit{
-			SourceType:          sourceConfig.Type,
-			DriverPerCollection: driverPerCollection,
-			DestinationIDs:      sourceConfig.Destinations,
-			hash:                hash,
+			SourceType:               sourceConfig.Type,
+			DriverPerCollection:      driverPerCollection,
+			DestinationIDs:           sourceConfig.Destinations,
+			PostHandleDestinationIDs: sourceConfig.PostHandleDestinations,
+			hash:                     hash,
 		}
 		s.Unlock()
 

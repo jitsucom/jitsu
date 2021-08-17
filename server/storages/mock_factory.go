@@ -20,11 +20,17 @@ func (tpm *testProxyMock) GetUniqueIDField() *identifiers.UniqueID {
 //ID is a mock func
 func (tpm *testProxyMock) ID() string { return "" }
 
+//Type is a mock func
+func (tpm *testProxyMock) Type() string { return "" }
+
 //Close is a mock func
 func (tpm *testProxyMock) Close() error { return nil }
 
 //IsCachingDisabled is a mock func
 func (tpm *testProxyMock) IsCachingDisabled() bool { return false }
+
+//GetPostHandleDestinations is a mock func
+func (tpm *testProxyMock) GetPostHandleDestinations() []string { return nil }
 
 //MockFactory is a Mock destinations storages factory
 type MockFactory struct{}

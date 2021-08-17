@@ -1,5 +1,5 @@
 import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
-import { arrayOf, jsonType, selectionType, stringType } from '../../sources/types';
+import { arrayOf, jsType, selectionType, stringType } from '../../sources/types';
 
 const icon = (
   <svg
@@ -36,6 +36,7 @@ const webhookDestination = {
   id: 'webhook',
   type: 'other',
   displayName: 'WebHook',
+  hidden: false,
   parameters: [
     modeParameter('stream'),
     tableName(filteringExpressionDocumentation),
@@ -58,7 +59,7 @@ const webhookDestination = {
       id: '_formData.body',
       displayName: 'HTTP JSON Body',
       required: false,
-      type: jsonType,
+      type: jsType,
       documentation:
         <>HTTP body JSON constant, or <a href={"https://jitsu.com/docs/configuration/javascript-functions"}>JavaScript functions</a> e.g.:
           <pre>

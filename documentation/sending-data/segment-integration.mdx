@@ -1,0 +1,72 @@
+# Segment Integration
+
+Jitsu supports collecting events from Segment without a need to touch your backend or frontend code. Just create a [Segment integration function](https://segment.com/docs/connections/functions/destination-functions/)
+with the JS code below and connect it as a destination to your source on [Segment](https://app.segment.com/).
+Integration functions are applied to all events from your landing pages, web applications or servers that are gone through Segment.
+All events will be additionally sent to Jitsu with.
+
+
+Income events are mapped on JS SDK 2.0 structure automatically.
+
+<Hint>
+  If you are using <a href="/docs/sending-data/javascript-reference">deprecated events API</a> (events structure with <code inline="true">eventn_ctx</code> prefix) please use <code inline="true">/api/v1/segment/compat</code> endpoint.
+</Hint>
+
+Copy this javascript code into Segment integration function body:
+
+```javascript
+async function send(event, settings) {
+	let response;
+	try {
+	    //If you are using cloud.jitsu.com - put URL: https://t.jitsu.com/api/v1/segment
+		response = await fetch('<JITSU_HOST_HERE>/api/v1/segment', {
+			method: 'POST',
+			headers: {
+				'X-Auth-Token': '<JITSU_SERVER_API_KEY>',
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({ ...event, ...settings })
+		});
+	} catch (error) {
+		// Retry on connection error
+		throw new RetryError(error.message);
+	}
+
+	if (response.status >= 500 || response.status === 429) {
+		throw new RetryError(`Failed with ${response.status}`);
+	}
+}
+
+async function onTrack(event, settings) {
+	await send(event, settings);
+}
+
+async function onIdentify(event, settings) {
+	await send(event, settings);
+}
+
+/**
+ * Handle group event
+ * @param  {SegmentGroupEvent} event
+ * @param  {FunctionSettings} settings
+ */
+async function onGroup(event, settings) {
+	await send(event, settings);
+}
+
+async function onPage(event, settings) {
+	await send(event, settings);
+}
+
+async function onScreen(event, settings) {
+	await send(event, settings);
+}
+
+async function onAlias(event, settings) {
+	await send(event, settings);
+}
+
+async function onDelete(event, settings) {
+	await send(event, settings);
+}
+```

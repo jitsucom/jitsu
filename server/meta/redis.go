@@ -22,6 +22,10 @@ const (
 	sourceIndex      = "sources_index"
 
 	responseTimestampLayout = "2006-01-02T15:04:05+0000"
+
+	SuccessStatus = "success"
+	ErrorStatus   = "errors"
+	SkipStatus    = "skip"
 )
 
 var (
@@ -255,17 +259,17 @@ func (r *Redis) SuccessEvents(id, namespace string, now time.Time, value int) er
 	if err != nil {
 		return fmt.Errorf("Error ensuring id in index: %v", err)
 	}
-	return r.incrementEventsCount(id, namespace, "success", now, value)
+	return r.incrementEventsCount(id, namespace, SuccessStatus, now, value)
 }
 
 //ErrorEvents increments error events counter
 func (r *Redis) ErrorEvents(id, namespace string, now time.Time, value int) error {
-	return r.incrementEventsCount(id, namespace, "errors", now, value)
+	return r.incrementEventsCount(id, namespace, ErrorStatus, now, value)
 }
 
 //SkipEvents increments skipp events counter
 func (r *Redis) SkipEvents(id, namespace string, now time.Time, value int) error {
-	return r.incrementEventsCount(id, namespace, "skip", now, value)
+	return r.incrementEventsCount(id, namespace, SkipStatus, now, value)
 }
 
 //AddEvent saves event JSON string into Redis and ensures that event ID is in index by destination ID
@@ -529,7 +533,7 @@ func (r *Redis) GetAllTaskIDs(sourceID, collection string, descendingOrder bool)
 
 //RemoveTasks tasks with provided taskIds from specified source's collections.
 //All task logs removed as well
-func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ... string) (int, error) {
+func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
@@ -548,10 +552,10 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ... string) (in
 
 	taskKeys := make([]interface{}, 0, len(taskIDs))
 	for _, id := range taskIDs {
-		taskKeys = append(taskKeys, "sync_tasks#" + id)
+		taskKeys = append(taskKeys, "sync_tasks#"+id)
 	}
 
-	removed, err =  redis.Int(conn.Do("DEL", taskKeys...))
+	removed, err = redis.Int(conn.Do("DEL", taskKeys...))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		//no point to return error. we have already cleared index
@@ -561,10 +565,10 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ... string) (in
 	}
 	taskLogKeys := make([]interface{}, 0, len(taskIDs))
 	for _, id := range taskIDs {
-		taskLogKeys = append(taskLogKeys, "sync_tasks#" + id + ":logs")
+		taskLogKeys = append(taskLogKeys, "sync_tasks#"+id+":logs")
 	}
 
-	removed, err =  redis.Int(conn.Do("DEL", taskLogKeys...))
+	removed, err = redis.Int(conn.Do("DEL", taskLogKeys...))
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		//no point to return error. we have already cleared index
@@ -769,33 +773,35 @@ func (r *Redis) PushTask(task *Task) error {
 	return nil
 }
 
-//GetProjectEventsWithGranularity returns project's events amount with time criteria by granularity
-func (r *Redis) GetProjectEventsWithGranularity(projectID string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
+//GetProjectSourceIDs returns project's sources ids
+func (r *Redis) GetProjectSourceIDs(projectID string) ([]string, error) {
+	return r.getProjectIDs(projectID, sourceIndex)
+}
+
+//GetProjectDestinationIDs returns project's destination ids
+func (r *Redis) GetProjectDestinationIDs(projectID string) ([]string, error) {
+	return r.getProjectIDs(projectID, destinationIndex)
+}
+
+//GetEventsWithGranularity returns events amount with time criteria by granularity, status and sources/destination ids
+func (r *Redis) GetEventsWithGranularity(namespace, status string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	//get all source IDs from index
-	key := "sources_index:project#" + projectID
-	sourceIDs, err := redis.Strings(conn.Do("SMEMBERS", key))
-	if err != nil {
-		if err == redis.ErrNil {
-			return []EventsPerTime{}, nil
-		}
-
-		return nil, err
-	}
-
 	if granularity == HOUR {
-		return r.getEventsPerHour(conn, sourceIDs, start, end)
+		return r.getEventsPerHour(conn, namespace, status, ids, start, end)
 	} else if granularity == DAY {
-		return r.getEventsPerDay(conn, sourceIDs, start, end)
+		return r.getEventsPerDay(conn, namespace, status, ids, start, end)
 	}
 
 	return nil, fmt.Errorf("Unknown granularity: %s", granularity.String())
 }
 
-//getEventsPerDay returns sum of sources events per hour (between start and end)
-func (r *Redis) getEventsPerHour(conn redis.Conn, sourceIDs []string, start, end time.Time) ([]EventsPerTime, error) {
+//getEventsPerHour returns sum of sources/destinations events per hour (between start and end)
+//namespace: [destination, source]
+//status: [success, error, skip]
+//identifiers: sources/destinations ids
+func (r *Redis) getEventsPerHour(conn redis.Conn, namespace, status string, identifiers []string, start, end time.Time) ([]EventsPerTime, error) {
 	eventsPerChunk := map[string]int{} //key = 2021-03-17T00:00:00+0000 | value = events count
 
 	days := getCoveredDays(start, end)
@@ -803,8 +809,8 @@ func (r *Redis) getEventsPerHour(conn redis.Conn, sourceIDs []string, start, end
 	for _, day := range days {
 		keyTime, _ := time.Parse(timestamp.DayLayout, day)
 
-		for _, sourceID := range sourceIDs {
-			key := fmt.Sprintf("hourly_events:source#%s:day#%s:success", sourceID, day)
+		for _, id := range identifiers {
+			key := fmt.Sprintf("hourly_events:%s#%s:day#%s:%s", namespace, id, day, status)
 
 			perHour, err := redis.IntMap(conn.Do("HGETALL", key))
 			if err != nil {
@@ -847,8 +853,10 @@ func (r *Redis) getEventsPerHour(conn redis.Conn, sourceIDs []string, start, end
 	return eventsPerTime, nil
 }
 
-//getEventsPerDay returns sum of sources events per day (between start and end)
-func (r *Redis) getEventsPerDay(conn redis.Conn, sourceIDs []string, start, end time.Time) ([]EventsPerTime, error) {
+//getEventsPerHour returns sum of sources/destinations events per day (between start and end)
+//namespace: [destination, source]
+//status: [success, error, skip]
+func (r *Redis) getEventsPerDay(conn redis.Conn, namespace, status string, identifiers []string, start, end time.Time) ([]EventsPerTime, error) {
 	eventsPerChunk := map[string]int{} //key = 2021-03-17T00:00:00+0000 | value = events count
 
 	months := getCoveredMonths(start, end)
@@ -856,8 +864,8 @@ func (r *Redis) getEventsPerDay(conn redis.Conn, sourceIDs []string, start, end 
 	for _, month := range months {
 		keyTime, _ := time.Parse(timestamp.MonthLayout, month)
 
-		for _, sourceID := range sourceIDs {
-			key := fmt.Sprintf("daily_events:source#%s:month#%s:success", sourceID, month)
+		for _, id := range identifiers {
+			key := fmt.Sprintf("daily_events:%s#%s:month#%s:%s", namespace, id, month, status)
 
 			perDay, err := redis.IntMap(conn.Do("HGETALL", key))
 			if err != nil {
@@ -906,6 +914,25 @@ func (r *Redis) Type() string {
 
 func (r *Redis) Close() error {
 	return r.pool.Close()
+}
+
+//getProjectIDs returns project's entities with indexName
+func (r *Redis) getProjectIDs(projectID, indexName string) ([]string, error) {
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	//get all IDs from index
+	key := fmt.Sprintf("%s:project#%s", indexName, projectID)
+	IDs, err := redis.Strings(conn.Do("SMEMBERS", key))
+	if err != nil {
+		if err == redis.ErrNil {
+			return []string{}, nil
+		}
+
+		return nil, err
+	}
+
+	return IDs, nil
 }
 
 //ensureIDInIndex add id to corresponding index by projectID

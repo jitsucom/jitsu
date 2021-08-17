@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -51,8 +52,7 @@ import (
 //some inner parameters
 const (
 	//incoming.tok=$token-$timestamp.log
-	uploaderFileMask   = "incoming.tok=*-20*.log"
-	uploaderLoadEveryS = 60
+	uploaderFileMask = "incoming.tok=*-20*.log"
 	//streaming-archive.dst=$destinationID-$timestamp.log
 	streamArchiveFileMask = "streaming-archive*-20*.log"
 	streamArchiveEveryS   = 60
@@ -66,6 +66,8 @@ const (
 		"! Configuration documentation: https://jitsu.com/docs/configuration\n                            " +
 		"! Add config with `-cfg eventnative.yaml` parameter or put eventnative.yaml to <config_dir> and add mapping\n                            " +
 		"! -v <config_dir>/:/home/eventnative/data/config if you're using official Docker image"
+
+	logPathNotWritable = "Since eventnative docker user and owner of mounted dir are different: Please use 'chmod -R 777 your_mount_dir'"
 )
 
 var (
@@ -94,6 +96,11 @@ func setAppWorkDir() {
 }
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "replay" {
+		cmd.Execute()
+		return
+	}
+
 	flag.Parse()
 
 	//Setup seed for globalRand
@@ -184,12 +191,12 @@ func main() {
 	// Create full path to logs directory if it is necessary
 	logging.Infof("📂 Create log.path directory: %q", logEventPath)
 	if err := logging.EnsureDir(logEventPath); err != nil {
-		logging.Fatalf("log.path %q cannot be created!", logEventPath)
+		logging.Fatalf("log.path: %q cannot be created: %v. %s", logEventPath, err, logPathNotWritable)
 	}
 
 	//check if log.path is writable
 	if !logging.IsDirWritable(logEventPath) {
-		logging.Fatal("log.path:", logEventPath, "must be writable! Since eventnative docker user and owner of mounted dir are different: Please use 'chmod 777 your_mount_dir'")
+		logging.Fatalf("log.path: %q must be writable! %s", logEventPath, logPathNotWritable)
 	}
 	logRotationMin := viper.GetInt64("log.rotation_min")
 
@@ -313,8 +320,10 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(taskExecutor)
 
+	//for now use the same interval as for log rotation
+	uploaderRunInterval := viper.GetInt("log.rotation_min")
 	//Uploader must read event logger directory
-	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderLoadEveryS, destinationsService)
+	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, destinationsService)
 	if err != nil {
 		logging.Fatal("Error while creating file uploader", err)
 	}
@@ -366,10 +375,11 @@ func main() {
 
 	//event processors
 	apiProcessor := events.NewAPIProcessor()
+	bulkProcessor := events.NewBulkProcessor()
 	jsProcessor := events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
 	pixelProcessor := events.NewPixelProcessor()
 	segmentProcessor := events.NewSegmentProcessor(usersRecognitionService)
-	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor)
+	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
 	multiplexingService := multiplexing.NewService(destinationsService, eventsCache)
 	walService := wal.NewService(logEventPath, loggerFactory.CreateWriteAheadLogger(), multiplexingService, processorHolder)

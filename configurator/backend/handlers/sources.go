@@ -14,6 +14,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
 	ensources "github.com/jitsucom/jitsu/server/sources"
+	enstorages "github.com/jitsucom/jitsu/server/storages"
 	"net/http"
 	"time"
 )
@@ -40,13 +41,22 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse(SourcesGettingErrMsg, err))
 		return
 	}
-
 	idConfig := map[string]endriversbase.SourceConfig{}
 	for projectID, sourcesEntity := range sourcesMap {
 		if len(sourcesEntity.Sources) == 0 {
 			continue
 		}
-
+		dests, err := sh.configurationsService.GetDestinationsByProjectID(projectID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse(SourcesGettingErrMsg, err))
+			return
+		}
+		postHandleDestinationIds := make([]string, 0)
+		for _, d := range dests {
+			if d.Type == enstorages.DbtCloudType {
+				postHandleDestinationIds = append(postHandleDestinationIds, projectID+"."+d.UID)
+			}
+		}
 		for _, source := range sourcesEntity.Sources {
 			sourceID := projectID + "." + source.SourceID
 
@@ -54,8 +64,7 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 			for _, destinationID := range source.Destinations {
 				destinationIDs = append(destinationIDs, projectID+"."+destinationID)
 			}
-
-			mappedSourceConfig, err := mapSourceConfig(source, destinationIDs)
+			mappedSourceConfig, err := mapSourceConfig(source, destinationIDs, postHandleDestinationIds)
 			if err != nil {
 				c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to map source [%s] config", sourceID), err))
 				return
@@ -84,7 +93,7 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 		return
 	}
 
-	enSourceConfig, err := mapSourceConfig(sourceEntity, []string{})
+	enSourceConfig, err := mapSourceConfig(sourceEntity, []string{}, []string{})
 	if err != nil {
 		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to map source [%s.%s] config", userProjectID, sourceEntity.SourceID), err))
 		return
@@ -121,14 +130,15 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 
 //mapSourceConfig mapped configurator source into server format
 //puts table names if not set
-func mapSourceConfig(source *entities.Source, destinationIDs []string) (endriversbase.SourceConfig, error) {
+func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, postHandleDestinations []string) (endriversbase.SourceConfig, error) {
 	enSource := endriversbase.SourceConfig{
-		SourceID:     source.SourceID,
-		Type:         source.SourceType,
-		Destinations: destinationIDs,
-		Collections:  source.Collections,
-		Config:       source.Config,
-		Schedule:     source.Schedule,
+		SourceID:               source.SourceID,
+		Type:                   source.SourceType,
+		Destinations:           sourceDestinationIDs,
+		PostHandleDestinations: postHandleDestinations,
+		Collections:            source.Collections,
+		Config:                 source.Config,
+		Schedule:               source.Schedule,
 	}
 
 	if source.SourceType == endriversbase.SingerType {
