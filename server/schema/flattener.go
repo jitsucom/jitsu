@@ -91,10 +91,6 @@ func Reformat(key string) string {
 	return result.String()
 }
 
-func TableName(prefix, streamName string) string {
-	return prefix + streamName
-}
-
 //IsLetterOrNumber returns true if input symbol is:
 //  A - Z: 65-90
 //  a - z: 97-122
