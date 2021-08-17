@@ -33,7 +33,7 @@ type PeriodicUploader struct {
 }
 
 //NewUploader returns new configured PeriodicUploader instance
-func NewUploader(logEventPath, fileMask string, uploadEveryS int, destinationService *destinations.Service) (*PeriodicUploader, error) {
+func NewUploader(logEventPath, fileMask string, uploadEveryMin int, destinationService *destinations.Service) (*PeriodicUploader, error) {
 	logIncomingEventPath := path.Join(logEventPath, logging.IncomingDir)
 	logArchiveEventPath := path.Join(logEventPath, logging.ArchiveDir)
 	statusManager, err := NewStatusManager(logIncomingEventPath)
@@ -43,7 +43,7 @@ func NewUploader(logEventPath, fileMask string, uploadEveryS int, destinationSer
 	return &PeriodicUploader{
 		logIncomingEventPath: logIncomingEventPath,
 		fileMask:             path.Join(logIncomingEventPath, fileMask),
-		uploadEvery:          time.Duration(uploadEveryS) * time.Second,
+		uploadEvery:          time.Duration(uploadEveryMin) * time.Minute,
 		archiver:             NewArchiver(logIncomingEventPath, logArchiveEventPath),
 		statusManager:        statusManager,
 		destinationService:   destinationService,
