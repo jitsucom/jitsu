@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/drivers"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
@@ -12,7 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/sources"
-	"github.com/jitsucom/jitsu/server/storages"
 	"net/http"
 )
 
@@ -93,7 +93,7 @@ func (sh *SourcesHandler) cleanWarehouse(driver driversbase.Driver, destinationI
 			if dest, okDest := destProxy.Get(); okDest {
 				for _, destTableName := range sh.getTableNames(driver) {
 					if err := dest.Clean(destTableName); err != nil {
-						if err == storages.ErrTableNotExist {
+						if err == adapters.ErrTableNotExist {
 							logging.Warnf("Table [%s] doesn't exist for: source: [%s], collection: [%s], destId: [%s]", destTableName, sourceID, collection, destId)
 						} else {
 							msg := fmt.Sprintf("Error cleaning warehouse for: source: [%s], collection: [%s], tableName: [%s], destId: [%s]: %v", sourceID, collection, destTableName, destId, err)
