@@ -22,10 +22,21 @@ func ErrResponse(msg string, err error) *ErrorResponse {
 
 //StatusResponse is a dto for sending operation status
 type StatusResponse struct {
-	Status string `json:"status"`
+	Status  string `json:"status"`
+	Message string `json:"message,omitempty"`
 }
 
 //OKResponse returns StatusResponse with Status = "ok"
 func OKResponse() StatusResponse {
 	return StatusResponse{Status: "ok"}
+}
+
+//PendingResponse returns StatusResponse with Status = "pending"
+func PendingResponse() StatusResponse {
+	return StatusResponse{Status: "pending"}
+}
+
+//PendingResponseWithMessage returns StatusResponse with Status = "pending" and msg
+func PendingResponseWithMessage(msg string) StatusResponse {
+	return StatusResponse{Status: "pending", Message: msg}
 }

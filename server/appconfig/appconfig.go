@@ -32,6 +32,7 @@ type AppConfig struct {
 	GlobalDDLLogsWriter   io.Writer
 	GlobalQueryLogsWriter io.Writer
 	SingerLogsWriter      io.Writer
+	AirbyteLogsWriter     io.Writer
 
 	GlobalUniqueIDField *identifiers.UniqueID
 
@@ -87,6 +88,7 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.install_taps", true)
 	viper.SetDefault("singer-bridge.update_taps", false)
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
+	viper.SetDefault("airbyte-bridge.log.rotation_min", "1440")
 
 	//MaxMind URL
 	viper.SetDefault("maxmind.download_url", "https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-City&license_key=%s&suffix=tar.gz")
@@ -270,6 +272,18 @@ func Init(containerized bool, dockerHubID string) error {
 			MaxBackups:  singerLoggerViper.GetInt("max_backups")})
 	} else {
 		appConfig.SingerLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
+	}
+
+	//Airbyte logger
+	if viper.IsSet("airbyte-bridge.log.path") {
+		singerLoggerViper := viper.Sub("airbyte-bridge.log")
+		appConfig.AirbyteLogsWriter = logging.CreateLogWriter(&logging.Config{
+			FileName:    serverName + "-" + "airbyte",
+			FileDir:     singerLoggerViper.GetString("path"),
+			RotationMin: singerLoggerViper.GetInt64("rotation_min"),
+			MaxBackups:  singerLoggerViper.GetInt("max_backups")})
+	} else {
+		appConfig.AirbyteLogsWriter = logging.CreateLogWriter(&logging.Config{FileDir: logging.GlobalType})
 	}
 
 	port := viper.GetString("server.port")

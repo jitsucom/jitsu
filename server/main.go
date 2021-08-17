@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/multiplexing"
@@ -141,6 +142,8 @@ func main() {
 		viper.GetBool("singer-bridge.install_taps"), viper.GetBool("singer-bridge.update_taps"), appconfig.Instance.SingerLogsWriter); err != nil {
 		logging.Fatal(err)
 	}
+
+	airbyte.Init(appconfig.Instance.AirbyteLogsWriter)
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),
