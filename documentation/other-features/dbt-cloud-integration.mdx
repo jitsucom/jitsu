@@ -52,6 +52,12 @@ destinations:
 
 See [dbt Cloud API docs](https://docs.getdbt.com/dbt-cloud/api#operation/triggerRun)
 
+#### Destination Batch Runs frequency
+
+If dbt Cloud jobs are triggered to frequently you can adjust interval of batch runs with `log.rotation_min` configuration parameter.
+
+See [General Configuration](/docs/configuration)
+
 ## Supported Events
 
 dbt Cloud destination works with following event types only:
