@@ -52,7 +52,7 @@ func TestMySQLBulkInsert(t *testing.T) {
 func TestMySQLTruncateExistingTable(t *testing.T) {
 	recordsCount := len(timestamps)
 	table := &Table{
-		Name: "test_insert",
+		Name: "test_truncate_existing_table",
 		Columns: Columns{
 			"field1":          Column{SchemaToMySQL[typing.STRING]},
 			"field2":          Column{SchemaToMySQL[typing.STRING]},

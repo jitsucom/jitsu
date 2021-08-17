@@ -64,7 +64,7 @@ func TestBulkInsert(t *testing.T) {
 
 func TestPostgresTruncateExistingTable(t *testing.T) {
 	table := &Table{
-		Name:    "test_insert",
+		Name:    "test_truncate_existing_table",
 		Columns: Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
 	}
 	container, pg := setupDatabase(t, table)

@@ -174,7 +174,7 @@ func TestTableStatementFactory(t *testing.T) {
 func TestClickhouseTruncateExistingTable(t *testing.T) {
 	recordsCount := len(timestamps)
 	table := &Table{
-		Name: "test_insert",
+		Name: "test_truncate_existing_table",
 		Columns: Columns{
 			"eventn_ctx_event_id": Column{SchemaToClickhouse[typing.STRING]},
 			"field2":              Column{SchemaToClickhouse[typing.STRING]},
