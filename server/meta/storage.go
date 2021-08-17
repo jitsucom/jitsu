@@ -28,7 +28,9 @@ type Storage interface {
 	SuccessEvents(id, namespace string, now time.Time, value int) error
 	ErrorEvents(id, namespace string, now time.Time, value int) error
 	SkipEvents(id, namespace string, now time.Time, value int) error
-	GetProjectEventsWithGranularity(projectID string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error)
+	GetProjectSourceIDs(projectID string) ([]string, error)
+	GetProjectDestinationIDs(projectID string) ([]string, error)
+	GetEventsWithGranularity(namespace, status string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error)
 
 	//** Cache **
 	//events caching
@@ -52,7 +54,7 @@ type Storage interface {
 	GetLastTask(sourceID, collection string) (*Task, error)
 	GetTask(taskID string) (*Task, error)
 	GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error)
-	RemoveTasks(sourceID, collection string, taskIDs ... string) (int, error)
+	RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error)
 
 	//task logs
 	AppendTaskLog(taskID string, now time.Time, system, message, level string) error

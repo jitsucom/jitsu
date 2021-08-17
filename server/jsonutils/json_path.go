@@ -1,6 +1,9 @@
 package jsonutils
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 const multiplePathsDelimiter = "||"
 
@@ -33,3 +36,13 @@ func formatPrefixSuffix(key string) string {
 
 	return key
 }
+
+func JsonEscape(i string) string {
+	b, err := json.Marshal(i)
+	if err != nil {
+		panic(err)
+	}
+	s := string(b)
+	return s[1:len(s)-1]
+}
+

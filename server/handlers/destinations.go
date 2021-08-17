@@ -24,7 +24,10 @@ import (
 	"github.com/jitsucom/jitsu/server/storages"
 )
 
-const identifier = "jitsu_test_connection"
+const (
+	identifier       = "jitsu_test_connection"
+	connectionErrMsg = "unable to connect to your data warehouse. Please check the access: %v"
+)
 
 func DestinationsHandler(c *gin.Context) {
 	destinationConfig := &storages.DestinationConfig{}
@@ -35,7 +38,12 @@ func DestinationsHandler(c *gin.Context) {
 	}
 	err := testDestinationConnection(destinationConfig)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
+		msg := err.Error()
+		if strings.Contains(err.Error(), "i/o timeout") {
+			msg = fmt.Sprintf(connectionErrMsg, err)
+		}
+
+		c.JSON(http.StatusBadRequest, middleware.ErrResponse(msg, nil))
 		return
 	}
 	c.Status(http.StatusOK)
@@ -124,6 +132,12 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 
 		hubspotAdapter := adapters.NewTestHubSpot(config.HubSpot)
 		return hubspotAdapter.TestAccess()
+	case storages.DbtCloudType:
+		if err := config.DbtCloud.Validate(); err != nil {
+			return err
+		}
+		dbtCloudAdapter := adapters.NewTestDbtCloud(config.DbtCloud)
+		return dbtCloudAdapter.TestAccess()
 	case storages.MySQLType:
 		eventContext.Table.Columns = adapters.Columns{
 			uniqueIDField: adapters.Column{SQLType: "text"},
@@ -148,6 +162,8 @@ func testPostgres(config *storages.DestinationConfig, eventContext *adapters.Eve
 	if config.DataSource.Schema == "" {
 		config.DataSource.Schema = "public"
 	}
+
+	config.DataSource.Parameters["connect_timeout"] = "6"
 
 	postgres, err := adapters.NewPostgres(context.Background(), config.DataSource, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
@@ -254,6 +270,8 @@ func testRedshift(config *storages.DestinationConfig, eventContext *adapters.Eve
 	if config.DataSource.Schema == "" {
 		config.DataSource.Schema = "public"
 	}
+
+	config.DataSource.Parameters["connect_timeout"] = "6"
 
 	redshift, err := adapters.NewAwsRedshift(context.Background(), config.DataSource, config.S3, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
@@ -372,6 +390,9 @@ func testSnowflake(config *storages.DestinationConfig, eventContext *adapters.Ev
 		config.Snowflake.Schema = "PUBLIC"
 	}
 
+	timeout := "6"
+	config.Snowflake.Parameters["statement_timeout_in_seconds"] = &timeout
+
 	snowflake, err := storages.CreateSnowflakeAdapter(context.Background(), config.S3, *config.Snowflake, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
 		return err
@@ -450,6 +471,8 @@ func testMySQL(config *storages.DestinationConfig, eventContext *adapters.EventC
 	if config.DataSource.Port.String() == "" {
 		config.DataSource.Port = "3306"
 	}
+
+	config.DataSource.Parameters["timeout"] = "6s"
 
 	mysql, err := storages.CreateMySQLAdapter(context.Background(), *config.DataSource, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {

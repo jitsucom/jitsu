@@ -54,6 +54,7 @@ type DestinationConfig struct {
 	BreakOnError         bool                     `mapstructure:"break_on_error" json:"break_on_error,omitempty" yaml:"break_on_error,omitempty"`
 	Staged               bool                     `mapstructure:"staged" json:"staged,omitempty" yaml:"staged,omitempty"`
 	CachingConfiguration *CachingConfiguration    `mapstructure:"caching" json:"caching,omitempty" yaml:"caching,omitempty"`
+	PostHandleDestinations []string      		  `mapstructure:"post_handle_destinations" json:"post_handle_destinations,omitempty" yaml:"post_handle_destinations,omitempty"`
 
 	DataSource      *adapters.DataSourceConfig            `mapstructure:"datasource" json:"datasource,omitempty" yaml:"datasource,omitempty"`
 	S3              *adapters.S3Config                    `mapstructure:"s3" json:"s3,omitempty" yaml:"s3,omitempty"`
@@ -65,6 +66,7 @@ type DestinationConfig struct {
 	WebHook         *adapters.WebHookConfig               `mapstructure:"webhook" json:"webhook,omitempty" yaml:"webhook,omitempty"`
 	Amplitude       *adapters.AmplitudeConfig             `mapstructure:"amplitude" json:"amplitude,omitempty" yaml:"amplitude,omitempty"`
 	HubSpot         *adapters.HubSpotConfig               `mapstructure:"hubspot" json:"hubspot,omitempty" yaml:"hubspot,omitempty"`
+	DbtCloud        *adapters.DbtCloudConfig              `mapstructure:"dbtcloud" json:"dbtcloud,omitempty" yaml:"dbtcloud,omitempty"`
 }
 
 //DataLayout is used for configure mappings/table names and other data layout parameters
@@ -135,6 +137,7 @@ type Config struct {
 	uniqueIDField    *identifiers.UniqueID
 	mappingsStyle    string
 	logEventPath     string
+	PostHandleDestinations []string
 }
 
 //RegisterStorage registers function to create new storage(destination) instance
@@ -286,9 +289,13 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	//Fields shouldn't been flattened in Facebook destination (requests has non-flat structure)
 	var flattener schema.Flattener
 	var typeResolver schema.TypeResolver
-	if destination.Type == FacebookType || destination.Type == WebHookType || destination.Type == AmplitudeType || destination.Type == HubSpotType {
+	if destination.Type == FacebookType || destination.Type == DbtCloudType || destination.Type == WebHookType || destination.Type == AmplitudeType || destination.Type == HubSpotType {
 		flattener = schema.NewDummyFlattener()
 		typeResolver = schema.NewDummyTypeResolver()
+		if destination.Type == DbtCloudType {
+			//works only on specific event types
+			tableName = dbtCloudTableNameFilter
+		}
 	} else {
 		flattener = schema.NewFlattener()
 		typeResolver = schema.NewTypeResolver()
@@ -356,6 +363,7 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		uniqueIDField:    uniqueIDField,
 		mappingsStyle:    mappingsStyle,
 		logEventPath:     f.logEventPath,
+		PostHandleDestinations: destination.PostHandleDestinations,
 	}
 
 	storageProxy := newProxy(storageConstructor, storageConfig)

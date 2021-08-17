@@ -51,6 +51,17 @@ func ErrorEvents(destinationID string, value int) {
 	}
 }
 
+func SkipSourceEvents(sourceID string, value int) {
+	if eventsInstance == nil {
+		return
+	}
+
+	err := eventsInstance.storage.SkipEvents(sourceID, meta.SourceNamespace, time.Now().UTC(), value)
+	if err != nil {
+		logging.SystemErrorf("Error updating skip events counter source [%s] value [%d]: %v", sourceID, value, err)
+	}
+}
+
 func SkipEvents(destinationID string, value int) {
 	if eventsInstance == nil {
 		return

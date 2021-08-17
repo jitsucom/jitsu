@@ -135,7 +135,6 @@ func (te *TaskExecutor) execute(i interface{}) {
 		te.handleError(task, taskLogger, msg, true)
 		return
 	}
-
 	//get destinations
 	var destinationStorages []storages.Storage
 	for _, destinationID := range sourceUnit.DestinationIDs {
@@ -196,6 +195,27 @@ func (te *TaskExecutor) execute(i interface{}) {
 		msg := fmt.Sprintf("Error updating success task [%s] in meta.Storage: %v", task.ID, err)
 		te.handleError(task, taskLogger, msg, true)
 		return
+	}
+	te.onSuccess(task, sourceUnit, taskLogger)
+}
+
+func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLogger *TaskLogger) {
+	event := events.Event{
+		"event_type":  storages.SourceSuccessEventType,
+		"source":      task.Source,
+		"status":      task.Status,
+		timestamp.Key: task.FinishedAt,
+		"finished_at": task.FinishedAt,
+		"started_at":  task.StartedAt,
+	}
+	for _, id := range source.PostHandleDestinationIDs {
+		err :=  te.destinationService.PostHandle(id, event)
+		if err != nil {
+			logging.Error(err)
+			taskLogger.ERROR(err.Error())
+		} else {
+			taskLogger.INFO("Successful run triggered postHandle destination: %s", id)
+		}
 	}
 }
 

@@ -137,3 +137,12 @@ type HubSpotFormData struct {
 	APIKey string `firestore:"apiKey" json:"apiKey"`
 	HubID  string `firestore:"hubID" json:"hubID"`
 }
+
+//DbtCloudFormData entity is stored in main storage (Firebase/Redis)
+type DbtCloudFormData struct {
+	AccountId json.Number `firestore:"dbtAccountId" json:"dbtAccountId"`
+	JobId  json.Number `firestore:"dbtJobId" json:"dbtJobId"`
+	Cause  string `firestore:"dbtCause" json:"dbtCause"`
+	Token  string `firestore:"dbtToken" json:"dbtToken"`
+	Enabled bool `firestore:"dbtEnabled" json:"dbtEnabled"`
+}

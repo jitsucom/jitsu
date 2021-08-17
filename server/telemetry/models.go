@@ -32,6 +32,12 @@ type Usage struct {
 	UsersRecognition   bool   `json:"users_recognition,omitempty"`
 
 	Coordination string `json:"coordination,omitempty"`
+
+	CLICommand     string `json:"cli_command,omitempty"`
+	CLIStart       int    `json:"cli_start,omitempty"`
+	CLIDateFilters bool   `json:"cli_date_filters,omitempty"`
+	CLIState       bool   `json:"cli_state,omitempty"`
+	CLIChunkSize   int64  `json:"cli_chunk_size,omitempty"`
 }
 
 //Errors is a error accounting dto

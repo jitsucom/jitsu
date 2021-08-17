@@ -1,7 +1,5 @@
-import { Destination } from '../types';
 import { filteringExpressionDocumentation, modeParameter, tableName } from './common';
 import { stringType } from '../../sources/types';
-import * as React from 'react';
 
 const icon = (
   <svg
@@ -41,6 +39,7 @@ const facebookDestination = {
   id: 'facebook',
   type: 'other',
   displayName: 'Facebook',
+  hidden: false,
   ui: {
     icon,
     title: (cfg) => `Pixel ID: ${cfg._formData.fbPixelId}`,

@@ -7,15 +7,22 @@ import { intersection, union, without } from 'lodash';
 import { toArrayIfNot } from 'utils/arrays';
 import { ISourcesStore, sourcesStore } from './sources';
 import { apiKeysStore, IApiKeysStore, UserApiKey } from './apiKeys';
+import {
+  destinationsReferenceMap,
+  DestinationReference
+} from '../catalog/destinations/lib';
 
 export interface IDestinationsStore {
   destinations: DestinationData[];
+  hiddenDestinations: DestinationData[];
+  allDestinations: DestinationData[];
   hasDestinations: boolean;
   state: DestinationsStoreState;
   error: string;
   injectSourcesStore: (sourcesStore: ISourcesStore) => void;
   getDestinationById: (id: string) => DestinationData | null;
   getDestinationByUid: (uid: string) => DestinationData | null;
+  getDestinationReferenceById: (id: string) => DestinationReference | null;
   pullDestinations: (
     showGlobalLoader: boolean
   ) => Generator<Promise<unknown>, void, unknown>;
@@ -72,6 +79,7 @@ const { IDLE, GLOBAL_LOADING, BACKGROUND_LOADING, GLOBAL_ERROR } =
 const services = ApplicationServices.get();
 class DestinationsStore implements IDestinationsStore {
   private _destinations: DestinationData[] = [];
+  private _hiddenDestinations: DestinationData[] = [];
   private _state: DestinationsStoreState = GLOBAL_LOADING;
   private _errorMessage: string = '';
   private _sourcesStore: ISourcesStore | undefined;
@@ -172,16 +180,16 @@ class DestinationsStore implements IDestinationsStore {
     return this._destinations;
   }
 
+  public get hiddenDestinations() {
+    return this._hiddenDestinations;
+  }
+
+  public get allDestinations() {
+    return [...this._destinations, ...this._hiddenDestinations];
+  }
+
   public get hasDestinations(): boolean {
     return !!this._destinations.length;
-  }
-
-  public getDestinationById(id: string): DestinationData | null {
-    return this.destinations.find(({ _id }) => _id === id);
-  }
-
-  public getDestinationByUid(uid: string): DestinationData | null {
-    return this.destinations.find(({ _uid }) => _uid === uid);
   }
 
   public get state() {
@@ -192,6 +200,33 @@ class DestinationsStore implements IDestinationsStore {
     return this._errorMessage;
   }
 
+  public getDestinationById(id: string): DestinationData | null {
+    return this.destinations.find(({ _id }) => _id === id);
+  }
+
+  public getDestinationByUid(uid: string): DestinationData | null {
+    return this.destinations.find(({ _uid }) => _uid === uid);
+  }
+
+  public getDestinationReferenceById(id: string): DestinationReference | null {
+    const destination: DestinationData | null = this.getDestinationById(id);
+    return destination ? destinationsReferenceMap[destination._type] : null;
+  }
+
+  private filterDestinations(destinations: DestinationData[], hidden: boolean) {
+    return destinations
+      ? destinations.filter(
+          (v) =>
+            (destinationsReferenceMap[v._type].hidden ? true : false) == hidden
+        )
+      : [];
+  }
+
+  private setDestinations(value: DestinationData[]) {
+    this._destinations = this.filterDestinations(value, false);
+    this._hiddenDestinations = this.filterDestinations(value, true);
+  }
+
   public *pullDestinations(showGlobalLoader?: boolean) {
     this.resetError();
     this._state = showGlobalLoader ? GLOBAL_LOADING : BACKGROUND_LOADING;
@@ -200,7 +235,7 @@ class DestinationsStore implements IDestinationsStore {
         'destinations',
         services.activeProject.id
       );
-      this._destinations = destinations || [];
+      this.setDestinations(destinations);
     } catch (error) {
       this.setError(
         GLOBAL_ERROR,
@@ -214,14 +249,14 @@ class DestinationsStore implements IDestinationsStore {
   public *addDestination(destinationToAdd: DestinationData) {
     this.resetError();
     this._state = BACKGROUND_LOADING;
-    const updatedDestinations = [...this._destinations, destinationToAdd];
+    const updatedDestinations = [...this.allDestinations, destinationToAdd];
     try {
       const result = yield services.storageService.save(
         'destinations',
         { destinations: updatedDestinations },
         services.activeProject.id
       );
-      this._destinations = updatedDestinations;
+      this.setDestinations(updatedDestinations);
       this.updateSourcesLinksByDestinationsUpdates(destinationToAdd);
     } catch (error) {
       throw error;
@@ -233,7 +268,7 @@ class DestinationsStore implements IDestinationsStore {
   public *deleteDestination(destinationToDelete: DestinationData) {
     this.resetError();
     this._state = BACKGROUND_LOADING;
-    const updatedDestinations = this._destinations.filter(
+    const updatedDestinations = this.allDestinations.filter(
       ({ _uid }) => _uid !== destinationToDelete._uid
     );
     try {
@@ -242,7 +277,7 @@ class DestinationsStore implements IDestinationsStore {
         { destinations: updatedDestinations },
         services.activeProject.id
       );
-      this._destinations = updatedDestinations;
+      this.setDestinations(updatedDestinations);
       this.unlinkDeletedDestinationsFromSources(destinationToDelete);
     } finally {
       this._state = IDLE;
@@ -256,7 +291,7 @@ class DestinationsStore implements IDestinationsStore {
     const destinationsToUpdate = toArrayIfNot(_destinationsToUpdate);
     this.resetError();
     this._state = BACKGROUND_LOADING;
-    const updatedDestinations = this._destinations.map((destination) => {
+    const updatedDestinations = this.allDestinations.map((destination) => {
       const destinationToReplace = destinationsToUpdate.find(
         ({ _uid }) => _uid === destination._uid
       );
@@ -269,7 +304,7 @@ class DestinationsStore implements IDestinationsStore {
         { destinations: updatedDestinations },
         services.activeProject.id
       );
-      this._destinations = updatedDestinations;
+      this.setDestinations(updatedDestinations);
       if (options.updateSources)
         this.updateSourcesLinksByDestinationsUpdates(_destinationsToUpdate);
     } finally {

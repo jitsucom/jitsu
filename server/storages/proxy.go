@@ -79,10 +79,19 @@ func (rsp *RetryableProxy) ID() string {
 	return rsp.config.destinationID
 }
 
+//Type returns destination type
+func (rsp *RetryableProxy) Type() string {
+	return rsp.storage.Type()
+}
+
 //IsCachingDisabled returns true if caching is disabled in destination configuration
 func (rsp *RetryableProxy) IsCachingDisabled() bool {
 	return rsp.config.destination.CachingConfiguration != nil &&
 		rsp.config.destination.CachingConfiguration.Disabled
+}
+
+func (rsp *RetryableProxy) GetPostHandleDestinations() []string {
+	return rsp.config.PostHandleDestinations
 }
 
 //Close stops underlying goroutine and close the storage

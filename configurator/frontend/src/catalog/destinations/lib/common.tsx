@@ -1,6 +1,5 @@
-import { jsonType, Parameter, passwordType, selectionType, stringType, Function, ConstantOrFunction } from '../../sources/types';
+import { Parameter, passwordType, selectionType, stringType, Function, ConstantOrFunction } from '../../sources/types';
 import { ReactNode } from 'react';
-import * as React from "react";
 const S3_REGIONS = [
   'us-east-2',
   'us-east-1',
