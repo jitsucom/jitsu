@@ -323,7 +323,8 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(taskExecutor)
 
-	uploaderRunInterval := viper.GetInt("server.uploader.run_interval_sec")
+	//for now use the same interval as for log rotation
+	uploaderRunInterval := viper.GetInt("log.rotation_min")
 	//Uploader must read event logger directory
 	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, destinationsService)
 	if err != nil {

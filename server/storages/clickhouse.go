@@ -169,6 +169,10 @@ func (ch *ClickHouse) SyncStore(overriddenDataSchema *schema.BatchHeader, object
 	return syncStoreImpl(ch, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
+func (ch *ClickHouse) Clean(tableName string) error {
+	return cleanImpl(ch, tableName)
+}
+
 //Update uses SyncStore under the hood
 func (ch *ClickHouse) Update(object map[string]interface{}) error {
 	return ch.SyncStore(nil, []map[string]interface{}{object}, "", true)

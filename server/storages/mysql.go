@@ -183,6 +183,10 @@ func (m *MySQL) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []ma
 	return syncStoreImpl(m, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
+func (m *MySQL) Clean(tableName string) error {
+	return cleanImpl(m, tableName)
+}
+
 //Update uses SyncStore under the hood
 func (m *MySQL) Update(object map[string]interface{}) error {
 	return m.SyncStore(nil, []map[string]interface{}{object}, "", true)

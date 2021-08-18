@@ -150,6 +150,10 @@ func (p *Postgres) SyncStore(overriddenDataSchema *schema.BatchHeader, objects [
 	return syncStoreImpl(p, overriddenDataSchema, objects, timeIntervalValue, cacheTable)
 }
 
+func (p *Postgres) Clean(tableName string) error {
+	return cleanImpl(p, tableName)
+}
+
 //Update uses SyncStore under the hood
 func (p *Postgres) Update(object map[string]interface{}) error {
 	return p.SyncStore(nil, []map[string]interface{}{object}, "", true)

@@ -15,7 +15,10 @@ import (
 	"google.golang.org/api/googleapi"
 )
 
-const deleteBigQueryTemplate = "DELETE FROM `%s.%s.%s` WHERE %s"
+const (
+	deleteBigQueryTemplate   = "DELETE FROM `%s.%s.%s` WHERE %s"
+	truncateBigQueryTemplate = "TRUNCATE TABLE `%s.%s.%s`"
+)
 
 var (
 	//SchemaToBigQueryString is mapping between JSON types and BigQuery types
@@ -233,6 +236,17 @@ func (bq *BigQuery) DropTable(table *Table) error {
 		return fmt.Errorf("Error dropping [%s] BigQuery table: %v", table.Name, err)
 	}
 
+	return nil
+}
+
+//Truncate deletes all records in tableName table
+func (bq *BigQuery) Truncate(tableName string) error {
+	query := fmt.Sprintf(truncateBigQueryTemplate, bq.config.Project, bq.config.Dataset, tableName)
+	bq.queryLogger.LogQuery(query)
+	_, err := bq.client.Query(query).Read(bq.ctx)
+	if err != nil {
+		return mapError(err)
+	}
 	return nil
 }
 
