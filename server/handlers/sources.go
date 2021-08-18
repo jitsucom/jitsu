@@ -31,7 +31,7 @@ type SourcesHandler struct {
 
 //NewSourcesHandler returns configured SourcesHandler instance
 func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage, destinations *destinations.Service) *SourcesHandler {
-	return &SourcesHandler{sourcesService: sourcesService, metaStorage: metaStorage}
+	return &SourcesHandler{sourcesService: sourcesService, metaStorage: metaStorage, destinationsService: destinations}
 }
 
 //ClearCacheHandler deletes source state (signature) from meta.Storage

@@ -3,6 +3,7 @@ package singer
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/schema"
 	"io/ioutil"
 )
 
@@ -85,6 +86,7 @@ func (sse *SingerSettingsExtractor) ExtractTableNamesMappings(prefix string) (ma
 		} else {
 			destTable = prefix + streamName
 		}
+		destTable = schema.Reformat(destTable)
 
 		//add mapping stream
 		if stream.Stream != "" {
