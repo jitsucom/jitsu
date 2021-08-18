@@ -171,6 +171,11 @@ func (a *Abstract) AccountResult(eventContext *adapters.EventContext, err error)
 	}
 }
 
+//Clean removes all records from storage
+func (a *Abstract) Clean(tableName string) error {
+	return nil
+}
+
 func (a *Abstract) close() (multiErr error) {
 	if err := a.fallbackLogger.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", a.ID(), err))
