@@ -59,7 +59,6 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("server.api_keys_reload_sec", 3)
 	viper.SetDefault("server.destinations_reload_sec", 5)
 	viper.SetDefault("server.sources_reload_sec", 7)
-	viper.SetDefault("server.uploader.run_interval_sec", 300)
 	viper.SetDefault("server.sync_tasks.pool.size", 16)
 	viper.SetDefault("server.sync_tasks.store_logs.last_runs", -1)
 	viper.SetDefault("server.disable_version_reminder", false)

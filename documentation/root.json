@@ -38,6 +38,7 @@
       "name": "❤️ Features",
       "pages": [
         "other-features/segment-compatibility",
+        "other-features/dbt-cloud-integration",
         "other-features/dry-run-events",
         "other-features/retrospective-user-recognition",
         "other-features/events-cache",

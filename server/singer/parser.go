@@ -38,12 +38,19 @@ type OutputRepresentation struct {
 }
 
 type StreamRepresentation struct {
+	StreamName  string
 	BatchHeader *schema.BatchHeader
 	KeyFields   []string
 	Objects     []map[string]interface{}
+	NeedClean   bool
 }
 
-func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger logging.TaskLogger) error {
+const (
+	SINGER_REPLICATION_INCREMENTAL = "INCREMENTAL"
+	SINGER_REPLICATION_FULL_TABLE  = "FULL_TABLE"
+)
+
+func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger logging.TaskLogger, streamReplication map[string]string) error {
 	logger.INFO("Singer sync will store data as batches >= [%d] elements size", batchSize)
 
 	outputPortion := &OutputRepresentation{
@@ -55,6 +62,7 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 	scanner.Buffer(buf, 1024*1024)
 
 	records := 0
+	streamCleaned := map[string]bool{}
 	for scanner.Scan() {
 		lineBytes := scanner.Bytes()
 
@@ -76,6 +84,15 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 				return fmt.Errorf("Error parsing singer schema %s: %v", string(lineBytes), err)
 			}
 
+			if cleaned, exists := streamCleaned[streamRepresentation.StreamName]; !exists || !cleaned {
+				if isFullTableReplication(streamRepresentation.StreamName, streamReplication) {
+					streamRepresentation.NeedClean = true
+					streamCleaned[streamRepresentation.StreamName] = false
+				}
+			} else {
+				streamRepresentation.NeedClean = false
+			}
+
 			outputPortion.Streams[streamRepresentation.BatchHeader.TableName] = streamRepresentation
 		case "STATE":
 			state, ok := lineObject["value"]
@@ -84,7 +101,6 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 			}
 
 			outputPortion.State = state
-
 			//persist batch and recreate variables
 			if records >= batchSize {
 				err := consumer.Consume(outputPortion)
@@ -95,6 +111,7 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 				//remove already persisted objects
 				for _, stream := range outputPortion.Streams {
 					stream.Objects = []map[string]interface{}{}
+					streamCleaned[stream.StreamName] = !stream.NeedClean
 				}
 				records = 0
 			}
@@ -110,8 +127,8 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 			outputPortion.Streams[streamName].Objects = append(outputPortion.Streams[streamName].Objects, object)
 		default:
 			msg := fmt.Sprintf("Unknown Singer output line type: %s [%v]", objectType, lineObject)
-			logging.Error(msg)
-			logger.ERROR(msg)
+			logging.Warnf(msg)
+			logger.WARN(msg)
 		}
 	}
 
@@ -129,6 +146,13 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 	}
 
 	return nil
+}
+
+func isFullTableReplication(stream string, streamReplication map[string]string) bool {
+	if replication, exists := streamReplication[stream]; exists {
+		return replication == SINGER_REPLICATION_FULL_TABLE
+	}
+	return false
 }
 
 func parseRecord(line map[string]interface{}) (string, map[string]interface{}, error) {
@@ -162,8 +186,10 @@ func parseSchema(schemaBytes []byte) (*StreamRepresentation, error) {
 
 	streamName := schema.Reformat(sr.Stream)
 	return &StreamRepresentation{
+		StreamName:  streamName,
 		BatchHeader: &schema.BatchHeader{TableName: streamName, Fields: fields},
 		KeyFields:   sr.KeyProperties,
+		NeedClean:   false,
 	}, nil
 }
 

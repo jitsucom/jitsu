@@ -14,9 +14,20 @@ type SingerCatalog struct {
 
 //SingerStreamCatalog is a dto for Singer catalog Stream object serialization
 type SingerStreamCatalog struct {
-	Stream               string `json:"stream,omitempty"`
-	TapStreamID          string `json:"tap_stream_id,omitempty"`
-	DestinationTableName string `json:"destination_table_name,omitempty"`
+	Stream               string                  `json:"stream,omitempty"`
+	TapStreamID          string                  `json:"tap_stream_id,omitempty"`
+	DestinationTableName string                  `json:"destination_table_name,omitempty"`
+	Metadata             []SingerMetadataWrapper `json:"metadata,omitempty"`
+}
+
+type SingerMetadataWrapper struct {
+	Breadcrumb []string       `json:"breadcrumb,omitempty"`
+	Metadata   SingerMetadata `json:"metadata,omitempty"`
+}
+
+type SingerMetadata struct {
+	ReplicationMethod       string `json:"replication-method,omitempty"`
+	ForcedReplicationMethod string `json:"forced-replication-method,omitempty"`
 }
 
 //SingerConfig is a dto for Singer configuration serialization
