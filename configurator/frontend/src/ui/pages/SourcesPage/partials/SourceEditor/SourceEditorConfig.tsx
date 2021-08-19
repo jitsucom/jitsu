@@ -1,18 +1,26 @@
 // @Libs
-import { useCallback, useMemo } from 'react';
-import { Col, Form, Input, Row, Select } from 'antd';
+import { FC, useCallback, useEffect, useMemo, useState } from 'react';
+import { Card, Col, Form, Input, Row, Select, Spin, Typography } from 'antd';
 import { observer } from 'mobx-react-lite';
 import debounce from 'lodash/debounce';
 import cn from 'classnames';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { SourceConnector } from 'catalog/sources/types';
+import { Parameter, SourceConnector } from 'catalog/sources/types';
 import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 // @Components
 import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm';
 import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
+import { ErrorCard } from 'lib/components/ErrorCard/ErrorCard';
+// @Services
+import { useServices } from 'hooks/useServices';
+// @Hooks
+import { usePolling } from 'hooks/usePolling';
 // @Styles
 import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
+import useLoader from 'hooks/useLoader';
+import { sourcesStore } from 'stores/sources';
+import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/helper';
 
 export interface Props {
   form: FormInstance;
@@ -31,6 +39,22 @@ const SourceEditorConfigComponent = ({
   initialValues = {} as SourceData,
   handleTouchAnyField
 }: Props) => {
+  const services = useServices();
+  const {
+    error: loadableParametersError,
+    data: loadableParameters,
+    isLoading: loadingParameters
+  } = usePolling<unknown>(
+    async () => {
+      const response = await services.backendApiClient.get(
+        `/airbyte/${sourceReference.id}/spec`,
+        { proxy: true }
+      );
+      return response?.['data'] as unknown;
+    },
+    (response) => response?.['status'] !== 'pending'
+  );
+
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) =>
       sources?.find((source: SourceData) => source.sourceId === value)
@@ -62,6 +86,15 @@ const SourceEditorConfigComponent = ({
 
     return COLLECTIONS_SCHEDULES[0].value;
   }, [initialValues]);
+
+  const sourceConfigurationParameters = useMemo<Parameter[]>(() => {
+    if (sourceReference.configParameters === 'loadable')
+      return mapAirbyteSpecToSourceConnectorConfig(
+        loadableParameters,
+        sourceReference.id
+      );
+    return sourceReference.configParameters;
+  }, [loadableParameters]);
 
   return (
     <Form
@@ -112,12 +145,20 @@ const SourceEditorConfigComponent = ({
         </Row>
       )}
 
-      <ConfigurableFieldsForm
-        handleTouchAnyField={handleTouchAnyField}
-        initialValues={initialValues}
-        fieldsParamsList={sourceReference.configParameters}
-        form={form}
-      />
+      {loadableParametersError ? (
+        <ErrorCard
+          title={`Failed to load the configuration spec for the ${sourceReference.displayName} source`}
+        />
+      ) : loadingParameters ? (
+        <LoadableFieldsLoadingMessageCard />
+      ) : (
+        <ConfigurableFieldsForm
+          handleTouchAnyField={handleTouchAnyField}
+          initialValues={initialValues}
+          fieldsParamsList={sourceConfigurationParameters}
+          form={form}
+        />
+      )}
     </Form>
   );
 };
@@ -127,3 +168,34 @@ const SourceEditorConfig = observer(SourceEditorConfigComponent);
 SourceEditorConfig.displayName = 'SourceEditorConfig';
 
 export { SourceEditorConfig };
+
+const LoadableFieldsLoadingMessageCard: FC = () => {
+  const INITIAL_DESCRIPTION = null;
+  const LONG_LOADING_DESCRIPTION =
+    'Loading the configuration spec takes longer than usual. This might happen if you are configuring such source for the first time - Jitsu will need some time to pull a docker image with the connector code';
+  const [description, setDescription] = useState<null | string>(
+    INITIAL_DESCRIPTION
+  );
+
+  useEffect(() => {
+    const SHOW_LONG_LOADING_DESCRIPTION_AFTER_MS = 3000;
+    const timeout = setTimeout(
+      () => setDescription(LONG_LOADING_DESCRIPTION),
+      SHOW_LONG_LOADING_DESCRIPTION_AFTER_MS
+    );
+
+    return () => {
+      clearTimeout(timeout);
+    };
+  }, []);
+
+  return (
+    <Card>
+      <Card.Meta
+        avatar={<Spin />}
+        title="Loading the source config"
+        description={description}
+      />
+    </Card>
+  );
+};

@@ -127,7 +127,7 @@ const bigQueryDestination = {
       required: true,
       type: stringType,
       constant: hiddenValue('', (cfg) => {
-        return cfg?._formData?.mode !== 'batch';
+        return cfg?.['_formData']?.mode !== 'batch';
       })
     }
   ]

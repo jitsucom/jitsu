@@ -129,7 +129,7 @@ const destination = {
       required: true,
       type: jsonType,
       constant: hiddenValue('', (cfg) => {
-        return cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 'gcs')
+        return cfg?.['_formData']?.mode !== 'batch' || (cfg?.['_formData']?.mode === 'batch'&& cfg?.['_formData']?.snowflakeStageType !== 'gcs')
       })
     },
     {
@@ -139,7 +139,7 @@ const destination = {
       required: true,
       type: stringType,
       constant: hiddenValue('', (cfg) => {
-        return cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 'gcs')
+        return cfg?.['_formData']?.mode !== 'batch' || (cfg?.['_formData']?.mode === 'batch'&& cfg?.['_formData']?.snowflakeStageType !== 'gcs')
       })
     },
     ...s3Credentials(
