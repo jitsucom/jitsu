@@ -1,17 +1,21 @@
+import { Card, Collapse, Typography } from 'antd';
+import { FC, ReactNode } from 'react';
+// @Icons
 import {
   CheckOutlined,
   CopyOutlined,
-  ExclamationCircleFilled
+  ExclamationCircleOutlined
 } from '@ant-design/icons';
-import { Card, Collapse, Typography } from 'antd';
-import { FC, ReactNode } from 'react';
+// @Styles
+import styles from './ErrorCard.module.less';
 
 type ErrorCardProps = {
   title?: string | ReactNode;
   icon?: ReactNode;
   description?: string | ReactNode;
-  descriptionWithContacts?: string;
+  descriptionWithContacts?: string | null;
   stackTrace?: string;
+  className?: string;
 };
 
 export const ErrorCard: FC<ErrorCardProps> = ({
@@ -19,49 +23,70 @@ export const ErrorCard: FC<ErrorCardProps> = ({
   icon,
   description,
   descriptionWithContacts,
-  stackTrace
+  stackTrace,
+  className
 }) => {
   return (
-    <Card bordered={false}>
+    <Card bordered={false} className={className}>
       <Card.Meta
-        avatar={icon || <ExclamationCircleFilled />}
+        avatar={icon || <ExclamationCircleOutlined className={styles.icon} />}
         title={title || 'An Error Occured'}
         description={
-          description || (
-            <span>
-              {descriptionWithContacts ||
-                'The application component crashed because of an internal error.'}{' '}
-              {
-                'Please, try to reload the page first and if the problem is still present contact us at'
-              }{' '}
-              <Typography.Paragraph copyable={{ tooltips: false }}>
-                {'support@jitsu.com'}
-              </Typography.Paragraph>{' '}
-              {
-                'and our engineers will fix the problem and follow up once the problem has been fixed.'
-              }
-            </span>
-          )
+          <>
+            <>
+              {description !== undefined ? (
+                description
+              ) : (
+                <span>
+                  {descriptionWithContacts !== undefined ? (
+                    <>
+                      {descriptionWithContacts}
+                      {descriptionWithContacts && <br />}
+                    </>
+                  ) : (
+                    <>
+                      {
+                        'The application component crashed because of an internal error.'
+                      }
+                      <br />
+                    </>
+                  )}
+                  {
+                    'Please, try to reload the page first and if the problem is still present contact us at'
+                  }{' '}
+                  <Typography.Paragraph
+                    copyable={{ tooltips: false }}
+                    className="inline"
+                  >
+                    {'support@jitsu.com'}
+                  </Typography.Paragraph>{' '}
+                  {'and our engineers will fix the problem asap.'}
+                </span>
+              )}
+            </>
+            <>
+              {stackTrace && (
+                <Collapse
+                  bordered={false}
+                  className={`mt-2 ${styles.stackTraceCard}`}
+                >
+                  <Collapse.Panel key={1} header="Error Stack Trace">
+                    <Typography.Paragraph
+                      copyable={{
+                        text: stackTrace,
+                        icon: [<CopyOutlined />, <CheckOutlined />]
+                      }}
+                      className={`flex flex-row ${styles.errorStackContainer}`}
+                    >
+                      <pre className="text-xs">{stackTrace}</pre>
+                    </Typography.Paragraph>
+                  </Collapse.Panel>
+                </Collapse>
+              )}
+            </>
+          </>
         }
       />
-      {stackTrace && (
-        <Collapse defaultActiveKey={[1]}>
-          <Collapse.Panel
-            key={1}
-            header="Error Stack Trace"
-            extra={
-              <Typography.Paragraph
-                copyable={{
-                  text: stackTrace,
-                  icon: [<CopyOutlined />, <CheckOutlined />]
-                }}
-              />
-            }
-          >
-            <p>{stackTrace}</p>
-          </Collapse.Panel>
-        </Collapse>
-      )}
     </Card>
   );
 };

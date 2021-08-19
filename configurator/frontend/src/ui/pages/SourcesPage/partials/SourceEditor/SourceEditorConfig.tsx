@@ -3,7 +3,6 @@ import { FC, useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, Col, Form, Input, Row, Select, Spin, Typography } from 'antd';
 import { observer } from 'mobx-react-lite';
 import debounce from 'lodash/debounce';
-import cn from 'classnames';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { Parameter, SourceConnector } from 'catalog/sources/types';
@@ -107,7 +106,7 @@ const SourceEditorConfigComponent = ({
         <Col span={24}>
           <Form.Item
             initialValue={initialValues.sourceId}
-            className={cn('form-field_fixed-label', editorStyles.field)}
+            className={`form-field_fixed-label ${editorStyles.field}`}
             label={<span>SourceId:</span>}
             name="sourceId"
             rules={sourceIdValidators}
@@ -125,7 +124,7 @@ const SourceEditorConfigComponent = ({
             <Form.Item
               initialValue={initialSchedule}
               name="schedule"
-              className={cn('form-field_fixed-label', editorStyles.field)}
+              className={`form-field_fixed-label ${editorStyles.field}`}
               label="Schedule:"
               labelCol={{ span: 4 }}
               wrapperCol={{ span: 20 }}
@@ -146,9 +145,17 @@ const SourceEditorConfigComponent = ({
       )}
 
       {loadableParametersError ? (
-        <ErrorCard
-          title={`Failed to load the configuration spec for the ${sourceReference.displayName} source`}
-        />
+        <Row>
+          <Col span={4} />
+          <Col span={20} className={editorStyles.field}>
+            <ErrorCard
+              title={`Failed to load the ${sourceReference.displayName} source spec`}
+              descriptionWithContacts={null}
+              stackTrace={loadableParametersError.stack}
+              className={'form-fields-card'}
+            />
+          </Col>
+        </Row>
       ) : loadingParameters ? (
         <LoadableFieldsLoadingMessageCard />
       ) : (
