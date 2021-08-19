@@ -39,6 +39,11 @@ func (tl *TaskLogger) ERROR(format string, v ...interface{}) {
 	tl.log(format, jitsuSystem, logging.ERROR.String(), v...)
 }
 
+//WARN writes record into meta.storage with log level WARN
+func (tl *TaskLogger) WARN(format string, v ...interface{}) {
+	tl.log(format, jitsuSystem, logging.WARN.String(), v...)
+}
+
 func (tl *TaskLogger) log(format, system, level string, v ...interface{}) {
 	msg := "[" + tl.taskID + "] " + fmt.Sprintf(format, v...)
 	logging.Debug(msg)

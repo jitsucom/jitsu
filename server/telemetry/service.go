@@ -108,6 +108,11 @@ func ServerStop() {
 	instance.usage(&Usage{ServerStop: 1})
 }
 
+//CLIStart puts cli start event into the queue
+func CLIStart(command string, dateFilters, state bool, chunkSize int64) {
+	instance.usage(&Usage{CLIStart: 1, CLICommand: command, CLIDateFilters: dateFilters, CLIState: state, CLIChunkSize: chunkSize})
+}
+
 //EventsPerSrc increments events collector counter per Src
 func EventsPerSrc(sourceID, destinationID string, quantityPerSrc map[string]int) {
 	if !instance.usageOptOut.Load() {
