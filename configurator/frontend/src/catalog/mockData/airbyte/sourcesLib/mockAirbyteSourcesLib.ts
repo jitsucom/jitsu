@@ -4,58 +4,58 @@ import * as logos from 'catalog/sources/lib/logos';
 export const allMockAirbyteSources: AirbyteSource[] = [
   {
     pic: logos.airbyte,
-    name: 'airbyte-hubspot-source',
+    docker_image_name: 'airbyte/source-hubspot',
     displayName: 'Hubspot',
     stable: false
   },
   {
     pic: logos.airbyte,
-    name: 'airbyte-mysql-source',
+    docker_image_name: 'airbyte/source-mysql',
     displayName: 'MySQL',
     stable: false
   },
   {
     pic: logos.airbyte,
-    name: 'airbyte-mongodb-source',
+    docker_image_name: 'airbyte/source-mongodb',
     displayName: 'MongoDB',
     stable: false
   },
   {
     pic: logos.airbyte,
-    name: 'airbyte-freshdesk-source',
+    docker_image_name: 'airbyte/source-freshdesk',
     displayName: 'Freshdesk',
     stable: false
   },
   {
     pic: logos.airbyte,
-    name: 'airbyte-mailchimp-source',
+    docker_image_name: 'airbyte/source-mailchimp',
     displayName: 'Mailchimp',
     stable: false
   },
   {
     pic: logos.airbyte,
-    name: 'airbyte-instagram-source',
+    docker_image_name: 'airbyte/source-instagram',
     displayName: 'Instagram',
     stable: false
   },
 
   {
     pic: logos.airbyte,
-    name: 'airbyte-google-ads-source',
+    docker_image_name: 'airbyte/source-google-ads',
     displayName: 'Google Ads',
     stable: false
   },
 
   {
     pic: logos.airbyte,
-    name: 'airbyte-microsoft-teams-source',
+    docker_image_name: 'airbyte/source-microsoft-teams',
     displayName: 'Microsoft Teams',
     stable: false
   },
 
   {
     pic: logos.airbyte,
-    name: 'airbyte-postgres-source',
+    docker_image_name: 'airbyte/source-postgres',
     displayName: 'Postgres',
     stable: false
   }

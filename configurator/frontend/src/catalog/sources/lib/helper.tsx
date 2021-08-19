@@ -182,7 +182,10 @@ export const makeAirbyteSource = (
     expertMode: false,
     pic: airbyteSource.pic,
     displayName: airbyteSource.displayName,
-    id: airbyteSource.name,
+    id: `airbyte-source-${airbyteSource.docker_image_name.replace(
+      'airbyte/source-',
+      ''
+    )}` as const,
     collectionTypes: [],
     documentation: airbyteSource.documentation,
     collectionParameters: [],
@@ -193,7 +196,7 @@ export const makeAirbyteSource = (
         type: stringType,
         required: true,
         documentation: <>Id of Connector Source</>,
-        constant: airbyteSource.name
+        constant: airbyteSource.docker_image_name
       }
     ]
   };
