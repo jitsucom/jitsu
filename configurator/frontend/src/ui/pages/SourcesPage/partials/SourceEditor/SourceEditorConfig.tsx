@@ -46,7 +46,10 @@ const SourceEditorConfigComponent = ({
   } = usePolling<unknown>(
     async () => {
       const response = await services.backendApiClient.get(
-        `/airbyte/${sourceReference.id}/spec`,
+        `/airbyte/${sourceReference.id.replace(
+          'airbyte-source-',
+          ''
+        )}/spec?project_id=${services.activeProject.id}`,
         { proxy: true }
       );
       return response?.['data'] as unknown;

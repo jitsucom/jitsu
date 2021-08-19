@@ -249,7 +249,7 @@ type SourceConnectorId =
   | 'redis'
   | 'amplitude'
   | `singer-${string}`
-  | `airbyte-${string}-source`;
+  | `airbyte-source-${string}`;
 export interface SourceConnector {
   /**
    * Is it singer source or not, optional parameter.
@@ -349,7 +349,7 @@ export interface SingerTap {
 
 export interface AirbyteSource {
   pic: ReactNode;
-  name: `airbyte-${string}-source`;
+  docker_image_name: `airbyte/source-${string}`;
   displayName: string;
   /**
    * Whether we consider this tap as stable and production ready
