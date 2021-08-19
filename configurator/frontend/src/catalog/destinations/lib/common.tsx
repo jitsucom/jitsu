@@ -63,17 +63,20 @@ export const tableName = (customDocs?: ReactNode): Parameter => {
   }
 };
 
-export const hiddenValue: ConstantOrFunction<any, any> = (value, hide) => {
+export function hiddenValue<P, V>(
+  value: V,
+  hide: (config: P) => boolean
+): ConstantOrFunction<P, V> {
   if (!hide) {
     return undefined;
   } else {
-    return (cfg) => {
-      if (hide(cfg)) {
+    return (config) => {
+      if (hide(config)) {
         return value;
       } else {
         return undefined;
       }
-    }
+    };
   }
 };
 
