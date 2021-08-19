@@ -42,6 +42,7 @@ type Storage interface {
 	Type() string
 	IsStaging() bool
 	IsCachingDisabled() bool
+	Clean(tableName string) error
 }
 
 //StorageProxy is a storage proxy
