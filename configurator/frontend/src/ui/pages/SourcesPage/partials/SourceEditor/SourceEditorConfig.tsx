@@ -157,7 +157,12 @@ const SourceEditorConfigComponent = ({
           </Col>
         </Row>
       ) : loadingParameters ? (
-        <LoadableFieldsLoadingMessageCard />
+        <Row>
+          <Col span={4} />
+          <Col span={20} className={editorStyles.field}>
+            <LoadableFieldsLoadingMessageCard />
+          </Col>
+        </Row>
       ) : (
         <ConfigurableFieldsForm
           handleTouchAnyField={handleTouchAnyField}

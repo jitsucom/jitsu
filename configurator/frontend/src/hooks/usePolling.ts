@@ -54,15 +54,27 @@ export const usePolling = <T>(
    */
   options: UsePollingOptions = {}
 ): UsePollingReturnType<T> => {
+  const a = async () => {
+    debugger;
+    return null;
+  };
   const { interval_ms, timeout_ms } = { ...defaultOptions, ...(options || {}) };
-  const [_loader, setLoader] = useState<Loader<T | null>>(async () => null);
+  const [_loader, setLoader] = useState<Loader<T | null>>(null);
   const [cancel, setCancel] = useState<() => void>(() => {});
-  const [error, data, , , isLoading] = useLoader<T | null>(_loader, [_loader]);
+  const [error, data, , , isLoading] = useLoader<T | null>(_loader || a, [
+    _loader
+  ]);
 
   useEffect(() => {
     const poll = new Poll<T>(
-      (end) => async () => {
-        const response = await loader();
+      (end, fail) => async () => {
+        debugger;
+        let response: T;
+        try {
+          response = await loader();
+        } catch (error) {
+          fail(error);
+        }
         if (condition(response)) {
           end(response);
         }
@@ -71,8 +83,8 @@ export const usePolling = <T>(
       timeout_ms
     );
     poll.start();
-    setLoader(poll.wait);
-    setCancel(poll.cancel);
+    setLoader(() => poll.wait);
+    setCancel(() => poll.cancel);
   }, []);
 
   return {

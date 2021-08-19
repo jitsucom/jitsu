@@ -7,8 +7,10 @@ export interface IPoll<T> {
 }
 
 type EndPollingFunction<T> = (result: T) => void;
+type FailPollingFunction = (error?: Error) => void;
 type Callback<T> = (
-  end: EndPollingFunction<T>
+  end: EndPollingFunction<T>,
+  fail: FailPollingFunction
 ) => VoidFunction | AsyncVoidFunction;
 
 /**
@@ -23,6 +25,7 @@ export class Poll<T = unknown> implements IPoll<T> {
   private resultPromise: null | Promise<T> = null;
   private resultPromiseResolve: null | ((value: T | PromiseLike<T>) => void) =
     null;
+  private resultPromiseReject: null | ((reason: any) => void) = null;
   private result: undefined | T;
 
   /**
@@ -37,17 +40,17 @@ export class Poll<T = unknown> implements IPoll<T> {
     timeout_ms?: number
   ) {
     this.endPolling = this.endPolling.bind(this);
+    this.failPolling = this.failPolling.bind(this);
     this.start = this.start.bind(this);
     this.wait = this.wait.bind(this);
     this.cancel = this.cancel.bind(this);
 
     if (interval_ms) this.interval_ms = interval_ms;
     if (timeout_ms) this.timeout_ms = timeout_ms;
-    this.callback = callback(this.endPolling);
+    this.callback = callback(this.endPolling, this.failPolling);
   }
 
-  private endPolling(result: T | null = null): void {
-    this.result = result;
+  private cleanup() {
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = null;
@@ -56,9 +59,27 @@ export class Poll<T = unknown> implements IPoll<T> {
       clearTimeout(this.timeout);
       this.timeout = null;
     }
+  }
+
+  private endPolling(result: T | null = null): void {
+    this.result = result;
+    this.cleanup();
     if (this.resultPromiseResolve) {
       this.resultPromiseResolve(result);
       this.resultPromiseResolve = null;
+    }
+  }
+
+  private failPolling(error?: Error) {
+    this.cleanup();
+    if (this.resultPromiseReject) {
+      this.resultPromiseReject(
+        error ||
+          new Error(
+            'Polling silently faile. Please, see the stack trace for detailes.'
+          )
+      );
+      this.resultPromiseReject = null;
     }
   }
 
@@ -68,8 +89,9 @@ export class Poll<T = unknown> implements IPoll<T> {
   public start(): void {
     if (this.interval) return;
     // set up the variable for resolving the polling promise
-    this.resultPromise = new Promise<T>((resolve) => {
+    this.resultPromise = new Promise<T>((resolve, reject) => {
       this.resultPromiseResolve = resolve;
+      this.resultPromiseReject = reject;
     });
     // set up the polling
     this.interval = setInterval(this.callback, this.interval_ms);
