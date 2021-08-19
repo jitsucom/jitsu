@@ -35,6 +35,10 @@ func extractToken(r *http.Request) string {
 	}
 
 	if token == "" {
+		token = r.Header.Get(APIKeyName)
+	}
+
+	if token == "" {
 		for k, v := range r.URL.Query() {
 			if strings.HasPrefix(k, "p_") && len(v) > 0 {
 				token = v[0]

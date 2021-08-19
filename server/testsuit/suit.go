@@ -208,10 +208,11 @@ func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
 func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	//event processors
 	apiProcessor := events.NewAPIProcessor()
+	bulkProcessor := events.NewBulkProcessor()
 	jsProcessor := events.NewJsProcessor(sb.recognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
 	pixelProcessor := events.NewPixelProcessor()
 	segmentProcessor := events.NewSegmentProcessor(sb.recognitionService)
-	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor)
+	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
 	multiplexingService := multiplexing.NewService(sb.destinationService, sb.eventsCache)
 	walService := wal.NewService("/tmp", &logging.AsyncLogger{}, multiplexingService, processorHolder)

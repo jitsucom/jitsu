@@ -1,0 +1,104 @@
+# CLI
+
+
+**Jitsu CLI** reads files with events JSONs from local file system and send them to Jitsu via [Bulk API](/docs/sending-data/bulk-api)
+where 1 file = 1 HTTP request with synchronous response. Common use case is uploading archive events into new destination.
+Use a certain `--api_key` for routing events payload into a certain destination.
+All big files larger than [max chunk size](#max-chunk-size) are divided into parts with size smaller or equal to [max chunk size](#max-chunk-size) configuration and parts are sent separately: 1 part = 1 HTTP request.
+
+### Build
+
+Jitsu CLI is located in `server` submodule, for building it please make sure that you have installed and added [go compiler](https://golang.org/doc/install) to PATH env.
+Checkout [Jitsu project](https://github.com/jitsucom/jitsu):
+
+```bash
+git clone https://github.com/jitsucom/jitsu.git
+cd jitsu/server
+```
+
+Build `server` binary with the following command:
+
+```bash
+go build
+```
+
+`server` binary will be created in your current dir. It contains CLI.
+
+### Run
+
+Command structure:
+```bash
+./server <command> [flags] <list of files to upload>
+```
+
+<Hint>
+  Currently only <code inline="true">replay</code> command is supported
+</Hint>
+
+List of files can be a bash expression with wildcard. All directories in the list will be read recursively.
+
+Examples:
+
+```bash
+./server replay --api_key s2s.jduavdas.daosbdab file1 file2 file3
+```
+
+or just
+```bash
+./server replay --api_key s2s.jduavdas.daosbdab file*
+```
+
+<Hint>
+  Ubuntu: If you use files pattern <code inline="true">/dir/*</code> and receive <code inline="true">argument list too long</code> error
+  please increase the limit with <code inline="true">ulimit -s 65535</code> command.
+</Hint>
+
+### State
+
+Jitsu CLI supports state file to prevent resending the same file on each run. Names of already uploaded files are stored into state file
+and CLI won't resend them. Use `--state` flag:
+
+```bash
+./server replay --api_key s2s.jduavdas.daosbdab --state cli_state.state file*
+```
+
+### Filtering files by date
+
+Jitsu CLI supports filtering files by date. CLI will read file names and filter files that contains date in name
+and this date isn't in start-end interval. `--start` and `--end` flags can be used together or separately and should be
+in `YYYY-MM-DD` format. `--start` flag will be treated as the beginning of the day UTC `YYYY-MM-DD 00:00:00.000Z` and
+`--end` flag will be treated as the end of the day UTC `YYYY-MM-DD 23:59:59.999Z`:
+
+```bash
+./server replay --api_key s2s.jduavdas.daosbdab --state cli_state.state --start 2021-01-01 --end 2021-01-08 file*
+```
+
+<Hint>
+  If date filter flags are provided and a file doesn't have any date in name it won't be sent to Jitsu.
+</Hint>
+
+### Max chunk size
+
+Max chunk size parameter controls request payload size. If a file is smaller than max chunk size Jitsu CLI will send
+it as one HTTP request. If a file is larger - CLI will divide the file into parts where 1 part size is smaller or equal
+max chunk size and send them to Jitsu.
+
+You can override max chunk size configuration with `--chunk_size` flag and value in **bytes**:
+
+- chunk size 100KB = 100 * 1024: `--chunk_size 102400`
+- chunk size 10MB = 10 * 1024 * 1024: `--chunk_size 10485760`
+
+```bash
+./server replay --api_key s2s.jduavdas.daosbdab --state cli_state.state --chunk_size 10485760 /mydir/*
+```
+
+<Hint>
+  Make sure that your user have enough permissions for writing state file
+</Hint>
+
+### Flags
+
+Please use `./server replay -h` command for displaying all flags and usage
+
+
+

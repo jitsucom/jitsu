@@ -203,6 +203,10 @@ func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 	return nil
 }
 
+func (bq *BigQuery) Clean(tableName string) error {
+	return cleanImpl(bq, tableName)
+}
+
 //GetUsersRecognition returns disabled users recognition configuration
 func (bq *BigQuery) GetUsersRecognition() *UserRecognitionConfiguration {
 	return disabledRecognitionConfiguration

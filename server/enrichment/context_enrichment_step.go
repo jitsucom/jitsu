@@ -39,6 +39,10 @@ func ContextEnrichmentStep(payload events.Event, token string, reqContext *event
 	}
 
 	//4. timestamp & api key
-	payload[ApiTokenKey] = token
-	payload[timestamp.Key] = timestamp.NowUTC()
+	if _, ok := payload[ApiTokenKey]; !ok {
+		payload[ApiTokenKey] = token
+	}
+	if _, ok := payload[timestamp.Key]; !ok {
+		payload[timestamp.Key] = timestamp.NowUTC()
+	}
 }

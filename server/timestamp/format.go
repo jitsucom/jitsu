@@ -20,6 +20,9 @@ const DashDayLayout = "2006-01-02"
 //LogsLayout is a date time representation for log records prefixes
 const LogsLayout = "2006-01-02 15:04:05"
 
+//GolangLayout is a default golang layout that is returned on String() without formatting
+const GolangLayout = "2006-01-02T15:04:05+0000"
+
 //NowUTC returns ISO string representation of current UTC time
 func NowUTC() string {
 	return time.Now().UTC().Format(Layout)

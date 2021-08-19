@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -51,7 +52,7 @@ import (
 //some inner parameters
 const (
 	//incoming.tok=$token-$timestamp.log
-	uploaderFileMask   = "incoming.tok=*-20*.log"
+	uploaderFileMask = "incoming.tok=*-20*.log"
 	//streaming-archive.dst=$destinationID-$timestamp.log
 	streamArchiveFileMask = "streaming-archive*-20*.log"
 	streamArchiveEveryS   = 60
@@ -95,6 +96,11 @@ func setAppWorkDir() {
 }
 
 func main() {
+	if len(os.Args) >= 2 && os.Args[1] == "replay" {
+		cmd.Execute()
+		return
+	}
+
 	flag.Parse()
 
 	//Setup seed for globalRand
@@ -314,7 +320,8 @@ func main() {
 	}
 	appconfig.Instance.ScheduleClosing(taskExecutor)
 
-	uploaderRunInterval := viper.GetInt("server.uploader.run_interval_sec")
+	//for now use the same interval as for log rotation
+	uploaderRunInterval := viper.GetInt("log.rotation_min")
 	//Uploader must read event logger directory
 	uploader, err := logfiles.NewUploader(logEventPath, uploaderFileMask, uploaderRunInterval, destinationsService)
 	if err != nil {
@@ -368,10 +375,11 @@ func main() {
 
 	//event processors
 	apiProcessor := events.NewAPIProcessor()
+	bulkProcessor := events.NewBulkProcessor()
 	jsProcessor := events.NewJsProcessor(usersRecognitionService, viper.GetString("server.fields_configuration.user_agent_path"))
 	pixelProcessor := events.NewPixelProcessor()
 	segmentProcessor := events.NewSegmentProcessor(usersRecognitionService)
-	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor)
+	processorHolder := events.NewProcessorHolder(apiProcessor, jsProcessor, pixelProcessor, segmentProcessor, bulkProcessor)
 
 	multiplexingService := multiplexing.NewService(destinationsService, eventsCache)
 	walService := wal.NewService(logEventPath, loggerFactory.CreateWriteAheadLogger(), multiplexingService, processorHolder)
