@@ -20,7 +20,7 @@ type Integration struct {
 
 //GetLocalAuthority returns host:port of local server
 func GetLocalAuthority() (string, error) {
-	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	addr, err := net.ResolveTCPAddr("tcp", "127.0.0.1:0")
 	if err != nil {
 		return "", err
 	}

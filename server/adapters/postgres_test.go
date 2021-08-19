@@ -7,6 +7,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/test"
 	"github.com/jitsucom/jitsu/server/typing"
+	uuid "github.com/satori/go.uuid"
 	"github.com/stretchr/testify/require"
 	"gotest.tools/assert"
 	"math/rand"
@@ -61,6 +62,32 @@ func TestBulkInsert(t *testing.T) {
 	assert.Equal(t, rows, 5)
 }
 
+func TestPostgresTruncateExistingTable(t *testing.T) {
+	table := &Table{
+		Name:    "test_truncate_existing_table",
+		Columns: Columns{"field1": Column{"text"}, "field2": Column{"text"}, "field3": Column{"bigint"}, "user": Column{"text"}},
+	}
+	container, pg := setupDatabase(t, table)
+	defer container.Close()
+	err := pg.BulkInsert(table, createObjects(5))
+	require.NoError(t, err, "Failed to bulk insert 5 objects")
+	rows, err := container.CountRows(table.Name)
+	require.NoError(t, err, "Failed to count objects at "+table.Name)
+	assert.Equal(t, rows, 5)
+	err = pg.Truncate(table.Name)
+	require.NoError(t, err, "Failed to truncate table")
+	rows, err = container.CountRows(table.Name)
+	require.NoError(t, err, "Failed to count objects at "+table.Name)
+	assert.Equal(t, rows, 0)
+}
+
+func TestPostgresTruncateNonexistentTable(t *testing.T) {
+	container, pg := setupDatabase(t, nil)
+	defer container.Close()
+	err := pg.Truncate(uuid.NewV4().String())
+	require.ErrorIs(t, err, ErrTableNotExist)
+}
+
 func TestBulkMerge(t *testing.T) {
 	table := &Table{
 		Name:     "test_merge",
@@ -92,8 +119,10 @@ func setupDatabase(t *testing.T, table *Table) (*test.PostgresContainer, *Postgr
 	if err != nil {
 		t.Fatalf("Failed to create Postgres adapter: %v", err)
 	}
-	err = pg.CreateTable(table)
-	require.NoError(t, err, "Failed to create table")
+	if table != nil {
+		err = pg.CreateTable(table)
+		require.NoError(t, err, "Failed to create table")
+	}
 	return container, pg
 }
 

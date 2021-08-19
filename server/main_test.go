@@ -223,7 +223,7 @@ func TestIncomingEvent(t *testing.T) {
 			"",
 			"",
 			http.StatusUnauthorized,
-			`{"message":"The token isn't a server token. Please use s2s integration token","error":""}`,
+			`{"message":"The token isn't a server secret token. Please use an s2s integration token","error":""}`,
 			false,
 		},
 		{

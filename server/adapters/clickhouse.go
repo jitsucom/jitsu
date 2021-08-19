@@ -20,15 +20,17 @@ const (
 	tableSchemaCHQuery        = `SELECT name, type FROM system.columns WHERE database = ? and table = ?`
 	createCHDBTemplate        = `CREATE DATABASE IF NOT EXISTS "%s" %s`
 	addColumnCHTemplate       = `ALTER TABLE "%s"."%s" %s ADD COLUMN %s`
-	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES (%s)`
+	insertCHTemplate          = `INSERT INTO "%s"."%s" (%s) VALUES %s`
 	deleteQueryChTemplate     = `ALTER TABLE %s.%s DELETE WHERE %s`
 	dropTableCHTemplate       = `DROP TABLE "%s"."%s"`
 	onClusterCHClauseTemplate = ` ON CLUSTER "%s" `
 	columnCHNullableTemplate  = ` Nullable(%s) `
 
-	createTableCHTemplate            = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
-	createDistributedTableCHTemplate = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
-	dropDistributedTableCHTemplate   = `DROP TABLE IF EXISTS "%s"."dist_%s" %s`
+	createTableCHTemplate              = `CREATE TABLE "%s"."%s" %s (%s) %s %s %s %s`
+	createDistributedTableCHTemplate   = `CREATE TABLE "%s"."dist_%s" %s AS "%s"."%s" ENGINE = Distributed(%s,%s,%s,rand())`
+	dropDistributedTableCHTemplate     = `DROP TABLE IF EXISTS "%s"."dist_%s" %s`
+	truncateTableCHTemplate            = `TRUNCATE TABLE IF EXISTS "%s"."%s"`
+	truncateDistributedTableCHTemplate = `TRUNCATE TABLE IF EXISTS "%s"."dist_%s" %s`
 
 	defaultPartition  = `PARTITION BY (toYYYYMM(_timestamp))`
 	defaultOrderBy    = `ORDER BY (eventn_ctx_event_id)`
@@ -392,7 +394,7 @@ func (ch *ClickHouse) Insert(eventContext *EventContext) error {
 		return err
 	}
 
-	query := fmt.Sprintf(insertCHTemplate, ch.database, eventContext.Table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(placeholders, ", "))
+	query := fmt.Sprintf(insertCHTemplate, ch.database, eventContext.Table.Name, strings.Join(headerWithQuotes, ", "), "("+strings.Join(placeholders, ", ")+")")
 	ch.queryLogger.LogQueryWithValues(query, values)
 
 	_, err = wrappedTx.tx.ExecContext(ch.ctx, query, values...)
@@ -450,6 +452,26 @@ func (ch *ClickHouse) BulkInsert(table *Table, objects []map[string]interface{})
 	return wrappedTx.DirectCommit()
 }
 
+//Truncate deletes all records in tableName table
+func (ch *ClickHouse) Truncate(tableName string) error {
+	sqlParams := SqlParams{
+		dataSource:  ch.dataSource,
+		queryLogger: ch.queryLogger,
+		ctx:         ch.ctx,
+	}
+
+	statement := fmt.Sprintf(truncateTableCHTemplate, ch.database, tableName)
+	if err := sqlParams.commonTruncate(tableName, statement); err != nil {
+		return err
+	}
+	if ch.cluster != "" {
+		statement = fmt.Sprintf(truncateDistributedTableCHTemplate, ch.database, tableName, ch.getOnClusterClause())
+		return sqlParams.commonTruncate(tableName, statement)
+	}
+
+	return nil
+}
+
 //DropTable drops table in transaction
 func (ch *ClickHouse) DropTable(table *Table) error {
 	wrappedTx, err := ch.OpenTx()
@@ -483,45 +505,77 @@ func (ch *ClickHouse) toDeleteQuery(conditions *DeleteConditions) (string, []int
 	return strings.Join(queryConditions, conditions.JoinCondition), values
 }
 
+//insertInTransaction creates statement like insert ... values (), (), ()
+//runs executeInsert func
 func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
-	var headerWithQuotes, headerWithoutQuotes, placeholders []string
+	var placeholdersBuilder strings.Builder
+	var headerWithoutQuotes, headerWithQuotes []string
 	for name := range table.Columns {
 		headerWithoutQuotes = append(headerWithoutQuotes, name)
 		headerWithQuotes = append(headerWithQuotes, fmt.Sprintf(`"%s"`, name))
-		placeholders = append(placeholders, ch.getPlaceholder(name))
 	}
-
-	query := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(headerWithQuotes, ", "), strings.Join(placeholders, ", "))
-	insertStmt, err := wrappedTx.tx.PrepareContext(ch.ctx, query)
-	if err != nil {
-		return fmt.Errorf("Error preparing bulk insert statement [%s] table %s statement: %v", query, table.Name, err)
-	}
-
+	maxValues := len(objects) * len(table.Columns)
+	valueArgs := make([]interface{}, 0, maxValues)
 	for _, row := range objects {
-		var values []interface{}
-		for _, column := range headerWithoutQuotes {
+		_, err := placeholdersBuilder.WriteString("(")
+		if err != nil {
+			return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
+		}
+
+		for i, column := range headerWithoutQuotes {
+			//append value
 			value, ok := row[column]
 			if ok {
-				values = append(values, ch.reformatValue(value))
+				valueArgs = append(valueArgs, ch.reformatValue(value))
 			} else {
 				column, _ := table.Columns[column]
 				defaultValue, ok := ch.getDefaultValue(column.SQLType)
 				if ok {
-					values = append(values, defaultValue)
+					valueArgs = append(valueArgs, defaultValue)
 				} else {
-					values = append(values, value)
+					valueArgs = append(valueArgs, value)
 				}
 
 			}
+			//placeholder
+			placeholder := ch.getPlaceholder(column)
+
+			_, err = placeholdersBuilder.WriteString(placeholder)
+			if err != nil {
+				return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
+			}
+
+			if i < len(headerWithoutQuotes)-1 {
+				_, err = placeholdersBuilder.WriteString(",")
+				if err != nil {
+					return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
+				}
+			}
 		}
-
-		ch.queryLogger.LogQueryWithValues(query, values)
-
-		_, err = insertStmt.ExecContext(ch.ctx, values...)
+		_, err = placeholdersBuilder.WriteString("),")
 		if err != nil {
-			return fmt.Errorf("Error bulk inserting in %s table with statement: %s values: %v: %v", table.Name, query, values, err)
+			return fmt.Errorf(placeholdersStringBuildErrTemplate, err)
 		}
 	}
+
+	err := ch.executeInsert(wrappedTx, table, headerWithQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
+	if err != nil {
+		return fmt.Errorf("Error executing insert in bulk: %v", err)
+	}
+
+	return nil
+}
+
+//executeInsert execute insert with insertTemplate
+func (ch *ClickHouse) executeInsert(wrappedTx *Transaction, table *Table, headerWithQuotes []string, placeholders string, valueArgs []interface{}) error {
+	statement := fmt.Sprintf(insertCHTemplate, ch.database, table.Name, strings.Join(headerWithQuotes, ", "), placeholders)
+
+	ch.queryLogger.LogQueryWithValues(statement, valueArgs)
+
+	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
+		return err
+	}
+
 	return nil
 }
 

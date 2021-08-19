@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/adapters"
+	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/drivers"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
+	"github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
@@ -21,17 +24,19 @@ type ClearCacheRequest struct {
 
 //SourcesHandler is used for testing sources connection and clean sync cache
 type SourcesHandler struct {
-	sourcesService *sources.Service
-	metaStorage    meta.Storage
+	sourcesService      *sources.Service
+	metaStorage         meta.Storage
+	destinationsService *destinations.Service
 }
 
 //NewSourcesHandler returns configured SourcesHandler instance
-func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage) *SourcesHandler {
-	return &SourcesHandler{sourcesService: sourcesService, metaStorage: metaStorage}
+func NewSourcesHandler(sourcesService *sources.Service, metaStorage meta.Storage, destinations *destinations.Service) *SourcesHandler {
+	return &SourcesHandler{sourcesService: sourcesService, metaStorage: metaStorage, destinationsService: destinations}
 }
 
 //ClearCacheHandler deletes source state (signature) from meta.Storage
 func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
+	shouldCleanWarehouse := c.DefaultQuery("delete_warehouse_data", "false") == "true"
 	req := &ClearCacheRequest{}
 	if err := c.BindJSON(req); err != nil {
 		logging.Errorf("Error parsing clear cache request: %v", err)
@@ -69,6 +74,9 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 			logging.Error(msg)
 			multiErr = multierror.Append(multiErr, err)
 		}
+		if shouldCleanWarehouse {
+			multiErr = sh.cleanWarehouse(driver, source.DestinationIDs, req.Source, collection, multiErr)
+		}
 	}
 
 	if multiErr != nil {
@@ -77,6 +85,41 @@ func (sh *SourcesHandler) ClearCacheHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, middleware.OKResponse())
+}
+
+func (sh *SourcesHandler) cleanWarehouse(driver driversbase.Driver, destinationIds []string, sourceID string, collection string, multiErr error) error {
+	for _, destId := range destinationIds {
+		if destProxy, okDestProxy := sh.destinationsService.GetDestinationByID(destId); okDestProxy {
+			if dest, okDest := destProxy.Get(); okDest {
+				for _, destTableName := range sh.getTableNames(driver) {
+					if err := dest.Clean(destTableName); err != nil {
+						if err == adapters.ErrTableNotExist {
+							logging.Warnf("Table [%s] doesn't exist for: source: [%s], collection: [%s], destId: [%s]", destTableName, sourceID, collection, destId)
+						} else {
+							msg := fmt.Sprintf("Error cleaning warehouse for: source: [%s], collection: [%s], tableName: [%s], destId: [%s]: %v", sourceID, collection, destTableName, destId, err)
+							logging.Error(msg)
+							multiErr = multierror.Append(multiErr, err)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return multiErr
+}
+
+func (sh *SourcesHandler) getTableNames(driver driversbase.Driver) []string {
+	var tableNames []string
+	if singerDriver, ok := driver.(*singer.Singer); ok {
+		for _, destTableName := range singerDriver.GetStreamTableNameMapping() {
+			tableNames = append(tableNames, destTableName)
+		}
+	} else {
+		tableNames = append(tableNames, driver.GetCollectionTable())
+	}
+
+	return tableNames
 }
 
 //TestSourcesHandler tests source connection

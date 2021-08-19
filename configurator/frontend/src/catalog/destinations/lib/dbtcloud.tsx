@@ -5,7 +5,7 @@ const icon = <svg fill="none" version="1.1" height={"100%"} width={"100%"} viewB
 const dbtcloudDestination = {
     description: <>
         Special destination. The purpose of this destination is to trigger <b>dbt Cloud</b> Job on successful run of linked Connectors.
-        See <a href={"https://docs.getdbt.com/dbt-cloud/api#operation/triggerRun"}>dbt Cloud API Docs</a>
+        See <a href={"https://docs.getdbt.com/dbt-cloud/api-v2#operation/triggerRun"}>dbt Cloud API Docs</a>
         All other types of events are ignored.
     </>,
     syncFromSourcesStatus: 'not_supported',
@@ -26,10 +26,10 @@ const dbtcloudDestination = {
             type: descriptionType,
             defaultValue: (
                 <span>
-                    Setup triggering of <b>dbt Cloud</b> Job on successful run of Sources.
+                    Setup triggering of <b>dbt Cloud</b> Job on successful run of Sources and Destinations in batch mode.
                     <br />
                     See {' '}
-                    <a target="_blank" href="https://docs.getdbt.com/dbt-cloud/api#operation/triggerRun">
+                    <a target="_blank" href="https://docs.getdbt.com/dbt-cloud/api-v2#operation/triggerRun">
                         dbt Cloud API Docs
                     </a>.
                 </span>

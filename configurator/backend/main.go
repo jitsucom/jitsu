@@ -267,26 +267,17 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 		apiV1.GET("/jitsu/configuration", authenticatorMiddleware.ClientProjectAuth(handlers.NewConfigurationHandler(configurationsService).Handler))
 
 		if sslUpdateExecutor != nil {
-			sslGroup := apiV1.Group("/ssl")
-			{
-				sslGroup.POST("/", authenticatorMiddleware.ClientProjectAuth(handlers.NewCustomDomainHandler(sslUpdateExecutor).PerProjectHandler))
-				sslGroup.POST("/all", middleware.ServerAuth(handlers.NewCustomDomainHandler(sslUpdateExecutor).AllHandler, serverToken))
-			}
+			apiV1.POST("/ssl", authenticatorMiddleware.ClientProjectAuth(handlers.NewCustomDomainHandler(sslUpdateExecutor).PerProjectHandler))
+			apiV1.POST("/ssl/all", middleware.ServerAuth(handlers.NewCustomDomainHandler(sslUpdateExecutor).AllHandler, serverToken))
 		}
 
 		destinationsHandler := handlers.NewDestinationsHandler(configurationsService, defaultS3, jitsuService)
-		destinationsRoute := apiV1.Group("/destinations")
-		{
-			destinationsRoute.GET("/", middleware.ServerAuth(middleware.IfModifiedSince(destinationsHandler.GetHandler, configurationsService.GetDestinationsLastUpdated), serverToken))
-			destinationsRoute.POST("/test", authenticatorMiddleware.ClientProjectAuth(destinationsHandler.TestHandler))
-		}
+		apiV1.GET("/destinations", middleware.ServerAuth(middleware.IfModifiedSince(destinationsHandler.GetHandler, configurationsService.GetDestinationsLastUpdated), serverToken))
+		apiV1.POST("/destinations/test", authenticatorMiddleware.ClientProjectAuth(destinationsHandler.TestHandler))
 
 		sourcesHandler := handlers.NewSourcesHandler(configurationsService, jitsuService)
-		sourcesRoute := apiV1.Group("/sources")
-		{
-			sourcesRoute.GET("/", middleware.ServerAuth(middleware.IfModifiedSince(sourcesHandler.GetHandler, configurationsService.GetSourcesLastUpdated), serverToken))
-			sourcesRoute.POST("/test", authenticatorMiddleware.ClientProjectAuth(sourcesHandler.TestHandler))
-		}
+		apiV1.GET("/sources", middleware.ServerAuth(middleware.IfModifiedSince(sourcesHandler.GetHandler, configurationsService.GetSourcesLastUpdated), serverToken))
+		apiV1.POST("/sources/test", authenticatorMiddleware.ClientProjectAuth(sourcesHandler.TestHandler))
 
 		telemetryHandler := handlers.NewTelemetryHandler(configurationsService)
 		apiV1.GET("/telemetry", middleware.ServerAuth(telemetryHandler.GetHandler, serverToken))

@@ -11,7 +11,7 @@ const (
 	SourceSuccessEventType  = "SOURCE_SUCCESSFUL_RUN"
 	DestinationBatchEventType  = "DESTINATION_BATCH_RUN"
 
-	dbtCloudTableNameFilter = "return $.event_type == '" + SourceSuccessEventType + "' ? true : false"
+	dbtCloudTableNameFilter = "return ($.event_type == '" + SourceSuccessEventType + "' || $.event_type == '" + DestinationBatchEventType + "') ? true : false"
 )
 
 
