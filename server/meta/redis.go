@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gomodule/redigo/redis"
+	"github.com/mna/redisc"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -76,17 +77,44 @@ func (rc *RedisConfiguration) IsSecuredURL() bool {
 	return strings.HasPrefix(rc.host, "rediss://")
 }
 
+//IsCluster returns true if RedisConfiguration contains comma-separated list of host:port
+func (rc *RedisConfiguration) IsCluster() bool {
+	return strings.Contains(rc.host, ",")
+}
+
+func (rc *RedisConfiguration) Nodes() []string {
+	if rc.IsCluster() {
+		str := strings.Split(rc.host, ",")
+		nodes := make([]string, 0, len(str))
+		for _, n := range str {
+			if !strings.Contains(n, ":") {
+				n += ":6379"
+			}
+			nodes = append(nodes, n)
+		}
+		return nodes
+	}
+	return []string{rc.String()}
+}
+
 //String returns host:port or host if host is an URL
 func (rc *RedisConfiguration) String() string {
 	if rc.IsURL() || rc.IsSecuredURL() {
 		return rc.host
 	}
-
+	if rc.IsCluster() {
+		return fmt.Sprint(rc.Nodes())
+	}
 	return fmt.Sprintf("%s:%d", rc.host, rc.port)
 }
 
+type RedisPool interface {
+	Get() redis.Conn
+	Close() error
+}
+
 type Redis struct {
-	pool                      *redis.Pool
+	pool                      RedisPool
 	anonymousEventsSecondsTTL int
 }
 
@@ -144,7 +172,10 @@ func NewRedis(config *RedisConfiguration, anonymousEventsMinutesTTL int) (*Redis
 
 //NewRedisPool returns configured Redis connection pool and err if ping failed
 //host might be URLS : [redis:// or rediss://] or plain host
-func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
+func NewRedisPool(config *RedisConfiguration) (RedisPool, error) {
+	if config.IsCluster() {
+		return NewRedisCluster(config), nil
+	}
 	var dialFunc func() (redis.Conn, error)
 	if config.IsSecuredURL() {
 		//redis secured URL
@@ -203,6 +234,32 @@ func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
 	}
 
 	return pool, nil
+}
+
+func NewRedisCluster(config *RedisConfiguration) RedisPool {
+	var createPool = func(addr string, opts ...redis.DialOption) (*redis.Pool, error) {
+		return &redis.Pool{
+			MaxIdle:     100,
+			MaxActive:   600,
+			IdleTimeout: 240 * time.Second,
+			Wait: false,
+			Dial: func() (redis.Conn, error) {
+				return redis.Dial("tcp", addr, opts...)
+			},
+			TestOnBorrow: func(c redis.Conn, t time.Time) error {
+				_, err := c.Do("PING")
+				return err
+			},
+		}, nil
+	}
+	cluster := redisc.Cluster{
+		StartupNodes: config.Nodes(),
+		DialOptions:  []redis.DialOption{defaultDialConnectTimeout,
+			defaultDialReadTimeout,
+			redis.DialPassword(config.password)},
+		CreatePool:   createPool,
+	}
+	return &cluster
 }
 
 //GetSignature returns sync interval signature from Redis
