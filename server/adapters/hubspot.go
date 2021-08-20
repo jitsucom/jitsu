@@ -223,7 +223,6 @@ type HubSpot struct {
 	AbstractHTTP
 
 	config  *HubSpotConfig
-	factory *HubSpotRequestFactory
 }
 
 //NewHubSpot returns configured HubSpot adapter instance
@@ -240,7 +239,7 @@ func NewHubSpot(config *HubSpotConfig, httpAdapterConfiguration *HTTPAdapterConf
 		return nil, err
 	}
 
-	h := &HubSpot{config: config, factory: httpReqFactory}
+	h := &HubSpot{config: config}
 	h.httpAdapter = httpAdapter
 	return h, nil
 }
@@ -254,12 +253,6 @@ func NewTestHubSpot(config *HubSpotConfig) *HubSpot {
 func (h *HubSpot) TestAccess() error {
 	_, err := loadContactProperties(h.config.APIKey)
 	return err
-}
-
-//Close closes request factory and HTTP adapter
-func (h *HubSpot) Close() error {
-	h.factory.Close()
-	return h.httpAdapter.Close()
 }
 
 //Type returns adapter type

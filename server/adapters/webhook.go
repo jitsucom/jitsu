@@ -66,8 +66,3 @@ func NewWebHook(config *WebHookConfig, httpAdapterConfiguration *HTTPAdapterConf
 func (wh *WebHook) Type() string {
 	return "WebHook"
 }
-
-func (wh *WebHook) Close() error {
-	wh.httpAdapter.httpReqFactory.Close()
-	return wh.AbstractHTTP.Close()
-}
