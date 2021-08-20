@@ -81,6 +81,9 @@ func (garf *GoogleAnalyticsRequestFactory) Create(object map[string]interface{})
 	}, nil
 }
 
+func (garf *GoogleAnalyticsRequestFactory) Close()  {
+}
+
 //GoogleAnalytics is an adapter for sending events into GoogleAnalytics
 type GoogleAnalytics struct {
 	AbstractHTTP
