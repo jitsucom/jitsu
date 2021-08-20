@@ -223,7 +223,6 @@ type HubSpot struct {
 	AbstractHTTP
 
 	config  *HubSpotConfig
-	factory *HubSpotRequestFactory
 }
 
 //NewHubSpot returns configured HubSpot adapter instance
@@ -240,7 +239,7 @@ func NewHubSpot(config *HubSpotConfig, httpAdapterConfiguration *HTTPAdapterConf
 		return nil, err
 	}
 
-	h := &HubSpot{config: config, factory: httpReqFactory}
+	h := &HubSpot{config: config}
 	h.httpAdapter = httpAdapter
 	return h, nil
 }
