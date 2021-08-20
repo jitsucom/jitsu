@@ -7,9 +7,9 @@ In batch mode Jitsu writes incoming events in formatted file on the AWS S3 or Go
 <Hint>
     Please carefully read Snowflake docs regarding <a href="https://docs.snowflake.com/en/user-guide/admin-usage-billing.html">System Usage & Billing</a>,
     especially the <a href="https://docs.snowflake.com/en/user-guide/credits.html#virtual-warehouse-credit-usage">Virtual Warehouse Credit Usage</a> part.
-    <br><br/>Remember that using Snowflake destination in <code inline="true">stream</code> mode is highly likely to be charged as full-time warehouse usage.
-    <br><br/>For <code inline="true">batch</code> mode, we recommend enabling <a href="https://docs.snowflake.com/en/user-guide/warehouses-considerations.html#automating-warehouse-suspension">Automating Warehouse Suspension</a>
-    using <a href="https://docs.snowflake.com/en/sql-reference/sql/alter-warehouse.html">ALTER WAREHOUSE</a> query. E.g.:<br><br/>
+    <br></br>Remember that using Snowflake destination in <code inline="true">stream</code> mode is highly likely to be charged as full-time warehouse usage.
+    <br></br>For <code inline="true">batch</code> mode, we recommend enabling <a href="https://docs.snowflake.com/en/user-guide/warehouses-considerations.html#automating-warehouse-suspension">Automating Warehouse Suspension</a>
+    using <a href="https://docs.snowflake.com/en/sql-reference/sql/alter-warehouse.html">ALTER WAREHOUSE</a> query. E.g.:<br></br>
     <code inline="false">ALTER WAREHOUSE WAREHOUSE_NAME set AUTO_SUSPEND = 1</code>
 </Hint>
 
