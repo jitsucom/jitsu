@@ -179,6 +179,7 @@ func (a *Abstract) close() (multiErr error) {
 	if err := a.archiveLogger.Close(); err != nil {
 		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing archive logger: %v", a.ID(), err))
 	}
+	a.processor.Close()
 
 	return nil
 }
