@@ -8,6 +8,7 @@ import (
 //HTTPRequestFactory is a factory for creating http.Request from input event object
 type HTTPRequestFactory interface {
 	Create(object map[string]interface{}) (*Request, error)
+	Close()
 }
 
 //WebhookRequestFactory is a factory for building webhook (templating) HTTP requests from input events
