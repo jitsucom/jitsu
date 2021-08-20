@@ -6,10 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/airbyte"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"net/http"
-	"strings"
 )
-
-const airbytePrefix = "airbyte"
 
 type SpecResponse struct {
 	middleware.StatusResponse
@@ -23,14 +20,12 @@ func NewAirbyteHandler() *AirbyteHandler {
 	return &AirbyteHandler{}
 }
 
+//SpecHandler returns airbyte spec by docker name
 func (ah *AirbyteHandler) SpecHandler(c *gin.Context) {
 	dockerImage := c.Param("dockerImageName")
 	if dockerImage == "" {
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse("docker image name is required path parameter", nil))
 		return
-	}
-	if !strings.HasPrefix(dockerImage, airbytePrefix) {
-		dockerImage = airbytePrefix + "/" + dockerImage
 	}
 
 	spec, err := airbyte.Instance.GetOrLoadSpec(dockerImage)

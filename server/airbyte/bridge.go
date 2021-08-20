@@ -5,17 +5,26 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/safego"
 	"io"
-	"os/exec"
 	"strings"
 	"sync"
 )
 
-var Instance *Bridge
+const (
+	BridgeType                  = "airbyte_bridge"
+	DockerImageRepositoryPrefix = "airbyte/"
+)
+
+var (
+	Instance *Bridge
+)
 
 type Bridge struct {
-	LogWriter io.Writer
+	LogWriter       io.Writer
+	ConfigDir       string
+	WorkspaceVolume string
 
 	mutex                 *sync.RWMutex
 	specByDockerImage     map[string]interface{}
@@ -23,9 +32,12 @@ type Bridge struct {
 	errorByDockerImage    map[string]error
 }
 
-func Init(logWriter io.Writer) {
+//Init initializes airbyte Bridge
+func Init(configDir, workspaceVolume string, logWriter io.Writer) {
 	Instance = &Bridge{
 		LogWriter:             logWriter,
+		ConfigDir:             configDir,
+		WorkspaceVolume:       workspaceVolume,
 		mutex:                 &sync.RWMutex{},
 		specByDockerImage:     map[string]interface{}{},
 		specLoadingInProgress: &sync.Map{},
@@ -46,7 +58,9 @@ func (b *Bridge) GetOrLoadSpec(dockerImage string) (interface{}, error) {
 	}
 
 	if _, exists := b.specLoadingInProgress.LoadOrStore(dockerImage, true); !exists {
-		go b.loadSpec(dockerImage)
+		safego.Run(func() {
+			b.loadSpec(dockerImage)
+		})
 	}
 
 	b.mutex.RLock()
@@ -63,19 +77,23 @@ func (b *Bridge) GetOrLoadSpec(dockerImage string) (interface{}, error) {
 func (b *Bridge) loadSpec(dockerImage string) {
 	defer b.specLoadingInProgress.Delete(dockerImage)
 
+	pullImgOutWriter := logging.NewStringWriter()
+	pullImgErrWriter := logging.NewStringWriter()
+	//pull last image
+	if err := runner.ExecCmd(BridgeType, "docker", pullImgOutWriter, pullImgErrWriter, "pull", b.ReformatImageName(dockerImage)); err != nil {
+		errMsg := b.BuildMsg("Error pulling airbyte image:", pullImgOutWriter, pullImgErrWriter, err)
+		logging.Error(errMsg)
+
+		b.mutex.Lock()
+		b.errorByDockerImage[dockerImage] = errors.New(errMsg)
+		b.mutex.Unlock()
+		return
+	}
+
 	outWriter := logging.NewStringWriter()
 	errWriter := logging.NewStringWriter()
-	if err := b.ExecCmd("docker", outWriter, errWriter, "run", "--rm", "-i", dockerImage, "spec"); err != nil {
-		msg := "Error loading airbyte spec:"
-		outStr := outWriter.String()
-		errStr := errWriter.String()
-		if outStr != "" {
-			msg += "\n\t" + outStr
-		}
-		if errStr != "" {
-			msg += "\n\t" + errStr
-		}
-		errMsg := fmt.Sprintf("%s\n\t%v", msg, err)
+	if err := runner.ExecCmd(BridgeType, "docker", outWriter, errWriter, "run", "--rm", "-i", b.ReformatImageName(dockerImage), "spec"); err != nil {
+		errMsg := b.BuildMsg("Error loading airbyte spec:", outWriter, errWriter, err)
 		logging.Error(errMsg)
 
 		b.mutex.Lock()
@@ -105,38 +123,31 @@ func (b *Bridge) loadSpec(dockerImage string) {
 	return
 }
 
-//ExecCmd executes command with args and uses stdOutWriter and stdErrWriter to pipe the result
-func (b *Bridge) ExecCmd(cmd string, stdOutWriter, stdErrWriter io.Writer, args ...string) error {
-	execCmd := exec.Command(cmd, args...)
+//BuildMsg returns formatted error
+func (b *Bridge) BuildMsg(prefix string, outWriter, errWriter *logging.StringWriter, err error) string {
+	msg := prefix
+	outStr := outWriter.String()
+	errStr := errWriter.String()
+	if outStr != "" {
+		if msg != "" {
+			msg += "\n\t"
+		}
+		msg += outStr
+	}
+	if errStr != "" {
+		if msg != "" {
+			msg += "\n\t"
+		}
+		msg += errStr
+	}
+	return fmt.Sprintf("%s\n\t%v", msg, err)
+}
 
-	stdout, _ := execCmd.StdoutPipe()
-	stderr, _ := execCmd.StderrPipe()
-
-	err := execCmd.Start()
-	if err != nil {
-		return err
+//ReformatImageName adds airbyte/ prefix to dockerImage if doesn't exist
+func (b *Bridge) ReformatImageName(dockerImage string) string {
+	if !strings.HasPrefix(dockerImage, DockerImageRepositoryPrefix) {
+		return DockerImageRepositoryPrefix + dockerImage
 	}
 
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	safego.Run(func() {
-		defer wg.Done()
-		io.Copy(stdOutWriter, stdout)
-	})
-
-	wg.Add(1)
-	safego.Run(func() {
-		defer wg.Done()
-		io.Copy(stdErrWriter, stderr)
-	})
-
-	wg.Wait()
-
-	err = execCmd.Wait()
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return dockerImage
 }

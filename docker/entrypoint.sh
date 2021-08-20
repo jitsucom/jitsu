@@ -48,11 +48,13 @@ fi
 # Jitsu Server admin token
 if [[ -z "$SERVER_ADMIN_TOKEN" ]]; then
   export SERVER_ADMIN_TOKEN=$(random)
+  echo "Generated Jitsu server admin token: $SERVER_ADMIN_TOKEN"
 fi
 
 # Jitsu Configurator admin token
 if [[ -z "$CONFIGURATOR_ADMIN_TOKEN" ]]; then
   export CONFIGURATOR_ADMIN_TOKEN=$(random)
+  echo "Generated Jitsu configurator admin token: $CONFIGURATOR_ADMIN_TOKEN"
 fi
 
 # Jitsu UI authorization access secret

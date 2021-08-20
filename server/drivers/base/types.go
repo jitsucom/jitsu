@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/schema"
 	"io"
 	"io/ioutil"
 	"strings"
@@ -18,7 +20,8 @@ const (
 	GooglePlayType      = "google_play"
 	RedisType           = "redis"
 
-	SingerType = "singer"
+	SingerType  = "singer"
+	AirbyteType = "airbyte"
 
 	GoogleOAuthAuthorizationType = "OAuth"
 
@@ -26,8 +29,9 @@ const (
 )
 
 var (
-	DriverConstructors         = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
-	DriverTestConnectionFuncs  = make(map[string]func(config *SourceConfig) error)
+	DriverConstructors        = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+	DriverTestConnectionFuncs = make(map[string]func(config *SourceConfig) error)
+
 	errAccountKeyConfiguration = errors.New("service_account_key must be an object, JSON file path or JSON content string")
 )
 
@@ -121,6 +125,43 @@ type Driver interface {
 	GetCollectionMetaKey() string
 }
 
+//CLIDriver interface must be implemented by every CLI source type (Singer or Airbyte)
+type CLIDriver interface {
+	Driver
+
+	//Load runs CLI command and consumes output
+	Load(state string, taskLogger logging.TaskLogger, dataConsumer CLIDataConsumer) error
+	//Ready returns true if the driver is ready otherwise returns ErrNotReady
+	Ready() (bool, error)
+	//GetTap returns Singer tap or airbyte docker image (without prefix 'airbyte/': source-mixpanel)
+	GetTap() string
+	//GetTableNamePrefix returns stream table name prefix or sourceID_
+	GetTableNamePrefix() string
+	//GetStreamTableNameMapping returns stream - table name mappings from configuration
+	GetStreamTableNameMapping() map[string]string
+}
+
+//CLIDataConsumer is used for consuming CLI drivers output
+type CLIDataConsumer interface {
+	Consume(representation *CLIOutputRepresentation) error
+}
+
+//CLIOutputRepresentation is a singer/airbyte output representation
+type CLIOutputRepresentation struct {
+	State interface{}
+	//[streamName] - {}
+	Streams map[string]*StreamRepresentation
+}
+
+//StreamRepresentation is a singer/airbyte stream representation
+type StreamRepresentation struct {
+	StreamName  string
+	BatchHeader *schema.BatchHeader
+	KeyFields   []string
+	Objects     []map[string]interface{}
+	NeedClean   bool
+}
+
 //RegisterDriver registers function to create new driver instance
 func RegisterDriver(driverType string,
 	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) {
@@ -130,6 +171,11 @@ func RegisterDriver(driverType string,
 //RegisterTestConnectionFunc registers function to test driver connection
 func RegisterTestConnectionFunc(driverType string, testConnectionFunc func(config *SourceConfig) error) {
 	DriverTestConnectionFuncs[driverType] = testConnectionFunc
+}
+
+//IsCLISource returns true if a source is CLI - singer or airbyte
+func IsCLISource(sourceType string) bool {
+	return sourceType == SingerType || sourceType == AirbyteType
 }
 
 //UnmarshalConfig serializes and deserializes config into the object
