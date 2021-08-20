@@ -68,6 +68,6 @@ func (wh *WebHook) Type() string {
 }
 
 func (wh *WebHook) Close() error {
-	wh.httpAdapter.httpReqFactory.(*WebhookRequestFactory).Close()
+	wh.httpAdapter.httpReqFactory.Close()
 	return wh.AbstractHTTP.Close()
 }
