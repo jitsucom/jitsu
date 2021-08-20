@@ -198,7 +198,8 @@ export const makeAirbyteSource = (
         documentation: <>Id of Connector Source</>,
         constant: airbyteSource.docker_image_name
       }
-    ]
+    ],
+    hasLoadableParameters: true
   };
 };
 

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Poll } from 'utils/polling';
+import { Poll, PollingSetupCallback } from 'utils/polling';
 import useLoader, { Loader } from './useLoader';
 
 type UsePollingOptions = {
@@ -8,9 +8,20 @@ type UsePollingOptions = {
    */
   interval_ms?: number;
   /**
-   * Polling timeout after which the poll will cancel itself. Is 5 minutes by default.
+   * Polling timeout after which the poll will cancel itself.
+   * Is 5 minutes by default.
    */
   timeout_ms?: number;
+  /**
+   * A callback that accepts the response and returns a boolean
+   * that indicates whether to stop polling and return the result
+   */
+  resolvePollingIf?: (response: unknown) => boolean;
+  /**
+   * A callback that accepts the response and returns a boolean
+   * that indicates whether to cancel polling by throwing an error
+   */
+  rejectPollingIf?: (response: unknown) => boolean;
 };
 
 type UsePollingReturnType<T> = {
@@ -19,7 +30,8 @@ type UsePollingReturnType<T> = {
    */
   error: Error | null;
   /**
-   * Contains the data if polling succeeded, otherwise is `null` (including the case when the pollin was stopped manually).
+   * Contains the data if polling succeeded, otherwise is `null`
+   * (including the case when the pollin was stopped manually).
    */
   data: T | null;
   /**
@@ -27,7 +39,8 @@ type UsePollingReturnType<T> = {
    */
   isLoading: boolean;
   /**
-   * Callback for cancelling the poll manually. Helpful for a clean up when component unmounts.
+   * Callback for cancelling the poll manually. Helpful for a clean
+   * up when component unmounts.
    */
   cancel: () => void;
 };
@@ -38,50 +51,42 @@ const defaultOptions: UsePollingOptions = {
 };
 
 /**
- * React hook for polling the data until the polling condition is satisfied or until it is timed out.
+ * React hook for polling the data until the polling condition is
+ * satisfied or until it is timed out.
  */
 export const usePolling = <T>(
+  // /**
+  //  * Loader function which returns the data promise. This function
+  //  * will be polled.
+  //  */
+  // loader: Loader<T>,
+  // /**
+  //  * Function that receives the polling response data and returns
+  //  * `boolean` indicating whether to stop polling and resove with
+  //  * the latest polling result.
+  //  */
+  // condition: (data: T) => boolean,
+
   /**
-   * Loader function which returns the data promise. This function will be polled.
+   *
    */
-  loader: Loader<T>,
-  /**
-   * Function that receives the polling response data and returns `boolean` indicating whether or not to stop polling.
-   */
-  condition: (data: T) => boolean,
+  callback: PollingSetupCallback<T>,
+
   /**
    * Polling options such as interval and timeout
    */
   options: UsePollingOptions = {}
 ): UsePollingReturnType<T> => {
-  const a = async () => {
-    debugger;
-    return null;
-  };
   const { interval_ms, timeout_ms } = { ...defaultOptions, ...(options || {}) };
   const [_loader, setLoader] = useState<Loader<T | null>>(null);
   const [cancel, setCancel] = useState<() => void>(() => {});
-  const [error, data, , , isLoading] = useLoader<T | null>(_loader || a, [
-    _loader
-  ]);
+  const [error, data, , , isLoading] = useLoader<T | null>(
+    _loader || (async () => null),
+    [_loader]
+  );
 
   useEffect(() => {
-    const poll = new Poll<T>(
-      (end, fail) => async () => {
-        debugger;
-        let response: T;
-        try {
-          response = await loader();
-        } catch (error) {
-          fail(error);
-        }
-        if (condition(response)) {
-          end(response);
-        }
-      },
-      interval_ms,
-      timeout_ms
-    );
+    const poll = new Poll<T>(callback, interval_ms, timeout_ms);
     poll.start();
     setLoader(() => poll.wait);
     setCancel(() => poll.cancel);

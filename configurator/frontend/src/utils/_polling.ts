@@ -1,33 +1,27 @@
 import { assert } from './typeCheck';
 
-export interface IPoll<T> {
+export interface IPoll {
   start(): void;
-  wait(): Promise<T>;
+  wait(): Promise<void>;
   cancel(): void;
 }
 
-type EndPollingFunction<T> = (result: T) => void;
-type FailPollingFunction = (error?: Error) => void;
-
-export type PollingSetupCallback<T> = (
-  end: EndPollingFunction<T>,
-  fail: FailPollingFunction
-) => VoidFunction | AsyncVoidFunction;
+export type PollingSetupCallback = () => boolean;
 
 /**
  * Class representing a polling instance that will run the passed callback periodically.
  */
-export class Poll<T = unknown> implements IPoll<T> {
+export class Poll implements IPoll {
   private interval_ms: number = 1000;
-  private timeout_ms: number = 5 * 60 * 1000; // 5 min by default
-  private callback: null | VoidFunction | AsyncVoidFunction = null;
+  private timeout_ms: number = 5 * 60 * 1000; // 5 minutes by default
   private interval: null | ReturnType<typeof setTimeout> = null;
+  private callback: null | PollingSetupCallback = null;
   private timeout: null | ReturnType<typeof setTimeout> = null;
-  private resultPromise: null | Promise<T> = null;
-  private resultPromiseResolve: null | ((value: T | PromiseLike<T>) => void) =
-    null;
+  private resultPromise: null | Promise<void> = null;
+  private resultPromiseResolve:
+    | null
+    | ((value: null | PromiseLike<null>) => void) = null;
   private resultPromiseReject: null | ((reason: any) => void) = null;
-  private result: undefined | T;
 
   /**
    * Creates a polling instane.
@@ -36,19 +30,19 @@ export class Poll<T = unknown> implements IPoll<T> {
    * @param timeout_ms polling timeout after which the poll will resolve with `null`
    */
   constructor(
-    callback: PollingSetupCallback<T>,
+    callback: PollingSetupCallback,
     interval_ms?: number,
     timeout_ms?: number
   ) {
+    if (interval_ms) this.interval_ms = interval_ms;
+    if (timeout_ms) this.timeout_ms = timeout_ms;
+    this.callback = callback;
+
     this.endPolling = this.endPolling.bind(this);
     this.failPolling = this.failPolling.bind(this);
     this.start = this.start.bind(this);
     this.wait = this.wait.bind(this);
     this.cancel = this.cancel.bind(this);
-
-    if (interval_ms) this.interval_ms = interval_ms;
-    if (timeout_ms) this.timeout_ms = timeout_ms;
-    this.callback = callback(this.endPolling, this.failPolling);
   }
 
   private cleanup() {
@@ -62,11 +56,10 @@ export class Poll<T = unknown> implements IPoll<T> {
     }
   }
 
-  private endPolling(result: T | null = null): void {
-    this.result = result;
+  private endPolling(): void {
     this.cleanup();
     if (this.resultPromiseResolve) {
-      this.resultPromiseResolve(result);
+      this.resultPromiseResolve(null);
       this.resultPromiseResolve = null;
     }
   }
@@ -77,7 +70,7 @@ export class Poll<T = unknown> implements IPoll<T> {
       this.resultPromiseReject(
         error ||
           new Error(
-            'Polling silently faile. Please, see the stack trace for detailes.'
+            'Polling failed silently. Please, see the stack trace for detailes.'
           )
       );
       this.resultPromiseReject = null;
@@ -90,26 +83,33 @@ export class Poll<T = unknown> implements IPoll<T> {
   public start(): void {
     if (this.interval) return;
     // set up the variable for resolving the polling promise
-    this.resultPromise = new Promise<T>((resolve, reject) => {
+    this.resultPromise = new Promise<void>((resolve, reject) => {
       this.resultPromiseResolve = resolve;
       this.resultPromiseReject = reject;
     });
     // set up the polling
-    this.interval = setInterval(this.callback, this.interval_ms);
-    this.timeout = setTimeout(this.endPolling, this.timeout_ms + 20); // safety margin for all calls to complete
+    this.interval = setInterval(async () => {
+      try {
+        const needToStopPolling: boolean = await this.callback();
+        if (needToStopPolling) this.endPolling();
+      } catch (error) {
+        this.failPolling(error);
+      }
+    }, this.interval_ms);
+    this.timeout = setTimeout(this.endPolling, this.timeout_ms + 20); // safety margin for calls to complete
   }
 
   /**
-   * @returns The promise that will resolve to a result once the
-   * polling is stopped; The result will be `null` if the polling
-   * is force stopped with `.cancel()` or if the poll timed out.
+   * @returns The promise that will resolve once the polling is
+   * stopped; The result will be `null` if the polling is force
+   * stopped with `.cancel()` or if the poll timed out.
    */
-  public async wait(): Promise<T> {
+  public async wait(): Promise<void> {
     assert(
-      !!this.resultPromise || typeof this.result !== 'undefined',
+      !!this.resultPromise,
       '`wait` function can not be called before calling the `start` function.'
     );
-    return this.resultPromise || this.result;
+    return this.resultPromise;
   }
 
   /**
