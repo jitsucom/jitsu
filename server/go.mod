@@ -15,7 +15,7 @@ require (
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-redsync/redsync/v4 v4.3.0
 	github.com/go-sql-driver/mysql v1.6.0
-	github.com/gomodule/redigo v1.8.2
+	github.com/gomodule/redigo v1.8.4
 	github.com/google/go-cmp v0.5.5
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/martian v2.1.0+incompatible
@@ -29,6 +29,7 @@ require (
 	github.com/mailru/easyjson v0.7.7
 	github.com/mailru/go-clickhouse v1.3.0
 	github.com/mitchellh/hashstructure/v2 v2.0.1
+	github.com/mna/redisc v1.2.1
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/panjf2000/ants/v2 v2.4.3
