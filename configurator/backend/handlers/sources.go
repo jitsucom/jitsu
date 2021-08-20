@@ -8,13 +8,15 @@ import (
 	"github.com/jitsucom/jitsu/configurator/jitsu"
 	"github.com/jitsucom/jitsu/configurator/middleware"
 	"github.com/jitsucom/jitsu/configurator/storages"
-	endrivers "github.com/jitsucom/jitsu/server/drivers"
-	endriversbase "github.com/jitsucom/jitsu/server/drivers/base"
-	endriverssinger "github.com/jitsucom/jitsu/server/drivers/singer"
+	"github.com/jitsucom/jitsu/server/airbyte"
+	jdrivers "github.com/jitsucom/jitsu/server/drivers"
+	jdriversairbyte "github.com/jitsucom/jitsu/server/drivers/airbyte"
+	jdriversbase "github.com/jitsucom/jitsu/server/drivers/base"
+	jdriverssinger "github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/logging"
-	enmiddleware "github.com/jitsucom/jitsu/server/middleware"
-	ensources "github.com/jitsucom/jitsu/server/sources"
-	enstorages "github.com/jitsucom/jitsu/server/storages"
+	jmiddleware "github.com/jitsucom/jitsu/server/middleware"
+	jsources "github.com/jitsucom/jitsu/server/sources"
+	jstorages "github.com/jitsucom/jitsu/server/storages"
 	"net/http"
 	"time"
 )
@@ -38,22 +40,22 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 	begin := time.Now()
 	sourcesMap, err := sh.configurationsService.GetSources()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse(SourcesGettingErrMsg, err))
+		c.JSON(http.StatusInternalServerError, jmiddleware.ErrResponse(SourcesGettingErrMsg, err))
 		return
 	}
-	idConfig := map[string]endriversbase.SourceConfig{}
+	idConfig := map[string]jdriversbase.SourceConfig{}
 	for projectID, sourcesEntity := range sourcesMap {
 		if len(sourcesEntity.Sources) == 0 {
 			continue
 		}
 		dests, err := sh.configurationsService.GetDestinationsByProjectID(projectID)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, enmiddleware.ErrResponse(SourcesGettingErrMsg, err))
+			c.JSON(http.StatusInternalServerError, jmiddleware.ErrResponse(SourcesGettingErrMsg, err))
 			return
 		}
 		postHandleDestinationIds := make([]string, 0)
 		for _, d := range dests {
-			if d.Type == enstorages.DbtCloudType {
+			if d.Type == jstorages.DbtCloudType {
 				postHandleDestinationIds = append(postHandleDestinationIds, projectID+"."+d.UID)
 			}
 		}
@@ -66,7 +68,7 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 			}
 			mappedSourceConfig, err := mapSourceConfig(source, destinationIDs, postHandleDestinationIds)
 			if err != nil {
-				c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to map source [%s] config", sourceID), err))
+				c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(fmt.Sprintf("Failed to map source [%s] config", sourceID), err))
 				return
 			}
 
@@ -75,27 +77,27 @@ func (sh *SourcesHandler) GetHandler(c *gin.Context) {
 	}
 
 	logging.Debugf("Sources response in [%.2f] seconds", time.Now().Sub(begin).Seconds())
-	c.JSON(http.StatusOK, &ensources.Payload{Sources: idConfig})
+	c.JSON(http.StatusOK, &jsources.Payload{Sources: idConfig})
 }
 
 func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 	sourceEntity := &entities.Source{}
 	err := c.BindJSON(sourceEntity)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to parse request body", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Failed to parse request body", err))
 		return
 	}
 
 	userProjectID := c.GetString(middleware.ProjectIDKey)
 	if userProjectID == "" {
 		logging.SystemError(ErrProjectIDNotFoundInContext)
-		c.JSON(http.StatusUnauthorized, enmiddleware.ErrResponse("Project authorization error", ErrProjectIDNotFoundInContext))
+		c.JSON(http.StatusUnauthorized, jmiddleware.ErrResponse("Project authorization error", ErrProjectIDNotFoundInContext))
 		return
 	}
 
 	enSourceConfig, err := mapSourceConfig(sourceEntity, []string{}, []string{})
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse(fmt.Sprintf("Failed to map source [%s.%s] config", userProjectID, sourceEntity.SourceID), err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse(fmt.Sprintf("Failed to map source [%s.%s] config", userProjectID, sourceEntity.SourceID), err))
 		return
 	}
 
@@ -104,13 +106,13 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 
 	b, err := json.Marshal(enSourceConfig)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to serialize source config", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Failed to serialize source config", err))
 		return
 	}
 
 	code, content, err := sh.enService.TestSource(b)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to get response from eventnative", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Failed to get response from eventnative", err))
 		return
 	}
 
@@ -124,14 +126,14 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 
 	_, err = c.Writer.Write(content)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, enmiddleware.ErrResponse("Failed to write response", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Failed to write response", err))
 	}
 }
 
 //mapSourceConfig mapped configurator source into server format
 //puts table names if not set
-func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, postHandleDestinations []string) (endriversbase.SourceConfig, error) {
-	enSource := endriversbase.SourceConfig{
+func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, postHandleDestinations []string) (jdriversbase.SourceConfig, error) {
+	enSource := jdriversbase.SourceConfig{
 		SourceID:               source.SourceID,
 		Type:                   source.SourceType,
 		Destinations:           sourceDestinationIDs,
@@ -141,15 +143,19 @@ func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, pos
 		Schedule:               source.Schedule,
 	}
 
-	if source.SourceType == endriversbase.SingerType {
+	if source.SourceType == jdriversbase.SingerType {
 		if err := enrichWithSingerTableNamesMapping(&enSource); err != nil {
-			return endriversbase.SourceConfig{}, err
+			return jdriversbase.SourceConfig{}, err
+		}
+	} else if source.SourceType == jdriversbase.AirbyteType {
+		if err := enrichWithAirbyteTableNamesMapping(&enSource); err != nil {
+			return jdriversbase.SourceConfig{}, err
 		}
 	} else {
 		//process collections if not Singer
-		collections, err := endrivers.ParseCollections(&enSource)
+		collections, err := jdrivers.ParseCollections(&enSource)
 		if err != nil {
-			return endriversbase.SourceConfig{}, err
+			return jdriversbase.SourceConfig{}, err
 		}
 
 		//enrich with table names = source (without project + collection name)
@@ -172,9 +178,9 @@ func mapSourceConfig(source *entities.Source, sourceDestinationIDs []string, pos
 //enrichWithSingerTableNamesMapping enriches with table names = source (without project + singer stream)
 // - gets stream names from JSON
 // - puts it with sourceID prefix into mapping map
-func enrichWithSingerTableNamesMapping(enSource *endriversbase.SourceConfig) error {
-	config := &endriverssinger.SingerConfig{}
-	if err := endriversbase.UnmarshalConfig(enSource.Config, config); err != nil {
+func enrichWithSingerTableNamesMapping(enSource *jdriversbase.SourceConfig) error {
+	config := &jdriverssinger.Config{}
+	if err := jdriversbase.UnmarshalConfig(enSource.Config, config); err != nil {
 		return err
 	}
 
@@ -188,7 +194,7 @@ func enrichWithSingerTableNamesMapping(enSource *endriversbase.SourceConfig) err
 			catalogBytes, _ = json.Marshal(config.Catalog)
 		}
 
-		catalog := &endriverssinger.SingerCatalog{}
+		catalog := &jdriverssinger.Catalog{}
 		if err := json.Unmarshal(catalogBytes, catalog); err != nil {
 			return err
 		}
@@ -204,7 +210,49 @@ func enrichWithSingerTableNamesMapping(enSource *endriversbase.SourceConfig) err
 	}
 
 	serializedConfig := map[string]interface{}{}
-	if err := endriversbase.UnmarshalConfig(config, &serializedConfig); err != nil {
+	if err := jdriversbase.UnmarshalConfig(config, &serializedConfig); err != nil {
+		return err
+	}
+
+	enSource.Config = serializedConfig
+	return nil
+}
+
+//enrichWithAirbyteTableNamesMapping enriches with table names = source (without project + airbyte stream)
+// - gets stream names from JSON
+// - puts it with sourceID prefix into mapping map
+func enrichWithAirbyteTableNamesMapping(enSource *jdriversbase.SourceConfig) error {
+	config := &jdriversairbyte.Config{}
+	if err := jdriversbase.UnmarshalConfig(enSource.Config, config); err != nil {
+		return err
+	}
+
+	//enrich with table name mapping or table name prefix
+	if config.Catalog != nil {
+		var catalogBytes []byte
+		switch config.Catalog.(type) {
+		case string:
+			catalogBytes = []byte(config.Catalog.(string))
+		default:
+			catalogBytes, _ = json.Marshal(config.Catalog)
+		}
+
+		catalog := &airbyte.Catalog{}
+		if err := json.Unmarshal(catalogBytes, catalog); err != nil {
+			return err
+		}
+
+		streamNameTableNameMapping := map[string]string{}
+		for _, stream := range catalog.Streams {
+			streamNameTableNameMapping[stream.Stream.Name] = enSource.SourceID + "_" + stream.Stream.Name
+		}
+		config.StreamTableNames = streamNameTableNameMapping
+	} else {
+		config.StreamTableNamesPrefix = enSource.SourceID + "_"
+	}
+
+	serializedConfig := map[string]interface{}{}
+	if err := jdriversbase.UnmarshalConfig(config, &serializedConfig); err != nil {
 		return err
 	}
 

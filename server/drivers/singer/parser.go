@@ -5,13 +5,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
-	"github.com/jitsucom/jitsu/server/typing"
 	"io"
 )
 
-const batchSize = 500
+const (
+	batchSize = 500
+
+	SINGER_REPLICATION_INCREMENTAL = "INCREMENTAL"
+	SINGER_REPLICATION_FULL_TABLE  = "FULL_TABLE"
+)
+
+//StreamOutputParser is an Singer output parser
+type streamOutputParser struct {
+	dataConsumer      base.CLIDataConsumer
+	logger            logging.TaskLogger
+	streamReplication map[string]string
+}
 
 type SchemaRecord struct {
 	Type          string   `json:"type,omitempty"`
@@ -21,40 +33,17 @@ type SchemaRecord struct {
 }
 
 type Schema struct {
-	Properties map[string]*Property `json:"properties,omitempty"`
+	Properties map[string]*base.Property `json:"properties,omitempty"`
 }
 
-type Property struct {
-	//might be string or []string or nil
-	Type       interface{}          `json:"type,omitempty"`
-	Format     string               `json:"format,omitempty"`
-	Properties map[string]*Property `json:"properties,omitempty"`
-}
+//Parse reads from stdout and:
+//  parses singer output
+//  passes data as batches to dataConsumer
+func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
+	sop.logger.INFO("Singer sync will store data as batches >= [%d] elements size", batchSize)
 
-type OutputRepresentation struct {
-	State interface{}
-	//[streamName] - {}
-	Streams map[string]*StreamRepresentation
-}
-
-type StreamRepresentation struct {
-	StreamName  string
-	BatchHeader *schema.BatchHeader
-	KeyFields   []string
-	Objects     []map[string]interface{}
-	NeedClean   bool
-}
-
-const (
-	SINGER_REPLICATION_INCREMENTAL = "INCREMENTAL"
-	SINGER_REPLICATION_FULL_TABLE  = "FULL_TABLE"
-)
-
-func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger logging.TaskLogger, streamReplication map[string]string) error {
-	logger.INFO("Singer sync will store data as batches >= [%d] elements size", batchSize)
-
-	outputPortion := &OutputRepresentation{
-		Streams: map[string]*StreamRepresentation{},
+	outputPortion := &base.CLIOutputRepresentation{
+		Streams: map[string]*base.StreamRepresentation{},
 	}
 
 	scanner := bufio.NewScanner(stdout)
@@ -85,7 +74,7 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 			}
 
 			if cleaned, exists := streamCleaned[streamRepresentation.StreamName]; !exists || !cleaned {
-				if isFullTableReplication(streamRepresentation.StreamName, streamReplication) {
+				if isFullTableReplication(streamRepresentation.StreamName, sop.streamReplication) {
 					streamRepresentation.NeedClean = true
 					streamCleaned[streamRepresentation.StreamName] = false
 				}
@@ -103,7 +92,7 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 			outputPortion.State = state
 			//persist batch and recreate variables
 			if records >= batchSize {
-				err := consumer.Consume(outputPortion)
+				err := sop.dataConsumer.Consume(outputPortion)
 				if err != nil {
 					return err
 				}
@@ -128,13 +117,13 @@ func StreamParseOutput(stdout io.ReadCloser, consumer PortionConsumer, logger lo
 		default:
 			msg := fmt.Sprintf("Unknown Singer output line type: %s [%v]", objectType, lineObject)
 			logging.Warnf(msg)
-			logger.WARN(msg)
+			sop.logger.WARN(msg)
 		}
 	}
 
 	//persist last batch
 	if records > 0 {
-		err := consumer.Consume(outputPortion)
+		err := sop.dataConsumer.Consume(outputPortion)
 		if err != nil {
 			return err
 		}
@@ -174,7 +163,7 @@ func parseRecord(line map[string]interface{}) (string, map[string]interface{}, e
 	return fmt.Sprint(streamName), object, nil
 }
 
-func parseSchema(schemaBytes []byte) (*StreamRepresentation, error) {
+func parseSchema(schemaBytes []byte) (*base.StreamRepresentation, error) {
 	sr := &SchemaRecord{}
 	err := json.Unmarshal(schemaBytes, sr)
 	if err != nil {
@@ -182,62 +171,13 @@ func parseSchema(schemaBytes []byte) (*StreamRepresentation, error) {
 	}
 
 	fields := schema.Fields{}
-	parseProperties("", sr.Schema.Properties, fields)
+	base.ParseProperties(base.SingerType, "", sr.Schema.Properties, fields)
 
 	streamName := schema.Reformat(sr.Stream)
-	return &StreamRepresentation{
+	return &base.StreamRepresentation{
 		StreamName:  streamName,
 		BatchHeader: &schema.BatchHeader{TableName: streamName, Fields: fields},
 		KeyFields:   sr.KeyProperties,
 		NeedClean:   false,
 	}, nil
-}
-
-func parseProperties(prefix string, properties map[string]*Property, resultFields schema.Fields) {
-	for originName, property := range properties {
-		name := schema.Reformat(originName)
-		var types []string
-
-		switch property.Type.(type) {
-		case string:
-			types = append(types, property.Type.(string))
-		case []interface{}:
-			propertyTypesAr := property.Type.([]interface{})
-			for _, typeValue := range propertyTypesAr {
-				types = append(types, fmt.Sprint(typeValue))
-			}
-		default:
-			logging.Warnf("Unknown singer property [%s] type: %T", originName, property.Type)
-		}
-
-		for _, t := range types {
-			var fieldType typing.DataType
-			switch t {
-			case "null":
-				continue
-			case "string":
-				if property.Format == "date-time" {
-					fieldType = typing.TIMESTAMP
-				} else {
-					fieldType = typing.STRING
-				}
-			case "number":
-				fieldType = typing.FLOAT64
-			case "integer":
-				fieldType = typing.INT64
-			case "boolean":
-				fieldType = typing.BOOL
-			case "array":
-				fieldType = typing.STRING
-			case "object":
-				parseProperties(prefix+name+"_", property.Properties, resultFields)
-			default:
-				logging.Errorf("Unknown type in singer schema: %s", t)
-				continue
-			}
-
-			resultFields[prefix+name] = schema.NewField(fieldType)
-			break
-		}
-	}
 }

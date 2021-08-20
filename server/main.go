@@ -143,7 +143,7 @@ func main() {
 		logging.Fatal(err)
 	}
 
-	airbyte.Init(appconfig.Instance.AirbyteLogsWriter)
+	airbyte.Init(viper.GetString("airbyte-bridge.config_dir"), viper.GetString("server.volumes.workspace"), appconfig.Instance.AirbyteLogsWriter)
 
 	enrichment.InitDefault(
 		viper.GetString("server.fields_configuration.src_source_ip"),

@@ -89,6 +89,8 @@ func setDefaultParams(containerized bool) {
 	viper.SetDefault("singer-bridge.log.rotation_min", "1440")
 	viper.SetDefault("airbyte-bridge.log.rotation_min", "1440")
 
+	viper.SetDefault("server.volumes.workspace", "jitsu_workspace")
+
 	//MaxMind URL
 	viper.SetDefault("maxmind.download_url", "https://download.maxmind.com/app/geoip_download?edition_id=GeoIP2-City&license_key=%s&suffix=tar.gz")
 
@@ -181,10 +183,12 @@ func setDefaultParams(containerized bool) {
 		viper.SetDefault("log.path", "/home/eventnative/data/logs/events")
 		viper.SetDefault("server.log.path", "/home/eventnative/data/logs")
 		viper.SetDefault("singer-bridge.venv_dir", "/home/eventnative/data/venv")
+		viper.SetDefault("airbyte-bridge.config_dir", "/home/eventnative/data/airbyte")
 	} else {
 		viper.SetDefault("log.path", "./logs/events")
 		viper.SetDefault("server.log.path", "./logs")
 		viper.SetDefault("singer-bridge.venv_dir", "./venv")
+		viper.SetDefault("airbyte-bridge.config_dir", "./airbyte_config")
 	}
 }
 

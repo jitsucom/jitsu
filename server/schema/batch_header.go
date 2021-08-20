@@ -38,6 +38,25 @@ func (f Fields) Merge(other Fields) {
 	}
 }
 
+//Clone copies fields into a new Fields object
+func (f Fields) Clone() Fields {
+	clone := Fields{}
+
+	for fieldName, fieldPayload := range f {
+		clonedTypeOccurence := map[typing.DataType]bool{}
+		for typeName, occurrence := range fieldPayload.typeOccurrence {
+			clonedTypeOccurence[typeName] = occurrence
+		}
+
+		clone[fieldName] = Field{
+			dataType:       fieldPayload.dataType,
+			typeOccurrence: clonedTypeOccurence,
+		}
+	}
+
+	return clone
+}
+
 //OverrideTypes check if field exists in other then put its type
 func (f Fields) OverrideTypes(other Fields) {
 	for otherName, otherField := range other {

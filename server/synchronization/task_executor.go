@@ -6,7 +6,6 @@ import (
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
-	"github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
@@ -165,16 +164,15 @@ func (te *TaskExecutor) execute(i interface{}) {
 	start := time.Now().UTC()
 
 	var taskErr error
-	if driver.Type() == driversbase.SingerType {
-		singerDriver, _ := driver.(*singer.Singer)
-
-		ready, notReadyError := singerDriver.Ready()
+	cliDriver, ok := driver.(driversbase.CLIDriver)
+	if ok {
+		ready, notReadyError := cliDriver.Ready()
 		if !ready {
 			te.handleError(task, taskLogger, notReadyError.Error(), false)
 			return
 		}
 
-		taskErr = te.syncSinger(task, taskLogger, singerDriver, destinationStorages)
+		taskErr = te.syncCLI(task, taskLogger, cliDriver, destinationStorages)
 	} else {
 		taskErr = te.sync(task, taskLogger, driver, destinationStorages)
 	}
@@ -209,7 +207,7 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLog
 		"started_at":  task.StartedAt,
 	}
 	for _, id := range source.PostHandleDestinationIDs {
-		err :=  te.destinationService.PostHandle(id, event)
+		err := te.destinationService.PostHandle(id, event)
 		if err != nil {
 			logging.Error(err)
 			taskLogger.ERROR(err.Error())
@@ -309,24 +307,24 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 	return nil
 }
 
-//syncSinger sync singer source. Return err if occurred
-func (te *TaskExecutor) syncSinger(task *meta.Task, taskLogger *TaskLogger, singerDriver *singer.Singer, destinationStorages []storages.Storage) error {
-	//get singer state
-	singerState, err := te.metaStorage.GetSignature(task.Source, singerDriver.GetTap(), driversbase.ALL.String())
+//syncCLI syncs singer/airbyte source
+//returns err if occurred
+func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver, destinationStorages []storages.Storage) error {
+	state, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetTap(), driversbase.ALL.String())
 	if err != nil {
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
 
 	}
 
-	if singerState != "" {
-		taskLogger.INFO("Running synchronization with state: %s", singerState)
+	if state != "" {
+		taskLogger.INFO("Running synchronization with state: %s", state)
 	} else {
 		taskLogger.INFO("Running synchronization")
 	}
 
-	rs := NewResultSaver(task, singerDriver.GetTap(), singerDriver.GetCollectionMetaKey(), singerDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, singerDriver.GetStreamTableNameMapping())
+	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping())
 
-	err = singerDriver.Load(singerState, taskLogger, rs)
+	err = cliDriver.Load(state, taskLogger, rs)
 	if err != nil {
 		return fmt.Errorf("Error synchronization: %v", err)
 	}

@@ -9,9 +9,6 @@ import (
 const (
 	DummyType = "Dummy"
 	RedisType = "Redis"
-
-	DayGranularity  = "day"
-	HourGranularity = "hour"
 )
 
 type Storage interface {

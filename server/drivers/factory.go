@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	_ "github.com/jitsucom/jitsu/server/drivers/airbyte"
 	_ "github.com/jitsucom/jitsu/server/drivers/amplitude"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	_ "github.com/jitsucom/jitsu/server/drivers/facebook_marketing"
@@ -28,7 +29,7 @@ const (
 	scheduleField             = "schedule"
 	collectionParametersField = "parameters"
 
-	DefaultSingerCollection = "all"
+	DefaultCollection = "all"
 )
 
 //Create source drivers per collection
@@ -121,8 +122,8 @@ func schedule(cronScheduler *scheduling.CronScheduler, sourceID string, sourceCo
 //ParseCollections return serialized Collection objects slice
 //or return one default collection with 'schedule' if singer type
 func ParseCollections(sourceConfig *base.SourceConfig) ([]*base.Collection, error) {
-	if sourceConfig.Type == base.SingerType {
-		return []*base.Collection{{SourceID: sourceConfig.SourceID, Name: DefaultSingerCollection, Schedule: sourceConfig.Schedule}}, nil
+	if sourceConfig.Type == base.SingerType || sourceConfig.Type == base.AirbyteType {
+		return []*base.Collection{{SourceID: sourceConfig.SourceID, Name: DefaultCollection, Schedule: sourceConfig.Schedule}}, nil
 	}
 
 	var collections []*base.Collection

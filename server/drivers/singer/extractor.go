@@ -8,8 +8,8 @@ import (
 )
 
 type SingerSettingsExtractor struct {
-	Catalog    *SingerCatalog
-	Properties *SingerCatalog
+	Catalog    *Catalog
+	Properties *Catalog
 }
 
 func NewFileBasedSingerSettingsExtractor(catalogPath, propertiesPath string) (*SingerSettingsExtractor, error) {
@@ -48,7 +48,7 @@ func loadPropertiesFromFile(path string, s *SingerSettingsExtractor) error {
 }
 
 func (sse *SingerSettingsExtractor) LoadProperties(jsonBytes []byte) error {
-	properties := &SingerCatalog{}
+	properties := &Catalog{}
 	err := json.Unmarshal(jsonBytes, properties)
 	if err != nil {
 		return err
@@ -58,7 +58,7 @@ func (sse *SingerSettingsExtractor) LoadProperties(jsonBytes []byte) error {
 }
 
 func (sse *SingerSettingsExtractor) LoadCatalog(jsonBytes []byte) error {
-	catalog := &SingerCatalog{}
+	catalog := &Catalog{}
 	err := json.Unmarshal(jsonBytes, catalog)
 	if err != nil {
 		return err
@@ -103,7 +103,7 @@ func (sse *SingerSettingsExtractor) ExtractTableNamesMappings(prefix string) (ma
 }
 
 func (sse *SingerSettingsExtractor) ExtractStreamReplicationMappings() (map[string]string, error) {
-	var streams []SingerStreamCatalog
+	var streams []StreamCatalog
 	if sse.Catalog != nil {
 		streams = sse.Catalog.Streams
 	} else if sse.Properties != nil {
