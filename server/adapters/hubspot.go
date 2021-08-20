@@ -256,12 +256,6 @@ func (h *HubSpot) TestAccess() error {
 	return err
 }
 
-//Close closes request factory and HTTP adapter
-func (h *HubSpot) Close() error {
-	h.factory.Close()
-	return h.httpAdapter.Close()
-}
-
 //Type returns adapter type
 func (h *HubSpot) Type() string {
 	return "HubSpot"
