@@ -281,7 +281,12 @@ export interface SourceConnector {
   /**
    * Configuration parameters
    */
-  configParameters: Parameter[] | 'loadable';
+  configParameters: Parameter[];
+
+  /**
+   * `true` if need to additionally load `configParameters`
+   */
+  hasLoadableParameters?: boolean;
 
   /**
    * If collections are limited to certain names, list them here
