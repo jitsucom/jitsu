@@ -83,7 +83,7 @@ func TestIPLookup(t *testing.T) {
 			"/ip",
 			"/parsed_ip",
 			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "test"}},
-			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "test"}},
+			map[string]interface{}{"ip": "10.10.10.10", "parsed_ip": map[string]interface{}{"city": "test", "country": "US", "latitude": json.Number("79"), "longitude": json.Number("22"), "zip": "14101"}},
 		},
 	}
 	for _, tt := range tests {
