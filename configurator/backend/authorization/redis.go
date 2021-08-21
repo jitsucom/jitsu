@@ -23,13 +23,13 @@ const (
 //RedisProvider provide authorization storage
 type RedisProvider struct {
 	jwtTokenManager *JwtTokenManager
-	pool            *redis.Pool
+	pool            meta.RedisCluster
 }
 
 func NewRedisProvider(accessSecret, refreshSecret string, config *meta.RedisConfiguration) (*RedisProvider, error) {
 	logging.Infof("Initializing redis authorization storage [%s]...", config.String())
 
-	pool, err := meta.NewRedisPool(config)
+	pool, err := meta.NewRedisCluster(config)
 	if err != nil {
 		return nil, err
 	}

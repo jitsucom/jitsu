@@ -13,13 +13,13 @@ import (
 const lastUpdatedPerCollection = "configs#meta#last_updated"
 
 type Redis struct {
-	pool *redis.Pool
+	pool meta.RedisCluster
 }
 
 func NewRedis(config *meta.RedisConfiguration) (*Redis, error) {
 	logging.Infof("Initializing redis configuration storage [%s]...", config.String())
 
-	pool, err := meta.NewRedisPool(config)
+	pool, err := meta.NewRedisCluster(config)
 	if err != nil {
 		return nil, err
 	}

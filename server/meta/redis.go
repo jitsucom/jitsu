@@ -108,13 +108,13 @@ func (rc *RedisConfiguration) String() string {
 	return fmt.Sprintf("%s:%d", rc.host, rc.port)
 }
 
-type RedisPool interface {
+type RedisCluster interface {
 	Get() redis.Conn
 	Close() error
 }
 
 type Redis struct {
-	pool                      RedisPool
+	pool                      RedisCluster
 	anonymousEventsSecondsTTL int
 }
 
@@ -162,7 +162,7 @@ func NewRedis(config *RedisConfiguration, anonymousEventsMinutesTTL int) (*Redis
 		logging.Infof("🏪 Initializing meta storage redis [%s]...", config.String())
 	}
 
-	pool, err := NewRedisPool(config)
+	pool, err := NewRedisCluster(config)
 	if err != nil {
 		return nil, err
 	}
@@ -170,12 +170,7 @@ func NewRedis(config *RedisConfiguration, anonymousEventsMinutesTTL int) (*Redis
 	return &Redis{pool: pool, anonymousEventsSecondsTTL: anonymousEventsMinutesTTL * 60}, nil
 }
 
-//NewRedisPool returns configured Redis connection pool and err if ping failed
-//host might be URLS : [redis:// or rediss://] or plain host
-func NewRedisPool(config *RedisConfiguration) (RedisPool, error) {
-	if config.IsCluster() {
-		return NewRedisCluster(config), nil
-	}
+func newRedisPool(config *RedisConfiguration) *redis.Pool {
 	var dialFunc func() (redis.Conn, error)
 	if config.IsSecuredURL() {
 		//redis secured URL
@@ -211,7 +206,7 @@ func NewRedisPool(config *RedisConfiguration) (RedisPool, error) {
 			return c, err
 		}
 	}
-	pool := &redis.Pool{
+	return &redis.Pool{
 		MaxIdle:     100,
 		MaxActive:   600,
 		IdleTimeout: 240 * time.Second,
@@ -223,6 +218,11 @@ func NewRedisPool(config *RedisConfiguration) (RedisPool, error) {
 			return err
 		},
 	}
+}
+//NewRedisPool returns configured Redis connection pool and err if ping failed
+//host might be URLS : [redis:// or rediss://] or plain host
+func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
+	pool := newRedisPool(config)
 
 	//test connection
 	connection := pool.Get()
@@ -236,7 +236,28 @@ func NewRedisPool(config *RedisConfiguration) (RedisPool, error) {
 	return pool, nil
 }
 
-func NewRedisCluster(config *RedisConfiguration) RedisPool {
+//NewRedisCluster returns configured Redis connection pool and err if ping failed
+//host might be URLS : [redis:// or rediss://] or plain host
+func NewRedisCluster(config *RedisConfiguration) (RedisCluster, error) {
+	var pool RedisCluster
+	if config.IsCluster() {
+		pool = newRedisCluster(config)
+	} else {
+		pool = newRedisPool(config)
+	}
+	//test connection
+	connection := pool.Get()
+	defer connection.Close()
+
+	if _, err := redis.String(connection.Do("PING")); err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("Error testing Redis connection: %v", err)
+	}
+
+	return pool, nil
+}
+
+func newRedisCluster(config *RedisConfiguration) RedisCluster {
 	var createPool = func(addr string, opts ...redis.DialOption) (*redis.Pool, error) {
 		return &redis.Pool{
 			MaxIdle:     100,
