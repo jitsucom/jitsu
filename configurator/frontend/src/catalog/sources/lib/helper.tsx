@@ -227,7 +227,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: `airbyte-${sourceName}-${nodeName}`,
+        id: nodeName,
         type: fieldType,
         required: requiredFields.includes(nodeName),
         documentation: specNode['description']
@@ -242,7 +242,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: `airbyte-${sourceName}-${nodeName}`,
+        id: nodeName,
         type: makeIntType({
           minimum: specNode['minimum'],
           maximum: specNode['maximum']
@@ -260,7 +260,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: `airbyte-${sourceName}-${nodeName}`,
+        id: nodeName,
         type: booleanType,
         required: requiredFields.includes(nodeName),
         documentation: specNode['description']
@@ -286,7 +286,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           displayName: specNode['title']
             ? toTitleCase(specNode['title'])
             : toTitleCase(snakeCaseToWords(nodeName)),
-          id: `airbyte-${sourceName}-${nodeName}`,
+          id: nodeName,
           type: singleSelectionType(options),
           required: requiredFields.includes(nodeName),
           documentation: specNode['description']
@@ -302,6 +302,8 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           'Failed to parse Airbyte source spec -- unknown field of `object` type'
         );
       }
+
+      const parentName = nodeName;
       optionsEntries.forEach(([nodeName, node]) =>
         result.push(
           ...mapAirbyteNode(
@@ -309,7 +311,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
             sourceName,
             nodeName,
             listOfRequiredFields,
-            nodeName
+            parentName
           )
         )
       );
@@ -322,6 +324,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
       const _listOfRequiredFields: unknown = specNode['required'] || [];
       assertIsArray(childrenNodesEntries);
       assertIsArrayOfTypes(_listOfRequiredFields, 'string');
+      debugger;
       childrenNodesEntries.forEach(([nodeName, node]) =>
         result.push(
           ...mapAirbyteNode(
@@ -333,7 +336,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
             hiddenValue(
               '',
               (config) =>
-                config?.['_formData']?.[parentNodeName] !== node['title']
+                config?.[parentNodeName] !== specNode['title']
             )
           ) // add a constant!
         )

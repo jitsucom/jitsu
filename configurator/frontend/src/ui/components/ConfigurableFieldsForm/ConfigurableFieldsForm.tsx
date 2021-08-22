@@ -338,18 +338,18 @@ const ConfigurableFieldsForm = ({
           constant
         }: Parameter) => {
           const currentFormValues = form.getFieldsValue() ?? {};
-          const formIsEmpty: boolean = !Object.keys(currentFormValues).length; // will be true during the first render
-          const formValuesToConsider = formIsEmpty
-            ? fieldsParamsList.reduce(
-                (result, { id, defaultValue }) => ({
-                  ...result,
-                  [id]: defaultValue
-                }), // so need to use default values instead
-                {}
-              )
-            : currentFormValues;
-          const parsedFormValues =
-            makeObjectFromFieldsValues(formValuesToConsider);
+          const defaultFormValues = fieldsParamsList.reduce(
+            (result, { id, defaultValue }) => ({
+              ...result,
+              [id]: defaultValue
+            }),
+            {}
+          );
+          const formValues = {
+            ...defaultFormValues,
+            ...currentFormValues
+          };
+          const parsedFormValues = makeObjectFromFieldsValues(formValues);
           const constantValue =
             typeof constant === 'function'
               ? constant?.(parsedFormValues)
