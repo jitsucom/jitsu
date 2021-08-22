@@ -82,7 +82,6 @@ export const LoadableFieldsForm = ({
           response?.['spec']?.['spec']?.['connectionSpecification'],
           sourceReference.displayName
         );
-        debugger;
         setFieldsParameters(parsedData);
         setIsLoadingParameters(false);
         if (resolve) resolve(parsedData);
