@@ -1,22 +1,15 @@
 // @Libs
-import { FC, useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, Col, Form, Input, Row, Select, Spin, Typography } from 'antd';
+import { useCallback, useMemo } from 'react';
+import { Col, Form, Input, Row, Select } from 'antd';
 import { observer } from 'mobx-react-lite';
 import debounce from 'lodash/debounce';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
-import { Parameter, SourceConnector } from 'catalog/sources/types';
+import { SourceConnector } from 'catalog/sources/types';
 import { Rule, RuleObject } from 'rc-field-form/lib/interface';
 // @Components
 import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm';
 import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
-import { ErrorCard } from 'lib/components/ErrorCard/ErrorCard';
-// @Services
-import { useServices } from 'hooks/useServices';
-// @Hooks
-import { usePolling } from 'hooks/usePolling';
-// @Utils
-import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/helper';
 // @Styles
 import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
 import { LoadableFieldsForm } from 'ui/components/LoadableFieldsForm/LoadableFieldsForm';
@@ -70,9 +63,6 @@ const SourceEditorConfigComponent = ({
 
     return COLLECTIONS_SCHEDULES[0].value;
   }, [initialValues]);
-
-  const a = sourceReference.configParameters;
-  debugger;
 
   return (
     <Form

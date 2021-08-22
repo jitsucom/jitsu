@@ -44,7 +44,7 @@ export const LoadableFieldsForm = ({
     const fetchSpec = (): Promise<unknown> => {
       return services.backendApiClient.get(
         `/airbyte/${sourceReference.id.replace(
-          'airbyte-source-',
+          'airbyte-',
           ''
         )}/spec?project_id=${services.activeProject.id}`,
         { proxy: true }
@@ -75,12 +75,12 @@ export const LoadableFieldsForm = ({
 
       if (response?.['status'] && response?.['status'] !== 'pending') {
         const parsedData = mapAirbyteSpecToSourceConnectorConfig(
-          response?.['spec'],
+          response?.['spec']?.['spec']?.['connectionSpecification'],
           sourceReference.displayName
         );
         setFieldsParameters(parsedData);
         setIsLoadingParameters(false);
-        resolve(parsedData);
+        if (resolve) resolve(parsedData);
         return;
       }
     };
