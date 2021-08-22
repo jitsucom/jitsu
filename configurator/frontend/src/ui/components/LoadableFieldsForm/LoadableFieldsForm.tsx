@@ -18,13 +18,17 @@ type Props = {
   form: FormInstance;
   initialValues: SourceData;
   handleTouchAnyField: (...args: any) => void;
+  disableFormControls?: VoidFunction;
+  enableFormControls?: VoidFunction;
 };
 
 export const LoadableFieldsForm = ({
   sourceReference,
   form,
   initialValues,
-  handleTouchAnyField
+  handleTouchAnyField,
+  disableFormControls,
+  enableFormControls
 }: Props) => {
   const services = useServices();
   const [_fieldsParameters, setFieldsParameters] = useState<null | Parameter[]>(
@@ -40,7 +44,6 @@ export const LoadableFieldsForm = ({
    * for now it is limited to the airbyte sources only
    */
   useEffect(() => {
-    debugger;
     const fetchSpec = (): Promise<unknown> => {
       return services.backendApiClient.get(
         `/airbyte/${sourceReference.id.replace(
@@ -55,7 +58,6 @@ export const LoadableFieldsForm = ({
       resolve?: (result: any) => void,
       reject?: (error?: Error) => void
     ): Promise<void> => {
-      debugger;
       let response;
       try {
         response = await fetchSpec();
@@ -81,6 +83,7 @@ export const LoadableFieldsForm = ({
         setFieldsParameters(parsedData);
         setIsLoadingParameters(false);
         if (resolve) resolve(parsedData);
+        if (enableFormControls) enableFormControls();
         return;
       }
     };
@@ -91,7 +94,7 @@ export const LoadableFieldsForm = ({
      * fetches or polls and maps the airbyte spec
      */
     const pullParametersFields = async (): Promise<void> => {
-      debugger;
+      if (disableFormControls) disableFormControls();
       setIsLoadingParameters(true);
       await pullAirbyteSpecOnce();
 
@@ -101,8 +104,6 @@ export const LoadableFieldsForm = ({
         await poll.wait();
       }
     };
-
-    debugger;
 
     pullParametersFields();
 

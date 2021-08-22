@@ -21,6 +21,8 @@ export interface Props {
   sources: SourceData[];
   initialValues: SourceData;
   handleTouchAnyField: (...args: any) => void;
+  disableFormControls?: VoidFunction;
+  enableFormControls?: VoidFunction;
 }
 
 const SourceEditorConfigComponent = ({
@@ -29,9 +31,10 @@ const SourceEditorConfigComponent = ({
   isCreateForm,
   sources,
   initialValues = {} as SourceData,
-  handleTouchAnyField
+  handleTouchAnyField,
+  disableFormControls,
+  enableFormControls
 }: Props) => {
-
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) =>
       sources?.find((source: SourceData) => source.sourceId === value)
@@ -114,11 +117,13 @@ const SourceEditorConfigComponent = ({
       )}
 
       {sourceReference.hasLoadableParameters ? (
-        <LoadableFieldsForm 
-          sourceReference={sourceReference} 
+        <LoadableFieldsForm
+          sourceReference={sourceReference}
           initialValues={initialValues}
           form={form}
           handleTouchAnyField={handleTouchAnyField}
+          disableFormControls={disableFormControls}
+          enableFormControls={enableFormControls}
         />
       ) : (
         <ConfigurableFieldsForm
