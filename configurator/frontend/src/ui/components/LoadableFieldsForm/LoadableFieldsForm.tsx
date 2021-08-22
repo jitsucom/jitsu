@@ -54,6 +54,8 @@ export const LoadableFieldsForm = ({
       );
     };
 
+    let needPolling = false;
+
     const pullAirbyteSpecOnce = async (
       resolve?: (result: any) => void,
       reject?: (error?: Error) => void
@@ -80,12 +82,15 @@ export const LoadableFieldsForm = ({
           response?.['spec']?.['spec']?.['connectionSpecification'],
           sourceReference.displayName
         );
+        debugger;
         setFieldsParameters(parsedData);
         setIsLoadingParameters(false);
         if (resolve) resolve(parsedData);
         if (enableFormControls) enableFormControls();
         return;
       }
+
+      needPolling = true;
     };
 
     let poll: Poll | undefined;
@@ -98,7 +103,7 @@ export const LoadableFieldsForm = ({
       setIsLoadingParameters(true);
       await pullAirbyteSpecOnce();
 
-      if (_fieldsParameters === null) {
+      if (needPolling) {
         poll = new Poll((end, fail) => () => pullAirbyteSpecOnce(end, fail));
         poll.start();
         await poll.wait();
