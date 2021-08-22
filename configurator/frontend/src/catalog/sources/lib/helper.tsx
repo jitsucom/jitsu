@@ -236,6 +236,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         mappedStringField.defaultValue = specNode['default'];
       if (constant) mappedStringField.constant = constant;
       return [mappedStringField];
+
     case 'integer':
       const mappedIntegerField: Parameter = {
         displayName: specNode['title']
@@ -253,6 +254,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         mappedIntegerField.defaultValue = specNode['default'];
       if (constant) mappedIntegerField.constant = constant;
       return [mappedIntegerField];
+
     case 'boolean':
       const mappedBooleanField: Parameter = {
         displayName: specNode['title']
@@ -267,9 +269,11 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         mappedBooleanField.defaultValue = specNode['default'];
       if (constant) mappedBooleanField.constant = constant;
       return [mappedBooleanField];
+
     case 'object':
       let optionsEntries: [string, unknown][];
       let listOfRequiredFields: string[] = [];
+
       if (specNode['properties']) {
         optionsEntries = getEntriesFromPropertiesField(specNode);
         const _listOfRequiredFields: unknown = specNode['required'] || [];
@@ -277,19 +281,21 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         listOfRequiredFields = _listOfRequiredFields;
       } else if (specNode['oneOf']) {
         optionsEntries = getEntriesFromOneOfField(specNode, nodeName);
+        const options = optionsEntries.map(([_, node]) => node['title']);
         const mappedSelectionField: Parameter = {
           displayName: specNode['title']
             ? toTitleCase(specNode['title'])
             : toTitleCase(snakeCaseToWords(nodeName)),
           id: `airbyte-${sourceName}-${nodeName}`,
-          type: singleSelectionType(
-            optionsEntries.map(([_, node]) => node['title'])
-          ),
+          type: singleSelectionType(options),
           required: requiredFields.includes(nodeName),
           documentation: specNode['description']
         };
-        if (specNode['default'] !== undefined)
+        if (specNode['default'] !== undefined) {
           mappedSelectionField.defaultValue = specNode['default'];
+        } else {
+          mappedSelectionField.defaultValue = options[0];
+        }
         result.push(mappedSelectionField);
       } else {
         throw new Error(
@@ -308,6 +314,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         )
       );
       break;
+
     case undefined: // Special case for the nodes from the `oneOf` list in the `object` node
       const childrenNodesEntries: unknown = Object.entries(
         specNode['properties']
