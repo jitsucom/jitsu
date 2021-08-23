@@ -280,8 +280,8 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 		return nil, nil, err
 	}
 
-	//** Retrospective users recognition **
-	usersRecognition, err := f.initializeRetrospectiveUsersRecognition(destinationID, &destination, pkFields)
+	//** Retroactive users recognition **
+	usersRecognition, err := f.initializeRetroactiveUsersRecognition(destinationID, &destination, pkFields)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -371,10 +371,10 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 	return storageProxy, eventQueue, nil
 }
 
-//initializeRetrospectiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)
+//initializeRetroactiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)
 //skip initialization if dummy meta storage
 //disable destination configuration if Postgres or Redshift without primary keys
-func (f *FactoryImpl) initializeRetrospectiveUsersRecognition(destinationID string, destination *DestinationConfig, pkFields map[string]bool) (*UserRecognitionConfiguration, error) {
+func (f *FactoryImpl) initializeRetroactiveUsersRecognition(destinationID string, destination *DestinationConfig, pkFields map[string]bool) (*UserRecognitionConfiguration, error) {
 	if f.metaStorage.Type() == meta.DummyType {
 		if destination.UsersRecognition != nil {
 			logging.Errorf("[%s] Users recognition requires 'meta.storage' configuration", destinationID)
@@ -409,15 +409,15 @@ func (f *FactoryImpl) initializeRetrospectiveUsersRecognition(destinationID stri
 
 	//check primary fields
 	if (destination.Type == PostgresType || destination.Type == RedshiftType || destination.Type == SnowflakeType) && len(pkFields) == 0 {
-		logging.Errorf("[%s] retrospective users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
+		logging.Errorf("[%s] retroactive users recognition is disabled: primary_key_fields must be configured (otherwise data duplication will occurred)", destinationID)
 		return &UserRecognitionConfiguration{enabled: false}, nil
 	}
 
-	logging.Infof("[%s] configured retrospective users recognition", destinationID)
+	logging.Infof("[%s] configured retroactive users recognition", destinationID)
 
 	//check deprecated node
 	if destination.UsersRecognition.UserIDNode != "" {
-		logging.Warnf("[%s] users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead. Read more about configuration: https://jitsu.com/docs/other-features/retrospective-user-recognition", destinationID)
+		logging.Warnf("[%s] users_recognition.user_id_node is deprecated. Please use users_recognition.identification_nodes instead. Read more about configuration: https://jitsu.com/docs/other-features/retroactive-user-recognition", destinationID)
 		destination.UsersRecognition.IdentificationNodes = []string{destination.UsersRecognition.UserIDNode}
 	}
 
