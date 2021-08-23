@@ -45,8 +45,8 @@ export class BackendUserService implements UserService {
       this.backendApi
         .post('/users/signin', { email: email, password: password }, { noauth: true })
         .then((response) => {
-          this.apiAccess = new ApiAccess(response['access_token'], response['refresh_token'], this.localStorageUpdate);
-          this.localStorageUpdate(response['access_token'], response['refresh_token']);
+          this.apiAccess = new ApiAccess(response['access_token'], response['refresh_token'], this.setTokens);
+          this.setTokens(response['access_token'], response['refresh_token']);
 
           resolve(response);
         })
@@ -55,17 +55,17 @@ export class BackendUserService implements UserService {
   }
 
   async createUser(email: string, password: string): Promise<void> {
-    let signUpPayload = {
+    const signUpPayload = {
       email: email,
       password: password
     };
 
-    let response = await this.backendApi.post('/users/signup', signUpPayload, { noauth: true });
+    const response = await this.backendApi.post('/users/signup', signUpPayload, { noauth: true });
 
-    this.apiAccess = new ApiAccess(response['access_token'], response['refresh_token'], this.localStorageUpdate);
-    this.localStorageUpdate(response['access_token'], response['refresh_token']);
+    this.apiAccess = new ApiAccess(response['access_token'], response['refresh_token'], this.setTokens);
+    this.setTokens(response['access_token'], response['refresh_token']);
 
-    let user = new User(
+    const user = new User(
       response['user_id'],
       () => this.apiAccess,
       {
@@ -90,7 +90,7 @@ export class BackendUserService implements UserService {
     if (!name || name === "") {
       throw new Error("Name is not set")
     }
-    let signUpPayload = {
+    const signUpPayload = {
       email,
       password,
       name,
@@ -98,12 +98,12 @@ export class BackendUserService implements UserService {
       emailOptout,
       usageOptout: false
     };
-    let response = await this.backendApi.post('/users/onboarded/signup', signUpPayload, { noauth: true });
+    const response = await this.backendApi.post('/users/onboarded/signup', signUpPayload, { noauth: true });
 
-    this.apiAccess = new ApiAccess(response['access_token'], response['refresh_token'], this.localStorageUpdate);
-    this.localStorageUpdate(response['access_token'], response['refresh_token']);
+    this.apiAccess = new ApiAccess(response['access_token'], response['refresh_token'], this.setTokens);
+    this.setTokens(response['access_token'], response['refresh_token']);
 
-    let user = new User(
+    const user = new User(
       response['user_id'],
       () => this.apiAccess,
       {
@@ -126,33 +126,26 @@ export class BackendUserService implements UserService {
     await this.update(user);
   }
 
-  public waitForUser(): Promise<UserLoginStatus> {
-    return new Promise<UserLoginStatus>((resolve, reject) => {
+  public async waitForUser(): Promise<UserLoginStatus> {
       if (this.user) {
-        resolve({ user: this.user, loggedIn: true});
-        return;
+        return { user: this.user, loggedIn: true};
       }
 
-      this.restoreUser()
-        .then((user) => {
-          if (user) {
-            resolve({ user: user, loggedIn: true});
-          } else {
-            resolve({ user: null, loggedIn: false});
-          }
-        })
-        .catch((error) => {
-          localStorage.removeItem(LS_ACCESS_KEY);
-          localStorage.removeItem(LS_REFRESH_KEY);
-
-          reject(error)
-        });
-    });
+      try {
+        const user = await this.restoreUser();
+        if (user) {
+          return { user: user, loggedIn: true};
+        } else {
+          return { user: null, loggedIn: false};
+        }
+      } catch (error) {
+        this.clearTokens();
+        throw new Error(error)
+      };
   }
 
   private async restoreUser(): Promise<User> {
-    let accessToken = localStorage.getItem(LS_ACCESS_KEY);
-    let refreshToken = localStorage.getItem(LS_REFRESH_KEY);
+    const {accessToken, refreshToken} = this.getTokens();
 
     //not authorized
     if (!accessToken) {
@@ -160,27 +153,38 @@ export class BackendUserService implements UserService {
     }
 
     //initialize authorization for getting users info (auth required)
-    this.apiAccess = new ApiAccess(accessToken, refreshToken, this.localStorageUpdate);
+    this.apiAccess = new ApiAccess(accessToken, refreshToken, this.setTokens);
     this.user = new User(null, () => this.apiAccess, null, null);
 
     let userInfo = await this.storageService.getUserInfo();
 
     if (Object.keys(userInfo).length !== 0) {
       this.user = new User(userInfo['_uid'], () => this.apiAccess, userInfo['_suggestedInfo'], userInfo);
-
       return this.user;
     } else {
       throw new Error("User info wasn't found");
     }
   }
 
-  private localStorageUpdate(accessToken: string, refreshToken: string): void {
+  private getTokens(): {accessToken?: string, refreshToken?: string} {
+    return {
+      accessToken: localStorage.getItem(LS_ACCESS_KEY),
+      refreshToken: localStorage.getItem(LS_REFRESH_KEY)
+    }
+  }
+
+  private setTokens(accessToken: string, refreshToken: string): void {
     localStorage.setItem(LS_ACCESS_KEY, accessToken);
     localStorage.setItem(LS_REFRESH_KEY, refreshToken);
   }
 
+  private clearTokens(): void {
+    localStorage.removeItem(LS_ACCESS_KEY);
+    localStorage.removeItem(LS_REFRESH_KEY);
+  }
+
   removeAuth(callback: () => void) {
-    let cleaningCallback = () => {
+    const cleaningCallback = () => {
       cleanAuthorizationLocalStorage()
       callback();
     }
@@ -209,7 +213,7 @@ export class BackendUserService implements UserService {
           new Error(`Can't update user projects ( ` + user.projects.length + `), should be 1` + JSON.stringify(user))
         );
       }
-      let userData: any = Marshal.toPureJson(user);
+      const userData: any = Marshal.toPureJson(user);
       userData['_project'] = Marshal.toPureJson(user.projects[0]);
       delete userData['_projects'];
       return this.storageService.saveUserInfo(userData).then(resolve);
@@ -228,7 +232,7 @@ export class BackendUserService implements UserService {
     }
 
     let appPath = ''
-    let baseUIPath = getBaseUIPath()
+    const baseUIPath = getBaseUIPath()
     if (baseUIPath !== undefined){
       appPath = baseUIPath
     }
@@ -287,6 +291,4 @@ export class BackendUserService implements UserService {
   loginWithLink(email: string, href: string): Promise<void> {
     throw new Error('loginWithLink() is not implemented');
   }
-
-
 }

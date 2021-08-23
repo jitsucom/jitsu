@@ -1,3 +1,4 @@
+export const airbyte = require('./airbyte').default();
 export const tap_3plcentral = require('./tap-3plcentral').default();
 export const tap_adroll = require('./tap-adroll').default();
 export const tap_s3_csv = require('./tap-s3-csv').default();
@@ -8,7 +9,8 @@ export const tap_bigcommerce = require('./tap-bigcommerce').default();
 export const tap_bing_ads = require('./tap-bing-ads').default();
 export const tap_braintree = require('./tap-braintree').default();
 export const tap_bronto = require('./tap-bronto').default();
-export const tap_covid_19_public_data = require('./tap-covid-19-public-data').default();
+export const tap_covid_19_public_data =
+  require('./tap-covid-19-public-data').default();
 export const tap_campaign_manager = require('./tap-campaign-manager').default();
 export const tap_campaign_monitor = require('./tap-campaign-monitor').default();
 export const tap_chargebee = require('./tap-chargebee').default();
@@ -20,7 +22,8 @@ export const tap_deputy = require('./tap-deputy').default();
 export const tap_dynamodb = require('./tap-dynamodb').default();
 export const tap_ebay = require('./tap-ebay').default();
 export const tap_eloqua = require('./tap-eloqua').default();
-export const tap_exchange_rates_api = require('./tap-exchange-rates-api').default();
+export const tap_exchange_rates_api =
+  require('./tap-exchange-rates-api').default();
 export const tap_facebook_ads = require('./tap-facebook-ads').default();
 export const tap_frontapp = require('./tap-frontapp').default();
 export const tap_fullstory = require('./tap-fullstory').default();
@@ -28,8 +31,10 @@ export const tap_github = require('./tap-github').default();
 export const tap_gitlab = require('./tap-gitlab').default();
 export const tap_google_ads = require('./tap-google-ads').default();
 export const tap_google_analytics = require('./tap-google-analytics').default();
-export const tap_google_analytics_360 = require('./tap-google-analytics-360').default();
-export const tap_google_search_console = require('./tap-google-search-console').default();
+export const tap_google_analytics_360 =
+  require('./tap-google-analytics-360').default();
+export const tap_google_search_console =
+  require('./tap-google-search-console').default();
 export const tap_google_sheets = require('./tap-google-sheets').default();
 export const tap_harvest = require('./tap-harvest').default();
 export const tap_harvest_forecast = require('./tap-harvest-forecast').default();
@@ -65,13 +70,15 @@ export const tap_postgresql = require('./tap-postgresql').default();
 export const tap_quick_base = require('./tap-quick-base').default();
 export const tap_recharge = require('./tap-recharge').default();
 export const tap_recurly = require('./tap-recurly').default();
-export const tap_referral_saasquatch = require('./tap-referral-saasquatch').default();
+export const tap_referral_saasquatch =
+  require('./tap-referral-saasquatch').default();
 export const tap_responsys = require('./tap-responsys').default();
 export const tap_revinate = require('./tap-revinate').default();
 export const tap_sftp = require('./tap-sftp').default();
 export const tap_saasoptics = require('./tap-saasoptics').default();
 export const tap_salesforce = require('./tap-salesforce').default();
-export const tap_salesforce_marketing_cloud = require('./tap-salesforce-marketing-cloud').default();
+export const tap_salesforce_marketing_cloud =
+  require('./tap-salesforce-marketing-cloud').default();
 export const tap_selligent = require('./tap-selligent').default();
 export const tap_sendgrid_core = require('./tap-sendgrid-core').default();
 export const tap_shiphero = require('./tap-shiphero').default();

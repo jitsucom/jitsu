@@ -3,7 +3,6 @@ import { useCallback, useMemo } from 'react';
 import { Col, Form, Input, Row, Select } from 'antd';
 import { observer } from 'mobx-react-lite';
 import debounce from 'lodash/debounce';
-import cn from 'classnames';
 // @Types
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 import { SourceConnector } from 'catalog/sources/types';
@@ -13,6 +12,7 @@ import { ConfigurableFieldsForm } from 'ui/components/ConfigurableFieldsForm/Con
 import { COLLECTIONS_SCHEDULES } from 'constants/schedule';
 // @Styles
 import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableFieldsForm.module.less';
+import { LoadableFieldsForm } from 'ui/components/LoadableFieldsForm/LoadableFieldsForm';
 
 export interface Props {
   form: FormInstance;
@@ -21,6 +21,8 @@ export interface Props {
   sources: SourceData[];
   initialValues: SourceData;
   handleTouchAnyField: (...args: any) => void;
+  disableFormControls?: VoidFunction;
+  enableFormControls?: VoidFunction;
 }
 
 const SourceEditorConfigComponent = ({
@@ -29,7 +31,9 @@ const SourceEditorConfigComponent = ({
   isCreateForm,
   sources,
   initialValues = {} as SourceData,
-  handleTouchAnyField
+  handleTouchAnyField,
+  disableFormControls,
+  enableFormControls
 }: Props) => {
   const validateUniqueSourceId = useCallback(
     (rule: RuleObject, value: string) =>
@@ -74,7 +78,7 @@ const SourceEditorConfigComponent = ({
         <Col span={24}>
           <Form.Item
             initialValue={initialValues.sourceId}
-            className={cn('form-field_fixed-label', editorStyles.field)}
+            className={`form-field_fixed-label ${editorStyles.field}`}
             label={<span>SourceId:</span>}
             name="sourceId"
             rules={sourceIdValidators}
@@ -92,7 +96,7 @@ const SourceEditorConfigComponent = ({
             <Form.Item
               initialValue={initialSchedule}
               name="schedule"
-              className={cn('form-field_fixed-label', editorStyles.field)}
+              className={`form-field_fixed-label ${editorStyles.field}`}
               label="Schedule:"
               labelCol={{ span: 4 }}
               wrapperCol={{ span: 20 }}
@@ -112,12 +116,23 @@ const SourceEditorConfigComponent = ({
         </Row>
       )}
 
-      <ConfigurableFieldsForm
-        handleTouchAnyField={handleTouchAnyField}
-        initialValues={initialValues}
-        fieldsParamsList={sourceReference.configParameters}
-        form={form}
-      />
+      {sourceReference.hasLoadableParameters ? (
+        <LoadableFieldsForm
+          sourceReference={sourceReference}
+          initialValues={initialValues}
+          form={form}
+          handleTouchAnyField={handleTouchAnyField}
+          disableFormControls={disableFormControls}
+          enableFormControls={enableFormControls}
+        />
+      ) : (
+        <ConfigurableFieldsForm
+          initialValues={initialValues}
+          fieldsParamsList={sourceReference.configParameters}
+          form={form}
+          handleTouchAnyField={handleTouchAnyField}
+        />
+      )}
     </Form>
   );
 };
