@@ -215,6 +215,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
   parentNodeName?: string,
   constant?: ConstantOrFunction<any, any>
 ): Parameter[] {
+  debugger;
   const result: Parameter[] = [];
   switch (specNode['type']) {
     case 'string':
@@ -291,11 +292,8 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           required: requiredFields.includes(nodeName),
           documentation: specNode['description']
         };
-        if (specNode['default'] !== undefined) {
-          mappedSelectionField.defaultValue = specNode['default'];
-        } else {
-          mappedSelectionField.defaultValue = options[0];
-        }
+
+        mappedSelectionField.defaultValue = specNode?.['default'] || options[0];
         result.push(mappedSelectionField);
       } else {
         throw new Error(
@@ -335,8 +333,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
             '',
             hiddenValue(
               '',
-              (config) =>
-                config?.[parentNodeName] !== specNode['title']
+              (config) => config?.[parentNodeName] !== specNode['title']
             )
           ) // add a constant!
         )
@@ -349,7 +346,11 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
 const getEntriesFromPropertiesField = (node: unknown): [string, unknown][] => {
   const subNodes = node['properties'] as unknown;
   assertIsObject(subNodes);
-  return Object.entries(subNodes);
+  let entries = Object.entries(subNodes) as [string, unknown][];
+  const isOrdered = entries[0][1]?.['order'];
+  if (isOrdered)
+    entries = entries.sort((a, b) => +a[1]?.['order'] - +b[1]?.['order']);
+  return entries;
 };
 
 const getEntriesFromOneOfField = (
