@@ -192,7 +192,7 @@ export const makeAirbyteSource = (
     configParameters: [
       {
         displayName: 'Airbyte Connector',
-        id: 'config.airbyte',
+        id: 'config.docker_image_name',
         type: stringType,
         required: true,
         documentation: <>Id of Connector Source</>,
@@ -228,7 +228,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: nodeName,
+        id: `config.config.${nodeName}`,
         type: fieldType,
         required: requiredFields.includes(nodeName),
         documentation: <>{specNode['description']}</>
@@ -243,7 +243,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: nodeName,
+        id: `config.config.${nodeName}`,
         type: makeIntType({
           minimum: specNode['minimum'],
           maximum: specNode['maximum']
@@ -261,7 +261,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: nodeName,
+        id: `config.config.${nodeName}`,
         type: booleanType,
         required: requiredFields.includes(nodeName),
         documentation: <>{specNode['description']}</>
@@ -287,7 +287,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           displayName: specNode['title']
             ? toTitleCase(specNode['title'])
             : toTitleCase(snakeCaseToWords(nodeName)),
-          id: nodeName,
+          id: `config.config.${nodeName}`,
           type: singleSelectionType(options),
           required: requiredFields.includes(nodeName),
           documentation: <>{specNode['description']}</>
