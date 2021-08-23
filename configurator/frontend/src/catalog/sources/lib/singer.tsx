@@ -6,7 +6,8 @@ import {
   isoUtcDateType, passwordType,
   stringType
 } from '../types';
-import { customParameters, SingerTap } from './helper';
+import { customParameters } from './helper';
+import { SingerTap } from '../types';
 import { googleServiceAuthDocumentation } from '../lib/documentation';
 import { googleAuthConfigParameters } from '../lib/commonParams';
 

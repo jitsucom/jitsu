@@ -34,17 +34,17 @@ function useLoader<T>(loader: Loader<T>, deps?: DependencyList): [Error, T, Disp
   const [data, setData] = useState(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [error, setError] = useState(undefined);
-  const loaderWrapper = async() => {
+  const loaderWrapper = async () => {
     setIsLoading(true);
     setData(null);
     try {
-      setData(await loader())
+      setData(await loader());
     } catch (e) {
-      setError(e)
+      setError(e);
     } finally {
       setIsLoading(false);
     }
-  }
+  };
   useEffect(() => {
     loaderWrapper();
   }, deps ?? [])
