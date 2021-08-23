@@ -150,7 +150,7 @@ const fixConfigParamsPath = (params: Parameter[]) =>
  */
 export const makeSingerSource = (singerTap: SingerTap): SourceConnector => {
   return {
-    isSingerType: true,
+    protoType: 'singer',
     expertMode: !singerTap.parameters,
     pic: singerTap.pic,
     displayName: singerTap.displayName,
@@ -178,7 +178,7 @@ export const makeAirbyteSource = (
   airbyteSource: AirbyteSource
 ): SourceConnector => {
   return {
-    isSingerType: false,
+    protoType: 'airbyte',
     expertMode: false,
     pic: airbyteSource.pic,
     displayName: airbyteSource.displayName,
@@ -192,7 +192,7 @@ export const makeAirbyteSource = (
     configParameters: [
       {
         displayName: 'Airbyte Connector',
-        id: 'config.airbyte',
+        id: 'config.docker_image',
         type: stringType,
         required: true,
         documentation: <>Id of Connector Source</>,
@@ -228,10 +228,10 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: nodeName,
+        id: `config.config.${nodeName}`,
         type: fieldType,
         required: requiredFields.includes(nodeName),
-        documentation: specNode['description']
+        documentation: <span dangerouslySetInnerHTML={{__html: specNode['description']}}/>
       };
       if (specNode['default'] !== undefined)
         mappedStringField.defaultValue = specNode['default'];
@@ -243,13 +243,13 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: nodeName,
+        id: `config.config.${nodeName}`,
         type: makeIntType({
           minimum: specNode['minimum'],
           maximum: specNode['maximum']
         }),
         required: requiredFields.includes(nodeName),
-        documentation: specNode['description']
+        documentation: <span dangerouslySetInnerHTML={{__html: specNode['description']}}/>
       };
       if (specNode['default'] !== undefined)
         mappedIntegerField.defaultValue = specNode['default'];
@@ -261,10 +261,10 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: nodeName,
+        id: `config.config.${nodeName}`,
         type: booleanType,
         required: requiredFields.includes(nodeName),
-        documentation: specNode['description']
+        documentation: <span dangerouslySetInnerHTML={{__html: specNode['description']}}/>
       };
       if (specNode['default'] !== undefined)
         mappedBooleanField.defaultValue = specNode['default'];
@@ -287,10 +287,10 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           displayName: specNode['title']
             ? toTitleCase(specNode['title'])
             : toTitleCase(snakeCaseToWords(nodeName)),
-          id: nodeName,
+          id: `config.config.${nodeName}`,
           type: singleSelectionType(options),
           required: requiredFields.includes(nodeName),
-          documentation: specNode['description']
+          documentation: <span dangerouslySetInnerHTML={{__html: specNode['description']}}/>
         };
 
         mappedSelectionField.defaultValue = specNode?.['default'] || options[0];
@@ -335,7 +335,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
               '',
               (config) => config?.[parentNodeName] !== specNode['title']
             )
-          ) // add a constant!
+          )
         )
       );
       break;

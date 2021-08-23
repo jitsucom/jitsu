@@ -90,7 +90,7 @@ const SourceEditorConfigComponent = ({
         </Col>
       </Row>
 
-      {sourceReference.isSingerType && (
+      {sourceReference.protoType && (
         <Row>
           <Col span={24}>
             <Form.Item
@@ -116,7 +116,14 @@ const SourceEditorConfigComponent = ({
         </Row>
       )}
 
-      {sourceReference.hasLoadableParameters ? (
+      <ConfigurableFieldsForm
+        initialValues={initialValues}
+        fieldsParamsList={sourceReference.configParameters}
+        form={form}
+        handleTouchAnyField={handleTouchAnyField}
+      />
+
+      {sourceReference.hasLoadableParameters && (
         <LoadableFieldsForm
           sourceReference={sourceReference}
           initialValues={initialValues}
@@ -124,13 +131,6 @@ const SourceEditorConfigComponent = ({
           handleTouchAnyField={handleTouchAnyField}
           disableFormControls={disableFormControls}
           enableFormControls={enableFormControls}
-        />
-      ) : (
-        <ConfigurableFieldsForm
-          initialValues={initialValues}
-          fieldsParamsList={sourceReference.configParameters}
-          form={form}
-          handleTouchAnyField={handleTouchAnyField}
         />
       )}
     </Form>
