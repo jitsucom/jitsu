@@ -114,7 +114,7 @@ type Redis struct {
 //last_events:destination#destinationID:id#unique_id_field [original, success, error] - hashtable with original event json, processed with schema json, error json
 //last_events_index:destination#destinationID [timestamp_long unique_id_field] - sorted set of eventIDs and timestamps
 //
-//** Retrospective user recognition **
+//** Retroactive user recognition **
 //anonymous_events:destination_id#${destination_id}:anonymous_id#${cookies_anonymous_id} [event_id] {event JSON} - hashtable with all anonymous events
 //
 //** Sources Synchronization **
