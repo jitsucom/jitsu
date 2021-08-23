@@ -187,8 +187,10 @@ func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 	for _, flatData := range flatDataPerTable {
 		table := tableHelper.MapTableSchema(flatData.BatchHeader)
 
-		if err = bq.bqAdapter.DeleteWithConditions(table.Name, deleteConditions); err != nil {
-			return fmt.Errorf("Error deleting from BigQuery: %v", err)
+		if !deleteConditions.IsEmpty() {
+			if err = bq.bqAdapter.DeleteWithConditions(table.Name, deleteConditions); err != nil {
+				return fmt.Errorf("Error deleting from BigQuery: %v", err)
+			}
 		}
 
 		start := time.Now()
