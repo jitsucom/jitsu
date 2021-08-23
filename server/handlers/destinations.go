@@ -170,6 +170,13 @@ func testPostgres(config *storages.DestinationConfig, eventContext *adapters.Eve
 		return err
 	}
 
+	//create db schema if doesn't exist
+	err = postgres.CreateDbSchema(config.DataSource.Schema)
+	if err != nil {
+		postgres.Close()
+		return err
+	}
+
 	if err = postgres.CreateTable(eventContext.Table); err != nil {
 		postgres.Close()
 		return err
@@ -278,6 +285,13 @@ func testRedshift(config *storages.DestinationConfig, eventContext *adapters.Eve
 		return err
 	}
 
+	//create db schema if doesn't exist
+	err = redshift.CreateDbSchema(config.DataSource.Schema)
+	if err != nil {
+		redshift.Close()
+		return err
+	}
+
 	if err = redshift.CreateTable(eventContext.Table); err != nil {
 		redshift.Close()
 		return err
@@ -335,8 +349,16 @@ func testBigQuery(config *storages.DestinationConfig, eventContext *adapters.Eve
 	if config.Google.Dataset == "" {
 		config.Google.Dataset = "default"
 	}
+
 	bq, err := adapters.NewBigQuery(context.Background(), config.Google, &logging.QueryLogger{}, typing.SQLTypes{})
 	if err != nil {
+		return err
+	}
+
+	//create dataset if doesn't exist
+	err = bq.CreateDataset(config.Google.Dataset)
+	if err != nil {
+		bq.Close()
 		return err
 	}
 
