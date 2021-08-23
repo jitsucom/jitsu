@@ -1,4 +1,4 @@
-# Retrospective User Recognition
+# Retroactive User Recognition
 
 **Jitsu** supports storing all events from anonymous users and updates them in DWH with user id after user identification. At present this functionality is supported only for [Postgres](/docs/destinations-configuration/postgres), [Redshift](/docs/destinations-configuration/redshift), and [ClickHouse](/docs/destinations-configuration/clickhouse-destination).
 
@@ -26,7 +26,7 @@ Right after **event3** **Jitsu** amends **event1** and **event2** and adds email
 
 ### Resources
 
-In case if Retrospective Users Recognition feature is enabled - all incoming anonymous events (events JSON without filled `identification_nodes`) are saved in `meta.storage` (Redis).
+In case if Retroactive Users Recognition feature is enabled - all incoming anonymous events (events JSON without filled `identification_nodes`) are saved in `meta.storage` (Redis).
 Events are saved under Redis key that contains user anonymous ID. Once any event with filled `identification_nodes` is received (identification event) - Jitsu updates these events in Data Warehouse and removes them from Redis.
 
 <Hint>

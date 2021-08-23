@@ -139,8 +139,8 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 	return tableResults, nil, nil
 }
 
-//check table schema
-//and store data into one table via google cloud storage
+//storeTable checks table schema
+//stores data into one table via google cloud storage (if batch BQ) or uses streaming if stream mode
 func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Table) error {
 	_, tableHelper := bq.getAdapters()
 	dbTable, err := tableHelper.EnsureTableWithoutCaching(bq.ID(), table)
@@ -148,20 +148,26 @@ func (bq *BigQuery) storeTable(fdata *schema.ProcessedFile, table *adapters.Tabl
 		return err
 	}
 
-	b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
-	if err := bq.gcsAdapter.UploadBytes(fdata.FileName, b); err != nil {
-		return err
+	//batch mode
+	if bq.gcsAdapter != nil {
+		b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
+		if err := bq.gcsAdapter.UploadBytes(fdata.FileName, b); err != nil {
+			return err
+		}
+
+		if err := bq.bqAdapter.Copy(fdata.FileName, dbTable.Name); err != nil {
+			return fmt.Errorf("Error copying file [%s] from gcp to bigquery: %v", fdata.FileName, err)
+		}
+
+		if err := bq.gcsAdapter.DeleteObject(fdata.FileName); err != nil {
+			logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fdata.FileName, err)
+		}
+
+		return nil
 	}
 
-	if err := bq.bqAdapter.Copy(fdata.FileName, dbTable.Name); err != nil {
-		return fmt.Errorf("Error copying file [%s] from gcp to bigquery: %v", fdata.FileName, err)
-	}
-
-	if err := bq.gcsAdapter.DeleteObject(fdata.FileName); err != nil {
-		logging.SystemErrorf("[%s] file %s wasn't deleted from gcs: %v", bq.ID(), fdata.FileName, err)
-	}
-
-	return nil
+	//stream mode
+	return bq.bqAdapter.BulkInsert(table, fdata.GetPayload())
 }
 
 //Update isn't supported
@@ -187,8 +193,10 @@ func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 	for _, flatData := range flatDataPerTable {
 		table := tableHelper.MapTableSchema(flatData.BatchHeader)
 
-		if err = bq.bqAdapter.DeleteWithConditions(table.Name, deleteConditions); err != nil {
-			return fmt.Errorf("Error deleting from BigQuery: %v", err)
+		if !deleteConditions.IsEmpty() {
+			if err = bq.bqAdapter.DeleteWithConditions(table.Name, deleteConditions); err != nil {
+				return fmt.Errorf("Error deleting from BigQuery: %v", err)
+			}
 		}
 
 		start := time.Now()

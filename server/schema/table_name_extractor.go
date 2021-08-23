@@ -75,3 +75,7 @@ func (tne *TableNameExtractor) Extract(object map[string]interface{}) (result st
 func (tne *TableNameExtractor) Format() string {
 	return tne.tmpl.Format()
 }
+
+func (tne *TableNameExtractor) Close() {
+	tne.tmpl.Close()
+}
