@@ -15,7 +15,10 @@ import (
 	"google.golang.org/api/googleapi"
 )
 
-const deleteBigQueryTemplate = "DELETE FROM `%s.%s.%s` WHERE %s"
+const (
+	deleteBigQueryTemplate      = "DELETE FROM `%s.%s.%s` WHERE %s"
+	rowsLimitPerInsertOperation = 500
+)
 
 var (
 	//SchemaToBigQueryString is mapping between JSON types and BigQuery types
@@ -82,7 +85,7 @@ func (bq *BigQuery) Test() error {
 func (bq *BigQuery) Insert(eventContext *EventContext) error {
 	inserter := bq.client.Dataset(bq.config.Dataset).Table(eventContext.Table.Name).Inserter()
 	bq.logQuery(fmt.Sprintf("Inserting values to table %s: ", eventContext.Table.Name), eventContext.ProcessedEvent, false)
-	err := inserter.Put(bq.ctx, BQItem{values: eventContext.ProcessedEvent})
+	err := inserter.Put(bq.ctx, &BQItem{values: eventContext.ProcessedEvent})
 	if err != nil {
 		putMultiError, ok := err.(bigquery.PutMultiError)
 		if !ok {
@@ -215,9 +218,31 @@ func (bq *BigQuery) DeleteWithConditions(tableName string, deleteConditions *Del
 	return err
 }
 
-//BulkInsert isn't supported
+//BulkInsert streams data into BQ using stream API
+//1 insert = max 500 rows
 func (bq *BigQuery) BulkInsert(table *Table, objects []map[string]interface{}) error {
-	return errors.New("BigQuery doesn't support BulkInsert()")
+	inserter := bq.client.Dataset(bq.config.Dataset).Table(table.Name).Inserter()
+	bq.logQuery(fmt.Sprintf("Inserting [%d] values to table %s using BigQuery Streaming API with chunks [%d]: ", len(objects), table.Name, rowsLimitPerInsertOperation), objects, false)
+
+	items := make([]*BQItem, 0, rowsLimitPerInsertOperation)
+
+	for _, object := range objects {
+		if len(items) > rowsLimitPerInsertOperation {
+			if err := bq.insertItems(inserter, items); err != nil {
+				return err
+			}
+
+			items = make([]*BQItem, 0, rowsLimitPerInsertOperation)
+		}
+
+		items = append(items, &BQItem{values: object})
+	}
+
+	if len(items) > 0 {
+		return bq.insertItems(inserter, items)
+	}
+
+	return nil
 }
 
 //BulkUpdate isn't supported
@@ -231,6 +256,26 @@ func (bq *BigQuery) DropTable(table *Table) error {
 
 	if err := bqTable.Delete(bq.ctx); err != nil {
 		return fmt.Errorf("Error dropping [%s] BigQuery table: %v", table.Name, err)
+	}
+
+	return nil
+}
+
+func (bq *BigQuery) insertItems(inserter *bigquery.Inserter, items []*BQItem) error {
+	err := inserter.Put(bq.ctx, items)
+	if err != nil {
+		putMultiError, ok := err.(bigquery.PutMultiError)
+		if !ok {
+			return err
+		}
+
+		//parse bigquery multi error
+		var multiErr error
+		for _, errUnit := range putMultiError {
+			multiErr = multierror.Append(multiErr, errors.New(errUnit.Error()))
+		}
+
+		return multiErr
 	}
 
 	return nil
@@ -275,7 +320,7 @@ type BQItem struct {
 	values map[string]interface{}
 }
 
-func (bqi BQItem) Save() (row map[string]bigquery.Value, insertID string, err error) {
+func (bqi *BQItem) Save() (row map[string]bigquery.Value, insertID string, err error) {
 	row = map[string]bigquery.Value{}
 
 	for k, v := range bqi.values {
