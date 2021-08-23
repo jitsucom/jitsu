@@ -192,7 +192,7 @@ export const makeAirbyteSource = (
     configParameters: [
       {
         displayName: 'Airbyte Connector',
-        id: 'config.docker_image_name',
+        id: 'config.docker_image',
         type: stringType,
         required: true,
         documentation: <>Id of Connector Source</>,
@@ -231,7 +231,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         id: `config.config.${nodeName}`,
         type: fieldType,
         required: requiredFields.includes(nodeName),
-        documentation: <>{specNode['description']}</>
+        documentation: <span dangerouslySetInnerHTML={{__html: specNode['description']}}/>
       };
       if (specNode['default'] !== undefined)
         mappedStringField.defaultValue = specNode['default'];
@@ -249,7 +249,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           maximum: specNode['maximum']
         }),
         required: requiredFields.includes(nodeName),
-        documentation: <>{specNode['description']}</>
+        documentation: <span dangerouslySetInnerHTML={{__html: specNode['description']}}/>
       };
       if (specNode['default'] !== undefined)
         mappedIntegerField.defaultValue = specNode['default'];
@@ -264,7 +264,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         id: `config.config.${nodeName}`,
         type: booleanType,
         required: requiredFields.includes(nodeName),
-        documentation: <>{specNode['description']}</>
+        documentation: <span dangerouslySetInnerHTML={{__html: specNode['description']}}/>
       };
       if (specNode['default'] !== undefined)
         mappedBooleanField.defaultValue = specNode['default'];
@@ -290,7 +290,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           id: `config.config.${nodeName}`,
           type: singleSelectionType(options),
           required: requiredFields.includes(nodeName),
-          documentation: <>{specNode['description']}</>
+          documentation: <span dangerouslySetInnerHTML={{__html: specNode['description']}}/>
         };
 
         mappedSelectionField.defaultValue = specNode?.['default'] || options[0];
