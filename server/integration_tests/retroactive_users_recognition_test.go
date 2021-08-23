@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPostgresRetrospectiveUsersRecognition(t *testing.T) {
+func TestPostgresRetroactiveUsersRecognition(t *testing.T) {
 	viper.Set("server.log.path", "")
 	viper.Set("log.path", "")
 	viper.Set("server.auth", `{"tokens":[{"id":"id1","client_secret":"c2stoken_ur"}]}`)

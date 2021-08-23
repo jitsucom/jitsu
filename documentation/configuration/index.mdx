@@ -14,10 +14,10 @@ Our config file consists of the following sections:
 * `api_keys` — A set of API Keys objects that identify incoming events JSONs and mapping between destinations is done based on them. see [Authorization](/docs/configuration/authorization) page
 * `destinations` — A set of targets where the final version of events will be stored. see [Destinations Configuration](/docs/destinations-configuration)
 * `sources` — A set of data sources to synchronize from. see [Sources Configuration](/docs/sources-configuration)
-* `users_recognition` — Jitsu can update past events with user identifiers on user's identification event! see [Retrospective Users Recognition](/docs/other-features/retrospective-user-recognition)
+* `users_recognition` — Jitsu can update past events with user identifiers on user's identification event! see [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition)
 * `coordination` — coordination service configuration. It is used in cluster Jitsu deployments. see [Scaling Jitsu](/docs/other-features/scaling-eventnative)
 * `notifications` — notifier configuration. Server starts, system errors, and panics information will be sent to it. Currently, only Slack notifications are supported.
-* `meta.storage` - meta storage configuration. At present Jitsu supports only [Redis](https://redis.io/). It is used for last events caching (see [Events Cache](/docs/other-features/events-cache)), sources synchronization (see [Sources Configuration](/docs/sources-configuration/)), and [Retrospective Users Recognition](/docs/other-features/retrospective-user-recognition) and can be used in [coordination](/docs/other-features/scaling-eventnative).
+* `meta.storage` - meta storage configuration. At present Jitsu supports only [Redis](https://redis.io/). It is used for last events caching (see [Events Cache](/docs/other-features/events-cache)), sources synchronization (see [Sources Configuration](/docs/sources-configuration/)), and [Retroactive Users Recognition](/docs/other-features/retroactive-user-recognition) and can be used in [coordination](/docs/other-features/scaling-eventnative).
 
 **Example**:
 

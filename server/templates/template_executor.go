@@ -6,6 +6,7 @@ import (
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/safego"
 	"strings"
+	"sync"
 	"text/template"
 	"text/template/parse"
 )
@@ -18,6 +19,7 @@ type TemplateExecutor interface {
 	ProcessEvent(events.Event) (interface{}, error)
 	Format() string
 	Expression() string
+	Close()
 }
 
 type goTemplateExecutor struct {
@@ -58,8 +60,13 @@ func (gte *goTemplateExecutor) isPlainText() bool {
 		gte.template.Tree.Root.Nodes[0].Type() == parse.NodeText
 }
 
+func (gte *goTemplateExecutor) Close() {
+}
+
 type asyncJsTemplateExecutor struct {
+	sync.Mutex
 	incoming chan events.Event
+	closed chan struct{}
 	results chan interface{}
 	transformedExpression string
 	loadingError error
@@ -78,7 +85,7 @@ func newJsTemplateExecutor(expression string, extraFunctions template.FuncMap) (
 		}
 	}
 
-	jte := &asyncJsTemplateExecutor{make(chan events.Event), make(chan interface{}), script, nil}
+	jte := &asyncJsTemplateExecutor{sync.Mutex{}, make(chan events.Event), make(chan struct{}), make(chan interface{}), script, nil}
 	safego.RunWithRestart(func() { jte.start(extraFunctions) })
 	_, err = jte.ProcessEvent(events.Event{})
 	if err != nil && strings.HasPrefix(err.Error(), jsLoadingErrorText) {
@@ -96,7 +103,12 @@ func (jte *asyncJsTemplateExecutor) start(extraFunctions template.FuncMap) {
 		jte.loadingError =  fmt.Errorf("%s: %v\ntransformed function:\n%v\n",jsLoadingErrorText, err, jte.transformedExpression)
 	}
 	for {
-		event := <- jte.incoming
+		var event events.Event
+		select {
+		case <-jte.closed:
+			return
+		case event = <- jte.incoming:
+		}
 		if jte.loadingError != nil {
 			jte.results <- jte.loadingError
 		} else {
@@ -110,7 +122,12 @@ func (jte *asyncJsTemplateExecutor) start(extraFunctions template.FuncMap) {
 	}
 }
 
-func (jte *asyncJsTemplateExecutor) ProcessEvent(event events.Event) (interface{}, error) {
+func (jte *asyncJsTemplateExecutor) ProcessEvent(event events.Event) (res interface{}, err error) {
+	jte.Lock()
+	defer jte.Unlock()
+	if jte.cancelled() {
+		return nil, fmt.Errorf("Attempt to use closed template executor")
+	}
 	jte.incoming <- event
 	resRaw := <-jte.results
 	switch res := resRaw.(type) {
@@ -127,6 +144,21 @@ func (jte *asyncJsTemplateExecutor) Format() string {
 
 func (jte *asyncJsTemplateExecutor) Expression() string {
 	return jte.transformedExpression
+}
+
+func (jte *asyncJsTemplateExecutor) cancelled() bool {
+	select {
+	case <-jte.closed:
+		return true
+	default:
+		return false
+	}
+}
+
+func (jte *asyncJsTemplateExecutor) Close() {
+	jte.Lock()
+	defer jte.Unlock()
+	close(jte.closed)
 }
 
 type constTemplateExecutor struct {
@@ -146,4 +178,7 @@ func (cte *constTemplateExecutor) Format() string {
 
 func (cte *constTemplateExecutor) Expression() string {
 	return cte.template
+}
+
+func (cte *constTemplateExecutor) Close() {
 }
