@@ -90,7 +90,7 @@ const SourceEditorConfigComponent = ({
         </Col>
       </Row>
 
-      {sourceReference.isSingerType && (
+      {sourceReference.protoType && (
         <Row>
           <Col span={24}>
             <Form.Item

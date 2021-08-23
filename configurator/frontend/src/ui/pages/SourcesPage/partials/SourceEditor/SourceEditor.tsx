@@ -121,7 +121,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
         />
       ),
       form: Form.useForm()[0],
-      isHidden: connectorSource?.isSingerType,
+      isHidden: !!connectorSource?.protoType,
       touched: false
     },
     {

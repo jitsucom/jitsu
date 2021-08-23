@@ -268,9 +268,9 @@ type SourceConnectorId =
   | `airbyte-source-${string}`;
 export interface SourceConnector {
   /**
-   * Is it singer source or not, optional parameter.
+   * Hints the source origin.
    * */
-  isSingerType?: boolean;
+  protoType?: 'singer' | 'airbyte';
 
   /**
    * If connector requires expert-level knowledge (such as JSON editing)
