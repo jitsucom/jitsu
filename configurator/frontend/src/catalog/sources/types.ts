@@ -71,6 +71,22 @@ function assertIsPrimitiveParameterTypeName(
     throw new Error(errorMsg || 'Primitive parameter assertion failed');
 }
 
+export function assertIsStringParameterType(
+  parameterType: ParameterType<any, any>,
+  errorMessage?: string
+): asserts parameterType is ParameterType<unknown, 'string'> {
+  if (parameterType.typeName !== 'string')
+    throw new Error(errorMessage || '`string` parameter type assertion failed');
+}
+
+export function assertIsIntParameterType(
+  parameterType: ParameterType<any, any>,
+  errorMessage?: string
+): asserts parameterType is ParameterType<unknown, 'int'> {
+  if (parameterType.typeName !== 'int')
+    throw new Error(errorMessage || '`int` parameter type assertion failed');
+}
+
 export const stringType: ParameterType<string, 'string'> = {
   typeName: 'string'
 };

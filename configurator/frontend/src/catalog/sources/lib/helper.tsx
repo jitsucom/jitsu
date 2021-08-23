@@ -335,7 +335,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
               '',
               (config) => config?.[parentNodeName] !== specNode['title']
             )
-          ) // add a constant!
+          )
         )
       );
       break;
