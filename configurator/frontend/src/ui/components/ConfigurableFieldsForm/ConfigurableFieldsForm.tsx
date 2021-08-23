@@ -15,7 +15,8 @@ import {
   Switch,
   Tooltip,
   Modal,
-  Spin
+  Spin,
+  FormItemProps
 } from 'antd';
 import debounce from 'lodash/debounce';
 import get from 'lodash/get';
@@ -31,7 +32,12 @@ import {
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Types
-import { Parameter, ParameterType } from 'catalog/sources/types';
+import {
+  assertIsIntParameterType,
+  assertIsStringParameterType,
+  Parameter,
+  ParameterType
+} from 'catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 // @Utils
 import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
@@ -357,6 +363,44 @@ const ConfigurableFieldsForm = ({
           const isHidden = constantValue !== undefined;
           const formItemName = id;
 
+          const validationRules: FormItemProps['rules'] = [];
+          if (!isHidden) {
+            const isReuqired =
+              typeof required === 'boolean'
+                ? required
+                : required?.(parsedFormValues);
+            if (isReuqired)
+              validationRules.push({
+                required: true,
+                message: `${displayName} field is required.`
+              });
+            if (type?.typeName === 'isoUtcDate')
+              validationRules.push(
+                isoDateValidator(`${displayName} field is required.`)
+              );
+            if (type?.typeName === 'string') {
+              assertIsStringParameterType(type);
+              type.pattern &&
+                validationRules.push({ pattern: new RegExp(type.pattern) });
+            }
+            if (type?.typeName === 'int') {
+              assertIsIntParameterType(type);
+              (type.minimum || type.maximum) &&
+                validationRules.push({
+                  validator: (_, value) => {
+                    if (type.minimum && value < type.minimum)
+                      return Promise.reject(
+                        new Error(`value can't be lower than ${type.minimum}`)
+                      );
+                    if (type.maximum && value > type.maximum)
+                      return Promise.reject(
+                        new Error(`value can't be greater than ${type.maximum}`)
+                      );
+                  }
+                });
+            }
+          }
+
           return !isHidden ? (
             <Row key={id} className={cn(isHidden && 'hidden')}>
               <Col span={24}>
@@ -405,19 +449,7 @@ const ConfigurableFieldsForm = ({
                   }
                   labelCol={{ span: 4 }}
                   wrapperCol={{ span: 20 }}
-                  rules={
-                    type?.typeName === 'isoUtcDate'
-                      ? [isoDateValidator(`${displayName} field is required.`)]
-                      : [
-                          {
-                            required:
-                              typeof required === 'boolean'
-                                ? required
-                                : required?.(parsedFormValues),
-                            message: `${displayName} field is required.`
-                          }
-                        ]
-                  }
+                  rules={validationRules}
                 >
                   {getFieldComponent(type, id, defaultValue, constantValue)}
                 </Form.Item>
