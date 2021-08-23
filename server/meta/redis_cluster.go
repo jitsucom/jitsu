@@ -8,85 +8,49 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/mna/redisc"
 	"strconv"
 	"strings"
 	"time"
 )
 
-const (
-	syncTasksPriorityQueueKey = "sync_tasks_priority_queue"
-	DestinationNamespace      = "destination"
-	SourceNamespace           = "source"
-
-	destinationIndex = "destinations_index"
-	sourceIndex      = "sources_index"
-
-	responseTimestampLayout = "2006-01-02T15:04:05+0000"
-
-	SuccessStatus = "success"
-	ErrorStatus   = "errors"
-	SkipStatus    = "skip"
-)
-
-var (
-	ErrTaskNotFound           = errors.New("Sync task wasn't found")
-	defaultDialConnectTimeout = redis.DialConnectTimeout(10 * time.Second)
-	defaultDialReadTimeout    = redis.DialReadTimeout(10 * time.Second)
-)
-
-//RedisConfiguration is a dto with Redis credentials and configuration parameters
-type RedisConfiguration struct {
-	host          string
-	port          int
+//RedisClusterConfiguration is a dto with Redis credentials and configuration parameters
+type RedisClusterConfiguration struct {
+	hosts         []string
 	password      string
 	tlsSkipVerify bool
 }
 
-//NewRedisConfiguration returns filled RedisConfiguration and removes quotes in host
-func NewRedisConfiguration(host string, port int, password string, tlsSkipVerify bool) *RedisConfiguration {
-	host = strings.TrimPrefix(host, `"`)
-	host = strings.TrimPrefix(host, `'`)
-	host = strings.TrimSuffix(host, `"`)
-	host = strings.TrimSuffix(host, `'`)
-	return &RedisConfiguration{
-		host:          host,
-		port:          port,
+//NewRedisClusterConfiguration returns filled RedisClusterConfiguration
+func NewRedisClusterConfiguration(hosts string, password string, tlsSkipVerify bool) *RedisClusterConfiguration {
+	hosts = strings.TrimPrefix(hosts, `"`)
+	hosts = strings.TrimPrefix(hosts, `'`)
+	hosts = strings.TrimSuffix(hosts, `"`)
+	hosts = strings.TrimSuffix(hosts, `'`)
+	return &RedisClusterConfiguration{
+		hosts:         strings.Split(hosts, ","),
 		password:      password,
 		tlsSkipVerify: tlsSkipVerify,
 	}
 }
 
-//CheckAndSetDefaultPort checks if port isn't set - put 6379
-func (rc *RedisConfiguration) CheckAndSetDefaultPort() (int, bool) {
-	if rc.port == 0 && !rc.IsURL() && !rc.IsSecuredURL() {
-		rc.port = 6379
-		return rc.port, true
+func (rc *RedisClusterConfiguration) Nodes() []string {
+	nodes := make([]string, 0, len(rc.hosts))
+	for _, n := range rc.hosts {
+		if !strings.Contains(n, ":") {
+			n += ":6379"
+		}
+		nodes = append(nodes, n)
 	}
-
-	return 0, false
+	return nodes
 }
 
-//IsURL returns true if RedisConfiguration contains connection credentials via URL
-func (rc *RedisConfiguration) IsURL() bool {
-	return strings.HasPrefix(rc.host, "redis://")
+func (rc *RedisClusterConfiguration) String() string {
+	return fmt.Sprintf("%s", rc.hosts)
 }
 
-//IsSecuredURL returns true if RedisConfiguration contains connection credentials via secured(SSL) URL
-func (rc *RedisConfiguration) IsSecuredURL() bool {
-	return strings.HasPrefix(rc.host, "rediss://")
-}
-
-//String returns host:port or host if host is an URL
-func (rc *RedisConfiguration) String() string {
-	if rc.IsURL() || rc.IsSecuredURL() {
-		return rc.host
-	}
-
-	return fmt.Sprintf("%s:%d", rc.host, rc.port)
-}
-
-type Redis struct {
-	pool                      *redis.Pool
+type RedisCluster struct {
+	cluster                   *redisc.Cluster
 	anonymousEventsSecondsTTL int
 }
 
@@ -126,90 +90,65 @@ type Redis struct {
 //sync_tasks#taskID:logs [timestamp, log record object] - sorted set of log objects and timestamps
 //sync_tasks#taskID hash with fields [id, source, collection, priority, created_at, started_at, finished_at, status]
 
-//NewRedis returns configured Redis struct with connection pool
-func NewRedis(config *RedisConfiguration, anonymousEventsMinutesTTL int) (*Redis, error) {
+//NewRedisCluster returns configured RedisCluster struct
+func NewRedisCluster(config *RedisClusterConfiguration, anonymousEventsMinutesTTL int) (*RedisCluster, error) {
 	if anonymousEventsMinutesTTL > 0 {
 		logging.Infof("🏪 Initializing meta storage redis [%s] with anonymous events ttl: %d...", config.String(), anonymousEventsMinutesTTL)
 	} else {
 		logging.Infof("🏪 Initializing meta storage redis [%s]...", config.String())
 	}
 
-	pool, err := NewRedisPool(config)
+	cluster, err := newRedisCluster(config)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Redis{pool: pool, anonymousEventsSecondsTTL: anonymousEventsMinutesTTL * 60}, nil
+	return &RedisCluster{cluster: cluster, anonymousEventsSecondsTTL: anonymousEventsMinutesTTL * 60}, nil
 }
 
-//NewRedisPool returns configured Redis connection pool and err if ping failed
-//host might be URLS : [redis:// or rediss://] or plain host
-func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
-	var dialFunc func() (redis.Conn, error)
-	if config.IsSecuredURL() {
-		//redis secured URL
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.DialURL(config.host, redis.DialTLSSkipVerify(config.tlsSkipVerify), defaultDialConnectTimeout, defaultDialReadTimeout)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
-	} else if config.IsURL() {
-		//redis unsecured URL
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.DialURL(config.host, redis.DialTLSSkipVerify(true), defaultDialConnectTimeout, defaultDialReadTimeout)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
-	} else {
-		//host + port
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.Dial(
-				"tcp",
-				config.String(),
-				defaultDialConnectTimeout,
-				defaultDialReadTimeout,
-				redis.DialPassword(config.password),
-			)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
+func newRedisCluster(config *RedisClusterConfiguration) (*redisc.Cluster, error) {
+	var createPool = func(addr string, opts ...redis.DialOption) (*redis.Pool, error) {
+		return &redis.Pool{
+			MaxIdle:     100,
+			MaxActive:   600,
+			IdleTimeout: 240 * time.Second,
+			Wait:        false,
+			Dial: func() (redis.Conn, error) {
+				return redis.Dial("tcp", addr, opts...)
+			},
+			TestOnBorrow: func(c redis.Conn, t time.Time) error {
+				_, err := c.Do("PING")
+				return err
+			},
+		}, nil
 	}
-	pool := &redis.Pool{
-		MaxIdle:     100,
-		MaxActive:   600,
-		IdleTimeout: 240 * time.Second,
-
-		Wait: false,
-		Dial: dialFunc,
-		TestOnBorrow: func(c redis.Conn, t time.Time) error {
-			_, err := c.Do("PING")
-			return err
-		},
+	cluster := redisc.Cluster{
+		StartupNodes: config.Nodes(),
+		DialOptions: []redis.DialOption{defaultDialConnectTimeout,
+			defaultDialReadTimeout,
+			redis.DialPassword(config.password)},
+		CreatePool: createPool,
 	}
-
-	//test connection
-	connection := pool.Get()
+	// initialize its mapping
+	if err := cluster.Refresh(); err != nil {
+		return nil, err
+	}
+	connection := cluster.Get()
 	defer connection.Close()
 
 	if _, err := redis.String(connection.Do("PING")); err != nil {
-		pool.Close()
+		cluster.Close()
 		return nil, fmt.Errorf("Error testing Redis connection: %v", err)
 	}
 
-	return pool, nil
+	return &cluster, nil
 }
 
 //GetSignature returns sync interval signature from Redis
-func (r *Redis) GetSignature(sourceID, collection, interval string) (string, error) {
+func (r *RedisCluster) GetSignature(sourceID, collection, interval string) (string, error) {
 	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
 	field := interval
-	connection := r.pool.Get()
+	connection := r.cluster.Get()
 	defer connection.Close()
 	signature, err := redis.String(connection.Do("HGET", key, field))
 	noticeError(err)
@@ -225,10 +164,10 @@ func (r *Redis) GetSignature(sourceID, collection, interval string) (string, err
 }
 
 //SaveSignature saves sync interval signature in Redis
-func (r *Redis) SaveSignature(sourceID, collection, interval, signature string) error {
+func (r *RedisCluster) SaveSignature(sourceID, collection, interval, signature string) error {
 	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
 	field := interval
-	connection := r.pool.Get()
+	connection := r.cluster.Get()
 	defer connection.Close()
 	_, err := connection.Do("HSET", key, field, signature)
 	noticeError(err)
@@ -240,9 +179,9 @@ func (r *Redis) SaveSignature(sourceID, collection, interval, signature string) 
 }
 
 //DeleteSignature deletes source collection signature from Redis
-func (r *Redis) DeleteSignature(sourceID, collection string) error {
+func (r *RedisCluster) DeleteSignature(sourceID, collection string) error {
 	key := "source#" + sourceID + ":collection#" + collection + ":chunks"
-	connection := r.pool.Get()
+	connection := r.cluster.Get()
 	defer connection.Close()
 	_, err := connection.Do("DEL", key)
 	noticeError(err)
@@ -254,7 +193,7 @@ func (r *Redis) DeleteSignature(sourceID, collection string) error {
 }
 
 //SuccessEvents ensures that id is in the index and increments success events counter
-func (r *Redis) SuccessEvents(id, namespace string, now time.Time, value int) error {
+func (r *RedisCluster) SuccessEvents(id, namespace string, now time.Time, value int) error {
 	err := r.ensureIDInIndex(id, namespace)
 	if err != nil {
 		return fmt.Errorf("Error ensuring id in index: %v", err)
@@ -263,19 +202,19 @@ func (r *Redis) SuccessEvents(id, namespace string, now time.Time, value int) er
 }
 
 //ErrorEvents increments error events counter
-func (r *Redis) ErrorEvents(id, namespace string, now time.Time, value int) error {
+func (r *RedisCluster) ErrorEvents(id, namespace string, now time.Time, value int) error {
 	return r.incrementEventsCount(id, namespace, ErrorStatus, now, value)
 }
 
 //SkipEvents increments skipp events counter
-func (r *Redis) SkipEvents(id, namespace string, now time.Time, value int) error {
+func (r *RedisCluster) SkipEvents(id, namespace string, now time.Time, value int) error {
 	return r.incrementEventsCount(id, namespace, SkipStatus, now, value)
 }
 
 //AddEvent saves event JSON string into Redis and ensures that event ID is in index by destination ID
 //returns index length
-func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) (int, error) {
-	conn := r.pool.Get()
+func (r *RedisCl3uster) AddEvent(destinationID, eventID, payload string, now time.Time) (int, error) {
+	conn := r.cluster.Get()
 	defer conn.Close()
 	//add event
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
@@ -305,10 +244,10 @@ func (r *Redis) AddEvent(destinationID, eventID, payload string, now time.Time) 
 }
 
 //UpdateSucceedEvent updates event record in Redis with success field = JSON of succeed event
-func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error {
+func (r *RedisCluster) UpdateSucceedEvent(destinationID, eventID, success string) error {
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
 
-	conn := r.pool.Get()
+	conn := r.cluster.Get()
 	defer conn.Close()
 
 	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "")
@@ -321,10 +260,10 @@ func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error
 }
 
 //UpdateErrorEvent updates event record in Redis with error field = error string
-func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
+func (r *RedisCluster) UpdateErrorEvent(destinationID, eventID, error string) error {
 	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
 
-	conn := r.pool.Get()
+	conn := r.cluster.Get()
 	defer conn.Close()
 
 	_, err := updateOneFieldCachedEvent.Do(conn, lastEventsKey, "error", error)
@@ -337,8 +276,8 @@ func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 }
 
 //RemoveLastEvent removes last event from index and delete it from Redis
-func (r *Redis) RemoveLastEvent(destinationID string) error {
-	conn := r.pool.Get()
+func (r *Redis3Cluster) RemoveLastEvent(destinationID string) error {
+	conn := r.cluster.Get()
 	defer conn.Close()
 	//remove last event from index
 	lastEventsIndexKey := "last_events_index:destination#" + destinationID
@@ -365,8 +304,8 @@ func (r *Redis) RemoveLastEvent(destinationID string) error {
 }
 
 //GetEvents returns destination's last events with time criteria
-func (r *Redis) GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error) {
-	conn := r.pool.Get()
+func (r *Redis3Cluster) GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error) {
+	conn := r.cluster.Get()
 	defer conn.Close()
 
 	//get index
@@ -401,8 +340,8 @@ func (r *Redis) GetEvents(destinationID string, start, end time.Time, n int) ([]
 }
 
 //GetTotalEvents returns total of cached events
-func (r *Redis) GetTotalEvents(destinationID string) (int, error) {
-	conn := r.pool.Get()
+func (r *RedisCluster) GetTotalEvents(destinationID string) (int, error) {
+	conn := r.cluster.Get()
 	defer conn.Close()
 
 	lastEventsIndexKey := "last_events_index:destination#" + destinationID
@@ -416,7 +355,7 @@ func (r *Redis) GetTotalEvents(destinationID string) (int, error) {
 }
 
 //SaveAnonymousEvent saves event JSON by destination ID and user anonymous ID key
-func (r *Redis) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error {
+func (r *Redis3Cluster) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 	//add event
@@ -439,8 +378,8 @@ func (r *Redis) SaveAnonymousEvent(destinationID, anonymousID, eventID, payload 
 }
 
 //GetAnonymousEvents returns events JSON per event ID map
-func (r *Redis) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
-	conn := r.pool.Get()
+func (r *RedisCluster) GetAnonymousEvents(destinationID, anonymousID string) (map[string]string, error) {
+	conn := r.cluster.Get()
 	defer conn.Close()
 	//get events
 	anonymousEventKey := "anonymous_events:destination_id#" + destinationID + ":anonymous_id#" + anonymousID
@@ -455,8 +394,8 @@ func (r *Redis) GetAnonymousEvents(destinationID, anonymousID string) (map[strin
 }
 
 //DeleteAnonymousEvent deletes event with eventID
-func (r *Redis) DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error {
-	conn := r.pool.Get()
+func (r *RedisCluster) DeleteAnonymousEvent(destinationID, anonymousID, eventID string) error {
+	conn := r.cluster.Get()
 	defer conn.Close()
 
 	//remove event
@@ -471,13 +410,13 @@ func (r *Redis) DeleteAnonymousEvent(destinationID, anonymousID, eventID string)
 }
 
 //CreateTask saves task into Redis and add Task ID in index
-func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
+func (r *RedisCluster) CreateTask(sourceID, collection string, task *Task, createdAt time.Time) error {
 	err := r.UpsertTask(task)
 	if err != nil {
 		return err
 	}
 
-	conn := r.pool.Get()
+	conn := r.cluster.Get()
 	defer conn.Close()
 
 	//enrich index
@@ -493,8 +432,8 @@ func (r *Redis) CreateTask(sourceID, collection string, task *Task, createdAt ti
 }
 
 //UpsertTask overwrite task in Redis (save or update)
-func (r *Redis) UpsertTask(task *Task) error {
-	conn := r.pool.Get()
+func (r *RedisCluster) UpsertTask(task *Task) error {
+	conn := r.cluster.Get()
 	defer conn.Close()
 
 	//save task
@@ -509,8 +448,8 @@ func (r *Redis) UpsertTask(task *Task) error {
 }
 
 //GetAllTaskIDs returns all source's tasks ids by collection
-func (r *Redis) GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error) {
-	conn := r.pool.Get()
+func (r *RedisCluster) GetAllTaskIDs(sourceID, collection string, descendingOrder bool) ([]string, error) {
+	conn := r.cluster.Get()
 	defer conn.Close()
 	//get index
 	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
@@ -533,8 +472,8 @@ func (r *Redis) GetAllTaskIDs(sourceID, collection string, descendingOrder bool)
 
 //RemoveTasks tasks with provided taskIds from specified source's collections.
 //All task logs removed as well
-func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error) {
-	conn := r.pool.Get()
+func (r *Redis3Cluster) RemoveTasks(sourceID, collection string, taskIDs ...string) (int, error) {
+	conn := r.cluster.Get()
 	defer conn.Close()
 
 	taskIndexKey := "sync_tasks_index:source#" + sourceID + ":collection#" + collection
@@ -580,8 +519,8 @@ func (r *Redis) RemoveTasks(sourceID, collection string, taskIDs ...string) (int
 }
 
 //GetAllTasks returns all source's tasks by collection and time criteria
-func (r *Redis) GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error) {
-	conn := r.pool.Get()
+func (r *RedisCluster) GetAllTasks(sourceID, collection string, start, end time.Time, limit int) ([]Task, error) {
+	conn := r.cluster.Get()
 	defer conn.Close()
 
 	//get index
@@ -971,8 +910,8 @@ func (r *Redis) ensureIDInIndex(id, namespace string) error {
 //incrementEventsCount increment events counter
 //namespaces: [destination, source]
 //status: [success, error, skip]
-func (r *Redis) incrementEventsCount(id, namespace, status string, now time.Time, value int) error {
-	conn := r.pool.Get()
+func (r *RedisCluster) incrementEventsCount(id, namespace, status string, now time.Time, value int) error {
+	conn := r.cluster.Get()
 	defer conn.Close()
 	//increment hourly events
 	dayKey := now.Format(timestamp.DayLayout)
@@ -995,53 +934,4 @@ func (r *Redis) incrementEventsCount(id, namespace, status string, now time.Time
 	}
 
 	return nil
-}
-
-func noticeError(err error) {
-	if err != nil {
-		if err == redis.ErrPoolExhausted {
-			metrics.MetaRedisErrors("ERR_POOL_EXHAUSTED")
-		} else if err == redis.ErrNil {
-			metrics.MetaRedisErrors("ERR_NIL")
-		} else if strings.Contains(strings.ToLower(err.Error()), "timeout") {
-			metrics.MetaRedisErrors("ERR_TIMEOUT")
-		} else {
-			metrics.MetaRedisErrors("UNKNOWN")
-			logging.Error("Unknown redis error:", err)
-		}
-	}
-}
-
-//getCoveredDays return array of YYYYMMDD day strings which are covered input interval
-func getCoveredDays(start, end time.Time) []string {
-	days := []string{start.Format(timestamp.DayLayout)}
-
-	day := start.Day()
-	for start.Before(end) {
-		start = start.Add(time.Hour)
-		nextDay := start.Day()
-		if nextDay != day {
-			days = append(days, start.Format(timestamp.DayLayout))
-		}
-		day = nextDay
-	}
-
-	return days
-}
-
-//getCoveredMonths return array of YYYYMM month strings which are covered input interval
-func getCoveredMonths(start, end time.Time) []string {
-	months := []string{start.Format(timestamp.MonthLayout)}
-
-	month := start.Month()
-	for start.Before(end) {
-		start = start.Add(time.Hour * 24)
-		nextMonth := start.Month()
-		if nextMonth != month {
-			months = append(months, start.Format(timestamp.MonthLayout))
-		}
-		month = nextMonth
-	}
-
-	return months
 }

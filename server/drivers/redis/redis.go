@@ -22,7 +22,7 @@ const (
 //Redis is a Redis driver. It is used in syncing data from Redis.
 type Redis struct {
 	collection     *base.Collection
-	connectionPool meta.RedisCluster
+	connectionPool *redis.Pool
 	redisKey       string
 }
 
@@ -62,7 +62,7 @@ func NewRedis(ctx context.Context, sourceConfig *base.SourceConfig, collection *
 		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", sourceConfig.SourceID, defaultPort)
 	}
 
-	pool, err := meta.NewRedisCluster(redisConfig)
+	pool, err := meta.NewRedisPool(redisConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func TestRedis(sourceConfig *base.SourceConfig) error {
 	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify)
 	redisConfig.CheckAndSetDefaultPort()
 
-	pool, err := meta.NewRedisCluster(redisConfig)
+	pool, err := meta.NewRedisPool(redisConfig)
 	if err != nil {
 		return err
 	}
