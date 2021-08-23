@@ -385,7 +385,6 @@ const ConfigurableFieldsForm = ({
             }
             if (type?.typeName === 'int') {
               assertIsIntParameterType(type);
-              validationRules.push({ type: 'integer' });
               (type.minimum || type.maximum) &&
                 validationRules.push({
                   validator: (_, value) => {
