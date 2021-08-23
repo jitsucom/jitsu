@@ -150,7 +150,7 @@ const fixConfigParamsPath = (params: Parameter[]) =>
  */
 export const makeSingerSource = (singerTap: SingerTap): SourceConnector => {
   return {
-    isSingerType: true,
+    protoType: 'singer',
     expertMode: !singerTap.parameters,
     pic: singerTap.pic,
     displayName: singerTap.displayName,
@@ -178,7 +178,7 @@ export const makeAirbyteSource = (
   airbyteSource: AirbyteSource
 ): SourceConnector => {
   return {
-    isSingerType: false,
+    protoType: 'airbyte',
     expertMode: false,
     pic: airbyteSource.pic,
     displayName: airbyteSource.displayName,
@@ -231,7 +231,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         id: nodeName,
         type: fieldType,
         required: requiredFields.includes(nodeName),
-        documentation: specNode['description']
+        documentation: <>{specNode['description']}</>
       };
       if (specNode['default'] !== undefined)
         mappedStringField.defaultValue = specNode['default'];
@@ -249,7 +249,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           maximum: specNode['maximum']
         }),
         required: requiredFields.includes(nodeName),
-        documentation: specNode['description']
+        documentation: <>{specNode['description']}</>
       };
       if (specNode['default'] !== undefined)
         mappedIntegerField.defaultValue = specNode['default'];
@@ -264,7 +264,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         id: nodeName,
         type: booleanType,
         required: requiredFields.includes(nodeName),
-        documentation: specNode['description']
+        documentation: <>{specNode['description']}</>
       };
       if (specNode['default'] !== undefined)
         mappedBooleanField.defaultValue = specNode['default'];
@@ -290,7 +290,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           id: nodeName,
           type: singleSelectionType(options),
           required: requiredFields.includes(nodeName),
-          documentation: specNode['description']
+          documentation: <>{specNode['description']}</>
         };
 
         mappedSelectionField.defaultValue = specNode?.['default'] || options[0];
