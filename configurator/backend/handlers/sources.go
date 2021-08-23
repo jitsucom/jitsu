@@ -112,12 +112,19 @@ func (sh *SourcesHandler) TestHandler(c *gin.Context) {
 
 	code, content, err := sh.enService.TestSource(b)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Failed to get response from eventnative", err))
+		c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Failed to get response from Jitsu Server", err))
 		return
 	}
 
 	if code == http.StatusOK {
-		c.JSON(http.StatusOK, middleware.OkResponse{Status: "Connection established"})
+		sr := &jmiddleware.StatusResponse{}
+		err := json.Unmarshal(content, sr)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, jmiddleware.ErrResponse("Failed to read response from Jitsu Server", err))
+			return
+		}
+
+		c.JSON(http.StatusOK, sr)
 		return
 	}
 
