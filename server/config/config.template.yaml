@@ -410,7 +410,7 @@ destinations:
 
 
 
-### Retrospective users recognition global configuration https://jitsu.com/docs/other-features/retrospective-user-recognition
+### Retroactive users recognition global configuration https://jitsu.com/docs/other-features/retroactive-user-recognition
 ### It is applied to all destinations, but you could override this configuration on the destination level
 ### Note: only Postgres, Clickhouse and Redshift support this feature
 #users_recognition:
@@ -429,7 +429,7 @@ destinations:
 ### Meta storage. It is required for using sources (see below).
 ### It is required for using events caching and counting https://jitsu.com/docs/other-features/events-cache
 ### Also it is required if sources are used https://jitsu.com/docs/sources-configuration
-### or Retrospective users recognition https://jitsu.com/docs/other-features/retrospective-user-recognition
+### or Retroactive users recognition https://jitsu.com/docs/other-features/retroactive-user-recognition
 ### or Coordination in cluster setup https://jitsu.com/docs/other-features/scaling-eventnative
 #meta:
 #  storage:

@@ -192,10 +192,10 @@ Otherwise the JSON sent by new SDK will have a little different structure
 </CodeInTabs>
 
 `eventn_ctx` node present in old structure, but it's not present in a new one. All children of `eventn_ctx` is moved to the root of the object. If you have any
-mappings settings that that relies on an old structure (presence of `eventn_ctx` node), or have [user recognition](/docs/other-features/retrospective-user-recognition) enabled
+mappings settings that that relies on an old structure (presence of `eventn_ctx` node), or have [user recognition](/docs/other-features/retroactive-user-recognition) enabled
 you need to make following changes in your configuration
 
-### Retrospective users recognition changes
+### Retroactive users recognition changes
 
 Jitsu saves each anonymous event in Redis. On each identification event server gets saved events by event id from Redis and updates it in Data warehouse.
 If you have already had configured users recognition then you should change it in eventnative.yaml according to a new format:

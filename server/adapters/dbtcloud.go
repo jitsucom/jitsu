@@ -165,3 +165,7 @@ func (dcc *DbtCloudRequestFactory) Create(object map[string]interface{}) (req *R
 		Headers: headers,
 	}, nil
 }
+
+func (dcc *DbtCloudRequestFactory) Close() {
+	dcc.causeTemplate.Close()
+}

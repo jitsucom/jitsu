@@ -261,3 +261,6 @@ func (frf *FacebookRequestFactory) hashFields(object map[string]interface{}) {
 		}
 	}
 }
+
+func (frf *FacebookRequestFactory) Close() {
+}
