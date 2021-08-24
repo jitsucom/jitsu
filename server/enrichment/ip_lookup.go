@@ -1,12 +1,13 @@
 package enrichment
 
 import (
+	"strings"
+
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/parsers"
-	"strings"
 )
 
 const IPLookup = "ip_lookup"
@@ -60,9 +61,8 @@ func (ir *IPLookupRule) Execute(event map[string]interface{}) {
 		return
 	}
 
-	//don't overwrite existent
-	err = ir.destination.SetIfNotExist(event, result)
-	if err != nil {
+	// Merge destination values from event and from geo resolver
+	if err = ir.destination.SetOrMergeIfExist(event, result); err != nil {
 		logging.SystemErrorf("Resolved geo data wasn't set: %v", err)
 	}
 }
