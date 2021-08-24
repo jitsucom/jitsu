@@ -80,7 +80,11 @@ export const LoadableFieldsForm = ({
       if (response?.['status'] && response?.['status'] !== 'pending') {
         const parsedData = mapAirbyteSpecToSourceConnectorConfig(
           response?.['spec']?.['spec']?.['connectionSpecification'],
-          sourceReference.displayName
+          sourceReference.displayName,
+          'config',
+          [],
+          null,
+          'config'
         );
         setFieldsParameters(parsedData);
         setIsLoadingParameters(false);

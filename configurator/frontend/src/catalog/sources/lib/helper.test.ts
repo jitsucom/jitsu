@@ -15,9 +15,16 @@ describe('mapAirbyteSpecToSourceConnectorConfig', () => {
         const airbyte_spec =
           mockAirbyteSourcesSpecs[name].connectionSpecification;
         const mapped_connector_parameters =
-          mapAirbyteSpecToSourceConnectorConfig(airbyte_spec, name);
+          mapAirbyteSpecToSourceConnectorConfig(
+            airbyte_spec,
+            name,
+            'connectionSpecification',
+            [],
+            null,
+            'config.config'
+          );
 
-        it(`maps ${toTitleCase(name)} spec correctly`, () => {
+        it(`maps ${toTitleCase(name)} spec as expected`, () => {
           const mapped_connector_parameters_without_constant =
             mapped_connector_parameters.map(
               // excludes the `constant` field as it requires a separate check
@@ -32,7 +39,9 @@ describe('mapAirbyteSpecToSourceConnectorConfig', () => {
           );
         });
 
-        it(`maps ${toTitleCase(name)} \`constant\` parameter correctly`, () => {
+        it(`maps ${toTitleCase(
+          name
+        )} \`constant\` parameters as expected`, () => {
           true_connector_parameters.forEach((true_parameter, idx) => {
             const mapped_parameter = mapped_connector_parameters[idx];
             if (true_parameter.constant === undefined) {

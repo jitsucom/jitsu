@@ -9,9 +9,6 @@ import ApplicationServices, {
 // @Utils
 import { intersection, without } from 'lodash';
 import { toArrayIfNot } from 'utils/arrays';
-import { Parameter } from 'catalog/sources/types';
-import { IPoll, Poll } from 'utils/polling';
-import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/helper';
 
 export interface ISourcesStore {
   sources: SourceData[];
@@ -71,7 +68,6 @@ class SourcesStore implements ISourcesStore {
   private _errorMessage: string = '';
   private _destinatinonsStore: IDestinationsStore | undefined;
   private services: IApplicationServices = ApplicationServices.get();
-  private airbyteSourceSpecPollingInstance: null | IPoll<unknown> = null;
 
   constructor() {
     makeAutoObservable(this);
@@ -174,47 +170,6 @@ class SourcesStore implements ISourcesStore {
 
   public getSourceById(id: string) {
     return this._sources.find(({ sourceId }) => id === sourceId);
-  }
-
-  private async pollAirbyteSourceConfigurationSpec(sourceId): Promise<unknown> {
-    const POLLING_INTERVAL_MS = 5000;
-    this.airbyteSourceSpecPollingInstance = new Poll(
-      (end) => async () => {
-        const response = (await this.services.backendApiClient.get(
-          `/airbyte/${sourceId}/spec`,
-          { proxy: true }
-        )) as unknown;
-        if (response?.['data']?.['status'] !== 'pending') {
-          end(response?.['data']?.['spec']);
-        }
-      },
-      POLLING_INTERVAL_MS
-    );
-    this.airbyteSourceSpecPollingInstance.start();
-    return this.airbyteSourceSpecPollingInstance.wait();
-  }
-
-  /**
-   * Fetches the airbyte source docker image spec and maps in on our
-   * internal `Parameter` type which is a part of our `ConnectorSource` spec.
-   * @param sourceId id of the airbyte source which is the name of the
-   * airbyte source docker image without the 'airbyte/' prefix
-   */
-  public async fetchAirbyteSourceConfigurationFields(
-    sourceId
-  ): Promise<Parameter[]> {
-    const airbyteSourceSpec = await this.pollAirbyteSourceConfigurationSpec(
-      sourceId
-    );
-    if (!airbyteSourceSpec && !this.airbyteSourceSpecPollingInstance)
-      return null; // in case polling was interrupted manually
-    if (!airbyteSourceSpec) throw new Error(`Failed to fetch the source spec`);
-    if (!airbyteSourceSpec['connectionSpecification'])
-      throw new Error(`Failed to get the Airbyte source parameters spec`);
-    return mapAirbyteSpecToSourceConnectorConfig(
-      airbyteSourceSpec['connectionSpecification'],
-      sourceId
-    );
   }
 
   public *pullSources(showGlobalLoader?: boolean) {

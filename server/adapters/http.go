@@ -244,6 +244,7 @@ func (h *HTTPAdapter) doRequest(req *Request) error {
 //returns err if occurred
 func (h *HTTPAdapter) Close() (err error) {
 	h.closed.Store(true)
+	h.httpReqFactory.Close()
 	err = h.queue.Close()
 
 	h.workersPool.Release()
