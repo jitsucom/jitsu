@@ -10,6 +10,7 @@ import (
 	"io"
 	"io/ioutil"
 	"strings"
+	"time"
 )
 
 const (
@@ -129,6 +130,8 @@ type Driver interface {
 type CLIDriver interface {
 	Driver
 
+	//IsClosed returns true if the driver is already closed
+	IsClosed() bool
 	//Load runs CLI command and consumes output
 	Load(state string, taskLogger logging.TaskLogger, dataConsumer CLIDataConsumer) error
 	//Ready returns true if the driver is ready otherwise returns ErrNotReady
@@ -173,11 +176,6 @@ func RegisterTestConnectionFunc(driverType string, testConnectionFunc func(confi
 	DriverTestConnectionFuncs[driverType] = testConnectionFunc
 }
 
-//IsCLISource returns true if a source is CLI - singer or airbyte
-func IsCLISource(sourceType string) bool {
-	return sourceType == SingerType || sourceType == AirbyteType
-}
-
 //UnmarshalConfig serializes and deserializes config into the object
 //return error if occurred
 func UnmarshalConfig(config interface{}, object interface{}) error {
@@ -191,4 +189,31 @@ func UnmarshalConfig(config interface{}, object interface{}) error {
 	}
 
 	return nil
+}
+
+//WaitReadiness returns true if a source is CLI - singer or airbyte
+func WaitReadiness(driver CLIDriver, taskLogger logging.TaskLogger) (bool, error) {
+	ready, _ := driver.Ready()
+
+	if ready {
+		return true, nil
+	}
+
+	seconds := 0
+	for seconds < 120 {
+		if driver.IsClosed() {
+			return false, fmt.Errorf("%s already has been closed", driver.Type())
+		}
+
+		ready, _ := driver.Ready()
+		if ready {
+			return true, nil
+		}
+
+		taskLogger.WARN("waiting for source driver being ready..")
+		time.Sleep(10 * time.Second)
+		seconds += 10
+	}
+
+	return driver.Ready()
 }

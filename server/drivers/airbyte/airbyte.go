@@ -196,7 +196,8 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 		return fmt.Errorf("%s has already been closed", a.Type())
 	}
 
-	ready, readyErr := a.Ready()
+	//waiting when airbyte is ready
+	ready, readyErr := base.WaitReadiness(a, taskLogger)
 	if !ready {
 		return readyErr
 	}

@@ -249,9 +249,10 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer 
 		return fmt.Errorf("%s has already been closed", s.Type())
 	}
 
-	ready, notReadyErr := s.Ready()
+	//waiting when singer is ready
+	ready, readyErr := base.WaitReadiness(s, taskLogger)
 	if !ready {
-		return notReadyErr
+		return readyErr
 	}
 
 	//update tap

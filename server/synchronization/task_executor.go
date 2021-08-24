@@ -166,12 +166,6 @@ func (te *TaskExecutor) execute(i interface{}) {
 	var taskErr error
 	cliDriver, ok := driver.(driversbase.CLIDriver)
 	if ok {
-		ready, notReadyError := cliDriver.Ready()
-		if !ready {
-			te.handleError(task, taskLogger, notReadyError.Error(), false)
-			return
-		}
-
 		taskErr = te.syncCLI(task, taskLogger, cliDriver, destinationStorages)
 	} else {
 		taskErr = te.sync(task, taskLogger, driver, destinationStorages)
