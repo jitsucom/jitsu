@@ -340,26 +340,37 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
     case undefined: // Special case for the nodes from the `oneOf` list in the `object` node
       const childrenNodesEntries: unknown = Object.entries(
         specNode['properties']
-      ).slice(1); // Ecludes the first entry as it is a duplicate definition of the parent node
+      );
+      const parentNodeValueProperty = childrenNodesEntries[0][0];
+      const parentNodeValueKey = `${parentNodeId}.${parentNodeValueProperty}`;
       const _listOfRequiredFields: unknown = specNode['required'] || [];
       assertIsArray(childrenNodesEntries);
       assertIsArrayOfTypes(_listOfRequiredFields, 'string');
-      childrenNodesEntries.forEach(([nodeName, node]) =>
-        result.push(
-          ...mapAirbyteNode(
-            node,
-            sourceName,
-            nodeName,
-            _listOfRequiredFields,
-            '',
-            parentNodeId,
-            hiddenValue(
+      childrenNodesEntries
+        .slice(1) // Ecludes the first entry as it is a duplicate definition of the parent node
+        .forEach(([nodeName, node]) =>
+          result.push(
+            ...mapAirbyteNode(
+              node,
+              sourceName,
+              nodeName,
+              _listOfRequiredFields,
               '',
-              (config) => config?.[parentNodeName] !== specNode['title']
+              parentNodeId,
+              hiddenValue('', (config) => {
+                const parentSelectionNodeValue = parentNodeValueKey
+                  .split('.')
+                  .reduce((obj, key) => obj[key] || {}, config);
+                const showChildFieldIfThisParentValueSelected =
+                  childrenNodesEntries[0][1]?.['default'];
+                return (
+                  parentSelectionNodeValue !==
+                  showChildFieldIfThisParentValueSelected
+                );
+              })
             )
           )
-        )
-      );
+        );
       break;
   }
   return result;

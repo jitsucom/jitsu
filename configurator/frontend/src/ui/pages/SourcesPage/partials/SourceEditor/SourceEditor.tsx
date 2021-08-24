@@ -45,7 +45,8 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
 
   const forceUpdate = useForceUpdate();
 
-  const params = useParams<{ source?: string; sourceId?: string; tabName?: string; }>();
+  const params =
+    useParams<{ source?: string; sourceId?: string; tabName?: string }>();
 
   const [sourceSaving, setSourceSaving] = useState<boolean>(false);
   const [savePopover, switchSavePopover] = useState<boolean>(false);
@@ -178,7 +179,6 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
 
   const handleTestConnection = () => {
     setTestConnecting(true);
-
     sourcePageUtils
       .bringSourceData({
         sourcesTabs: sourcesTabs.current,

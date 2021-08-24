@@ -1,7 +1,6 @@
 import { isValidFullIsoDate } from 'utils/validation/date';
 
 const isoDateValidator = (errorMessage: string) => {
-  debugger;
   return {
     validator: (rule, value) =>
       !value
