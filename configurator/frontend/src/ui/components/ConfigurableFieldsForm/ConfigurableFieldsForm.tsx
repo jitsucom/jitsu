@@ -342,7 +342,8 @@ const ConfigurableFieldsForm = ({
           type,
           defaultValue,
           required,
-          constant
+          constant,
+          omitFieldRule
         }: Parameter) => {
           const currentFormValues = form.getFieldsValue() ?? {};
           const defaultFormValues = fieldsParamsList.reduce(
@@ -363,7 +364,9 @@ const ConfigurableFieldsForm = ({
               ? constant?.(parsedFormValues)
               : constant;
           const isHidden = constantValue !== undefined;
-          const isOmitted = constantValue === OMIT_FIELD;
+          const isOmitted = omitFieldRule
+            ? omitFieldRule(parsedFormValues)
+            : false;
 
           const validationRules: FormItemProps['rules'] = [];
           if (!isHidden) {

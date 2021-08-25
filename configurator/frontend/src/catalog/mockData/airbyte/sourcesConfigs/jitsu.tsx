@@ -439,7 +439,7 @@ export const postgres: Parameter[] = [
         }}
       />
     ),
-    constant: omittedValue((config) => {
+    constant: omittedValue('', (config) => {
       return config?.['_formData']?.['replication_method'] !== 'CDC';
     })
   },
@@ -455,7 +455,7 @@ export const postgres: Parameter[] = [
         }}
       />
     ),
-    constant: omittedValue((config) => {
+    constant: omittedValue('', (config) => {
       return config?.['_formData']?.['replication_method'] !== 'CDC';
     })
   }

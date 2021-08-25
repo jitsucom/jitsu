@@ -213,11 +213,17 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
   sourceName: string,
   nodeName?: string,
   requiredFields?: string[],
-  parentNodeName?: string,
   parentNodeId?: string,
-  constant?: ConstantOrFunction<any, any>
+  omitFieldRule?: (config: unknown) => boolean
 ): Parameter[] {
   const result: Parameter[] = [];
+
+  const id = `${parentNodeId}.${nodeName}`;
+  const required = requiredFields.includes(nodeName);
+  const documentation = specNode['description'] ? (
+    <span dangerouslySetInnerHTML={{ __html: specNode['description'] }} />
+  ) : undefined;
+
   switch (specNode['type']) {
     case 'string':
       const fieldType = specNode['airbyte_secret']
@@ -229,16 +235,14 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: `${parentNodeId}.${nodeName}`,
+        id,
         type: fieldType,
-        required: requiredFields.includes(nodeName),
-        documentation: (
-          <span dangerouslySetInnerHTML={{ __html: specNode['description'] }} />
-        )
+        required,
+        documentation,
+        omitFieldRule
       };
       if (specNode['default'] !== undefined)
         mappedStringField.defaultValue = specNode['default'];
-      if (constant) mappedStringField.constant = constant;
       return [mappedStringField];
 
     case 'integer':
@@ -246,19 +250,17 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: `${parentNodeId}.${nodeName}`,
+        id,
         type: makeIntType({
           minimum: specNode['minimum'],
           maximum: specNode['maximum']
         }),
-        required: requiredFields.includes(nodeName),
-        documentation: (
-          <span dangerouslySetInnerHTML={{ __html: specNode['description'] }} />
-        )
+        required,
+        documentation,
+        omitFieldRule
       };
       if (specNode['default'] !== undefined)
         mappedIntegerField.defaultValue = specNode['default'];
-      if (constant) mappedIntegerField.constant = constant;
       return [mappedIntegerField];
 
     case 'boolean':
@@ -266,21 +268,17 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
           : toTitleCase(snakeCaseToWords(nodeName)),
-        id: `${parentNodeId}.${nodeName}`,
+        id,
         type: booleanType,
-        required: requiredFields.includes(nodeName),
-        documentation: (
-          <span dangerouslySetInnerHTML={{ __html: specNode['description'] }} />
-        )
+        required,
+        documentation,
+        omitFieldRule
       };
       if (specNode['default'] !== undefined)
         mappedBooleanField.defaultValue = specNode['default'];
-      if (constant) mappedBooleanField.constant = constant;
       return [mappedBooleanField];
 
     case 'object':
-      const id = `${parentNodeId}.${nodeName}`;
-
       let optionsEntries: [string, unknown][] = [];
       let listOfRequiredFields: string[] = [];
 
@@ -305,12 +303,9 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
             : toTitleCase(snakeCaseToWords(nodeName)),
           id: `${parentNodeId}.${nodeName}.${optionsFieldName}`,
           type: singleSelectionType(options),
-          required: requiredFields.includes(nodeName),
-          documentation: (
-            <span
-              dangerouslySetInnerHTML={{ __html: specNode['description'] }}
-            />
-          )
+          required,
+          documentation,
+          omitFieldRule
         };
 
         mappedSelectionField.defaultValue = specNode?.['default'] || options[0];
@@ -330,7 +325,6 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
             sourceName,
             nodeName,
             listOfRequiredFields,
-            parentName,
             parentId
           )
         )
@@ -355,9 +349,8 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
               sourceName,
               nodeName,
               _listOfRequiredFields,
-              '',
               parentNodeId,
-              omittedValue((config) => {
+              (config) => {
                 const parentSelectionNodeValue = parentNodeValueKey
                   .split('.')
                   .reduce((obj, key) => obj[key] || {}, config);
@@ -367,7 +360,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
                   parentSelectionNodeValue !==
                   showChildFieldIfThisParentValueSelected
                 );
-              })
+              }
             )
           )
         );

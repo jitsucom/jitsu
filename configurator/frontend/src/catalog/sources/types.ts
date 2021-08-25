@@ -65,14 +65,21 @@ export type ParameterType<
 
 export const OMIT_FIELD = 'OMIT_CONFIGURABLE_FORM_FIELD' as const;
 
-export function omittedValue<P>(
+// export function omittedValue<P>(
+//   omit: (config: P) => boolean
+// ): (config: P) => typeof OMIT_FIELD | undefined {
+//   return (config) => (omit(config) ? OMIT_FIELD : undefined);
+// }
+
+export function omittedValue<P, V extends number | string | bigint>(
+  value: V,
   omit: (config: P) => boolean
-): (config: P) => typeof OMIT_FIELD | undefined {
-  return (config) => (omit(config) ? OMIT_FIELD : undefined);
+): ConstantOrFunction<P, V | undefined> {
+  return hiddenValue((config) => omit(config) ? undefined : value, omit);
 }
 
-export function hiddenValue<P, V>(
-  value: V,
+export function hiddenValue<P, V extends number | string | bigint>(
+  value: V | ((config: P) => V),
   hide?: (config: P) => boolean
 ): ConstantOrFunction<P, V> {
   if (!hide) {
@@ -80,7 +87,7 @@ export function hiddenValue<P, V>(
   } else {
     return (config) => {
       if (hide(config)) {
-        return value;
+        return typeof value === 'function' ? value(config) : value;
       } else {
         return undefined;
       }
@@ -268,14 +275,16 @@ export type Parameter = {
    * If value is defined (!== undefined): field should be hidden and constant value
    * should be put to the form.
    *
-   * If value is equal to the value of `OMIT_VALUE` string constant then it will be hidden from user and won't
-   * be included in the resulting JSON config.
-   *
    * WARNING: value could be  "" or null which is a valid defined value. Do not check it with if (constant),
-   * use `constant !== undefined` to send a hidden value to backend or use `constant === OMIT_VALUE` to neither
-   * show field in the UI, neither include this field in JSON that sent to backend
+   * use `constant !== undefined` to send a hidden value to backend. To conditionally omit the field completely 
+   * use `omitFieldRule` function.
    */
   constant?: ConstantOrFunction<any, any>;
+
+  /**
+   * Function of current config that shows whether to use field (render and send value) or not.
+   */
+  omitFieldRule?: (config: unknown) => boolean
 };
 
 export interface CollectionParameter extends Parameter {
