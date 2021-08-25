@@ -191,7 +191,7 @@ func UnmarshalConfig(config interface{}, object interface{}) error {
 	return nil
 }
 
-//WaitReadiness returns true if a source is CLI - singer or airbyte
+//WaitReadiness waits 90 sec until driver is ready or returns false and notReadyError
 func WaitReadiness(driver CLIDriver, taskLogger logging.TaskLogger) (bool, error) {
 	ready, _ := driver.Ready()
 
@@ -200,7 +200,7 @@ func WaitReadiness(driver CLIDriver, taskLogger logging.TaskLogger) (bool, error
 	}
 
 	seconds := 0
-	for seconds < 120 {
+	for seconds < 90 {
 		if driver.IsClosed() {
 			return false, fmt.Errorf("%s already has been closed", driver.Type())
 		}
