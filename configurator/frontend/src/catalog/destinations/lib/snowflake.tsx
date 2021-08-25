@@ -1,5 +1,12 @@
-import { hiddenValue, modeParameter, s3Credentials, tableName } from './common';
-import { Function, jsonType, passwordType, singleSelectionType, stringType } from '../../sources/types';
+import { modeParameter, s3Credentials, tableName } from './common';
+import {
+  hiddenValue,
+  Function,
+  jsonType,
+  passwordType,
+  singleSelectionType,
+  stringType
+} from '../../sources/types';
 
 const icon = (
   <svg
@@ -46,17 +53,20 @@ function isBatch(cfg) {
 
 function displayForBatchOnly<T>(defaultValue: T): Function<any, T> {
   return (cfg) => {
-    return cfg._formData?.mode === 'batch' ?
-      undefined :   //display the option
-      defaultValue; //hide the option, display default value
-  }
+    return cfg._formData?.mode === 'batch'
+      ? undefined //display the option
+      : defaultValue; //hide the option, display default value
+  };
 }
 
 const destination = {
-  description: <>
-    Snowflake is a fast and scalable data warehouse. Jitsu can works with Snowflake both in stream and batch modes. For batching, you'll
-    need to provide an access either to Amazon S3 or to Google's Cloud storage bucket
-  </>,
+  description: (
+    <>
+      Snowflake is a fast and scalable data warehouse. Jitsu can works with
+      Snowflake both in stream and batch modes. For batching, you'll need to
+      provide an access either to Amazon S3 or to Google's Cloud storage bucket
+    </>
+  ),
   syncFromSourcesStatus: 'supported',
   id: 'snowflake',
   type: 'database',
@@ -75,7 +85,12 @@ const destination = {
       displayName: 'Account',
       required: true,
       type: stringType,
-      documentation: <>Snowflake Account from URL https://"SNOWFLAKE_ACCOUNT".snowflakecomputing.com/</>
+      documentation: (
+        <>
+          Snowflake Account from URL
+          https://"SNOWFLAKE_ACCOUNT".snowflakecomputing.com/
+        </>
+      )
     },
     {
       id: '_formData.snowflakeWarehouse',
@@ -125,21 +140,41 @@ const destination = {
     {
       id: '_formData.snowflakeJSONKey',
       displayName: 'Access Key',
-      documentation: <>Google Service Account JSON credentials for GCS Bucket. <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">Read more about Google Authorization</a></>,
+      documentation: (
+        <>
+          Google Service Account JSON credentials for GCS Bucket.{' '}
+          <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">
+            Read more about Google Authorization
+          </a>
+        </>
+      ),
       required: true,
       type: jsonType,
       constant: hiddenValue('', (cfg) => {
-        return cfg?.['_formData']?.mode !== 'batch' || (cfg?.['_formData']?.mode === 'batch'&& cfg?.['_formData']?.snowflakeStageType !== 'gcs')
+        return (
+          cfg?.['_formData']?.mode !== 'batch' ||
+          (cfg?.['_formData']?.mode === 'batch' &&
+            cfg?.['_formData']?.snowflakeStageType !== 'gcs')
+        );
       })
     },
     {
       id: '_formData.snowflakeGCSBucket',
-      documentation: <>Name of GCS Bucket. The bucket should be accessible with the same Access Key as dataset</>,
+      documentation: (
+        <>
+          Name of GCS Bucket. The bucket should be accessible with the same
+          Access Key as dataset
+        </>
+      ),
       displayName: 'GCS Bucket',
       required: true,
       type: stringType,
       constant: hiddenValue('', (cfg) => {
-        return cfg?.['_formData']?.mode !== 'batch' || (cfg?.['_formData']?.mode === 'batch'&& cfg?.['_formData']?.snowflakeStageType !== 'gcs')
+        return (
+          cfg?.['_formData']?.mode !== 'batch' ||
+          (cfg?.['_formData']?.mode === 'batch' &&
+            cfg?.['_formData']?.snowflakeStageType !== 'gcs')
+        );
       })
     },
     ...s3Credentials(
@@ -147,7 +182,10 @@ const destination = {
       '_formData.snowflakeS3Bucket',
       '_formData.snowflakeS3AccessKey',
       '_formData.snowflakeS3SecretKey',
-      (cfg) => cfg._formData?.mode !== 'batch' || (cfg._formData?.mode === 'batch'&& cfg._formData?.snowflakeStageType !== 's3')
+      (cfg) =>
+        cfg._formData?.mode !== 'batch' ||
+        (cfg._formData?.mode === 'batch' &&
+          cfg._formData?.snowflakeStageType !== 's3')
     )
   ]
 } as const;

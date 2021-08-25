@@ -74,6 +74,7 @@ const sourcePageUtils = {
       (
         allValues: [{ [key: string]: string }, CollectionSource[], string[]]
       ) => {
+        debugger;
         const enrichedData = {
           ...sourceData,
           ...allValues.reduce((result: any, current: any) => {

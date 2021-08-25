@@ -63,6 +63,31 @@ export type ParameterType<
   toString?: (t: T) => string;
 };
 
+export const OMIT_FIELD = 'OMIT_CONFIGURABLE_FORM_FIELD' as const;
+
+export function omittedValue<P>(
+  omit: (config: P) => boolean
+): (config: P) => typeof OMIT_FIELD | undefined {
+  return (config) => (omit(config) ? OMIT_FIELD : undefined);
+}
+
+export function hiddenValue<P, V>(
+  value: V,
+  hide?: (config: P) => boolean
+): ConstantOrFunction<P, V> {
+  if (!hide) {
+    return undefined;
+  } else {
+    return (config) => {
+      if (hide(config)) {
+        return value;
+      } else {
+        return undefined;
+      }
+    };
+  }
+}
+
 function assertIsPrimitiveParameterTypeName(
   typeName: ParameterTypeName,
   errorMsg?: string
@@ -243,8 +268,12 @@ export type Parameter = {
    * If value is defined (!== undefined): field should be hidden and constant value
    * should be put to the form.
    *
+   * If value is equal to the value of `OMIT_VALUE` string constant then it will be hidden from user and won't
+   * be included in the resulting JSON config.
+   *
    * WARNING: value could be  "" or null which is a valid defined value. Do not check it with if (constant),
-   * use constant === undefined
+   * use `constant !== undefined` to send a hidden value to backend or use `constant === OMIT_VALUE` to neither
+   * show field in the UI, neither include this field in JSON that sent to backend
    */
   constant?: ConstantOrFunction<any, any>;
 };

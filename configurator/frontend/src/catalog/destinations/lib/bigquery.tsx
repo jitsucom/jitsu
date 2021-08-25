@@ -1,6 +1,6 @@
 import { Destination } from '../types';
-import { hiddenValue, modeParameter, tableName } from './common';
-import { jsonType, stringType } from '../../sources/types';
+import { modeParameter, tableName } from './common';
+import { hiddenValue, jsonType, stringType } from '../../sources/types';
 
 const icon = (
   <svg

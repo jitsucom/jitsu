@@ -35,6 +35,7 @@ import ApplicationServices from 'lib/services/ApplicationServices';
 import {
   assertIsIntParameterType,
   assertIsStringParameterType,
+  OMIT_FIELD,
   Parameter,
   ParameterType
 } from 'catalog/sources/types';
@@ -351,6 +352,7 @@ const ConfigurableFieldsForm = ({
             }),
             {}
           );
+          const formItemName = id;
           const formValues = {
             ...defaultFormValues,
             ...currentFormValues
@@ -361,7 +363,7 @@ const ConfigurableFieldsForm = ({
               ? constant?.(parsedFormValues)
               : constant;
           const isHidden = constantValue !== undefined;
-          const formItemName = id;
+          const isOmitted = constantValue === OMIT_FIELD;
 
           const validationRules: FormItemProps['rules'] = [];
           if (!isHidden) {
@@ -380,7 +382,7 @@ const ConfigurableFieldsForm = ({
               );
             if (type?.typeName === 'string') {
               /**
-               * Currently `antd` built in validations do not work as expected, therefore omitted
+               * Currently `antd` built in validations does not work as expected, therefore omitted
                *
                */
               // assertIsStringParameterType(type);
@@ -406,7 +408,7 @@ const ConfigurableFieldsForm = ({
             }
           }
 
-          return !isHidden ? (
+          return isOmitted ? null : !isHidden ? (
             <Row key={id} className={cn(isHidden && 'hidden')}>
               <Col span={24}>
                 {isDebugSupported(id) ? (
