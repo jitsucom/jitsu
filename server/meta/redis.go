@@ -59,6 +59,15 @@ func NewRedisConfiguration(host string, port int, password string, tlsSkipVerify
 //CheckAndSetDefaultPort checks if port isn't set - put 6379
 func (rc *RedisConfiguration) CheckAndSetDefaultPort() (int, bool) {
 	if rc.port == 0 && !rc.IsURL() && !rc.IsSecuredURL() {
+		parts := strings.Split(rc.host, ":")
+		if len(parts) == 2 {
+			port, err := strconv.Atoi(parts[1])
+			if err == nil {
+				rc.port = port
+				rc.host = parts[0]
+				return rc.port, false
+			}
+		}
 		rc.port = 6379
 		return rc.port, true
 	}

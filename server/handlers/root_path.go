@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/spf13/viper"
@@ -19,7 +21,7 @@ const (
 	configuratorURLKey     = "__JITSU_CONFIGURATOR_URL__"
 )
 
-var blankPage = []byte(`<html><head></head><body></body></html>`)
+var blankPage = `<html><head></head><body>Jitsu Server %s</body></html>`
 
 //RootPathHandler serves:
 // HTTP redirect to Configurator
@@ -86,7 +88,7 @@ func (rph *RootPathHandler) Handler(c *gin.Context) {
 	c.Header("Content-type", htmlContentType)
 
 	if rph.welcome == nil {
-		c.Writer.Write(blankPage)
+		c.Writer.Write([]byte(fmt.Sprintf(blankPage, appconfig.RawVersion)))
 		return
 	}
 
