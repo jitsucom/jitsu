@@ -83,7 +83,6 @@ export const LoadableFieldsForm = ({
           sourceReference.displayName,
           'config',
           [],
-          null,
           'config'
         );
         setFieldsParameters(parsedData);

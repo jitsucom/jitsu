@@ -20,7 +20,6 @@ describe('mapAirbyteSpecToSourceConnectorConfig', () => {
             name,
             'connectionSpecification',
             [],
-            null,
             'config.config'
           );
 
