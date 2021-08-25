@@ -14,6 +14,7 @@ import { Tab } from 'ui/components/Tabs/TabsConfigurator';
 import { validateTabForm } from 'utils/forms/validateTabForm';
 import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
 import { SourceTabKey } from 'ui/pages/SourcesPage/partials/SourceEditor/SourceEditor';
+import { Poll } from 'utils/polling';
 
 const sourcePageUtils = {
   getSourceType: (sourceConnector: SourceConnector) =>
@@ -74,7 +75,6 @@ const sourcePageUtils = {
       (
         allValues: [{ [key: string]: string }, CollectionSource[], string[]]
       ) => {
-        debugger;
         const enrichedData = {
           ...sourceData,
           ...allValues.reduce((result: any, current: any) => {
@@ -105,10 +105,27 @@ const sourcePageUtils = {
   },
   testConnection: async (src: SourceData, hideMessage?: boolean) => {
     try {
-      await ApplicationServices.get().backendApiClient.post(
+      const response = await ApplicationServices.get().backendApiClient.post(
         '/sources/test',
         Marshal.toPureJson(src)
       );
+
+      if (response['status'] === 'pending') {
+        const poll = new Poll<void>((end, fail) => async () => {
+          try {
+            const response =
+              await ApplicationServices.get().backendApiClient.post(
+                '/sources/test',
+                Marshal.toPureJson(src)
+              );
+            if (response['status'] !== 'pending') end();
+          } catch (error) {
+            fail(error);
+          }
+        });
+
+        await poll.wait();
+      }
 
       if (!hideMessage) {
         closeableMessage.info('Successfully connected!');

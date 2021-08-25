@@ -214,7 +214,6 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
         forceUpdate
       })
       .then(async (response: SourceData) => {
-        debugger;
         sourceData.current = response;
 
         const testConnectionResults = await sourcePageUtils.testConnection(
