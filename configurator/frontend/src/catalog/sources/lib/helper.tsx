@@ -1,4 +1,3 @@
-import { hiddenValue } from 'catalog/destinations/lib/common';
 import { snakeCaseToWords, toTitleCase } from 'utils/strings';
 import {
   assertIsArray,
@@ -17,7 +16,8 @@ import {
   makeIntType,
   booleanType,
   singleSelectionType,
-  ConstantOrFunction
+  ConstantOrFunction,
+  omittedValue
 } from '../types';
 
 export const singerConfigParams: Record<string, (tap: string) => Parameter> = {
@@ -357,7 +357,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
               _listOfRequiredFields,
               '',
               parentNodeId,
-              hiddenValue('', (config) => {
+              omittedValue((config) => {
                 const parentSelectionNodeValue = parentNodeValueKey
                   .split('.')
                   .reduce((obj, key) => obj[key] || {}, config);

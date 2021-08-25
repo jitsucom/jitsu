@@ -33,9 +33,9 @@ type EditSourcesOptions = {
   updateDestinations?: boolean;
 };
 
-const EDIT_SOURCES_DEFAULT_OPTIONS: EditSourcesOptions = {
+const EDIT_SOURCES_DEFAULT_OPTIONS = {
   updateDestinations: true
-};
+} as const;
 
 enum SourceStoreGeneralState {
   'IDLE' = 'IDLE'
@@ -242,11 +242,10 @@ class SourcesStore implements ISourcesStore {
       const updateCandidate = sourcesToUpdate.find(
         (updateCandidate) => updateCandidate.sourceId === source.sourceId
       );
-      if (!updateCandidate) return source;
-      return updateCandidate;
+      return updateCandidate || source;
     });
     try {
-      const result = yield this.services.storageService.save(
+      yield this.services.storageService.save(
         'sources',
         { sources: updatedSources },
         this.services.activeProject.id

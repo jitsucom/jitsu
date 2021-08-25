@@ -1,8 +1,8 @@
-import { hiddenValue } from 'catalog/destinations/lib/common';
 import {
   booleanType,
   makeIntType,
   makeStringType,
+  omittedValue,
   Parameter,
   passwordType,
   singleSelectionType,
@@ -439,7 +439,7 @@ export const postgres: Parameter[] = [
         }}
       />
     ),
-    constant: hiddenValue('', (config) => {
+    constant: omittedValue((config) => {
       return config?.['_formData']?.['replication_method'] !== 'CDC';
     })
   },
@@ -455,7 +455,7 @@ export const postgres: Parameter[] = [
         }}
       />
     ),
-    constant: hiddenValue('', (config) => {
+    constant: omittedValue((config) => {
       return config?.['_formData']?.['replication_method'] !== 'CDC';
     })
   }
