@@ -97,7 +97,7 @@ func setAppWorkDir() {
 
 func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "replay" {
-		cmd.Execute()
+		cmd.Execute(tag)
 		return
 	}
 
@@ -259,7 +259,7 @@ func main() {
 	eventsCache := caching.NewEventsCache(metaStorage, eventsCacheSize)
 	appconfig.Instance.ScheduleClosing(eventsCache)
 
-	// ** Retrospective users recognition
+	// ** Retroactive users recognition
 	globalRecognitionConfiguration := &storages.UsersRecognition{
 		Enabled:             viper.GetBool("users_recognition.enabled"),
 		AnonymousIDNode:     viper.GetString("users_recognition.anonymous_id_node"),

@@ -57,6 +57,9 @@ func (arf *AmplitudeRequestFactory) Create(object map[string]interface{}) (*Requ
 	}, nil
 }
 
+func (arf *AmplitudeRequestFactory) Close() {
+}
+
 //AmplitudeConfig is a dto for parsing Amplitude configuration
 type AmplitudeConfig struct {
 	APIKey string `mapstructure:"api_key" json:"api_key,omitempty" yaml:"api_key,omitempty"`
