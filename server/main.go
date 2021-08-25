@@ -97,7 +97,7 @@ func setAppWorkDir() {
 
 func main() {
 	if len(os.Args) >= 2 && os.Args[1] == "replay" {
-		cmd.Execute()
+		cmd.Execute(tag)
 		return
 	}
 

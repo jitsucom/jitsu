@@ -4,25 +4,22 @@ import (
 	"bufio"
 	"bytes"
 	"compress/gzip"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/spf13/cobra"
 	"io"
-	"io/fs"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 )
 
 const (
 	maxChunkSize = 20 * 1024 * 1024 // 20 MB
 	dateLayout   = "2006-01-02"
-
-	version = "0.0.1"
 )
 
 var (
@@ -61,25 +58,29 @@ var replayCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(replayCmd)
 
-	replayCmd.Flags().StringVar(&state, "state", "", "(optional) a path to file where Jitsu will save the state - already uploaded files names")
+	replayCmd.Flags().StringVar(&state, "state", "", "(optional) a path to file where Jitsu will save the state - already uploaded files names. It prevents resending already loaded files on each run")
 	replayCmd.Flags().StringVar(&start, "start", "", "(optional) start date as YYYY-MM-DD. Treated as the beginning of the day UTC (YYYY-MM-DD 00:00:00.000Z). If missing, all files will be processed")
 	replayCmd.Flags().StringVar(&end, "end", "", "(optional) end date as YYYY-MM-DD. Treated as the end of the day UTC (YYYY-MM-DD 23:59:59.999Z). If missing, all will be processed")
 	replayCmd.Flags().StringVar(&host, "host", "http://localhost:8000", "(optional) Jitsu host")
-	replayCmd.Flags().Int64Var(&chunkSize, "chunk_size", maxChunkSize, "(optional) max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with max size and sent to Jitsu")
-	replayCmd.Flags().StringVar(&disableProgressBars, "disable_progress_bars", "false", "(optional) if true then progress bars won't be displayed")
+	replayCmd.Flags().Int64Var(&chunkSize, "chunk-size", maxChunkSize, "(optional) max data chunk size in bytes (default 20 MB). If file size is greater then the file will be split into N chunks with max size and sent to Jitsu")
+	replayCmd.Flags().StringVar(&disableProgressBars, "disable-progress-bars", "false", "(optional) if true then progress bars won't be displayed")
 
-	replayCmd.Flags().StringVar(&apiKey, "api_key", "", "(required) Jitsu API Key. Data will be loaded into all destinations linked to this API Key.")
-	replayCmd.MarkFlagRequired("api_key")
+	replayCmd.Flags().StringVar(&apiKey, "api-key", "", "(required) Jitsu API Server secret. Data will be loaded into all destinations linked to this API Key.")
+	replayCmd.MarkFlagRequired("api-key")
 }
 
 //replay is a command main function:
-//read files from filesystem and sends them to Jitsu
+//reads files from filesystem and sends them to Jitsu
 //operating:
 // 1. always with full path filenames
 // 2. always sends gzipped payloads to Jitsu
 //returns err if occurred
 func replay(inputFiles []string) error {
-	absoluteFileNames, err := reformatFileNames(inputFiles)
+	matchedFiles, err := findFiles(inputFiles)
+	if err != nil {
+		return fmt.Errorf("find files error: %v", err)
+	}
+	absoluteFileNames, err := reformatFileNames(matchedFiles)
 	if err != nil {
 		return fmt.Errorf("preprocessing files failed: %v", err)
 	}
@@ -95,25 +96,27 @@ func replay(inputFiles []string) error {
 		return errors.New("none of the files match the --start --end condition")
 	}
 
-	absStateName, err := getAbsoluteFilePath(state)
-	if err != nil {
-		return fmt.Errorf("failed to get absolute state file path: %v", err)
+	if state != "" {
+		var err error
+		state, err = filepath.Abs(state)
+		if err != nil {
+			return fmt.Errorf("failed to get absolute state file path: %v", err)
+		}
 	}
 
-	stateMap, err := readState(absStateName)
+	stateManager, err := newStateManager(state)
 	if err != nil {
-		return fmt.Errorf("failed to read state file [%s]: %v", state, err)
+		return fmt.Errorf("error creating file state manager: %v", err)
 	}
 
 	var filesToUpload []string
 	for _, f := range absoluteFileNamesAfterFiltering {
 		//filter state file
-		if f == absStateName {
+		if f == state {
 			continue
 		}
 
-		stored, ok := stateMap[f]
-		if !ok || !stored {
+		if !stateManager.IsUploaded(f) {
 			filesToUpload = append(filesToUpload, f)
 		}
 	}
@@ -144,16 +147,13 @@ func replay(inputFiles []string) error {
 		}
 		processedFiles++
 		globalBar.SetCurrent(processedFiles)
-		stateMap[absFilePath] = true
-		//write state after every loaded file
-		if err := writeState(state, stateMap); err != nil {
-			return fmt.Errorf("Error saving state into the file [%s]: %v", state, err)
-		}
+		stateManager.Success(absFilePath)
 	}
 
 	globalBar.SetCurrent(capacity)
 	//wait for globalBar filled
 	time.Sleep(time.Second)
+	stateManager.Close()
 
 	return nil
 }
@@ -266,83 +266,45 @@ func sendChunked(progressBar ProgressBar, filePath string, fileSize int64, sende
 	return nil
 }
 
-func getAbsoluteFilePath(file string) (string, error) {
-	if file == "" {
-		return "", nil
-	}
-
-	if filepath.IsAbs(file) {
-		return file, nil
-	}
-
-	app, err := os.Executable()
-	if err != nil {
-		return "", err
-	}
-
-	appDir := filepath.Dir(app)
-
-	return filepath.Join(appDir, file), nil
-}
-
-//readState returns state which contains already uploaded file names
-//returns empty map if file isn't provided
-func readState(file string) (map[string]bool, error) {
-	if file == "" {
-		return map[string]bool{}, nil
-	}
-
-	b, err := ioutil.ReadFile(file)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return map[string]bool{}, nil
+//findFiles find files by masks and returns them
+//if mask == filename then adds it to the result as well
+func findFiles(masks []string) ([]string, error) {
+	var fileNames []string
+	for _, mask := range masks {
+		matched, err := filepath.Glob(mask)
+		if err != nil {
+			return nil, err
 		}
 
-		return nil, err
+		fileNames = append(fileNames, matched...)
 	}
 
-	stateMap := map[string]bool{}
-	if err := json.Unmarshal(b, &stateMap); err != nil {
-		return nil, err
-	}
-
-	return stateMap, nil
-}
-
-//writeState overwrites state file with updated values
-func writeState(file string, stateMap map[string]bool) error {
-	if file == "" {
-		return nil
-	}
-
-	b, err := json.Marshal(stateMap)
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile(file, b, 0644)
+	return fileNames, nil
 }
 
 //reformatFileNames returns files list with absolute path
 //All directories in the list will be read recursively
 func reformatFileNames(files []string) ([]string, error) {
-	app, err := os.Executable()
-	if err != nil {
-		return nil, err
-	}
-
-	appDir := filepath.Dir(app)
-
 	var result []string
-	for _, f := range files {
-		if !filepath.IsAbs(f) {
-			f = filepath.Join(appDir, f)
+	for _, file := range files {
+		//skip mac os system files
+		if strings.HasSuffix(file, ".DS_Store") {
+			continue
+		}
+
+		f, err := filepath.Abs(file)
+		if err != nil {
+			return nil, fmt.Errorf("error getting absolute path for %s: %v", f, err)
 		}
 
 		if err := filepath.Walk(f,
 			func(path string, info os.FileInfo, err error) error {
 				if err != nil {
 					return err
+				}
+				//skip mac os system files
+				if strings.HasSuffix(path, ".DS_Store") {
+					return nil
 				}
 				if !info.IsDir() {
 					result = append(result, path)
