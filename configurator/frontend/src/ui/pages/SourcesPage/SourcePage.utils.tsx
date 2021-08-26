@@ -116,20 +116,25 @@ const sourcePageUtils = {
           'Please, allow some time for the Singer tap installation to complete. Once the tap is installed, we will test the connection and send a push notification with the result.'
         );
 
-        connectionTestMessagePrefix = `${src.sourceId}: `;
+        connectionTestMessagePrefix = `Source ${src.sourceId} connection test result: `;
 
-        const poll = new Poll<void>((end, fail) => async () => {
-          try {
-            const response =
-              await ApplicationServices.get().backendApiClient.post(
-                '/sources/test',
-                Marshal.toPureJson(src)
-              );
-            if (response['status'] !== 'pending') end();
-          } catch (error) {
-            fail(error);
-          }
-        });
+        const POLLING_INTERVAL_MS = 2000;
+
+        const poll = new Poll<void>(
+          (end, fail) => async () => {
+            try {
+              const response =
+                await ApplicationServices.get().backendApiClient.post(
+                  '/sources/test',
+                  Marshal.toPureJson(src)
+                );
+              if (response['status'] !== 'pending') end();
+            } catch (error) {
+              fail(error);
+            }
+          },
+          POLLING_INTERVAL_MS
+        );
 
         await poll.wait();
       }
