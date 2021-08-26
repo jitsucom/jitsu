@@ -94,7 +94,7 @@ function messageFactory(type: CloseableMessageType): MessageFunc {
     error: <CloseCircleOutlined className="text-error" />,
     info: <InfoCircleOutlined className="text-success" />,
     warn: <WarningOutlined className="text-warning" />,
-    loading: <Spin className="text-loading" />
+    loading: <Spin className="text-loading mr-2" />
   };
   return (content: MessageContent) => {
     const key = Math.random() + '';
