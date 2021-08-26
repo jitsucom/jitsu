@@ -1,30 +1,125 @@
 import * as logos from './logos';
 import { AirbyteSource } from '../types';
+import { githubDocumentation, intercomDocumentation, mixpanelDocumentation } from './documentation';
+import * as React from 'react';
 
 export const allAirbyteSources: AirbyteSource[] = [
   {
     pic: logos.amazon,
     docker_image_name: 'airbyte/source-amazon-seller-partner',
     displayName: 'Amazon Seller Partner',
-    stable: false
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          This source can sync data from the{' '}
+          <a
+            href="https://github.com/amzn/selling-partner-api-docs/blob/main/guides/en-US/developer-guide/SellingPartnerApiDeveloperGuide.md">Amazon
+            Seller Partner API</a>.{' '}
+          Order tracking reports are available in North America (NA) and Europe (EU). For all sellers. These reports return all orders, regardless of fulfillment channel or shipment status. These reports are intended for order tracking, not to drive a seller's fulfillment process, as the reports do not include customer-identifying information and scheduling is not supported. Also note that for self-fulfilled orders, item price is not shown for orders in a "pending" state.
+        </>
+      ),
+      connection: (
+        <>
+          Read more about <a href="https://github.com/amzn/selling-partner-api-docs/blob/main/guides/en-US/developer-guide/SellingPartnerApiDeveloperGuide.md">how
+          to get API credentials</a>
+        </>
+      )
+    }
   },
   {
     pic: logos.default_logo,
     docker_image_name: 'airbyte/source-apify-dataset',
     displayName: 'Apify Dataset',
-    stable: false
+    stable: false,
+    documentation:{
+      overview: (
+        <>
+          <a href="https://www.apify.com/">Apify</a> is a web scraping and web automation platform providing both ready-made and custom solutions, an open-source <a href="https://sdk.apify.com/">SDK</a> for web scraping, proxies, and many other tools to help you build and run web automation jobs at scale.{' '}
+          The results of a scraping job are usually stored in <a href="https://docs.apify.com/storage/dataset">Apify Dataset</a>. This Airbyte connector allows you to automatically sync the contents of a dataset to your chosen destination using Airbyte.
+          To sync data from a dataset, all you need to know is its ID. You will find it in <a href="https://my.apify.com/">Apify console</a> under storages.
+        </>
+      ),
+      connection: (
+        <>Obtain Apify <a href="https://docs.apify.com/storage/dataset">Dataset</a> ID.</>
+      )
+    }
   },
   {
     pic: logos.appstore,
     docker_image_name: 'airbyte/source-appstore-singer',
     displayName: 'App Store',
-    stable: false
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          This source can sync data from the <a href="https://developer.apple.com/documentation/appstoreconnectapi">Appstore API</a>. It supports only Incremental syncs. The Appstore API is available for <a href="https://developer.apple.com/documentation/appstoreconnectapi">many types of services</a>. Currently, this API supports syncing Sales and Trends reports.
+        </>
+      ),
+      connection: (
+        <>
+          Generate/Find all requirements using this <a href="https://leapfin.com/blog/apple-appstore-integration/">external article</a>
+        </>
+      )
+    }
   },
   {
     pic: logos.asana,
     docker_image_name: 'airbyte/source-asana',
     displayName: 'Asana',
-    stable: false
+    stable: false,
+    documentation:{
+      overview: (
+        <>
+          This source can sync data for the <a href="https://developers.asana.com/docs">Asana API</a>
+          {': '}
+          <a href="https://developers.asana.com/docs/custom-fields">
+            Custom Fields
+          </a>
+          {', '}
+          <a href="https://developers.asana.com/docs/projects">
+            Projects
+          </a>
+          {', '}
+          <a href="https://developers.asana.com/docs/sections">
+            Sections
+          </a>
+          {', '}
+          <a href="https://developers.asana.com/docs/stories">
+            Stories
+          </a>
+          {', '}
+          <a href="https://developers.asana.com/docs/tags">
+            Tags
+          </a>
+          {', '}
+          <a href="https://developers.asana.com/docs/tasks">
+            Tasks
+          </a>
+          {', '}
+          <a href="https://developers.asana.com/docs/teams">
+            Teams
+          </a>
+          {', '}
+          <a href="https://developers.asana.com/docs/team-memberships">
+            Team Memberships
+          </a>
+          {', '}
+          <a href="https://developers.asana.com/docs/users">
+            Users
+          </a>
+          {', '}
+          <a href="https://developers.asana.com/docs/workspaces">
+            Workspaces
+          </a>
+        </>
+      ),
+      connection: (
+        <>
+          Please follow these <a href="https://developers.asana.com/docs/personal-access-token">steps</a> to obtain Personal Access Token for your account.
+        </>
+      )
+    }
   },
   {
     pic: logos.tap_postgresql,
@@ -138,7 +233,8 @@ export const allAirbyteSources: AirbyteSource[] = [
     pic: logos.tap_github,
     docker_image_name: 'airbyte/source-github',
     displayName: 'GitHub',
-    stable: false
+    stable: false,
+    documentation: githubDocumentation
   },
   {
     pic: logos.tap_marketo,
@@ -264,13 +360,26 @@ export const allAirbyteSources: AirbyteSource[] = [
     pic: logos.aws_cloudtrail,
     docker_image_name: 'airbyte/source-aws-cloudtrail',
     displayName: 'AWS CloudTrail',
-    stable: false
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          This source can sync data from the <a href="https://docs.aws.amazon.com/awscloudtrail/latest/APIReference/Welcome.html">AWS CloudTrail API</a>. Currently only <a href="https://boto3.amazonaws.com/v1/documentation/api/latest/reference/services/cloudtrail.html#CloudTrail.Client.lookup_events">Management events</a> sync is supported.
+        </>
+      ),
+      connection:(
+        <>
+          Please, follow this <a href="https://docs.aws.amazon.com/powershell/latest/userguide/pstools-appendix-sign-up.html">steps</a> to get your AWS access key and secret.
+        </>
+      )
+    }
   },
   {
     pic: logos.tap_intercom,
     docker_image_name: 'airbyte/source-intercom',
     displayName: 'Intercom',
-    stable: false
+    stable: false,
+    documentation: intercomDocumentation
   },
   {
     pic: logos.tap_harvest,
@@ -342,7 +451,19 @@ export const allAirbyteSources: AirbyteSource[] = [
     pic: logos.bigquery,
     docker_image_name: 'airbyte/source-bigquery',
     displayName: 'BigQuery',
-    stable: false
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          This source can sync data from BigQuery.
+        </>
+      ),
+      connection:(
+        <>
+          Read our documentation <a href="https://jitsu.com/docs/configuration/google-authorization#service-account-configuration">page</a> about obtaining Google Authorization
+        </>
+      )
+    }
   },
   {
     pic: logos.default_logo,
@@ -391,7 +512,7 @@ export const allAirbyteSources: AirbyteSource[] = [
     docker_image_name: 'airbyte/source-mixpanel',
     displayName: 'Mixpanel',
     stable: false,
-    hasNativeEquivalent: true
+    documentation: mixpanelDocumentation
   },
   {
     pic: logos.twilio,
@@ -440,13 +561,91 @@ export const allAirbyteSources: AirbyteSource[] = [
     pic: logos.tap_bing_ads,
     docker_image_name: 'airbyte/source-bing-ads',
     displayName: 'Bing Ads',
-    stable: false
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          This source can sync data from the <a href="https://docs.microsoft.com/en-us/advertising/guides/?view=bingads-13">Bing Ads</a>
+          {': '}
+          <a href="https://docs.microsoft.com/en-us/advertising/customer-management-service/searchaccounts?view=bingads-13">
+            Accounts
+          </a>
+          {', '}
+          <a href="https://docs.microsoft.com/en-us/advertising/campaign-management-service/getcampaignsbyaccountid?view=bingads-13">
+            Campaigns
+          </a>
+          {', '}
+          <a href="https://docs.microsoft.com/en-us/advertising/campaign-management-service/getadgroupsbycampaignid?view=bingads-13">
+            AdGroups
+          </a>
+          {', '}
+          <a href="https://docs.microsoft.com/en-us/advertising/campaign-management-service/getadsbyadgroupid?view=bingads-13">
+            Ads
+          </a>
+        </>
+      ),
+      connection: (
+        <>
+          <ul>
+            <li>
+              <a href="https://docs.microsoft.com/en-us/advertising/guides/authentication-oauth-register?view=bingads-13">Register Application</a> in Azure portal{' '}
+            </li>
+            <li>
+              Perform these <a href="https://docs.microsoft.com/en-us/advertising/guides/authentication-oauth-consent?view=bingads-13l">steps</a> to get auth code.
+            </li>
+            <li><a href="https://docs.microsoft.com/en-us/advertising/guides/authentication-oauth-get-tokens?view=bingads-13">Get refresh token</a> using auth code from previous step</li>
+          </ul>
+          Full authentication process described <a href="https://docs.microsoft.com/en-us/advertising/guides/get-started?view=bingads-13#access-token">here</a> {' '}
+          Be aware that refresh token will expire in 90 days. You need to repeat auth process to get the new one refresh token.
+        </>
+      )
+    }
   },
   {
     pic: logos.tap_braintree,
     docker_image_name: 'airbyte/source-braintree',
     displayName: 'Braintree',
-    stable: false
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          This source can sync data for the <a href="https://developers.braintreepayments.com/start/overview">Braintree API</a>
+          {': '}
+          <a href="https://developer.paypal.com/braintree/docs/reference/request/customer/search">
+            Customers
+          </a>
+          {', '}
+          <a href="https://developer.paypal.com/braintree/docs/reference/response/discount">
+            Discounts
+          </a>
+          {', '}
+          <a href="https://developer.paypal.com/braintree/docs/reference/request/dispute/search">
+            Disputes
+          </a>
+          {', '}
+          <a href="https://developers.braintreepayments.com/reference/response/transaction/python">
+            Transactions
+          </a>
+          {', '}
+          <a href="https://developer.paypal.com/braintree/docs/reference/response/merchant-account">
+            Merchant Accounts
+          </a>
+          {', '}
+          <a href="https://developer.paypal.com/braintree/docs/reference/response/plan">
+            Plans
+          </a>
+          {', '}
+          <a href="https://developer.paypal.com/braintree/docs/reference/response/subscription">
+            Subscriptions
+          </a>
+        </>
+      ),
+      connection: (
+        <>
+          Generate all requirements using the <a href="https://articles.braintreepayments.com/control-panel/important-gateway-credentials">Braintree documentation</a>.
+        </>
+      )
+    }
   },
   {
     pic: logos.tap_zuora,

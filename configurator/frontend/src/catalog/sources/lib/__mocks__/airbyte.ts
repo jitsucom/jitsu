@@ -4,7 +4,7 @@ import { makeAirbyteSource } from '../helper';
 jest.unmock('../airbyte');
 
 /**
- * The list icludes both manually mocked sources types and sources
+ * The list includes both manually mocked sources types and sources
  * types that are actually used in the project (taken from the sources
  * lib)
  */
