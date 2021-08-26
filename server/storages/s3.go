@@ -3,6 +3,8 @@ package storages
 import (
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/caching"
@@ -76,8 +78,10 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
+	marshaller := s3.marshaller()
 	for _, fdata := range flatData {
-		b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
+		b := fdata.GetPayloadBytes(marshaller)
+		fileName := s3.fileName(fdata)
 		err := s3.s3Adapter.UploadBytes(fileName, b)
 
 		tableResults[fdata.BatchHeader.TableName] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
@@ -100,6 +104,44 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 	}
 
 	return tableResults, nil, nil
+}
+
+func (s3 *S3) marshaller() schema.Marshaller {
+	cfg := s3.s3Adapter.Config
+	if cfg.Format == adapters.CSV {
+		return schema.CsvMarshallerInstance
+	} else {
+		return schema.JSONMarshallerInstance
+	}
+}
+
+func (s3 *S3) fileName(fdata *schema.ProcessedFile) string {
+	start, end := findStartEndTimestamp(fdata.GetPayload())
+	return fmt.Sprintf("%s-start-%s-end-%s.log", fdata.BatchHeader.TableName, timestamp.ToISOFormat(start), timestamp.ToISOFormat(end))
+}
+
+func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time) {
+	var start, end time.Time
+	for _, it := range fdata {
+		if tmstmp, ok := it[timestamp.Key]; ok {
+			if datetime, ok := tmstmp.(time.Time); ok {
+				if start.IsZero() || datetime.Before(start) {
+					start = datetime
+				}
+				if end.IsZero() || datetime.After(end) {
+					end = datetime
+				}
+
+			}
+		}
+	}
+	now := time.Now()
+	if start.IsZero() || end.IsZero() {
+		start = now
+		end = now
+	}
+
+	return start, end
 }
 
 //SyncStore isn't supported
