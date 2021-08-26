@@ -63,21 +63,6 @@ export type ParameterType<
   toString?: (t: T) => string;
 };
 
-export const OMIT_FIELD = 'OMIT_CONFIGURABLE_FORM_FIELD' as const;
-
-// export function omittedValue<P>(
-//   omit: (config: P) => boolean
-// ): (config: P) => typeof OMIT_FIELD | undefined {
-//   return (config) => (omit(config) ? OMIT_FIELD : undefined);
-// }
-
-export function omittedValue<P, V extends number | string | bigint>(
-  value: V,
-  omit: (config: P) => boolean
-): ConstantOrFunction<P, V | undefined> {
-  return hiddenValue((config) => omit(config) ? undefined : value, omit);
-}
-
 export function hiddenValue<P, V extends number | string | bigint>(
   value: V | ((config: P) => V),
   hide?: (config: P) => boolean
