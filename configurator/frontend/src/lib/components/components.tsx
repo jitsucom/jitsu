@@ -79,36 +79,62 @@ export function makeErrorHandler(errorDescription: string) {
   return (error) => handleError(error, errorDescription);
 }
 
-function messageFactory(type: string): MessageFunc {
+export type CloseableMessageType =
+  | 'success'
+  | 'error'
+  | 'info'
+  | 'warn'
+  | 'loading';
+export type MessageContent = string | ReactNode | ArgsProps;
+export type MessageFunc = (args: MessageContent) => MessageType;
+
+function messageFactory(type: CloseableMessageType): MessageFunc {
   const iconsByType = {
-    'success': <CheckCircleOutlined className="text-success"/>,
-    'error': <CloseCircleOutlined className="text-error"/>,
-    'info': <InfoCircleOutlined className="text-success"/>,
-    'warn': <WarningOutlined className="text-warning"/>
-  }
+    success: <CheckCircleOutlined className="text-success" />,
+    error: <CloseCircleOutlined className="text-error" />,
+    info: <InfoCircleOutlined className="text-success" />,
+    warn: <WarningOutlined className="text-warning" />,
+    loading: <Spin className="text-loading" />
+  };
   return (content: MessageContent) => {
     const key = Math.random() + '';
     const customization = {
-      icon: <span className="text-error hover:font-bold" onClick={() => message.destroy(key)}>{iconsByType[type]}</span>,
+      icon: (
+        <span
+          className="text-error hover:font-bold"
+          onClick={() => message.destroy(key)}
+        >
+          {iconsByType[type]}
+        </span>
+      ),
       key,
       duration: 100
     };
 
-    const closeableContent = <span className="closable-message">{content} <CloseOutlined className="close-message-icon" onClick={() => message.destroy(key)}/></span>;
+    const closeableContent = (
+      <span className="closable-message">
+        {content}{' '}
+        <CloseOutlined
+          className="close-message-icon"
+          onClick={() => message.destroy(key)}
+        />
+      </span>
+    );
 
-    return message[type]({ ...customization, content: <>{closeableContent}</> });
-  }
+    return message[type]({
+      ...customization,
+      content: <>{closeableContent}</>
+    });
+  };
 }
 
-export type MessageContent = string | ReactNode | ArgsProps;
-export type MessageFunc = (args: MessageContent) => MessageType;
-
-export const closeableMessage: Record<'success' | 'error' | 'info' | 'warn', MessageFunc> = {
+export const closeableMessage: Record<CloseableMessageType, MessageFunc> = {
   success: messageFactory('success'),
   error: messageFactory('error'),
   info: messageFactory('info'),
-  warn: messageFactory('warn')
-}
+  warn: messageFactory('warn'),
+  loading: messageFactory('loading')
+};
 
 /**
  * Default handler for error: show message and log error to console

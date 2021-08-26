@@ -104,6 +104,7 @@ const sourcePageUtils = {
     );
   },
   testConnection: async (src: SourceData, hideMessage?: boolean) => {
+    let connectionTestMessagePrefix: string | undefined;
     try {
       const response = await ApplicationServices.get().backendApiClient.post(
         '/sources/test',
@@ -111,6 +112,12 @@ const sourcePageUtils = {
       );
 
       if (response['status'] === 'pending') {
+        closeableMessage.loading(
+          'Please, allow some time for the Singer tap installation to complete. Once the tap is installed, we will test the connection and send a push notification with the result.'
+        );
+
+        connectionTestMessagePrefix = `${src.sourceId}: `;
+
         const poll = new Poll<void>((end, fail) => async () => {
           try {
             const response =
@@ -128,7 +135,12 @@ const sourcePageUtils = {
       }
 
       if (!hideMessage) {
-        closeableMessage.info('Successfully connected!');
+        const message = 'Successfully connected';
+        closeableMessage.success(
+          connectionTestMessagePrefix
+            ? `${connectionTestMessagePrefix}${message.toLowerCase()}`
+            : message
+        );
       }
 
       return {
@@ -137,7 +149,11 @@ const sourcePageUtils = {
       };
     } catch (error) {
       if (!hideMessage) {
-        handleError(error, 'Connection test failed');
+        const message = 'Connection test failed';
+        const prefixedMessage = connectionTestMessagePrefix
+          ? `${connectionTestMessagePrefix}${message.toLowerCase()}`
+          : message;
+        handleError(error, prefixedMessage);
       }
 
       return {
