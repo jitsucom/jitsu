@@ -45,12 +45,12 @@ After successfully retrieved the package and added it to your project, import Ji
 ### Importing Jitsu
 
 <CodeInTabs>
-    <CodeTab title="Swift" lang="swift">
+    <CodeTab title="Swift" lang="swift">{`
 import Jitsu
-    </CodeTab>
-    <CodeTab title="Objective-C" lang="objectivec">
+    `}</CodeTab>
+    <CodeTab title="Objective-C" lang="objectivec">{`
 @import Jitsu;
-    </CodeTab>
+    `}</CodeTab>
 </CodeInTabs>
 
 
@@ -64,14 +64,14 @@ You should provide your Client secret token and Tracking url.
 | TRACKING_URL | Full URL of `/api/v1/event` endpoint of your deployment, e.g.: `https://example.com/api/v1/event`. For cloud version of Jitsu pass `nil` value|
 
 <CodeInTabs>
-    <CodeTab title="Swift" lang="swift">
+    <CodeTab title="Swift" lang="swift">{`
 let options = JitsuOptions(apiKey: "CLIENT_SECRET_KEY", trackingHost: "TRACKING_URL")
 Jitsu.setupClient(with: options)
-</CodeTab>
-    <CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+    <CodeTab title="Objective-C" lang="objectivec">{`
 JitsuOptions *options = [[JitsuOptions alloc] initWithApiKey:@"CLIENT_SECRET_KEY" trackingHost:@"TRACKING_URL" logLevel: JitsuLogLevelDebug];
 [Jitsu setupClientWith: options];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 ## Sending events
@@ -82,26 +82,26 @@ There are two ways of sending events:
 a) client can send an event as something conforming to `Event` protocol
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 let event = JitsuBasicEvent(name: "hi")
 Jitsu.shared.trackEvent(event)
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 JitsuBasicEvent * event = [[JitsuBasicEvent alloc] initWithName:@"hi" payload:@{}];
 [Jitsu.shared trackEvent: event]; 
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 
 b) or pass it as a name of event and Dict of event params.
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.shared.trackEvent(_ name: "user pressed like", params: ["to_user_id: "NEW_VALUE"])
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.shared trackEventWithName:@"Hi from Objective-C" payload: @{@"id": [NSUUID new]}];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 ### Identifying user
@@ -120,12 +120,12 @@ You can access it  by `Jitsu.userProperties.userIdentifier`.
 You can set new identifier with:
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.userProperties.updateUserIdentifier("NEW_ID", sendIdentificationEvent: true)
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.userProperties updateUserIdentifier:@"new identifier" sendIdentificationEvent:YES];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 
@@ -135,12 +135,12 @@ You can access it by `Jitsu.userProperties.email`.
 You can update it with:
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.userProperties.updateEmail("new@new.com", sendIdentificationEvent: true)
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.userProperties updateEmail: @"new@new.com" sendIdentificationEvent:TRUE];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 
@@ -150,44 +150,44 @@ You can access it by `Jitsu.userProperties.otherIdentifiers`.
 You can update it with:
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.userProperties.updateOtherIdentifier(forKey: "my_key", with: "new_value", sendIdentificationEvent: true)
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.userProperties updateOtherIdentifierForKey:@"my_key" with:@"new_value" sendIdentificationEvent:YES];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 
 **You can set multiple user properties**:
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.userProperties.identify(
 	userIdentifier: "my_id",
 	email: "foo@bar.com",
 	otherIds: ["name": "Foo", "surname": "Johnson"],
 	sendIdentificationEvent: true
 )
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.userProperties identifyWithUserIdentifier: @"my_id"
 						email: @"foo@bar.com"
 					   otherIds:@{ @"name": @"Foo", @"surname": @"Johnson" }
 				sendIdentificationEvent: YES];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 **You can reset all users properties.**
 All the properties set before will be reset, and new `anonymous_id` will be generated.
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.userProperties.resetUserProperties()
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.userProperties resetUserProperties];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 
@@ -198,43 +198,43 @@ You can either add properties to certain event types or do not specify event typ
 You can also set if you want context values persisted between launches. By default, context events are not persisted.
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.context.addValues(
 	["age": 32, "codes": "Swift"], 
 	for: ["event sign up"],
 	persist: true
 )
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.context addValues:@{@"language": @"Objective-C"} for: @[@"hi"] persist:NO];
 [Jitsu.context addValues:@{@"general": @"value"} for: nil persist:NO];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 
 You can remove context values by calling
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.context.removeValue(for key: "language", for eventTypes: nil)
 Jitsu.context.removeValue(for key: "language", for eventTypes: ["hi"]])
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.shared.context removeValueFor:@"age" for: nil];
 [Jitsu.context removeValueFor:@"language" for: @[@"hi"]];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 
 You can clear context when needed. It will not clear automatically gathered values (only update them).
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.context.clear()
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.context clear];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 SDK automatically gathers some context values.
@@ -249,12 +249,12 @@ SDK automatically gathers some context values.
 You can send an event from a screen in one line. This event will contain screen title and screen class as well as event data.
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.shared.trackScreenEvent(screen: self, event: JitsuBasicEvent(name: "screen opened"))
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.shared trackScreenEventWithScreen:self name:@"screen opened" payload:@{}];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 ## Out-of-the-box Trackings
@@ -272,24 +272,24 @@ SDK uses the permissions that your app has and would never ask the user for perm
 * `addLocationOnAppLaunch` - If user granted access to location, we gather a new location every time the app launches and add it to the context.
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 options.locationTrackingOptions = [.addLocationOnAppLaunch, .trackPermissionChanges]
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [options setLocationTrackingOptions: @[@(LocationTrackingOptionsTrackPermissionChanges), @(LocationTrackingOptionsAddLocationOnAppLaunch)]];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 
 Also there is a special event type method that allows to send location events easily:
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 let event = LocationEvent(location: location, name: "left bike", payload: [:])
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 LocationEvent *event = [[LocationEvent alloc] initWithName: @"hi" location: location payload: @{}];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 
@@ -299,14 +299,14 @@ Jitsu SDK doesn't collect any persistent device identifiers.
 You can allow your users to disable/enable data collection.
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.shared.turnOff()
 Jitsu.shared.turnOn()
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [Jitsu.shared turnOff];
 [Jitsu.shared turnOn];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 
@@ -317,12 +317,12 @@ That will generate `Jitsu turned off` and `Jitsu turned on` events
 You can set log level when initializing SDK with JitsuOptions .
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 options.logLevel = .critical
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [options setLogLevel: JitsuLogLevelInfo];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 where `JitsuLogLevel` has values `debug`, `info`, `warnings`, `errors`, `critical`, `none`
@@ -338,14 +338,14 @@ where `JitsuLogLevel` has values `debug`, `info`, `warnings`, `errors`, `critica
 * Jitsu doesn't send each event immediately. Instead, it sends events in batches. SDK sends a new batch either when it reaches eventsQueueSize, or every sendingBatchesPeriod. Also, Jitsu sents all unsent events when an application enters the background state. If the app gets closed or crashes, events are sent on the next launch. You can manually set the number of events in the queue and time period.
 
 <CodeInTabs>
-<CodeTab title="Swift" lang="swift">
+<CodeTab title="Swift" lang="swift">{`
 Jitsu.shared.eventsQueueSize = 20
 Jitsu.shared.sendingBatchesPeriod = TimeInterval(10)
-</CodeTab>
-<CodeTab title="Objective-C" lang="objectivec">
+`}</CodeTab>
+<CodeTab title="Objective-C" lang="objectivec">{`
 [[Jitsu shared] setEventsQueueSize: 20];
 [[Jitsu shared] setSendingBatchesPeriod: 10];
-</CodeTab>
+`}</CodeTab>
 </CodeInTabs>
 
 Also, you can force SDK to send batch immediately by calling `sendBatch` method.
