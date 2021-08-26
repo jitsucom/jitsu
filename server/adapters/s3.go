@@ -37,9 +37,9 @@ type S3EncodingFormat string
 type S3Compression string
 
 const (
-	JSON S3EncodingFormat = "json"
-	CSV  S3EncodingFormat = "csv"
-	GZIP S3Compression    = "gzip"
+	FLAT_JSON S3EncodingFormat = "flat_json"
+	CSV       S3EncodingFormat = "csv"
+	GZIP      S3Compression    = "gzip"
 )
 
 //Validate returns err if invalid
@@ -60,7 +60,7 @@ func (s3c *S3Config) Validate() error {
 		return errors.New("S3 region is required parameter")
 	}
 	if s3c.Format == "" {
-		s3c.Format = JSON
+		s3c.Format = FLAT_JSON
 	}
 	return nil
 }
