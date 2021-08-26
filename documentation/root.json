@@ -16,7 +16,7 @@
     {
       "name": "Sending data",
       "pages": [
-        "sending-data/apps",
+        "sending-data/mobile-apps",
         "sending-data/js-sdk",
         "sending-data/api",
         "sending-data/bulk-api",
