@@ -15,9 +15,7 @@ import {
   passwordType,
   makeIntType,
   booleanType,
-  singleSelectionType,
-  ConstantOrFunction,
-  omittedValue
+  singleSelectionType
 } from '../types';
 
 export const singerConfigParams: Record<string, (tap: string) => Parameter> = {
