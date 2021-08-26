@@ -377,6 +377,10 @@ export interface SingerTap {
    */
   hasNativeEquivalent: boolean;
   /**
+   * Airbyte has an implementation
+   */
+  hasAirbyteEquivalent?: boolean;
+  /**
    * If the tap uses legacy properties.json instead of catalog.json
    */
   legacyProperties?: boolean;
@@ -399,6 +403,10 @@ export interface AirbyteSource {
    * Whether we consider this tap as stable and production ready
    */
   stable: boolean;
+  /**
+   * We have a native equivalent
+   */
+  hasNativeEquivalent?: boolean;
   /**
    * API Connector documentation
    */
