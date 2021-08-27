@@ -67,6 +67,9 @@ if [[ -z "$UI_AUTH_REFRESH_SECRET" ]]; then
   export UI_AUTH_REFRESH_SECRET=$(random)
 fi
 
+# Apply bashrc
+source ~/.bashrc
+
 trap graceful_exit SIGQUIT SIGTERM SIGINT SIGHUP
 
 ### Start services

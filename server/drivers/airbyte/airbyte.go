@@ -135,8 +135,13 @@ func (a *Airbyte) EnsureCatalog() {
 
 		spec, err := airbyte.Instance.GetOrLoadSpec(a.GetTap())
 		if spec == nil {
-			//not ready
-			time.Sleep(time.Second)
+			if err == nil {
+				//no error, just not ready
+				time.Sleep(time.Second)
+			} else {
+				//error
+				time.Sleep(time.Second * 30)
+			}
 			continue
 		}
 
