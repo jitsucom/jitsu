@@ -1926,7 +1926,7 @@ export const allAirbyteSources: AirbyteSource[] = [
     documentation: {
       overview: (
         <>
-          This source can sync data from the <a href="https://developer.okta.com/docs/reference/">Okta API</a>.  {': '}
+          This source can sync data from the <a href="https://developer.okta.com/docs/reference/">Okta API</a>{': '}
 
           <a href="https://developer.okta.com/docs/reference/api/users/#list-users">
             Users
@@ -2907,7 +2907,7 @@ export const allAirbyteSources: AirbyteSource[] = [
     documentation: {
       overview: (
         <>
-          The Short.io source syncs data from the <a href="https://developers.short.io/reference">Shortio API</a>.{': '}
+          The Short.io source syncs data from the <a href="https://developers.short.io/reference">Shortio API</a>{': '}
 
           <a href="https://developers.short.io/reference#getdomaindomainidlink_clicks">
             Clicks

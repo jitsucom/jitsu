@@ -261,7 +261,7 @@ export type Parameter = {
    * should be put to the form.
    *
    * WARNING: value could be  "" or null which is a valid defined value. Do not check it with if (constant),
-   * use `constant !== undefined` to send a hidden value to backend. To conditionally omit the field completely 
+   * use `constant !== undefined` to send a hidden value to backend. To conditionally omit the field completely
    * use `omitFieldRule` function.
    */
   constant?: ConstantOrFunction<any, any>;
