@@ -177,14 +177,19 @@ func (a *Abstract) Clean(tableName string) error {
 }
 
 func (a *Abstract) close() (multiErr error) {
-	if err := a.fallbackLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", a.ID(), err))
+	if a.fallbackLogger != nil {
+		if err := a.fallbackLogger.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing fallback logger: %v", a.ID(), err))
+		}
 	}
-
-	if err := a.archiveLogger.Close(); err != nil {
-		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing archive logger: %v", a.ID(), err))
+	if a.archiveLogger != nil {
+		if err := a.archiveLogger.Close(); err != nil {
+			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing archive logger: %v", a.ID(), err))
+		}
 	}
-	a.processor.Close()
+	if a.processor != nil {
+		a.processor.Close()
+	}
 
 	return nil
 }
