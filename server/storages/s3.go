@@ -3,11 +3,11 @@ package storages
 import (
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"time"
 
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -17,9 +17,7 @@ import (
 type S3 struct {
 	Abstract
 
-	s3Adapter      *adapters.S3
-	fallbackLogger *logging.AsyncLogger
-	eventsCache    *caching.EventsCache
+	s3Adapter *adapters.S3
 }
 
 func init() {
@@ -165,6 +163,12 @@ func (s3 *S3) Type() string {
 }
 
 //Close closes fallback logger
-func (s3 *S3) Close() error {
-	return s3.close()
+func (s3 *S3) Close() (multiErr error) {
+	if err := s3.s3Adapter.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing s3 adapter: %v", s3.ID(), err))
+	}
+	if err := s3.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+	return
 }
