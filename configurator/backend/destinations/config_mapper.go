@@ -105,7 +105,10 @@ func mapS3(dest *entities.Destination) (*enstorages.DestinationConfig, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Error unmarshaling s3 form data: %v", err)
 	}
-
+	var compression enadapters.S3Compression
+	if s3FormData.CompressionEnabled {
+		compression = enadapters.GZIP
+	}
 	return &enstorages.DestinationConfig{
 		Type: enstorages.S3Type,
 		Mode: "batch",
@@ -120,7 +123,7 @@ func mapS3(dest *entities.Destination) (*enstorages.DestinationConfig, error) {
 			Endpoint:    s3FormData.Endpoint,
 			Folder:      s3FormData.Folder,
 			Format:      s3FormData.Format,
-			Compression: s3FormData.Compression,
+			Compression: compression,
 		},
 	}, nil
 }

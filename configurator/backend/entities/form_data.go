@@ -160,6 +160,6 @@ type S3FormData struct {
 	Region      string                    `firestore:"s3Region" json:"s3Region"`
 	Endpoint    string                    `firestore:"s3Endpoint" json:"s3Endpoint"`
 	Folder      string                    `firestore:"s3Folder" json:"s3Folder"`
-	Format      adapters.S3EncodingFormat `firestore:"s3Format" json:"s3Format"`
-	Compression adapters.S3Compression    `firestore:"s3Compression" json:"s3Compression"`
+	Format             adapters.S3EncodingFormat `firestore:"s3Format" json:"s3Format"`
+	CompressionEnabled bool                      `firestore:"s3CompressionEnabled" json:"s3CompressionEnabled"`
 }
