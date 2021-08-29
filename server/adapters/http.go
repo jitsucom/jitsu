@@ -4,13 +4,15 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/panjf2000/ants/v2"
-	"go.uber.org/atomic"
 	"io/ioutil"
 	"net/http"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/panjf2000/ants/v2"
+	"go.uber.org/atomic"
 )
 
 //HTTPAdapterConfiguration is a dto for creating HTTPAdapter
@@ -115,7 +117,7 @@ func (h *HTTPAdapter) startObserver() {
 				}
 
 				//dequeued request was from retry call and retry timeout hasn't come
-				if time.Now().UTC().Before(retryableRequest.DequeuedTime) {
+				if timestamp.Now().UTC().Before(retryableRequest.DequeuedTime) {
 					if err := h.queue.AddRequest(retryableRequest); err != nil {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after dequeuing: %v", h.destinationID, err)
 						h.errorHandler(true, retryableRequest.EventContext, err)
@@ -177,7 +179,7 @@ func (h *HTTPAdapter) sendRequestWithRetry(i interface{}) {
 func (h *HTTPAdapter) doRetry(retryableRequest *RetryableRequest, sendErr error) {
 	if retryableRequest.Retry < h.retryCount {
 		retryableRequest.Retry += 1
-		retryableRequest.DequeuedTime = time.Now().UTC().Add(h.retryDelay)
+		retryableRequest.DequeuedTime = timestamp.Now().UTC().Add(h.retryDelay)
 		if err := h.queue.AddRequest(retryableRequest); err != nil {
 			logging.SystemErrorf("[%s] Error enqueueing HTTP request after sending: %v", h.destinationID, err)
 			h.errorHandler(true, retryableRequest.EventContext, sendErr)
