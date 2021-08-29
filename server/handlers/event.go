@@ -4,6 +4,11 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
@@ -15,10 +20,6 @@ import (
 	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/wal"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
 )
 
 const (
@@ -135,7 +136,7 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		}
 	}
 
-	end := time.Now().UTC()
+	end := timestamp.Now().UTC()
 	endStr := c.Query("end")
 	if endStr != "" {
 		end, err = time.Parse(time.RFC3339Nano, endStr)
