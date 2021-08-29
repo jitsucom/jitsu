@@ -1,23 +1,22 @@
 package enrichment
 
 import (
-	"bou.ke/monkey"
 	"encoding/json"
+	"testing"
+
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/geo"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"testing"
-	"time"
 )
 
 func TestDefault(t *testing.T) {
 	SetTestDefaultParams()
 	uuid.InitMock()
-	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
-	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
-	defer patch.Unpatch()
+	timestamp.FreezeTime()
+	defer timestamp.UnfreezeTime()
 
 	geoDataMock := &geo.Data{
 		Country: "US",
