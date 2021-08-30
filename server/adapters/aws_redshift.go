@@ -100,7 +100,7 @@ func (ar *AwsRedshift) Copy(fileKey, tableName string) error {
 	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, statement)
 	if err != nil {
 		wrappedTx.Rollback()
-		return err
+		return checkErr(err)
 	}
 
 	return wrappedTx.DirectCommit()
@@ -126,6 +126,7 @@ func (ar *AwsRedshift) Insert(eventContext *EventContext) error {
 
 	_, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, statement, values...)
 	if err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, statement, values, err)
 	}
 
@@ -230,6 +231,7 @@ func (ar *AwsRedshift) Update(table *Table, object map[string]interface{}, where
 	ar.dataSourceProxy.queryLogger.LogQueryWithValues(statement, values)
 	_, err := ar.dataSourceProxy.dataSource.ExecContext(ar.dataSourceProxy.ctx, statement, values...)
 	if err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Error updating %s table with statement: %s values: %v: %v", table.Name, statement, values, err)
 	}
 
@@ -281,6 +283,7 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 		ar.dataSourceProxy.queryLogger.LogDDL(addColumnQuery)
 		_, err := wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, addColumnQuery)
 		if err != nil {
+			err = checkErr(err)
 			return fmt.Errorf("Error creating [%s] tmp column %s table with [%s] DDL: %v", tmpColumnName, table.Name, columnDDL, err)
 		}
 
@@ -289,6 +292,7 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 		ar.dataSourceProxy.queryLogger.LogDDL(copyColumnQuery)
 		_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, copyColumnQuery)
 		if err != nil {
+			err = checkErr(err)
 			return fmt.Errorf("Error copying column [%s] into tmp column [%s]: %v", columnName, tmpColumnName, err)
 		}
 
@@ -297,6 +301,7 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 		ar.dataSourceProxy.queryLogger.LogDDL(dropOldColumnQuery)
 		_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, dropOldColumnQuery)
 		if err != nil {
+			err = checkErr(err)
 			return fmt.Errorf("Error droping old column [%s]: %v", columnName, err)
 		}
 
@@ -305,6 +310,7 @@ func (ar *AwsRedshift) recreateNotNullColumnInTransaction(wrappedTx *Transaction
 		ar.dataSourceProxy.queryLogger.LogDDL(renameTmpColumnQuery)
 		_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, renameTmpColumnQuery)
 		if err != nil {
+			err = checkErr(err)
 			return fmt.Errorf("Error renaming tmp column [%s] to [%s]: %v", tmpColumnName, columnName, err)
 		}
 	}
@@ -413,6 +419,7 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 	ar.dataSourceProxy.queryLogger.LogQuery(deleteStatement)
 	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, deleteStatement)
 	if err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Error deleting duplicated rows: %v", err)
 	}
 
@@ -426,6 +433,7 @@ func (ar *AwsRedshift) bulkMergeInTransaction(wrappedTx *Transaction, table *Tab
 	ar.dataSourceProxy.queryLogger.LogQuery(insertFromSelectStatement)
 	_, err = wrappedTx.tx.ExecContext(ar.dataSourceProxy.ctx, insertFromSelectStatement)
 	if err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Error merging rows: %v", err)
 	}
 
