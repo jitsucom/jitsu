@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jitsucom/jitsu/server/uuid"
+	"github.com/lib/pq"
 	"sort"
 	"strconv"
 	"strings"
@@ -199,7 +200,7 @@ func (p *Postgres) CreateTable(table *Table) error {
 	err = p.createTableInTransaction(wrappedTx, table)
 	if err != nil {
 		wrappedTx.Rollback()
-		return err
+		return checkErr(err)
 	}
 
 	return wrappedTx.DirectCommit()
@@ -209,7 +210,7 @@ func (p *Postgres) CreateTable(table *Table) error {
 func (p *Postgres) PatchTableSchema(patchTable *Table) error {
 	wrappedTx, err := p.OpenTx()
 	if err != nil {
-		return err
+		return checkErr(err)
 	}
 
 	return p.patchTableSchemaInTransaction(wrappedTx, patchTable)
@@ -252,6 +253,7 @@ func (p *Postgres) Insert(eventContext *EventContext) error {
 
 	_, err := p.dataSource.ExecContext(p.ctx, statement, values...)
 	if err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Error inserting in %s table with statement: %s values: %v: %v", eventContext.Table.Name, statement, values, err)
 	}
 
@@ -301,14 +303,12 @@ func (p *Postgres) createTableInTransaction(wrappedTx *Transaction, table *Table
 	query := fmt.Sprintf(createTableTemplate, p.config.Schema, table.Name, strings.Join(columnsDDL, ", "))
 	p.queryLogger.LogDDL(query)
 
-	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
-
-	if err != nil {
+	if _, err := wrappedTx.tx.ExecContext(p.ctx, query); err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Error creating [%s] table with statement [%s]: %v", table.Name, query, err)
 	}
 
-	err = p.createPrimaryKeyInTransaction(wrappedTx, table)
-	if err != nil {
+	if err := p.createPrimaryKeyInTransaction(wrappedTx, table); err != nil {
 		return err
 	}
 
@@ -328,6 +328,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 		_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 		if err != nil {
 			wrappedTx.Rollback()
+			err = checkErr(err)
 			return fmt.Errorf("Error patching %s table with [%s] DDL: %v", patchTable.Name, columnDDL, err)
 		}
 	}
@@ -346,7 +347,7 @@ func (p *Postgres) patchTableSchemaInTransaction(wrappedTx *Transaction, patchTa
 		err := p.createPrimaryKeyInTransaction(wrappedTx, patchTable)
 		if err != nil {
 			wrappedTx.Rollback()
-			return err
+			return checkErr(err)
 		}
 	}
 
@@ -370,6 +371,7 @@ func (p *Postgres) createPrimaryKeyInTransaction(wrappedTx *Transaction, table *
 
 	_, err := wrappedTx.tx.ExecContext(p.ctx, statement)
 	if err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Error setting primary key [%s] %s table: %v", strings.Join(table.GetPKFields(), ","), table.Name, err)
 	}
 
@@ -382,6 +384,7 @@ func (p *Postgres) deletePrimaryKeyInTransaction(wrappedTx *Transaction, table *
 	p.queryLogger.LogDDL(query)
 	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
 	if err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Failed to drop primary key constraint for table %s.%s: %v", p.config.Schema, table.Name, err)
 	}
 
@@ -557,6 +560,7 @@ func (p *Postgres) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, 
 
 	_, err = wrappedTx.tx.ExecContext(p.ctx, insertFromSelectStatement)
 	if err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Error bulk merging in %s table with statement: %s: %v", table.Name, insertFromSelectStatement, err)
 	}
 
@@ -568,9 +572,8 @@ func (p *Postgres) dropTableInTransaction(wrappedTx *Transaction, table *Table) 
 	query := fmt.Sprintf(dropTableTemplate, p.config.Schema, table.Name)
 	p.queryLogger.LogDDL(query)
 
-	_, err := wrappedTx.tx.ExecContext(p.ctx, query)
-
-	if err != nil {
+	if _, err := wrappedTx.tx.ExecContext(p.ctx, query); err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Error dropping [%s] table: %v", table.Name, err)
 	}
 
@@ -583,6 +586,7 @@ func (p *Postgres) deleteInTransaction(wrappedTx *Transaction, table *Table, del
 	p.queryLogger.LogQueryWithValues(query, values)
 
 	if _, err := wrappedTx.tx.ExecContext(p.ctx, query, values...); err != nil {
+		err = checkErr(err)
 		return fmt.Errorf("Error deleting using query: %s, error: %v", query, err)
 	}
 
@@ -614,6 +618,7 @@ func (p *Postgres) executeInsert(wrappedTx *Transaction, table *Table, headerWit
 	p.queryLogger.LogQueryWithValues(statement, valueArgs)
 
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
+		err = checkErr(err)
 		return err
 	}
 
@@ -733,11 +738,13 @@ func createDbSchemaInTransaction(ctx context.Context, wrappedTx *Transaction, st
 	queryLogger.LogDDL(query)
 	_, err := wrappedTx.tx.ExecContext(ctx, query)
 	if err != nil {
+		err = checkErr(err)
 		wrappedTx.Rollback()
+
 		return fmt.Errorf("Error creating [%s] db schema with statement [%s]: %v", dbSchemaName, query, err)
 	}
 
-	return wrappedTx.tx.Commit()
+	return checkErr(wrappedTx.tx.Commit())
 }
 
 //reformatMappings handles old (deprecated) mapping types //TODO remove someday
@@ -826,4 +833,28 @@ func getDeduplicatedAndOthers(pkFields []string, objects []map[string]interface{
 	}
 
 	return deduplicatedObjects, duplicatedObjects
+}
+
+//checkErr checks and extracts parsed pg.Error and extract code,message,details
+func checkErr(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	if pgErr, ok := err.(*pq.Error); ok {
+		msgParts := []string{"pq:"}
+		if pgErr.Code != "" {
+			msgParts = append(msgParts, string(pgErr.Code))
+		}
+		if pgErr.Message != "" {
+			msgParts = append(msgParts, pgErr.Message)
+		}
+		if pgErr.Detail != "" {
+			msgParts = append(msgParts, pgErr.Detail)
+		}
+
+		return errors.New(strings.Join(msgParts, " "))
+	}
+
+	return err
 }
