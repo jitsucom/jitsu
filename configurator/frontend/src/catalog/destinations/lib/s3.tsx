@@ -1,4 +1,4 @@
-import { modeParameter, tableName } from './common';
+import {modeParameter, s3Credentials, tableName} from './common';
 import {arrayOf, booleanType, selectionType, stringType} from '../../sources/types';
 import { ReactNode } from 'react';
 import * as React from "react";
@@ -76,45 +76,28 @@ const destination = {
   syncFromSourcesStatus: 'not_supported',
   id: 's3',
   type: 'database',
-  displayName: 'S3',
+  displayName: 'Amazon S3',
   hidden: false,
   ui: {
     icon,
     title: (cfg: object) => {
-      return cfg['_formData']['s3Endpoint'];
+      return cfg['_formData']['s3Region'];
     },
-    connectCmd: (cfg) => null
+    connectCmd: (_) => null
   },
   parameters: [
     tableName(),
-    {
-      id: '_formData.s3AccessKeyID',
-      displayName: 'Access key id',
-      required: true,
-      type: stringType
-    },
-    {
-      id: '_formData.s3SecretKey',
-      displayName: 'Secret key',
-      required: true,
-      type: stringType
-    },
-    {
-      id: '_formData.s3Bucket',
-      displayName: 'Bucket',
-      required: true,
-      type: stringType
-    },
-    {
-      id: '_formData.s3Region',
-      displayName: 'Region',
-      required: true,
-      type: stringType
-    },
+    ...s3Credentials(
+        '_formData.s3Region',
+        '_formData.s3Bucket',
+        '_formData.s3AccessKeyID',
+        '_formData.s3SecretKey',
+        (_) => false
+    ) ,
     {
       id: '_formData.s3Endpoint',
       displayName: 'Endpoint',
-      required: true,
+      required: false,
       type: stringType
     },
     {
@@ -129,7 +112,12 @@ const destination = {
       displayName: 'Format',
       required: true,
       defaultValue: 'flat_json',
-      type: selectionType(['flat_json', 'csv'], 1)
+      type: selectionType(['flat_json', 'csv', 'json'], 1),
+      documentation: <>
+        flat_json - flattened json objects with \n delimiter
+        json - not flattened json objects with \n delimiter
+        csv - flattened csv objects with \n delimiter
+      </>
     },
     {
       id: '_formData.s3CompressionEnabled',
@@ -138,7 +126,7 @@ const destination = {
       type: booleanType,
       defaultValue: false,
       documentation: <>
-        Enables gzip compression
+        If enabled - all files with events will be compressed (gzip) before uploading to S3. All files will have the suffix '.gz'
       </>
     }
   ]
