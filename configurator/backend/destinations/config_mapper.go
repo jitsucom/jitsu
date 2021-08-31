@@ -107,7 +107,7 @@ func mapS3(dest *entities.Destination) (*enstorages.DestinationConfig, error) {
 	}
 	var compression enadapters.S3Compression
 	if s3FormData.CompressionEnabled {
-		compression = enadapters.GZIP
+		compression = enadapters.S3CompressionGZIP
 	}
 	return &enstorages.DestinationConfig{
 		Type: enstorages.S3Type,
