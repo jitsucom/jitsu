@@ -131,7 +131,7 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'Close',
     tap: 'tap-closeio',
     stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: false,
   },
   {
     pic: logos.tap_clubspeed,
@@ -145,7 +145,7 @@ export const allSingerTaps: SingerTap[] = [
     displayName: 'Codat',
     tap: 'tap-codat',
     stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: false,
   },
   {
     pic: logos.tap_darksky,
