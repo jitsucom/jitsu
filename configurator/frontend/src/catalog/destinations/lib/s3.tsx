@@ -95,12 +95,6 @@ const destination = {
         (_) => false
     ) ,
     {
-      id: '_formData.s3Endpoint',
-      displayName: 'Endpoint',
-      required: false,
-      type: stringType
-    },
-    {
       id: '_formData.s3Folder',
       displayName: 'Folder',
       required: false,
@@ -114,9 +108,9 @@ const destination = {
       defaultValue: 'flat_json',
       type: selectionType(['flat_json', 'csv', 'json'], 1),
       documentation: <>
-        flat_json - flattened json objects with \n delimiter
-        json - not flattened json objects with \n delimiter
-        csv - flattened csv objects with \n delimiter
+        <b>flat_json</b> - flattened json objects with \n delimiter<br/>
+        <b>json</b> - not flattened json objects with \n delimiter<br/>
+        <b>csv</b> - flattened csv objects with \n delimiter<br/>
       </>
     },
     {
