@@ -76,8 +76,6 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
       : undefined;
   }, [params.source, params.sourceId]);
 
-  debugger;
-
   const sourceData = useRef<SourceData>(
     sourcesStore.sources.find((src) => src.sourceId === params.sourceId) ??
       ({
