@@ -37,6 +37,7 @@ func (f Fields) OverrideTypes(other Fields) {
 			//override type occurrences
 			currentField.typeOccurrence = otherField.typeOccurrence
 			currentField.dataType = otherField.dataType
+			f[otherName] = currentField
 		}
 	}
 }
