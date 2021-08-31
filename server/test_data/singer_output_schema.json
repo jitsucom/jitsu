@@ -1,0 +1,40 @@
+{
+  "type": "SCHEMA",
+  "stream": "test",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "vid": {
+        "type": [
+          "null",
+          "integer"
+        ]
+      },
+      "property_hs_email_open": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": [
+              "null",
+              "number",
+              "string"
+            ]
+          }
+        }
+      },
+      "canonical-vid": {
+        "type": [
+          "null",
+          "integer",
+          "number"
+        ]
+      }
+    }
+  },
+  "key_properties": [
+    "vid"
+  ],
+  "bookmark_properties": [
+    "versionTimestamp"
+  ]
+}
