@@ -37,10 +37,10 @@ type S3EncodingFormat string
 type S3Compression string
 
 const (
-	S3FormatFlatJSON  S3EncodingFormat = "flat_json"
-	S3FormatJSON      S3EncodingFormat = "json"
-	S3FormatCSV       S3EncodingFormat = "csv"
-	S3CompressionGZIP S3Compression    = "gzip"
+	S3FormatFlatJSON  S3EncodingFormat = "flat_json" //flattened json objects with \n delimiter
+	S3FormatJSON      S3EncodingFormat = "json"      //file with json objects with \n delimiter (not flattened)
+	S3FormatCSV       S3EncodingFormat = "csv"       //flattened csv objects with \n delimiter
+	S3CompressionGZIP S3Compression    = "gzip"      //gzip compression
 )
 
 //Validate returns err if invalid
