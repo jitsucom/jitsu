@@ -148,7 +148,7 @@ func TestProcessFilePayload(t *testing.T) {
 			objects, err := parsers.ParseJSONFileWithFunc(fBytes, tt.parseFunc)
 			require.NoError(t, err)
 
-			actual, failed, err := p.ProcessEvents("testfile", objects, map[string]bool{})
+			actual, failed, err := p.ProcessEvents("testfile", objects, map[string]bool{}, true)
 			require.NoError(t, err)
 
 			if len(tt.expectedFailed) > 0 {
