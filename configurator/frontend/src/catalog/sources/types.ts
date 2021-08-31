@@ -336,10 +336,17 @@ export interface SourceConnector {
    * Collection templates
    */
   collectionTemplates?: CollectionTemplate[];
+
   /**
    * API Connector documentation
    */
   documentation?: ConnectorDocumentation;
+
+  /**
+   * If true, user won't be able to add new sources of this type 
+   * yet it will be possible to edit the existing ones
+   */
+  deprecated?: boolean;
 }
 
 /**
@@ -393,6 +400,10 @@ export interface SingerTap {
    * API Connector documentation
    */
   documentation?: ConnectorDocumentation;
+  /**
+   * Allows only editing the existing sources
+   */
+  deprecated?: boolean;
 }
 
 export interface AirbyteSource {

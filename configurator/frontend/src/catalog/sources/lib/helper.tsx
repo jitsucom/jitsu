@@ -156,6 +156,7 @@ export const makeSingerSource = (singerTap: SingerTap): SourceConnector => {
     collectionTypes: [],
     documentation: singerTap.documentation,
     collectionParameters: [],
+    deprecated: singerTap.deprecated,
     configParameters: [
       {
         displayName: 'Singer Tap',
