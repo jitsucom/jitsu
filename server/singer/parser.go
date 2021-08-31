@@ -231,13 +231,22 @@ func parseProperties(prefix string, properties map[string]*Property, resultField
 				fieldType = typing.STRING
 			case "object":
 				parseProperties(prefix+name+"_", property.Properties, resultFields)
+				continue
 			default:
 				logging.Errorf("Unknown type in singer schema: %s", t)
 				continue
 			}
 
-			resultFields[prefix+name] = schema.NewField(fieldType)
-			break
+			//merge all singer types
+			key := prefix + name
+			field, ok := resultFields[key]
+			if ok {
+				newFieldType := schema.NewField(fieldType)
+				field.Merge(&newFieldType)
+				resultFields[key] = field
+			} else {
+				resultFields[key] = schema.NewField(fieldType)
+			}
 		}
 	}
 }
