@@ -122,7 +122,7 @@ func (m *MySQL) DryRun(payload events.Event) ([]adapters.TableField, error) {
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (m *MySQL) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
 	_, tableHelper := m.getAdapters()
-	flatData, failedEvents, err := m.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, err := m.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, true)
 	if err != nil {
 		return nil, nil, err
 	}

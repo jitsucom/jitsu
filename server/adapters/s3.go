@@ -17,7 +17,7 @@ import (
 
 //S3 is a S3 adapter for uploading/deleting files
 type S3 struct {
-	Config *S3Config
+	config *S3Config
 	client *s3.S3
 }
 
@@ -37,9 +37,10 @@ type S3EncodingFormat string
 type S3Compression string
 
 const (
-	FLAT_JSON S3EncodingFormat = "flat_json"
-	CSV       S3EncodingFormat = "csv"
-	GZIP      S3Compression    = "gzip"
+	S3FormatFlatJSON  S3EncodingFormat = "flat_json"
+	S3FormatJSON      S3EncodingFormat = "json"
+	S3FormatCSV       S3EncodingFormat = "csv"
+	S3CompressionGZIP S3Compression    = "gzip"
 )
 
 //Validate returns err if invalid
@@ -59,9 +60,6 @@ func (s3c *S3Config) Validate() error {
 	if s3c.Region == "" {
 		return errors.New("S3 region is required parameter")
 	}
-	if s3c.Format == "" {
-		s3c.Format = FLAT_JSON
-	}
 	return nil
 }
 
@@ -77,45 +75,45 @@ func NewS3(s3Config *S3Config) (*S3, error) {
 	if s3Config.Endpoint != "" {
 		awsConfig.WithEndpoint(s3Config.Endpoint)
 	}
+	if s3Config.Format == "" {
+		s3Config.Format = S3FormatFlatJSON
+	}
 	s3Session := session.Must(session.NewSession())
 
-	return &S3{client: s3.New(s3Session, awsConfig), Config: s3Config}, nil
+	return &S3{client: s3.New(s3Session, awsConfig), config: s3Config}, nil
+}
+
+func (a *S3) Format() S3EncodingFormat {
+	return a.config.Format
 }
 
 //UploadBytes creates named file on s3 with payload
 func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
-	if a.Config.Folder != "" {
-		fileName = a.Config.Folder + "/" + fileName
+	if a.config.Folder != "" {
+		fileName = a.config.Folder + "/" + fileName
 	}
+
 	fileType := http.DetectContentType(fileBytes)
-	if a.Config.Compression == "" {
-		params := &s3.PutObjectInput{
-			Bucket:      aws.String(a.Config.Bucket),
-			Key:         aws.String(fileName),
-			Body:        bytes.NewReader(fileBytes),
-			ContentType: aws.String(fileType),
-		}
-		_, err := a.client.PutObject(params)
-		if err != nil {
-			return fmt.Errorf("Error uploading file to s3 %v", err)
-		}
-	} else {
+	params := &s3.PutObjectInput{
+		Bucket:      aws.String(a.config.Bucket),
+		ContentType: aws.String(fileType),
+	}
+
+	if a.config.Compression != "" {
+		var err error
 		fileName += ".gz"
-		compressedFileBytes, err := a.compress(fileBytes)
+		fileBytes, err = a.compress(fileBytes)
 		if err != nil {
 			return fmt.Errorf("Error compressing file %v", err)
 		}
-		params := &s3.PutObjectInput{
-			Bucket:          aws.String(a.Config.Bucket),
-			Key:             aws.String(fileName),
-			Body:            bytes.NewReader(compressedFileBytes),
-			ContentType:     aws.String(fileType),
-			ContentEncoding: aws.String(string(a.Config.Compression)),
-		}
-		_, err = a.client.PutObject(params)
-		if err != nil {
-			return fmt.Errorf("Error uploading file to s3 %v", err)
-		}
+		params.ContentEncoding = aws.String(string(a.config.Compression))
+	}
+
+	params.Key = aws.String(fileName)
+	params.Body = bytes.NewReader(fileBytes)
+	_, err := a.client.PutObject(params)
+	if err != nil {
+		return fmt.Errorf("Error uploading file to s3 %v", err)
 	}
 	return nil
 }
@@ -135,10 +133,10 @@ func (a *S3) compress(b []byte) ([]byte, error) {
 
 //DeleteObject deletes object from s3 bucket by key
 func (a *S3) DeleteObject(key string) error {
-	if a.Config.Folder != "" {
-		key = a.Config.Folder + "/" + key
+	if a.config.Folder != "" {
+		key = a.config.Folder + "/" + key
 	}
-	input := &s3.DeleteObjectInput{Bucket: &a.Config.Bucket, Key: &key}
+	input := &s3.DeleteObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	output, err := a.client.DeleteObject(input)
 	if err != nil {
 		return fmt.Errorf("Error deleting file %s from s3 %v", key, err)

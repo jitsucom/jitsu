@@ -101,7 +101,7 @@ func NewBigQuery(config *Config) (Storage, error) {
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
 	_, tableHelper := bq.getAdapters()
-	flatData, failedEvents, err := bq.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, err := bq.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, true)
 	if err != nil {
 		return nil, nil, err
 	}
