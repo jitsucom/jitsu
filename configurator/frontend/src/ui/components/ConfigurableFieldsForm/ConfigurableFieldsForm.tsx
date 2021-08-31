@@ -197,6 +197,10 @@ const ConfigurableFieldsForm = ({
     form.setFieldsValue(formValues);
   }, [fieldsParamsList, form, initialValues]);
 
+  // useEffect(() => {
+  //   forceUpdate();
+  // }, [])
+
   const getFieldComponent = (
     type: ParameterType<any>,
     id: string,
@@ -367,6 +371,10 @@ const ConfigurableFieldsForm = ({
           const isOmitted = omitFieldRule
             ? omitFieldRule(parsedFormValues)
             : false;
+
+          // if (Object.keys(currentFormValues)) {
+          //   debugger;
+          // }
 
           const validationRules: FormItemProps['rules'] = [];
           if (!isHidden) {

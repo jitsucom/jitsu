@@ -76,6 +76,8 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
       : undefined;
   }, [params.source, params.sourceId]);
 
+  debugger;
+
   const sourceData = useRef<SourceData>(
     sourcesStore.sources.find((src) => src.sourceId === params.sourceId) ??
       ({
@@ -102,7 +104,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           isCreateForm={editorMode === 'add'}
           initialValues={sourceData.current}
           sources={sourcesStore.sources}
-          handleTouchAnyField={validateAndTouchField(0)}
+          handleTouchAnyField={createValidateAndTouchField(0)}
           disableFormControls={handleDisableFormControls}
           enableFormControls={handleEnableFormControls}
         />
@@ -118,7 +120,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           form={form}
           initialValues={sourceData.current}
           connectorSource={connectorSource}
-          handleTouchAnyField={validateAndTouchField(1)}
+          handleTouchAnyField={createValidateAndTouchField(1)}
         />
       ),
       form: Form.useForm()[0],
@@ -132,7 +134,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
         <SourceEditorDestinations
           form={form}
           initialValues={sourceData.current}
-          handleTouchAnyField={validateAndTouchField(2)}
+          handleTouchAnyField={createValidateAndTouchField(2)}
         />
       ),
       form: Form.useForm()[0],
@@ -141,7 +143,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
     }
   ]);
 
-  const validateAndTouchField = useCallback(
+  const createValidateAndTouchField = 
     (index: number) => (value: boolean) => {
       const tab = sourcesTabs.current[index];
 
@@ -154,9 +156,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           errorCb: (errors) => (tab.errorsCount = errors.errorFields?.length)
         });
       }
-    },
-    [forceUpdate]
-  );
+    };
 
   const handleDisableFormControls = useCallback(() => {
     setControlsDisabled(true);
