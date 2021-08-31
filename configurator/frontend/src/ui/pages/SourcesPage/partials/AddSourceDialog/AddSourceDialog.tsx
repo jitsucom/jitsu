@@ -102,13 +102,14 @@ const AddSourceDialogComponent = () => {
             >
               <span className={styles.pic}>{src.pic}</span>
               <span className={styles.title}>{src.displayName}</span>
+              {src.protoType === 'airbyte' &&
+                <span className={styles.airbyteLabel}>{'powered by Airbyte'}</span>
+              }
 
               {
                 src.expertMode
                   ? <Badge.Ribbon text="Expert mode" className={styles.expertLabel} />
-                  : src.protoType === 'airbyte'
-                    ? <Badge.Ribbon text="powered by Airbyte" className={styles.airbyteLabel} />
-                    : <span className={styles.star}>
+                  : <span className={styles.star}>
                       <StarOutlined className={cn(styles.starIcon, styles.strokeStar)} />
                       <StarFilled className={cn(styles.starIcon, styles.fillStar)} />
                       </span>
