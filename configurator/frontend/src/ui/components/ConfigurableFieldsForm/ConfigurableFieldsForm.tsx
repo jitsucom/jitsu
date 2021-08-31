@@ -165,41 +165,6 @@ const ConfigurableFieldsForm = ({
 
     return type === 'json' ? JSON.stringify(calcValue) : calcValue;
   };
-  useEffect(() => {
-    //First pass - fill fixed parameter (not const and not defined by function)
-    let formValues = {};
-    fieldsParamsList.forEach((param: Parameter) => {
-      if (typeof param.constant !== 'function') {
-        const initialValue = getInitialValue(
-          param.id,
-          param.defaultValue,
-          param.constant,
-          param.type?.typeName
-        );
-        formValues[param.id] = initialValue;
-      }
-    });
-    //second pass - fill dynamic values
-    fieldsParamsList.forEach((param: Parameter) => {
-      if (typeof param.constant === 'function') {
-        const constantVal = param.constant(
-          makeObjectFromFieldsValues(formValues)
-        );
-        const initialValue = getInitialValue(
-          param.id,
-          param.defaultValue,
-          constantVal,
-          param.type?.typeName
-        );
-        formValues[param.id] = initialValue;
-      }
-    });
-    form.setFieldsValue(formValues);
-  }, [fieldsParamsList, form, initialValues]);
-
-  // useEffect(() => {
-  //   forceUpdate();
-  // }, [])
 
   const getFieldComponent = (
     type: ParameterType<any>,
@@ -208,6 +173,11 @@ const ConfigurableFieldsForm = ({
     constantValue?: any
   ) => {
     const fieldsValue = form.getFieldsValue();
+    const defaultValueToDisplay =
+          form.getFieldValue(id) ||
+          getInitialValue(id, defaultValue, constantValue, type?.typeName);
+
+    form.setFieldsValue({id: defaultValueToDisplay})
 
     switch (type?.typeName) {
       case 'description':
@@ -215,6 +185,7 @@ const ConfigurableFieldsForm = ({
       case 'password':
         return (
           <Input.Password
+            defaultValue={defaultValueToDisplay}
             autoComplete="off"
             iconRender={(visible) =>
               visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />
@@ -222,13 +193,20 @@ const ConfigurableFieldsForm = ({
           />
         );
 
-      case 'int':
-        return <Input autoComplete="off" onChange={handleChangeIntInput(id)} />;
-
+      case 'int': {
+        return (
+          <Input 
+            defaultValue={defaultValueToDisplay}
+            autoComplete="off" 
+            onChange={handleChangeIntInput(id)} 
+          />
+        );
+      }
       // ToDo: check if it can be <select> in some cases
-      case 'selection':
+      case 'selection': {
         return (
           <Select
+            defaultValue={defaultValueToDisplay}
             allowClear
             mode={type.data.maxOptions > 1 ? 'multiple' : undefined}
             onChange={forceUpdate}
@@ -242,22 +220,16 @@ const ConfigurableFieldsForm = ({
             })}
           </Select>
         );
-
+      }
       case 'array/string':
-        const value =
-          form.getFieldValue(id) ||
-          getInitialValue(id, defaultValue, constantValue, type?.typeName);
-        return <EditableList initialValue={value} />;
+        return <EditableList initialValue={defaultValueToDisplay} />;
       case 'javascript':
       case 'json': {
-        const value =
-          form.getFieldValue(id) ||
-          getInitialValue(id, defaultValue, constantValue, type?.typeName);
         return (
           <div>
             <CodeEditor
               handleChange={handleJsonChange(id)}
-              initialValue={value}
+              initialValue={defaultValueToDisplay}
               language={type?.typeName}
             />
             <span className="z-50 absolute top-2 right-3">
@@ -282,9 +254,10 @@ const ConfigurableFieldsForm = ({
         );
 
       case 'string':
-      default:
+      default: {
         return (
           <Input
+            defaultValue={defaultValueToDisplay}
             autoComplete="off"
             suffix={
               isDebugSupported(id) && (
@@ -300,6 +273,7 @@ const ConfigurableFieldsForm = ({
             }
           />
         );
+      }
     }
   };
 
@@ -329,6 +303,41 @@ const ConfigurableFieldsForm = ({
     }
     handleCloseDebugger(id);
   };
+
+  useEffect(() => {
+    /**
+     * 
+     * 1st render:
+     * component creates fields, fills them with values, 
+     * lets the `form` instance to pick them
+     * 
+     */
+    let formValues = {};
+    fieldsParamsList.forEach((param: Parameter) => {
+      let constantValue: any; 
+      if (typeof param.constant === 'function') {
+        constantValue = param.constant(
+          makeObjectFromFieldsValues(formValues)
+        );
+      }
+      const initialValue = getInitialValue(
+        param.id,
+        param.defaultValue,
+        constantValue,
+        param.type?.typeName
+      );
+      formValues[param.id] = initialValue;
+    });
+    form.setFieldsValue(formValues);
+
+    /**
+     * 
+     * 2nd render: component removes/adds fields conditionally 
+     *  depending on the form values
+     * 
+     */
+    forceUpdate()
+  }, [])
 
   return loading ? (
     typeof loading === 'boolean' ? (
@@ -371,10 +380,6 @@ const ConfigurableFieldsForm = ({
           const isOmitted = omitFieldRule
             ? omitFieldRule(parsedFormValues)
             : false;
-
-          // if (Object.keys(currentFormValues)) {
-          //   debugger;
-          // }
 
           const validationRules: FormItemProps['rules'] = [];
           if (!isHidden) {
