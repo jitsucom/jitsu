@@ -312,7 +312,7 @@ func TestProcessFact(t *testing.T) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			batchHeader, actual, err := p.ProcessEvent(tt.input)
+			batchHeader, actual, err := p.ProcessEvent(tt.input, true)
 
 			if tt.expectedErr != "" {
 				require.Error(t, err)

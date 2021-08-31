@@ -89,7 +89,7 @@ func NewPostgres(config *Config) (Storage, error) {
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
 	_, tableHelper := p.getAdapters()
-	flatData, failedEvents, err := p.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, err := p.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, true)
 	if err != nil {
 		return nil, nil, err
 	}

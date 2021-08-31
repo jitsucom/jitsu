@@ -64,7 +64,7 @@ func (s3 *S3) DryRun(payload events.Event) ([]adapters.TableField, error) {
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
-	flatData, failedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	processedFiles, failedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, s3.needFlatten())
 	if err != nil {
 		return nil, nil, err
 	}
@@ -77,7 +77,7 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
 	marshaller := s3.marshaller()
-	for _, fdata := range flatData {
+	for _, fdata := range processedFiles {
 		b := fdata.GetPayloadBytes(marshaller)
 		fileName := s3.fileName(fdata)
 		err := s3.s3Adapter.UploadBytes(fileName, b)
@@ -104,9 +104,12 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 	return tableResults, nil, nil
 }
 
+func (s3 *S3) needFlatten() bool {
+	return s3.s3Adapter.Format() != adapters.S3FormatJSON
+}
+
 func (s3 *S3) marshaller() schema.Marshaller {
-	cfg := s3.s3Adapter.Config
-	if cfg.Format == adapters.CSV {
+	if s3.s3Adapter.Format() == adapters.S3FormatCSV {
 		return schema.CsvMarshallerInstance
 	} else {
 		return schema.JSONMarshallerInstance
