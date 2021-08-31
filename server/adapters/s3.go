@@ -46,7 +46,7 @@ const (
 //Validate returns err if invalid
 func (s3c *S3Config) Validate() error {
 	if s3c == nil {
-		return errors.New("S3 Config is required")
+		return errors.New("S3 config is required")
 	}
 	if s3c.AccessKeyID == "" {
 		return errors.New("S3 access_key_id is required parameter")
