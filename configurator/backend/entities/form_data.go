@@ -152,8 +152,7 @@ type DbtCloudFormData struct {
 
 //S3FormData entity is stored in main storage (Firebase/Redis)
 type S3FormData struct {
-	TableName string `firestore:"tableName" json:"tableName"`
-
+	TableName          string                    `firestore:"tableName" json:"tableName"`
 	AccessKeyID        string                    `firestore:"s3AccessKeyID" json:"s3AccessKeyID"`
 	SecretKey          string                    `firestore:"s3SecretKey" json:"s3SecretKey"`
 	Bucket             string                    `firestore:"s3Bucket" json:"s3Bucket"`
