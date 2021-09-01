@@ -101,7 +101,7 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 
 	if a.config.Compression == S3CompressionGZIP {
 		var err error
-		fileName += ".gz"
+		fileName = fileNameGZIP(fileName)
 		fileBytes, err = a.compressGZIP(fileBytes)
 		if err != nil {
 			return fmt.Errorf("Error compressing file %v", err)
@@ -136,6 +136,9 @@ func (a *S3) DeleteObject(key string) error {
 	if a.config.Folder != "" {
 		key = a.config.Folder + "/" + key
 	}
+	if a.config.Compression == S3CompressionGZIP {
+		key = fileNameGZIP(key)
+	}
 	input := &s3.DeleteObjectInput{Bucket: &a.config.Bucket, Key: &key}
 	output, err := a.client.DeleteObject(input)
 	if err != nil {
@@ -147,6 +150,10 @@ func (a *S3) DeleteObject(key string) error {
 	}
 
 	return nil
+}
+
+func fileNameGZIP(fileName string) string {
+	return fileName + ".gz"
 }
 
 //ValidateWritePermission tries to create temporary file and remove it.
