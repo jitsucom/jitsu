@@ -93,8 +93,8 @@ const AddSourceDialogComponent = () => {
 
       <div className={styles.list}>
         {
-          filteredSourcesList.map((src: SourceConnector) => src.deprecated 
-            ? null 
+          filteredSourcesList.map((src: SourceConnector) => src.deprecated
+            ? null
             : (
               <Link
                 to={generatePath(sourcesPageRoutes.addExact, { source: src.id })}
@@ -111,10 +111,12 @@ const AddSourceDialogComponent = () => {
                 {
                   src.expertMode
                     ? <Badge.Ribbon text="Expert mode" className={styles.expertLabel} />
-                    : <span className={styles.star}>
+                    : src.protoType !== 'airbyte'
+                      ? <span className={styles.star}>
                         <StarOutlined className={cn(styles.starIcon, styles.strokeStar)} />
                         <StarFilled className={cn(styles.starIcon, styles.fillStar)} />
-                        </span>
+                  </span>
+                      : <></>
                 }
               </Link>
             ))
