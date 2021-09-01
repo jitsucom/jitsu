@@ -289,7 +289,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			counters.SuccessEvents(storage.ID(), rowsCount)
 		}
 
-		counters.SuccessSourceEvents(task.Source, rowsCount)
+		counters.SuccessPullSourceEvents(task.Source, rowsCount)
 
 		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
 			logging.SystemErrorf("Unable to save source: [%s] collection: [%s] meta key: [%s] signature: %v", task.Source, task.Collection, collectionMetaKey, err)

@@ -9,7 +9,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
 	"io"
-	"strings"
 )
 
 const (
@@ -130,61 +129,51 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 }
 
 func parseCatalog(outWriter *logging.StringWriter) ([]byte, map[string]*base.StreamRepresentation, error) {
-	parts := strings.Split(outWriter.String(), "\n")
-	for _, p := range parts {
-		parsedRow := &airbyte.Row{}
-		err := json.Unmarshal([]byte(p), parsedRow)
-		if err != nil {
-			continue
-		}
-
-		if parsedRow.Type != airbyte.CatalogType || parsedRow.Catalog == nil {
-			continue
-		}
-
-		formattedCatalog := &airbyte.Catalog{}
-		streamsRepresentation := map[string]*base.StreamRepresentation{}
-		for _, stream := range parsedRow.Catalog.Streams {
-			syncMode := getSyncMode(stream.SupportedSyncModes)
-
-			//formatted catalog
-			formattedCatalog.Streams = append(formattedCatalog.Streams, &airbyte.WrappedStream{
-				SyncMode: syncMode,
-				//isn't used because Jitsu doesn't use airbyte destinations. Just should be a valid option.
-				DestinationSyncMode: "overwrite",
-				Stream:              stream,
-			})
-
-			//streams schema representation
-			streamSchema := schema.Fields{}
-			base.ParseProperties(base.AirbyteType, "", stream.JsonSchema.Properties, streamSchema)
-
-			var keyFields []string
-			for _, sourceDefinedPrimaryKeys := range stream.SourceDefinedPrimaryKey {
-				if len(sourceDefinedPrimaryKeys) > 0 {
-					keyFields = sourceDefinedPrimaryKeys
-				}
-			}
-
-			streamsRepresentation[stream.Name] = &base.StreamRepresentation{
-				StreamName: stream.Name,
-				BatchHeader: &schema.BatchHeader{
-					TableName: stream.Name,
-					Fields:    streamSchema,
-				},
-				KeyFields: keyFields,
-				Objects:   []map[string]interface{}{},
-				//Set need clean only if full refresh => table will be truncated before data storing
-				NeedClean: syncMode == syncModeFullRefresh,
-			}
-		}
-
-		b, _ := json.MarshalIndent(formattedCatalog, "", "    ")
-
-		return b, streamsRepresentation, nil
+	parsedRow, err := airbyte.Instance.ParseCatalogRow(outWriter)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	return nil, nil, fmt.Errorf("Error parsing airbyte discover result as json: %s", outWriter.String())
+	formattedCatalog := &airbyte.Catalog{}
+	streamsRepresentation := map[string]*base.StreamRepresentation{}
+	for _, stream := range parsedRow.Catalog.Streams {
+		syncMode := getSyncMode(stream.SupportedSyncModes)
+
+		//formatted catalog
+		formattedCatalog.Streams = append(formattedCatalog.Streams, &airbyte.WrappedStream{
+			SyncMode: syncMode,
+			//isn't used because Jitsu doesn't use airbyte destinations. Just should be a valid option.
+			DestinationSyncMode: "overwrite",
+			Stream:              stream,
+		})
+
+		//streams schema representation
+		streamSchema := schema.Fields{}
+		base.ParseProperties(base.AirbyteType, "", stream.JsonSchema.Properties, streamSchema)
+
+		var keyFields []string
+		for _, sourceDefinedPrimaryKeys := range stream.SourceDefinedPrimaryKey {
+			if len(sourceDefinedPrimaryKeys) > 0 {
+				keyFields = sourceDefinedPrimaryKeys
+			}
+		}
+
+		streamsRepresentation[stream.Name] = &base.StreamRepresentation{
+			StreamName: stream.Name,
+			BatchHeader: &schema.BatchHeader{
+				TableName: stream.Name,
+				Fields:    streamSchema,
+			},
+			KeyFields: keyFields,
+			Objects:   []map[string]interface{}{},
+			//Set need clean only if full refresh => table will be truncated before data storing
+			NeedClean: syncMode == syncModeFullRefresh,
+		}
+	}
+
+	b, _ := json.MarshalIndent(formattedCatalog, "", "    ")
+
+	return b, streamsRepresentation, nil
 }
 
 //getSyncMode returns incremental if supported
