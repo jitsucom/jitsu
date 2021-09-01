@@ -95,7 +95,12 @@ func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 		sourceID := c.Query("source_id")
 		sourceIDs := []string{sourceID}
 		if sourceID == "" {
-			sourceIDs, err = sh.metaStorage.GetProjectSourceIDs(projectID)
+			if c.Query("source_type") == "push" {
+				sourceIDs, err = sh.metaStorage.GetProjectPushSourceIDs(projectID)
+			} else {
+				sourceIDs, err = sh.metaStorage.GetProjectSourceIDs(projectID)
+			}
+
 			if err != nil {
 				c.JSON(http.StatusBadRequest, middleware.ErrResponse("Failed to get sources statistics", err))
 				return

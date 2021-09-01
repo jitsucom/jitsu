@@ -110,7 +110,7 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 			counters.SuccessEvents(storage.ID(), rowsCount)
 		}
 
-		counters.SuccessSourceEvents(rs.task.Source, len(stream.Objects))
+		counters.SuccessPullSourceEvents(rs.task.Source, len(stream.Objects))
 
 		rs.taskLogger.INFO("Synchronized successfully Table [%s] key fields [%s] objects [%d]", tableName, strings.Join(stream.KeyFields, ","), len(stream.Objects))
 	}
