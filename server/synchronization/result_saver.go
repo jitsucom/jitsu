@@ -11,7 +11,6 @@ import (
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/schema"
-	"github.com/jitsucom/jitsu/server/singer"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -20,7 +19,8 @@ import (
 	"strings"
 )
 
-//ResultSaver is a Singer result consumer
+//ResultSaver is a Singer/Airbyte result consumer
+//tap is a Singer tap or Airbyte source docker image
 type ResultSaver struct {
 	task              *meta.Task
 	tap               string
@@ -33,7 +33,7 @@ type ResultSaver struct {
 	streamTableNames map[string]string
 }
 
-//NewResultSaver returns configured Singer ResultSaver instance
+//NewResultSaver returns configured ResultSaver instance
 func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix string, taskLogger *TaskLogger, destinations []storages.Storage, metaStorage meta.Storage,
 	streamTableNames map[string]string) *ResultSaver {
 	return &ResultSaver{
@@ -48,8 +48,8 @@ func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix str
 	}
 }
 
-//Consume consumes result batch and writes it to destinations and saves Singer State
-func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) error {
+//Consume consumes result batch and writes it to destinations and saves the State
+func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentation) error {
 	for streamName, stream := range representation.Streams {
 		tableName, ok := rs.streamTableNames[streamName]
 		if !ok {
@@ -90,7 +90,7 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 			if stream.NeedClean {
 				err := storage.Clean(stream.BatchHeader.TableName)
 				if err != nil {
-					logging.Warnf("[%s] storage cleaning failed, ignoring: %v", storage.ID(), err)
+					logging.Warnf("[%s] storage table %s cleaning failed, ignoring: %v", storage.ID(), stream.BatchHeader.TableName, err)
 				}
 				stream.NeedClean = false
 			}
@@ -119,7 +119,7 @@ func (rs *ResultSaver) Consume(representation *singer.OutputRepresentation) erro
 	if representation.State != nil {
 		stateJSON, err := json.Marshal(representation.State)
 		if err != nil {
-			errMsg := fmt.Sprintf("Error marshalling Singer state in source [%s] tap [%s] signature [%v]: %v", rs.task.Source, rs.tap, representation.State, err)
+			errMsg := fmt.Sprintf("Error marshalling state in source [%s] tap [%s] signature [%v]: %v", rs.task.Source, rs.tap, representation.State, err)
 			logging.SystemError(errMsg)
 			return errors.New(errMsg)
 		}
