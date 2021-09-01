@@ -104,10 +104,6 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 	return tableResults, nil, nil
 }
 
-func (s3 *S3) needFlatten() bool {
-	return s3.s3Adapter.Format() != adapters.S3FormatJSON
-}
-
 func (s3 *S3) marshaller() schema.Marshaller {
 	if s3.s3Adapter.Format() == adapters.S3FormatCSV {
 		return schema.CsvMarshallerInstance

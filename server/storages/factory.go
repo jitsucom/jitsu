@@ -372,8 +372,11 @@ func (f *FactoryImpl) Create(destinationID string, destination DestinationConfig
 }
 
 func needDummy(destCfg *DestinationConfig) bool {
+	if destCfg.Type == S3Type {
+		return destCfg.S3.Format == adapters.S3FormatJSON
+	}
 	return destCfg.Type == FacebookType || destCfg.Type == DbtCloudType || destCfg.Type == WebHookType ||
-		destCfg.Type == AmplitudeType || destCfg.Type == HubSpotType || destCfg.Type == S3Type
+		destCfg.Type == AmplitudeType || destCfg.Type == HubSpotType
 }
 
 //initializeRetroactiveUsersRecognition initializes recognition configuration (overrides global one with destination layer)
