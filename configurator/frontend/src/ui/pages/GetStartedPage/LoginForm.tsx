@@ -28,7 +28,7 @@ export function LoginForm({ supportOauth }) {
       reloadPage();
     } catch(error) {
       message.destroy();
-      this.services.analyticsService.track('failed_app_login', { user: { email: null }, login_type: 'github', ...getErrorPayload(error) });
+      services.analyticsService.track('failed_app_login', { user: { email: null }, login_type: 'github', ...getErrorPayload(error) });
       console.log('Github auth error', error);
       message.error('Access denied: ' + error.message);
     } finally {
