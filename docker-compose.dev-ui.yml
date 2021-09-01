@@ -18,28 +18,17 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
 
-  configurator:
-    container_name: jitsu_configurator
-    build:
-      context: .
-      dockerfile: configurator.Dockerfile
-      args:
-        SKIP_UI_BUILD: 'true'
-    entrypoint: './configurator'
+  jitsu:
+    container_name: jitsu
+    image: jitsucom/jitsu:latest
     environment:
-      - SERVER_AUTH=8b64e097c08a43c7ab656b7b02997859
-      - SERVER_NAME=devconf
-      - SERVER_DOMAIN=localhost
-      - STORAGE_REDIS_HOST=redis
-      - AUTH_REDIS_HOST=redis
-      - AUTH_REDIS_REFRESH_SECRET=0bf8478623224f6ea8354703b2e8c31f
-      - AUTH_REDIS_ACCESS_SECRET=3bd3e114f4ba4872b1d8b067de634097a
-      - JITSU_BASE_URL=localhost
-      - JITSU_ADMIN_TOKEN=8o1nb1obfadf9asf14k
+      - REDIS_URL=redis://redis:6379
     depends_on:
       - redis
     volumes:
-      - ./ui-dev-compose/configurator/data:/home/configurator/data/
+      - ./ui-dev-compose/configurator/data/logs:/home/configurator/data/logs
+      - ./ui-dev-compose/server/data/logs:/home/eventnative/data/logs
+      - ./ui-dev-compose/server/data/logs/events:/home/eventnative/data/logs/events
     restart: always
     ports:
       - "9875:7000"
