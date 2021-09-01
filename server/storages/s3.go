@@ -132,8 +132,8 @@ func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time
 			}
 		}
 	}
-	now := time.Now()
 	if start.IsZero() || end.IsZero() {
+		now := time.Now()
 		start = now
 		end = now
 	}
