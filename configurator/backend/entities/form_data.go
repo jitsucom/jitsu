@@ -154,12 +154,12 @@ type DbtCloudFormData struct {
 type S3FormData struct {
 	TableName string `firestore:"tableName" json:"tableName"`
 
-	AccessKeyID string                    `firestore:"s3AccessKeyID" json:"s3AccessKeyID"`
-	SecretKey   string                    `firestore:"s3SecretKey" json:"s3SecretKey"`
-	Bucket      string                    `firestore:"s3Bucket" json:"s3Bucket"`
-	Region      string                    `firestore:"s3Region" json:"s3Region"`
-	Endpoint    string                    `firestore:"s3Endpoint" json:"s3Endpoint"`
-	Folder      string                    `firestore:"s3Folder" json:"s3Folder"`
+	AccessKeyID        string                    `firestore:"s3AccessKeyID" json:"s3AccessKeyID"`
+	SecretKey          string                    `firestore:"s3SecretKey" json:"s3SecretKey"`
+	Bucket             string                    `firestore:"s3Bucket" json:"s3Bucket"`
+	Region             string                    `firestore:"s3Region" json:"s3Region"`
+	Endpoint           string                    `firestore:"s3Endpoint" json:"s3Endpoint"`
+	Folder             string                    `firestore:"s3Folder" json:"s3Folder"`
 	Format             adapters.S3EncodingFormat `firestore:"s3Format" json:"s3Format"`
 	CompressionEnabled bool                      `firestore:"s3CompressionEnabled" json:"s3CompressionEnabled"`
 }
