@@ -10,7 +10,7 @@ import { customParameters } from './helper';
 import { SingerTap } from '../types';
 import {
   githubDocumentation,
-  googleServiceAuthDocumentation,
+  googleServiceAuthDocumentation, googleSheetsDocumentation,
   intercomDocumentation,
   mixpanelDocumentation, mySqlDocumentation, shopifyDocumentation, slackDocumentation, stripeDocumentation
 } from '../lib/documentation';
@@ -327,6 +327,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
+    deprecated: true,
     pic: logos.tap_google_sheets,
     displayName: 'Google Sheets',
     tap: 'tap-google-sheets',
@@ -362,24 +363,7 @@ export const allSingerTaps: SingerTap[] = [
         }
       ]
     }),
-    documentation: {
-      overview: (
-        <>
-          The Google Sheets connector pulls data from Google Sheets. Each sheet
-          is treated as separate collection and being synced to separate table
-        </>
-      ),
-      connection: googleServiceAuthDocumentation({
-        serviceName: 'Google Sheets',
-        scopes: [
-          'https://www.googleapis.com/auth/drive.metadata.readonly',
-          'https://www.googleapis.com/auth/spreadsheets.readonly'
-        ],
-        apis: ['Google Sheets API', 'Google Drive API'],
-        oauthEnabled: true,
-        serviceAccountEnabled: false
-      })
-    }
+    documentation: googleSheetsDocumentation
   },
   {
     deprecated: true,

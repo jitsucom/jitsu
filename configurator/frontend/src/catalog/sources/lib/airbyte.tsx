@@ -1,7 +1,7 @@
 import * as logos from './logos';
 import { AirbyteSource } from '../types';
 import {
-  githubDocumentation,
+  githubDocumentation, googleSheetsDocumentation,
   intercomDocumentation,
   mixpanelDocumentation,
   mySqlDocumentation, shopifyDocumentation, slackDocumentation,
@@ -2959,9 +2959,126 @@ export const allAirbyteSources: AirbyteSource[] = [
           </a>
         </>
       ),
+      connection: (
+        <>
+          Please read <a
+          href="https://developer.atlassian.com/cloud/trello/guides/rest-api/authorization/#using-basic-oauth">How to
+          get your APIs Token and Key</a> or you can log in to Trello and visit <a href="https://trello.com/app-key/">Developer
+          API Keys</a>.
+        </>
+      )
+    }
+  },
+  {
+    pic: logos.tap_google_sheets,
+    docker_image_name: 'airbyte/source-google-sheets',
+    displayName: 'Google Sheets',
+    stable: false,
+    documentation: googleSheetsDocumentation
+  },
+  {
+    pic: logos.amazon,
+    docker_image_name: 'airbyte/source-amazon-ads',
+    displayName: 'Amazon Ads',
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          This source syncs data from <a href="https://advertising.amazon.com/API/docs/en-us/what-is/amazon-advertising-api">Amazon Advertising API</a>{': '}
+
+          <a href="https://advertising.amazon.com/API/docs/en-us/reference/2/profiles#/Profiles">
+            Profiles
+          </a>{', '}
+          <a href="https://advertising.amazon.com/API/docs/en-us/sponsored-brands/3-0/openapi#/Campaigns">
+            Sponsored Brands Campaigns
+          </a>{', '}
+          <a href="https://advertising.amazon.com/API/docs/en-us/sponsored-brands/3-0/openapi#/Keywords">
+            Sponsored Brands Keywords
+          </a>{', '}
+          <a href="https://advertising.amazon.com/API/docs/en-us/sponsored-display/3-0/openapi#/Campaigns">
+            Sponsored Display Campaigns
+          </a>{', '}
+          <a href="https://advertising.amazon.com/API/docs/en-us/sponsored-display/3-0/openapi#/Targeting">
+            Sponsored Display Targetings
+          </a>{', '}
+          <a href="https://advertising.amazon.com/API/docs/en-us/sponsored-display/3-0/openapi#/Campaigns">
+            Sponsored Products Campaigns
+          </a>{', '}
+          <a href="https://advertising.amazon.com/API/docs/en-us/sponsored-products/2-0/openapi#/Keywords">
+            Sponsored Products Keywords
+          </a>{', '}
+          <a href="https://advertising.amazon.com/API/docs/en-us/reference/sponsored-brands/2/reports">
+            Brands Reports
+          </a>{', '}
+          <a href="https://advertising.amazon.com/API/docs/en-us/sponsored-display/3-0/openapi#/Reports">
+            Display Reports
+          </a>{', '}
+          <a href="https://advertising.amazon.com/API/docs/en-us/sponsored-products/2-0/openapi#/Reports">
+            Products Reports
+          </a>
+        </>
+      ),
       connection:(
         <>
-          Please read <a href="https://developer.atlassian.com/cloud/trello/guides/rest-api/authorization/#using-basic-oauth">How to get your APIs Token and Key</a> or you can log in to Trello and visit <a href="https://trello.com/app-key/">Developer API Keys</a>.
+          Please read <a href="https://docs.airbyte.io/integrations/sources/amazon-ads#getting-started">setup guide</a> for more information
+        </>
+      )
+    }
+  },
+  {
+    pic: logos.bamboohr,
+    docker_image_name: 'airbyte/source-bamboo-hr',
+    displayName: 'BambooHR',
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          The BambooHr source syncs data from <a href="https://documentation.bamboohr.com/">BambooHR API</a>{': '}
+
+          <a href="https://documentation.bamboohr.com/reference#get-employees-directory-1">
+            Employees
+          </a>
+        </>
+      ),
+      connection:(
+        <>
+          Read more about <a href="https://documentation.bamboohr.com/docs">how to get BambooHR API Key</a>
+        </>
+      )
+    }
+  },
+  {
+    pic: logos.bigcommerce,
+    docker_image_name: 'airbyte/source-bigcommerce',
+    displayName: 'BigCommerce',
+    stable: false,
+    documentation: {
+      overview: (
+        <>
+          The BigCommerce source syncs data from the <a href="https://developer.bigcommerce.com/api-docs/getting-started/making-requests">BigCommerce API</a>{': '}
+
+          <a href="https://developer.bigcommerce.com/api-reference/store-management/customers-v3/customers/customersget">
+            Customers
+          </a>{', '}
+          <a href="https://developer.bigcommerce.com/api-reference/store-management/orders/orders/getallorders">
+            Orders
+          </a>{', '}
+          <a href="https://developer.bigcommerce.com/api-reference/store-management/order-transactions/transactions/gettransactions">
+            Transactions
+          </a>{', '}
+          <a href="https://developer.bigcommerce.com/api-reference/store-management/pages/pages/content-pages-get">
+            Pages
+          </a>
+        </>
+      ),
+      connection:(
+        <>
+          <ul>
+            <li>Navigate to your store’s control panel (Advanced Settings {'>'} API Accounts {'>'} Create API Account)</li>
+            <li>Create an API account.</li>
+            <li>Select the resources you want to allow access to. Connector only needs read-level access. (Note: The UI will show all possible data sources and will show errors when syncing if it doesn't have permissions to access a resource)</li>
+            <li>The generated Access Token is what you'll use as the access_token for the integration</li>
+          </ul>
         </>
       )
     }
