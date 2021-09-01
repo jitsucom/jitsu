@@ -14,7 +14,7 @@ import (
 )
 
 func dryRun(payload events.Event, processor *schema.Processor, tableHelper *TableHelper) ([]adapters.TableField, error) {
-	batchHeader, event, err := processor.ProcessEvent(payload, true)
+	batchHeader, event, err := processor.ProcessEvent(payload)
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +99,7 @@ func processData(storage Storage, overriddenDataSchema *schema.BatchHeader, obje
 	}
 
 	//Update call with single object or bulk uploading
-	flatDataPerTable, failedEvents, err := processor.ProcessEvents(timeIntervalValue, objects, map[string]bool{}, true)
+	flatDataPerTable, failedEvents, err := processor.ProcessEvents(timeIntervalValue, objects, map[string]bool{})
 	if err != nil {
 		return nil, err
 	}

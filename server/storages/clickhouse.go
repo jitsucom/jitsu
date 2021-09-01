@@ -110,7 +110,7 @@ func (ch *ClickHouse) Type() string {
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
-	flatData, failedEvents, err := ch.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, true)
+	flatData, failedEvents, err := ch.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
 		return nil, nil, err
 	}

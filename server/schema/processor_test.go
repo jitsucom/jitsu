@@ -148,7 +148,7 @@ func TestProcessFilePayload(t *testing.T) {
 			objects, err := parsers.ParseJSONFileWithFunc(fBytes, tt.parseFunc)
 			require.NoError(t, err)
 
-			actual, failed, err := p.ProcessEvents("testfile", objects, map[string]bool{}, true)
+			actual, failed, err := p.ProcessEvents("testfile", objects, map[string]bool{})
 			require.NoError(t, err)
 
 			if len(tt.expectedFailed) > 0 {
@@ -312,7 +312,7 @@ func TestProcessFact(t *testing.T) {
 	require.NoError(t, err)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			batchHeader, actual, err := p.ProcessEvent(tt.input, true)
+			batchHeader, actual, err := p.ProcessEvent(tt.input)
 
 			if tt.expectedErr != "" {
 				require.Error(t, err)
