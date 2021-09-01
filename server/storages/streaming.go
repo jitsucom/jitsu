@@ -83,7 +83,7 @@ func (sw *StreamingWorker) start() {
 				RawEvent:      fact,
 			}
 
-			batchHeader, flattenObject, err := sw.processor.ProcessEvent(fact, true)
+			batchHeader, flattenObject, err := sw.processor.ProcessEvent(fact)
 			if err != nil {
 				if err == schema.ErrSkipObject {
 					if !appconfig.Instance.DisableSkipEventsWarn {

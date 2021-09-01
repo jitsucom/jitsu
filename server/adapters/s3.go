@@ -21,7 +21,7 @@ type S3 struct {
 	client *s3.S3
 }
 
-//S3Config is a dto for Config deserialization
+//S3Config is a dto for config deserialization
 type S3Config struct {
 	AccessKeyID string           `mapstructure:"access_key_id" json:"access_key_id,omitempty" yaml:"access_key_id,omitempty"`
 	SecretKey   string           `mapstructure:"secret_access_key" json:"secret_access_key,omitempty" yaml:"secret_access_key,omitempty"`

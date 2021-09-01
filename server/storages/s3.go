@@ -64,7 +64,7 @@ func (s3 *S3) DryRun(payload events.Event) ([]adapters.TableField, error) {
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
-	processedFiles, failedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, s3.needFlatten())
+	processedFiles, failedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
 		return nil, nil, err
 	}

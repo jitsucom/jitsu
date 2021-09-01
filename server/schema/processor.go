@@ -47,20 +47,20 @@ func NewProcessor(destinationID, tableNameFuncExpression string, fieldMapper eve
 	}, nil
 }
 
-//ProcessEvent returns table representation, processed object (flatten or not)
-func (p *Processor) ProcessEvent(event map[string]interface{}, flatten bool) (*BatchHeader, events.Event, error) {
-	return p.processObject(event, map[string]bool{}, flatten)
+//ProcessEvent returns table representation, processed flatten object
+func (p *Processor) ProcessEvent(event map[string]interface{}) (*BatchHeader, events.Event, error) {
+	return p.processObject(event, map[string]bool{})
 }
 
 //ProcessEvents processes events objects
 //returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //All failed events are moved to separate collection for sending to fallback
-func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool, flatten bool) (map[string]*ProcessedFile, *events.FailedEvents, error) {
+func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*ProcessedFile, *events.FailedEvents, error) {
 	failedEvents := events.NewFailedEvents()
 	filePerTable := map[string]*ProcessedFile{}
 
 	for _, event := range objects {
-		batchHeader, processedObject, err := p.processObject(event, alreadyUploadedTables, flatten)
+		batchHeader, processedObject, err := p.processObject(event, alreadyUploadedTables)
 		if err != nil {
 			//handle skip object functionality
 			if err == ErrSkipObject {
@@ -96,9 +96,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 					eventsSrc:   map[string]int{events.ExtractSrc(event): 1},
 				}
 			} else {
-				if flatten {
-					f.BatchHeader.Fields.Merge(batchHeader.Fields)
-				}
+				f.BatchHeader.Fields.Merge(batchHeader.Fields)
 				f.payload = append(f.payload, processedObject)
 				f.eventsSrc[events.ExtractSrc(event)]++
 			}
@@ -114,7 +112,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]interface{}) (map[string]*ProcessedFile, error) {
 	var pf *ProcessedFile
 	for _, event := range objects {
-		batchHeader, processedObject, err := p.pulledEventsMappingStep.Execute(tableName, event, true)
+		batchHeader, processedObject, err := p.pulledEventsMappingStep.Execute(tableName, event)
 		if err != nil {
 			return nil, err
 		}
@@ -149,7 +147,7 @@ func (p *Processor) ProcessPulledEvents(tableName string, objects []map[string]i
 //1. extract table name
 //2. execute enrichment.LookupEnrichmentStep and MappingStep
 //or ErrSkipObject/another error
-func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool, flatten bool) (*BatchHeader, map[string]interface{}, error) {
+func (p *Processor) processObject(object map[string]interface{}, alreadyUploadedTables map[string]bool) (*BatchHeader, map[string]interface{}, error) {
 	objectCopy := maputils.CopyMap(object)
 
 	tableName, err := p.tableNameExtractor.Extract(objectCopy)
@@ -168,13 +166,11 @@ func (p *Processor) processObject(object map[string]interface{}, alreadyUploaded
 
 	p.lookupEnrichmentStep.Execute(objectCopy)
 
-	bh, mappedObject, err := p.mappingStep.Execute(tableName, objectCopy, flatten)
+	bh, mappedObject, err := p.mappingStep.Execute(tableName, objectCopy)
 	if err != nil {
 		return nil, nil, err
 	}
-	if !flatten {
-		return bh, mappedObject, nil
-	}
+
 	return p.foldLongFields(bh, mappedObject)
 }
 

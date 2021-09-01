@@ -100,7 +100,7 @@ func NewAwsRedshift(config *Config) (Storage, error) {
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
 	_, tableHelper := ar.getAdapters()
-	flatData, failedEvents, err := ar.processor.ProcessEvents(fileName, objects, alreadyUploadedTables, true)
+	flatData, failedEvents, err := ar.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -175,7 +175,7 @@ func (ar *AwsRedshift) Clean(tableName string) error {
 //Update updates record in Redshift
 func (ar *AwsRedshift) Update(object map[string]interface{}) error {
 	_, tableHelper := ar.getAdapters()
-	batchHeader, processedObject, err := ar.processor.ProcessEvent(object, true)
+	batchHeader, processedObject, err := ar.processor.ProcessEvent(object)
 	if err != nil {
 		return err
 	}
