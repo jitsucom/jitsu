@@ -34,7 +34,6 @@ export const snapchat_marketing = require('./snapchat_marketing').default();
 export const snowflake = require('./snowflake').default();
 export const tempo = require('./tempo').default();
 export const twilio = require('./twilio').default();
-export const typeform = require('./typeform').default();
 export const us_census = require('./us_census').default();
 export const zendesk = require('./zendesk').default();
 export const tap_3plcentral = require('./tap-3plcentral').default();

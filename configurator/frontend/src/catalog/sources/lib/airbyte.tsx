@@ -2455,7 +2455,7 @@ export const allAirbyteSources: AirbyteSource[] = [
     }
   },
   {
-    pic: logos.typeform,
+    pic: logos.tap_typeform,
     docker_image_name: 'airbyte/source-typeform',
     displayName: 'Typeform',
     stable: false,
