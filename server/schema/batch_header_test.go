@@ -116,3 +116,56 @@ func TestColumnGetType(t *testing.T) {
 		})
 	}
 }
+
+func TestOverrideTypes(t *testing.T) {
+	i := typing.INT64
+	s := typing.STRING
+	ts := typing.TIMESTAMP
+	tests := []struct {
+		name       string
+		initial    Fields
+		toOverride Fields
+		expected   Fields
+	}{
+		{
+			"override ok",
+			Fields{
+				"field1": Field{
+					dataType:       &s,
+					typeOccurrence: map[typing.DataType]bool{typing.STRING: true},
+				},
+				"field2": Field{
+					dataType:       &i,
+					typeOccurrence: map[typing.DataType]bool{typing.INT64: true},
+				},
+			},
+			Fields{
+				"field2": Field{
+					dataType:       &s,
+					typeOccurrence: map[typing.DataType]bool{typing.STRING: true},
+				},
+				"field3": Field{
+					dataType:       &ts,
+					typeOccurrence: map[typing.DataType]bool{typing.TIMESTAMP: true},
+				},
+			},
+			Fields{
+				"field1": Field{
+					dataType:       &s,
+					typeOccurrence: map[typing.DataType]bool{typing.STRING: true},
+				},
+				"field2": Field{
+					dataType:       &s,
+					typeOccurrence: map[typing.DataType]bool{typing.STRING: true},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.initial.OverrideTypes(tt.toOverride)
+
+			require.Equal(t, tt.expected, tt.initial, "Field types aren't equal")
+		})
+	}
+}

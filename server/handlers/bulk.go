@@ -101,7 +101,12 @@ func extractBulkEvents(c *gin.Context) ([]map[string]interface{}, error) {
 		return nil, fmt.Errorf("failed to read payload from input file: %v", err)
 	}
 
-	objects, err := parsers.ParseJSONFile(payload)
+	parserFunc := parsers.ParseJSON
+	if c.Query("fallback") == "true" {
+		parserFunc = parsers.ParseFallbackJSON
+	}
+
+	objects, err := parsers.ParseJSONFileWithFunc(payload, parserFunc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse JSON payload from input file: %v", err)
 	}

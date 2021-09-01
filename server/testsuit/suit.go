@@ -1,8 +1,13 @@
 package testsuit
 
 import (
-	"bou.ke/monkey"
 	"context"
+	"net/http"
+	"os"
+	"testing"
+	"time"
+
+	"bou.ke/monkey"
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/coordination"
@@ -27,9 +32,6 @@ import (
 	"github.com/jitsucom/jitsu/server/wal"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"testing"
-	"time"
 )
 
 //Suit is a common test suit for configuring Jitsu Server and keeping test data
@@ -181,8 +183,9 @@ func (sb *suiteBuilder) WithMetaStorage(t *testing.T) SuiteBuilder {
 //WithDestinationService overrides destinations.Service with input data configured
 func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig string) SuiteBuilder {
 	monitor := coordination.NewInMemoryService([]string{})
-	loggerFactory := logging.NewFactory("/tmp", 5, false, nil, nil)
-	destinationsFactory := storages.NewFactory(context.Background(), "/tmp", monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, 0)
+	tempDir := os.TempDir()
+	loggerFactory := logging.NewFactory(tempDir, 5, false, nil, nil)
+	destinationsFactory := storages.NewFactory(context.Background(), tempDir, monitor, sb.eventsCache, loggerFactory, sb.globalUsersRecognitionConfig, sb.metaStorage, 0)
 	destinationService, err := destinations.NewService(nil, destinationConfig, destinationsFactory, loggerFactory, false)
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(destinationService)
@@ -194,7 +197,7 @@ func (sb *suiteBuilder) WithDestinationService(t *testing.T, destinationConfig s
 
 //WithUserRecognition overrides users.RecognitionService with configured one
 func (sb *suiteBuilder) WithUserRecognition(t *testing.T) SuiteBuilder {
-	usersRecognitionService, err := users.NewRecognitionService(sb.metaStorage, sb.destinationService, sb.globalUsersRecognitionConfig, "/tmp")
+	usersRecognitionService, err := users.NewRecognitionService(sb.metaStorage, sb.destinationService, sb.globalUsersRecognitionConfig, os.TempDir())
 	require.NoError(t, err)
 	appconfig.Instance.ScheduleClosing(usersRecognitionService)
 

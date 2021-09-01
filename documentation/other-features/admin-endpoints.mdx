@@ -102,7 +102,8 @@ with original JSON event and error description
 <APIMethod method="POST" path="/api/v1/replay"/>
 
 This method replays data from the file. File should be locally located on a same
-machine as server instance.
+machine as server instance. It is suitable to use this endpoint in case you don't have access to the server file system.
+In case you have the access, it might be more convenient to use [Jitsu CLI](/docs/other-features/cli).
 
 <APIParam name={"X-Admin-Token"} dataType="string" required={true} type="header" description="Authorization token (see above)"/>
 
