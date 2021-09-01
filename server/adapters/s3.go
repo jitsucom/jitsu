@@ -99,10 +99,10 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 		ContentType: aws.String(fileType),
 	}
 
-	if a.config.Compression != "" {
+	if a.config.Compression == S3CompressionGZIP {
 		var err error
 		fileName += ".gz"
-		fileBytes, err = a.compress(fileBytes)
+		fileBytes, err = a.compressGZIP(fileBytes)
 		if err != nil {
 			return fmt.Errorf("Error compressing file %v", err)
 		}
@@ -118,7 +118,7 @@ func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	return nil
 }
 
-func (a *S3) compress(b []byte) ([]byte, error) {
+func (a *S3) compressGZIP(b []byte) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	w := gzip.NewWriter(buf)
 	defer w.Close()
