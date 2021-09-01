@@ -83,6 +83,10 @@ func NewS3(s3Config *S3Config) (*S3, error) {
 	return &S3{client: s3.New(s3Session, awsConfig), config: s3Config}, nil
 }
 
+func (a *S3) Format() S3EncodingFormat {
+	return a.config.Format
+}
+
 //UploadBytes creates named file on s3 with payload
 func (a *S3) UploadBytes(fileName string, fileBytes []byte) error {
 	if a.config.Folder != "" {
