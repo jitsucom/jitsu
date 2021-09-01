@@ -69,7 +69,7 @@ const EditorButtons = ({ test, save, handleCancel }: Props) => {
           onClick={test.handlePress}
           icon={<ApiOutlined />}
         >
-          Test onnection
+          Test connection
         </Button>
       </Popover>
 
