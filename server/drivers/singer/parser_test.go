@@ -1,6 +1,7 @@
 package singer
 
 import (
+	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/typing"
 	"github.com/stretchr/testify/require"
 	"io/ioutil"
@@ -11,12 +12,12 @@ func TestParseSchema(t *testing.T) {
 	tests := []struct {
 		name          string
 		inputFilePath string
-		expected      *StreamRepresentation
+		expected      *base.StreamRepresentation
 	}{
 		{
 			"Empty current and input",
-			"../test_data/singer_output_schema.json",
-			&StreamRepresentation{},
+			"../../test_data/singer_output_schema.json",
+			&base.StreamRepresentation{},
 		},
 	}
 	for _, tt := range tests {

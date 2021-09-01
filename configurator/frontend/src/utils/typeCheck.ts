@@ -1,4 +1,7 @@
-import nodejs_assert from 'assert'
+// @Libs
+import nodejs_assert from 'assert';
+// @Utils
+import { toArrayIfNot } from './arrays';
 
 /**
  * Checks if value is an object.
@@ -30,11 +33,11 @@ export function isArray<T>(value: Array<T> | unknown): value is Array<T> {
  *
  * @returns boolean
  */
-export function hasOwnProperty<
- O extends {},
- P extends PropertyKey
->(object: O, property: P): object is O & Record<P, unknown> {
-  return object.hasOwnProperty(property)
+export function hasOwnProperty<O extends {}, P extends PropertyKey>(
+  object: O,
+  property: P
+): object is O & Record<P, unknown> {
+  return object.hasOwnProperty(property);
 }
 
 /**
@@ -49,11 +52,8 @@ export function hasOwnProperty<
  * @returns {void} void
  * @throws {AssertionError} NodeJS assertion error
  */
-export function assert(
-  condition: boolean,
-  errMsg?: string
-): asserts condition {
-  nodejs_assert(condition, errMsg)
+export function assert(condition: boolean, errMsg?: string): asserts condition {
+  nodejs_assert(condition, errMsg);
 }
 
 /**
@@ -61,7 +61,7 @@ export function assert(
  * Useful for making type checks that will provide type narrowing.
  *
  * @param value value to assert
- * @param errMsg error message to throw if condition is falsy
+ * @param errMsg error message to throw if assertion fails
  *
  * @returns void or never
  *
@@ -70,7 +70,44 @@ export function assertIsArray(
   value: unknown,
   errMsg?: string
 ): asserts value is Array<unknown> {
-  assert(Array.isArray(value), errMsg || `${value} is not an array`);
+  assert(
+    Array.isArray(value),
+    errMsg || `array assertion failed - ${value} is not an array`
+  );
+}
+
+/**
+ * Asserts whether the value is an array and whether the type of
+ * its values is the same as type of the passed type reference values
+ * @param value value to assert
+ * @param typeReferenceValues
+ * Type reference value or an array of values. Values may be arbitrary,
+ * just make sure that their types are ones you want to assert.
+ * @example
+ * ```
+ * const array = ['foo', 'bar', 42, ']
+ * ```
+ * @param errMsg error message to throw if assertion fails
+ * @returns
+ */
+export function assertIsArrayOfTypes<T>(
+  value: unknown,
+  typeReferenceValues: T | T[],
+  errMsg?: string
+): asserts value is Array<T> {
+  assertIsArray(value);
+  if (value.length === 0) return;
+  const actualTypes = new Set(value.map((element) => typeof element));
+  const whitelistedTypes = new Set(
+    toArrayIfNot(typeReferenceValues).map((element) => typeof element)
+  );
+  const negatedIntersection = [...actualTypes].filter(
+    (type) => !whitelistedTypes.has(type)
+  );
+  assert(
+    negatedIntersection.length === 0,
+    errMsg || `array of type assertion failed`
+  );
 }
 
 /**
@@ -87,7 +124,10 @@ export function assertIsObject(
   value: unknown,
   errMsg?: string
 ): asserts value is Object {
-  assert(isObject(value), errMsg || `${value} is not an object`);
+  assert(
+    isObject(value),
+    errMsg || `object assertion failed - ${value} is not an object`
+  );
 }
 
 /**
@@ -99,10 +139,7 @@ export function assertIsObject(
  *
  * @returns void or never
  */
-export function assertHasOwnProperty<
-  O extends {},
-  P extends PropertyKey
->(
+export function assertHasOwnProperty<O extends {}, P extends PropertyKey>(
   object: O,
   property: P,
   errMsg?: string

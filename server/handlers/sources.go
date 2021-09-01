@@ -12,6 +12,7 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/runner"
 	"github.com/jitsucom/jitsu/server/sources"
 	"net/http"
 )
@@ -123,6 +124,11 @@ func (sh *SourcesHandler) getTableNames(driver driversbase.Driver) []string {
 }
 
 //TestSourcesHandler tests source connection
+//returns:
+//  200 with status ok if a connection is ok
+//  200 with status pending if source isn't ready
+//  200 with status pending and error in body if source isn't ready and has previous error
+//  400 with error if a connection failed
 func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 	sourceConfig := &driversbase.SourceConfig{}
 	if err := c.BindJSON(sourceConfig); err != nil {
@@ -132,10 +138,22 @@ func (sh *SourcesHandler) TestSourcesHandler(c *gin.Context) {
 	}
 	err := testSourceConnection(sourceConfig)
 	if err != nil {
+		notReadyErr, ok := err.(*runner.NotReadyError)
+		if ok {
+			if notReadyErr.PreviousError() == "" {
+				c.JSON(http.StatusOK, middleware.PendingResponse())
+				return
+			}
+
+			c.JSON(http.StatusOK, middleware.PendingResponseWithMessage(notReadyErr.PreviousError()))
+			return
+		}
+
 		c.JSON(http.StatusBadRequest, middleware.ErrResponse(err.Error(), nil))
 		return
 	}
-	c.Status(http.StatusOK)
+
+	c.JSON(http.StatusOK, middleware.OKResponse())
 }
 
 func testSourceConnection(config *driversbase.SourceConfig) error {
