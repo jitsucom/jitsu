@@ -8,7 +8,7 @@ import { allAirbyteSources } from './airbyte';
 export const allSources = [
   ...allNativeConnectors,
   ...allSingerTaps
-    .filter((tap) => !tap.hasNativeEquivalent && !tap.hasAirbyteEquivalent && tap.pic && tap.stable)
+    .filter((tap) => !tap.hasNativeEquivalent && tap.pic && tap.stable)
     .map(makeSingerSource),
   ...allAirbyteSources.filter((as) => !as.hasNativeEquivalent)
     .map(makeAirbyteSource)

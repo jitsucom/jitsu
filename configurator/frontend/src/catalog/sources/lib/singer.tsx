@@ -32,7 +32,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_s3_csv,
     displayName: 'Amazon S3 CSV',
     tap: 'tap-s3-csv',
@@ -68,7 +68,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_bing_ads,
     displayName: 'Bing Ads',
     tap: 'tap-bing-ads',
@@ -76,7 +76,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_braintree,
     displayName: 'Braintree',
     tap: 'tap-braintree',
@@ -112,7 +112,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_chargebee,
     displayName: 'Chargebee',
     tap: 'tap-chargebee',
@@ -183,7 +183,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_exchange_rates_api,
     displayName: 'Exchange Rates API',
     tap: 'tap-exchangeratesapi',
@@ -219,7 +219,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_github,
     displayName: 'GitHub',
     tap: 'tap-github',
@@ -259,7 +259,7 @@ export const allSingerTaps: SingerTap[] = [
     documentation: githubDocumentation
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_gitlab,
     displayName: 'GitLab',
     tap: 'tap-gitlab',
@@ -319,7 +319,7 @@ export const allSingerTaps: SingerTap[] = [
     })
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_google_search_console,
     displayName: 'Google Search Console',
     tap: 'tap-google-search-console',
@@ -382,7 +382,7 @@ export const allSingerTaps: SingerTap[] = [
     }
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_harvest,
     displayName: 'Harvest',
     tap: 'tap-harvest',
@@ -404,15 +404,15 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_hubspot,
     displayName: 'HubSpot',
     tap: 'tap-hubspot',
     stable: true,
-    hasNativeEquivalent: false
+    hasNativeEquivalent: false,
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_ibm_db2,
     displayName: 'IBM Db2',
     tap: 'tap-db2',
@@ -427,7 +427,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_intercom,
     displayName: 'Intercom',
     tap: 'tap-intercom',
@@ -474,7 +474,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_jira,
     displayName: 'Jira',
     tap: 'tap-jira',
@@ -482,7 +482,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_klaviyo,
     displayName: 'Klaviyo',
     tap: 'tap-klaviyo',
@@ -490,7 +490,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_kustomer,
     displayName: 'Kustomer',
     tap: 'tap-kustomer',
@@ -533,7 +533,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_looker,
     displayName: 'Looker',
     tap: 'tap-looker',
@@ -555,7 +555,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_marketo,
     displayName: 'Marketo',
     tap: 'tap-marketo',
@@ -563,7 +563,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_mixpanel,
     displayName: 'Mixpanel',
     tap: 'tap-mixpanel',
@@ -665,7 +665,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_oracle,
     displayName: 'Oracle',
     tap: 'tap-oracle',
@@ -708,7 +708,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_pipedrive,
     displayName: 'Pipedrive',
     tap: 'tap-pipedrive',
@@ -723,7 +723,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_postgresql,
     displayName: 'PostgreSQL',
     tap: 'tap-postgres',
@@ -731,7 +731,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_mysql,
     displayName: 'MySQL',
     tap: 'tap-mysql',
@@ -783,7 +783,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_recurly,
     displayName: 'Recurly',
     tap: 'tap-recurly',
@@ -826,7 +826,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_salesforce,
     displayName: 'Salesforce',
     tap: 'tap-salesforce',
@@ -848,7 +848,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_sendgrid_core,
     displayName: 'SendGrid Core',
     tap: 'tap-sendgrid',
@@ -870,7 +870,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_shopify,
     displayName: 'Shopify',
     tap: 'tap-shopify',
@@ -916,7 +916,7 @@ export const allSingerTaps: SingerTap[] = [
     documentation: shopifyDocumentation
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_slack,
     displayName: 'Slack',
     tap: 'tap-slack',
@@ -979,7 +979,7 @@ export const allSingerTaps: SingerTap[] = [
   //     hasNativeEquivalent: false
   // },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_stripe,
     displayName: 'Stripe',
     tap: 'tap-stripe',
@@ -1014,7 +1014,7 @@ export const allSingerTaps: SingerTap[] = [
     documentation: stripeDocumentation
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_surveymonkey,
     displayName: 'SurveyMonkey',
     tap: 'tap-surveymonkey',
@@ -1036,7 +1036,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_trello,
     displayName: 'Trello',
     tap: 'tap-trello',
@@ -1044,7 +1044,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_typeform,
     displayName: 'Typeform',
     tap: 'tap-typeform',
@@ -1094,7 +1094,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_zendesk_chat,
     displayName: 'Zendesk Chat',
     tap: 'tap-zendesk-chat',
@@ -1102,7 +1102,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_zendesk_support,
     displayName: 'Zendesk Support',
     tap: 'tap-zendesk',
@@ -1110,7 +1110,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_zoom,
     displayName: 'Zoom',
     tap: 'tap-zoom',
@@ -1118,7 +1118,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
-    hasAirbyteEquivalent: true,
+    deprecated: true,
     pic: logos.tap_zuora,
     displayName: 'Zuora',
     tap: 'tap-zuora',
