@@ -106,7 +106,7 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 
 func (s3 *S3) marshaller() schema.Marshaller {
 	if s3.s3Adapter.Format() == adapters.S3FormatCSV {
-		return schema.CsvMarshallerInstance
+		return schema.CSVMarshallerInstance
 	} else {
 		return schema.JSONMarshallerInstance
 	}
@@ -120,15 +120,28 @@ func (s3 *S3) fileName(fdata *schema.ProcessedFile) string {
 func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time) {
 	var start, end time.Time
 	for _, it := range fdata {
-		if tmstmp, ok := it[timestamp.Key]; ok {
-			if datetime, ok := tmstmp.(time.Time); ok {
-				if start.IsZero() || datetime.Before(start) {
-					start = datetime
-				}
-				if end.IsZero() || datetime.After(end) {
-					end = datetime
-				}
+		if objectTSValue, ok := it[timestamp.Key]; ok {
+			var datetime time.Time
 
+			switch objectTSValueInType := objectTSValue.(type) {
+			case time.Time:
+				datetime = objectTSValueInType
+			case *time.Time:
+				datetime = *objectTSValueInType
+			case string:
+				parsed, err := time.Parse(time.RFC3339Nano, objectTSValueInType)
+				if err != nil {
+					logging.SystemErrorf("Error parsing %s value under %s key with time.RFC3339Nano template: %v", objectTSValueInType, timestamp.Key, err)
+				} else {
+					datetime = parsed
+				}
+			}
+
+			if start.IsZero() || datetime.Before(start) {
+				start = datetime
+			}
+			if end.IsZero() || datetime.After(end) {
+				end = datetime
 			}
 		}
 	}

@@ -7,8 +7,11 @@ import (
 
 const quotaByteValue = 34
 
-var JSONMarshallerInstance = JSONMarshaller{}
-var CsvMarshallerInstance = CsvMarshaller{}
+var (
+	JSONMarshallerInstance                 = JSONMarshaller{}
+	CSVMarshallerInstance                  = CSVMarshaller{delimiter: ","}
+	VerticalBarSeparatedMarshallerInstance = CSVMarshaller{delimiter: "||"}
+)
 
 type Marshaller interface {
 	Marshal([]string, map[string]interface{}) ([]byte, error)
@@ -27,11 +30,12 @@ func (jm JSONMarshaller) NeedHeader() bool {
 	return false
 }
 
-type CsvMarshaller struct {
+type CSVMarshaller struct {
+	delimiter string
 }
 
-//Marshal object as csv values string with || delimiter
-func (cm CsvMarshaller) Marshal(fields []string, object map[string]interface{}) ([]byte, error) {
+//Marshal marshals input object as csv values string with delimiter
+func (cm CSVMarshaller) Marshal(fields []string, object map[string]interface{}) ([]byte, error) {
 	buf := bytes.Buffer{}
 
 	i := 0
@@ -50,13 +54,13 @@ func (cm CsvMarshaller) Marshal(fields []string, object map[string]interface{}) 
 		}
 		//don't write delimiter after last element
 		if i < len(fields)-1 {
-			buf.Write([]byte("||"))
+			buf.Write([]byte(cm.delimiter))
 		}
 		i++
 	}
 	return buf.Bytes(), nil
 }
 
-func (cm CsvMarshaller) NeedHeader() bool {
+func (cm CSVMarshaller) NeedHeader() bool {
 	return true
 }
