@@ -63,21 +63,6 @@ export type ParameterType<
   toString?: (t: T) => string;
 };
 
-export const OMIT_FIELD = 'OMIT_CONFIGURABLE_FORM_FIELD' as const;
-
-// export function omittedValue<P>(
-//   omit: (config: P) => boolean
-// ): (config: P) => typeof OMIT_FIELD | undefined {
-//   return (config) => (omit(config) ? OMIT_FIELD : undefined);
-// }
-
-export function omittedValue<P, V extends number | string | bigint>(
-  value: V,
-  omit: (config: P) => boolean
-): ConstantOrFunction<P, V | undefined> {
-  return hiddenValue((config) => omit(config) ? undefined : value, omit);
-}
-
 export function hiddenValue<P, V extends number | string | bigint>(
   value: V | ((config: P) => V),
   hide?: (config: P) => boolean
@@ -276,7 +261,7 @@ export type Parameter = {
    * should be put to the form.
    *
    * WARNING: value could be  "" or null which is a valid defined value. Do not check it with if (constant),
-   * use `constant !== undefined` to send a hidden value to backend. To conditionally omit the field completely 
+   * use `constant !== undefined` to send a hidden value to backend. To conditionally omit the field completely
    * use `omitFieldRule` function.
    */
   constant?: ConstantOrFunction<any, any>;
@@ -351,10 +336,17 @@ export interface SourceConnector {
    * Collection templates
    */
   collectionTemplates?: CollectionTemplate[];
+
   /**
    * API Connector documentation
    */
   documentation?: ConnectorDocumentation;
+
+  /**
+   * If true, user won't be able to add new sources of this type 
+   * yet it will be possible to edit the existing ones
+   */
+  deprecated?: boolean;
 }
 
 /**
@@ -404,6 +396,10 @@ export interface SingerTap {
    * API Connector documentation
    */
   documentation?: ConnectorDocumentation;
+  /**
+   * Allows only editing the existing sources
+   */
+  deprecated?: boolean;
 }
 
 export interface AirbyteSource {
@@ -414,6 +410,10 @@ export interface AirbyteSource {
    * Whether we consider this tap as stable and production ready
    */
   stable: boolean;
+  /**
+   * We have a native equivalent
+   */
+  hasNativeEquivalent?: boolean;
   /**
    * API Connector documentation
    */

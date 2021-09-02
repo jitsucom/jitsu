@@ -33,9 +33,6 @@ import {
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Types
 import {
-  assertIsIntParameterType,
-  assertIsStringParameterType,
-  OMIT_FIELD,
   Parameter,
   ParameterType
 } from 'catalog/sources/types';

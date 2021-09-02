@@ -6,18 +6,21 @@ RUN apk add --no-cache build-base python3 py3-pip python3-dev tzdata bash sudo d
 
 ENV EVENTNATIVE_USER=eventnative
 
-RUN addgroup -S $EVENTNATIVE_USER \
+RUN sed -e 's;^# \(%wheel.*NOPASSWD.*\);\1;g' -i /etc/sudoers \
+    && addgroup -S $EVENTNATIVE_USER \
     && adduser -S -G $EVENTNATIVE_USER $EVENTNATIVE_USER \
     && addgroup -S $EVENTNATIVE_USER docker \
     && addgroup -S $EVENTNATIVE_USER daemon \
     && addgroup -S $EVENTNATIVE_USER root \
     && addgroup -S $EVENTNATIVE_USER bin \
+    && addgroup -S $EVENTNATIVE_USER wheel \
     && mkdir -p /home/$EVENTNATIVE_USER/data/logs/events \
     && mkdir -p /home/$EVENTNATIVE_USER/data/config \
     && mkdir -p /home/$EVENTNATIVE_USER/data/venv \
     && mkdir -p /home/$EVENTNATIVE_USER/app \
     && chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER \
-    && echo "if [ -e /var/run/docker.sock ]; then sudo chmod 777 /var/run/docker.sock; fi" >> /home/eventnative/.bashrc
+    && echo 'if [ -e /var/run/docker.sock ]; then sudo chmod 666 /var/run/docker.sock; fi' > /home/eventnative/.bashrc \
+    && echo ''
 
 # Create symlink for backward compatibility
 RUN ln -s /home/$EVENTNATIVE_USER/data/config /home/$EVENTNATIVE_USER/app/res && \

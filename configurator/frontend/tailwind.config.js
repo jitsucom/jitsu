@@ -41,6 +41,9 @@ module.exports = {
       heading: {
         DEFAULT: '#c1c9d2'
       },
+      textPale: {
+        DEFAULT: '#ffffff'
+      },
       text: {
         DEFAULT: '#e5e7eb'
       },
