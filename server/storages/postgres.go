@@ -2,13 +2,13 @@ package storages
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
-	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 //Postgres stores files to Postgres in two modes:
@@ -136,11 +136,11 @@ func (p *Postgres) storeTable(fdata *schema.ProcessedFile, table *adapters.Table
 		return err
 	}
 
-	start := timestamp.Now()
+	start := time.Now()
 	if err := p.adapter.BulkInsert(dbSchema, fdata.GetPayload()); err != nil {
 		return err
 	}
-	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.ID(), len(fdata.GetPayload()), timestamp.Now().Sub(start).Seconds())
+	logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", p.ID(), len(fdata.GetPayload()), time.Now().Sub(start).Seconds())
 
 	return nil
 }

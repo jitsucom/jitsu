@@ -3,12 +3,11 @@ package amplitude
 import (
 	"context"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/adapters"
 	"time"
 
-	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 //amplitudeHTTPConfiguration contains default amplitude HTTP timeouts/retry/delays,etc
@@ -135,7 +134,7 @@ func (a *Amplitude) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 		daysBackToLoad = a.collection.DaysBackToLoad
 	}
 
-	now := timestamp.Now().UTC()
+	now := time.Now().UTC()
 	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
 		intervals = append(intervals, base.NewTimeInterval(base.DAY, date))

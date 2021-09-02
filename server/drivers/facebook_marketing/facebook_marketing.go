@@ -4,14 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
-	"time"
-
 	fb "github.com/huandu/facebook/v2"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/typing"
+	"strings"
+	"time"
 )
 
 var (
@@ -109,7 +107,7 @@ func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, e
 		daysBackToLoad = fm.collection.DaysBackToLoad
 	}
 
-	now := timestamp.Now().UTC()
+	now := time.Now().UTC()
 	for i := 0; i < daysBackToLoad; i++ {
 		date := now.AddDate(0, 0, -i)
 		intervals = append(intervals, base.NewTimeInterval(base.DAY, date))

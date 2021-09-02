@@ -13,7 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.etcd.io/etcd/client/v3/concurrency"
 )
@@ -71,7 +70,7 @@ func NewEtcdService(ctx context.Context, serverName, endpoint string, connectTim
 //Lock try to get Etcd monitor with timeout (2 minutes)
 //wait if lock has been already acquired
 func (es *EtcdService) Lock(system string, collection string) (storages.Lock, error) {
-	ctx, cancel := context.WithDeadline(es.ctx, timestamp.Now().Add(2*time.Minute))
+	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
 
 	//the session depends on the context. We can't cancel() before unlock.
 	session, sessionError := concurrency.NewSession(es.client, concurrency.WithContext(ctx))
@@ -99,7 +98,7 @@ func (es *EtcdService) Lock(system string, collection string) (storages.Lock, er
 //TryLock try to get Etcd monitor with timeout (2 minutes)
 //err if locked immediately
 func (es *EtcdService) TryLock(system string, collection string) (storages.Lock, error) {
-	ctx, cancel := context.WithDeadline(es.ctx, timestamp.Now().Add(2*time.Minute))
+	ctx, cancel := context.WithDeadline(es.ctx, time.Now().Add(2*time.Minute))
 
 	//the session depends on the context. We can't cancel() before unlock.
 	session, sessionError := concurrency.NewSession(es.client, concurrency.WithContext(ctx))

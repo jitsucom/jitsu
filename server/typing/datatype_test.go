@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"reflect"
 	"testing"
+	"time"
 
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -304,7 +304,7 @@ func TestReformatTimeValue(t *testing.T) {
 		},
 		{
 			"Current time",
-			timestamp.Now(),
+			time.Now(),
 			"time.Time",
 		},
 		{
