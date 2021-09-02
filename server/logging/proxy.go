@@ -1,10 +1,9 @@
 package logging
 
 import (
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"io"
 	"time"
-
-	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 type DateTimeWriterProxy struct {

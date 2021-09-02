@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/events"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/timestamp"
 )
@@ -207,7 +207,7 @@ func (frf *FacebookRequestFactory) Create(object map[string]interface{}) (*Reque
 }
 
 func (frf *FacebookRequestFactory) enrichWithEventTime(object map[string]interface{}) {
-	eventTime := timestamp.Now().UTC()
+	eventTime := time.Now().UTC()
 	// * event_time
 	t, ok := object[timestamp.Key]
 	if ok {

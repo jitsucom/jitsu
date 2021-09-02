@@ -3,8 +3,6 @@ package synchronization
 import (
 	"errors"
 	"fmt"
-	"time"
-
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/logging"
@@ -15,6 +13,7 @@ import (
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/timestamp"
 	uuid "github.com/satori/go.uuid"
+	"time"
 )
 
 var (
@@ -179,7 +178,7 @@ func (ts *TaskService) Sync(sourceID, collection string, priority Priority) (str
 
 	generatedTaskID := schema.Reformat(fmt.Sprintf("%s_%s_%s", sourceID, collection, uuid.NewV4().String()))
 
-	now := timestamp.Now().UTC()
+	now := time.Now().UTC()
 	task := meta.Task{
 		ID:         generatedTaskID,
 		Source:     sourceID,

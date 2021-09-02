@@ -162,7 +162,7 @@ func ParseCollections(sourceConfig *base.SourceConfig) ([]*base.Collection, erro
 //return difference between now and t in DAYS + 1 (current day)
 //e.g. 2021-03-01 - 2021-03-01 = 0, but we should load current date as well
 func getDaysBackToLoad(t *time.Time) int {
-	now := timestamp.Now().UTC()
+	now := time.Now().UTC()
 	currentDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 	return int(currentDay.Sub(*t).Hours()/24) + 1
 }
