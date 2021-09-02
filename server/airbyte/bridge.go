@@ -156,8 +156,9 @@ func (b *Bridge) loadCatalog(key, dockerImage string, config map[string]interfac
 		logging.Error(err)
 
 		b.catalogMutex.Lock()
-		b.catalogByConfigHash[key] = err
+		b.errorByConfigHash[key] = err
 		b.catalogMutex.Unlock()
+		return
 	}
 
 	b.catalogMutex.Lock()
@@ -193,7 +194,7 @@ func (b *Bridge) executeDiscover(dockerImage string, config map[string]interface
 
 	err = runner.ExecCmd(base.AirbyteType, Command, outWriter, dualStdErrWriter, args...)
 	if err != nil {
-		msg := b.BuildMsg("Error airbyte --discover: %v. %s", outWriter, errStrWriter, err)
+		msg := b.BuildMsg("Error airbyte --discover:", outWriter, errStrWriter, err)
 		return nil, errors.New(msg)
 	}
 
