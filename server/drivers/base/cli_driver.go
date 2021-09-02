@@ -110,6 +110,15 @@ func (acd *AbstractCLIDriver) GetPropertiesPath() string {
 	return acd.propertiesPath
 }
 
+//SetStreamTableNameMappingIfNotExists sets stream table name mapping if not exists
+func (acd *AbstractCLIDriver) SetStreamTableNameMappingIfNotExists(streamTableNameMappings map[string]string) {
+	for name, value := range streamTableNameMappings {
+		if _, ok := acd.streamTableNames[name]; !ok {
+			acd.streamTableNames[name] = value
+		}
+	}
+}
+
 //GetStreamTableNameMapping returns stream - table names mapping
 func (acd *AbstractCLIDriver) GetStreamTableNameMapping() map[string]string {
 	result := map[string]string{}

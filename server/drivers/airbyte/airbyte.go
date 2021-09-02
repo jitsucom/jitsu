@@ -155,12 +155,18 @@ func (a *Airbyte) EnsureCatalog() {
 			continue
 		}
 
+		streamTableNameMapping := map[string]string{}
+		for streamName := range streamsRepresentation {
+			streamTableNameMapping[streamName] = a.GetTableNamePrefix() + streamName
+		}
+
 		a.Lock()
 		a.discoverCatalogLastError = nil
 		a.Unlock()
 
 		a.SetCatalogPath(catalogPath)
 		a.streamsRepresentation = streamsRepresentation
+		a.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
 		a.catalogDiscovered.Store(true)
 		return
 	}

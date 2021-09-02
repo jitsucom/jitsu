@@ -18,25 +18,32 @@ func InitEvents(storage meta.Storage) {
 	eventsInstance = &Events{storage: storage}
 }
 
+//SuccessPushSourceEvents increments source events and push source events
 func SuccessPushSourceEvents(sourceID string, value int) {
 	if eventsInstance == nil {
 		return
 	}
 
-	err := eventsInstance.storage.SuccessPushEvents(sourceID, time.Now().UTC(), value)
+	successSourceEvents(sourceID, value)
+
+	err := eventsInstance.storage.SuccessEvents(sourceID, meta.PushSourceNamespace, time.Now().UTC(), value)
 	if err != nil {
 		logging.SystemErrorf("Error updating success events counter push source [%s] value [%d]: %v", sourceID, value, err)
 	}
 }
 
 func SuccessPullSourceEvents(sourceID string, value int) {
+	successSourceEvents(sourceID, value)
+}
+
+func successSourceEvents(sourceID string, value int) {
 	if eventsInstance == nil {
 		return
 	}
 
 	err := eventsInstance.storage.SuccessEvents(sourceID, meta.SourceNamespace, time.Now().UTC(), value)
 	if err != nil {
-		logging.SystemErrorf("Error updating success events counter pull source [%s] value [%d]: %v", sourceID, value, err)
+		logging.SystemErrorf("Error updating success events counter source [%s] value [%d]: %v", sourceID, value, err)
 	}
 }
 

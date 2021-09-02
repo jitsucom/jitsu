@@ -21,7 +21,7 @@ const (
 
 	destinationIndex = "destinations_index"
 	sourceIndex      = "sources_index"
-	//all api keys
+	//all api keys - push events
 	pushSourceIndex = "push_sources_index"
 
 	responseTimestampLayout = "2006-01-02T15:04:05+0000"
@@ -118,10 +118,13 @@ type Redis struct {
 //daily_events:destination#destinationID:month#yyyymm:skip     [day] - hashtable with skipped events counter by day
 //
 // * per source *
-//sources_index:project#projectID [sourceID1, sourceID2] - set of source ids
-//push_sources_index:project#projectID [sourceID1, sourceID2] - set of only pushed source ids (api keys) for billing
+//sources_index:project#projectID                    [sourceID1, sourceID2] - set of source ids
 //daily_events:source#sourceID:month#yyyymm:success            [day] - hashtable with success events counter by day
 //hourly_events:source#sourceID:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
+// * per push source *
+//push_sources_index:project#projectID                         [sourceID1, sourceID2] - set of only pushed source ids (api keys) for billing
+//daily_events:push_source#sourceID:month#yyyymm:success            [day] - hashtable with success events counter by day
+//hourly_events:push_source#sourceID:day#yyyymmdd:success           [hour] - hashtable with success events counter by hour
 //
 //** Last events cache**
 //last_events:destination#destinationID:id#unique_id_field [original, success, error] - hashtable with original event json, processed with schema json, error json
@@ -264,19 +267,6 @@ func (r *Redis) DeleteSignature(sourceID, collection string) error {
 	}
 
 	return nil
-}
-
-//SuccessPushEvents ensures that id is in the source and push_source index and increments success events counter
-func (r *Redis) SuccessPushEvents(id string, now time.Time, value int) error {
-	if err := r.ensureIDInIndex(id, SourceNamespace); err != nil {
-		return fmt.Errorf("Error ensuring id in index: %v", err)
-	}
-
-	if err := r.ensureIDInIndex(id, PushSourceNamespace); err != nil {
-		return fmt.Errorf("Error ensuring id in push source index: %v", err)
-	}
-
-	return r.incrementEventsCount(id, SourceNamespace, SuccessStatus, now, value)
 }
 
 //SuccessEvents ensures that id is in the index and increments success events counter
