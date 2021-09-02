@@ -13,6 +13,7 @@ type EventsNamespace = 'source' | 'destination';
 
 type SourcesEventsCountType = 'success' | 'skip'
 type DestinationsEventsCountType = 'success' | 'skip' | 'errors'
+type SourceCounterType = 'push'
 type EventsCountType = SourcesEventsCountType | DestinationsEventsCountType;
 
 type Granularity = 'day' | 'hour' | 'total';
@@ -68,7 +69,8 @@ export interface IStatisticsService {
     end: Date,
     granularity: Granularity,
     namespace?: 'source',
-    status?: SourcesEventsCountType
+    status?: SourcesEventsCountType,
+    sourceCounterType?: SourceCounterType,
   ): Promise<DatePoint[]>;
   get(
     start: Date,
@@ -197,7 +199,8 @@ export class StatisticsService implements IStatisticsService {
     granularity: Granularity,
     namespace: EventsNamespace,
     status?: EventsCountType,
-    destinationId?: string
+    destinationId?: string,
+    sourceCounterType?: SourceCounterType
   ): string {
     const queryParams = [
       ['project_id', this.project.id],
@@ -208,6 +211,7 @@ export class StatisticsService implements IStatisticsService {
     if (namespace) queryParams.push(['namespace', namespace]);
     if (status) queryParams.push(['status', status]);
     if (destinationId) queryParams.push(['destination_id', destinationId]);
+    if (sourceCounterType) queryParams.push(['source_counter_type', sourceCounterType])
     const query = queryParams.reduce<string>(
       (query, [name, value]) => `${query}${name}=${value}&`,
       ''
@@ -221,6 +225,7 @@ export class StatisticsService implements IStatisticsService {
     granularity: Granularity,
     namespace?: EventsNamespace,
     status?: EventsCountType,
+    sourceCounterType?: SourceCounterType,
     destinationId?: string
   ): Promise<DatePoint[]> {
     let response = await this.api.get(
@@ -230,7 +235,8 @@ export class StatisticsService implements IStatisticsService {
         granularity,
         namespace,
         status,
-        destinationId
+        destinationId,
+        sourceCounterType
       )}`,
       { proxy: true }
     );
