@@ -119,6 +119,7 @@ const sourcePageUtils = {
         connectionTestMessagePrefix = `Source ${src.sourceId} connection test result: `;
 
         const POLLING_INTERVAL_MS = 2000;
+        const POLLING_TIMEOUT_MS = 60_000;
 
         const poll = new Poll<void>(
           (end, fail) => async () => {
@@ -128,14 +129,16 @@ const sourcePageUtils = {
                   '/sources/test',
                   Marshal.toPureJson(src)
                 );
+
               if (response['status'] !== 'pending') end();
             } catch (error) {
               fail(error);
             }
           },
-          POLLING_INTERVAL_MS
+          POLLING_INTERVAL_MS,
+          POLLING_TIMEOUT_MS
         );
-        
+
         poll.start();
         await poll.wait();
       }

@@ -317,6 +317,9 @@ const ConfigurableFieldsForm = ({
           makeObjectFromFieldsValues(formValues)
         );
       }
+
+      constantValue = constantValue || param.constant;
+
       const initialValue = getInitialValue(
         param.id,
         param.defaultValue,
