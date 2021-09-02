@@ -2,19 +2,19 @@ package coordination
 
 import (
 	"context"
+	"github.com/gomodule/redigo/redis"
+	"github.com/jitsucom/jitsu/server/meta"
+	"github.com/jitsucom/jitsu/server/metrics"
+	"github.com/jitsucom/jitsu/server/safego"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-redsync/redsync/v4"
 	rsyncpool "github.com/go-redsync/redsync/v4/redis/redigo"
-	"github.com/gomodule/redigo/redis"
 	"github.com/jitsucom/jitsu/server/logging"
-	"github.com/jitsucom/jitsu/server/meta"
-	"github.com/jitsucom/jitsu/server/metrics"
-	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/storages"
-	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 //redis key [variables] - description
@@ -101,7 +101,7 @@ func (rs *RedisService) GetInstances() ([]string, error) {
 		}
 
 		//account only instances with last heartbeat less than 2 minutes ago
-		if timestamp.Now().UTC().Sub(t).Seconds() <= 120 {
+		if time.Now().UTC().Sub(t).Seconds() <= 120 {
 			instances = append(instances, instance)
 		}
 	}

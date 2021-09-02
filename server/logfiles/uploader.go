@@ -1,12 +1,6 @@
 package logfiles
 
 import (
-	"io/ioutil"
-	"os"
-	"path"
-	"path/filepath"
-	"time"
-
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
@@ -18,6 +12,11 @@ import (
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/timestamp"
+	"io/ioutil"
+	"os"
+	"path"
+	"path/filepath"
+	"time"
 )
 
 //PeriodicUploader read already rotated and closed log files
@@ -65,7 +64,7 @@ func (u *PeriodicUploader) Start() {
 				time.Sleep(2 * time.Second)
 				continue
 			}
-			startTime := timestamp.Now()
+			startTime := time.Now()
 			postHandlesMap := make(map[string]map[string]bool) //multimap postHandleDestinationId:destinationIds
 			files, err := filepath.Glob(u.fileMask)
 			if err != nil {
@@ -158,7 +157,7 @@ func (u *PeriodicUploader) Start() {
 							counters.ErrorEvents(storage.ID(), result.RowsCount)
 
 							telemetry.ErrorsPerSrc(tokenID, storage.ID(), result.EventsSrc)
-						} else {
+						} else  {
 							pHandles := storageProxy.GetPostHandleDestinations()
 							if pHandles != nil && result.RowsCount > 0 {
 								for _, pHandle := range pHandles {
@@ -189,7 +188,7 @@ func (u *PeriodicUploader) Start() {
 					}
 				}
 			}
-			u.postHandle(startTime, timestamp.Now(), postHandlesMap)
+			u.postHandle(startTime, time.Now(), postHandlesMap)
 			time.Sleep(u.uploadEvery - time.Since(startTime))
 
 		}
@@ -204,7 +203,7 @@ func (u *PeriodicUploader) postHandle(start, end time.Time, postHandlesMap map[s
 		}
 		event := events.Event{
 			"event_type":  storages.DestinationBatchEventType,
-			"source":      dests,
+			"source":	dests,
 			timestamp.Key: end,
 			"finished_at": end,
 			"started_at":  start,
