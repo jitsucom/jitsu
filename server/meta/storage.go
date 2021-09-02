@@ -22,7 +22,6 @@ type Storage interface {
 
 	//** Counters **
 	//events counters
-	SuccessPushEvents(id string, now time.Time, value int) error
 	SuccessEvents(id, namespace string, now time.Time, value int) error
 	ErrorEvents(id, namespace string, now time.Time, value int) error
 	SkipEvents(id, namespace string, now time.Time, value int) error

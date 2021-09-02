@@ -25,7 +25,6 @@ type ResultSaver struct {
 	task              *meta.Task
 	tap               string
 	collectionMetaKey string
-	tableNamePrefix   string
 	taskLogger        *TaskLogger
 	destinations      []storages.Storage
 	metaStorage       meta.Storage
@@ -34,13 +33,12 @@ type ResultSaver struct {
 }
 
 //NewResultSaver returns configured ResultSaver instance
-func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix string, taskLogger *TaskLogger, destinations []storages.Storage, metaStorage meta.Storage,
+func NewResultSaver(task *meta.Task, tap, collectionMetaKey string, taskLogger *TaskLogger, destinations []storages.Storage, metaStorage meta.Storage,
 	streamTableNames map[string]string) *ResultSaver {
 	return &ResultSaver{
 		task:              task,
 		tap:               tap,
 		collectionMetaKey: collectionMetaKey,
-		tableNamePrefix:   tableNamePrefix,
 		taskLogger:        taskLogger,
 		destinations:      destinations,
 		metaStorage:       metaStorage,
@@ -53,7 +51,8 @@ func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentati
 	for streamName, stream := range representation.Streams {
 		tableName, ok := rs.streamTableNames[streamName]
 		if !ok {
-			tableName = rs.tableNamePrefix + streamName
+			logging.SystemErrorf("[%s] Unknown stream [%s] table name. Mappings: %v", rs.task.Source, streamName, rs.streamTableNames)
+			tableName = streamName
 		}
 		stream.BatchHeader.TableName = schema.Reformat(tableName)
 

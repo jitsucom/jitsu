@@ -9,7 +9,6 @@ func (d *Dummy) GetSignature(sourceID, collection, interval string) (string, err
 func (d *Dummy) SaveSignature(sourceID, collection, interval, signature string) error { return nil }
 func (d *Dummy) DeleteSignature(sourceID, collection string) error                    { return nil }
 
-func (d *Dummy) SuccessPushEvents(id string, now time.Time, value int) error        { return nil }
 func (d *Dummy) SuccessEvents(id, namespace string, now time.Time, value int) error { return nil }
 func (d *Dummy) ErrorEvents(id, namespace string, now time.Time, value int) error   { return nil }
 func (d *Dummy) SkipEvents(id, namespace string, now time.Time, value int) error    { return nil }

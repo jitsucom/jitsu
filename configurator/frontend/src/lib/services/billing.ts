@@ -48,10 +48,7 @@ export class PaymentPlanStatus {
       stat = await this._stat.get(
         new Date(date.getFullYear(), date.getMonth(), 1),
         new Date(date.getFullYear(), date.getMonth() + 1, 0),
-        'day',
-        undefined,
-        undefined,
-        'push'
+        'day'
       );
     } catch (e) {
       console.info(
