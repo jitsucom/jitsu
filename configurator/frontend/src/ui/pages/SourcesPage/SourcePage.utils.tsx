@@ -128,6 +128,7 @@ const sourcePageUtils = {
                   '/sources/test',
                   Marshal.toPureJson(src)
                 );
+
               if (response['status'] !== 'pending') end();
             } catch (error) {
               fail(error);
@@ -135,7 +136,7 @@ const sourcePageUtils = {
           },
           POLLING_INTERVAL_MS
         );
-        
+
         poll.start();
         await poll.wait();
       }
