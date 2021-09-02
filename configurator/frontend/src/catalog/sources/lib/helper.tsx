@@ -15,9 +15,7 @@ import {
   passwordType,
   makeIntType,
   booleanType,
-  singleSelectionType,
-  ConstantOrFunction,
-  omittedValue
+  singleSelectionType
 } from '../types';
 
 export const singerConfigParams: Record<string, (tap: string) => Parameter> = {
@@ -158,6 +156,7 @@ export const makeSingerSource = (singerTap: SingerTap): SourceConnector => {
     collectionTypes: [],
     documentation: singerTap.documentation,
     collectionParameters: [],
+    deprecated: singerTap.deprecated,
     configParameters: [
       {
         displayName: 'Singer Tap',

@@ -2,7 +2,6 @@ import {
   booleanType,
   makeIntType,
   makeStringType,
-  omittedValue,
   Parameter,
   passwordType,
   singleSelectionType,
@@ -439,9 +438,9 @@ export const postgres: Parameter[] = [
         }}
       />
     ),
-    constant: omittedValue('', (config) => {
+    omitFieldRule: (config) => {
       return config?.['_formData']?.['replication_method'] !== 'CDC';
-    })
+    }
   },
   {
     id: 'config.config.connectionSpecification.replication_method.publication',
@@ -455,8 +454,8 @@ export const postgres: Parameter[] = [
         }}
       />
     ),
-    constant: omittedValue('', (config) => {
+    omitFieldRule: (config) => {
       return config?.['_formData']?.['replication_method'] !== 'CDC';
-    })
+    }
   }
 ];

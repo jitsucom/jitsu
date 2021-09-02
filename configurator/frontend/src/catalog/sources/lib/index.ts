@@ -10,7 +10,8 @@ export const allSources = [
   ...allSingerTaps
     .filter((tap) => !tap.hasNativeEquivalent && tap.pic && tap.stable)
     .map(makeSingerSource),
-  ...allAirbyteSources.map(makeAirbyteSource)
+  ...allAirbyteSources.filter((as) => !as.hasNativeEquivalent)
+    .map(makeAirbyteSource)
 ];
 
 export const allSourcesMap: { [sourceId: string]: SourceConnector } =

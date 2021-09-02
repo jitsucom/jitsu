@@ -61,15 +61,23 @@
 @large-border-radius: 12px;
 @small-border-radius: 6px;
 
-@font-main: 'Nunito', sans-serif;
-
+@font-main: 'system-ui', sans-serif;
 @font-monospace: 'Source Code Pro', monospace;
+@font-heading: 'Nunito Sans', sans-serif;
 
 // Animated transitions
 @default-transition-duration: 200ms;
 @default-transition-delay: 0ms;
 @default-transition-animation: linear;
 @default-transiton: @default-transition-duration @default-transition-animation @default-transition-delay;
+
+.font-heading {
+  font-family: @font-heading;
+}
+
+.font-monospace {
+  font-family: @font-monospace;
+}
 
 
 .ant-select-disabled.ant-select:not(.ant-select-customize-input) .ant-select-selector {
