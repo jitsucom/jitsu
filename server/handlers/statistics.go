@@ -95,7 +95,7 @@ func (sh *StatisticsHandler) GetHandler(c *gin.Context) {
 		sourceID := c.Query("source_id")
 		sourceIDs := []string{sourceID}
 		if sourceID == "" {
-			if c.Query("source_type") == "push" {
+			if c.Query("source_counter_type") == "push" {
 				sourceIDs, err = sh.metaStorage.GetProjectPushSourceIDs(projectID)
 			} else {
 				sourceIDs, err = sh.metaStorage.GetProjectSourceIDs(projectID)
