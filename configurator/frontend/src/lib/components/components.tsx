@@ -3,13 +3,10 @@
  * Library of small components that are usefull for different purposes
  */
 
-import React, { ReactNode, useState } from 'react';
+import React, { ReactNode } from 'react';
 import set from 'lodash/set';
 import './components.less';
-import { Card, Col, message, Progress, Modal, Row, Spin, Tooltip, Button } from 'antd';
-import CaretDownFilled from '@ant-design/icons/lib/icons/CaretDownFilled';
-import CaretRightFilled from '@ant-design/icons/lib/icons/CaretRightFilled';
-import CaretUpFilled from '@ant-design/icons/lib/icons/CaretUpFilled';
+import { Col, message, Progress, Modal, Row, Spin, Typography } from 'antd';
 import CloseCircleOutlined from '@ant-design/icons/lib/icons/CloseCircleOutlined';
 import CopyOutlined from '@ant-design/icons/lib/icons/CopyOutlined';
 import CheckCircleOutlined from '@ant-design/icons/lib/icons/CheckCircleOutlined';
@@ -88,6 +85,24 @@ export type CloseableMessageType =
 export type MessageContent = string | ReactNode | ArgsProps;
 export type MessageFunc = (args: MessageContent) => MessageType;
 
+function applyEllipsisToMessageIfNeeded(message: string): JSX.Element | string {
+  const SUFFIX_CHARS_COUNT: number = 50; // num of letters to show after the ellipsis
+  const needToApplyEllipsis: boolean = message.length > 2 * SUFFIX_CHARS_COUNT
+
+  let messageWithEllipsis: JSX.Element | undefined;
+  if (needToApplyEllipsis) {
+    const start = message.slice(0, message.length - SUFFIX_CHARS_COUNT).trim();
+    const suffix = message.slice(-SUFFIX_CHARS_COUNT).trim();
+    messageWithEllipsis = (
+      <Typography.Paragraph ellipsis={{ suffix, rows: 2, expandable: true }}>
+        {start}
+      </Typography.Paragraph>
+    );
+  }
+
+  return messageWithEllipsis || message;
+}
+
 function messageFactory(type: CloseableMessageType): MessageFunc {
   const iconsByType = {
     success: <CheckCircleOutlined className="text-success" />,
@@ -98,6 +113,9 @@ function messageFactory(type: CloseableMessageType): MessageFunc {
   };
   return (content: MessageContent) => {
     const key = Math.random() + '';
+
+    if (typeof content === 'string') content = applyEllipsisToMessageIfNeeded(content);
+
     const customization = {
       icon: (
         <span
@@ -113,7 +131,9 @@ function messageFactory(type: CloseableMessageType): MessageFunc {
 
     const closeableContent = (
       <span className="closable-message">
-        {content}{' '}
+        <span className="closable-message_content">
+          {content}
+        </span>
         <CloseOutlined
           className="close-message-icon"
           onClick={() => message.destroy(key)}
