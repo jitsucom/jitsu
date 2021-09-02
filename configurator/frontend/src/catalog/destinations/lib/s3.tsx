@@ -106,7 +106,7 @@ const destination = {
       displayName: 'Format',
       required: true,
       defaultValue: 'json',
-      type: selectionType(['flat_json', 'csv', 'json'], 1),
+      type: selectionType(['json', 'flat_json', 'csv'], 1),
       documentation: <>
         <b>json</b> - not flattened json objects with \n delimiter<br/>
         <b>flat_json</b> - flattened json objects with \n delimiter<br/>
