@@ -3,9 +3,11 @@ package storages
 import (
 	"errors"
 	"fmt"
+	"github.com/hashicorp/go-multierror"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"time"
 
 	"github.com/jitsucom/jitsu/server/adapters"
-	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
@@ -15,9 +17,7 @@ import (
 type S3 struct {
 	Abstract
 
-	s3Adapter      *adapters.S3
-	fallbackLogger *logging.AsyncLogger
-	eventsCache    *caching.EventsCache
+	s3Adapter *adapters.S3
 }
 
 func init() {
@@ -64,7 +64,7 @@ func (s3 *S3) DryRun(payload events.Event) ([]adapters.TableField, error) {
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
 func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
-	flatData, failedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	processedFiles, failedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -76,8 +76,10 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
-	for _, fdata := range flatData {
-		b := fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
+	marshaller := s3.marshaller()
+	for _, fdata := range processedFiles {
+		b := fdata.GetPayloadBytes(marshaller)
+		fileName := s3.fileName(fdata)
 		err := s3.s3Adapter.UploadBytes(fileName, b)
 
 		tableResults[fdata.BatchHeader.TableName] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
@@ -102,6 +104,43 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 	return tableResults, nil, nil
 }
 
+func (s3 *S3) marshaller() schema.Marshaller {
+	if s3.s3Adapter.Format() == adapters.S3FormatCSV {
+		return schema.CsvMarshallerInstance
+	} else {
+		return schema.JSONMarshallerInstance
+	}
+}
+
+func (s3 *S3) fileName(fdata *schema.ProcessedFile) string {
+	start, end := findStartEndTimestamp(fdata.GetPayload())
+	return fmt.Sprintf("%s-start-%s-end-%s.log", fdata.BatchHeader.TableName, timestamp.ToISOFormat(start), timestamp.ToISOFormat(end))
+}
+
+func findStartEndTimestamp(fdata []map[string]interface{}) (time.Time, time.Time) {
+	var start, end time.Time
+	for _, it := range fdata {
+		if tmstmp, ok := it[timestamp.Key]; ok {
+			if datetime, ok := tmstmp.(time.Time); ok {
+				if start.IsZero() || datetime.Before(start) {
+					start = datetime
+				}
+				if end.IsZero() || datetime.After(end) {
+					end = datetime
+				}
+
+			}
+		}
+	}
+	if start.IsZero() || end.IsZero() {
+		now := time.Now()
+		start = now
+		end = now
+	}
+
+	return start, end
+}
+
 //SyncStore isn't supported
 func (s3 *S3) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []map[string]interface{}, timeIntervalValue string, cacheTable bool) error {
 	return errors.New("S3 doesn't support sync store")
@@ -123,6 +162,12 @@ func (s3 *S3) Type() string {
 }
 
 //Close closes fallback logger
-func (s3 *S3) Close() error {
-	return s3.close()
+func (s3 *S3) Close() (multiErr error) {
+	if err := s3.s3Adapter.Close(); err != nil {
+		multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error closing s3 adapter: %v", s3.ID(), err))
+	}
+	if err := s3.close(); err != nil {
+		multiErr = multierror.Append(multiErr, err)
+	}
+	return
 }
