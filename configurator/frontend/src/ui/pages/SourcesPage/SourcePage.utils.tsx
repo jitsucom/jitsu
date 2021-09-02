@@ -135,7 +135,8 @@ const sourcePageUtils = {
           },
           POLLING_INTERVAL_MS
         );
-
+        
+        poll.start();
         await poll.wait();
       }
 
