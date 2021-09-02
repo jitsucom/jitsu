@@ -5,9 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/geo"
-	"github.com/jitsucom/jitsu/server/testsuit"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -16,10 +13,14 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin/binding"
+	"github.com/jitsucom/jitsu/server/appconfig"
+	"github.com/jitsucom/jitsu/server/geo"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/middleware"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/test"
+	"github.com/jitsucom/jitsu/server/testsuit"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -1089,7 +1090,7 @@ func sendSegmentRequests(t *testing.T, endpoint string) {
 		MessageId:    "track1",
 		AnonymousId:  "anonym1",
 		Event:        "test_track",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Properties:   analyticsProperties,
 		Integrations: integrations,
@@ -1099,7 +1100,7 @@ func sendSegmentRequests(t *testing.T, endpoint string) {
 		MessageId:    "screen1",
 		AnonymousId:  "anonym1",
 		Name:         "home screen",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Properties:   analyticsProperties,
 		Integrations: integrations,
@@ -1109,7 +1110,7 @@ func sendSegmentRequests(t *testing.T, endpoint string) {
 		MessageId:    "alias1",
 		PreviousId:   "previousId",
 		UserId:       "user1",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Integrations: integrations,
 	})
@@ -1119,7 +1120,7 @@ func sendSegmentRequests(t *testing.T, endpoint string) {
 		AnonymousId:  "anonym1",
 		UserId:       "user1",
 		GroupId:      "group1",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Traits:       analyticsTraits,
 		Integrations: integrations,
@@ -1129,7 +1130,7 @@ func sendSegmentRequests(t *testing.T, endpoint string) {
 		MessageId:    "identify1",
 		AnonymousId:  "anonym1",
 		UserId:       "user1",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Traits:       analyticsTraits,
 		Integrations: integrations,
@@ -1140,7 +1141,7 @@ func sendSegmentRequests(t *testing.T, endpoint string) {
 		AnonymousId:  "anonym1",
 		Name:         "page",
 		UserId:       "user1",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Properties:   analyticsProperties,
 		Integrations: integrations,
@@ -1212,7 +1213,7 @@ func sendSegmentRequestsWithoutLocationAndUA(t *testing.T, endpoint string) {
 		MessageId:    "track1",
 		AnonymousId:  "anonym1",
 		Event:        "test_track",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Properties:   analyticsProperties,
 		Integrations: integrations,
@@ -1222,7 +1223,7 @@ func sendSegmentRequestsWithoutLocationAndUA(t *testing.T, endpoint string) {
 		MessageId:    "screen1",
 		AnonymousId:  "anonym1",
 		Name:         "home screen",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Properties:   analyticsProperties,
 		Integrations: integrations,
@@ -1232,7 +1233,7 @@ func sendSegmentRequestsWithoutLocationAndUA(t *testing.T, endpoint string) {
 		MessageId:    "alias1",
 		PreviousId:   "previousId",
 		UserId:       "user1",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Integrations: integrations,
 	})
@@ -1242,7 +1243,7 @@ func sendSegmentRequestsWithoutLocationAndUA(t *testing.T, endpoint string) {
 		AnonymousId:  "anonym1",
 		UserId:       "user1",
 		GroupId:      "group1",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Traits:       analyticsTraits,
 		Integrations: integrations,
@@ -1252,7 +1253,7 @@ func sendSegmentRequestsWithoutLocationAndUA(t *testing.T, endpoint string) {
 		MessageId:    "identify1",
 		AnonymousId:  "anonym1",
 		UserId:       "user1",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Traits:       analyticsTraits,
 		Integrations: integrations,
@@ -1263,7 +1264,7 @@ func sendSegmentRequestsWithoutLocationAndUA(t *testing.T, endpoint string) {
 		AnonymousId:  "anonym1",
 		Name:         "page",
 		UserId:       "user1",
-		Timestamp:    time.Now(),
+		Timestamp:    timestamp.Now(),
 		Context:      analyticsContext,
 		Properties:   analyticsProperties,
 		Integrations: integrations,

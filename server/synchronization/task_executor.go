@@ -3,6 +3,8 @@ package synchronization
 import (
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
@@ -19,7 +21,6 @@ import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/uuid"
 	"github.com/panjf2000/ants/v2"
-	"time"
 )
 
 const srcSource = "source"
@@ -162,7 +163,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	}
 
 	//** Task execution **
-	start := time.Now().UTC()
+	start := timestamp.Now().UTC()
 
 	var taskErr error
 	if driver.Type() == driversbase.SingerType {
@@ -184,7 +185,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 		return
 	}
 
-	end := time.Now().UTC().Sub(start)
+	end := timestamp.Now().UTC().Sub(start)
 	taskLogger.INFO("FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", end.Seconds(), end.Minutes())
 	logging.Infof("[%s] FINISHED SUCCESSFULLY in [%.2f] seconds (~ %.2f minutes)", task.ID, end.Seconds(), end.Minutes())
 
@@ -209,7 +210,7 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLog
 		"started_at":  task.StartedAt,
 	}
 	for _, id := range source.PostHandleDestinationIDs {
-		err :=  te.destinationService.PostHandle(id, event)
+		err := te.destinationService.PostHandle(id, event)
 		if err != nil {
 			logging.Error(err)
 			taskLogger.ERROR(err.Error())
@@ -221,7 +222,7 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLog
 
 //sync source. Return error if occurred
 func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver driversbase.Driver, destinationStorages []storages.Storage) error {
-	now := time.Now().UTC()
+	now := timestamp.Now().UTC()
 
 	intervals, err := driver.GetAllAvailableIntervals()
 	if err != nil {
@@ -344,7 +345,7 @@ func (te *TaskExecutor) handleError(task *meta.Task, taskLogger *TaskLogger, msg
 
 	taskLogger.ERROR(msg)
 	task.Status = FAILED.String()
-	task.FinishedAt = time.Now().UTC().Format(timestamp.Layout)
+	task.FinishedAt = timestamp.Now().UTC().Format(timestamp.Layout)
 
 	err := te.metaStorage.UpsertTask(task)
 	if err != nil {

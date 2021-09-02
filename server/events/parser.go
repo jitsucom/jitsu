@@ -5,13 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/identifiers"
 	"github.com/jitsucom/jitsu/server/jsonutils"
 	"github.com/jitsucom/jitsu/server/maputils"
-	"io"
-	"io/ioutil"
-	"time"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 const (
@@ -182,7 +184,7 @@ func (sp *segmentParser) ParseEventsBody(c *gin.Context) ([]Event, error) {
 		if ok {
 			l, err := time.LoadLocation(fmt.Sprint(tz))
 			if err == nil {
-				_, offsetSeconds := time.Now().In(l).Zone()
+				_, offsetSeconds := timestamp.Now().In(l).Zone()
 				sp.localTzOffset.Set(mapped, (time.Second * time.Duration(offsetSeconds)).Minutes())
 			}
 		}

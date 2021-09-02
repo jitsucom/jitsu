@@ -1,8 +1,11 @@
 package testsuit
 
 import (
-	"bou.ke/monkey"
 	"context"
+	"net/http"
+	"testing"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/caching"
 	"github.com/jitsucom/jitsu/server/coordination"
@@ -23,13 +26,11 @@ import (
 	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/telemetry"
 	"github.com/jitsucom/jitsu/server/test"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/users"
 	"github.com/jitsucom/jitsu/server/wal"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
-	"net/http"
-	"testing"
-	"time"
 )
 
 //Suit is a common test suit for configuring Jitsu Server and keeping test data
@@ -40,9 +41,6 @@ type Suit interface {
 
 //suit is an immutable test suit implementation of Suit
 type suit struct {
-	freezeTime time.Time
-	patchTime  *monkey.PatchGuard
-
 	httpAuthority string
 }
 
@@ -57,8 +55,6 @@ type SuiteBuilder interface {
 
 //suiteBuilder is a test Suit builder implementation
 type suiteBuilder struct {
-	freezeTime                       time.Time
-	patchTime                        *monkey.PatchGuard
 	httpAuthority                    string
 	segmentRequestFieldsMapper       events.Mapper
 	segmentCompatRequestFieldsMapper events.Mapper
@@ -73,8 +69,7 @@ type suiteBuilder struct {
 
 //NewSuiteBuilder returns configured SuiteBuilder
 func NewSuiteBuilder(t *testing.T) SuiteBuilder {
-	freezeTime := time.Date(2020, 06, 16, 23, 0, 0, 0, time.UTC)
-	patch := monkey.Patch(time.Now, func() time.Time { return freezeTime })
+	timestamp.FreezeTime()
 
 	telemetry.InitTest()
 	httpAuthority, _ := test.GetLocalAuthority()
@@ -129,8 +124,6 @@ func NewSuiteBuilder(t *testing.T) SuiteBuilder {
 	systemService := system.NewService("")
 
 	return &suiteBuilder{
-		freezeTime:                       freezeTime,
-		patchTime:                        patch,
 		httpAuthority:                    httpAuthority,
 		segmentRequestFieldsMapper:       segmentRequestFieldsMapper,
 		segmentCompatRequestFieldsMapper: segmentRequestCompatFieldsMapper,
@@ -240,8 +233,6 @@ func (sb *suiteBuilder) Build(t *testing.T) Suit {
 	require.NoError(t, err)
 
 	return &suit{
-		freezeTime:    sb.freezeTime,
-		patchTime:     sb.patchTime,
 		httpAuthority: sb.httpAuthority,
 	}
 }
@@ -252,7 +243,7 @@ func (s *suit) HTTPAuthority() string {
 
 //Close releases all resources
 func (s *suit) Close() {
-	s.patchTime.Unpatch()
+	timestamp.UnfreezeTime()
 	appconfig.Instance.Close()
 	appconfig.Instance.CloseEventsConsumers()
 }
