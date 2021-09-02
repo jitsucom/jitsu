@@ -6,8 +6,6 @@ import (
 	"compress/gzip"
 	"errors"
 	"fmt"
-	"github.com/jitsucom/jitsu/server/telemetry"
-	"github.com/spf13/cobra"
 	"io"
 	"io/ioutil"
 	"os"
@@ -15,6 +13,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/timestamp"
+	"github.com/spf13/cobra"
 )
 
 const (
@@ -334,7 +336,7 @@ func filterFiles(absoluteFileNames []string, startStr string, endStr string) ([]
 		startDate = t
 	}
 
-	endDate := time.Now().UTC()
+	endDate := timestamp.Now().UTC()
 	if endStr != "" {
 		t, err := time.Parse(dateLayout, endStr)
 		if err != nil {
