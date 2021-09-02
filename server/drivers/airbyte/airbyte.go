@@ -21,9 +21,6 @@ import (
 const (
 	connectionStatusSucceed = "SUCCEEDED"
 	connectionStatusFailed  = "FAILED"
-
-	volumeAlias = "/tmp/airbyte/"
-	command     = "docker"
 )
 
 //Airbyte is an Airbyte CLI driver
@@ -158,12 +155,18 @@ func (a *Airbyte) EnsureCatalog() {
 			continue
 		}
 
+		streamTableNameMapping := map[string]string{}
+		for streamName := range streamsRepresentation {
+			streamTableNameMapping[streamName] = a.GetTableNamePrefix() + streamName
+		}
+
 		a.Lock()
 		a.discoverCatalogLastError = nil
 		a.Unlock()
 
 		a.SetCatalogPath(catalogPath)
 		a.streamsRepresentation = streamsRepresentation
+		a.AbstractCLIDriver.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
 		a.catalogDiscovered.Store(true)
 		return
 	}
@@ -207,7 +210,7 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 		return readyErr
 	}
 
-	args := []string{"run", "--rm", "-i", "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, volumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "read", "--config", path.Join(volumeAlias, a.ID(), a.GetTap(), base.ConfigFileName), "--catalog", path.Join(volumeAlias, a.ID(), a.GetTap(), base.CatalogFileName)}
+	args := []string{"run", "--rm", "-i", "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, airbyte.VolumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "read", "--config", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.ConfigFileName), "--catalog", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.CatalogFileName)}
 
 	statePath, err := a.GetStateFilePath(state)
 	if err != nil {
@@ -215,7 +218,7 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 	}
 
 	if statePath != "" {
-		args = append(args, "--state", path.Join(volumeAlias, a.ID(), a.GetTap(), base.StateFileName))
+		args = append(args, "--state", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.StateFileName))
 	}
 
 	sop := &streamOutputParser{
@@ -224,7 +227,7 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 		logger:                taskLogger,
 	}
 
-	return a.LoadAndParse(taskLogger, sop, airbyte.Instance.LogWriter, command, args...)
+	return a.LoadAndParse(taskLogger, sop, airbyte.Instance.LogWriter, airbyte.Command, args...)
 }
 
 //Check runs airbyte check command
@@ -239,8 +242,8 @@ func (a *Airbyte) check() error {
 	outWriter := logging.NewStringWriter()
 	errWriter := logging.NewStringWriter()
 
-	args := []string{"run", "--rm", "-i", "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, volumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "check", "--config", path.Join(volumeAlias, a.ID(), a.GetTap(), base.ConfigFileName)}
-	if err := runner.ExecCmd(airbyte.BridgeType, command, outWriter, errWriter, args...); err != nil {
+	args := []string{"run", "--rm", "-i", "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, airbyte.VolumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "check", "--config", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.ConfigFileName)}
+	if err := runner.ExecCmd(airbyte.BridgeType, airbyte.Command, outWriter, errWriter, args...); err != nil {
 		return errors.New(airbyte.Instance.BuildMsg("Error executing airbyte check:", outWriter, errWriter, err))
 	}
 
@@ -278,9 +281,9 @@ func (a *Airbyte) doDiscover() (string, map[string]*base.StreamRepresentation, e
 	errStrWriter := logging.NewStringWriter()
 	dualStdErrWriter := logging.Dual{FileWriter: errStrWriter, Stdout: logging.NewPrefixDateTimeProxy(fmt.Sprintf("[%s]", a.ID()), airbyte.Instance.LogWriter)}
 
-	args := []string{"run", "--rm", "-i", "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, volumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "discover", "--config", path.Join(volumeAlias, a.ID(), a.GetTap(), base.ConfigFileName)}
+	args := []string{"run", "--rm", "-i", "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, airbyte.VolumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "discover", "--config", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.ConfigFileName)}
 
-	err := runner.ExecCmd(base.AirbyteType, command, outWriter, dualStdErrWriter, args...)
+	err := runner.ExecCmd(base.AirbyteType, airbyte.Command, outWriter, dualStdErrWriter, args...)
 	if err != nil {
 		return "", nil, fmt.Errorf("Error airbyte --discover: %v. %s", err, errStrWriter.String())
 	}
