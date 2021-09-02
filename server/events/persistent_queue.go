@@ -4,11 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/parsers"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/joncrlsn/dque"
-	"time"
 )
 
 const eventsPerPersistedFile = 2000
@@ -45,7 +47,7 @@ func NewPersistentQueue(identifier, queueName, logEventPath string) (*Persistent
 }
 
 func (pq *PersistentQueue) Consume(f map[string]interface{}, tokenID string) {
-	pq.ConsumeTimed(f, time.Now(), tokenID)
+	pq.ConsumeTimed(f, timestamp.Now(), tokenID)
 }
 
 func (pq *PersistentQueue) ConsumeTimed(f map[string]interface{}, t time.Time, tokenID string) {
