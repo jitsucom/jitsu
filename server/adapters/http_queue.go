@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
-
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/joncrlsn/dque"
+	"time"
 )
 
 const requestsPerPersistedFile = 2000
@@ -59,7 +57,7 @@ func NewPersistentQueue(queueName, fallbackDir string) (*PersistentQueue, error)
 
 //Add puts HTTP request and error callback to the queue
 func (pq *PersistentQueue) Add(req *Request, eventContext *EventContext) error {
-	return pq.AddRequest(&RetryableRequest{Request: req, DequeuedTime: timestamp.Now().UTC(), Retry: 0, EventContext: eventContext})
+	return pq.AddRequest(&RetryableRequest{Request: req, DequeuedTime: time.Now().UTC(), Retry: 0, EventContext: eventContext})
 }
 
 //AddRequest puts request to the queue with retryCount

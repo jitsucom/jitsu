@@ -25,7 +25,7 @@ const GolangLayout = "2006-01-02T15:04:05+0000"
 
 //NowUTC returns ISO string representation of current UTC time
 func NowUTC() string {
-	return Now().UTC().Format(Layout)
+	return time.Now().UTC().Format(Layout)
 }
 
 //ToISOFormat returns ISO string representation of input time.Time

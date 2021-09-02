@@ -2,10 +2,9 @@ package synchronization
 
 import (
 	"fmt"
-
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
-	"github.com/jitsucom/jitsu/server/timestamp"
+	"time"
 )
 
 const (
@@ -44,7 +43,7 @@ func (tl *TaskLogger) log(format, system, level string, v ...interface{}) {
 	msg := "[" + tl.taskID + "] " + fmt.Sprintf(format, v...)
 	logging.Debug(msg)
 
-	err := tl.metaStorage.AppendTaskLog(tl.taskID, timestamp.Now().UTC(), system, msg, level)
+	err := tl.metaStorage.AppendTaskLog(tl.taskID, time.Now().UTC(), system, msg, level)
 	if err != nil {
 		logging.SystemErrorf("Error appending logs [%s] system [%s] level [%s]: %v", msg, system, level, err)
 	}
