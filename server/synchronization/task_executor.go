@@ -289,7 +289,7 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 			counters.SuccessEvents(storage.ID(), rowsCount)
 		}
 
-		counters.SuccessSourceEvents(task.Source, rowsCount)
+		counters.SuccessPullSourceEvents(task.Source, rowsCount)
 
 		if err := te.metaStorage.SaveSignature(task.Source, collectionMetaKey, intervalToSync.String(), intervalToSync.CalculateSignatureFrom(now)); err != nil {
 			logging.SystemErrorf("Unable to save source: [%s] collection: [%s] meta key: [%s] signature: %v", task.Source, task.Collection, collectionMetaKey, err)
@@ -307,7 +307,6 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 	state, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetTap(), driversbase.ALL.String())
 	if err != nil {
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
-
 	}
 
 	if state != "" {
@@ -316,7 +315,7 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 		taskLogger.INFO("Running synchronization")
 	}
 
-	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping())
+	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping())
 
 	err = cliDriver.Load(state, taskLogger, rs)
 	if err != nil {

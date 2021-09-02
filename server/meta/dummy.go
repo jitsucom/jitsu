@@ -13,6 +13,7 @@ func (d *Dummy) SuccessEvents(id, namespace string, now time.Time, value int) er
 func (d *Dummy) ErrorEvents(id, namespace string, now time.Time, value int) error   { return nil }
 func (d *Dummy) SkipEvents(id, namespace string, now time.Time, value int) error    { return nil }
 func (d *Dummy) GetProjectSourceIDs(projectID string) ([]string, error)             { return []string{}, nil }
+func (d *Dummy) GetProjectPushSourceIDs(projectID string) ([]string, error)         { return []string{}, nil }
 func (d *Dummy) GetProjectDestinationIDs(projectID string) ([]string, error)        { return []string{}, nil }
 func (d *Dummy) GetEventsWithGranularity(namespace, status string, ids []string, start, end time.Time, granularity Granularity) ([]EventsPerTime, error) {
 	return nil, nil

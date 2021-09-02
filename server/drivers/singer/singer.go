@@ -23,8 +23,6 @@ var (
 			"messages": true,
 		},
 	}
-
-	errNotReady = errors.New("Singer driver isn't ready yet. Tap is being installed..")
 )
 
 type Singer struct {
@@ -194,7 +192,7 @@ func (s *Singer) EnsureTapAndCatalog() {
 			continue
 		}
 
-		catalogPath, propertiesPath, err := doDiscover(s.ID(), s.GetTap(), s.pathToConfigs, s.GetConfigPath())
+		catalogPath, propertiesPath, streamNames, err := doDiscover(s.ID(), s.GetTap(), s.pathToConfigs, s.GetConfigPath())
 		if err != nil {
 			s.Lock()
 			s.discoverCatalogLastError = err
@@ -206,10 +204,16 @@ func (s *Singer) EnsureTapAndCatalog() {
 			continue
 		}
 
+		streamTableNameMapping := map[string]string{}
+		for _, streamName := range streamNames {
+			streamTableNameMapping[streamName] = s.GetTableNamePrefix() + streamName
+		}
+
 		s.Lock()
 		s.discoverCatalogLastError = nil
 		s.Unlock()
 
+		s.SetStreamTableNameMappingIfNotExists(streamTableNameMapping)
 		s.SetCatalogPath(catalogPath)
 		s.SetPropertiesPath(propertiesPath)
 
@@ -296,7 +300,7 @@ func (s *Singer) Type() string {
 
 //doDiscover discovers tap catalog and returns catalog and properties paths
 //applies blacklist streams to taps and make other streams {"selected": true}
-func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, string, error) {
+func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, string, []string, error) {
 	outWriter := logging.NewStringWriter()
 	errStrWriter := logging.NewStringWriter()
 	dualStdErrWriter := logging.Dual{FileWriter: errStrWriter, Stdout: logging.NewPrefixDateTimeProxy(fmt.Sprintf("[%s]", sourceID), singer.Instance.LogWriter)}
@@ -306,12 +310,12 @@ func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, st
 
 	err := runner.ExecCmd(base.SingerType, command, outWriter, dualStdErrWriter, args...)
 	if err != nil {
-		return "", "", fmt.Errorf("Error singer --discover: %v. %s", err, errStrWriter.String())
+		return "", "", nil, fmt.Errorf("Error singer --discover: %v. %s", err, errStrWriter.String())
 	}
 
 	catalog := &RawCatalog{}
 	if err := json.Unmarshal(outWriter.Bytes(), &catalog); err != nil {
-		return "", "", fmt.Errorf("Error unmarshalling catalog %s output: %v", outWriter.String(), err)
+		return "", "", nil, fmt.Errorf("Error unmarshalling catalog %s output: %v", outWriter.String(), err)
 	}
 
 	blackListStreams, ok := blacklistStreamsByTap[tap]
@@ -319,10 +323,14 @@ func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, st
 		blackListStreams = map[string]bool{}
 	}
 
+	var streamNames []string
+
 	for _, stream := range catalog.Streams {
 		streamName, ok := stream["stream"]
 		if ok {
-			if _, ok := blackListStreams[fmt.Sprint(streamName)]; ok {
+			streamNameStr := fmt.Sprint(streamName)
+			streamNames = append(streamNames, streamNameStr)
+			if _, ok := blackListStreams[streamNameStr]; ok {
 				continue
 			}
 		} else {
@@ -332,11 +340,11 @@ func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, st
 		//put selected=true into 'schema'
 		schemaStruct, ok := stream["schema"]
 		if !ok {
-			return "", "", fmt.Errorf("Malformed discovered catalog structure %s: key 'schema' doesn't exist", outWriter.String())
+			return "", "", nil, fmt.Errorf("Malformed discovered catalog structure %s: key 'schema' doesn't exist", outWriter.String())
 		}
 		schemaObj, ok := schemaStruct.(map[string]interface{})
 		if !ok {
-			return "", "", fmt.Errorf("Malformed discovered catalog structure %s: value under key 'schema' must be object: %T", outWriter.String(), schemaStruct)
+			return "", "", nil, fmt.Errorf("Malformed discovered catalog structure %s: value under key 'schema' must be object: %T", outWriter.String(), schemaStruct)
 		}
 
 		schemaObj["selected"] = true
@@ -367,14 +375,14 @@ func doDiscover(sourceID, tap, pathToConfigs, configFilePath string) (string, st
 	//write singer catalog as file path
 	catalogPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.CatalogFileName), string(b))
 	if err != nil {
-		return "", "", fmt.Errorf("Error writing discovered singer catalog [%v]: %v", string(b), err)
+		return "", "", nil, fmt.Errorf("Error writing discovered singer catalog [%v]: %v", string(b), err)
 	}
 
 	//write singer properties as file path
 	propertiesPath, err := parsers.ParseJSONAsFile(path.Join(pathToConfigs, base.PropertiesFileName), string(b))
 	if err != nil {
-		return "", "", fmt.Errorf("Error writing discovered singer properties [%v]: %v", string(b), err)
+		return "", "", nil, fmt.Errorf("Error writing discovered singer properties [%v]: %v", string(b), err)
 	}
 
-	return catalogPath, propertiesPath, nil
+	return catalogPath, propertiesPath, streamNames, nil
 }
