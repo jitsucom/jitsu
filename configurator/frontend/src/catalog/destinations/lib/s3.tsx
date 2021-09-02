@@ -1,4 +1,4 @@
-import {modeParameter, s3Credentials, tableName} from './common';
+import { filteringExpressionDocumentation, modeParameter, s3Credentials, tableName } from './common';
 import {arrayOf, booleanType, selectionType, stringType} from '../../sources/types';
 import { ReactNode } from 'react';
 import * as React from "react";
@@ -75,7 +75,7 @@ const destination = {
   </>,
   syncFromSourcesStatus: 'not_supported',
   id: 's3',
-  type: 'database',
+  type: 'other',
   displayName: 'Amazon S3',
   hidden: false,
   ui: {
@@ -86,7 +86,7 @@ const destination = {
     connectCmd: (_) => null
   },
   parameters: [
-    tableName(),
+    tableName(filteringExpressionDocumentation),
     ...s3Credentials(
         '_formData.s3Region',
         '_formData.s3Bucket',
@@ -105,11 +105,11 @@ const destination = {
       id: '_formData.s3Format',
       displayName: 'Format',
       required: true,
-      defaultValue: 'flat_json',
+      defaultValue: 'json',
       type: selectionType(['flat_json', 'csv', 'json'], 1),
       documentation: <>
-        <b>flat_json</b> - flattened json objects with \n delimiter<br/>
         <b>json</b> - not flattened json objects with \n delimiter<br/>
+        <b>flat_json</b> - flattened json objects with \n delimiter<br/>
         <b>csv</b> - flattened csv objects with \n delimiter<br/>
       </>
     },

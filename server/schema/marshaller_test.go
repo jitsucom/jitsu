@@ -82,7 +82,7 @@ func TestCsvMarshal(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualBytes, err := CsvMarshallerInstance.Marshal(tt.inputHeader, tt.inputJSON)
+			actualBytes, err := CSVMarshallerInstance.Marshal(tt.inputHeader, tt.inputJSON)
 			logging.Info(string(actualBytes))
 			require.NoError(t, err)
 			require.Equal(t, tt.expected, actualBytes, "Marshalled bytes aren't equal")
