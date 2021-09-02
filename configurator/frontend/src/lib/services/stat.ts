@@ -225,8 +225,8 @@ export class StatisticsService implements IStatisticsService {
     granularity: Granularity,
     namespace?: EventsNamespace,
     status?: EventsCountType,
-    sourceCounterType?: SourceCounterType,
-    destinationId?: string
+    destinationId?: string,
+    sourceCounterType?: SourceCounterType
   ): Promise<DatePoint[]> {
     let response = await this.api.get(
       `/statistics?${this.getQuery(
