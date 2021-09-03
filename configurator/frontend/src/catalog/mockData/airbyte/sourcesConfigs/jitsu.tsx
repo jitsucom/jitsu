@@ -465,7 +465,7 @@ export const braintree: Parameter[] = [
   {
     id: 'config.config.connectionSpecification.environment',
     displayName: 'Environment',
-    type: selectionType(['Development', 'Sandbox', 'Qa', 'Production']),
+    type: selectionType(['Development', 'Sandbox', 'Qa', 'Production'], 1),
     required: true,
     documentation: (
       <span

@@ -81,9 +81,10 @@ export const LoadableFieldsForm = ({
         const parsedData = mapAirbyteSpecToSourceConnectorConfig(
           response?.['spec']?.['spec']?.['connectionSpecification'],
           sourceReference.displayName,
-          'config',
-          [],
-          'config'
+          {
+            nodeName: 'config',
+            parentNode: { id: 'config' }
+          }
         );
         setFieldsParameters(parsedData);
         setIsLoadingParameters(false);
