@@ -10,7 +10,7 @@ import { toArrayIfNot } from './arrays';
  *
  * @returns boolean
  */
-export function isObject(value: unknown): value is Object {
+export function isObject(value: unknown): value is UnknownObject {
   return typeof value === 'object' && value !== null;
 }
 
@@ -125,7 +125,7 @@ export function assertIsArrayOfTypes<T>(
 export function assertIsObject(
   value: unknown,
   errMsg?: string
-): asserts value is Object {
+): asserts value is UnknownObject {
   assert(
     isObject(value),
     errMsg || `object assertion failed - ${value} is not an object`

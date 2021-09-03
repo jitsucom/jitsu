@@ -4,6 +4,7 @@ import {
   makeStringType,
   Parameter,
   passwordType,
+  selectionType,
   singleSelectionType,
   stringType
 } from 'catalog/sources/types';
@@ -457,5 +458,75 @@ export const postgres: Parameter[] = [
     omitFieldRule: (config) => {
       return config?.['_formData']?.['replication_method'] !== 'CDC';
     }
+  }
+];
+
+export const braintree: Parameter[] = [
+  {
+    id: 'config.config.connectionSpecification.environment',
+    displayName: 'Environment',
+    type: selectionType(['Development', 'Sandbox', 'Qa', 'Production'], 1),
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html: 'Environment specifies where the data will come from.'
+        }}
+      />
+    )
+  },
+  {
+    id: 'config.config.connectionSpecification.merchant_id',
+    displayName: 'Merchant ID',
+    type: stringType,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            '\u003ca href="https://docs.airbyte.io/integrations/sources/braintree"\u003eMerchant ID\u003c/a\u003e is the unique identifier for entire gateway account.'
+        }}
+      />
+    )
+  },
+  {
+    id: 'config.config.connectionSpecification.private_key',
+    displayName: 'Private Key',
+    type: passwordType,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html: 'This is your user-specific private identifier.'
+        }}
+      />
+    )
+  },
+  {
+    id: 'config.config.connectionSpecification.public_key',
+    displayName: 'Public Key',
+    type: stringType,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html: 'This is your user-specific public identifier for Braintree.'
+        }}
+      />
+    )
+  },
+  {
+    id: 'config.config.connectionSpecification.start_date',
+    displayName: 'Start Date',
+    type: stringType,
+    required: false,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            "The date from which you'd like to replicate data for Braintree API for UTC timezone, All data generated after this date will be replicated."
+        }}
+      />
+    )
   }
 ];

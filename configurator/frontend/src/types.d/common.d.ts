@@ -12,3 +12,7 @@ declare type NotFunction<T> = T extends Function ? never : T;
 declare interface AnyObject {
   [key: string]: any;
 }
+
+declare type UnknownObject = {
+  [key: string]: unknown;
+};
