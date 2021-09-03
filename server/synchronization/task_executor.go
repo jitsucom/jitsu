@@ -315,7 +315,7 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 		taskLogger.INFO("Running synchronization")
 	}
 
-	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping())
+	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping())
 
 	err = cliDriver.Load(state, taskLogger, rs)
 	if err != nil {
