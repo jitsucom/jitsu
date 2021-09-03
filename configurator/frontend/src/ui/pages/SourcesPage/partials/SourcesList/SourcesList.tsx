@@ -65,7 +65,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
               source: `${services.activeProject.id}.${src.sourceId}`,
               project_id: services.activeProject.id
             },
-            { proxy: true }
+            { proxy: true, urlParams: { delete_warehouse_data: true } }
           );
         }
 

@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jitsucom/jitsu/server/logging"
+	"github.com/jitsucom/jitsu/server/schema"
 	"io"
 	"io/ioutil"
 	"strings"
+	"time"
 )
 
 const (
@@ -19,7 +22,8 @@ const (
 	GoogleAdsType 		= "google_ads"
 	RedisType           = "redis"
 
-	SingerType = "singer"
+	SingerType  = "singer"
+	AirbyteType = "airbyte"
 
 	GoogleOAuthAuthorizationType = "OAuth"
 
@@ -27,8 +31,9 @@ const (
 )
 
 var (
-	DriverConstructors         = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
-	DriverTestConnectionFuncs  = make(map[string]func(config *SourceConfig) error)
+	DriverConstructors        = make(map[string]func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error))
+	DriverTestConnectionFuncs = make(map[string]func(config *SourceConfig) error)
+
 	errAccountKeyConfiguration = errors.New("service_account_key must be an object, JSON file path or JSON content string")
 )
 
@@ -123,6 +128,45 @@ type Driver interface {
 	GetCollectionMetaKey() string
 }
 
+//CLIDriver interface must be implemented by every CLI source type (Singer or Airbyte)
+type CLIDriver interface {
+	Driver
+
+	//IsClosed returns true if the driver is already closed
+	IsClosed() bool
+	//Load runs CLI command and consumes output
+	Load(state string, taskLogger logging.TaskLogger, dataConsumer CLIDataConsumer) error
+	//Ready returns true if the driver is ready otherwise returns ErrNotReady
+	Ready() (bool, error)
+	//GetTap returns Singer tap or airbyte docker image (without prefix 'airbyte/': source-mixpanel)
+	GetTap() string
+	//GetTableNamePrefix returns stream table name prefix or sourceID_
+	GetTableNamePrefix() string
+	//GetStreamTableNameMapping returns stream - table name mappings from configuration
+	GetStreamTableNameMapping() map[string]string
+}
+
+//CLIDataConsumer is used for consuming CLI drivers output
+type CLIDataConsumer interface {
+	Consume(representation *CLIOutputRepresentation) error
+}
+
+//CLIOutputRepresentation is a singer/airbyte output representation
+type CLIOutputRepresentation struct {
+	State interface{}
+	//[streamName] - {}
+	Streams map[string]*StreamRepresentation
+}
+
+//StreamRepresentation is a singer/airbyte stream representation
+type StreamRepresentation struct {
+	StreamName  string
+	BatchHeader *schema.BatchHeader
+	KeyFields   []string
+	Objects     []map[string]interface{}
+	NeedClean   bool
+}
+
 //RegisterDriver registers function to create new driver instance
 func RegisterDriver(driverType string,
 	createDriverFunc func(ctx context.Context, config *SourceConfig, collection *Collection) (Driver, error)) {
@@ -147,4 +191,31 @@ func UnmarshalConfig(config interface{}, object interface{}) error {
 	}
 
 	return nil
+}
+
+//WaitReadiness waits 90 sec until driver is ready or returns false and notReadyError
+func WaitReadiness(driver CLIDriver, taskLogger logging.TaskLogger) (bool, error) {
+	ready, _ := driver.Ready()
+
+	if ready {
+		return true, nil
+	}
+
+	seconds := 0
+	for seconds < 90 {
+		if driver.IsClosed() {
+			return false, fmt.Errorf("%s already has been closed", driver.Type())
+		}
+
+		ready, _ := driver.Ready()
+		if ready {
+			return true, nil
+		}
+
+		taskLogger.WARN("waiting for source driver being ready..")
+		time.Sleep(10 * time.Second)
+		seconds += 10
+	}
+
+	return driver.Ready()
 }

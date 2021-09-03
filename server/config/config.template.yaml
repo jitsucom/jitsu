@@ -7,7 +7,7 @@ server:
   #port: 8001 #Optional
 
   ### API Keys reloading. If 'api_keys' is http or file:/// source than it will be reloaded every api_keys_reload_sec
-  #api_keys_reload_sec: 3 #Optional. Default value is 3.
+  #api_keys_reload_sec: 1 #Optional. Default value is 1.
 
   ### Admin endpoint authorization
   admin_token: admin_token #Optional. Token for using Admin endpoints https://jitsu.com/docs/other-features/admin-endpoints
@@ -30,7 +30,7 @@ server:
   #destinations_reload_sec: 5 #Optional. Default value is 5.
 
   ### Sources reloading. If 'sources' key is http or file:/// URL than it will be reloaded every sources_reload_sec
-  #sources_reload_sec: 7 #Optional. Default value is 7.
+  #sources_reload_sec: 1 #Optional. Default value is 1.
 
   ### Application metrics
   ### At present only Prometheus is supported. Read more about application metrics https://jitsu.com/docs/other-features/application-metrics

@@ -784,8 +784,8 @@ export interface ServerStorage {
   saveUserInfo(data: any): Promise<void>;
 }
 
-class HttpServerStorage implements ServerStorage {
-  private static readonly USERS_INFO_PATH = '/users/info';
+export class HttpServerStorage implements ServerStorage {
+  public static readonly USERS_INFO_PATH = '/users/info';
   private backendApi: BackendApiClient;
 
   constructor(backendApi: BackendApiClient) {
@@ -797,7 +797,10 @@ class HttpServerStorage implements ServerStorage {
   }
 
   saveUserInfo(data: any): Promise<void> {
-    return this.backendApi.post(`${HttpServerStorage.USERS_INFO_PATH}`, Marshal.toPureJson(data));
+    return this.backendApi.post(
+      `${HttpServerStorage.USERS_INFO_PATH}`,
+      Marshal.toPureJson(data)
+    );
   }
 
   get(collectionName: string, key: string): Promise<any> {
@@ -805,7 +808,10 @@ class HttpServerStorage implements ServerStorage {
   }
 
   save(collectionName: string, data: any, key: string): Promise<void> {
-    return this.backendApi.post(`/configurations/${collectionName}?id=${key}`, Marshal.toPureJson(data));
+    return this.backendApi.post(
+      `/configurations/${collectionName}?id=${key}`,
+      Marshal.toPureJson(data)
+    );
   }
 }
 

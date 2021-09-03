@@ -9,7 +9,7 @@ import { IProject } from 'lib/services/model';
  * greater or equal to the total count of the `source` events due to the
  * multiplexing
  */
-type EventsNamespace = 'source' | 'destination';
+type EventsNamespace = 'source' | 'push_source' | 'destination';
 
 type SourcesEventsCountType = 'success' | 'skip'
 type DestinationsEventsCountType = 'success' | 'skip' | 'errors'
@@ -67,8 +67,8 @@ export interface IStatisticsService {
     start: Date,
     end: Date,
     granularity: Granularity,
-    namespace?: 'source',
-    status?: SourcesEventsCountType
+    namespace?: 'push_source',
+    status?: SourcesEventsCountType,
   ): Promise<DatePoint[]>;
   get(
     start: Date,
