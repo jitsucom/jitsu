@@ -41,7 +41,7 @@ export const allAirbyteSources: AirbyteSource[] = [
       overview: (
         <>
           <a href="https://www.apify.com/">Apify</a> is a web scraping and web automation platform providing both ready-made and custom solutions, an open-source <a href="https://sdk.apify.com/">SDK</a> for web scraping, proxies, and many other tools to help you build and run web automation jobs at scale.{' '}
-          The results of a scraping job are usually stored in <a href="https://docs.apify.com/storage/dataset">Apify Dataset</a>. This Airbyte connector allows you to automatically sync the contents of a dataset to your chosen destination using Airbyte.
+          The results of a scraping job are usually stored in <a href="https://docs.apify.com/storage/dataset">Apify Dataset</a>. This connector allows you to automatically sync the contents of a dataset to your chosen destination.
           To sync data from a dataset, all you need to know is its ID. You will find it in <a href="https://my.apify.com/">Apify console</a> under storages.
         </>
       ),
