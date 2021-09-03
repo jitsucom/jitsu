@@ -1,9 +1,17 @@
-import { hubspot, mysql, mongodb, googleAds, postgres } from './jitsu';
+import {
+  hubspot,
+  mysql,
+  mongodb,
+  googleAds,
+  postgres,
+  braintree
+} from './jitsu';
 
 export const allMockJitsuAirbyteSourceConnectors = Object.freeze({
   hubspot,
   mysql,
   mongodb,
   googleAds,
-  postgres
+  postgres,
+  braintree
 } as const);

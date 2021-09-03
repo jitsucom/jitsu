@@ -7,7 +7,8 @@ import {
   instagram,
   googleAds,
   microsoftTeams,
-  postgres
+  postgres,
+  braintree
 } from './airbyte';
 
 export const allMockAirbyteSourcesSpecs = Object.freeze({
@@ -19,5 +20,6 @@ export const allMockAirbyteSourcesSpecs = Object.freeze({
   instagram,
   googleAds,
   microsoftTeams,
-  postgres
+  postgres,
+  braintree
 } as const);
