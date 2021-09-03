@@ -1,9 +1,9 @@
-import { snakeCaseToWords, toTitleCase } from 'utils/strings';
+import { snakeCaseToWords, toTitleCase } from '../../../utils/strings';
 import {
   assertIsArray,
   assertIsArrayOfTypes,
   assertIsObject
-} from 'utils/typeCheck';
+} from '../../../utils/typeCheck';
 import {
   SingerTap,
   jsonType,
