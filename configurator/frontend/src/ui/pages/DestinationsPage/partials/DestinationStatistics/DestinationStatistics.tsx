@@ -1,6 +1,6 @@
 // @Libs
 import { Button, Card, Col, Row } from 'antd';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { generatePath, useHistory, useParams } from 'react-router-dom';
 // @Store
 import { destinationsStore } from 'stores/destinations';
@@ -15,10 +15,11 @@ import { destinationPageRoutes } from '../../DestinationsPage.routes';
 // @Types
 import { CommonDestinationPageProps } from '../../DestinationsPage';
 // @Services
-import ApplicationServices from 'lib/services/ApplicationServices';
+import { useServices } from 'hooks/useServices';
 import {
   DestinationsStatisticsDatePoint,
   DetailedStatisticsDatePoint,
+  IStatisticsService,
   StatisticsService
 } from 'lib/services/stat';
 // @Utils
@@ -31,21 +32,24 @@ type StatisticsPageParams = {
   id: string;
 };
 
-const services = ApplicationServices.get();
-const statisticsService = new StatisticsService(
-  services.backendApiClient,
-  services.activeProject,
-  true
-);
-
 export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
   setBreadcrumbs
 }) => {
   const history = useHistory();
+  const services = useServices();
   const params = useParams<StatisticsPageParams>();
   const destinationUid = destinationsStore.getDestinationById(params.id)?._uid;
   const destinationReference = destinationsStore.getDestinationReferenceById(
     params.id
+  );
+  const statisticsService = useMemo<IStatisticsService>(
+    () =>
+      new StatisticsService(
+        services.backendApiClient,
+        services.activeProject,
+        true
+      ),
+    []
   );
 
   // Events last 30 days

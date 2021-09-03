@@ -1,6 +1,6 @@
 import { Destination } from '../types';
-import { hiddenValue, modeParameter, tableName } from './common';
-import { jsonType, stringType } from '../../sources/types';
+import { modeParameter, tableName } from './common';
+import { hiddenValue, jsonType, stringType } from '../../sources/types';
 
 const icon = (
   <svg
@@ -127,7 +127,7 @@ const bigQueryDestination = {
       required: true,
       type: stringType,
       constant: hiddenValue('', (cfg) => {
-        return cfg?._formData?.mode !== 'batch';
+        return cfg?.['_formData']?.mode !== 'batch';
       })
     }
   ]

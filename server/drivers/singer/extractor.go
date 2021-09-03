@@ -7,13 +7,13 @@ import (
 	"io/ioutil"
 )
 
-type SingerSettingsExtractor struct {
-	Catalog    *SingerCatalog
-	Properties *SingerCatalog
+type SettingsExtractor struct {
+	Catalog    *Catalog
+	Properties *Catalog
 }
 
-func NewFileBasedSingerSettingsExtractor(catalogPath, propertiesPath string) (*SingerSettingsExtractor, error) {
-	singerSettingsExtractor := SingerSettingsExtractor{}
+func NewFileBasedSingerSettingsExtractor(catalogPath, propertiesPath string) (*SettingsExtractor, error) {
+	singerSettingsExtractor := SettingsExtractor{}
 	if catalogPath != "" {
 		err := loadCatalogFromFile(catalogPath, &singerSettingsExtractor)
 		if err != nil {
@@ -31,7 +31,7 @@ func NewFileBasedSingerSettingsExtractor(catalogPath, propertiesPath string) (*S
 	return &singerSettingsExtractor, nil
 }
 
-func loadCatalogFromFile(path string, s *SingerSettingsExtractor) error {
+func loadCatalogFromFile(path string, s *SettingsExtractor) error {
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("Error reading catalog file: %v", err)
@@ -39,7 +39,7 @@ func loadCatalogFromFile(path string, s *SingerSettingsExtractor) error {
 	return s.LoadCatalog(bytes)
 }
 
-func loadPropertiesFromFile(path string, s *SingerSettingsExtractor) error {
+func loadPropertiesFromFile(path string, s *SettingsExtractor) error {
 	bytes, err := ioutil.ReadFile(path)
 	if err != nil {
 		return fmt.Errorf("Error reading properties file: %v", err)
@@ -47,8 +47,8 @@ func loadPropertiesFromFile(path string, s *SingerSettingsExtractor) error {
 	return s.LoadProperties(bytes)
 }
 
-func (sse *SingerSettingsExtractor) LoadProperties(jsonBytes []byte) error {
-	properties := &SingerCatalog{}
+func (sse *SettingsExtractor) LoadProperties(jsonBytes []byte) error {
+	properties := &Catalog{}
 	err := json.Unmarshal(jsonBytes, properties)
 	if err != nil {
 		return err
@@ -57,8 +57,8 @@ func (sse *SingerSettingsExtractor) LoadProperties(jsonBytes []byte) error {
 	return nil
 }
 
-func (sse *SingerSettingsExtractor) LoadCatalog(jsonBytes []byte) error {
-	catalog := &SingerCatalog{}
+func (sse *SettingsExtractor) LoadCatalog(jsonBytes []byte) error {
+	catalog := &Catalog{}
 	err := json.Unmarshal(jsonBytes, catalog)
 	if err != nil {
 		return err
@@ -67,7 +67,7 @@ func (sse *SingerSettingsExtractor) LoadCatalog(jsonBytes []byte) error {
 	return nil
 }
 
-func (sse *SingerSettingsExtractor) ExtractTableNamesMappings(prefix string) (map[string]string, error) {
+func (sse *SettingsExtractor) ExtractTableNamesMappings(prefix string) (map[string]string, error) {
 	streamTableNamesMapping := map[string]string{}
 	if sse.Catalog == nil {
 		return streamTableNamesMapping, nil
@@ -102,8 +102,8 @@ func (sse *SingerSettingsExtractor) ExtractTableNamesMappings(prefix string) (ma
 	return streamTableNamesMapping, nil
 }
 
-func (sse *SingerSettingsExtractor) ExtractStreamReplicationMappings() (map[string]string, error) {
-	var streams []SingerStreamCatalog
+func (sse *SettingsExtractor) ExtractStreamReplicationMappings() (map[string]string, error) {
+	var streams []StreamCatalog
 	if sse.Catalog != nil {
 		streams = sse.Catalog.Streams
 	} else if sse.Properties != nil {

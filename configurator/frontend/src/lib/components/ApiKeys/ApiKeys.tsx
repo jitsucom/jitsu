@@ -374,7 +374,7 @@ const ApiKeysComponent: React.FC = () => {
 
 }
 
-function getDomainsSelection(env: string) {
+export function getDomainsSelectionByEnv(env: string) {
   return env === 'heroku' ? [location.protocol + '//' + location.host] : [];
 }
 
@@ -387,27 +387,26 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({
   token,
   displayDomainDropdown = true
 }) {
-  const [segment, setSegmentEnabled] = useState(false);
+  const [segment, setSegmentEnabled] = useState<boolean>(false);
   const services = useServices();
-  const staticDomains = getDomainsSelection(services.features.environment);
+  const staticDomains = getDomainsSelectionByEnv(services.features.environment);
   console.log(
     `As per ${services.features.environment} available static domains are: ` +
       staticDomains
   );
-  const [selectedDomain, setSelectedDomain] = useState(
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(
     staticDomains.length > 0 ? staticDomains[0] : null
   );
   const [error, domains] = services.features.enableCustomDomains
     ? useLoader(async () => {
-        let result = await services.storageService.get(
+        const result = await services.storageService.get(
           'custom_domains',
           services.activeProject.id
         );
-        let customDomains =
-          result && result.domains
-            ? result.domains.map((domain) => 'https://' + domain.name)
-            : [];
-        let newDomains = [...customDomains, 'https://t.jitsu.com'];
+        const customDomains =
+          result?.domains?.map((domain) => 'https://' + domain.name)
+          || [];
+        const newDomains = [...customDomains, 'https://t.jitsu.com'];
         setSelectedDomain(newDomains[0]);
         return newDomains;
       })
@@ -421,7 +420,7 @@ export const KeyDocumentation: React.FC<KeyDocumentationProps> = function ({
   }
   console.log(`Currently selected domain is: ${selectedDomain}`);
 
-  let exampleSwitches = (
+  const exampleSwitches = (
     <div className="api-keys-doc-embed-switches">
       <Space>
         <LabelWithTooltip
