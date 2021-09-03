@@ -70,7 +70,7 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 				sop.logger.LOG(row.Log.Message, airbyteSystem, logging.ERROR)
 			case "INFO":
 				sop.logger.LOG(row.Log.Message, airbyteSystem, logging.INFO)
-			case "WARNING":
+			case "WARN":
 				sop.logger.LOG(row.Log.Message, airbyteSystem, logging.WARN)
 			default:
 				logging.SystemErrorf("Unknown airbyte log message level: %s", row.Log.Level)
