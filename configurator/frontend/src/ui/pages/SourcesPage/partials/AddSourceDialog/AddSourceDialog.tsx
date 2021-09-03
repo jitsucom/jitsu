@@ -18,9 +18,17 @@ import { useServices } from 'hooks/useServices';
 
 /**
  * All sources which are available for adding. Some filtering & sorting is applied
+ * Sort:
+ * 1. native connectors (protoType === undefined)
+ * 2. not expert mode
+ * 3. expert mode
  */
 const allAvailableSources = allSources.sort((a, b) => {
-  if (a.expertMode && !b.expertMode) {
+  if (a.protoType === undefined && b.protoType !== undefined){
+    return -1;
+  }else if (a.protoType !== undefined && b.protoType === undefined){
+    return 1
+  }else if (a.expertMode && !b.expertMode) {
     return 1;
   } else if (!a.expertMode && b.expertMode) {
     return -1;

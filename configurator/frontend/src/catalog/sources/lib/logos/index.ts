@@ -33,6 +33,7 @@ export const posthog = require('./posthog').default();
 export const prestashop = require('./prestashop').default();
 export const quickbooks = require('./quickbooks').default();
 export const redshift = require('./redshift').default();
+export const shortio = require('./shortio').default();
 export const smartsheet = require('./smartsheet').default();
 export const snapchat_marketing = require('./snapchat_marketing').default();
 export const snowflake = require('./snowflake').default();
