@@ -2900,9 +2900,9 @@ export const allAirbyteSources: AirbyteSource[] = [
     }
   },
   {
-    pic: logos.default_logo,
+    pic: logos.shortio,
     docker_image_name: 'airbyte/source-shortio',
-    displayName: 'Shortio',
+    displayName: 'Short.io',
     stable: false,
     documentation: {
       overview: (
