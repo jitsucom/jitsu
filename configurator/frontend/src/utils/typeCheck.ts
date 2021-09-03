@@ -97,7 +97,9 @@ export function assertIsArrayOfTypes<T>(
 ): asserts value is Array<T> {
   assertIsArray(value);
   if (value.length === 0) return;
-  const actualTypes = new Set(value.map((element) => typeof element));
+  const actualTypes = Array.from(
+    new Set(value.map((element) => typeof element))
+  ); // filtering duplicates
   const whitelistedTypes = new Set(
     toArrayIfNot(typeReferenceValues).map((element) => typeof element)
   );
