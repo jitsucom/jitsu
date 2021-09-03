@@ -4,19 +4,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
-
 	_ "github.com/jitsucom/jitsu/server/drivers/amplitude"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	_ "github.com/jitsucom/jitsu/server/drivers/facebook_marketing"
 	_ "github.com/jitsucom/jitsu/server/drivers/firebase"
+	_ "github.com/jitsucom/jitsu/server/drivers/google_ads"
 	_ "github.com/jitsucom/jitsu/server/drivers/google_analytics"
 	_ "github.com/jitsucom/jitsu/server/drivers/google_play"
 	_ "github.com/jitsucom/jitsu/server/drivers/redis"
 	_ "github.com/jitsucom/jitsu/server/drivers/singer"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/scheduling"
-	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/spf13/cast"
 )
 
@@ -48,19 +46,6 @@ func Create(ctx context.Context, sourceID string, sourceConfig *base.SourceConfi
 	logging.Infof("[%s] Initializing source of type: %s", sourceID, sourceConfig.Type)
 	if len(collections) == 0 {
 		return nil, errors.New("collections are empty. Please specify at least one collection")
-	}
-
-	for _, collection := range collections {
-		if collection.StartDateStr != "" {
-			startDate, err := time.Parse(timestamp.DashDayLayout, collection.StartDateStr)
-			if err != nil {
-				return nil, fmt.Errorf("Malformed start_date in %s collection: please use YYYY-MM-DD format: %v", collection.Name, err)
-			}
-
-			date := time.Date(startDate.Year(), startDate.Month(), startDate.Day(), 0, 0, 0, 0, time.UTC)
-			collection.DaysBackToLoad = getDaysBackToLoad(&date)
-			logging.Infof("[%s_%s] Using start date: %s", sourceID, collection.Name, date)
-		}
 	}
 
 	driverPerCollection := map[string]base.Driver{}
@@ -145,7 +130,9 @@ func ParseCollections(sourceConfig *base.SourceConfig) ([]*base.Collection, erro
 			}
 
 			collectionObj.SourceID = sourceConfig.SourceID
-
+			if err := collectionObj.Init(); err != nil {
+				return nil, err
+			}
 			if err := collectionObj.Validate(); err != nil {
 				return nil, err
 			}
@@ -157,12 +144,4 @@ func ParseCollections(sourceConfig *base.SourceConfig) ([]*base.Collection, erro
 	}
 
 	return collections, nil
-}
-
-//return difference between now and t in DAYS + 1 (current day)
-//e.g. 2021-03-01 - 2021-03-01 = 0, but we should load current date as well
-func getDaysBackToLoad(t *time.Time) int {
-	now := time.Now().UTC()
-	currentDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	return int(currentDay.Sub(*t).Hours()/24) + 1
 }

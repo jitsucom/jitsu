@@ -12,7 +12,9 @@ export type GoogleParametersNodes = {
   type?: string
   disableOauth?: boolean
   disableServiceAccount?: boolean,
-  serviceAccountKey?: string
+  serviceAccountKey?: string,
+  requireSubject?: boolean,
+  subjectKey?: string
 }
 
 /**
@@ -34,7 +36,10 @@ export const googleAuthConfigParameters: (param?: GoogleParametersNodes) => Para
   type = 'config.auth.type',
   disableOauth = false,
   disableServiceAccount = false,
-  serviceAccountKey = 'config.auth.service_account_key'
+  requireSubject = false,
+  serviceAccountKey = 'config.auth.service_account_key',
+  subjectKey = 'config.auth.subject'
+
 }: GoogleParametersNodes = {}) => removeNulls([
   {
     displayName: 'Authorization Type',
@@ -104,5 +109,15 @@ export const googleAuthConfigParameters: (param?: GoogleParametersNodes) => Para
       <>
         <a href="https://cloud.google.com/iam/docs/creating-managing-service-account-keys">Use Google Cloud Console to create Service Account get Service Key JSON</a>
       </>
+  },
+  !disableServiceAccount && requireSubject && {
+    displayName: 'Subject',
+    id: subjectKey,
+    type: stringType,
+    required: true,
+    documentation:
+        <>
+        A Google Ads user with permissions on the Google Ads account you want to access. Google Ads does not support using service accounts without impersonation.
+        </>
   }
 ]);
