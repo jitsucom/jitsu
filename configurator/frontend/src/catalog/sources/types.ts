@@ -168,6 +168,7 @@ export interface CollectionParameter extends Parameter {
 
 type SourceConnectorId = 
   | "facebook_marketing"
+  | "google_ads"
   | "google_analytics"
   | "google_play"
   | "firebase"
@@ -178,6 +179,10 @@ export interface SourceConnector {
    * Is it singer source or not, optional parameter.
    * */
   isSingerType?: boolean;
+  /**
+   * Enable collection Start Date parameter.
+   * */
+  isStartDateEnabled?: boolean;
 
   /**
    * If connector requires expert-level knowledge (such as JSON editing)

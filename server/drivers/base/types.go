@@ -16,6 +16,7 @@ const (
 	FirebaseType        = "firebase"
 	GoogleAnalyticsType = "google_analytics"
 	GooglePlayType      = "google_play"
+	GoogleAdsType 		= "google_ads"
 	RedisType           = "redis"
 
 	SingerType = "singer"
@@ -37,6 +38,7 @@ type GoogleAuthConfig struct {
 	ClientSecret      string      `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
 	RefreshToken      string      `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
 	ServiceAccountKey interface{} `mapstructure:"service_account_key" json:"service_account_key,omitempty" yaml:"service_account_key,omitempty"`
+	Subject			  string      `mapstructure:"subject" json:"subject,omitempty" yaml:"subject,omitempty"`
 }
 
 func (gac *GoogleAuthConfig) Marshal() ([]byte, error) {
