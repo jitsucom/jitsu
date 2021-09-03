@@ -40,7 +40,7 @@
     "build": "NODE_ENV=production craco build",
     "test:debug": "craco --inspect-brk test --runInBand --no-cache",
     "test:cloud": "yarn set_cloud_env craco test",
-    "test:cloud:deabug": "yarn set_cloud_env yarn test:debug",
+    "test:cloud:debug": "yarn set_cloud_env yarn test:debug",
     "test:local": "yarn set_local_env craco test",
     "test:local:debug": "yarn set_local_env yarn test:debug",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",

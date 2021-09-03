@@ -203,6 +203,19 @@ export const makeAirbyteSource = (
   };
 };
 
+type EnrichedAirbyteSpecNode = UnknownObject & {
+  id: string;
+  parentNode?: EnrichedAirbyteSpecNode;
+};
+
+type AirbyteSpecNodeMappingParameters = {
+  nodeName?: string;
+  requiredFields?: string[];
+  parentNode?: EnrichedAirbyteSpecNode;
+  setChildrenParameters?: Partial<Parameter>;
+  omitFieldRule?: (config: unknown) => boolean;
+};
+
 /**
  * Maps the spec of the Airbyte connector to the Jitsu `Parameter` schema of the `SourceConnector`.
  * @param specNode `connectionSpecification` field which is the root node of the airbyte source spec.
@@ -210,21 +223,26 @@ export const makeAirbyteSource = (
 export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
   specNode: unknown,
   sourceName: string,
-  nodeName?: string,
-  requiredFields?: string[],
-  parentNodeId?: string,
-  omitFieldRule?: (config: unknown) => boolean
+  options?: AirbyteSpecNodeMappingParameters
 ): Parameter[] {
   const result: Parameter[] = [];
 
-  const id = `${parentNodeId}.${nodeName}`;
-  const required = requiredFields.includes(nodeName);
+  const {
+    nodeName,
+    parentNode,
+    requiredFields,
+    setChildrenParameters,
+    omitFieldRule
+  } = options || {};
+
+  const id = `${parentNode.id}.${nodeName}`;
+  const required = !!requiredFields?.includes(nodeName || '');
   const documentation = specNode['description'] ? (
     <span dangerouslySetInnerHTML={{ __html: specNode['description'] }} />
   ) : undefined;
 
   switch (specNode['type']) {
-    case 'string':
+    case 'string': {
       const fieldType = specNode['airbyte_secret']
         ? passwordType
         : specNode['enum']
@@ -238,13 +256,15 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         type: fieldType,
         required,
         documentation,
-        omitFieldRule
+        omitFieldRule,
+        ...setChildrenParameters
       };
       if (specNode['default'] !== undefined)
         mappedStringField.defaultValue = specNode['default'];
       return [mappedStringField];
+    }
 
-    case 'integer':
+    case 'integer': {
       const mappedIntegerField: Parameter = {
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
@@ -261,8 +281,9 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
       if (specNode['default'] !== undefined)
         mappedIntegerField.defaultValue = specNode['default'];
       return [mappedIntegerField];
+    }
 
-    case 'boolean':
+    case 'boolean': {
       const mappedBooleanField: Parameter = {
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
@@ -276,8 +297,9 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
       if (specNode['default'] !== undefined)
         mappedBooleanField.defaultValue = specNode['default'];
       return [mappedBooleanField];
+    }
 
-    case 'object':
+    case 'object': {
       let optionsEntries: [string, unknown][] = [];
       let listOfRequiredFields: string[] = [];
 
@@ -300,7 +322,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           displayName: specNode['title']
             ? toTitleCase(specNode['title'])
             : toTitleCase(snakeCaseToWords(nodeName)),
-          id: `${parentNodeId}.${nodeName}.${optionsFieldName}`,
+          id: `${parentNode.id}.${nodeName}.${optionsFieldName}`,
           type: singleSelectionType(options),
           required,
           documentation,
@@ -315,45 +337,76 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         );
       }
 
+      assertIsObject(specNode);
+
       const parentId = id;
       optionsEntries.forEach(([nodeName, node]) =>
         result.push(
-          ...mapAirbyteNode(
-            node,
-            sourceName,
+          ...mapAirbyteNode(node, sourceName, {
             nodeName,
-            listOfRequiredFields,
-            parentId
-          )
+            requiredFields: listOfRequiredFields,
+            parentNode: {
+              ...specNode,
+              id: parentId,
+              parentNode
+            }
+          })
         )
       );
       break;
-
-    case undefined:
+    }
+    case undefined: {
       if (specNode['allOf']) {
         // Case for the nodes that have the 'allOf' property
-        
+        const nodes = specNode['allOf'];
+        assertIsArray(nodes);
+        nodes.forEach((node) => {
+          assertIsObject(node);
+          result.push(
+            ...mapAirbyteNode(node, sourceName, {
+              nodeName,
+              requiredFields,
+              parentNode: {
+                ...node,
+                id: parentNode.id,
+                parentNode
+              },
+              setChildrenParameters: {
+                documentation,
+                required
+              }
+            })
+          );
+        });
+      } else if (specNode['$ref']) {
+        const refNode = getAirbyteSpecNodeByRef(parentNode, specNode['$ref']);
+        result.push(
+          ...mapAirbyteNode(refNode, sourceName, {
+            nodeName,
+            parentNode,
+            setChildrenParameters
+          })
+        );
       } else {
         // Special case for the nodes from the `oneOf` list in the `object` node
         const childrenNodesEntries: unknown = Object.entries(
           specNode['properties']
         );
         const parentNodeValueProperty = childrenNodesEntries[0][0];
-        const parentNodeValueKey = `${parentNodeId}.${parentNodeValueProperty}`;
+        const parentNodeValueKey = `${parentNode.id}.${parentNodeValueProperty}`;
         const _listOfRequiredFields: unknown = specNode['required'] || [];
+        assertIsObject(specNode);
         assertIsArray(childrenNodesEntries);
         assertIsArrayOfTypes(_listOfRequiredFields, 'string');
         childrenNodesEntries
           .slice(1) // Ecludes the first entry as it is a duplicate definition of the parent node
           .forEach(([nodeName, node]) =>
             result.push(
-              ...mapAirbyteNode(
-                node,
-                sourceName,
+              ...mapAirbyteNode(node, sourceName, {
                 nodeName,
-                _listOfRequiredFields,
-                parentNodeId,
-                (config) => {
+                requiredFields: _listOfRequiredFields,
+                parentNode: { ...specNode, id: parentNode.id, parentNode },
+                omitFieldRule: (config) => {
                   const parentSelectionNodeValue = parentNodeValueKey
                     .split('.')
                     .reduce((obj, key) => obj[key] || {}, config);
@@ -364,13 +417,45 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
                     showChildFieldIfThisParentValueSelected
                   );
                 }
-              )
+              })
             )
           );
       }
       break;
+    }
   }
   return result;
+};
+
+const getAirbyteSpecNodeByRef = (
+  parentNode: EnrichedAirbyteSpecNode,
+  ref: string
+): UnknownObject | null => {
+  const rootNode = getAirbyteSpecRootNode(parentNode);
+  const nodesNames = ref.replace('#/', '').split('/');
+
+  return nodesNames.reduce<UnknownObject | null>(
+    (parentNode, childNodeName) => {
+      if (parentNode === null) return null;
+      const childNode = parentNode[childNodeName];
+      try {
+        assertIsObject(childNode);
+        return childNode;
+      } catch {
+        return null;
+      }
+    },
+    rootNode
+  );
+};
+
+const getAirbyteSpecRootNode = (
+  node: EnrichedAirbyteSpecNode
+): EnrichedAirbyteSpecNode => {
+  const grandparent = node?.parentNode?.parentNode;
+  if (!grandparent) return node;
+
+  return getAirbyteSpecRootNode(node.parentNode);
 };
 
 const getEntriesFromPropertiesField = (node: unknown): [string, unknown][] => {
