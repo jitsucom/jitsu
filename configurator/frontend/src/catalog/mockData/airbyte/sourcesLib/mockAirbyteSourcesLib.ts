@@ -58,5 +58,12 @@ export const allMockAirbyteSources: AirbyteSource[] = [
     docker_image_name: 'airbyte/source-postgres',
     displayName: 'Postgres',
     stable: false
+  },
+
+  {
+    pic: logos.airbyte,
+    docker_image_name: 'airbyte/source-braintree',
+    displayName: 'Braintree',
+    stable: false
   }
 ];
