@@ -33,7 +33,7 @@ export const allAirbyteSources: AirbyteSource[] = [
     }
   },
   {
-    pic: logos.default_logo,
+    pic: logos.apify,
     docker_image_name: 'airbyte/source-apify-dataset',
     displayName: 'Apify Dataset',
     stable: false,
@@ -1345,7 +1345,7 @@ export const allAirbyteSources: AirbyteSource[] = [
     }
   },
   {
-    pic: logos.default_logo,
+    pic: logos.google,
     docker_image_name: 'airbyte/source-google-directory',
     displayName: 'Google Directory',
     stable: false,
@@ -1820,7 +1820,7 @@ export const allAirbyteSources: AirbyteSource[] = [
     }
   },
   {
-    pic: logos.default_logo,
+    pic: logos.cartcom,
     docker_image_name: 'airbyte/source-cart',
     displayName: 'Cart.com',
     stable: false,
@@ -1965,7 +1965,7 @@ export const allAirbyteSources: AirbyteSource[] = [
     }
   },
   {
-    pic: logos.default_logo,
+    pic: logos.dixa,
     docker_image_name: 'airbyte/source-dixa',
     displayName: 'Dixa',
     stable: false,

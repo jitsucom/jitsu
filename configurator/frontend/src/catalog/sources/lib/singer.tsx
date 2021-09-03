@@ -61,6 +61,7 @@ export const allSingerTaps: SingerTap[] = [
     hasNativeEquivalent: false
   },
   {
+    deprecated: true,
     pic: logos.tap_bigcommerce,
     displayName: 'BigCommerce',
     tap: 'tap-bigcommerce',
