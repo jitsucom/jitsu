@@ -17,6 +17,7 @@ RUN sed -e 's;^# \(%wheel.*NOPASSWD.*\);\1;g' -i /etc/sudoers \
     && mkdir -p /home/$EVENTNATIVE_USER/data/logs/events \
     && mkdir -p /home/$EVENTNATIVE_USER/data/config \
     && mkdir -p /home/$EVENTNATIVE_USER/data/venv \
+    && mkdir -p /home/$EVENTNATIVE_USER/data/airbyte \
     && mkdir -p /home/$EVENTNATIVE_USER/app \
     && chown -R $EVENTNATIVE_USER:$EVENTNATIVE_USER /home/$EVENTNATIVE_USER \
     && echo 'if [ -e /var/run/docker.sock ]; then sudo chmod 666 /var/run/docker.sock; fi' > /home/eventnative/.bashrc \
