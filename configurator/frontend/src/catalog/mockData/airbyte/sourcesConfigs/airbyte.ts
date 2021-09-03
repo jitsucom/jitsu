@@ -471,3 +471,58 @@ export const postgres = {
   supportsDBT: false,
   supported_destination_sync_modes: []
 };
+
+export const braintree = {
+  connectionSpecification: {
+    definitions: {
+      Environment: {
+        description: 'An enumeration.',
+        enum: ['Development', 'Sandbox', 'Qa', 'Production'],
+        title: 'Environment',
+        type: 'string'
+      }
+    },
+    properties: {
+      environment: {
+        allOf: [{ $ref: '#/definitions/Environment' }],
+        description: 'Environment specifies where the data will come from.',
+        examples: ['sandbox', 'production', 'qa', 'development'],
+        name: 'Environment'
+      },
+      merchant_id: {
+        description:
+          '\u003ca href="https://docs.airbyte.io/integrations/sources/braintree"\u003eMerchant ID\u003c/a\u003e is the unique identifier for entire gateway account.',
+        name: 'Merchant ID',
+        title: 'Merchant Id',
+        type: 'string'
+      },
+      private_key: {
+        airbyte_secret: true,
+        description: 'This is your user-specific private identifier.',
+        name: 'Private Key',
+        title: 'Private Key',
+        type: 'string'
+      },
+      public_key: {
+        description:
+          'This is your user-specific public identifier for Braintree.',
+        name: 'Public key',
+        title: 'Public Key',
+        type: 'string'
+      },
+      start_date: {
+        description:
+          "The date from which you'd like to replicate data for Braintree API for UTC timezone, All data generated after this date will be replicated.",
+        examples: ['2020', '2020-12-30', '2020-11-22 20:20:05'],
+        format: 'date-time',
+        name: 'Start date',
+        title: 'Start Date',
+        type: 'string'
+      }
+    },
+    required: ['merchant_id', 'public_key', 'private_key', 'environment'],
+    title: 'Braintree Spec',
+    type: 'object'
+  },
+  documentationUrl: 'https://docs.airbyte.io/integrations/sources/braintree'
+};
