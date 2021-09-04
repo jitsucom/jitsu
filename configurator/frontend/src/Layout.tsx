@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { ReactElement, useState } from 'react';
 import { NavLink, useHistory } from 'react-router-dom';
-import { Button, Dropdown, Menu, message, Modal, MessageArgsProps } from 'antd';
+import { Button, Dropdown, Menu, message, Modal, MessageArgsProps, Tooltip } from 'antd';
 // @Components
 import {
   BreadcrumbsProps,
@@ -27,7 +27,7 @@ import Icon, {
   UserSwitchOutlined,
   LogoutOutlined,
   PartitionOutlined,
-  FireOutlined
+  FireOutlined, LeftOutlined
 } from '@ant-design/icons';
 import logo from 'icons/logo.svg';
 import logoMini from 'icons/logo-square.svg';
@@ -47,6 +47,8 @@ import styles from './Layout.module.less';
 // @Misc
 import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
 import { FeatureSettings } from './lib/services/ApplicationServices';
+import { usePersistentState } from './hooks/usePersistentState';
+import githubLogo from './icons/github.svg';
 
 type MenuItem = {
   icon: React.ReactNode
@@ -66,7 +68,7 @@ const menuItems = [
   makeItem(<FireOutlined />, 'Live Events', '/events_stream'),
   makeItem(<ApiOutlined />, 'Sources', '/sources'),
   makeItem(<NotificationOutlined />, 'Destinations', '/destinations'),
-  makeItem(<DbtCloudIcon />, 'dbt Cloud Integration', '/dbtcloud'),
+  makeItem(<Icon component={DbtCloudIcon}/>, 'dbt Cloud Integration', '/dbtcloud'),
   makeItem(<CloudOutlined />, 'Custom Domains', '/domains', (f) => f.enableCustomDomains),
   makeItem(<DownloadOutlined />, 'Download Config', '/cfg_download', (f) => f.enableCustomDomains)
 ];
@@ -74,36 +76,35 @@ const menuItems = [
 export const ApplicationMenu: React.FC<{expanded: boolean}> = ({ expanded }) => {
   const key = usePageLocation().mainMenuKey;
 
-  return <Menu
-    selectable={false}
-    focusable={false}
-    mode="inline"
-    selectedKeys={[key]}
-    className="border-0"
-  >
-    {menuItems.map(item => expanded ?
-      <Menu.Item key={item.link} icon={item.icon}>
-        <NavLink to={item.link} activeClassName="selected">
-          {item.title}
-        </NavLink>
-      </Menu.Item> :
-      <Menu.Item key={item.link}>
-        <NavLink to={item.link} activeClassName="selected">
-          {item.icon}
-        </NavLink>
-      </Menu.Item>)}
-  </Menu>
+  return <div className="pt-3">
+    {menuItems.map(item => {
+      const selected = item.link === '/' + key;
+      return <NavLink to={item.link}>
+        <div className={`${selected && 'bg-bgPrimary'} whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
+          {!expanded && <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
+            {item.icon}
+          </Tooltip>}
+
+          {expanded && <>{item.icon}<span className="pl-2 whitespace-nowrap">{item.title}</span></>}
+        </div>
+      </NavLink>
+    })}
+  </div>
 };
 
 export const ApplicationSidebar: React.FC<{}> = () => {
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = usePersistentState(true, 'jitsu_menuExpanded');
 
-  return <div className={`${styles.sideBarContent}`} >
+  return <div className={`transition duration-150 ease-in-out relative ${styles.sideBarContent}`} >
     <div>
+      <div className={`${expanded ? 'w-3' : 'w-2'} absolute inline-block top-3 right-0 bg-bgTableHeader h-12 flex items-center justify-center rounded-l cursor-pointer`}
+        onClick={() => setExpanded(!expanded)}>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`transform ${expanded ? 'rotate-90' : '-rotate-90'}`}  viewBox="0 0 24 24"><path d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z" opacity=".35"/><path d="M14.121,18.121c0.586-0.586,6.414-6.414,7-7c1.172-1.172,1.172-3.071,0-4.243c-1.172-1.172-3.071-1.172-4.243,0	c-0.586,0.586-6.414,6.414-7,7c-1.172,1.172-1.172,3.071,0,4.243C11.05,19.293,12.95,19.293,14.121,18.121z"/></svg>
+      </div>
       <a href="https://jitsu.com" className="text-center block pt-5 h-14">
-        <img src={expanded ? logo : logoMini} alt="[logo]" className="w-32 mx-auto"/>
+        <img src={expanded ? logo : logoMini} alt="[logo]" className="h-8 mx-auto"/>
       </a>
-      <ApplicationMenu expanded/>
+      <ApplicationMenu expanded={expanded}/>
     </div>
   </div>
 }
@@ -335,7 +336,7 @@ const EmailIsNotConfirmedMessage: React.FC<{ messageKey: React.Key }> = ({
           ''
         )}
         <span>
-          {` is not verified. Please, follow the instructions in your email 
+          {` is not verified. Please, follow the instructions in your email
             to complete the verification process.`}
         </span>
       </span>
