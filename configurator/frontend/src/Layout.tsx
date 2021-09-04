@@ -1,7 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 // @Libs
 import * as React from 'react';
-import { useState } from 'react';
+import { ReactElement, useState } from 'react';
 import { NavLink, useHistory } from 'react-router-dom';
 import { Button, Dropdown, Menu, message, Modal, MessageArgsProps } from 'antd';
 // @Components
@@ -26,9 +26,11 @@ import Icon, {
   UserOutlined,
   UserSwitchOutlined,
   LogoutOutlined,
-  PartitionOutlined
+  PartitionOutlined,
+  FireOutlined
 } from '@ant-design/icons';
 import logo from 'icons/logo.svg';
+import logoMini from 'icons/logo-square.svg';
 import { ReactComponent as DbtCloudIcon } from 'icons/dbtCloud.svg';
 import classNames from 'classnames';
 // @Model
@@ -38,91 +40,70 @@ import { reloadPage } from 'lib/commons/utils';
 import { Page, usePageLocation } from 'navigation';
 // @Services
 import { useServices } from 'hooks/useServices';
-import { getIntercom } from 'lib/services/intercom-wrapper';
 import { AnalyticsBlock } from 'lib/services/analytics';
 import { PaymentPlanStatus } from 'lib/services/billing';
 // @Styles
 import styles from './Layout.module.less';
 // @Misc
 import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
+import { FeatureSettings } from './lib/services/ApplicationServices';
 
-export const ApplicationMenu: React.FC<{}> = () => {
+type MenuItem = {
+  icon: React.ReactNode
+  title: React.ReactNode
+  link: string,
+  enabled: (f: FeatureSettings) => boolean
+}
+
+const makeItem = (icon: React.ReactNode, title: React.ReactNode, link: string, enabled = (f: FeatureSettings) => true): MenuItem => {
+  return { icon, title, link, enabled };
+}
+
+const menuItems = [
+  makeItem(<PartitionOutlined />, 'Home', '/connections'),
+  makeItem(<AreaChartOutlined />, 'Statistics', '/dashboard'),
+  makeItem(<UnlockOutlined />, 'API Keys', '/api_keys'),
+  makeItem(<FireOutlined />, 'Live Events', '/events_stream'),
+  makeItem(<ApiOutlined />, 'Sources', '/sources'),
+  makeItem(<NotificationOutlined />, 'Destinations', '/destinations'),
+  makeItem(<DbtCloudIcon />, 'dbt Cloud Integration', '/dbtcloud'),
+  makeItem(<CloudOutlined />, 'Custom Domains', '/domains', (f) => f.enableCustomDomains),
+  makeItem(<DownloadOutlined />, 'Download Config', '/cfg_download', (f) => f.enableCustomDomains)
+];
+
+export const ApplicationMenu: React.FC<{expanded: boolean}> = ({ expanded }) => {
   const key = usePageLocation().mainMenuKey;
-  const services = useServices();
 
-  return (
-    <Menu
-      selectable={false}
-      focusable={false}
-      mode="inline"
-      selectedKeys={[key]}
-      className="border-0"
-    >
-      <Menu.Item key="connections" icon={<PartitionOutlined />}>
-        <NavLink to="/connections" activeClassName="selected">
-          Connections
+  return <Menu
+    selectable={false}
+    focusable={false}
+    mode="inline"
+    selectedKeys={[key]}
+    className="border-0"
+  >
+    {menuItems.map(item => expanded ?
+      <Menu.Item key={item.link} icon={item.icon}>
+        <NavLink to={item.link} activeClassName="selected">
+          {item.title}
         </NavLink>
-      </Menu.Item>
-      <Menu.Item key="dashboard" icon={<AreaChartOutlined />}>
-        <NavLink to="/dashboard" activeClassName="selected">
-          Dashboard
+      </Menu.Item> :
+      <Menu.Item key={item.link}>
+        <NavLink to={item.link} activeClassName="selected">
+          {item.icon}
         </NavLink>
-      </Menu.Item>
-      <Menu.Item key="api_keys" icon={<UnlockOutlined />}>
-        <NavLink to="/api_keys" activeClassName="selected">
-          Events API
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="sources" icon={<ApiOutlined />}>
-        <NavLink to="/sources" activeClassName="selected">
-          Sources
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="destinations" icon={<NotificationOutlined />}>
-        <NavLink to="/destinations" activeClassName="selected">
-          Destinations
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="dbtcloud" icon={<DbtCloudIcon />}>
-        <NavLink to="/dbtcloud" activeClassName="selected">
-          dbt Cloud
-        </NavLink>
-      </Menu.Item>
-      {services.features.enableCustomDomains && (
-        <Menu.Item key="domains" icon={<CloudOutlined />}>
-          <NavLink to="/domains" activeClassName="selected">
-            Custom Domains
-          </NavLink>
-        </Menu.Item>
-      )}
-      <Menu.Item key="cfg_download" icon={<DownloadOutlined />}>
-        <NavLink to="/cfg_download" activeClassName="selected">
-          Generate Config
-        </NavLink>
-      </Menu.Item>
-    </Menu>
-  );
+      </Menu.Item>)}
+  </Menu>
 };
 
 export const ApplicationSidebar: React.FC<{}> = () => {
-  const services = useServices();
-  const intercom = getIntercom();
-  return <div className={styles.sideBarContent} >
+  const [expanded, setExpanded] = useState(false);
+
+  return <div className={`${styles.sideBarContent}`} >
     <div>
       <a href="https://jitsu.com" className="text-center block pt-5 h-14">
-        <img src={logo} alt="[logo]" className="w-32 mx-auto"/>
+        <img src={expanded ? logo : logoMini} alt="[logo]" className="w-32 mx-auto"/>
       </a>
-      <ApplicationMenu/>
-    </div>
-    <div className="flex justify-center pb-4"><Button type="link" size="large"
-      onClick={() => {
-        if (services.features.chatSupportType === 'chat') {
-          intercom('show');
-        } else {
-          document.getElementById('jitsuSlackWidget').click();
-        }
-      }}><WechatOutlined/> Chat with us!
-    </Button>
+      <ApplicationMenu expanded/>
     </div>
   </div>
 }
@@ -333,7 +314,7 @@ const EmailIsNotConfirmedMessage: React.FC<{ messageKey: React.Key }> = ({
     useState<boolean>(false);
 
   const handleDestroyMessage = () => message.destroy(messageKey);
-  const handleresendConfirmationLink = async () => {
+  const handleresendConfirmationLink = async() => {
     setIsSendingVerification(true);
     try {
       await services.userService.sendConfirmationEmail();
