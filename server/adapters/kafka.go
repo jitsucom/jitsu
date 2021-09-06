@@ -1,0 +1,71 @@
+package adapters
+
+import (
+	"errors"
+	"github.com/Shopify/sarama"
+	"github.com/jitsucom/jitsu/server/schema"
+)
+
+//Kafka is a Kafka adapter for producing messages
+type Kafka struct {
+	config       *KafkaConfig
+	saramaConfig *sarama.Config
+	producer     sarama.SyncProducer
+	marshaller   schema.Marshaller
+}
+
+//KafkaConfig is a dto for config deserialization
+type KafkaConfig struct {
+	BootstrapServers []string `mapstructure:"bootstrap_servers" json:"bootstrap_servers,omitempty" yaml:"bootstrap_servers,omitempty"`
+}
+
+//Validate returns err if invalid
+func (kc *KafkaConfig) Validate() error {
+	if kc == nil {
+		return errors.New("kafka config is required")
+	}
+	if len(kc.BootstrapServers) == 0 {
+		return errors.New("kafka bootstrap_servers is required")
+	}
+	for _, server := range kc.BootstrapServers {
+		if server == "" {
+			return errors.New("boostrap server must be nonempty string")
+		}
+	}
+	return nil
+}
+
+//NewKafka returns configured Kafka adapter
+func NewKafka(kc *KafkaConfig) (*Kafka, error) {
+	if err := kc.Validate(); err != nil {
+		return nil, err
+	}
+
+	saramaConfig := sarama.NewConfig()
+	saramaConfig.Producer.RequiredAcks = sarama.WaitForAll
+	saramaConfig.Producer.Retry.Max = 10
+	saramaConfig.Producer.Return.Successes = true
+	producer, err := sarama.NewSyncProducer(kc.BootstrapServers, saramaConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Kafka{config: kc, saramaConfig: saramaConfig, producer: producer, marshaller: schema.JSONMarshallerInstance}, nil
+}
+
+//Send sends message to Kafka topic
+func (k *Kafka) Send(event *EventContext) error {
+	msg := &sarama.ProducerMessage{
+		Topic: event.Table.Name,
+		Value: sarama.StringEncoder(event.ProcessedEvent.Serialize()),
+	}
+	if _, _, err := k.producer.SendMessage(msg); err != nil {
+		return err
+	}
+	return nil
+}
+
+//Close closes Kafka producer
+func (k *Kafka) Close() error {
+	return k.producer.Close()
+}

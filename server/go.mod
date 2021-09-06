@@ -8,6 +8,7 @@ require (
 	cloud.google.com/go/firestore v1.1.1
 	cloud.google.com/go/storage v1.10.0
 	firebase.google.com/go/v4 v4.1.0
+	github.com/Shopify/sarama v1.29.1
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/charmbracelet/lipgloss v0.2.1
 	github.com/docker/go-connections v0.4.0
@@ -15,6 +16,7 @@ require (
 	github.com/gin-gonic/gin v1.6.3
 	github.com/go-redsync/redsync/v4 v4.3.0
 	github.com/go-sql-driver/mysql v1.6.0
+	github.com/golang/snappy v0.0.4 // indirect
 	github.com/gomodule/redigo v1.8.2
 	github.com/google/go-cmp v0.5.5
 	github.com/google/go-github/v32 v32.1.0
@@ -24,6 +26,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/huandu/facebook/v2 v2.5.3
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
+	github.com/klauspost/compress v1.13.5 // indirect
 	github.com/lib/pq v1.10.2
 	github.com/logrusorgru/aurora v2.0.3+incompatible
 	github.com/mailru/easyjson v0.7.7
@@ -32,6 +35,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/oschwald/geoip2-golang v1.4.0
 	github.com/panjf2000/ants/v2 v2.4.3
+	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
 	github.com/prometheus/client_golang v1.7.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/satori/go.uuid v1.2.0
@@ -47,7 +51,8 @@ require (
 	github.com/xtgo/uuid v0.0.0-20140804021211-a0b114877d4c // indirect
 	go.etcd.io/etcd/client/v3 v3.5.0-alpha.0
 	go.uber.org/atomic v1.7.0
-	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
+	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
+	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 	google.golang.org/api v0.44.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
