@@ -298,7 +298,7 @@ func transformResult(input map[string]interface{}, prefix string, res map[string
 		var err error
 		switch f := field.(type) {
 		case map[string]interface{}:
-			field = nil
+			field = nil //remove embed objects. Write its fields to a flat map `res`:
 			err = transformResult(f, fullSnakeName, res)
 		case string:
 			switch fieldTypes[fullSnakeName] {
