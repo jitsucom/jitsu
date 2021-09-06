@@ -2,6 +2,7 @@ import {intType, isoUtcDateType, passwordType, selectionType, SourceConnector, s
 import { googleServiceAuthDocumentation } from '../lib/documentation';
 
 import { googleAuthConfigParameters } from '../lib/commonParams';
+import * as React from "react";
 
 export const facebook: SourceConnector = {
   pic: (
@@ -168,7 +169,7 @@ export const googleAds: SourceConnector = {
       displayName: 'Fields',
       documentation: (
           <> Use <a href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">Google Ads Query Builder</a> tool to build required query. Copy comma-separated field list from resulting GAQL query (part between SELECT and FROM keywords).
-            Don't forget to add date segments (e.g. segments.date) where applicable.
+            Don't forget to add date segments (e.g. segments.date) where it is necessary.
           </>
       ),
       id: 'fields',
@@ -179,7 +180,7 @@ export const googleAds: SourceConnector = {
       displayName: 'Start Date',
       id: 'start_date',
       type: isoUtcDateType,
-      defaultValue: '2018-12-31',
+      defaultValue: '2020-12-31',
       required: true
     }
   ],
@@ -197,7 +198,12 @@ export const googleAds: SourceConnector = {
       displayName: 'Customer ID',
       id: 'config.customer_id',
       type: stringType,
-      required: true
+      required: true,
+      documentation: (
+          <>
+            The client customer ID is the account number of the Google Ads client account you want to pull data from. Pass it without '-' symbols.
+          </>
+      )
     },{
       displayName: 'Manager Customer ID',
       id: 'config.manager_customer_id',
@@ -205,7 +211,7 @@ export const googleAds: SourceConnector = {
       required: false,
       documentation: (
           <>
-            For Google Ads API calls made by a manager to a client account (that is, when logging in as a manager to make API calls to one of its client accounts), you also need to supply the Manager Customer Id. This value represents the Google Ads customer ID of the manager making the API call.
+            For Google Ads API calls made by a manager to a client account (that is, when logging in as a manager to make API calls to one of its client accounts), you also need to supply the Manager Customer Id. This value represents the Google Ads customer ID of the manager making the API call. Pass it without '-' symbols.
           </>
       )
     }
@@ -213,15 +219,27 @@ export const googleAds: SourceConnector = {
   documentation: {
     overview: (
         <>
-          The Google Ads
+          The Google Ads connector pulls data from{' '}
+          <a href="https://developers.google.com/google-ads/api/fields/v8/overview">
+            Google Ads API
+          </a>
+          . The connector is highly configurable. You can compose any number of reports using <a href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">Query Builder</a> by importing field lists to this source as separate streams.
         </>
     ),
     connection: googleServiceAuthDocumentation({
       oauthEnabled: true,
       serviceAccountEnabled: true,
-      scopes: ['https://www.googleapis.com/auth/adwords.readonly'],
+      scopes: ['https://www.googleapis.com/auth/adwords'],
       serviceName: 'Google Ads',
-      apis: ['Google Ads API']
+      apis: ['Google Ads API'],
+      serviceAccountSpecifics: (
+          <>
+            <li>Go to "DETAILS" tab</li>
+            <li>Press "SHOW DOMAIN-WIDE DELEGATION" at the bottom, check <b>Enable Google Workspace Domain-wide Delegation</b> and press "SAVE" </li>
+            <li>Share the service account ID and the Google Ads API scope (https://www.googleapis.com/auth/adwords) with your domain administrator. Request the domain administrator to delegate domain-wide authority to your service account.</li>
+            <li>If you are the domain administrator, follow the instructions in the <a href="https://support.google.com/a/answer/162106">help center guide</a> to complete this step.</li>
+          </>
+      )
     })
   }
 };
