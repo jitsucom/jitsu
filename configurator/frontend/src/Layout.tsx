@@ -27,7 +27,7 @@ import Icon, {
   UserSwitchOutlined,
   LogoutOutlined,
   PartitionOutlined,
-  FireOutlined, LeftOutlined
+  ThunderboltOutlined, LeftOutlined
 } from '@ant-design/icons';
 import logo from 'icons/logo.svg';
 import logoMini from 'icons/logo-square.svg';
@@ -65,7 +65,7 @@ const menuItems = [
   makeItem(<PartitionOutlined />, 'Home', '/connections'),
   makeItem(<AreaChartOutlined />, 'Statistics', '/dashboard'),
   makeItem(<UnlockOutlined />, 'API Keys', '/api_keys'),
-  makeItem(<FireOutlined />, 'Live Events', '/events_stream'),
+  makeItem(<ThunderboltOutlined />, 'Live Events', '/events_stream'),
   makeItem(<ApiOutlined />, 'Sources', '/sources'),
   makeItem(<NotificationOutlined />, 'Destinations', '/destinations'),
   makeItem(<Icon component={DbtCloudIcon}/>, 'dbt Cloud Integration', '/dbtcloud'),
@@ -79,8 +79,8 @@ export const ApplicationMenu: React.FC<{expanded: boolean}> = ({ expanded }) => 
   return <div className="pt-3">
     {menuItems.map(item => {
       const selected = item.link === '/' + key;
-      return <NavLink to={item.link}>
-        <div className={`${selected && 'bg-bgPrimary'} whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
+      return <NavLink to={item.link} key={item.link}>
+        <div key={item.link} className={`${selected && 'bg-bgPrimary'} whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
           {!expanded && <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
             {item.icon}
           </Tooltip>}
