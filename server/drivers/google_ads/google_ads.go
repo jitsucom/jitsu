@@ -43,7 +43,6 @@ var intervalFields   =  [...]GoogleAdsFieldGranularity{
 }
 
 func init() {
-
 	base.RegisterDriver(base.GoogleAdsType, NewGoogleAds)
 	base.RegisterTestConnectionFunc(base.GoogleAdsType, TestGoogleAds)
 	for _, str := range strings.Split(availableReportsCsv, "\n") {
@@ -103,9 +102,11 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 	fields := strings.Split(reportConfig.Fields, ",")
 
 	granularity := base.ALL
-	sortedFields := make([]string, len(fields))
+	//for binary search we make a sorted copy of fields
+	sortedFields := make([]string, 0, len(fields))
 	copy(sortedFields, fields)
 	sort.Strings(sortedFields)
+	//looking for interval fields from shortest to longest to select appropriate granularity
 	for _, pair := range intervalFields {
 		i := sort.SearchStrings(sortedFields, pair.name)
 		if i < len(sortedFields) && sortedFields[i] == pair.name {
@@ -117,7 +118,6 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 }
 
 func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
-
 	if g.granularity == base.ALL {
 		return []*base.TimeInterval{base.NewTimeInterval(base.ALL, time.Time{})}, nil
 	}
