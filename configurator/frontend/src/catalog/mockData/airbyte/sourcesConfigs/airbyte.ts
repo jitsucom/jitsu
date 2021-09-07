@@ -364,112 +364,247 @@ export const microsoftTeams = {
 };
 
 export const postgres = {
-  documentationUrl: 'https://docs.airbyte.io/integrations/sources/postgres',
   connectionSpecification: {
     $schema: 'http://json-schema.org/draft-07/schema#',
-    title: 'Postgres Source Spec',
-    type: 'object',
-    required: ['host', 'port', 'database', 'username'],
     additionalProperties: false,
     properties: {
-      host: {
-        title: 'Host',
-        description: 'Hostname of the database.',
-        type: 'string',
-        order: 0
-      },
-      port: {
-        title: 'Port',
-        description: 'Port of the database.',
-        type: 'integer',
-        minimum: 0,
-        maximum: 65536,
-        default: 5432,
-        examples: ['5432'],
-        order: 1
-      },
       database: {
-        title: 'DB Name',
         description: 'Name of the database.',
-        type: 'string',
-        order: 2
+        order: 2,
+        title: 'DB Name',
+        type: 'string'
       },
-      username: {
-        title: 'User',
-        description: 'Username to use to access the database.',
-        type: 'string',
-        order: 3
+      host: {
+        description: 'Hostname of the database.',
+        order: 0,
+        title: 'Host',
+        type: 'string'
       },
       password: {
-        title: 'Password',
-        description: 'Password associated with the username.',
-        type: 'string',
         airbyte_secret: true,
-        order: 4
+        description: 'Password associated with the username.',
+        order: 4,
+        title: 'Password',
+        type: 'string'
       },
-      ssl: {
-        title: 'Connect using SSL',
-        description:
-          'Encrypt client/server communications for increased security.',
-        type: 'boolean',
-        default: false,
-        order: 5
+      port: {
+        default: 5432,
+        description: 'Port of the database.',
+        examples: ['5432'],
+        maximum: 65536,
+        minimum: 0,
+        order: 1,
+        title: 'Port',
+        type: 'integer'
       },
       replication_method: {
-        type: 'object',
-        title: 'Replication Method',
         description:
           'Replication method to use for extracting data from the database.',
-        order: 6,
         oneOf: [
           {
-            title: 'Standard',
             additionalProperties: false,
             description:
               'Standard replication requires no setup on the DB side but will not be able to represent deletions incrementally.',
-            required: ['method'],
             properties: {
               method: {
-                type: 'string',
-                enum: ['Standard'],
+                const: 'Standard',
                 default: 'Standard',
-                order: 0
+                enum: ['Standard'],
+                order: 0,
+                type: 'string'
               }
-            }
+            },
+            required: ['method'],
+            title: 'Standard'
           },
           {
-            title: 'Logical Replication (CDC)',
             additionalProperties: false,
             description:
               'Logical replication uses the Postgres write-ahead log (WAL) to detect inserts, updates, and deletes. This needs to be configured on the source database itself. Only available on Postgres 10 and above. Read the <a href="https://docs.airbyte.io/integrations/sources/postgres">Postgres Source</a> docs for more information.',
-            required: ['method', 'replication_slot', 'publication'],
             properties: {
               method: {
-                type: 'string',
-                enum: ['CDC'],
+                const: 'CDC',
                 default: 'CDC',
-                order: 0
+                enum: ['CDC'],
+                order: 0,
+                type: 'string'
               },
-              replication_slot: {
-                type: 'string',
-                description: 'A pgoutput logical replication slot.',
-                order: 1
+              plugin: {
+                default: 'pgoutput',
+                description:
+                  'A logical decoding plug-in installed on the PostgreSQL server. `pgoutput` plug-in is used by default.\nIf replication table contains a lot of big jsonb values it is recommended to use `wal2json` plug-in. For more information about `wal2json` plug-in read <a href="https://docs.airbyte.io/integrations/sources/postgres">Postgres Source</a> docs.',
+                enum: ['pgoutput', 'wal2json'],
+                order: 1,
+                type: 'string'
               },
               publication: {
-                type: 'string',
                 description:
                   'A Postgres publication used for consuming changes.',
-                order: 2
+                order: 3,
+                type: 'string'
+              },
+              replication_slot: {
+                description: 'A plug-in logical replication slot.',
+                order: 2,
+                type: 'string'
               }
-            }
+            },
+            required: ['method', 'replication_slot', 'publication'],
+            title: 'Logical Replication (CDC)'
           }
-        ]
+        ],
+        order: 6,
+        title: 'Replication Method',
+        type: 'object'
+      },
+      ssl: {
+        default: false,
+        description:
+          'Encrypt client/server communications for increased security.',
+        order: 5,
+        title: 'Connect using SSL',
+        type: 'boolean'
+      },
+      tunnel_method: {
+        description:
+          'Whether to initiate an SSH tunnel before connecting to the database, and if so, which kind of authentication to use.',
+        oneOf: [
+          {
+            properties: {
+              tunnel_method: {
+                const: 'NO_TUNNEL',
+                description: 'No ssh tunnel needed to connect to database',
+                order: 0,
+                type: 'string'
+              }
+            },
+            required: ['tunnel_method'],
+            title: 'No Tunnel'
+          },
+          {
+            properties: {
+              ssh_key: {
+                airbyte_secret: true,
+                description:
+                  'OS-level user account ssh key credentials for logging into the jump server host.',
+                multiline: true,
+                order: 4,
+                title: 'SSH Private Key',
+                type: 'string'
+              },
+              tunnel_host: {
+                description:
+                  'Hostname of the jump server host that allows inbound ssh tunnel.',
+                order: 1,
+                title: 'SSH Tunnel Jump Server Host',
+                type: 'string'
+              },
+              tunnel_method: {
+                const: 'SSH_KEY_AUTH',
+                description:
+                  'Connect through a jump server tunnel host using username and ssh key',
+                order: 0,
+                type: 'string'
+              },
+              tunnel_port: {
+                default: 22,
+                description:
+                  'Port on the proxy/jump server that accepts inbound ssh connections.',
+                examples: ['22'],
+                maximum: 65536,
+                minimum: 0,
+                order: 2,
+                title: 'SSH Connection Port',
+                type: 'integer'
+              },
+              tunnel_user: {
+                description:
+                  'OS-level username for logging into the jump server host.',
+                order: 3,
+                title: 'SSH Login Username',
+                type: 'string'
+              }
+            },
+            required: [
+              'tunnel_method',
+              'tunnel_host',
+              'tunnel_port',
+              'tunnel_user',
+              'ssh_key'
+            ],
+            title: 'SSH Key Authentication'
+          },
+          {
+            properties: {
+              tunnel_host: {
+                description:
+                  'Hostname of the jump server host that allows inbound ssh tunnel.',
+                order: 1,
+                title: 'SSH Tunnel Jump Server Host',
+                type: 'string'
+              },
+              tunnel_method: {
+                const: 'SSH_PASSWORD_AUTH',
+                description:
+                  'Connect through a jump server tunnel host using username and password authentication',
+                order: 0,
+                type: 'string'
+              },
+              tunnel_port: {
+                default: 22,
+                description:
+                  'Port on the proxy/jump server that accepts inbound ssh connections.',
+                examples: ['22'],
+                maximum: 65536,
+                minimum: 0,
+                order: 2,
+                title: 'SSH Connection Port',
+                type: 'integer'
+              },
+              tunnel_user: {
+                description:
+                  'OS-level username for logging into the jump server host',
+                order: 3,
+                title: 'SSH Login Username',
+                type: 'string'
+              },
+              tunnel_user_password: {
+                airbyte_secret: true,
+                description:
+                  'OS-level password for logging into the jump server host',
+                order: 4,
+                title: 'Password',
+                type: 'string'
+              }
+            },
+            required: [
+              'tunnel_method',
+              'tunnel_host',
+              'tunnel_port',
+              'tunnel_user',
+              'tunnel_user_password'
+            ],
+            title: 'Password Authentication'
+          }
+        ],
+        title: 'SSH Tunnel Method',
+        type: 'object'
+      },
+      username: {
+        description: 'Username to use to access the database.',
+        order: 3,
+        title: 'User',
+        type: 'string'
       }
-    }
+    },
+    required: ['host', 'port', 'database', 'username'],
+    title: 'Postgres Source Spec',
+    type: 'object'
   },
-  supportsNormalization: false,
+  documentationUrl: 'https://docs.airbyte.io/integrations/sources/postgres',
+  supported_destination_sync_modes: [],
   supportsDBT: false,
-  supported_destination_sync_modes: []
+  supportsNormalization: false
 };
 
 export const braintree = {
