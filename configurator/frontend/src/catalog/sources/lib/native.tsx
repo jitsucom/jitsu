@@ -1,7 +1,8 @@
-import { intType, passwordType, selectionType, SourceConnector, stringType } from '../types';
+import {intType, isoUtcDateType, passwordType, selectionType, SourceConnector, stringType} from '../types';
 import { googleServiceAuthDocumentation } from '../lib/documentation';
 
 import { googleAuthConfigParameters } from '../lib/commonParams';
+import * as React from "react";
 
 export const facebook: SourceConnector = {
   pic: (
@@ -145,6 +146,104 @@ export const facebook: SourceConnector = {
     }
   ]
 };
+
+export const googleAds: SourceConnector = {
+  pic: (
+      <svg height="100%"
+           viewBox="0 0 192 192" width="100%" xmlns="http://www.w3.org/2000/svg">
+        <g className="_ngcontent-awn-AWSM-2">
+          <rect fill="none" height="192" width="192" className="_ngcontent-awn-AWSM-2"></rect>
+          <g className="_ngcontent-awn-AWSM-2">
+            <rect fill="#FBBC04" height="58.67" transform="matrix(0.5 -0.866 0.866 0.5 -46.2127 103.666)" width="117.33"
+                  x="8" y="62.52" className="_ngcontent-awn-AWSM-2"></rect>
+            <path
+                d="M180.07,127.99L121.4,26.38c-8.1-14.03-26.04-18.84-40.07-10.74c-14.03,8.1-18.84,26.04-10.74,40.07 l58.67,101.61c8.1,14.03,26.04,18.83,40.07,10.74C183.36,159.96,188.16,142.02,180.07,127.99z"
+                fill="#4285F4" className="_ngcontent-awn-AWSM-2"></path>
+            <circle cx="37.34" cy="142.66" fill="#34A853" r="29.33" className="_ngcontent-awn-AWSM-2"></circle>
+          </g>
+        </g>
+      </svg>
+  ),
+  collectionParameters: [
+    {
+      displayName: 'Fields',
+      documentation: (
+          <> Use <a href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">Google Ads Query Builder</a> tool to build required query. Copy comma-separated field list from resulting GAQL query (part between SELECT and FROM keywords).
+            Don't forget to add date segments (e.g. segments.date) where it is necessary.
+          </>
+      ),
+      id: 'fields',
+      // prettier-ignore
+      type: stringType
+    },
+    {
+      displayName: 'Start Date',
+      id: 'start_date',
+      type: isoUtcDateType,
+      defaultValue: '2020-12-31',
+      required: true
+    }
+  ],
+  collectionTemplates: [
+  ],
+
+  displayName: 'Google Ads',
+  id: 'google_ads',
+  collectionTypes: ['accessible_bidding_strategy','account_budget','account_budget_proposal','account_link','ad_group','ad_group_ad','ad_group_ad_asset_view','ad_group_ad_label','ad_group_asset','ad_group_audience_view','ad_group_bid_modifier','ad_group_criterion','ad_group_criterion_label','ad_group_criterion_simulation','ad_group_extension_setting','ad_group_feed','ad_group_label','ad_group_simulation','ad_parameter','ad_schedule_view','age_range_view','asset','asset_field_type_view','batch_job','bidding_data_exclusion','bidding_seasonality_adjustment','bidding_strategy','bidding_strategy_simulation','billing_setup','call_view','campaign','campaign_asset','campaign_audience_view','campaign_bid_modifier','campaign_budget','campaign_criterion','campaign_criterion_simulation','campaign_draft','campaign_experiment','campaign_extension_setting','campaign_feed','campaign_label','campaign_shared_set','campaign_simulation','carrier_constant','change_event','change_status','click_view','combined_audience','conversion_action','conversion_custom_variable','conversion_value_rule','conversion_value_rule_set','currency_constant','custom_audience','custom_interest','customer','customer_asset','customer_client','customer_client_link','customer_extension_setting','customer_feed','customer_label','customer_manager_link','customer_negative_criterion','customer_user_access','customer_user_access_invitation','detail_placement_view','detailed_demographic','display_keyword_view','distance_view','domain_category','dynamic_search_ads_search_term_view','expanded_landing_page_view','extension_feed_item','feed','feed_item','feed_item_set','feed_item_set_link','feed_item_target','feed_mapping','feed_placeholder_view','gender_view','geo_target_constant','geographic_view','group_placement_view','hotel_group_view','hotel_performance_view','income_range_view','keyword_plan','keyword_plan_ad_group','keyword_plan_ad_group_keyword','keyword_plan_campaign','keyword_plan_campaign_keyword','keyword_theme_constant','keyword_view','label','landing_page_view','language_constant','life_event','location_view','managed_placement_view','media_file','mobile_app_category_constant','mobile_device_constant','offline_user_data_job','operating_system_version_constant','paid_organic_search_term_view','parental_status_view','product_bidding_category_constant','product_group_view','recommendation','remarketing_action','search_term_view','shared_criterion','shared_set','shopping_performance_view','smart_campaign_search_term_view','smart_campaign_setting','third_party_app_analytics_link','topic_constant','topic_view','user_interest','user_list','user_location_view','video','webpage_view'],
+  configParameters: [
+    ...googleAuthConfigParameters({
+      requireSubject: true
+    }),
+    {
+      displayName: 'Customer ID',
+      id: 'config.customer_id',
+      type: stringType,
+      required: true,
+      documentation: (
+          <>
+            The client customer ID is the account number of the Google Ads client account you want to pull data from. Pass it without '-' symbols.
+          </>
+      )
+    },{
+      displayName: 'Manager Customer ID',
+      id: 'config.manager_customer_id',
+      type: stringType,
+      required: false,
+      documentation: (
+          <>
+            For Google Ads API calls made by a manager to a client account (that is, when logging in as a manager to make API calls to one of its client accounts), you also need to supply the Manager Customer Id. This value represents the Google Ads customer ID of the manager making the API call. Pass it without '-' symbols.
+          </>
+      )
+    }
+  ],
+  documentation: {
+    overview: (
+        <>
+          The Google Ads connector pulls data from{' '}
+          <a href="https://developers.google.com/google-ads/api/fields/v8/overview">
+            Google Ads API
+          </a>
+          . The connector is highly configurable. You can compose any number of reports using <a href="https://developers.google.com/google-ads/api/fields/v8/overview_query_builder">Query Builder</a> by importing field lists to this source as separate streams.
+        </>
+    ),
+    connection: googleServiceAuthDocumentation({
+      oauthEnabled: true,
+      serviceAccountEnabled: true,
+      scopes: ['https://www.googleapis.com/auth/adwords'],
+      serviceName: 'Google Ads',
+      apis: ['Google Ads API'],
+      serviceAccountSpecifics: (
+          <>
+            <li>Go to "DETAILS" tab</li>
+            <li>Press "SHOW DOMAIN-WIDE DELEGATION" at the bottom, check <b>Enable Google Workspace Domain-wide Delegation</b> and press "SAVE" </li>
+            <li>Share the service account ID and the Google Ads API scope (https://www.googleapis.com/auth/adwords) with your domain administrator. Request the domain administrator to delegate domain-wide authority to your service account.</li>
+            <li>If you are the domain administrator, follow the instructions in the <a href="https://support.google.com/a/answer/162106">help center guide</a> to complete this step.</li>
+          </>
+      )
+    })
+  }
+};
+
 
 export const googleAnalytics: SourceConnector = {
   pic: (
@@ -706,4 +805,4 @@ export const amplitude: SourceConnector = {
   collectionParameters: []
 };
 
-export const allNativeConnectors = [facebook, redis, firebase, googleAnalytics, googlePlay, amplitude];
+export const allNativeConnectors = [facebook, redis, firebase, googleAds, googleAnalytics, googlePlay, amplitude];
