@@ -148,8 +148,10 @@ func TestProcessFilePayload(t *testing.T) {
 			objects, err := parsers.ParseJSONFileWithFunc(fBytes, tt.parseFunc)
 			require.NoError(t, err)
 
-			actual, failed, err := p.ProcessEvents("testfile", objects, map[string]bool{})
+			actual, failed, skipped, err := p.ProcessEvents("testfile", objects, map[string]bool{})
 			require.NoError(t, err)
+
+			require.Equal(t, 0, len(skipped.Events))
 
 			if len(tt.expectedFailed) > 0 {
 				require.Equal(t, len(tt.expectedFailed), len(failed.Events), "Failed objects quantity isn't equal")

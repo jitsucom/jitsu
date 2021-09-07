@@ -99,16 +99,20 @@ func NewBigQuery(config *Config) (Storage, error) {
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
+func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
 	_, tableHelper := bq.getAdapters()
-	flatData, failedEvents, err := bq.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+	flatData, failedEvents, skippedEvents, err := bq.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
 		bq.eventsCache.Error(bq.IsCachingDisabled(), bq.ID(), failedEvent.EventID, failedEvent.Error)
+	}
+	//update cache and counter with skipped events
+	for _, skipEvent := range skippedEvents.Events {
+		bq.eventsCache.Skip(bq.IsCachingDisabled(), bq.ID(), skipEvent.EventID, skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -133,10 +137,10 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		return tableResults, failedEvents, nil
+		return tableResults, failedEvents, skippedEvents, nil
 	}
 
-	return tableResults, nil, nil
+	return tableResults, nil, skippedEvents, nil
 }
 
 //storeTable checks table schema

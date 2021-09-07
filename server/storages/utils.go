@@ -99,7 +99,7 @@ func processData(storage Storage, overriddenDataSchema *schema.BatchHeader, obje
 	}
 
 	//Update call with single object or bulk uploading
-	flatDataPerTable, failedEvents, err := processor.ProcessEvents(timeIntervalValue, objects, map[string]bool{})
+	flatDataPerTable, failedEvents, _, err := processor.ProcessEvents(timeIntervalValue, objects, map[string]bool{})
 	if err != nil {
 		return nil, err
 	}

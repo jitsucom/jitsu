@@ -16,6 +16,7 @@ type EventsCache struct {
 	originalCh             chan *originalEvent
 	succeedCh              chan *succeedEvent
 	failedCh               chan *failedEvent
+	skippedCh              chan *failedEvent
 	capacityPerDestination int
 
 	done chan struct{}
@@ -28,6 +29,7 @@ func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCac
 		originalCh:             make(chan *originalEvent, 1000000),
 		succeedCh:              make(chan *succeedEvent, 1000000),
 		failedCh:               make(chan *failedEvent, 1000000),
+		skippedCh:              make(chan *failedEvent, 1000000),
 		capacityPerDestination: capacityPerDestination,
 
 		done: make(chan struct{}),
@@ -53,6 +55,12 @@ func (ec *EventsCache) start() {
 	safego.RunWithRestart(func() {
 		for cf := range ec.failedCh {
 			ec.error(cf.destinationID, cf.eventID, cf.error)
+		}
+	})
+
+	safego.RunWithRestart(func() {
+		for cf := range ec.skippedCh {
+			ec.skip(cf.destinationID, cf.eventID, cf.error)
 		}
 	})
 }
@@ -82,6 +90,16 @@ func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMs
 	if !disabled && ec.isActive() {
 		select {
 		case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
+		default:
+		}
+	}
+}
+
+//Skip puts value into channel which will be read and updated in storage
+func (ec *EventsCache) Skip(disabled bool, destinationID, eventID string, errMsg string) {
+	if !disabled && ec.isActive() {
+		select {
+		case ec.skippedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
 		default:
 		}
 	}
@@ -176,6 +194,20 @@ func (ec *EventsCache) error(destinationID, eventID string, errMsg string) {
 	err := ec.storage.UpdateErrorEvent(destinationID, eventID, errMsg)
 	if err != nil {
 		logging.SystemErrorf("[%s] Error updating error event [%s] in cache: %v", destinationID, eventID, err)
+		return
+	}
+}
+
+//skip writes skipped error into event skip field in storage
+func (ec *EventsCache) skip(destinationID, eventID string, errMsg string) {
+	if eventID == "" {
+		logging.SystemErrorf("[EventsCache] Skip(): Event id can't be empty. Destination [%s]", destinationID)
+		return
+	}
+
+	err := ec.storage.UpdateSkipEvent(destinationID, eventID, errMsg)
+	if err != nil {
+		logging.SystemErrorf("[%s] Error updating skipped event [%s] in cache: %v", destinationID, eventID, err)
 		return
 	}
 }
