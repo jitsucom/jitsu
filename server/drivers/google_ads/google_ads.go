@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/iancoleman/strcase"
+	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/httputils"
-	"github.com/spf13/viper"
 	"golang.org/x/oauth2/google"
 	"io"
 	"net/http"
@@ -198,7 +198,7 @@ func (g *GoogleAds) GetCollectionMetaKey() string {
 func getDeveloperToken(config *GoogleAdsConfig) string {
 	developerToken := config.DeveloperToken
 	if developerToken == "" {
-		developerToken = viper.GetString("google-ads.developer-token")
+		developerToken = appconfig.Instance.GoogleAdsDeveloperToken
 	}
 	return developerToken
 }
