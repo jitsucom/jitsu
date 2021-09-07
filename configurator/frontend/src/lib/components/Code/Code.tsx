@@ -1,19 +1,8 @@
-import styles from './Code.module.less';
 import CopyOutlined from '@ant-design/icons/lib/icons/CopyOutlined';
 import hljs from 'highlight.js/lib/core';
 import './hljs.css';
-import javascriptLang from 'highlight.js/lib/languages/javascript';
-import javaLang from 'highlight.js/lib/languages/java';
-import sqlLang from 'highlight.js/lib/languages/sql';
-import swiftLang from 'highlight.js/lib/languages/swift'
-import objectivecLang from 'highlight.js/lib/languages/objectivec';
-import bashLang from 'highlight.js/lib/languages/bash';
-import yamlLang from 'highlight.js/lib/languages/yaml';
-import htmlLang from 'highlight.js/lib/languages/xml';
-import jsonLang from 'highlight.js/lib/languages/yaml';
-import goLand from 'highlight.js/lib/languages/go';
-import defaultLang from 'highlight.js/lib/languages/plaintext';
 import { useState } from 'react';
+import { reactElementToString } from '../../commons/utils';
 
 export type CodeProps = {
   language: string,
@@ -85,43 +74,16 @@ function trimCode(code: string) {
   return lines.join('\n').trim();
 }
 
-function toString(obj: any) {
-  if (typeof obj === 'string') {
-    return obj;
-  } else if (obj?.toString && typeof obj?.toString === 'function') {
-    return obj.toString();
-  } else {
-    return obj + ''
-  }
-}
-
-/**
- * Tries to the best to convert children from any type to string
- * @param children
- */
-function childrenToString(children: React.ReactElement<any, string | React.JSXElementConstructor<any>> | string | number | {} | React.ReactNodeArray | React.ReactPortal | boolean): string {
-
-  if (!children) {
-    return '';
-  } else if (typeof children === 'string') {
-    return children;
-  } else if (Array.isArray(children)) {
-    return children.map(childrenToString).join('\n');
-  } else {
-    console.warn('Can\'t convert react element to highlightable <Code />. Using to string', toString(children))
-  }
-}
-
 /**
  * Code component. Displays code snippet. Notes:
  *  - No background. Set your own background if needed
  *  - Rounded corners
  */
 export const Code: React.FC<CodeProps> = ({ hideCopyButton, language, className, children }) => {
-  const rawCode = trimCode(childrenToString(children));
+  const rawCode = trimCode(reactElementToString(children));
   const [copied, setCopied] = useState(false)
   const highlightedHtml = hljs.highlight(getLanguageSafe(language), rawCode).value;
-  return <div className={`font-monospace ${className}`}>
+  return <div className={`font-monospace ${className} overflow-auto`}>
     <div className="relative">
       {!hideCopyButton && <div onClick={() => {
         const el = document.createElement('textarea');
@@ -137,7 +99,7 @@ export const Code: React.FC<CodeProps> = ({ hideCopyButton, language, className,
       }} className="absolute top-0 right-0 cursor-pointer hover:text-primary text-lg">
         {!copied ? <CopyOutlined /> : <span className="transition duration-500 ease-in-out text-xs border-b border-dotted">Copied!</span>}
       </div>}
-      <pre dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+      <pre className="overflow-visible" dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
     </div>
   </div>;
 }

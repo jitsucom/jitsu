@@ -95,7 +95,7 @@ export const ApplicationMenu: React.FC<{expanded: boolean}> = ({ expanded }) => 
 export const ApplicationSidebar: React.FC<{}> = () => {
   const [expanded, setExpanded] = usePersistentState(true, 'jitsu_menuExpanded');
 
-  return <div className={`transition duration-150 ease-in-out relative ${styles.sideBarContent}`} >
+  return <div className={`relative ${styles.sideBarContent}`} >
     <div>
       <div className={`${expanded ? 'w-3' : 'w-2'} absolute inline-block top-3 right-0 bg-bgTableHeader h-12 flex items-center justify-center rounded-l cursor-pointer`}
         onClick={() => setExpanded(!expanded)}>
