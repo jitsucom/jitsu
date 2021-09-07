@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { ConnectorDocumentation } from '../types';
+import {ReactNode} from "react";
 
 export const googleProjectCreation = <>
   At first, create or select Google project:
@@ -16,9 +17,10 @@ export type DocumentationParams = {
   serviceAccountEnabled?: boolean
   scopes?: string[]
   apis: string[]
+  serviceAccountSpecifics?: ReactNode
 }
 
-export function googleServiceAuthDocumentation({ oauthEnabled = false, scopes = [], serviceAccountEnabled = true, serviceName, apis }: DocumentationParams) {
+export function googleServiceAuthDocumentation({ oauthEnabled = false, scopes = [], serviceAccountEnabled = true, serviceName, apis, serviceAccountSpecifics = undefined }: DocumentationParams) {
   const scopeStr = scopes.join(' ');
   return <>
     Following authorization methods are available for <b>{serviceName}</b>
@@ -30,9 +32,9 @@ export function googleServiceAuthDocumentation({ oauthEnabled = false, scopes = 
         {' '} put Service Account Key JSON (available in Google Cloud Console) in the field below
       </li>}
     </ul>
-    You should also enable Google API for your project. Go to the <a href="https://console.cloud.google.com/apis/library">Google APIs Library page</a>, search
-    {apis.map(api => <b>{api}</b>).join(' and ')} and make sure they are enabled
-
+    You should also enable Google API for your project. Go to the <a href="https://console.cloud.google.com/apis/library">Google APIs Library page</a>,
+      search {apis.map<React.ReactNode>(t => <b>{t}</b>)
+          .reduce((prev, curr) => [prev, ' and ', curr])}  and make sure they are enabled
     {oauthEnabled && <>
       <h1>1. Obtaining access through <b>OAuth</b></h1>
       Jitsu requires 3 parameters for accessing {serviceName}:
@@ -60,9 +62,11 @@ export function googleServiceAuthDocumentation({ oauthEnabled = false, scopes = 
       <ul>
         <li>Go to the <a href="https://console.developers.google.com/iam-admin/serviceaccounts">Service Accounts page</a></li>
         <li>Click "+ Create Service Account"</li>
-        <li>Click on created row in Service Accounts table, go to "KEYS" tab</li>
-        <li>Click "ADD KEY" ➞ "Create new key" ➞ Select JSON ➞ "CREATE"</li>
+         <li>Fill Service account name and press DONE </li>
+          <li>Click on the Email of created account in Service Accounts table, go to "KEYS" tab</li>
+          <li>Click "ADD KEY" ➞ "Create new key" ➞ Select JSON ➞ "CREATE"</li>
         <li>Service Account JSON (private key) will be in downloaded file</li>
+          {serviceAccountSpecifics && serviceAccountSpecifics}
       </ul>
     </>}
   </>

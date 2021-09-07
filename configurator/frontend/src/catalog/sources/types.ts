@@ -287,6 +287,7 @@ export interface CollectionParameter extends Parameter {
 
 type SourceConnectorId =
   | 'facebook_marketing'
+  | 'google_ads'
   | 'google_analytics'
   | 'google_play'
   | 'firebase'
@@ -299,6 +300,10 @@ export interface SourceConnector {
    * Hints the source origin.
    * */
   protoType?: 'singer' | 'airbyte';
+  /**
+   * Enable collection Start Date parameter.
+   * */
+  isStartDateEnabled?: boolean;
 
   /**
    * If connector requires expert-level knowledge (such as JSON editing)
