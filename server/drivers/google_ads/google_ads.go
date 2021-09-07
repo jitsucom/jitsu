@@ -103,7 +103,7 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 
 	granularity := base.ALL
 	//for binary search we make a sorted copy of fields
-	sortedFields := make([]string, 0, len(fields))
+	sortedFields := make([]string, len(fields))
 	copy(sortedFields, fields)
 	sort.Strings(sortedFields)
 	//looking for interval fields from shortest to longest to select appropriate granularity
@@ -260,7 +260,7 @@ func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]ma
 		return transformedArray, nil
 	}
 
-	req :=  httputils.Request{Url: urlStr, Method: http.MethodPost,
+	req :=  httputils.Request{URL: urlStr, Method: http.MethodPost,
 		Body: reqBody, Headers: headers,
 		ParseReader: parseResponse}
 
