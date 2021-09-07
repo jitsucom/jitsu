@@ -129,7 +129,13 @@ func (ar *AwsRedshift) Store(fileName string, objects []map[string]interface{}, 
 			if err != nil {
 				ar.eventsCache.Error(ar.IsCachingDisabled(), ar.ID(), ar.uniqueIDField.Extract(object), err.Error())
 			} else {
-				ar.eventsCache.Succeed(ar.IsCachingDisabled(), ar.ID(), ar.uniqueIDField.Extract(object), object, table)
+				ar.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  ar.IsCachingDisabled(),
+					DestinationID:  ar.ID(),
+					EventID:        ar.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          table,
+				})
 			}
 		}
 	}

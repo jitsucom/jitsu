@@ -89,7 +89,7 @@ func (a *Abstract) SuccessEvent(eventCtx *adapters.EventContext) {
 	metrics.SuccessTokenEvent(eventCtx.TokenID, a.destinationID)
 
 	//cache
-	a.eventsCache.Succeed(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, eventCtx.ProcessedEvent, eventCtx.Table)
+	a.eventsCache.Succeed(eventCtx)
 }
 
 //SkipEvent writes skip to metrics/counters/telemetry and error to events cache

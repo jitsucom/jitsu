@@ -151,7 +151,13 @@ func (m *MySQL) Store(fileName string, objects []map[string]interface{}, already
 			if err != nil {
 				m.eventsCache.Error(m.IsCachingDisabled(), m.ID(), m.uniqueIDField.Extract(object), err.Error())
 			} else {
-				m.eventsCache.Succeed(m.IsCachingDisabled(), m.ID(), m.uniqueIDField.Extract(object), object, table)
+				m.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  m.IsCachingDisabled(),
+					DestinationID:  m.ID(),
+					EventID:        m.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          table,
+				})
 			}
 		}
 	}

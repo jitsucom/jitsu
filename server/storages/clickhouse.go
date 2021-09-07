@@ -140,7 +140,13 @@ func (ch *ClickHouse) Store(fileName string, objects []map[string]interface{}, a
 			if err != nil {
 				ch.eventsCache.Error(ch.IsCachingDisabled(), ch.ID(), ch.uniqueIDField.Extract(object), err.Error())
 			} else {
-				ch.eventsCache.Succeed(ch.IsCachingDisabled(), ch.ID(), ch.uniqueIDField.Extract(object), object, table)
+				ch.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  ch.IsCachingDisabled(),
+					DestinationID:  ch.ID(),
+					EventID:        ch.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          table,
+				})
 			}
 		}
 	}
