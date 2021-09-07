@@ -170,7 +170,7 @@ const LoadableFieldsLoadingMessageCard: FC = () => {
   }, []);
 
   return (
-    <Card>
+    <Card className={'form-fields-card'}>
       <Card.Meta
         avatar={<Spin />}
         title="Loading the source config"

@@ -513,6 +513,7 @@ export const allAirbyteSources: AirbyteSource[] = [
     pic: logos.tap_google_ads,
     docker_image_name: 'airbyte/source-google-ads',
     displayName: 'Google Ads',
+    hasNativeEquivalent: true,
     stable: false,
     documentation: {
       overview: (

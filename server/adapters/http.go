@@ -170,6 +170,7 @@ func (h *HTTPAdapter) sendRequestWithRetry(i interface{}) {
 	if err != nil {
 		h.doRetry(retryableRequest, err)
 	} else {
+		retryableRequest.EventContext.HTTPRequest = retryableRequest.Request
 		h.successHandler(retryableRequest.EventContext)
 	}
 }
