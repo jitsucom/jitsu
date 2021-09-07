@@ -24,6 +24,7 @@ func (d *Dummy) AddEvent(destinationID, eventID, payload string, now time.Time) 
 }
 func (d *Dummy) UpdateSucceedEvent(destinationID, eventID, success string) error { return nil }
 func (d *Dummy) UpdateErrorEvent(destinationID, eventID, error string) error     { return nil }
+func (d *Dummy) UpdateSkipEvent(destinationID, eventID, error string) error      { return nil }
 func (d *Dummy) RemoveLastEvent(destinationID string) error                      { return nil }
 
 func (d *Dummy) GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error) {
