@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/jitsucom/jitsu/server/appconfig"
-	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/enrichment"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/identifiers"
@@ -55,7 +54,8 @@ func (p *Processor) ProcessEvent(event map[string]interface{}) (*BatchHeader, ev
 //ProcessEvents processes events objects
 //returns array of processed objects per table like {"table1": []objects, "table2": []objects},
 //All failed events are moved to separate collection for sending to fallback
-func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*ProcessedFile, *events.FailedEvents, error) {
+func (p *Processor) ProcessEvents(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*ProcessedFile, *events.FailedEvents, *events.SkippedEvents, error) {
+	skippedEvents := &events.SkippedEvents{}
 	failedEvents := events.NewFailedEvents()
 	filePerTable := map[string]*ProcessedFile{}
 
@@ -64,13 +64,14 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 		if err != nil {
 			//handle skip object functionality
 			if err == ErrSkipObject {
+				eventID := p.uniqueIDField.Extract(event)
 				if !appconfig.Instance.DisableSkipEventsWarn {
-					logging.Warnf("[%s] Event [%s]: %v", p.identifier, p.uniqueIDField.Extract(event), err)
+					logging.Warnf("[%s] Event [%s]: %v", p.identifier, eventID, err)
 				}
 
-				counters.SkipEvents(p.identifier, 1)
+				skippedEvents.Events = append(skippedEvents.Events, &events.SkippedEvent{EventID: eventID, Error: ErrSkipObject.Error()})
 			} else if p.breakOnError {
-				return nil, nil, err
+				return nil, nil, nil, err
 			} else {
 				eventBytes, _ := json.Marshal(event)
 
@@ -103,7 +104,7 @@ func (p *Processor) ProcessEvents(fileName string, objects []map[string]interfac
 		}
 	}
 
-	return filePerTable, failedEvents, nil
+	return filePerTable, failedEvents, skippedEvents, nil
 }
 
 //ProcessPulledEvents processes events objects without applying mapping rules

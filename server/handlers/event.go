@@ -38,6 +38,7 @@ type CachedEvent struct {
 	Original json.RawMessage `json:"original,omitempty"`
 	Success  json.RawMessage `json:"success,omitempty"`
 	Error    string          `json:"error,omitempty"`
+	Skip     string          `json:"skip,omitempty"`
 }
 
 //CachedEventsResponse dto for events cache response

@@ -35,6 +35,7 @@ type Storage interface {
 	AddEvent(destinationID, eventID, payload string, now time.Time) (int, error)
 	UpdateSucceedEvent(destinationID, eventID, success string) error
 	UpdateErrorEvent(destinationID, eventID, error string) error
+	UpdateSkipEvent(destinationID, eventID, error string) error
 	RemoveLastEvent(destinationID string) error
 
 	GetEvents(destinationID string, start, end time.Time, n int) ([]Event, error)
