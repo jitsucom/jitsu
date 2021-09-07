@@ -12,12 +12,20 @@ import (
 )
 
 const (
-	batchSize     = 500
+	batchSize     = 10_000
 	airbyteSystem = "Airbyte"
 
 	syncModeIncremental = "incremental"
 	syncModeFullRefresh = "full_refresh"
 )
+
+//dbDockerImages db sources doesn't support increment sync mode yet
+var dbDockerImages = map[string]bool{
+	"source-postgres": true,
+	"source-mssql":    true,
+	"source-oracle":   true,
+	"source-mysql":    true,
+}
 
 //streamOutputParser is an Airbyte output parser
 type streamOutputParser struct {
@@ -57,7 +65,13 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 		row := &airbyte.Row{}
 		err := json.Unmarshal(lineBytes, row)
 		if err != nil {
-			return fmt.Errorf("Error unmarshalling airbyte output line %s into object: %v", string(lineBytes), err)
+			sop.logger.LOG(string(lineBytes), airbyteSystem, logging.DEBUG)
+			continue
+		}
+
+		if row.Type != airbyte.RecordType || row.Record == nil {
+			sop.logger.LOG(string(lineBytes), airbyteSystem, logging.DEBUG)
+			continue
 		}
 
 		switch row.Type {
@@ -81,21 +95,6 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 			}
 
 			output.State = row.State.Data
-
-			//persist batch and recreate variables
-			if records >= batchSize {
-				err := sop.dataConsumer.Consume(output)
-				if err != nil {
-					return err
-				}
-
-				//remove already persisted objects
-				for _, stream := range output.Streams {
-					stream.Objects = []map[string]interface{}{}
-					stream.NeedClean = false
-				}
-				records = 0
-			}
 		case airbyte.RecordType:
 			records++
 			if row.Record == nil || row.Record.Data == nil {
@@ -109,6 +108,22 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 			msg := fmt.Sprintf("Unknown airbyte output line type: %s [%s]", row.Type, string(lineBytes))
 			logging.Error(msg)
 			sop.logger.ERROR(msg)
+		}
+
+		//persist batch and recreate variables
+		if records >= batchSize {
+			err := sop.dataConsumer.Consume(output)
+			if err != nil {
+				return err
+			}
+
+			//remove already persisted objects
+			//sets needClean = false because clean should be executed only 1 time
+			for _, stream := range output.Streams {
+				stream.Objects = []map[string]interface{}{}
+				stream.NeedClean = false
+			}
+			records = 0
 		}
 	}
 
@@ -128,7 +143,7 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 	return nil
 }
 
-func parseCatalog(outWriter *logging.StringWriter) ([]byte, map[string]*base.StreamRepresentation, error) {
+func parseCatalog(dockerImage string, outWriter *logging.StringWriter) ([]byte, map[string]*base.StreamRepresentation, error) {
 	parsedRow, err := airbyte.Instance.ParseCatalogRow(outWriter)
 	if err != nil {
 		return nil, nil, err
@@ -137,7 +152,7 @@ func parseCatalog(outWriter *logging.StringWriter) ([]byte, map[string]*base.Str
 	formattedCatalog := &airbyte.Catalog{}
 	streamsRepresentation := map[string]*base.StreamRepresentation{}
 	for _, stream := range parsedRow.Catalog.Streams {
-		syncMode := getSyncMode(stream.SupportedSyncModes)
+		syncMode := getSyncMode(dockerImage, stream.SupportedSyncModes)
 
 		//formatted catalog
 		formattedCatalog.Streams = append(formattedCatalog.Streams, &airbyte.WrappedStream{
@@ -159,6 +174,7 @@ func parseCatalog(outWriter *logging.StringWriter) ([]byte, map[string]*base.Str
 		}
 
 		streamsRepresentation[stream.Name] = &base.StreamRepresentation{
+			Namespace:  stream.Namespace,
 			StreamName: stream.Name,
 			BatchHeader: &schema.BatchHeader{
 				TableName: stream.Name,
@@ -178,7 +194,12 @@ func parseCatalog(outWriter *logging.StringWriter) ([]byte, map[string]*base.Str
 
 //getSyncMode returns incremental if supported
 //otherwise returns first
-func getSyncMode(supportedSyncModes []string) string {
+//for DB source returns not incremental
+func getSyncMode(dockerImage string, supportedSyncModes []string) string {
+	if _, ok := dbDockerImages[dockerImage]; ok {
+		return syncModeFullRefresh
+	}
+
 	if len(supportedSyncModes) == 0 {
 		return syncModeIncremental
 	}

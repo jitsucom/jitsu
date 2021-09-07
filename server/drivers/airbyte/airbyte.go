@@ -288,7 +288,7 @@ func (a *Airbyte) doDiscover() (string, map[string]*base.StreamRepresentation, e
 		return "", nil, fmt.Errorf("Error airbyte --discover: %v. %s", err, errStrWriter.String())
 	}
 
-	catalog, streamsRepresentation, err := parseCatalog(outWriter)
+	catalog, streamsRepresentation, err := parseCatalog(a.GetTap(), outWriter)
 	if err != nil {
 		return "", nil, err
 	}

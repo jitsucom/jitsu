@@ -158,6 +158,7 @@ type CLIOutputRepresentation struct {
 
 //StreamRepresentation is a singer/airbyte stream representation
 type StreamRepresentation struct {
+	Namespace   string
 	StreamName  string
 	BatchHeader *schema.BatchHeader
 	KeyFields   []string

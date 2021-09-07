@@ -51,6 +51,11 @@ func NewResultSaver(task *meta.Task, tap, collectionMetaKey, tableNamePrefix str
 //Consume consumes result batch and writes it to destinations and saves the State
 func (rs *ResultSaver) Consume(representation *driversbase.CLIOutputRepresentation) error {
 	for streamName, stream := range representation.Streams {
+		//airbyte can have empty objects
+		if len(stream.Objects) == 0 {
+			continue
+		}
+
 		tableName, ok := rs.streamTableNames[streamName]
 		if !ok {
 			tableName = rs.tableNamePrefix + streamName
