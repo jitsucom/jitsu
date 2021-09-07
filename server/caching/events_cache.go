@@ -184,9 +184,14 @@ func (ec *EventsCache) succeed(eventContext *adapters.EventContext) {
 			})
 		}
 
+		var tableName string
+		if eventContext.Table != nil {
+			tableName = eventContext.Table.Name
+		}
+
 		eventEntity = SucceedDBEvent{
 			DestinationID: eventContext.DestinationID,
-			Table:         eventContext.Table.Name,
+			Table:         tableName,
 			Record:        fields,
 		}
 	}
