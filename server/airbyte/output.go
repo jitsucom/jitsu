@@ -66,6 +66,7 @@ type Stream struct {
 	JsonSchema              *Schema    `json:"json_schema,omitempty"`
 	SupportedSyncModes      []string   `json:"supported_sync_modes,omitempty"`
 	SourceDefinedPrimaryKey [][]string `json:"source_defined_primary_key,omitempty"`
+	Namespace               string     `json:"namespace,omitempty"`
 }
 
 //Stream is a dto for Airbyte catalog Schema object serialization
