@@ -174,7 +174,8 @@ export const googleAds: SourceConnector = {
       ),
       id: 'fields',
       // prettier-ignore
-      type: stringType
+      type: stringType,
+      required: true
     },
     {
       displayName: 'Start Date',
