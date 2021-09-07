@@ -130,7 +130,13 @@ func (bq *BigQuery) Store(fileName string, objects []map[string]interface{}, alr
 			if err != nil {
 				bq.eventsCache.Error(bq.IsCachingDisabled(), bq.ID(), bq.uniqueIDField.Extract(object), err.Error())
 			} else {
-				bq.eventsCache.Succeed(bq.IsCachingDisabled(), bq.ID(), bq.uniqueIDField.Extract(object), object, table)
+				bq.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  bq.IsCachingDisabled(),
+					DestinationID:  bq.ID(),
+					EventID:        bq.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          table,
+				})
 			}
 		}
 	}

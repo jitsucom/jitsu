@@ -118,7 +118,13 @@ func (p *Postgres) Store(fileName string, objects []map[string]interface{}, alre
 			if err != nil {
 				p.eventsCache.Error(p.IsCachingDisabled(), p.ID(), p.uniqueIDField.Extract(object), err.Error())
 			} else {
-				p.eventsCache.Succeed(p.IsCachingDisabled(), p.ID(), p.uniqueIDField.Extract(object), object, table)
+				p.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  p.IsCachingDisabled(),
+					DestinationID:  p.ID(),
+					EventID:        p.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          table,
+				})
 			}
 		}
 	}

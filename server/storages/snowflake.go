@@ -178,7 +178,13 @@ func (s *Snowflake) Store(fileName string, objects []map[string]interface{}, alr
 			if err != nil {
 				s.eventsCache.Error(s.IsCachingDisabled(), s.ID(), s.uniqueIDField.Extract(object), err.Error())
 			} else {
-				s.eventsCache.Succeed(s.IsCachingDisabled(), s.ID(), s.uniqueIDField.Extract(object), object, table)
+				s.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  s.IsCachingDisabled(),
+					DestinationID:  s.ID(),
+					EventID:        s.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          table,
+				})
 			}
 		}
 	}

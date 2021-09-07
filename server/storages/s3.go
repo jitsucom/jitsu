@@ -96,6 +96,14 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 		for _, object := range fdata.GetPayload() {
 			if err != nil {
 				s3.eventsCache.Error(s3.IsCachingDisabled(), s3.ID(), s3.uniqueIDField.Extract(object), err.Error())
+			} else {
+				s3.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  s3.IsCachingDisabled(),
+					DestinationID:  s3.ID(),
+					EventID:        s3.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          nil,
+				})
 			}
 		}
 	}
