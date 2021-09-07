@@ -22,6 +22,10 @@ type StringParameter = {
    * String with regexp that specifies the allowed values
    */
   pattern?: string;
+  /**
+   * Defines whether to render a multiline text field
+   */
+  multiline?: boolean;
 };
 
 type NumberParameter = {
@@ -108,10 +112,11 @@ export const stringType: ParameterType<string, 'string'> = {
   typeName: 'string'
 };
 
-export const makeStringType = (
-  pattern?: string
-): ParameterType<string, 'string'> => {
-  return pattern ? { ...stringType, pattern } : stringType;
+export const makeStringType = ({
+  pattern,
+  multiline
+}: StringParameter): ParameterType<string, 'string'> => {
+  return { ...stringType, pattern, multiline };
 };
 
 export const descriptionType: ParameterType<string, 'description'> = {
