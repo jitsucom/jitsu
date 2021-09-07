@@ -327,7 +327,7 @@ func (r *Redis) UpdateSucceedEvent(destinationID, eventID, success string) error
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "")
+	_, err := updateThreeFieldsCachedEvent.Do(conn, lastEventsKey, "success", success, "error", "", "destination_id", destinationID)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err
@@ -343,7 +343,23 @@ func (r *Redis) UpdateErrorEvent(destinationID, eventID, error string) error {
 	conn := r.pool.Get()
 	defer conn.Close()
 
-	_, err := updateOneFieldCachedEvent.Do(conn, lastEventsKey, "error", error)
+	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "error", error, "destination_id", destinationID)
+	noticeError(err)
+	if err != nil && err != redis.ErrNil {
+		return err
+	}
+
+	return nil
+}
+
+//UpdateSkipEvent updates event record in Redis with skip field = error string
+func (r *Redis) UpdateSkipEvent(destinationID, eventID, error string) error {
+	lastEventsKey := "last_events:destination#" + destinationID + ":id#" + eventID
+
+	conn := r.pool.Get()
+	defer conn.Close()
+
+	_, err := updateTwoFieldsCachedEvent.Do(conn, lastEventsKey, "skip", error, "destination_id", destinationID)
 	noticeError(err)
 	if err != nil && err != redis.ErrNil {
 		return err

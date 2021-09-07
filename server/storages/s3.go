@@ -63,15 +63,19 @@ func (s3 *S3) DryRun(payload events.Event) ([]adapters.TableField, error) {
 
 //Store process events and stores with storeTable() func
 //returns store result per table, failed events (group of events which are failed to process) and err
-func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
-	processedFiles, failedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+	processedFiles, failedEvents, skippedEvents, err := s3.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
 		s3.eventsCache.Error(s3.IsCachingDisabled(), s3.ID(), failedEvent.EventID, failedEvent.Error)
+	}
+	//update cache and counter with skipped events
+	for _, skipEvent := range skippedEvents.Events {
+		s3.eventsCache.Skip(s3.IsCachingDisabled(), s3.ID(), skipEvent.EventID, skipEvent.Error)
 	}
 
 	storeFailedEvents := true
@@ -98,10 +102,10 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		return tableResults, failedEvents, nil
+		return tableResults, failedEvents, skippedEvents, nil
 	}
 
-	return tableResults, nil, nil
+	return tableResults, nil, skippedEvents, nil
 }
 
 func (s3 *S3) marshaller() schema.Marshaller {
