@@ -5,18 +5,21 @@ import useLoader from '../../../hooks/useLoader';
 import { NavLink } from 'react-router-dom';
 import { ErrorCard } from '../ErrorCard/ErrorCard';
 import { CenteredError, CenteredSpin, CodeSnippet, Preloader } from '../components';
-import { Badge, Skeleton, Tabs, Tooltip } from 'antd';
+import { Badge, Button, Checkbox, Popover, Skeleton, Tabs, Tooltip } from 'antd';
 import { jitsuClientLibraries, default as JitsuClientLibraryCard } from '../JitsuClientLibrary/JitsuClientLibrary';
 import { Moment, default as moment } from 'moment';
 import orderBy from 'lodash/orderBy';
 import CheckCircleOutlined from '@ant-design/icons/lib/icons/CheckCircleOutlined';
-import { useState, ReactElement } from 'react';
+import { useState, ReactElement, useEffect } from 'react';
 import { destinationsReferenceMap } from '../../../catalog/destinations/lib';
 import styles from './EventsSteam.module.less'
 import murmurhash from 'murmurhash';
 import RightCircleOutlined from '@ant-design/icons/lib/icons/RightCircleOutlined';
 import { DownCircleOutlined, ExclamationCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import { Code } from '../Code/Code';
+import classNames from 'classnames';
+import cn from 'classnames';
+import { reactElementToString } from '../../commons/utils';
 
 type Event = {
   timestamp: Moment,
@@ -95,21 +98,53 @@ function trim(str: string, maxLen: number): string {
   }
 }
 
-const TabTitle: React.FC<{icon: any, error?: boolean}> = ({ icon, error, children }) => {
+const TabTitle: React.FC<{ icon: any, error?: boolean }> = ({ icon, error, children }) => {
   const maxLen = 10;
   const titleString = children.toString();
   const title = <div className="align-baseline flex items-center">
     <span className="inline-block h-6 w-6 pr-2">{icon}</span>
     <span>{trim(titleString, maxLen)}</span>
   </div>
-  const content = titleString.length > maxLen ? <Tooltip title={children}>{title}</Tooltip> : title;
-  return error ? <Badge count={'!'} size="small">{content}</Badge> : content;
+  const content = titleString.length > maxLen ?
+    <Tooltip title={children}>{title}</Tooltip> :
+    title;
+  return error ?
+    <Badge count={'!'} size="small">{content}</Badge> :
+    content;
 }
 
-const EventsView: React.FC<{event: Event, allDestinations: Record<string, DestinationData>}> = ({ event, allDestinations }) => {
+/**
+ * Displays string as is, if len is lesser than len. Or trims the string (middle chars) and displays tooltip
+ * @param len
+ * @param children
+ */
+const MaxLen: React.FC<{len: number}> = ({ len, children }) => {
+  const string = reactElementToString(children);
+  if (string.length <= len) {
+    return <>{children}</>;
+  } else {
+    //technically it's not correct, we need to refactor that more carefully to handle
+    //odd / even nulbers well
+    const prefixLen = len / 2 - 2;
+    const suffixLen = len / 2 - 2;
+    return <Tooltip title={children}>{string.substr(0, prefixLen) + '...' + string.substr(-suffixLen)}</Tooltip>
+  }
+}
+
+const EventsView: React.FC<{ event: Event, className?: string, allDestinations: Record<string, DestinationData> }> = ({ event, allDestinations, className }) => {
+
   const codeProps = { className: 'bg-bgSecondary rounded-xl p-6 text-xs', language: 'json' };
-  return <Tabs tabPosition="left" defaultActiveKey="original">
-    <Tabs.TabPane tab={<TabTitle icon={<svg fill="currentColor"  viewBox="0 0 50 50" width="100%" height="100%"><path d="M 17.226563 46.582031 C 17.105469 46.582031 16.984375 46.5625 16.871094 46.519531 C 7.976563 43.15625 2 34.507813 2 25 C 2 12.316406 12.316406 2 25 2 C 37.683594 2 48 12.316406 48 25 C 48 34.507813 42.023438 43.15625 33.128906 46.519531 C 32.882813 46.613281 32.605469 46.605469 32.363281 46.492188 C 32.121094 46.386719 31.933594 46.183594 31.839844 45.9375 L 26.890625 32.828125 C 26.695313 32.3125 26.953125 31.734375 27.472656 31.539063 C 30.179688 30.519531 32 27.890625 32 25 C 32 21.140625 28.859375 18 25 18 C 21.140625 18 18 21.140625 18 25 C 18 27.890625 19.820313 30.519531 22.527344 31.539063 C 23.046875 31.734375 23.304688 32.3125 23.109375 32.828125 L 18.160156 45.933594 C 18.066406 46.183594 17.878906 46.382813 17.636719 46.492188 C 17.507813 46.554688 17.367188 46.582031 17.226563 46.582031 Z"/></svg>}>
+  const [opacityStyle, setOpacityStyle] = useState('opacity-0');
+  useEffect(() => {
+    setTimeout(() => {
+      setOpacityStyle('opacity-100')
+    }, 0);
+  })
+  return <Tabs tabPosition="left" defaultActiveKey="original" className={cn(className, opacityStyle, 'transition-all duration-1000')}>
+    <Tabs.TabPane tab={<TabTitle icon={<svg fill="currentColor" viewBox="0 0 50 50" width="100%" height="100%">
+      <path
+        d="M 17.226563 46.582031 C 17.105469 46.582031 16.984375 46.5625 16.871094 46.519531 C 7.976563 43.15625 2 34.507813 2 25 C 2 12.316406 12.316406 2 25 2 C 37.683594 2 48 12.316406 48 25 C 48 34.507813 42.023438 43.15625 33.128906 46.519531 C 32.882813 46.613281 32.605469 46.605469 32.363281 46.492188 C 32.121094 46.386719 31.933594 46.183594 31.839844 45.9375 L 26.890625 32.828125 C 26.695313 32.3125 26.953125 31.734375 27.472656 31.539063 C 30.179688 30.519531 32 27.890625 32 25 C 32 21.140625 28.859375 18 25 18 C 21.140625 18 18 21.140625 18 25 C 18 27.890625 19.820313 30.519531 22.527344 31.539063 C 23.046875 31.734375 23.304688 32.3125 23.109375 32.828125 L 18.160156 45.933594 C 18.066406 46.183594 17.878906 46.382813 17.636719 46.492188 C 17.507813 46.554688 17.367188 46.582031 17.226563 46.582031 Z"/>
+    </svg>}>
       original
     </TabTitle>} key="original">
       <Code {...codeProps}>
@@ -140,55 +175,62 @@ const EventsView: React.FC<{event: Event, allDestinations: Record<string, Destin
   </Tabs>
 }
 
-const EventsList: React.FC<{events: Event[], allDestinations: Record<string, DestinationData>}> = ({ events , allDestinations }) => {
+const EventsList: React.FC<{ events: Event[], allDestinations: Record<string, DestinationData> }> = ({ events, allDestinations }) => {
   const [selectedEvent, setSelectedEvent] = useState(null);
-  let selectedEventObject = null;
   return <div className="w-full">
     {events.map(event => {
       const active = event.eventId === selectedEvent;
       const hasSuccessEvent = !!Object.values(event.destinationResults).find(dest => dest.status === 'success')
       const hasFailedEvent = !!Object.values(event.destinationResults).find(dest => dest.status === 'error')
-      return <div key={event.eventId}><div
-        className={`overflow-hidden flex flex-row border-b border-secondaryText border-opacity-50 items-center cursor-pointer h-12 ${selectedEvent === event.eventId ?
-          'bg-bgSecondary' :
-          'hover:bg-bgComponent'}`}
-        key="header"
-        onClick={() => setSelectedEvent(active ? null : event.eventId)}
-      >
-        <div className="w-6 flex items-center justify-center px-3 text-lg" key="icon">
-          <Tooltip title={hasFailedEvent ? 'Failed - at least one destination load is failed' : (hasSuccessEvent ? 'Success - succesfully sent to all destinations' : 'Pending - status of some destinations is unknown')}>
-            {hasFailedEvent ? <ExclamationCircleOutlined className="text-error" /> : (hasSuccessEvent ? <CheckCircleOutlined className="text-success" /> : <QuestionCircleOutlined className="text-warning" />)}
-          </Tooltip>
+      return <div key={event.eventId}>
+        <div
+          className={`overflow-hidden w-full flex flex-row border-b border-secondaryText border-opacity-50 items-center cursor-pointer h-12 ${selectedEvent === event.eventId ?
+            'bg-bgSecondary' :
+            'hover:bg-bgComponent'}`}
+          key="header"
+          onClick={() => setSelectedEvent(active ?
+            null :
+            event.eventId)}
+        >
+          <div className="w-6 flex items-center justify-center px-3 text-lg" key="icon">
+            <Tooltip title={hasFailedEvent ?
+              'Failed - at least one destination load is failed' :
+              (hasSuccessEvent ?
+                'Success - succesfully sent to all destinations' :
+                'Pending - status of some destinations is unknown')}>
+              {hasFailedEvent ?
+                <ExclamationCircleOutlined className="text-error"/> :
+                (hasSuccessEvent ?
+                  <CheckCircleOutlined className="text-success"/> :
+                  <QuestionCircleOutlined className="text-warning"/>)}
+            </Tooltip>
+          </div>
+          <div className={`text-xxs whitespace-nowrap text-secondaryText px-1 ${styles.jsonPreview}`} key="time">
+            <div>{event.timestamp.format('YYYY-MM-DD hh:mm:ss')} UTC</div>
+            <div className="text-xxs">{event.timestamp.fromNow()}</div>
+          </div>
+          <div className="pl-4 text-3xs text-secondaryText font-monospace overflow-hidden h-12 leading-4 flex-shrink" key="json">
+            {JSON.stringify(event.rawJson, null, 2)}
+          </div>
+          <div className={cn('w-12 text-testPale flex items-center justify-center px-2 text-xl transition-transform duration-500', active && 'transform rotate-90')} key="expand">
+            <RightCircleOutlined/>
+          </div>
         </div>
-        <div className={`text-xxs whitespace-nowrap text-secondaryText px-1 ${styles.jsonPreview}`} key="time">
-          <div>{event.timestamp.format('YYYY-MM-DD hh:mm:ss')} UTC</div>
-          <div className="text-xxs">{event.timestamp.fromNow()}</div>
-        </div>
-        <div className="pl-4 text-3xs text-secondaryText font-monospace overflow-hidden h-12 leading-4 flex-shrink"  key="json">
-          {JSON.stringify(event.rawJson)}
-        </div>
-        <div className="w-12 text-testPale flex items-center justify-center px-2 text-xl" key="expand">
-          {active ?
-            <DownCircleOutlined /> :
-            <RightCircleOutlined /> }
-
-        </div>
+        <div key="details">{active && <EventsView event={event} allDestinations={allDestinations} className="pb-6"/>}</div>
       </div>
-      <div key="details">{active && <EventsView event={event} allDestinations={allDestinations} />}</div>
-
-      </div>;
     })}
   </div>
 }
 
 const EventStreamComponent = () => {
   const services = useServices();
+  const [filterById, setFilterById] = useState(null);
   const destinationsMap: Record<string, DestinationData> = destinationsStore.allDestinations.reduce((index, dst) => {
     index[dst._uid] = dst;
     return index;
   }, {});
 
-  const promises = Object.values(destinationsMap).map(dst => {
+  const promises = Object.values(destinationsMap).filter(dst => filterById === null || filterById.includes(dst._uid)).map(dst => {
     return services.backendApiClient.get(
       `/events/cache?project_id=${services.activeProject.id}&limit=500&destination_ids=${services.activeProject.id}.${dst._uid}`,
       { proxy: true }
@@ -196,20 +238,64 @@ const EventStreamComponent = () => {
       return { events, destinationId: dst._uid }
     });
   });
-  const [error, data] = useLoader(() => Promise.all(promises));
+  const [error, data, ,reload] = useLoader(() => Promise.all(promises), [filterById]);
   if (error) {
-    return <CenteredError error={error} />
+    return <CenteredError error={error}/>
   } else if (!data) {
-    return <CenteredSpin />
+    return <CenteredSpin/>
   }
   let events = processEvents(data);
 
-  if (events.length === 0) {
-    return <NoDataFlowing />
+  if (events.length === -1) {
+    return <NoDataFlowing/>
   }
 
-  return <EventsList events={events} allDestinations={destinationsMap} />
+  return <div>
+    <div>
+      <DestinationsFilter allDestinations={destinationsStore.allDestinations} onChange={(ids) => {
+        setFilterById(ids);
+        reload();
+      }}/>
+    </div>
+    <EventsList events={events} allDestinations={destinationsMap}/>
+  </div>
+}
 
+const DestinationsFilter: React.FC<{onChange: (destinations: string[]) => void, allDestinations: DestinationData[] }> = ({ onChange, allDestinations }) => {
+  const [selectedIds, setSelectedIds] = useState(allDestinations.map(dst => dst._uid));
+  const selectedAll = selectedIds.length === allDestinations.length;
+
+  return <Popover placement="bottom" title={null} content={
+    <div className="w-96 h-96 overflow-y-auto overflow-x-hidden pr-6">
+      <div className="flex pb-4">
+        <Button type="link" size="small" onClick={() => setSelectedIds(allDestinations.map(dst => dst._uid))}>Select All</Button>
+        <Button type="link" size="small" onClick={() => setSelectedIds([])}>Clear Selection</Button>
+      </div>
+      <div className="flex flex-col">{allDestinations.map(dst => {
+        const toggleCheckBox = () => {
+          let newIds;
+          if (selectedIds.includes(dst._uid)) {
+            newIds = selectedIds.filter(el => el !== dst._uid);
+          } else {
+            newIds = [...selectedIds];
+            newIds.push(dst._uid)
+          }
+          setSelectedIds(newIds)
+          onChange(newIds);
+        }
+        const destinationType = destinationsReferenceMap[dst._type];
+        return <div className="flex space-y-2" key={dst._uid}>
+          <div onClick={toggleCheckBox} className="flex flex-nowrap items-center space-x-2 w-96">
+            <span className="icon-size-base">{destinationType.ui.icon}</span>
+            <span><MaxLen len={40}>{dst._id}</MaxLen></span>
+          </div>
+          <div><Checkbox checked={selectedIds.includes(dst._uid)} onClick={toggleCheckBox} /></div>
+
+        </div>
+      })}</div>
+    </div>} trigger="click">
+    <Button size="large" className="w-72">Show Destinations: {selectedAll ? 'all' : `${selectedIds.length} out of ${allDestinations.length}`}</Button>
+  </Popover>
 }
 
 const EventStream = observer(EventStreamComponent);
