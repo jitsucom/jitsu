@@ -17,8 +17,8 @@ func (e *Error) Error() string {
 }
 
 type Request struct {
-	Url             string
-	Method          string
+	URL    string
+	Method string
 	Headers         map[string]string
 	Body            []byte
 	ExpectedStatues []int
@@ -40,7 +40,7 @@ func (r *Request) Do(client *http.Client) (interface{}, error) {
 	if r.Body != nil {
 		rqBodyReader = bytes.NewReader(r.Body)
 	}
-	req, err := http.NewRequest(r.Method, r.Url, rqBodyReader)
+	req, err := http.NewRequest(r.Method, r.URL, rqBodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %s", err)
 	}
