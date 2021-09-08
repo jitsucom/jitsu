@@ -36,7 +36,7 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
   const [filterStart, setFilterStart] = useState(
     query.get('start')
       ? moment.utc(query.get('start'))
-      : moment.utc().subtract(1, 'days')
+      : moment.utc().subtract(1, 'days').startOf('day')
   );
   const [filterEnd, setFilterEnd] = useState(
     query.get('end') ? moment.utc(query.get('end')) : moment.utc().endOf('day')
