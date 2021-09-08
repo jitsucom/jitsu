@@ -242,23 +242,19 @@ export type Parameter = {
    * Type of parameter
    */
   type?: ParameterType<any>;
-
   /**
    * Default value (should be displayed by default)
    */
   defaultValue?: any;
-
   /**
    *  Flag describes required/optional nature of the field. IF empty - field is optional
    *  Either constant or function of current config
    */
   required?: ConstantOrFunction<any, any>;
-
   /**
    * Documentation
    */
   documentation?: ReactNode;
-
   /**
    * Either constant or function of current config (to be able to hide fields based on rules)
    *
@@ -270,11 +266,10 @@ export type Parameter = {
    * use `omitFieldRule` function.
    */
   constant?: ConstantOrFunction<any, any>;
-
   /**
    * Function of current config that shows whether to use field (render and send value) or not.
    */
-  omitFieldRule?: (config: unknown) => boolean
+  omitFieldRule?: (config: unknown) => boolean;
 };
 
 export interface CollectionParameter extends Parameter {
@@ -304,7 +299,6 @@ export interface SourceConnector {
    * Enable collection Start Date parameter.
    * */
   isStartDateEnabled?: boolean;
-
   /**
    * If connector requires expert-level knowledge (such as JSON editing)
    *
@@ -328,32 +322,35 @@ export interface SourceConnector {
    */
   collectionParameters: CollectionParameter[];
   /**
+   * A function of the SourceConnector `config parameters` that
+   * loads `collection parameters` dynamically if `config parameters`
+   * are valid
+   */
+  dynamicCollectionParameters?: (
+    config: unknown
+  ) => Promise<CollectionParameter[]>;
+  /**
    * Configuration parameters
    */
   configParameters: Parameter[];
-
   /**
    * `true` if need to additionally load `configParameters`
    */
   hasLoadableParameters?: boolean;
-
   /**
    * If collections are limited to certain names, list them here
    */
   collectionTypes: string[];
-
   /**
    * Collection templates
    */
   collectionTemplates?: CollectionTemplate[];
-
   /**
    * API Connector documentation
    */
   documentation?: ConnectorDocumentation;
-
   /**
-   * If true, user won't be able to add new sources of this type 
+   * If true, user won't be able to add new sources of this type
    * yet it will be possible to edit the existing ones
    */
   deprecated?: boolean;
