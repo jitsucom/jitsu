@@ -61,11 +61,19 @@ type AirbyteSpecNodeMappingParameters = {
 
 /**
  * Maps the spec of the Airbyte connector to the Jitsu `Parameter` schema of the `SourceConnector`.
- * @param specNode `connectionSpecification` field which is the root node of the airbyte source spec.
+ * @param spec `connectionSpecification` field which is the root node of the airbyte source spec.
  */
-export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
+export const mapAirbyteSpecToSourceConnectorConfig = (
+  spec: unknown
+): Parameter[] => {
+  return mapAirbyteSpecNode(spec, {
+    nodeName: 'config',
+    parentNode: { id: 'config' }
+  });
+};
+
+const mapAirbyteSpecNode = function mapSpecNode(
   specNode: unknown,
-  sourceName: string,
   options?: AirbyteSpecNodeMappingParameters
 ): Parameter[] {
   const result: Parameter[] = [];
@@ -189,7 +197,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
       const parentId = id;
       optionsEntries.forEach(([nodeName, node]) =>
         result.push(
-          ...mapAirbyteNode(node, sourceName, {
+          ...mapSpecNode(node, {
             nodeName,
             requiredFields: listOfRequiredFields,
             parentNode: {
@@ -210,7 +218,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         nodes.forEach((node) => {
           assertIsObject(node);
           result.push(
-            ...mapAirbyteNode(node, sourceName, {
+            ...mapSpecNode(node, {
               nodeName,
               requiredFields,
               parentNode: {
@@ -228,7 +236,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
       } else if (specNode['$ref']) {
         const refNode = getAirbyteSpecNodeByRef(parentNode, specNode['$ref']);
         result.push(
-          ...mapAirbyteNode(refNode, sourceName, {
+          ...mapSpecNode(refNode, {
             nodeName,
             parentNode,
             setChildrenParameters
@@ -252,7 +260,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
           .slice(1) // Ecludes the first entry as it is a duplicate definition of the parent node
           .forEach(([nodeName, node]) =>
             result.push(
-              ...mapAirbyteNode(node, sourceName, {
+              ...mapSpecNode(node, {
                 nodeName,
                 requiredFields: _listOfRequiredFields,
                 parentNode: { ...specNode, id: parentNode.id, parentNode },
