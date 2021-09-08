@@ -10,7 +10,7 @@ import editorStyles from 'ui/components/ConfigurableFieldsForm/ConfigurableField
 import { ConfigurableFieldsForm } from '../ConfigurableFieldsForm/ConfigurableFieldsForm';
 import { ErrorCard } from 'lib/components/ErrorCard/ErrorCard';
 import { FormInstance } from 'antd/es';
-import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/helper';
+import { mapAirbyteSpecToSourceConnectorConfig } from 'catalog/sources/lib/airbyte.helper';
 import { Poll } from 'utils/polling';
 
 type Props = {

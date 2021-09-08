@@ -1,6 +1,7 @@
 import { allSingerTaps } from './singer';
 import { allNativeConnectors } from './native';
-import { makeAirbyteSource, makeSingerSource } from './helper';
+import { makeSingerSource } from './helper';
+import { makeAirbyteSource } from './airbyte.helper';
 import { SourceConnector } from '../types';
 import { snakeCase } from 'lodash';
 import { allAirbyteSources } from './airbyte';
