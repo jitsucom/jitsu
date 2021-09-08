@@ -31,6 +31,7 @@ import Icon, {
 import logo from 'icons/logo.svg';
 import logoMini from 'icons/logo-square.svg';
 import { ReactComponent as DbtCloudIcon } from 'icons/dbtCloud.svg';
+import { ReactComponent as KeyIcon } from 'icons/key.svg';
 import classNames from 'classnames';
 // @Model
 import { Permission, User } from 'lib/services/model';
@@ -64,7 +65,7 @@ const menuItems = [
   makeItem(<PartitionOutlined />, 'Home', '/connections'),
   makeItem(<ThunderboltOutlined />, 'Live Events', '/events_stream'),
   makeItem(<AreaChartOutlined />, 'Statistics', '/dashboard'),
-  makeItem(<UnlockOutlined />, 'API Keys', '/api_keys'),
+  makeItem(<Icon component={KeyIcon} />, 'API Keys', '/api_keys'),
   makeItem(<ApiOutlined />, 'Sources', '/sources'),
   makeItem(<NotificationOutlined />, 'Destinations', '/destinations'),
   makeItem(<Icon component={DbtCloudIcon}/>, 'dbt Cloud Integration', '/dbtcloud'),
