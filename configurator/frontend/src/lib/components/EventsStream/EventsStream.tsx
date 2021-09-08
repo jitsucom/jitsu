@@ -316,8 +316,8 @@ const DestinationsFilter: React.FC<{onChange: (destinations: string[]) => void, 
   const [popoverVisible, setPopoverVisible] = useState(false);
   const selectedAll = selectedIds.length === allDestinations.length;
 
-  return <Popover visible={popoverVisible} placement="bottom" title={null} content={
-    <div className="w-96 h-96 overflow-y-auto overflow-x-hidden pr-6">
+  return <Popover  visible={popoverVisible} placement="bottom" title={null} content={
+    <div className="w-96 h-96 overflow-y-hidden overflow-hidden pr-6">
       <div className="flex pb-4">
         <div className="flex-grow">
           <Button type="link" size="small" onClick={() => setSelectedIds(allDestinations.map(dst => dst._uid))}>Select All</Button>
@@ -330,7 +330,7 @@ const DestinationsFilter: React.FC<{onChange: (destinations: string[]) => void, 
           }}>Apply</Button>
         </div>
       </div>
-      <div className="flex flex-col">{allDestinations.map(dst => {
+      <div className="flex flex-col h-96 overflow-y-auto pr-2">{allDestinations.map(dst => {
         const toggleCheckBox = () => {
           let newIds;
           if (selectedIds.includes(dst._uid)) {

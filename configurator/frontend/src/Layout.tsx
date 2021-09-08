@@ -22,12 +22,11 @@ import Icon, {
   NotificationOutlined,
   CloudOutlined,
   DownloadOutlined,
-  WechatOutlined,
   UserOutlined,
   UserSwitchOutlined,
   LogoutOutlined,
   PartitionOutlined,
-  ThunderboltOutlined, LeftOutlined
+  ThunderboltOutlined
 } from '@ant-design/icons';
 import logo from 'icons/logo.svg';
 import logoMini from 'icons/logo-square.svg';
