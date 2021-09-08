@@ -2,10 +2,10 @@ import { destinationsStore } from '../../../stores/destinations';
 import { observer } from 'mobx-react-lite';
 import { useServices } from '../../../hooks/useServices';
 import useLoader from '../../../hooks/useLoader';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useHistory, useLocation, useParams } from 'react-router-dom';
 import { ErrorCard } from '../ErrorCard/ErrorCard';
-import { CenteredError, CenteredSpin, CodeSnippet, Preloader } from '../components';
-import { Badge, Button, Checkbox, Popover, Skeleton, Tabs, Tooltip } from 'antd';
+import { CenteredError, CenteredSpin, CodeInline, CodeSnippet, Preloader } from '../components';
+import { Badge, Button, Checkbox, Popover, Skeleton, Table, Tabs, Tooltip, Typography } from 'antd';
 import { jitsuClientLibraries, default as JitsuClientLibraryCard } from '../JitsuClientLibrary/JitsuClientLibrary';
 import { Moment, default as moment } from 'moment';
 import orderBy from 'lodash/orderBy';
@@ -20,6 +20,7 @@ import { Code } from '../Code/Code';
 import classNames from 'classnames';
 import cn from 'classnames';
 import { reactElementToString } from '../../commons/utils';
+import { useForceUpdate } from '../../../hooks/useForceUpdate';
 
 type Event = {
   timestamp: Moment,
@@ -29,7 +30,7 @@ type Event = {
 }
 
 type DestinationStatus = {
-  status: 'success' | 'error' | 'pending'
+  status: 'success' | 'error' | 'pending' | 'skip'
   rawJson: any
 }
 
@@ -73,13 +74,19 @@ function processEvents(data: { destinationId: string; events: any }[]) {
         normalizedEvent = newEvent(event.original)
         eventsIndex[eventId] = normalizedEvent;
       }
+      let status
+      if (event.success) {
+        status = 'success'
+      } else if (event.error) {
+        status = 'error';
+      } else if (event.skip) {
+        status = 'skip'
+      } else {
+        status = 'pending'
+      }
       normalizedEvent.destinationResults[dst.destinationId] = {
-        status: event.success ?
-          'success' :
-          (event.error ?
-            'error' :
-            'pending'),
-        rawJson: event.success || event.error
+        status,
+        rawJson: event.success || event.error || event.skip
       }
     })
   })
@@ -155,33 +162,95 @@ const EventsView: React.FC<{ event: Event, className?: string, allDestinations: 
 
       const destination = allDestinations[destinationId];
       const destinationType = destinationsReferenceMap[destination._type];
-
+      let display;
+      if (result.status === 'error') {
+        display = <div className="font-monospace flex justify-center items-center text-error">
+          {JSON.stringify(result.rawJson)} (error)
+        </div>
+      } else if (result.status === 'pending') {
+        display = <div className="font-monospace flex justify-center items-center text-warning">
+          Event is in queue and hasn't been sent to {destination._id} yet
+        </div>
+      } else if (result.status === 'skip') {
+        display =<div className="font-monospace flex justify-center items-center">Event was skipped: {JSON.stringify(result.rawJson)}</div>
+      } else {
+        display = getResultView(result.rawJson);
+      }
       const error = result.status === 'error';
       const pending = result.status === 'pending';
       return <Tabs.TabPane tab={<TabTitle error={error} icon={destinationType.ui.icon}>{destination._id}</TabTitle>} key={destinationId}>
-        {error ?
-          <div className="font-monospace flex justify-center items-center text-error">
-            {JSON.stringify(result.rawJson)} (error)
-          </div> :
-          (pending ?
-            <div className="font-monospace flex justify-center items-center text-warning">
-              Event is in queue and hasn't been sent to {destination._id} yet
-            </div> :
-            <Code {...codeProps}>
-              {JSON.stringify(result.rawJson, null, 2)}
-            </Code>)}
+        {display}
       </Tabs.TabPane>
     })}
   </Tabs>
 }
 
-const EventsList: React.FC<{ events: Event[], allDestinations: Record<string, DestinationData> }> = ({ events, allDestinations }) => {
+function getResultView(obj: any) {
+  if (obj.table && obj.record && Array.isArray(obj.record)) {
+    console.log(obj.record);
+    return <div>
+      The event has been recorded to table <CodeInline>{obj.table}</CodeInline> with following structure:
+      <Table
+        className="mt-4"
+        pagination={false}
+        size="small"
+        columns={[{
+          title: 'Column Name',
+          dataIndex: 'field',
+          key: 'field'
+        }, {
+          title: 'Column Type',
+          dataIndex: 'type',
+          key: 'type'
+        }, {
+          title: 'Value',
+          dataIndex: 'value',
+          key: 'value'
+        }]}
+        dataSource={obj.record}
+      />
+    </div>
+  }
+  return <Code className="bg-bgSecondary rounded-xl p-6 text-xs" language="json">
+    {JSON.stringify(obj, null, 2)}
+  </Code>;
+
+}
+
+const EventsList: React.FC<{ destinationsFilter: string[] }> = ({ destinationsFilter }) => {
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const services = useServices();
+
+  const destinationsMap: Record<string, DestinationData> = destinationsStore.allDestinations.reduce((index, dst) => {
+    index[dst._uid] = dst;
+    return index;
+  }, {});
+
+  const promises = Object.values(destinationsMap).filter(dst => destinationsFilter === null || destinationsFilter.includes(dst._uid)).map(dst => {
+    return services.backendApiClient.get(
+      `/events/cache?project_id=${services.activeProject.id}&limit=500&destination_ids=${services.activeProject.id}.${dst._uid}`,
+      { proxy: true }
+    ).then((events) => {
+      return { events, destinationId: dst._uid }
+    });
+  });
+  const [error, data, ,reload] = useLoader(() => Promise.all(promises), [destinationsFilter]);
+  if (error) {
+    return <CenteredError error={error}/>
+  } else if (!data) {
+    return <CenteredSpin/>
+  }
+  let events = processEvents(data);
+
+  if (events.length === 0) {
+    return <NoDataFlowing/>
+  }
+
   return <div className="w-full">
     {events.map(event => {
       const active = event.eventId === selectedEvent;
-      const hasSuccessEvent = !!Object.values(event.destinationResults).find(dest => dest.status === 'success')
       const hasFailedEvent = !!Object.values(event.destinationResults).find(dest => dest.status === 'error')
+      const hasPendingEvent = !!Object.values(event.destinationResults).find(dest => dest.status === 'pending')
       return <div key={event.eventId}>
         <div
           className={`overflow-hidden w-full flex flex-row border-b border-secondaryText border-opacity-50 items-center cursor-pointer h-12 ${selectedEvent === event.eventId ?
@@ -195,14 +264,15 @@ const EventsList: React.FC<{ events: Event[], allDestinations: Record<string, De
           <div className="w-6 flex items-center justify-center px-3 text-lg" key="icon">
             <Tooltip title={hasFailedEvent ?
               'Failed - at least one destination load is failed' :
-              (hasSuccessEvent ?
-                'Success - succesfully sent to all destinations' :
-                'Pending - status of some destinations is unknown')}>
+              (hasPendingEvent ?
+                'Pending - status of some destinations is unknown' :
+                'Success - succesfully sent to all destinations')}>
               {hasFailedEvent ?
                 <ExclamationCircleOutlined className="text-error"/> :
-                (hasSuccessEvent ?
-                  <CheckCircleOutlined className="text-success"/> :
-                  <QuestionCircleOutlined className="text-warning"/>)}
+                (hasPendingEvent ?
+                  <QuestionCircleOutlined className="text-warning"/> :
+                  <CheckCircleOutlined className="text-success"/>
+                )}
             </Tooltip>
           </div>
           <div className={`text-xxs whitespace-nowrap text-secondaryText px-1 ${styles.jsonPreview}`} key="time">
@@ -216,60 +286,49 @@ const EventsList: React.FC<{ events: Event[], allDestinations: Record<string, De
             <RightCircleOutlined/>
           </div>
         </div>
-        <div key="details">{active && <EventsView event={event} allDestinations={allDestinations} className="pb-6"/>}</div>
+        <div key="details">{active && <EventsView event={event} allDestinations={destinationsMap} className="pb-6"/>}</div>
       </div>
     })}
   </div>
 }
 
 const EventStreamComponent = () => {
-  const services = useServices();
-  const [filterById, setFilterById] = useState(null);
-  const destinationsMap: Record<string, DestinationData> = destinationsStore.allDestinations.reduce((index, dst) => {
-    index[dst._uid] = dst;
-    return index;
-  }, {});
-
-  const promises = Object.values(destinationsMap).filter(dst => filterById === null || filterById.includes(dst._uid)).map(dst => {
-    return services.backendApiClient.get(
-      `/events/cache?project_id=${services.activeProject.id}&limit=500&destination_ids=${services.activeProject.id}.${dst._uid}`,
-      { proxy: true }
-    ).then((events) => {
-      return { events, destinationId: dst._uid }
-    });
-  });
-  const [error, data, ,reload] = useLoader(() => Promise.all(promises), [filterById]);
-  if (error) {
-    return <CenteredError error={error}/>
-  } else if (!data) {
-    return <CenteredSpin/>
-  }
-  let events = processEvents(data);
-
-  if (events.length === -1) {
-    return <NoDataFlowing/>
-  }
-
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const [filterByIds, setFilterByIds] = useState(params.get('onlyIds') ? params.get('onlyIds').split(',') : null);
+  const history = useHistory();
   return <div>
-    <div>
-      <DestinationsFilter allDestinations={destinationsStore.allDestinations} onChange={(ids) => {
-        setFilterById(ids);
-        reload();
+    <div className="mb-6 flex justify-between">
+      <DestinationsFilter initialFilter={filterByIds} allDestinations={destinationsStore.allDestinations} onChange={(ids) => {
+        setFilterByIds(ids);
+        history.push({ search: `onlyIds=${ids}` })
       }}/>
+      <Button size="large" type="primary" onClick={() => {
+        setFilterByIds(filterByIds ? [...filterByIds] : null);
+      }}>Reload</Button>
     </div>
-    <EventsList events={events} allDestinations={destinationsMap}/>
+    <EventsList destinationsFilter={filterByIds} />
   </div>
 }
 
-const DestinationsFilter: React.FC<{onChange: (destinations: string[]) => void, allDestinations: DestinationData[] }> = ({ onChange, allDestinations }) => {
-  const [selectedIds, setSelectedIds] = useState(allDestinations.map(dst => dst._uid));
+const DestinationsFilter: React.FC<{onChange: (destinations: string[]) => void, allDestinations: DestinationData[], initialFilter?: string[] }> = ({ initialFilter, onChange, allDestinations }) => {
+  const [selectedIds, setSelectedIds] = useState(initialFilter || allDestinations.map(dst => dst._uid));
+  const [popoverVisible, setPopoverVisible] = useState(false);
   const selectedAll = selectedIds.length === allDestinations.length;
 
-  return <Popover placement="bottom" title={null} content={
+  return <Popover visible={popoverVisible} placement="bottom" title={null} content={
     <div className="w-96 h-96 overflow-y-auto overflow-x-hidden pr-6">
       <div className="flex pb-4">
-        <Button type="link" size="small" onClick={() => setSelectedIds(allDestinations.map(dst => dst._uid))}>Select All</Button>
-        <Button type="link" size="small" onClick={() => setSelectedIds([])}>Clear Selection</Button>
+        <div className="flex-grow">
+          <Button type="link" size="small" onClick={() => setSelectedIds(allDestinations.map(dst => dst._uid))}>Select All</Button>
+          <Button type="link" size="small" onClick={() => setSelectedIds([])}>Clear Selection</Button>
+        </div>
+        <div className="flex justify-end">
+          <Button type="link" size="small" onClick={() => {
+            setPopoverVisible(false);
+            onChange(selectedIds);
+          }}>Apply</Button>
+        </div>
       </div>
       <div className="flex flex-col">{allDestinations.map(dst => {
         const toggleCheckBox = () => {
@@ -281,7 +340,6 @@ const DestinationsFilter: React.FC<{onChange: (destinations: string[]) => void, 
             newIds.push(dst._uid)
           }
           setSelectedIds(newIds)
-          onChange(newIds);
         }
         const destinationType = destinationsReferenceMap[dst._type];
         return <div className="flex space-y-2" key={dst._uid}>
@@ -294,7 +352,7 @@ const DestinationsFilter: React.FC<{onChange: (destinations: string[]) => void, 
         </div>
       })}</div>
     </div>} trigger="click">
-    <Button size="large" className="w-72">Show Destinations: {selectedAll ? 'all' : `${selectedIds.length} out of ${allDestinations.length}`}</Button>
+    <Button size="large" className="w-72" onClick={() => setPopoverVisible(!popoverVisible)}>Show Destinations: {selectedAll ? 'all' : `${selectedIds.length} out of ${allDestinations.length}`}</Button>
   </Popover>
 }
 
