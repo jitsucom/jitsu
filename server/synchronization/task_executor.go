@@ -102,12 +102,14 @@ func (te *TaskExecutor) execute(i interface{}) {
 	logging.Infof("[%s] Running task...", task.ID)
 	taskLogger.INFO("Running task...")
 
+	taskCloser := NewTaskCloser(task, taskLogger, te.metaStorage)
+
 	task.Status = RUNNING.String()
 	task.StartedAt = timestamp.NowUTC()
 	err := te.metaStorage.UpsertTask(task)
 	if err != nil {
 		msg := fmt.Sprintf("Error updating running task [%s] in meta.Storage: %v", task.ID, err)
-		te.handleError(task, taskLogger, msg, true)
+		taskCloser.CloseWithError(msg, true)
 		return
 	}
 
@@ -115,7 +117,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	collectionLock, err := te.monitorKeeper.Lock(task.Source, task.Collection)
 	if err != nil {
 		msg := fmt.Sprintf("Error getting lock source [%s] collection [%s] task [%s]: %v", task.Source, task.Collection, task.ID, err)
-		te.handleError(task, taskLogger, msg, true)
+		taskCloser.CloseWithError(msg, true)
 		return
 	}
 	logging.Debugf("[TASK %s] Lock obtained for source [%s] collection [%s]!", task.ID, task.Source, task.Collection)
@@ -124,14 +126,14 @@ func (te *TaskExecutor) execute(i interface{}) {
 	sourceUnit, err := te.sourceService.GetSource(task.Source)
 	if err != nil {
 		msg := fmt.Sprintf("Error getting source in task [%s]: %v", task.ID, err)
-		te.handleError(task, taskLogger, msg, true)
+		taskCloser.CloseWithError(msg, true)
 		return
 	}
 
 	driver, ok := sourceUnit.DriverPerCollection[task.Collection]
 	if !ok {
 		msg := fmt.Sprintf("Collection with id [%s] wasn't found in source [%s] in task [%s]", task.Collection, task.Source, task.ID)
-		te.handleError(task, taskLogger, msg, true)
+		taskCloser.CloseWithError(msg, true)
 		return
 	}
 	//get destinations
@@ -156,7 +158,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 
 	if len(destinationStorages) == 0 {
 		msg := fmt.Sprintf("Empty destinations. Task [%s] will be skipped", task.ID)
-		te.handleError(task, taskLogger, msg, false)
+		taskCloser.CloseWithError(msg, false)
 		return
 	}
 
@@ -166,13 +168,13 @@ func (te *TaskExecutor) execute(i interface{}) {
 	var taskErr error
 	cliDriver, ok := driver.(driversbase.CLIDriver)
 	if ok {
-		taskErr = te.syncCLI(task, taskLogger, cliDriver, destinationStorages)
+		taskErr = te.syncCLI(task, taskLogger, cliDriver, destinationStorages, taskCloser)
 	} else {
 		taskErr = te.sync(task, taskLogger, driver, destinationStorages)
 	}
 
 	if taskErr != nil {
-		te.handleError(task, taskLogger, taskErr.Error(), false)
+		taskCloser.CloseWithError(taskErr.Error(), false)
 		return
 	}
 
@@ -185,7 +187,7 @@ func (te *TaskExecutor) execute(i interface{}) {
 	err = te.metaStorage.UpsertTask(task)
 	if err != nil {
 		msg := fmt.Sprintf("Error updating success task [%s] in meta.Storage: %v", task.ID, err)
-		te.handleError(task, taskLogger, msg, true)
+		taskCloser.CloseWithError(msg, true)
 		return
 	}
 	te.onSuccess(task, sourceUnit, taskLogger)
@@ -211,8 +213,10 @@ func (te *TaskExecutor) onSuccess(task *meta.Task, source *sources.Unit, taskLog
 	}
 }
 
-//sync source. Return error if occurred
-func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver driversbase.Driver, destinationStorages []storages.Storage) error {
+//sync runs source synchronization. Return error if occurred
+//doesn't use task closer because there is no async tasks
+func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver driversbase.Driver,
+	destinationStorages []storages.Storage) error {
 	now := time.Now().UTC()
 
 	intervals, err := driver.GetAllAvailableIntervals()
@@ -303,7 +307,8 @@ func (te *TaskExecutor) sync(task *meta.Task, taskLogger *TaskLogger, driver dri
 
 //syncCLI syncs singer/airbyte source
 //returns err if occurred
-func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver, destinationStorages []storages.Storage) error {
+func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriver driversbase.CLIDriver,
+	destinationStorages []storages.Storage, taskCloser *TaskCloser) error {
 	state, err := te.metaStorage.GetSignature(task.Source, cliDriver.GetTap(), driversbase.ALL.String())
 	if err != nil {
 		return fmt.Errorf("Error getting state from meta storage: %v", err)
@@ -317,33 +322,12 @@ func (te *TaskExecutor) syncCLI(task *meta.Task, taskLogger *TaskLogger, cliDriv
 
 	rs := NewResultSaver(task, cliDriver.GetTap(), cliDriver.GetCollectionMetaKey(), cliDriver.GetTableNamePrefix(), taskLogger, destinationStorages, te.metaStorage, cliDriver.GetStreamTableNameMapping())
 
-	err = cliDriver.Load(state, taskLogger, rs)
+	err = cliDriver.Load(state, taskLogger, rs, taskCloser)
 	if err != nil {
 		return fmt.Errorf("Error synchronization: %v", err)
 	}
 
 	return nil
-}
-
-//handleError write logs, update task status and logs in Redis
-func (te *TaskExecutor) handleError(task *meta.Task, taskLogger *TaskLogger, msg string, systemErr bool) {
-	if systemErr {
-		logging.SystemErrorf("[%s] "+msg, task.ID)
-	} else {
-		logging.Errorf("[%s] "+msg, task.ID)
-	}
-
-	taskLogger.ERROR(msg)
-	task.Status = FAILED.String()
-	task.FinishedAt = time.Now().UTC().Format(timestamp.Layout)
-
-	err := te.metaStorage.UpsertTask(task)
-	if err != nil {
-		msg := fmt.Sprintf("Error updating failed task [%s] in meta.Storage: %v", task.ID, err)
-		logging.SystemError(msg)
-		taskLogger.ERROR(msg)
-		return
-	}
 }
 
 func (te *TaskExecutor) Close() error {
