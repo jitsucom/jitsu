@@ -36,10 +36,11 @@ type EventResponse struct {
 
 //CachedEvent is a dto for events cache
 type CachedEvent struct {
-	Original json.RawMessage `json:"original,omitempty"`
-	Success  json.RawMessage `json:"success,omitempty"`
-	Error    string          `json:"error,omitempty"`
-	Skip     string          `json:"skip,omitempty"`
+	Original      json.RawMessage `json:"original,omitempty"`
+	Success       json.RawMessage `json:"success,omitempty"`
+	Error         string          `json:"error,omitempty"`
+	Skip          string          `json:"skip,omitempty"`
+	DestinationID string          `json:"destination_id"`
 }
 
 //CachedEventsResponse dto for events cache response
@@ -166,9 +167,11 @@ func (eh *EventHandler) GetHandler(c *gin.Context) {
 		eventsArray := eh.eventsCache.GetN(destinationID, start, end, limit)
 		for _, event := range eventsArray {
 			response.Events = append(response.Events, CachedEvent{
-				Original: []byte(event.Original),
-				Success:  []byte(event.Success),
-				Error:    event.Error,
+				Original:      []byte(event.Original),
+				Success:       []byte(event.Success),
+				Error:         event.Error,
+				Skip:          event.Skip,
+				DestinationID: event.DestinationID,
 			})
 		}
 		response.ResponseEvents += len(eventsArray)
