@@ -44,12 +44,13 @@ describe('mapAirbyteSpecToSourceConnectorConfig', () => {
             ({ omitFieldRule }) => !!omitFieldRule
           ).length
         ) {
-          it(`maps ${toTitleCase(
-            name
-          )} \`omitFieldRule\` parameters as expected`, () => {
-            true_connector_parameters.forEach((true_parameter, idx) => {
-              const mapped_parameter = mapped_connector_parameters[idx];
-              if (typeof true_parameter.omitFieldRule === 'function') {
+          
+          true_connector_parameters.forEach((true_parameter, idx) => {
+            const mapped_parameter = mapped_connector_parameters[idx];
+            if (typeof true_parameter.omitFieldRule === 'function') {
+              it(`creates ${toTitleCase(name)} ${
+                true_parameter.displayName
+              } parameter's \`omitFieldRule\` rule as expected`, () => {
                 const true_render_result = true_parameter.omitFieldRule(
                   mockJitsuConfigFormData
                 );
@@ -57,8 +58,8 @@ describe('mapAirbyteSpecToSourceConnectorConfig', () => {
                   mockJitsuConfigFormData
                 );
                 expect(mapped_render_result).toEqual(true_render_result);
-              }
-            });
+              });
+            }
           });
         }
 
