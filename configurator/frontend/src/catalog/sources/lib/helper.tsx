@@ -417,7 +417,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
                     .split('.')
                     .reduce((obj, key) => obj[key] || {}, config);
                   const showChildFieldIfThisParentValueSelected =
-                    childrenNodesEntries[0][1]?.['default'];
+                    childrenNodesEntries[0][1]?.['const'];
                   return (
                     parentSelectionNodeValue !==
                     showChildFieldIfThisParentValueSelected
