@@ -63,9 +63,9 @@ const makeItem = (icon: React.ReactNode, title: React.ReactNode, link: string, e
 
 const menuItems = [
   makeItem(<PartitionOutlined />, 'Home', '/connections'),
+  makeItem(<ThunderboltOutlined />, 'Live Events', '/events_stream'),
   makeItem(<AreaChartOutlined />, 'Statistics', '/dashboard'),
   makeItem(<UnlockOutlined />, 'API Keys', '/api_keys'),
-  makeItem(<ThunderboltOutlined />, 'Live Events', '/events_stream'),
   makeItem(<ApiOutlined />, 'Sources', '/sources'),
   makeItem(<NotificationOutlined />, 'Destinations', '/destinations'),
   makeItem(<Icon component={DbtCloudIcon}/>, 'dbt Cloud Integration', '/dbtcloud'),
