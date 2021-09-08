@@ -248,7 +248,7 @@ func (s *Singer) Ready() (bool, error) {
 	return false, runner.NewNotReadyError(msg)
 }
 
-func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer) error {
+func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
 	if s.IsClosed() {
 		return fmt.Errorf("%s has already been closed", s.Type())
 	}
@@ -291,7 +291,7 @@ func (s *Singer) Load(state string, taskLogger logging.TaskLogger, dataConsumer 
 		logger:            taskLogger,
 	}
 
-	return s.LoadAndParse(taskLogger, sop, singer.Instance.LogWriter, command, args...)
+	return s.LoadAndParse(taskLogger, sop, singer.Instance.LogWriter, taskCloser, command, args...)
 }
 
 func (s *Singer) Type() string {
