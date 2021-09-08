@@ -24,6 +24,7 @@ const toTitleCaseDefaultOptions: ToTitleCaseOptions = {
     api: 'API',
     url: 'URL',
     ssl: 'SSL',
+    ssh: 'SSH',
     tls: 'TLS',
     mysql: 'MySQL',
     mongodb: 'MongoDB',

@@ -396,11 +396,13 @@ const ConfigurableFieldsForm = ({
               validationRules.push(
                 isoDateValidator(`${displayName} field is required.`)
               );
+
+            /**
+             * Currently `antd` built in validations do not work as expected,
+             * therefore validations are currently omitted
+             *
+             */
             if (type?.typeName === 'string') {
-              /**
-               * Currently `antd` built in validations does not work as expected, therefore omitted
-               *
-               */
               // assertIsStringParameterType(type);
               // type.pattern &&
               //   validationRules.push({ pattern: new RegExp(type.pattern) });

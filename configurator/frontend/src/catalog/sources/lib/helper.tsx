@@ -243,11 +243,15 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
 
   switch (specNode['type']) {
     case 'string': {
-      const fieldType = specNode['airbyte_secret']
+      const pattern = specNode['pattern'];
+      const multiline = specNode['multiline'];
+      const fieldType = multiline
+        ? makeStringType({multiline})
+        : specNode['airbyte_secret']
         ? passwordType
         : specNode['enum']
         ? singleSelectionType(specNode['enum'])
-        : makeStringType(specNode['pattern']);
+        : makeStringType(pattern ? {pattern} : {});
       const mappedStringField: Parameter = {
         displayName: specNode['title']
           ? toTitleCase(specNode['title'])
@@ -308,6 +312,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         const _listOfRequiredFields: unknown = specNode['required'] || [];
         assertIsArrayOfTypes(_listOfRequiredFields, 'string');
         listOfRequiredFields = _listOfRequiredFields;
+
       } else if (specNode['oneOf']) {
         // this is a rare case, see the Postgres source spec for an example
         optionsEntries = getEntriesFromOneOfField(specNode, nodeName);
@@ -316,7 +321,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         )[0];
         const options = optionsEntries.map(
           ([_, childNode]) =>
-            Object.values(childNode['properties'])?.[0]?.['default']
+            childNode['properties']?.[optionsFieldName]?.['const']
         );
         const mappedSelectionField: Parameter = {
           displayName: specNode['title']
@@ -391,7 +396,8 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         // Special case for the nodes from the `oneOf` list in the `object` node
         const childrenNodesEntries: unknown = Object.entries(
           specNode['properties']
-        );
+        ).sort(([_, nodeA], [__, nodeB]) => nodeA?.['order'] - nodeB?.['order']);
+
         const parentNodeValueProperty = childrenNodesEntries[0][0];
         const parentNodeValueKey = `${parentNode.id}.${parentNodeValueProperty}`;
         const _listOfRequiredFields: unknown = specNode['required'] || [];
@@ -411,7 +417,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
                     .split('.')
                     .reduce((obj, key) => obj[key] || {}, config);
                   const showChildFieldIfThisParentValueSelected =
-                    childrenNodesEntries[0][1]?.['default'];
+                    childrenNodesEntries[0][1]?.['const'];
                   return (
                     parentSelectionNodeValue !==
                     showChildFieldIfThisParentValueSelected
