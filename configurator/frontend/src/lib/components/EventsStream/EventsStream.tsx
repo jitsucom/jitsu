@@ -279,7 +279,7 @@ const EventsList: React.FC<{ destinationsFilter: string[] }> = ({ destinationsFi
             <div>{event.timestamp.format('YYYY-MM-DD hh:mm:ss')} UTC</div>
             <div className="text-xxs">{event.timestamp.fromNow()}</div>
           </div>
-          <div className="pl-4 text-3xs text-secondaryText font-monospace overflow-hidden h-12 leading-4 flex-shrink" key="json">
+          <div className="pl-4 text-3xs text-secondaryText font-monospace overflow-hidden overflow-ellipsis h-12 leading-4 flex-shrink" key="json">
             {JSON.stringify(event.rawJson, null, 2)}
           </div>
           <div className={cn('w-12 text-testPale flex items-center justify-center px-2 text-xl transition-transform duration-500', active && 'transform rotate-90')} key="expand">
