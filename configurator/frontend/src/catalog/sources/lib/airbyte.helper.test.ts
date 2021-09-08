@@ -3,7 +3,7 @@ import { allMockJitsuAirbyteSourceConnectors } from 'catalog/mockData/airbyte/so
 import { mockJitsuConfigFormData } from 'catalog/mockData/airbyte/sourcesConfigs/mockJitsuConfigFormData';
 import { typedObjectEntries } from 'utils/object';
 import { toTitleCase } from 'utils/strings';
-import { mapAirbyteSpecToSourceConnectorConfig } from './helper';
+import { mapAirbyteSpecToSourceConnectorConfig } from './airbyte.helper';
 
 describe('mapAirbyteSpecToSourceConnectorConfig', () => {
   describe('', () => {
@@ -44,7 +44,6 @@ describe('mapAirbyteSpecToSourceConnectorConfig', () => {
             ({ omitFieldRule }) => !!omitFieldRule
           ).length
         ) {
-          
           true_connector_parameters.forEach((true_parameter, idx) => {
             const mapped_parameter = mapped_connector_parameters[idx];
             if (typeof true_parameter.omitFieldRule === 'function') {
@@ -62,7 +61,6 @@ describe('mapAirbyteSpecToSourceConnectorConfig', () => {
             }
           });
         }
-
       }
     );
   });
