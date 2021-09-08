@@ -7,6 +7,7 @@ import {
 import {
   AirbyteSource,
   booleanType,
+  CollectionParameter,
   makeIntType,
   makeStringType,
   Parameter,
@@ -45,6 +46,12 @@ export const makeAirbyteSource = (
     hasLoadableParameters: true
   };
 };
+
+/**
+ *
+ *
+ * Airbyte Sources Specification Mapping
+ */
 
 type EnrichedAirbyteSpecNode = UnknownObject & {
   id: string;
@@ -339,4 +346,25 @@ const getEntriesFromOneOfField = (
     `${nodeName}-option-${idx}`,
     subNode
   ]);
+};
+
+/**
+ *
+ *
+ * Airbyte Sources Streams Mapping
+ */
+
+/**
+ *
+ */
+export const mapAirbyteStreamsToCollections = (
+  streams: unknown[]
+): CollectionParameter[] => {
+  return [];
+};
+
+const mapAirbyteStream = function mapStream(
+  stream: unknown
+): CollectionParameter {
+  return null;
 };
