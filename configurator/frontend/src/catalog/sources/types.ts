@@ -112,11 +112,11 @@ export const stringType: ParameterType<string, 'string'> = {
   typeName: 'string'
 };
 
-export const makeStringType = ({
-  pattern,
-  multiline
-}: StringParameter): ParameterType<string, 'string'> => {
-  return { ...stringType, pattern, multiline };
+export const makeStringType = (
+  options: StringParameter
+): ParameterType<string, 'string'> => {
+  const result: ParameterType<string, 'string'> = { ...stringType };
+  return { ...stringType, ...options };
 };
 
 export const descriptionType: ParameterType<string, 'description'> = {
