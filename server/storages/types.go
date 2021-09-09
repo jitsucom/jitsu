@@ -24,6 +24,7 @@ const (
 	AmplitudeType       = "amplitude"
 	HubSpotType         = "hubspot"
 	DbtCloudType        = "dbtcloud"
+	KafkaType           = "kafka"
 )
 
 //Storage is a destination representation

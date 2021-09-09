@@ -67,6 +67,7 @@ type DestinationConfig struct {
 	Amplitude       *adapters.AmplitudeConfig             `mapstructure:"amplitude" json:"amplitude,omitempty" yaml:"amplitude,omitempty"`
 	HubSpot         *adapters.HubSpotConfig               `mapstructure:"hubspot" json:"hubspot,omitempty" yaml:"hubspot,omitempty"`
 	DbtCloud        *adapters.DbtCloudConfig              `mapstructure:"dbtcloud" json:"dbtcloud,omitempty" yaml:"dbtcloud,omitempty"`
+	Kafka           *adapters.KafkaConfig                 `mapstructure:"kafka" json:"kafka,omitempty" yaml:"kafka,omitempty"`
 }
 
 //DataLayout is used for configure mappings/table names and other data layout parameters
