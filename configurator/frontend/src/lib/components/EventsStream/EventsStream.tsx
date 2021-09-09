@@ -187,7 +187,8 @@ const EventsView: React.FC<{ event: Event, className?: string, allDestinations: 
 
 function getResultView(obj: any) {
   if (obj.table && obj.record && Array.isArray(obj.record)) {
-    console.log(obj.record);
+    let data = [...obj.record];
+    data = orderBy(data, 'field');
     return <div>
       The event has been recorded to table <CodeInline>{obj.table}</CodeInline> with following structure:
       <Table
@@ -207,7 +208,7 @@ function getResultView(obj: any) {
           dataIndex: 'value',
           key: 'value'
         }]}
-        dataSource={obj.record}
+        dataSource={data}
       />
     </div>
   }
@@ -217,7 +218,7 @@ function getResultView(obj: any) {
 
 }
 
-const EventsList: React.FC<{ destinationsFilter: string[], reloadCount: number }> = ({ destinationsFilter , reloadCount}) => {
+const EventsList: React.FC<{ destinationsFilter: string[], reloadCount: number }> = ({ destinationsFilter , reloadCount }) => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const services = useServices();
 
