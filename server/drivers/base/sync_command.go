@@ -25,7 +25,7 @@ func (sc *SyncCommand) Kill(msg string) error {
 
 func (sc *SyncCommand) kill() error {
 	if sc.Docker {
-		exec.Command("docker", "stop", sc.TaskCloser.TaskID(), "&").Run()
+		exec.Command("docker", "stop", sc.TaskCloser.TaskID(), "&").Start()
 	}
 
 	return sc.Command.Process.Kill()
