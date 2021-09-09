@@ -8,10 +8,10 @@ import (
 
 //Kafka is a Kafka adapter for producing messages
 type Kafka struct {
-	config       *KafkaConfig
-	saramaConfig *sarama.Config
-	producer     sarama.SyncProducer
-	marshaller   schema.Marshaller
+	config         *KafkaConfig
+	saramaConfig   *sarama.Config
+	producer       sarama.SyncProducer
+	jsonMarshaller schema.Marshaller
 }
 
 //KafkaConfig is a dto for config deserialization
@@ -50,11 +50,54 @@ func NewKafka(kc *KafkaConfig) (*Kafka, error) {
 		return nil, err
 	}
 
-	return &Kafka{config: kc, saramaConfig: saramaConfig, producer: producer, marshaller: schema.JSONMarshallerInstance}, nil
+	return &Kafka{config: kc, saramaConfig: saramaConfig, producer: producer, jsonMarshaller: schema.JSONMarshallerInstance}, nil
 }
 
-//Send sends message to Kafka topic
-func (k *Kafka) Send(event *EventContext) error {
+//Type returns adapter type
+func (*Kafka) Type() string {
+	return "Kafka"
+}
+
+//Close closes Kafka producer
+func (k *Kafka) Close() error {
+	return k.producer.Close()
+}
+
+//Insert produces message
+func (k *Kafka) Insert(event *EventContext) error {
+	return k.sendEvent(event)
+}
+
+func (k *Kafka) BulkInsert(table *Table, objects []map[string]interface{}) error {
+	return k.sendObjects(table.Name, objects)
+}
+
+func (k *Kafka) BulkUpdate(table *Table, objects []map[string]interface{}, deleteConditions *DeleteConditions) error {
+	return k.sendObjects(table.Name, objects)
+}
+
+//GetTableSchema always returns empty table
+func (k *Kafka) GetTableSchema(tableName string) (*Table, error) {
+	return &Table{
+		Name:           tableName,
+		Columns:        Columns{},
+		PKFields:       map[string]bool{},
+		DeletePkFields: false,
+		Version:        0,
+	}, nil
+}
+
+//CreateTable empty implementation
+func (k *Kafka) CreateTable(schemaToCreate *Table) error {
+	return nil
+}
+
+//PatchTableSchema empty implementation
+func (k *Kafka) PatchTableSchema(schemaToAdd *Table) error {
+	return nil
+}
+
+func (k *Kafka) sendEvent(event *EventContext) error {
 	msg := &sarama.ProducerMessage{
 		Topic: event.Table.Name,
 		Value: sarama.StringEncoder(event.ProcessedEvent.Serialize()),
@@ -65,7 +108,25 @@ func (k *Kafka) Send(event *EventContext) error {
 	return nil
 }
 
-//Close closes Kafka producer
-func (k *Kafka) Close() error {
-	return k.producer.Close()
+func (k *Kafka) sendObjects(topic string, objects []map[string]interface{}) error {
+	var noFields []string
+	for _, obj := range objects {
+		bytes, err := k.jsonMarshaller.Marshal(noFields, obj)
+		if err != nil {
+			return err
+		}
+		msg := &sarama.ProducerMessage{
+			Topic: topic,
+			Value: sarama.ByteEncoder(bytes),
+		}
+		if _, _, err := k.producer.SendMessage(msg); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+//Truncate empty implementation
+func (k *Kafka) Truncate(tableName string) error {
+	return nil
 }
