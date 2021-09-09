@@ -217,7 +217,7 @@ function getResultView(obj: any) {
 
 }
 
-const EventsList: React.FC<{ destinationsFilter: string[] }> = ({ destinationsFilter }) => {
+const EventsList: React.FC<{ destinationsFilter: string[], reloadCount: number }> = ({ destinationsFilter , reloadCount}) => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const services = useServices();
 
@@ -234,7 +234,7 @@ const EventsList: React.FC<{ destinationsFilter: string[] }> = ({ destinationsFi
       return { events, destinationId: dst._uid }
     });
   });
-  const [error, data, ,reload] = useLoader(() => Promise.all(promises), [destinationsFilter]);
+  const [error, data, ,reload] = useLoader(() => Promise.all(promises), [destinationsFilter, reloadCount]);
   if (error) {
     return <CenteredError error={error}/>
   } else if (!data) {
@@ -296,6 +296,7 @@ const EventStreamComponent = () => {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const [filterByIds, setFilterByIds] = useState(params.get('onlyIds') ? params.get('onlyIds').split(',') : null);
+  const [reloadCount, setReloadCount] = useState(0)
   const history = useHistory();
   return <div>
     <div className="mb-6 flex justify-between">
@@ -304,10 +305,10 @@ const EventStreamComponent = () => {
         history.push({ search: `onlyIds=${ids}` })
       }}/>
       <Button size="large" type="primary" onClick={() => {
-        setFilterByIds(filterByIds ? [...filterByIds] : null);
+        setReloadCount(reloadCount+1);
       }}>Reload</Button>
     </div>
-    <EventsList destinationsFilter={filterByIds} />
+    <EventsList destinationsFilter={filterByIds} reloadCount={reloadCount} />
   </div>
 }
 
