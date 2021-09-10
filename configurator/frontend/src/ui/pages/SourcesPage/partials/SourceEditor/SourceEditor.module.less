@@ -5,14 +5,45 @@
     border-bottom: 1px dashed @border-color-base;
     margin-bottom: 20px;
 
-    .delete {
-      flex-shrink: 0;
-      display: block;
-      padding: 10px;
+  }
+  }
+
+.delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: block;
+  padding: 10px;
+}
+
+
+.templates {
+  max-width: 540px;
+  overflow-y: scroll;
+  .template {
+    //width: 100px;
+    display: flex;
+    //flex-flow: row wrap;
+    justify-content: space-between;
+    border-bottom: 1px solid @border-color-base;
+    padding: 10px 10px;
+
+    .comment {
+      color: @text-color-secondary;
+      font-size: 14px;
+      line-height: 1.5715;
+    }
+
+    .button {
+      margin-left: 40px;
+      margin-right: 8px;
+    }
+
+    &:last-child {
+      border-bottom: none;
     }
   }
 }
-
 .tabCard {
   height: calc(100vh - 150px);
 

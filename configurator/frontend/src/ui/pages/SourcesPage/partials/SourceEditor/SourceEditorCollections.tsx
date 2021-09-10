@@ -311,11 +311,6 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
                                 field={field}
                                 key={collection.id}
                                 collection={collection}
-                                initialValue={
-                                  initialValues?.collections?.[field.name]
-                                    ?.parameters?.[collection.id] ??
-                                  collection.defaultValue
-                                }
                                 handleFormFieldsChange={handleTouchAnyField}
                               />
                             )

@@ -3,6 +3,7 @@ import { googleServiceAuthDocumentation } from '../lib/documentation';
 
 import { googleAuthConfigParameters } from '../lib/commonParams';
 import * as React from "react";
+import moment, {unitOfTime} from "moment";
 
 export const facebook: SourceConnector = {
   pic: (
@@ -181,11 +182,65 @@ export const googleAds: SourceConnector = {
       displayName: 'Start Date',
       id: 'start_date',
       type: isoUtcDateType,
-      defaultValue: '2020-12-31',
+      defaultValue: moment().subtract(1, "month").format('YYYY-MM-DD'),
       required: true
     }
   ],
   collectionTemplates: [
+    {
+      templateName: 'Labels',
+      description: <>Usefull labels</>,
+      collections: [
+        {
+          type: 'label',
+          schedule: '@hourly',
+          parameters: {
+            "fields": 'label.name, label.resource_name, label.id, label.status, label.text_label.background_color, label.text_label.description',
+            "start_date": '2020-12-31'
+          }
+        }
+      ]
+    },
+    {
+      templateName: 'Campaign & Labels',
+      description: <>Good template for small business making first steps into analytics.</>,
+      collections: [
+        {
+          type: 'campaign',
+          parameters: {
+            "fields": 'segments.date,campaign.name, campaign.id, campaign.labels, campaign.advertising_channel_type, campaign_budget.amount_micros, campaign.bidding_strategy_type, metrics.cost_micros, metrics.impressions, metrics.ctr, metrics.conversions, metrics.clicks, metrics.conversions_value, metrics.conversions_by_conversion_date, metrics.conversions_value_by_conversion_date, metrics.search_top_impression_share, metrics.search_absolute_top_impression_share, metrics.interactions, metrics.interaction_rate, metrics.average_cost, metrics.absolute_top_impression_percentage, metrics.top_impression_percentage, metrics.average_cpm, metrics.bounce_rate, metrics.average_page_views, metrics.average_time_on_site, metrics.percent_new_visitors, metrics.search_rank_lost_impression_share, metrics.search_rank_lost_top_impression_share, metrics.search_rank_lost_absolute_top_impression_share, metrics.search_exact_match_impression_share, metrics.content_impression_share, metrics.content_rank_lost_impression_share, metrics.content_budget_lost_impression_share, metrics.search_click_share',
+            "start_date": moment().subtract(1, "month").format('YYYY-MM-DD')
+          }
+        },
+        {
+          type: 'label',
+          parameters: {
+            "fields": 'label.name, label.resource_name, label.id, label.status, label.text_label.background_color, label.text_label.description',
+            "start_date": moment().subtract(1, "year").format('YYYY-MM-DD')
+          }
+        }
+      ]
+    },
+    {
+      templateName: 'Campaign & Labels 2',
+      description: <>Good template for small business making first steps into analytics.</>,
+      collections: [
+        {
+          type: 'campaign',
+          parameters: {
+            "fields": 'segments.date,campaign.name, campaign.id, campaign.labels, campaign.advertising_channel_type, campaign_budget.amount_micros, campaign.bidding_strategy_type, metrics.cost_micros, metrics.impressions, metrics.ctr, metrics.conversions, metrics.clicks, metrics.conversions_value, metrics.conversions_by_conversion_date, metrics.conversions_value_by_conversion_date, metrics.search_top_impression_share, metrics.search_absolute_top_impression_share, metrics.interactions, metrics.interaction_rate, metrics.average_cost, metrics.absolute_top_impression_percentage, metrics.top_impression_percentage, metrics.average_cpm, metrics.bounce_rate, metrics.average_page_views, metrics.average_time_on_site, metrics.percent_new_visitors, metrics.search_rank_lost_impression_share, metrics.search_rank_lost_top_impression_share, metrics.search_rank_lost_absolute_top_impression_share, metrics.search_exact_match_impression_share, metrics.content_impression_share, metrics.content_rank_lost_impression_share, metrics.content_budget_lost_impression_share, metrics.search_click_share',
+            "start_date": moment().subtract(1, "month").format('YYYY-MM-DD')
+          }
+        },
+        {
+          type: 'label',
+          parameters: {
+            "fields": 'label.name, label.resource_name, label.id, label.status, label.text_label.background_color, label.text_label.description',
+            "start_date": moment().subtract(1, "year").format('YYYY-MM-DD')
+          }
+        }
+      ]
+    }
   ],
 
   displayName: 'Google Ads',
@@ -401,22 +456,24 @@ export const googleAnalytics: SourceConnector = {
   collectionTemplates: [
     {
       templateName: 'Acquisition Overview',
-      collectionName: 'report',
-      config: {
-        dimensions: [
-          'ga:date',
-          'ga:acquisitionMedium',
-          'ga:acquisitionSource',
-          'ga:acquisitionSourceMedium',
-          'ga:acquisitionTrafficChannel'
-        ],
-        metrics: [
-          'ga:avgSessionDuration',
-          'ga:bounceRate',
-          'ga:pageviewsPerSession',
-          'ga:sessions'
-        ]
-      }
+      collections: [{
+        type: 'report',
+        parameters: {
+          dimensions: [
+            'ga:date',
+            'ga:acquisitionMedium',
+            'ga:acquisitionSource',
+            'ga:acquisitionSourceMedium',
+            'ga:acquisitionTrafficChannel'
+          ],
+          metrics: [
+            'ga:avgSessionDuration',
+            'ga:bounceRate',
+            'ga:pageviewsPerSession',
+            'ga:sessions'
+          ]
+        }
+      }]
     }
   ],
 

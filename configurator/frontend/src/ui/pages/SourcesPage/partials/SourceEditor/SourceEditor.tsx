@@ -8,6 +8,7 @@ import snakeCase from 'lodash/snakeCase';
 // @Page
 import { SourceEditorConfig } from './SourceEditorConfig';
 import { SourceEditorCollections } from './SourceEditorCollections';
+import { SourceEditorStreams } from './SourceEditorStreams';
 import { SourceEditorDestinations } from './SourceEditorDestinations';
 // @Components
 import { Tab, TabsConfigurator } from 'ui/components/Tabs/TabsConfigurator';
@@ -38,7 +39,7 @@ import { firstToLower } from 'lib/commons/utils';
 import styles from './SourceEditor.module.less';
 import QuestionCircleOutlined from '@ant-design/icons/lib/icons/QuestionCircleOutlined';
 
-export type SourceTabKey = 'config' | 'collections' | 'destinations';
+export type SourceTabKey = 'config' | 'streams' | 'destinations';
 
 const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageProps) => {
   const history = useHistory();
@@ -110,16 +111,31 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
       form: Form.useForm()[0],
       touched: false
     },
+    // {
+    //   key: 'collections',
+    //   name: 'Collections',
+    //   getComponent: (form: FormInstance) => (
+    //     <SourceEditorCollections
+    //       form={form}
+    //       initialValues={sourceData.current}
+    //       connectorSource={connectorSource}
+    //       handleTouchAnyField={createValidateAndTouchField(1)}
+    //     />
+    //   ),
+    //   form: Form.useForm()[0],
+    //   isHidden: !!connectorSource?.protoType,
+    //   touched: false
+    // },
     {
-      key: 'collections',
-      name: 'Collections',
+      key: 'streams',
+      name: 'Streams',
       getComponent: (form: FormInstance) => (
-        <SourceEditorCollections
-          form={form}
-          initialValues={sourceData.current}
-          connectorSource={connectorSource}
-          handleTouchAnyField={createValidateAndTouchField(1)}
-        />
+          <SourceEditorStreams
+              form={form}
+              initialValues={sourceData.current}
+              connectorSource={connectorSource}
+              handleTouchAnyField={createValidateAndTouchField(1)}
+          />
       ),
       form: Form.useForm()[0],
       isHidden: !!connectorSource?.protoType,
@@ -152,7 +168,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           forceUpdate,
           beforeValidate: () => (tab.errorsCount = 0),
           errorCb: (errors) => (tab.errorsCount = errors.errorFields?.length)
-        });
+        }).catch(error => console.log(error));
       }
     };
 
