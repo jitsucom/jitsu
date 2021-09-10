@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button, Input, Modal, Progress } from 'antd';
 import cn from 'classnames';
-import { PaymentPlan, paymentPlans } from 'lib/services/billing';
+import { PaymentPlan, paymentPlans, PaymentPlanStatus } from 'lib/services/billing';
 import { useServices } from 'hooks/useServices';
 import { handleError } from 'lib/components/components';
 import styles from './CurrentPlan.module.less';
@@ -11,32 +11,40 @@ function numberWithCommas(x) {
 }
 
 export type CurrentPlanProps = {
-  planTitle: string,
-  planId: string
-  usage: number
-  limit: number
+  planStatus: PaymentPlanStatus
   onPlanChangeModalOpen: () => void,
 }
 
 export const CurrentPlan: React.FC<CurrentPlanProps> = (props) => {
   const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(false);
   const services = useServices();
-  const usagaPct = props.usage/props.limit*100;
+  const usagaPct = props.planStatus.eventsThisMonth/props.planStatus.currentPlan.eventsLimit*100;
   return <><div>
-    <div>You're on <b className="capitalize">{props.planTitle}</b> plan</div>
+    <div>You're on <b className="capitalize">{props.planStatus.currentPlan.name}</b> plan</div>
     <div>
       <div><Progress percent={usagaPct} showInfo={false} status={usagaPct >= 100 ? 'exception' : 'active'} /></div>
-      <div className="text-xs">
-        <span className="text-secondaryText">Used:  <b>{numberWithCommas(props.usage)} / {numberWithCommas(props.limit)}</b></span>
-      </div>
+      <table>
+        <tr>
+          <td className={styles.limitName}>Events</td>
+          <td className={styles.limitValue}>{numberWithCommas(props.planStatus.eventsThisMonth)} / {numberWithCommas(props.planStatus.currentPlan.eventsLimit)}</td>
+        </tr>
+        <tr>
+          <td className={styles.limitName}>Sources</td>
+          <td className={styles.limitValue}>{numberWithCommas(props.planStatus.sources)} / {numberWithCommas(props.planStatus.currentPlan.sourcesLimit)}</td>
+        </tr>
+        <tr>
+          <td className={styles.limitName}>Destinations</td>
+          <td className={styles.limitValue}>{numberWithCommas(props.planStatus.destinations)} / {numberWithCommas(props.planStatus.currentPlan.destinationsLimit)}</td>
+        </tr>
+      </table>
     </div>
-    <div className="text-center mt-2"><a href="https://jitsu.com/pricing">Pricing Info</a> • <a onClick={() => {
+    <div className="text-center mt-2"><a href="https://jitsu.com/pricing">Pricing</a> • <a onClick={() => {
       props.onPlanChangeModalOpen();
       services.analyticsService.track('upgrade_plan_requested');
       setUpgradeDialogVisible(true)
     }}>Upgrade</a></div>
   </div>
-  <PlanUpgradeDialog visible={upgradeDialogVisible} hide={() => setUpgradeDialogVisible(false)} currentPlanId={props.planId} />
+  <PlanUpgradeDialog visible={upgradeDialogVisible} hide={() => setUpgradeDialogVisible(false)} currentPlanId={props.planStatus.currentPlan.name} />
   </>
 }
 
@@ -82,7 +90,7 @@ export const PlanUpgradeDialog: React.FC<{visible: boolean, hide: () => void, cu
       </div>
       <div>
         <div {...buttonProps(paymentPlans.premium)}>Premium</div>
-        <div className={styles.planPrice}>$99 / month</div>
+        <div className={styles.planPrice}>$299 / month</div>
       </div>
       <div>
         <div {...buttonProps(paymentPlans.enterprise)}>Enterprise</div>

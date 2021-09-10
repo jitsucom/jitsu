@@ -5,71 +5,69 @@ import {
   IStatisticsService,
   StatisticsService
 } from 'lib/services/stat';
+import { destinationsStore, IDestinationsStore } from '../../stores/destinations';
+import { ISourcesStore } from '../../stores/sources';
 
 export type PlanId = 'free' | 'growth' | 'premium' | 'enterprise';
 
 export type PaymentPlan = {
   name: string;
   id: PlanId;
-  events_limit: number;
+  eventsLimit: number
+  destinationsLimit: number
+  sourcesLimit: number
 };
 
 export const paymentPlans: Record<PlanId, PaymentPlan> = {
-  free: { name: 'Startup (free)', id: 'free', events_limit: 250_000 },
-  growth: { name: 'Growth', id: 'growth', events_limit: 1_000_000 },
-  premium: { name: 'Premium', id: 'premium', events_limit: 10_000_000 },
-  enterprise: { name: 'Enterprise', id: 'enterprise', events_limit: null }
+  free: { name: 'Startup (free)', id: 'free', eventsLimit: 250_000, destinationsLimit:  2, sourcesLimit: 1 },
+  growth: { name: 'Growth', id: 'growth', eventsLimit: 1_000_000, destinationsLimit:  10, sourcesLimit: 5 },
+  premium: { name: 'Premium', id: 'premium', eventsLimit: 10_000_000, destinationsLimit:  10, sourcesLimit: 15 },
+  enterprise: { name: 'Enterprise', id: 'enterprise', eventsLimit: null, destinationsLimit: null, sourcesLimit: null }
 };
 
 /**
  * Status of current payment plan
  */
-export class PaymentPlanStatus {
-  private _currentPlan: PaymentPlan;
+export type PaymentPlanStatus = {
+  currentPlan: PaymentPlan,
+  eventsThisMonth: number,
+  sources: number,
+  destinations: number,
+}
 
-  private _eventsThisMonth: number;
-
-  private _stat: IStatisticsService;
-
-  public async init(project: IProject, backendApiClient: BackendApiClient) {
-    if (!project?.planId) {
-      this._currentPlan = paymentPlans.free;
-    } else {
-      this._currentPlan = paymentPlans[project.planId];
-      if (!this._currentPlan) {
-        throw new Error(`Unknown plan ${project.planId}`);
-      }
+export async function initPaymentPlan(project: IProject, backendApiClient: BackendApiClient, destinationsStore: IDestinationsStore, sourcesStore: ISourcesStore): Promise<PaymentPlanStatus> {
+  const statService = new StatisticsService(backendApiClient, project, true);
+  let currentPlan;
+  if (!project?.planId) {
+    currentPlan = paymentPlans.free;
+  } else {
+    currentPlan = paymentPlans[project.planId];
+    if (!currentPlan) {
+      throw new Error(`Unknown plan ${project.planId}`);
     }
-    this._stat = new StatisticsService(backendApiClient, project, true);
-    var date = new Date();
+  }
+  const date = new Date();
 
-    let stat: DatePoint[];
-    try {
-      stat = await this._stat.get(
-        new Date(date.getFullYear(), date.getMonth(), 1),
-        new Date(date.getFullYear(), date.getMonth() + 1, 0),
-        'day',
-        'push_source'
-      );
-    } catch (e) {
-      console.info(
-        "Failed to obtain stat, it could happen if Jitsu configurator isn't connected to jitsu server",
-        e
-      );
-      stat = [];
-    }
-
-    this._eventsThisMonth = stat.reduce((res, item) => {
-      res += item.events;
-      return res;
-    }, 0);
+  let stat: DatePoint[];
+  try {
+    stat = await statService.get(
+      new Date(date.getFullYear(), date.getMonth(), 1),
+      new Date(date.getFullYear(), date.getMonth() + 1, 0),
+      'day',
+      'push_source'
+    );
+  } catch (e) {
+    console.info(
+      "Failed to obtain stat, it could happen if Jitsu configurator isn't connected to jitsu server",
+      e
+    );
+    stat = [];
   }
 
-  get currentPlan(): PaymentPlan {
-    return this._currentPlan;
-  }
+  let eventsThisMonth = stat.reduce((res, item) => {
+    res += item.events;
+    return res;
+  }, 0);
 
-  get eventsThisMonth(): number {
-    return this._eventsThisMonth;
-  }
+  return { currentPlan, eventsThisMonth, sources: sourcesStore.sources.length, destinations : destinationsStore.destinations.length }
 }
