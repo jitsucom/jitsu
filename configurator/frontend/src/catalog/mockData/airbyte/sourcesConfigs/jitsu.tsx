@@ -1,5 +1,6 @@
 import {
   booleanType,
+  intType,
   makeIntType,
   makeStringType,
   Parameter,
@@ -13,9 +14,9 @@ export const hubspot: Parameter[] = [
   {
     id: 'config.config.connectionSpecification.start_date',
     displayName: 'Start Date',
-    type: makeStringType(
-      '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
-    ),
+    type: makeStringType({
+      pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+    }),
     required: true,
     documentation: (
       <span
@@ -316,7 +317,7 @@ export const googleAds: Parameter[] = [
   {
     id: 'config.config.connectionSpecification.start_date',
     displayName: 'Start Date',
-    type: makeStringType('^[0-9]{4}-[0-9]{2}-[0-9]{2}$'),
+    type: makeStringType({ pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }),
     required: true,
     documentation: (
       <span
@@ -428,6 +429,24 @@ export const postgres: Parameter[] = [
     )
   },
   {
+    id: 'config.config.connectionSpecification.replication_method.plugin',
+    displayName: 'Plugin',
+    defaultValue: 'pgoutput',
+    type: singleSelectionType(['pgoutput', 'wal2json']),
+    required: false,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            'A logical decoding plug-in installed on the PostgreSQL server. `pgoutput` plug-in is used by default.\nIf replication table contains a lot of big jsonb values it is recommended to use `wal2json` plug-in. For more information about `wal2json` plug-in read <a href="https://docs.airbyte.io/integrations/sources/postgres">Postgres Source</a> docs.'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['replication_method'] !== 'CDC';
+    }
+  },
+  {
     id: 'config.config.connectionSpecification.replication_method.replication_slot',
     displayName: 'Replication Slot',
     type: stringType,
@@ -435,7 +454,7 @@ export const postgres: Parameter[] = [
     documentation: (
       <span
         dangerouslySetInnerHTML={{
-          __html: 'A pgoutput logical replication slot.'
+          __html: 'A plug-in logical replication slot.'
         }}
       />
     ),
@@ -457,6 +476,165 @@ export const postgres: Parameter[] = [
     ),
     omitFieldRule: (config) => {
       return config?.['_formData']?.['replication_method'] !== 'CDC';
+    }
+  },
+  {
+    id: 'config.config.connectionSpecification.tunnel_method.tunnel_method',
+    displayName: 'SSH Tunnel Method',
+    defaultValue: 'NO_TUNNEL',
+    // type: singleSelectionType([
+    //   'No Tunnel',
+    //   'SSH Key Authentication',
+    //   'Password Authentication'
+    // ]),
+    type: singleSelectionType([
+      'NO_TUNNEL',
+      'SSH_KEY_AUTH',
+      'SSH_PASSWORD_AUTH'
+    ]),
+    required: false,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            'Whether to initiate an SSH tunnel before connecting to the database, and if so, which kind of authentication to use.'
+        }}
+      />
+    )
+  },
+  {
+    id: 'config.config.connectionSpecification.tunnel_method.tunnel_host',
+    displayName: 'SSH Tunnel Jump Server Host',
+    type: stringType,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            'Hostname of the jump server host that allows inbound ssh tunnel.'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['tunnel_method'] !== 'SSH_KEY_AUTH';
+    }
+  },
+  {
+    id: 'config.config.connectionSpecification.tunnel_method.tunnel_port',
+    displayName: 'SSH Connection Port',
+    type: makeIntType({ minimum: 0, maximum: 65536 }),
+    defaultValue: 22,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            'Port on the proxy/jump server that accepts inbound ssh connections.'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['tunnel_method'] !== 'SSH_KEY_AUTH';
+    }
+  },
+  {
+    id: 'config.config.connectionSpecification.tunnel_method.tunnel_user',
+    displayName: 'SSH Login Username',
+    type: stringType,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html: 'OS-level username for logging into the jump server host.'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['tunnel_method'] !== 'SSH_KEY_AUTH';
+    }
+  },
+  {
+    id: 'config.config.connectionSpecification.tunnel_method.ssh_key',
+    displayName: 'SSH Private Key',
+    type: makeStringType({ multiline: true }),
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            'OS-level user account ssh key credentials for logging into the jump server host.'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['tunnel_method'] !== 'SSH_KEY_AUTH';
+    }
+  },
+  {
+    id: 'config.config.connectionSpecification.tunnel_method.tunnel_host',
+    displayName: 'SSH Tunnel Jump Server Host',
+    type: stringType,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            'Hostname of the jump server host that allows inbound ssh tunnel.'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['tunnel_method'] !== 'SSH_PASSWORD_AUTH';
+    }
+  },
+  {
+    id: 'config.config.connectionSpecification.tunnel_method.tunnel_port',
+    displayName: 'SSH Connection Port',
+    type: makeIntType({ minimum: 0, maximum: 65536 }),
+    defaultValue: 22,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html:
+            'Port on the proxy/jump server that accepts inbound ssh connections.'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['tunnel_method'] !== 'SSH_PASSWORD_AUTH';
+    }
+  },
+  {
+    id: 'config.config.connectionSpecification.tunnel_method.tunnel_user',
+    displayName: 'SSH Login Username',
+    type: stringType,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html: 'OS-level username for logging into the jump server host'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['tunnel_method'] !== 'SSH_PASSWORD_AUTH';
+    }
+  },
+  {
+    id: 'config.config.connectionSpecification.tunnel_method.tunnel_user_password',
+    displayName: 'Password',
+    type: passwordType,
+    required: true,
+    documentation: (
+      <span
+        dangerouslySetInnerHTML={{
+          __html: 'OS-level password for logging into the jump server host'
+        }}
+      />
+    ),
+    omitFieldRule: (config) => {
+      return config?.['_formData']?.['tunnel_method'] !== 'SSH_PASSWORD_AUTH';
     }
   }
 ];

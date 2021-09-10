@@ -22,6 +22,10 @@ type StringParameter = {
    * String with regexp that specifies the allowed values
    */
   pattern?: string;
+  /**
+   * Defines whether to render a multiline text field
+   */
+  multiline?: boolean;
 };
 
 type NumberParameter = {
@@ -109,9 +113,10 @@ export const stringType: ParameterType<string, 'string'> = {
 };
 
 export const makeStringType = (
-  pattern?: string
+  options: StringParameter
 ): ParameterType<string, 'string'> => {
-  return pattern ? { ...stringType, pattern } : stringType;
+  const result: ParameterType<string, 'string'> = { ...stringType };
+  return { ...stringType, ...options };
 };
 
 export const descriptionType: ParameterType<string, 'description'> = {
@@ -282,6 +287,7 @@ export interface CollectionParameter extends Parameter {
 
 type SourceConnectorId =
   | 'facebook_marketing'
+  | 'google_ads'
   | 'google_analytics'
   | 'google_play'
   | 'firebase'
@@ -294,6 +300,10 @@ export interface SourceConnector {
    * Hints the source origin.
    * */
   protoType?: 'singer' | 'airbyte';
+  /**
+   * Enable collection Start Date parameter.
+   * */
+  isStartDateEnabled?: boolean;
 
   /**
    * If connector requires expert-level knowledge (such as JSON editing)

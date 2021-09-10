@@ -89,7 +89,7 @@ func (a *Abstract) SuccessEvent(eventCtx *adapters.EventContext) {
 	metrics.SuccessTokenEvent(eventCtx.TokenID, a.destinationID)
 
 	//cache
-	a.eventsCache.Succeed(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, eventCtx.ProcessedEvent, eventCtx.Table)
+	a.eventsCache.Succeed(eventCtx)
 }
 
 //SkipEvent writes skip to metrics/counters/telemetry and error to events cache
@@ -98,7 +98,7 @@ func (a *Abstract) SkipEvent(eventCtx *adapters.EventContext, err error) {
 	metrics.SkipTokenEvent(eventCtx.TokenID, a.destinationID)
 
 	//cache
-	a.eventsCache.Error(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, err.Error())
+	a.eventsCache.Skip(eventCtx.CacheDisabled, a.destinationID, eventCtx.EventID, err.Error())
 }
 
 //Fallback logs event with error to fallback logger

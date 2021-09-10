@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	batchSize = 500
+	batchSize = 10_000
 
 	SINGER_REPLICATION_INCREMENTAL = "INCREMENTAL"
 	SINGER_REPLICATION_FULL_TABLE  = "FULL_TABLE"
@@ -90,20 +90,7 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 			}
 
 			outputPortion.State = state
-			//persist batch and recreate variables
-			if records >= batchSize {
-				err := sop.dataConsumer.Consume(outputPortion)
-				if err != nil {
-					return err
-				}
 
-				//remove already persisted objects
-				for _, stream := range outputPortion.Streams {
-					stream.Objects = []map[string]interface{}{}
-					streamCleaned[stream.StreamName] = !stream.NeedClean
-				}
-				records = 0
-			}
 		case "RECORD":
 			records++
 			streamName, object, err := parseRecord(lineObject)
@@ -118,6 +105,22 @@ func (sop *streamOutputParser) Parse(stdout io.ReadCloser) error {
 			msg := fmt.Sprintf("Unknown Singer output line type: %s [%v]", objectType, lineObject)
 			logging.Warnf(msg)
 			sop.logger.WARN(msg)
+		}
+
+		//persist batch and recreate variables
+		if records >= batchSize {
+			err := sop.dataConsumer.Consume(outputPortion)
+			if err != nil {
+				return err
+			}
+
+			//remove already persisted objects
+			//sets needClean = false because clean should be executed only 1 time
+			for _, stream := range outputPortion.Streams {
+				stream.Objects = []map[string]interface{}{}
+				streamCleaned[stream.StreamName] = !stream.NeedClean
+			}
+			records = 0
 		}
 	}
 

@@ -7,7 +7,6 @@ import (
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/parsers"
 	"github.com/jitsucom/jitsu/server/safego"
-	"github.com/jitsucom/jitsu/server/uuid"
 	"go.uber.org/atomic"
 	"io"
 	"os/exec"
@@ -27,7 +26,7 @@ const (
 //AbstractCLIDriver is an abstract implementation of CLI drivers such as Singer or Airbyte
 type AbstractCLIDriver struct {
 	mutex    *sync.RWMutex
-	commands map[string]*exec.Cmd
+	commands map[string]*SyncCommand
 
 	sourceID string
 	tap      string
@@ -49,7 +48,7 @@ func NewAbstractCLIDriver(sourceID, tap, configPath, catalogPath, propertiesPath
 	tableNameMappings map[string]string) *AbstractCLIDriver {
 	return &AbstractCLIDriver{
 		mutex:            &sync.RWMutex{},
-		commands:         map[string]*exec.Cmd{},
+		commands:         map[string]*SyncCommand{},
 		sourceID:         sourceID,
 		tap:              tap,
 		configPath:       configPath,
@@ -130,28 +129,33 @@ func (acd *AbstractCLIDriver) GetStreamTableNameMapping() map[string]string {
 }
 
 //LoadAndParse runs CLI command and consumes output
-func (acd *AbstractCLIDriver) LoadAndParse(taskLogger logging.TaskLogger, cliParser CLIParser, rawLogStdoutWriter io.Writer, command string, args ...string) error {
-	taskLogger.INFO("exec: %s %s", command, strings.Join(args, " "))
+func (acd *AbstractCLIDriver) LoadAndParse(taskLogger logging.TaskLogger, cliParser CLIParser, rawLogStdoutWriter io.Writer,
+	taskCloser CLITaskCloser, command string, args ...string) error {
+	taskLogger.INFO("ID [%s] exec: %s %s", taskCloser.TaskID(), command, strings.Join(args, " "))
 
 	//exec cmd and analyze response from stdout & stderr
-	syncCmd := exec.Command(command, args...)
-	stdout, _ := syncCmd.StdoutPipe()
+	execSyncCmd := exec.Command(command, args...)
+	stdout, _ := execSyncCmd.StdoutPipe()
 	defer stdout.Close()
-	stderr, _ := syncCmd.StderrPipe()
+	stderr, _ := execSyncCmd.StderrPipe()
 	defer stderr.Close()
 
-	commandID := uuid.New()
+	syncCommand := &SyncCommand{
+		Command:    execSyncCmd,
+		TaskCloser: taskCloser,
+		Docker:     command == "docker",
+	}
 	acd.mutex.Lock()
-	acd.commands[commandID] = syncCmd
+	acd.commands[taskCloser.TaskID()] = syncCommand
 	acd.mutex.Unlock()
 
 	defer func() {
 		acd.mutex.Lock()
-		delete(acd.commands, commandID)
+		delete(acd.commands, taskCloser.TaskID())
 		acd.mutex.Unlock()
 	}()
 
-	err := syncCmd.Start()
+	err := execSyncCmd.Start()
 	if err != nil {
 		return err
 	}
@@ -167,14 +171,22 @@ func (acd *AbstractCLIDriver) LoadAndParse(taskLogger logging.TaskLogger, cliPar
 			if r := recover(); r != nil {
 				logging.Error("panic in cli task")
 				logging.Error(string(debug.Stack()))
-				acd.LogAndKill(taskLogger, syncCmd, r)
+				killErr := syncCommand.Kill(fmt.Sprintf("%v. Process will be killed", r))
+				if killErr != nil {
+					taskLogger.ERROR("Error killing process: %v", killErr)
+					logging.Errorf("[%s] error killing process: %v", taskCloser.TaskID(), killErr)
+				}
 				return
 			}
 		}()
 
 		parsingErr = cliParser.Parse(stdout)
 		if parsingErr != nil {
-			acd.LogAndKill(taskLogger, syncCmd, parsingErr)
+			killErr := syncCommand.Kill(fmt.Sprintf("Parse output error: %v. Process will be killed", parsingErr))
+			if killErr != nil {
+				taskLogger.ERROR("Error killing process: %v", killErr)
+				logging.Errorf("[%s] error killing process: %v", taskCloser.TaskID(), killErr)
+			}
 		}
 	})
 
@@ -189,7 +201,7 @@ func (acd *AbstractCLIDriver) LoadAndParse(taskLogger logging.TaskLogger, cliPar
 
 	wg.Wait()
 
-	err = syncCmd.Wait()
+	err = execSyncCmd.Wait()
 	if err != nil {
 		return err
 	}
@@ -254,9 +266,9 @@ func (acd *AbstractCLIDriver) Close() (multiErr error) {
 	acd.closed.Store(true)
 
 	acd.mutex.Lock()
-	for _, command := range acd.commands {
-		logging.Infof("[%s] killing process: %s", acd.sourceID, command.String())
-		if err := command.Process.Kill(); err != nil {
+	for _, syncCommand := range acd.commands {
+		logging.Infof("[%s] killing process: %s", acd.sourceID, syncCommand.Command.String())
+		if err := syncCommand.Shutdown(); err != nil {
 			multiErr = multierror.Append(multiErr, fmt.Errorf("[%s] Error killing %s sync command: %v", acd.sourceID, acd.Type(), err))
 		}
 	}
@@ -264,16 +276,4 @@ func (acd *AbstractCLIDriver) Close() (multiErr error) {
 	acd.mutex.Unlock()
 
 	return multiErr
-}
-
-//LogAndKill writes error to log and kills the command
-func (acd *AbstractCLIDriver) LogAndKill(taskLogger logging.TaskLogger, syncCmd *exec.Cmd, parsingErr interface{}) {
-	taskLogger.ERROR("Parse output error: %v. Process will be killed", parsingErr)
-	logging.Errorf("[%s_%s] parse output error: %v. Process will be killed", acd.sourceID, acd.tap, parsingErr)
-
-	killErr := syncCmd.Process.Kill()
-	if killErr != nil {
-		taskLogger.ERROR("Error killing process: %v", killErr)
-		logging.Errorf("[%s_%s] error killing process: %v", acd.sourceID, acd.tap, killErr)
-	}
 }

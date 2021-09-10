@@ -18,13 +18,14 @@ require (
 	github.com/go-sql-driver/mysql v1.6.0
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/gomodule/redigo v1.8.2
-	github.com/google/go-cmp v0.5.5
+	github.com/google/go-cmp v0.5.6
 	github.com/google/go-github/v32 v32.1.0
 	github.com/google/martian v2.1.0+incompatible
 	github.com/google/uuid v1.2.0
 	github.com/gookit/color v1.3.1
 	github.com/hashicorp/go-multierror v1.1.0
 	github.com/huandu/facebook/v2 v2.5.3
+	github.com/iancoleman/strcase v0.2.0
 	github.com/joncrlsn/dque v0.0.0-20200702023911-3e80e3146ce5
 	github.com/klauspost/compress v1.13.5 // indirect
 	github.com/lib/pq v1.10.2
@@ -53,8 +54,9 @@ require (
 	go.uber.org/atomic v1.7.0
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
 	golang.org/x/net v0.0.0-20210903162142-ad29c8ab022f
+	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
-	google.golang.org/api v0.44.0
+	google.golang.org/api v0.56.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/segmentio/analytics-go.v3 v3.1.0
 	gotest.tools v2.2.0+incompatible

@@ -199,7 +199,7 @@ func (a *Airbyte) Ready() (bool, error) {
 	return false, runner.NewNotReadyError(msg)
 }
 
-func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer) error {
+func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer base.CLIDataConsumer, taskCloser base.CLITaskCloser) error {
 	if a.IsClosed() {
 		return fmt.Errorf("%s has already been closed", a.Type())
 	}
@@ -210,7 +210,7 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 		return readyErr
 	}
 
-	args := []string{"run", "--rm", "-i", "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, airbyte.VolumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "read", "--config", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.ConfigFileName), "--catalog", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.CatalogFileName)}
+	args := []string{"run", "--rm", "-i", "--name", taskCloser.TaskID(), "-v", fmt.Sprintf("%s:%s", airbyte.Instance.WorkspaceVolume, airbyte.VolumeAlias), airbyte.Instance.ReformatImageName(a.GetTap()), "read", "--config", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.ConfigFileName), "--catalog", path.Join(airbyte.VolumeAlias, a.ID(), a.GetTap(), base.CatalogFileName)}
 
 	statePath, err := a.GetStateFilePath(state)
 	if err != nil {
@@ -227,7 +227,7 @@ func (a *Airbyte) Load(state string, taskLogger logging.TaskLogger, dataConsumer
 		logger:                taskLogger,
 	}
 
-	return a.LoadAndParse(taskLogger, sop, airbyte.Instance.LogWriter, airbyte.Command, args...)
+	return a.LoadAndParse(taskLogger, sop, airbyte.Instance.LogWriter, taskCloser, airbyte.Command, args...)
 }
 
 //Check runs airbyte check command
@@ -288,7 +288,7 @@ func (a *Airbyte) doDiscover() (string, map[string]*base.StreamRepresentation, e
 		return "", nil, fmt.Errorf("Error airbyte --discover: %v. %s", err, errStrWriter.String())
 	}
 
-	catalog, streamsRepresentation, err := parseCatalog(outWriter)
+	catalog, streamsRepresentation, err := parseCatalog(a.GetTap(), outWriter)
 	if err != nil {
 		return "", nil, err
 	}

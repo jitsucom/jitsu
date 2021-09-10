@@ -71,7 +71,6 @@ func (k *Kafka) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []ma
 
 	for _, flatData := range flatDataPerTable {
 		table := k.tableHelper.MapTableSchema(flatData.BatchHeader)
-		//TODO check topic (table.Name) existence?
 		start := time.Now()
 		if err = k.adapter.BulkInsert(table, flatData.GetPayload()); err != nil {
 			return err
@@ -83,22 +82,25 @@ func (k *Kafka) SyncStore(overriddenDataSchema *schema.BatchHeader, objects []ma
 }
 
 //Store produces messages to broker
-func (k *Kafka) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, error) {
-	flatData, failedEvents, err := k.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
+func (k *Kafka) Store(fileName string, objects []map[string]interface{}, alreadyUploadedTables map[string]bool) (map[string]*StoreResult, *events.FailedEvents, *events.SkippedEvents, error) {
+	flatData, failedEvents, skippedEvents, err := k.processor.ProcessEvents(fileName, objects, alreadyUploadedTables)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	//update cache with failed events
 	for _, failedEvent := range failedEvents.Events {
 		k.eventsCache.Error(k.IsCachingDisabled(), k.ID(), failedEvent.EventID, failedEvent.Error)
 	}
+	//update cache and counter with skipped events
+	for _, skipEvent := range skippedEvents.Events {
+		k.eventsCache.Skip(k.IsCachingDisabled(), k.ID(), skipEvent.EventID, skipEvent.Error)
+	}
 
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
 	for _, fdata := range flatData {
 		table := k.tableHelper.MapTableSchema(fdata.BatchHeader)
-		//TODO check topic (table.Name) existence?
 		err := k.adapter.BulkInsert(table, fdata.GetPayload())
 		tableResults[table.Name] = &StoreResult{Err: err, RowsCount: fdata.GetPayloadLen(), EventsSrc: fdata.GetEventsPerSrc()}
 		if err != nil {
@@ -110,17 +112,23 @@ func (k *Kafka) Store(fileName string, objects []map[string]interface{}, already
 			if err != nil {
 				k.eventsCache.Error(k.IsCachingDisabled(), k.ID(), k.uniqueIDField.Extract(object), err.Error())
 			} else {
-				k.eventsCache.Succeed(k.IsCachingDisabled(), k.ID(), k.uniqueIDField.Extract(object), object, table)
+				k.eventsCache.Succeed(&adapters.EventContext{
+					CacheDisabled:  k.IsCachingDisabled(),
+					DestinationID:  k.ID(),
+					EventID:        k.uniqueIDField.Extract(object),
+					ProcessedEvent: object,
+					Table:          table,
+				})
 			}
 		}
 	}
 
 	//store failed events to fallback only if other events have been inserted ok
 	if storeFailedEvents {
-		return tableResults, failedEvents, nil
+		return tableResults, failedEvents, skippedEvents, nil
 	}
 
-	return tableResults, nil, nil
+	return tableResults, nil, skippedEvents, nil
 }
 
 //GetUsersRecognition returns disabled users recognition configuration

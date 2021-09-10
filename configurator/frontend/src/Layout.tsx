@@ -1,9 +1,9 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 // @Libs
 import * as React from 'react';
-import { useState } from 'react';
+import { ReactElement, useState } from 'react';
 import { NavLink, useHistory } from 'react-router-dom';
-import { Button, Dropdown, Menu, message, Modal, MessageArgsProps } from 'antd';
+import { Button, Dropdown, Menu, message, Modal, MessageArgsProps, Tooltip } from 'antd';
 // @Components
 import {
   BreadcrumbsProps,
@@ -22,14 +22,16 @@ import Icon, {
   NotificationOutlined,
   CloudOutlined,
   DownloadOutlined,
-  WechatOutlined,
   UserOutlined,
   UserSwitchOutlined,
   LogoutOutlined,
-  PartitionOutlined
+  PartitionOutlined,
+  ThunderboltOutlined
 } from '@ant-design/icons';
 import logo from 'icons/logo.svg';
+import logoMini from 'icons/logo-square.svg';
 import { ReactComponent as DbtCloudIcon } from 'icons/dbtCloud.svg';
+import { ReactComponent as KeyIcon } from 'icons/key.svg';
 import classNames from 'classnames';
 // @Model
 import { Permission, User } from 'lib/services/model';
@@ -38,91 +40,71 @@ import { reloadPage } from 'lib/commons/utils';
 import { Page, usePageLocation } from 'navigation';
 // @Services
 import { useServices } from 'hooks/useServices';
-import { getIntercom } from 'lib/services/intercom-wrapper';
 import { AnalyticsBlock } from 'lib/services/analytics';
 import { PaymentPlanStatus } from 'lib/services/billing';
 // @Styles
 import styles from './Layout.module.less';
 // @Misc
 import { settingsPageRoutes } from './ui/pages/SettingsPage/SettingsPage';
+import { FeatureSettings } from './lib/services/ApplicationServices';
+import { usePersistentState } from './hooks/usePersistentState';
+import githubLogo from './icons/github.svg';
 
-export const ApplicationMenu: React.FC<{}> = () => {
+type MenuItem = {
+  icon: React.ReactNode
+  title: React.ReactNode
+  link: string,
+  enabled: (f: FeatureSettings) => boolean
+}
+
+const makeItem = (icon: React.ReactNode, title: React.ReactNode, link: string, enabled = (f: FeatureSettings) => true): MenuItem => {
+  return { icon, title, link, enabled };
+}
+
+const menuItems = [
+  makeItem(<PartitionOutlined />, 'Home', '/connections'),
+  makeItem(<ThunderboltOutlined />, 'Live Events', '/events_stream'),
+  makeItem(<AreaChartOutlined />, 'Statistics', '/dashboard'),
+  makeItem(<Icon component={KeyIcon} />, 'API Keys', '/api_keys'),
+  makeItem(<ApiOutlined />, 'Sources', '/sources'),
+  makeItem(<NotificationOutlined />, 'Destinations', '/destinations'),
+  makeItem(<Icon component={DbtCloudIcon}/>, 'dbt Cloud Integration', '/dbtcloud'),
+  makeItem(<CloudOutlined />, 'Custom Domains', '/domains', (f) => f.enableCustomDomains),
+  makeItem(<DownloadOutlined />, 'Download Config', '/cfg_download', (f) => f.enableCustomDomains)
+];
+
+export const ApplicationMenu: React.FC<{expanded: boolean}> = ({ expanded }) => {
   const key = usePageLocation().mainMenuKey;
-  const services = useServices();
 
-  return (
-    <Menu
-      selectable={false}
-      focusable={false}
-      mode="inline"
-      selectedKeys={[key]}
-      className="border-0"
-    >
-      <Menu.Item key="connections" icon={<PartitionOutlined />}>
-        <NavLink to="/connections" activeClassName="selected">
-          Connections
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="dashboard" icon={<AreaChartOutlined />}>
-        <NavLink to="/dashboard" activeClassName="selected">
-          Dashboard
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="api_keys" icon={<UnlockOutlined />}>
-        <NavLink to="/api_keys" activeClassName="selected">
-          Events API
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="sources" icon={<ApiOutlined />}>
-        <NavLink to="/sources" activeClassName="selected">
-          Sources
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="destinations" icon={<NotificationOutlined />}>
-        <NavLink to="/destinations" activeClassName="selected">
-          Destinations
-        </NavLink>
-      </Menu.Item>
-      <Menu.Item key="dbtcloud" icon={<DbtCloudIcon />}>
-        <NavLink to="/dbtcloud" activeClassName="selected">
-          dbt Cloud
-        </NavLink>
-      </Menu.Item>
-      {services.features.enableCustomDomains && (
-        <Menu.Item key="domains" icon={<CloudOutlined />}>
-          <NavLink to="/domains" activeClassName="selected">
-            Custom Domains
-          </NavLink>
-        </Menu.Item>
-      )}
-      <Menu.Item key="cfg_download" icon={<DownloadOutlined />}>
-        <NavLink to="/cfg_download" activeClassName="selected">
-          Generate Config
-        </NavLink>
-      </Menu.Item>
-    </Menu>
-  );
+  return <div className="pt-3">
+    {menuItems.map(item => {
+      const selected = item.link === '/' + key;
+      return <NavLink to={item.link} key={item.link}>
+        <div key={item.link} className={`${selected && 'bg-bgPrimary'} whitespace-nowrap text-textPale hover:text-primaryHover py-3 ml-2 pl-4 pr-6 rounded-l-xl`}>
+          {!expanded && <Tooltip title={item.title} placement="right" mouseEnterDelay={0}>
+            {item.icon}
+          </Tooltip>}
+
+          {expanded && <>{item.icon}<span className="pl-2 whitespace-nowrap">{item.title}</span></>}
+        </div>
+      </NavLink>
+    })}
+  </div>
 };
 
 export const ApplicationSidebar: React.FC<{}> = () => {
-  const services = useServices();
-  const intercom = getIntercom();
-  return <div className={styles.sideBarContent} >
+  const [expanded, setExpanded] = usePersistentState(true, 'jitsu_menuExpanded');
+
+  return <div className={`relative ${styles.sideBarContent}`} >
     <div>
+      <div className={`${expanded ? 'w-3' : 'w-2'} absolute inline-block top-3 right-0 bg-bgTableHeader h-12 flex items-center justify-center rounded-l cursor-pointer`}
+        onClick={() => setExpanded(!expanded)}>
+        <svg xmlns="http://www.w3.org/2000/svg" className={`transform ${expanded ? 'rotate-90' : '-rotate-90'}`}  viewBox="0 0 24 24"><path d="M14.121,13.879c-0.586-0.586-6.414-6.414-7-7c-1.172-1.172-3.071-1.172-4.243,0	c-1.172,1.172-1.172,3.071,0,4.243c0.586,0.586,6.414,6.414,7,7c1.172,1.172,3.071,1.172,4.243,0	C15.293,16.95,15.293,15.05,14.121,13.879z" opacity=".35"/><path d="M14.121,18.121c0.586-0.586,6.414-6.414,7-7c1.172-1.172,1.172-3.071,0-4.243c-1.172-1.172-3.071-1.172-4.243,0	c-0.586,0.586-6.414,6.414-7,7c-1.172,1.172-1.172,3.071,0,4.243C11.05,19.293,12.95,19.293,14.121,18.121z"/></svg>
+      </div>
       <a href="https://jitsu.com" className="text-center block pt-5 h-14">
-        <img src={logo} alt="[logo]" className="w-32 mx-auto"/>
+        <img src={expanded ? logo : logoMini} alt="[logo]" className="h-8 mx-auto"/>
       </a>
-      <ApplicationMenu/>
-    </div>
-    <div className="flex justify-center pb-4"><Button type="link" size="large"
-      onClick={() => {
-        if (services.features.chatSupportType === 'chat') {
-          intercom('show');
-        } else {
-          document.getElementById('jitsuSlackWidget').click();
-        }
-      }}><WechatOutlined/> Chat with us!
-    </Button>
+      <ApplicationMenu expanded={expanded}/>
     </div>
   </div>
 }
@@ -333,7 +315,7 @@ const EmailIsNotConfirmedMessage: React.FC<{ messageKey: React.Key }> = ({
     useState<boolean>(false);
 
   const handleDestroyMessage = () => message.destroy(messageKey);
-  const handleresendConfirmationLink = async () => {
+  const handleresendConfirmationLink = async() => {
     setIsSendingVerification(true);
     try {
       await services.userService.sendConfirmationEmail();
@@ -354,7 +336,7 @@ const EmailIsNotConfirmedMessage: React.FC<{ messageKey: React.Key }> = ({
           ''
         )}
         <span>
-          {` is not verified. Please, follow the instructions in your email 
+          {` is not verified. Please, follow the instructions in your email
             to complete the verification process.`}
         </span>
       </span>

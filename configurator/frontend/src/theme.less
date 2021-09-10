@@ -15,6 +15,7 @@
 @error: #e53935;
 @heading: #c1c9d2;
 @text: #e5e7eb;
+@textPale: #ffffff;
 @secondaryText: #7996a9;
 @disabled: #415969;
 @secondaryBorder: #415969;
@@ -199,4 +200,26 @@
   @apply rounded-lg;
   background-color: @popover-background !important;
   border: 1px solid @splitBorder !important;
+}
+
+.ant-popover-inner {
+  //@apply border-2;
+  border: 1px solid @border-color-base;
+}
+
+.ant-popover-arrow {
+  width: 12px !important;
+  height: 12px !important;
+  border-left: 1px solid @border-color-base !important;
+  border-top: 1px solid @border-color-base !important;
+  z-index: 10000 !important;
+  background: @popover-background !important;
+}
+
+.icon-size-base svg {
+@apply w-4 h-4;
+}
+
+.icon-size-lg svg {
+@apply w-5 h-5;
 }
