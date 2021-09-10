@@ -178,7 +178,7 @@ export const DestinationStatistics: React.FC<CommonDestinationPageProps> = ({
             className="w-full"
             loading={somethingIsLoading}
           >
-            <StatisticsChart data={monthlyPushEvents.data || []} granularity={'hour'} />
+            <StatisticsChart data={dailyPushEvents.data || []} granularity={'hour'} />
           </Card>
         </Col>
       </Row>
