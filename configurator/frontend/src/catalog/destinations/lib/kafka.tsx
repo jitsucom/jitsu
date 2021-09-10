@@ -1,3 +1,4 @@
+import { tableName } from './common';
 import { arrayOf, stringType } from '../../sources/types';
 import { ReactNode } from 'react';
 
