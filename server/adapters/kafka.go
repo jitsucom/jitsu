@@ -49,7 +49,6 @@ func NewKafka(kc *KafkaConfig) (*Kafka, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	return &Kafka{config: kc, saramaConfig: saramaConfig, producer: producer, jsonMarshaller: schema.JSONMarshallerInstance}, nil
 }
 

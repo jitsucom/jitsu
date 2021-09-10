@@ -151,6 +151,13 @@ func testDestinationConnection(config *storages.DestinationConfig) error {
 		}
 		defer s3Adapter.Close()
 		return s3Adapter.ValidateWritePermission()
+	case storages.KafkaType:
+		kafkaAdapter, err := adapters.NewKafka(config.Kafka)
+		if err != nil {
+			return err
+		}
+		defer kafkaAdapter.Close()
+		return nil
 	default:
 		return errors.New("unsupported destination type " + config.Type)
 	}
