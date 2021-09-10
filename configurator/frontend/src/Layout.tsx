@@ -187,14 +187,8 @@ export const DropdownMenu: React.FC<{user: User, plan: PaymentPlanStatus, hideMe
       <div className="py-2 border-b border-main px-5 flex flex-col items-start">
         <div>Project: <b>{services.activeProject.name || 'Unspecified'}</b></div>
       </div>
-      {services.features.billingEnabled &&<div className="py-5 border-b border-main px-5 flex flex-col items-start">
-        <CurrentPlan
-          limit={plan.currentPlan.events_limit}
-          usage={plan.eventsThisMonth}
-          planTitle={plan.currentPlan.name}
-          onPlanChangeModalOpen={hideMenu}
-          planId={plan.currentPlan.id}
-        />
+      {services.features.billingEnabled && <div className="py-5 border-b border-main px-5 flex flex-col items-start">
+        <CurrentPlan planStatus={plan} onPlanChangeModalOpen={hideMenu}/>
       </div>}
       <div className="p-2 flex flex-col items-stretch">
         <Button

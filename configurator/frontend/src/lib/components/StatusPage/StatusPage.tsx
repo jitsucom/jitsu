@@ -12,7 +12,7 @@ import {
   ReloadOutlined,
   WarningOutlined,
   QuestionCircleOutlined,
-  UnorderedListOutlined
+  ThunderboltFilled
 } from '@ant-design/icons';
 // @Services
 import {
@@ -29,13 +29,16 @@ import { destinationsStore } from 'stores/destinations';
 import { numberFormat, withDefaultVal } from 'lib/commons/utils';
 // @Styles
 import './StatusPage.less';
+import { sourcesStore } from '../../../stores/sources';
+import useLoader, { useLoaderAsObject } from '../../../hooks/useLoader';
+import { useServices } from '../../../hooks/useServices';
 
 type State = {
   destinationsCount?: number;
   hourlyEventsBySources?: SourcesStatisticsDatePoint[];
   dailyEventsBySources?: SourcesStatisticsDatePoint[];
-  hourlyEventsByDestinations?: DestinationsStatisticsDatePoint[];
-  dailyEventsByDestinations?: DestinationsStatisticsDatePoint[];
+  hourlyRowsFromSources?: SourcesStatisticsDatePoint[];
+  dailyRowsFromSources?: SourcesStatisticsDatePoint[];
   totalEventsLastHour?: number;
   totalEventsToday?: number;
 };
@@ -44,221 +47,154 @@ interface Props {
   timeInUTC?: boolean;
 }
 
-export default class StatusPage extends LoadableComponent<Props, State> {
-  private readonly services: ApplicationServices;
-  private stats: IStatisticsService;
-  private timeInUTC: boolean;
-
-  constructor(props: Props, context: any) {
-    super(props, context);
-    this.timeInUTC = withDefaultVal(this.props.timeInUTC, true);
-    this.services = ApplicationServices.get();
-    this.stats = new StatisticsService(
-      this.services.backendApiClient,
-      this.services.activeProject,
-      this.timeInUTC
-    );
-    this.state = {};
-  }
-
-  async componentDidMount(): Promise<void> {
-    await super.componentDidMount();
-  }
-
-  renderReady() {
-    let utcPostfix = this.timeInUTC ? ' [UTC]' : '';
-    return (
-      <>
-        <Row gutter={16} className="status-page-cards-row">
-          <Col flex={10}>
-            <StatisticsCard
-              value={this.state.destinationsCount}
-              title="Total destinations"
-              bordered={false}
-            />
-          </Col>
-          <Col flex={10}>
-            <StatisticsCard
-              value={this.state.totalEventsToday}
-              title={'Today'}
-              bordered={false}
-            />
-          </Col>
-          <Col flex={10}>
-            <StatisticsCard
-              value={this.state.totalEventsLastHour}
-              title={`Last hour (${moment().utc().format('HH:[00]')} UTC) `}
-              bordered={false}
-            />
-          </Col>
-          <Col flex={1}>
-            <Card
-              bordered={false}
-              className="flex flex-col justify-center h-full"
-            >
-              <div className="flex flex-col items-stretch h-full">
-                <NavLink to="/events_stream">
-                  <Button
-                    type="ghost"
-                    size="large"
-                    icon={<UnorderedListOutlined />}
-                    className="w-full mb-2"
-                  >
-                    Recent Events
-                  </Button>
-                </NavLink>
-                <Button
-                  size="large"
-                  icon={<ReloadOutlined />}
-                  onClick={() => {
-                    this.reload();
-                  }}
-                >
-                  Reload
-                </Button>
-              </div>
-            </Card>
-          </Col>
-        </Row>
-        <Row gutter={16} className="status-page-cards-row">
-          <Col span={12}>
-            <Card
-              title={<span>Events from sources in the last 30 days</span>}
-              bordered={false}
-              extra={<SourcesEventsDocsTooltip />}
-            >
-              <StatisticsChart
-                data={this.state.dailyEventsBySources}
-                granularity={'day'}
-                dataToDisplay={['success', 'skip']}
-              />
-            </Card>
-          </Col>
-          <Col span={12}>
-            <Card
-              title={<span>Events from sources in the last 24 hours</span>}
-              bordered={false}
-              extra={<SourcesEventsDocsTooltip />}
-            >
-              <StatisticsChart
-                data={this.state.hourlyEventsBySources}
-                granularity={'hour'}
-                dataToDisplay={['success', 'skip']}
-              />
-            </Card>
-          </Col>
-        </Row>
-        <Row gutter={16} className="status-page-cards-row">
-          <Col span={12}>
-            <Card
-              title={<span>Events by destinations in the last 30 days</span>}
-              bordered={false}
-              extra={<DestinationsEventsDocsTooltip />}
-            >
-              <StatisticsChart
-                data={this.state.dailyEventsByDestinations}
-                granularity={'day'}
-                dataToDisplay={['success', 'skip', 'errors']}
-              />
-            </Card>
-          </Col>
-          <Col span={12}>
-            <Card
-              title={<span>Events by destinations in the last 24 hours</span>}
-              bordered={false}
-              extra={<DestinationsEventsDocsTooltip />}
-            >
-              <StatisticsChart
-                data={this.state.hourlyEventsByDestinations}
-                granularity={'hour'}
-                dataToDisplay={['success', 'skip', 'errors']}
-              />
-            </Card>
-          </Col>
-        </Row>
-      </>
-    );
-  }
-
-  async load(): Promise<State> {
-    const now = new Date();
-    const dayAgo = addSeconds(now, -24 * 60 * 60);
-    const monthAgo = addSeconds(now, -30 * 24 * 60 * 60);
-    const [
-      hourlyEventsBySources,
-      dailyEventsBySources,
-      hourlyEventsByDestinations,
-      dailyEventsByDestinations
-    ] = await Promise.all([
-      this.stats.getDetailedStatisticsBySources(dayAgo, now, 'hour'),
-      this.stats.getDetailedStatisticsBySources(monthAgo, now, 'day'),
-      this.stats.getDetailedStatisticsByDestinations(dayAgo, now, 'hour'),
-      this.stats.getDetailedStatisticsByDestinations(monthAgo, now, 'day')
-    ]);
-
-    return {
-      destinationsCount: this.getNumberOfDestinations(),
-      hourlyEventsBySources: hourlyEventsBySources.slice(0, -1),
-      dailyEventsBySources: dailyEventsBySources.slice(0, -1),
-      hourlyEventsByDestinations: hourlyEventsByDestinations.slice(0, -1),
-      dailyEventsByDestinations: dailyEventsByDestinations.slice(0, -1),
-      totalEventsLastHour: hourlyEventsBySources.slice(-1)[0].total,
-      totalEventsToday: dailyEventsBySources.slice(-1)[0].total
-    };
-  }
-
-  getNumberOfDestinations() {
-    return destinationsStore.destinations.length;
-  }
-
-  protected renderError(e: Error): React.ReactNode {
-    return (
-      <div className="w-2/4 mx-auto mt-3">
-        <Card
-          title={
-            <>
-              <span className="text-warning">
-                <WarningOutlined />
-              </span>{' '}
-              Dashboard cannot be displayed
-            </>
-          }
-          bordered={false}
-        >
-          <div>
-            Connection to Jitsu server cannot be established. That's not a
-            critical error, you still will be able to configure Jitsu. However,
-            statistic and monitoring for Jitsu Nodes won't be available. To fix
-            that:
-            <ul className="mt-5">
-              <li>
-                Make sure that <CodeInline>jitsu.base_url</CodeInline> property
-                is set in Jitsu Configurator yaml file
-              </li>
-              <li>
-                If <CodeInline>jitsu.base_url</CodeInline> is set, make sure
-                that this URL is accessible (not blocked by firewall) from Jitsu
-                Configurator
-              </li>
-            </ul>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-}
-
-const StatisticsCard: React.FC<CardProps & { value: number }> = ({
-  value,
-  ...cardProps
-}) => {
-  const formatter = numberFormat({});
-  return (
-    <Card {...cardProps}>
-      <div className="stat-card-number">{formatter(value)}</div>
-    </Card>
+export const StatusPage: React.FC<{}> = () => {
+  const services = useServices();
+  const stats = new StatisticsService(
+    services.backendApiClient,
+    services.activeProject,
+    true
   );
+  const now = new Date();
+  const dayAgo = addSeconds(now, -24 * 60 * 60);
+  const monthAgo = addSeconds(now, -30 * 24 * 60 * 60);
+  const [error, data, , reload, loading] = useLoader(async() => {
+    return await Promise.all([
+      stats.getDetailedIncomingStatistics(dayAgo, now, 'hour', 'push_source'),
+      stats.getDetailedIncomingStatistics(monthAgo, now, 'day', 'push_source'),
+      stats.getDetailedIncomingStatistics(dayAgo, now, 'hour', 'source'),
+      stats.getDetailedIncomingStatistics(monthAgo, now, 'day', 'source')
+    ]);
+  });
+  const [
+    hourlyIncomingEvents,
+    dailyIncomingEvents,
+    hourlyRowsFromSources,
+    dailyRowsFromSources
+  ] = data || [null, null, null, null];
+  let utcPostfix = '[UTC]'
+  if (error) {
+    return <StatisticsError/>
+  }
+
+  return <>
+    <div className="flex flex-row space-x-2 justify-end mb-4">
+      <NavLink to="/events_stream">
+        <Button
+          type="ghost"
+          size="large"
+          icon={<ThunderboltFilled/>}
+          className="w-full mb-2"
+        >
+          Live Events
+        </Button>
+      </NavLink>
+      <Button
+        size="large"
+        icon={<ReloadOutlined/>}
+        onClick={() => {
+          reload();
+        }}
+      >
+        Reload
+      </Button>
+    </div>
+
+    <Row gutter={16} className="status-page-cards-row">
+      <Col span={12}>
+        <Card
+          title={<span>Incoming <NavLink to="/api_keys">events</NavLink> (last 30 days)</span>}
+          bordered={false}
+          loading={loading}
+          extra={<SourcesEventsDocsTooltip/>}
+        >
+          <StatisticsChart
+            data={dailyIncomingEvents || []}
+            granularity={'day'}
+            dataToDisplay={['success', 'skip']}
+          />
+        </Card>
+      </Col>
+      <Col span={12}>
+        <Card
+          title={<span>Incoming <NavLink to="/api_keys">events</NavLink> (last 24 hours)</span>}
+          bordered={false}
+          extra={<SourcesEventsDocsTooltip/>}
+          loading={loading}
+        >
+          <StatisticsChart
+            data={hourlyIncomingEvents || []}
+            granularity={'hour'}
+            dataToDisplay={['success', 'skip']}
+          />
+        </Card>
+      </Col>
+    </Row>
+    <Row gutter={16} className="status-page-cards-row">
+      <Col span={12}>
+        <Card
+          title={<span>Rows synchronized from sources (last 30 days)</span>}
+          bordered={false}
+          extra={<DestinationsEventsDocsTooltip/>}
+          loading={loading}
+        >
+          <StatisticsChart
+            data={dailyRowsFromSources || []}
+            granularity={'day'}
+            dataToDisplay={['success', 'skip', 'errors']}
+          />
+        </Card>
+      </Col>
+      <Col span={12}>
+        <Card
+          title={<span>Rows synchronized from sources (last 24 hours)</span>}
+          bordered={false}
+          loading={loading}
+          extra={<DestinationsEventsDocsTooltip/>}
+        >
+          <StatisticsChart
+            data={hourlyRowsFromSources || []}
+            granularity={'hour'}
+            dataToDisplay={['success', 'skip', 'errors']}
+          />
+        </Card>
+      </Col>
+    </Row>
+  </>
 };
+
+const StatisticsError = () => {
+  return <div className="w-2/4 mx-auto mt-3">
+    <Card
+      title={
+        <>
+              <span className="text-warning">
+                <WarningOutlined/>
+              </span>{' '}
+          Dashboard cannot be displayed
+        </>
+      }
+      bordered={false}
+    >
+      <div>
+        Connection to Jitsu server cannot be established. That's not a
+        critical error, you still will be able to configure Jitsu. However,
+        statistic and monitoring for Jitsu Nodes won't be available. To fix
+        that:
+        <ul className="mt-5">
+          <li>
+            Make sure that <CodeInline>jitsu.base_url</CodeInline> property
+            is set in Jitsu Configurator yaml file
+          </li>
+          <li>
+            If <CodeInline>jitsu.base_url</CodeInline> is set, make sure
+            that this URL is accessible (not blocked by firewall) from Jitsu
+            Configurator
+          </li>
+        </ul>
+      </div>
+    </Card>
+  </div>
+}
 
 const SourcesEventsDocsTooltip: React.FC = ({ children }) => {
   const content = (
@@ -272,7 +208,9 @@ const SourcesEventsDocsTooltip: React.FC = ({ children }) => {
   return (
     <span className="cursor-pointer status-page_info-popover">
       <Tooltip title={content}>
-        {children ? children : <QuestionCircleOutlined />}
+        {children ?
+          children :
+          <QuestionCircleOutlined/>}
       </Tooltip>
     </span>
   );
@@ -291,7 +229,9 @@ const DestinationsEventsDocsTooltip: React.FC = ({ children }) => {
   return (
     <span className="cursor-pointer status-page_info-popover">
       <Tooltip title={content}>
-        {children ? children : <QuestionCircleOutlined />}
+        {children ?
+          children :
+          <QuestionCircleOutlined/>}
       </Tooltip>
     </span>
   );
