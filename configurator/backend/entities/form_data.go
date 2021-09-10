@@ -162,3 +162,9 @@ type S3FormData struct {
 	Format             adapters.S3EncodingFormat `firestore:"s3Format" json:"s3Format"`
 	CompressionEnabled bool                      `firestore:"s3CompressionEnabled" json:"s3CompressionEnabled"`
 }
+
+//KafkaFormData entity is stored in main storage (Firebase/Redis)
+type KafkaFormData struct {
+	TableName        string   `firestore:"tableName" json:"tableName"` // field is used as topic name
+	BootstrapServers []string `firestore:"bootstrap_servers" json:"bootstrap_servers"`
+}
