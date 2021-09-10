@@ -292,7 +292,7 @@ export default class AnalyticsService {
     if (!this.globalErrorListenerPresent) {
       window.addEventListener('error', (event) => this.onGlobalErrorEvent(event));
       window.addEventListener('unhandledrejection', (event) => {
-        this.onGlobalError(new Error('Unhandled rejection: ' + event.reason));
+        this.onGlobalError(new Error('Unhandled rejection: ' + JSON.stringify(event.reason)));
       });
       this.globalErrorListenerPresent = true;
     }

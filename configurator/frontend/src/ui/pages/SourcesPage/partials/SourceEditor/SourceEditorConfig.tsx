@@ -90,7 +90,7 @@ const SourceEditorConfigComponent = ({
         </Col>
       </Row>
 
-      {sourceReference.protoType && (
+
         <Row>
           <Col span={24}>
             <Form.Item
@@ -114,7 +114,7 @@ const SourceEditorConfigComponent = ({
             </Form.Item>
           </Col>
         </Row>
-      )}
+
 
       <ConfigurableFieldsForm
         initialValues={initialValues}
