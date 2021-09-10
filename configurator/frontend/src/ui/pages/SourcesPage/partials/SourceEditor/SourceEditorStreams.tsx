@@ -2,7 +2,7 @@ import {FormInstance} from "antd/lib/form/hooks/useForm";
 import {CollectionParameter, CollectionTemplate, SourceConnector} from "../../../../../catalog/sources/types";
 import styles from "./SourceEditor.module.less";
 import {FormListFieldData, FormListOperation} from "antd/es/form/FormList";
-import {Button, Col, Collapse, Form, Input, Popover, Row, Select} from "antd";
+import {Button, Col, Collapse, Form, Input, Popover, Row} from "antd";
 import {useCallback, useState} from "react";
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined";
 import {CaretRightOutlined} from "@ant-design/icons";
@@ -26,6 +26,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
     const [selectedCollectionTypes, setSelectedCollectionTypes] = useState(connectorSource.collectionTypes)
     const [addStreamVisible, setAddStreamVisible] = useState(false)
     const [addTemplateVisible, setAddTemplateVisible] = useState(false)
+    const [activePanel, setActivePanel] = useState([])
 
     const handleCollectionTypesFilter = useCallback((e) => {
         setSelectedCollectionTypes(connectorSource.collectionTypes.filter(v=> v.toLowerCase().includes(e.target.value.toLowerCase())))
@@ -53,6 +54,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
             )},
         [connectorSource.collectionParameters]
     );
+
     const getCollectionParameters = useCallback(
         (index: number) => {
             return getCollectionParametersForType(getStream(index).type)},
@@ -62,7 +64,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
     const generateReportNameForType = useCallback((type: string) => {
         const formValues = form.getFieldsValue();
         const collections = formValues?.collections ?? [{}];
-        const blankName = `${connectorSource.id}_${type}`
+        const blankName = type
         const reportNames = collections?.reduce((accumulator: string[], current: CollectionSource) => {
             if (current?.name?.includes(blankName)) {
                 accumulator.push(current.name);
@@ -71,14 +73,6 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
         }, []) || [];
         return getUniqueAutoIncId(blankName, reportNames);
     }, [form]);
-
-    const generateReportName = useCallback((index: number) => {
-        const formValues = form.getFieldsValue();
-        const collections = formValues?.collections ?? [{}];
-        const blankName = collections[index]?.type ?? connectorSource.collectionTypes[0];
-        return generateReportNameForType(blankName)
-    }, [form, connectorSource.id, connectorSource.collectionTypes]);
-
 
     const addNewOfType = useCallback(
         (type: string, operation: FormListOperation) => {
@@ -89,9 +83,19 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                 }
             }
             operation.add(newCollection,0)
+            setActivePanel(activePanel.map(v => v+1).concat(0))
             handleTouchAnyField();
         },
-        [connectorSource.collectionTemplates]
+        [handleTouchAnyField, connectorSource.collectionTemplates, activePanel, setActivePanel]
+    );
+
+    const remove = useCallback(
+        (index: number, operation: FormListOperation) => {
+            operation.remove(index)
+            setActivePanel(activePanel.filter(v => v != index).map(v => v < index ? v : v - 1))
+            handleTouchAnyField();
+        },
+        [handleTouchAnyField, activePanel, setActivePanel]
     );
 
     const handleApplyTemplate = useCallback(
@@ -100,14 +104,20 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
             if (chosenTemplate >= 0) {
                 let template = connectorSource.collectionTemplates[chosenTemplate]
                 for (const col of template.collections) {
-                    col.name = generateReportNameForType(col.type)
-                    operation.add(JSON.parse(JSON.stringify(col)), 0);
+                    let copy = JSON.parse(JSON.stringify(col))
+                    if (copy.name) {
+                        copy.name = generateReportNameForType(copy.name)
+                    } else {
+                        copy.name = generateReportNameForType(copy.type)
+                    }
+                    operation.add(copy, 0);
 
                 }
+                setActivePanel(activePanel.map(v => v+template.collections.length).concat([...Array(template.collections.length).keys()]))
                 handleTouchAnyField();
             }
         },
-        [connectorSource.collectionTemplates]
+        [connectorSource.collectionTemplates, activePanel, setActivePanel, handleTouchAnyField]
     );
 
     const handleTouchParameter = useCallback(
@@ -137,7 +147,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                         <Row className={"pb-3"}>
                             <Col>
                                 {connectorSource.collectionTypes.length <= 1 &&
-                                <Button size="large" className="mr-3" onClick={() => addNewOfType(connectorSource.collectionTypes[0] ?? "default", operation)} icon={<PlusOutlined />}>Add new stream</Button>
+                                <Button size="large" className="mr-4" onClick={() => addNewOfType(connectorSource.collectionTypes[0] ?? "default", operation)} icon={<PlusOutlined />}>Add new stream</Button>
                                 }
                                 {connectorSource.collectionTypes.length > 1 &&
                                 <Popover placement="rightTop"
@@ -161,7 +171,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                                             )}
                                     </div></>
                                 )} trigger="click">
-                                    <Button size="large" className="mr-3" icon={<PlusOutlined />}>Add new stream</Button>
+                                    <Button size="large" className="mr-4" icon={<PlusOutlined />}>Add new stream</Button>
                                 </Popover>
                                 }
                                 {connectorSource.collectionTemplates &&   <>
@@ -177,7 +187,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                                                         <div>
                                                             <p className="font-bold capitalize">{template.templateName}</p>
                                                             {template.description && <p className={styles.comment}>{template.description}</p>}
-                                                            <p>Streams: <span className={styles.comment}>{template.collections.map<React.ReactNode>(s => <>{s.type}</>)
+                                                            <p>Streams: <span className={styles.comment}>{template.collections.map<React.ReactNode>(s => <>{s.name ?? s.type}</>)
                                                                 .reduce((prev, curr) => [prev, ', ', curr])}</span></p>
                                                         </div>
                                                         <Button type="primary" className={styles.button}  onClick={() => {handleApplyTemplate(index, operation); setAddTemplateVisible(false)}}>Apply</Button>
@@ -186,38 +196,25 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                                             }
                                         </div>
                                     )} trigger="click">
-                                        <Button className="mr-3" size={"large"}>Use template</Button>
+                                        <Button className="mr-4" size={"large"}>Use template</Button>
                                     </Popover>
                                 </>
                                 }
                             </Col>
                         </Row>
-                        <Collapse defaultActiveKey={[0]}
+                        <Collapse activeKey={activePanel} onChange={v => {console.log(v);console.log((v as string[]).map(Number)); setActivePanel((v as string[]).map(Number))}}
                                   expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}>
                         {
                         fields.map((field: FormListFieldData) => {
                             return (
                                 <Panel key={field.name} header={(
-                                    <>
-                                    <b>{getStream(field.name).type}</b><span>&nbsp;&nbsp;–&gt;&nbsp;&nbsp;{getStream(field.name).name}</span>{getFormErrors(field.name).length > 0 && <span style={{color: "red"}}> {getFormErrors(field.name).length} errors</span>}
-                                     {getCollectionParameters(field.name).map(
-                                         (collection: CollectionParameter) => (
-                                        <div className={"flex flex-wrap gap-y-0.5 pt-1.5"}>
-                                            <div className={"capitalize"}>{collection.displayName}:&nbsp;</div>{(getStream(field.name).parameters[collection.id]?.toString() as string)?.split(",").map<React.ReactNode>(s => <code style={{backgroundColor: "#374151", display: "block"}}  className={"font-mono rounded px-1 py-0.5 text-xs"}>{s}</code>)
-                                            .reduce((prev, curr) => [prev, ', ', curr])}
-                                        </div>
-                                             ))
-                                     }
-                                    </>)} extra={(<DeleteOutlined
+                                    <div className={"grid grid-cols-3"}>
+                                        <div className={"whitespace-nowrap"} >Name:&nbsp;&nbsp;<b>{getStream(field.name).name}</b></div><div className={"whitespace-nowrap"}>Type:&nbsp;&nbsp;<b>{getStream(field.name).type}</b></div><div className={"text-right pr-8"}>{getFormErrors(field.name).length > 0 && <span style={{color: "red"}}> {getFormErrors(field.name).length} errors</span>}</div>
+                                    </div>)} extra={(<DeleteOutlined
                                     className={styles.delete}
-                                    onClick={() => operation.remove(field.name)}
+                                    onClick={(event) => {remove(field.name, operation); event.stopPropagation()}}
                                 />)}>
                                     <div className={styles.item} key={field.name}>
-
-                                        {/*
-                        ToDo: refactor this code. Either create a reused component, or change catalog connectors data to be able
-                         to control this code
-                      */}
 
                                         <>
                                             <Row>
@@ -228,15 +225,15 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                                                             <LabelWithTooltip
                                                                 documentation={
                                                                     <>
-                                                                        Name of the report. Will be used as
+                                                                        Will be used as
                                                                         table name prefixed with source_id.
-                                                                        Table name will be:{' '}
+                                                                        Table name will be:<br />
                                                                         <CodeInline>
-                                                                            {initialValues.sourceId}_[Report name]
+                                                                            {initialValues.sourceId}_<b>{getStream(field.name).name ?? "[Name]"}</b>
                                                                         </CodeInline>
                                                                     </>
                                                                 }
-                                                                render={<>Report name:</>}
+                                                                render={<>Name:</>}
                                                             />
                                                         }
                                                         name={[field.name, 'name']}
@@ -279,7 +276,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                                                         field={field}
                                                         key={collection.id}
                                                         collection={collection}
-                                                        handleFormFieldsChange={handleTouchParameter}
+                                                        handleFormFieldsChange={handleTouchAnyField}
                                                     />
                                                 )
                                             )}
