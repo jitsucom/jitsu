@@ -12,6 +12,7 @@ import amplitudeDestination from './amplitude';
 import hubspotDestination from './hubspot';
 import dbtcloudDestination from './dbtcloud';
 import s3Destination from './s3';
+import kafkaDestination from './kafka';
 
 export {
   postgresDestination,
@@ -26,7 +27,8 @@ export {
   amplitudeDestination,
   hubspotDestination,
   dbtcloudDestination,
-  s3Destination
+  s3Destination,
+  kafkaDestination
 }
 
 export const destinationsReferenceMap = {
@@ -42,7 +44,8 @@ export const destinationsReferenceMap = {
   amplitude: amplitudeDestination,
   hubspot: hubspotDestination,
   dbtcloud: dbtcloudDestination,
-  s3: s3Destination
+  s3: s3Destination,
+  kafka: kafkaDestination
 } as const;
 
 export type DestinationReference =

@@ -43,6 +43,8 @@ func MapConfig(destinationID string, destination *entities.Destination, defaultS
 		config, err = mapMySQL(destination)
 	case enstorages.S3Type:
 		config, err = mapS3(destination)
+	case enstorages.KafkaType:
+		config, err = mapKafka(destination)
 	default:
 		return nil, fmt.Errorf("Unknown destination type: %s", destination.Type)
 	}
@@ -504,6 +506,30 @@ func mapDbtCloud(hDestination *entities.Destination) (*enstorages.DestinationCon
 		},
 		DataLayout: &enstorages.DataLayout{
 			TableNameTemplate: "",
+		},
+	}, nil
+}
+
+func mapKafka(dest *entities.Destination) (*enstorages.DestinationConfig, error) {
+	b, err := json.Marshal(dest.Data)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling kafka config destination: %v", err)
+	}
+
+	formData := &entities.KafkaFormData{}
+	err = json.Unmarshal(b, formData)
+	if err != nil {
+		return nil, fmt.Errorf("error unmarshaling kafka form data: %v", err)
+	}
+
+	return &enstorages.DestinationConfig{
+		Type: enstorages.KafkaType,
+		Mode: enstorages.StreamMode,
+		DataLayout: &enstorages.DataLayout{
+			TableNameTemplate: formData.TableName,
+		},
+		Kafka: &enadapters.KafkaConfig{
+			BootstrapServers: formData.BootstrapServers,
 		},
 	}, nil
 }
