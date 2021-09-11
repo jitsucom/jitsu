@@ -83,7 +83,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                 }
             }
             operation.add(newCollection,0)
-            setActivePanel(activePanel.map(v => v+1).concat(0))
+            setActivePanel(activePanel.concat(newCollection.name))
             handleTouchAnyField();
         },
         [handleTouchAnyField, connectorSource.collectionTemplates, activePanel, setActivePanel]
@@ -91,17 +91,19 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
 
     const remove = useCallback(
         (index: number, operation: FormListOperation) => {
+            const nameToRemove = getStream(index).name
             operation.remove(index)
-            setActivePanel(activePanel.filter(v => v != index).map(v => v < index ? v : v - 1))
+            setActivePanel(activePanel.filter(v => v !== nameToRemove))
             handleTouchAnyField();
         },
-        [handleTouchAnyField, activePanel, setActivePanel]
+        [handleTouchAnyField, activePanel, setActivePanel, getStream]
     );
 
     const handleApplyTemplate = useCallback(
         (chosenTemplate: number, operation: FormListOperation) => {
 
             if (chosenTemplate >= 0) {
+                let newActivePanel = activePanel
                 let template = connectorSource.collectionTemplates[chosenTemplate]
                 for (const col of template.collections) {
                     let copy = JSON.parse(JSON.stringify(col))
@@ -111,9 +113,10 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                         copy.name = generateReportNameForType(copy.type)
                     }
                     operation.add(copy, 0);
+                    newActivePanel = newActivePanel.concat(copy.name)
 
                 }
-                setActivePanel(activePanel.map(v => v+template.collections.length).concat([...Array(template.collections.length).keys()]))
+                setActivePanel(newActivePanel)
                 handleTouchAnyField();
             }
         },
@@ -202,12 +205,12 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                                 }
                             </Col>
                         </Row>
-                        <Collapse activeKey={activePanel} onChange={v => {console.log(v);console.log((v as string[]).map(Number)); setActivePanel((v as string[]).map(Number))}}
+                        <Collapse activeKey={activePanel} onChange={v => setActivePanel(v as string[])}
                                   expandIcon={({ isActive }) => <CaretRightOutlined rotate={isActive ? 90 : 0} />}>
                         {
                         fields.map((field: FormListFieldData) => {
                             return (
-                                <Panel key={field.name} header={(
+                                <Panel key={getStream(field.name).name} header={(
                                     <div className={"grid grid-cols-3"}>
                                         <div className={"whitespace-nowrap"} >Name:&nbsp;&nbsp;<b>{getStream(field.name).name}</b></div><div className={"whitespace-nowrap"}>Type:&nbsp;&nbsp;<b>{getStream(field.name).type}</b></div><div className={"text-right pr-8"}>{getFormErrors(field.name).length > 0 && <span style={{color: "red"}}> {getFormErrors(field.name).length} errors</span>}</div>
                                     </div>)} extra={(<DeleteOutlined
