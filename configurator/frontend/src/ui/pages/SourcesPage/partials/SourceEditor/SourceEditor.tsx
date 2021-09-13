@@ -7,7 +7,6 @@ import cn from 'classnames';
 import snakeCase from 'lodash/snakeCase';
 // @Page
 import { SourceEditorConfig } from './SourceEditorConfig';
-import { SourceEditorCollections } from './SourceEditorCollections';
 import { SourceEditorStreams } from './SourceEditorStreams';
 import { SourceEditorDestinations } from './SourceEditorDestinations';
 // @Components
@@ -111,21 +110,6 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
       form: Form.useForm()[0],
       touched: false
     },
-    // {
-    //   key: 'collections',
-    //   name: 'Collections',
-    //   getComponent: (form: FormInstance) => (
-    //     <SourceEditorCollections
-    //       form={form}
-    //       initialValues={sourceData.current}
-    //       connectorSource={connectorSource}
-    //       handleTouchAnyField={createValidateAndTouchField(1)}
-    //     />
-    //   ),
-    //   form: Form.useForm()[0],
-    //   isHidden: !!connectorSource?.protoType,
-    //   touched: false
-    // },
     {
       key: 'streams',
       name: 'Streams',
