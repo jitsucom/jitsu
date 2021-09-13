@@ -13,13 +13,14 @@ const (
 
 // PixelProcessor preprocess tracking pixel events
 type PixelProcessor struct {
-	urlField          jsonutils.JSONPath
-	hostField         jsonutils.JSONPath
-	docPathField      jsonutils.JSONPath
-	docSearchField    jsonutils.JSONPath
-	userAnonymIDField jsonutils.JSONPath
-	userAgentField    jsonutils.JSONPath
-	utcTimeField      jsonutils.JSONPath
+	urlField                jsonutils.JSONPath
+	hostField               jsonutils.JSONPath
+	docPathField            jsonutils.JSONPath
+	docSearchField          jsonutils.JSONPath
+	userAnonymIDField       jsonutils.JSONPath
+	userHashedAnonymIDField jsonutils.JSONPath
+	userAgentField          jsonutils.JSONPath
+	utcTimeField            jsonutils.JSONPath
 
 	//compat
 	compatURLField          jsonutils.JSONPath
@@ -34,13 +35,14 @@ type PixelProcessor struct {
 // NewPixelProcessor returns configured PixelProcessor
 func NewPixelProcessor() *PixelProcessor {
 	return &PixelProcessor{
-		urlField:          jsonutils.NewJSONPath("/url"),
-		hostField:         jsonutils.NewJSONPath("/doc_host"),
-		docPathField:      jsonutils.NewJSONPath("/doc_path"),
-		docSearchField:    jsonutils.NewJSONPath("/doc_search"),
-		userAnonymIDField: jsonutils.NewJSONPath("/user/anonymous_id"),
-		userAgentField:    jsonutils.NewJSONPath("/user_agent"),
-		utcTimeField:      jsonutils.NewJSONPath("/utc_time"),
+		urlField:                jsonutils.NewJSONPath("/url"),
+		hostField:               jsonutils.NewJSONPath("/doc_host"),
+		docPathField:            jsonutils.NewJSONPath("/doc_path"),
+		docSearchField:          jsonutils.NewJSONPath("/doc_search"),
+		userAnonymIDField:       jsonutils.NewJSONPath("/user/anonymous_id"),
+		userHashedAnonymIDField: jsonutils.NewJSONPath("/user/hashed_anonymous_id"),
+		userAgentField:          jsonutils.NewJSONPath("/user_agent"),
+		utcTimeField:            jsonutils.NewJSONPath("/utc_time"),
 
 		compatURLField:          jsonutils.NewJSONPath("/eventn_ctx/url"),
 		compatHostField:         jsonutils.NewJSONPath("/eventn_ctx/doc_host"),
@@ -91,6 +93,7 @@ func (pp *PixelProcessor) Preprocess(event Event, reqContext *RequestContext) {
 		pp.setIfNotExist(pp.userAgentField, event, userAgent)
 		pp.setIfNotExist(pp.utcTimeField, event, utcTime)
 		pp.setIfNotExist(pp.userAnonymIDField, event, anonymID)
+		pp.setIfNotExist(pp.userHashedAnonymIDField, event, reqContext.HashedAnonymousID)
 	}
 
 	event[SrcKey] = "jitsu_gif"
