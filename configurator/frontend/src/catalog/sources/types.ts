@@ -256,6 +256,11 @@ export type Parameter = {
    */
   documentation?: ReactNode;
   /**
+   * IDs of parameters that should include this parameter as a nested one. The first ID
+   * in the array belongs to the closest parent parameter.
+   */
+  parentParametersIds?: string[];
+  /**
    * Either constant or function of current config (to be able to hide fields based on rules)
    *
    * If value is defined (!== undefined): field should be hidden and constant value
@@ -279,6 +284,8 @@ export interface CollectionParameter extends Parameter {
    */
   applyOnlyTo?: string[] | string;
 }
+
+export type SourceCollection = CollectionParameter[];
 
 type SourceConnectorId =
   | 'facebook_marketing'
@@ -322,13 +329,20 @@ export interface SourceConnector {
    */
   collectionParameters: CollectionParameter[];
   /**
-   * A function of the SourceConnector `config parameters` that
-   * loads `collection parameters` dynamically if `config parameters`
+   * Indicates whether to use only static collections or to allow user to
+   * add custom ones
+   */
+  forbidCustomCollections?: boolean;
+  /**
+   * A list of non-configurable collections that can only be turned off
+   */
+  staticCollections?: SourceCollection[];
+  /**
+   * A function of the SourceConnector `config parameters` that loads
+   * available `static collections` dynamically if `config parameters`
    * are valid
    */
-  dynamicCollectionParameters?: (
-    config: unknown
-  ) => Promise<CollectionParameter[]>;
+  loadStaticCollections?: (config: unknown) => Promise<SourceCollection[]>;
   /**
    * Configuration parameters
    */
