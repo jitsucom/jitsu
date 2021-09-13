@@ -89,8 +89,6 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
       } as SourceData)
   );
 
-  const submittedOnce = useRef<boolean>(false);
-
   const sourcesTabs = useRef<Tab<SourceTabKey>[]>([
     {
       key: 'config',
@@ -102,7 +100,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
           isCreateForm={editorMode === 'add'}
           initialValues={sourceData.current}
           sources={sourcesStore.sources}
-          handleTouchAnyField={createValidateAndTouchField(0)}
+          handleTouchAnyField={createTouchField(0)}
           disableFormControls={handleDisableFormControls}
           enableFormControls={handleEnableFormControls}
         />
@@ -118,7 +116,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
               form={form}
               initialValues={sourceData.current}
               connectorSource={connectorSource}
-              handleTouchAnyField={createValidateAndTouchField(1)}
+              handleTouchAnyField={createTouchField(1)}
           />
       ),
       form: Form.useForm()[0],
@@ -132,7 +130,7 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
         <SourceEditorDestinations
           form={form}
           initialValues={sourceData.current}
-          handleTouchAnyField={createValidateAndTouchField(2)}
+          handleTouchAnyField={createTouchField(2)}
         />
       ),
       form: Form.useForm()[0],
@@ -141,19 +139,11 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
     }
   ]);
 
-  const createValidateAndTouchField = 
+  const createTouchField =
     (index: number) => (value: boolean) => {
       const tab = sourcesTabs.current[index];
 
       tab.touched = value === undefined ? true : value;
-
-      if (submittedOnce.current) {
-        validateTabForm(tab, {
-          forceUpdate,
-          beforeValidate: () => (tab.errorsCount = 0),
-          errorCb: (errors) => (tab.errorsCount = errors.errorFields?.length)
-        }).catch(error => console.log(error));
-      }
     };
 
   const handleDisableFormControls = useCallback(() => {
@@ -201,8 +191,6 @@ const SourceEditorComponent = ({ setBreadcrumbs, editorMode }: CommonSourcePageP
   };
 
   const handleSaveSource = () => {
-    submittedOnce.current = true;
-
     setSourceSaving(true);
 
     sourcePageUtils

@@ -3,14 +3,14 @@ import {CollectionParameter, CollectionTemplate, SourceConnector} from "../../..
 import styles from "./SourceEditor.module.less";
 import {FormListFieldData, FormListOperation} from "antd/es/form/FormList";
 import {Button, Col, Collapse, Form, Input, Popover, Row} from "antd";
-import {useCallback, useState} from "react";
+import {ChangeEvent, useCallback, useRef, useState} from "react";
 import PlusOutlined from "@ant-design/icons/lib/icons/PlusOutlined";
 import {CaretRightOutlined} from "@ant-design/icons";
 import DeleteOutlined from "@ant-design/icons/lib/icons/DeleteOutlined";
 import {LabelWithTooltip} from "../../../../components/LabelWithTooltip/LabelWithTooltip";
 import {CodeInline} from "../../../../../lib/components/components";
 import {SourceFormCollectionsField} from "./SourceFormCollectionsField";
-import {getUniqueAutoIncId} from "../../../../../utils/numbers";
+import {getUniqueAutoIncId, randomId} from "../../../../../utils/numbers";
 import * as React from "react";
 
 const {Panel} = Collapse
@@ -27,6 +27,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
     const [addStreamVisible, setAddStreamVisible] = useState(false)
     const [addTemplateVisible, setAddTemplateVisible] = useState(false)
     const [activePanel, setActivePanel] = useState([])
+    const input = useRef(null)
 
     const handleCollectionTypesFilter = useCallback((e) => {
         setSelectedCollectionTypes(connectorSource.collectionTypes.filter(v=> v.toLowerCase().includes(e.target.value.toLowerCase())))
@@ -76,14 +77,14 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
 
     const addNewOfType = useCallback(
         (type: string, operation: FormListOperation) => {
-            let newCollection = {name:generateReportNameForType(type), type: type, parameters: {}}
+            let newCollection = {name:generateReportNameForType(type), type: type, parameters: {}, _id: randomId()}
             for (const param of getCollectionParametersForType(type)) {
                 if (param.defaultValue) {
                     newCollection.parameters[param.id] = param.defaultValue
                 }
             }
             operation.add(newCollection,0)
-            setActivePanel(activePanel.concat(newCollection.name))
+            setActivePanel(activePanel.concat(newCollection._id))
             handleTouchAnyField();
         },
         [handleTouchAnyField, connectorSource.collectionTemplates, activePanel, setActivePanel]
@@ -91,9 +92,10 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
 
     const remove = useCallback(
         (index: number, operation: FormListOperation) => {
-            const nameToRemove = getStream(index).name
+            const stream = getStream(index);
+            const keyToRemove = stream._id ?? stream.name
             operation.remove(index)
-            setActivePanel(activePanel.filter(v => v !== nameToRemove))
+            setActivePanel(activePanel.filter(v => v !== keyToRemove))
             handleTouchAnyField();
         },
         [handleTouchAnyField, activePanel, setActivePanel, getStream]
@@ -112,9 +114,9 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                     } else {
                         copy.name = generateReportNameForType(copy.type)
                     }
+                    copy._id = randomId()
                     operation.add(copy, 0);
-                    newActivePanel = newActivePanel.concat(copy.name)
-
+                    newActivePanel = newActivePanel.concat(copy._id)
                 }
                 setActivePanel(newActivePanel)
                 handleTouchAnyField();
@@ -124,14 +126,17 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
     );
 
     const handleTouchParameter = useCallback(
-        (e) => {
-            const formValues = form.getFieldsValue();
-            const collections = formValues.collections;
-
+        (index: number, e: ChangeEvent<HTMLInputElement>) => {
+             const formValues = form.getFieldsValue();
+             const collections = formValues.collections;
+            const stream = collections[index]
+            if (typeof stream._id === "undefined") {
+                stream._id = input.current.state.value
+            }
             form.setFieldsValue({collections})
             handleTouchAnyField();
         },
-        [form, handleTouchAnyField]
+        [form, handleTouchAnyField, activePanel, setActivePanel, input]
     );
 
     return (
@@ -210,7 +215,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                         {
                         fields.map((field: FormListFieldData) => {
                             return (
-                                <Panel key={getStream(field.name).name} header={(
+                                <Panel key={getStream(field.name)._id ?? getStream(field.name).name} header={(
                                     <div className={"grid grid-cols-3"}>
                                         <div className={"whitespace-nowrap"} >Name:&nbsp;&nbsp;<b>{getStream(field.name).name}</b></div><div className={"whitespace-nowrap"}>Type:&nbsp;&nbsp;<b>{getStream(field.name).type}</b></div><div className={"text-right pr-8"}>{getFormErrors(field.name).length > 0 && <span style={{color: "red"}}> {getFormErrors(field.name).length} errors</span>}</div>
                                     </div>)} extra={(<DeleteOutlined
@@ -268,7 +273,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                                                         labelCol={{ span: 6 }}
                                                         wrapperCol={{ span: 18 }}
                                                     >
-                                                        <Input autoComplete="off" onChange={handleTouchParameter} />
+                                                        <Input autoComplete="off" ref={input} onChange={e => handleTouchParameter(field.name, e)} />
                                                     </Form.Item>
                                                 </Col>
                                             </Row>
