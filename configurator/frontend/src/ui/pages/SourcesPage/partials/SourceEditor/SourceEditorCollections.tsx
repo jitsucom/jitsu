@@ -29,7 +29,12 @@ export interface Props {
   handleTouchAnyField: (...args: any) => void;
 }
 
-const SourceEditorCollections = ({ form, initialValues, connectorSource, handleTouchAnyField }: Props) => {
+const SourceEditorCollections = ({
+  form,
+  initialValues,
+  connectorSource,
+  handleTouchAnyField
+}: Props) => {
   const [chosenTypes, setChosenTypes] = useState<{ [key: number]: string }>(
     initialValues.collections
       ? initialValues.collections?.reduce(
@@ -38,9 +43,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
           },
           {}
         )
-      : connectorSource.collectionTypes?.[0]
-      ? { 0: connectorSource.collectionTypes[0] }
-      : {}
+      : { 0: connectorSource.collectionTypes[0] }
   );
 
   const generateReportName = useCallback(
@@ -104,7 +107,7 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
     [chosenTypes, handleTouchAnyField]
   );
 
-  const getInitialScheduleValue = useCallback(
+  const getCollectionScheduleValue = useCallback(
     (index: number) => {
       const initial = initialValues.collections?.[index]?.schedule;
 
@@ -228,38 +231,37 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
                     {/*
                         ToDo: refactor this code. Either create a reused component, or change catalog connectors data to be able
                          to control this code
-                        */}
-                    {!connectorSource.protoType && (
-                      <Row>
-                        <Col span={16}>
-                          <Form.Item
-                            initialValue={getInitialScheduleValue(field.name)}
-                            name={[field.name, 'schedule']}
-                            className="form-field_fixed-label"
-                            label="Schedule:"
-                            labelCol={{ span: 6 }}
-                            wrapperCol={{ span: 18 }}
-                            rules={[
-                              {
-                                required: true,
-                                message: 'You have to choose schedule'
-                              }
-                            ]}
-                          >
-                            <Select onChange={handleTouchAnyField}>
-                              {COLLECTIONS_SCHEDULES.map((option) => (
-                                <Select.Option
-                                  value={option.value}
-                                  key={option.value}
-                                >
-                                  {option.label}
-                                </Select.Option>
-                              ))}
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                      </Row>
-                    )}
+                      */}
+
+                    {/* <Row>
+                      <Col span={16}>
+                        <Form.Item
+                          initialValue={getCollectionScheduleValue(field.name)}
+                          name={[field.name, 'schedule']}
+                          className="form-field_fixed-label"
+                          label="Schedule:"
+                          labelCol={{ span: 6 }}
+                          wrapperCol={{ span: 18 }}
+                          rules={[
+                            {
+                              required: true,
+                              message: 'You have to choose schedule'
+                            }
+                          ]}
+                        >
+                          <Select onChange={handleTouchAnyField}>
+                            {COLLECTIONS_SCHEDULES.map((option) => (
+                              <Select.Option
+                                value={option.value}
+                                key={option.value}
+                              >
+                                {option.label}
+                              </Select.Option>
+                            ))}
+                          </Select>
+                        </Form.Item>
+                      </Col>
+                    </Row> */}
 
                     <>
                       <Row>
@@ -338,9 +340,9 @@ const SourceEditorCollections = ({ form, initialValues, connectorSource, handleT
 
               <Button
                 type="ghost"
-                icon={<PlusOutlined />}
-                className="add-field-btn"
                 onClick={handleAddField(operation)}
+                className="add-field-btn"
+                icon={<PlusOutlined />}
               >
                 Add new collection
               </Button>
