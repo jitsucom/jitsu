@@ -495,25 +495,80 @@ export const googleAnalytics: SourceConnector = {
   ],
   collectionTemplates: [
     {
-      templateName: 'Acquisition Overview',
+      templateName: 'Default template',
+      description: <></>,
       collections: [{
         type: 'report',
+        name: 'daily_active_users',
         parameters: {
-          dimensions: [
-            'ga:date',
-            'ga:acquisitionMedium',
-            'ga:acquisitionSource',
-            'ga:acquisitionSourceMedium',
-            'ga:acquisitionTrafficChannel'
-          ],
-          metrics: [
-            'ga:avgSessionDuration',
-            'ga:bounceRate',
-            'ga:pageviewsPerSession',
-            'ga:sessions'
-          ]
+          dimensions: ['ga:date'],
+          metrics: ['ga:1dayUsers']
         }
-      }]
+      },{
+        type: 'report',
+        name: 'devices',
+        parameters: {
+          dimensions: ["ga:date", "ga:deviceCategory", "ga:operatingSystem", "ga:browser"],
+          metrics: ["ga:users", "ga:newUsers", "ga:sessions", "ga:sessionsPerUser", "ga:avgSessionDuration", "ga:pageviews", "ga:pageviewsPerSession", "ga:avgTimeOnPage", "ga:bounceRate", "ga:exitRate"]
+        }
+      },{
+        type: 'report',
+        name: 'four_weekly_active_users',
+        parameters: {
+          dimensions: ["ga:date"],
+          metrics: ["ga:28dayUsers"]
+        }
+      },{
+        type: 'report',
+        name: 'locations',
+        parameters: {
+          dimensions: ["ga:date", "ga:continent", "ga:subContinent", "ga:country", "ga:region", "ga:metro", "ga:city"],
+          metrics: ["ga:users", "ga:newUsers", "ga:sessions", "ga:sessionsPerUser", "ga:avgSessionDuration", "ga:pageviews", "ga:pageviewsPerSession", "ga:avgTimeOnPage", "ga:bounceRate", "ga:exitRate"]
+        }
+      },{
+        type: 'report',
+        name: 'monthly_active_users',
+        parameters: {
+          dimensions: ["ga:date"],
+          metrics: ["ga:30dayUsers"]
+        }
+      },{
+        type: 'report',
+        name: 'pages',
+        parameters: {
+          dimensions: ["ga:date", "ga:hostname", "ga:pagePath"],
+          metrics: ["ga:pageviews", "ga:uniquePageviews", "ga:avgTimeOnPage", "ga:entrances", "ga:entranceRate", "ga:bounceRate", "ga:exits", "ga:exitRate"]
+        }
+      },{
+        type: 'report',
+        name: 'traffic_sources',
+        parameters: {
+          dimensions: ["ga:date", "ga:source", "ga:medium", "ga:socialNetwork"],
+          metrics: ["ga:users", "ga:newUsers", "ga:sessions", "ga:sessionsPerUser", "ga:avgSessionDuration", "ga:pageviews", "ga:pageviewsPerSession", "ga:avgTimeOnPage", "ga:bounceRate", "ga:exitRate"]
+        }
+      },{
+        type: 'report',
+        name: 'two_weekly_active_users',
+        parameters: {
+          dimensions: ["ga:date"],
+          metrics: ["ga:14dayUsers"]
+        }
+      },{
+        type: 'report',
+        name: 'website_overview',
+        parameters: {
+          dimensions: ["ga:date"],
+          metrics: ["ga:users", "ga:newUsers", "ga:sessions", "ga:sessionsPerUser", "ga:avgSessionDuration", "ga:pageviews", "ga:pageviewsPerSession", "ga:avgTimeOnPage", "ga:bounceRate", "ga:exitRate"]
+        }
+      },{
+        type: 'report',
+        name: 'weekly_active_users',
+        parameters: {
+          dimensions: ["ga:date"],
+          metrics: ["ga:7dayUsers"]
+        }
+      }
+      ]
     }
   ],
 
