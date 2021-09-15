@@ -72,7 +72,7 @@ func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	}
 
 	if jobStatus.Err() != nil {
-		return fmt.Errorf("Error loading from google cloud storage to BigQuery table %s: %v", tableName, err)
+		return fmt.Errorf("Error loading from google cloud storage to BigQuery table %s: %v", tableName, jobStatus.Err())
 	}
 
 	return nil
