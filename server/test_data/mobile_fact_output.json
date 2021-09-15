@@ -20,6 +20,7 @@
   "user": {
     "anonymous_id": "sh1ah4rvqedasfd",
     "email": "foo@bar.com",
+    "hashed_anonymous_id":"c48e863c1710f147ad11fd2715f99d7a",
     "internal_id": "pzrWMXvtZUThJ24JW5iL2bvG9SA2"
   },
   "user_language": "en-GB",
