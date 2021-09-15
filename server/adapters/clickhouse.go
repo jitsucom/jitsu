@@ -560,7 +560,7 @@ func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, 
 
 	err := ch.executeInsert(wrappedTx, table, headerWithQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 	if err != nil {
-		return fmt.Errorf("Error executing insert in bulk: %v", err)
+		return err
 	}
 
 	return nil
@@ -573,7 +573,7 @@ func (ch *ClickHouse) executeInsert(wrappedTx *Transaction, table *Table, header
 	ch.queryLogger.LogQueryWithValues(statement, valueArgs)
 
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
-		return err
+		return fmt.Errorf("error inserting in %s table statement: %s values: %v: %v", table.Name, statement, valueArgs, err)
 	}
 
 	return nil
