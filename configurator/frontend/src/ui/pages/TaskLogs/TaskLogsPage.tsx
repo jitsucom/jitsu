@@ -158,6 +158,7 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
           <span className={styles.filterEdit}>
             <DatePicker
               className="w-full"
+              allowClear={false}
               onChange={(val) => {
                 setFilter('start', val.startOf('day'), setFilterStart, (d) =>
                   d.toISOString()
@@ -172,6 +173,7 @@ export const TaskLogsPage: React.FC<PageProps> = ({ setBreadcrumbs }) => {
           <span className={styles.filterEdit}>
             <DatePicker
               className="w-full"
+              allowClear={false}
               onChange={(val) => {
                 setFilter('end', val.endOf('day'), setFilterEnd, (d) =>
                   d.toISOString()

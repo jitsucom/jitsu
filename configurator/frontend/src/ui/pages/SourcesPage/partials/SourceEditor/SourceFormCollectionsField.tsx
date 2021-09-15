@@ -11,7 +11,6 @@ import { FormListFieldData } from 'antd/es/form/FormList';
 export interface Props {
   collection: CollectionParameter;
   field: FormListFieldData;
-  initialValue: any;
   documentation?: React.ReactNode;
   handleFormFieldsChange: (...args: any) => void;
 }
@@ -19,7 +18,6 @@ export interface Props {
 const SourceFormCollectionsFieldComponent = ({
   collection,
   field,
-  initialValue,
   documentation,
   handleFormFieldsChange
 }: Props) => {
@@ -70,13 +68,12 @@ const SourceFormCollectionsFieldComponent = ({
     <Row>
       <Col span={16}>
         <Form.Item
-          initialValue={initialValue}
           className="form-field_fixed-label"
           label={documentation ?
             <LabelWithTooltip documentation={documentation} render={collection.displayName} /> :
             <span>{collection.displayName}:</span>}
           key={collection.id}
-          name={[field.name, `parameters.${collection.id}`]}
+          name={[field.name, "parameters", collection.id]}
           rules={validationRules}
           labelCol={{ span: 6 }}
           wrapperCol={{ span: 18 }}
