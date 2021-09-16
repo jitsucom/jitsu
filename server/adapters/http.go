@@ -21,7 +21,7 @@ type HTTPAdapterConfiguration struct {
 	HTTPReqFactory HTTPRequestFactory
 	PoolWorkers    int
 	DebugLogger    *logging.QueryLogger
-
+	Debug		   bool
 	ErrorHandler   func(fallback bool, eventContext *EventContext, err error)
 	SuccessHandler func(eventContext *EventContext)
 }
@@ -43,6 +43,7 @@ type HTTPAdapter struct {
 	workersPool    *ants.PoolWithFunc
 	queue          *PersistentQueue
 	debugLogger    *logging.QueryLogger
+	debug          bool
 	httpReqFactory HTTPRequestFactory
 
 	errorHandler   func(fallback bool, eventContext *EventContext, err error)
@@ -89,7 +90,7 @@ func NewHTTPAdapter(config *HTTPAdapterConfiguration) (*HTTPAdapter, error) {
 
 	httpAdapter.workersPool = pool
 	httpAdapter.queue = reqQueue
-
+	httpAdapter.debug = config.Debug
 	httpAdapter.startObserver()
 
 	return httpAdapter, nil
@@ -104,6 +105,9 @@ func (h *HTTPAdapter) startObserver() {
 			}
 
 			if h.workersPool.Free() > 0 {
+				if h.debug {
+					logging.Infof("[%s] Starting to dequeue block.", h.destinationID)
+				}
 				retryableRequest, err := h.queue.DequeueBlock()
 				if err != nil {
 					if err == ErrQueueClosed && h.closed.Load() {
@@ -113,9 +117,14 @@ func (h *HTTPAdapter) startObserver() {
 					logging.SystemErrorf("[%s] Error reading HTTP request from the queue: %v", h.destinationID, err)
 					continue
 				}
-
+				if h.debug {
+					logging.Infof("[%s] RetryableRequest: %v", h.destinationID, retryableRequest)
+				}
 				//dequeued request was from retry call and retry timeout hasn't come
 				if time.Now().UTC().Before(retryableRequest.DequeuedTime) {
+					if h.debug {
+						logging.Infof("[%s] Requeue: %v", h.destinationID, retryableRequest)
+					}
 					if err := h.queue.AddRequest(retryableRequest); err != nil {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after dequeuing: %v", h.destinationID, err)
 						h.errorHandler(true, retryableRequest.EventContext, err)
@@ -123,7 +132,9 @@ func (h *HTTPAdapter) startObserver() {
 
 					continue
 				}
-
+				if h.debug {
+					logging.Infof("[%s] Invoking: %v", h.destinationID, retryableRequest)
+				}
 				if err := h.workersPool.Invoke(retryableRequest); err != nil {
 					if err != ants.ErrPoolClosed {
 						logging.SystemErrorf("[%s] Error invoking HTTP request task: %v", h.destinationID, err)
@@ -133,7 +144,11 @@ func (h *HTTPAdapter) startObserver() {
 						logging.SystemErrorf("[%s] Error enqueueing HTTP request after invoking: %v", h.destinationID, err)
 						h.errorHandler(true, retryableRequest.EventContext, err)
 					}
+				} else if h.debug {
+					logging.Infof("[%s] Done: %v", h.destinationID, retryableRequest)
 				}
+			} else {
+				time.Sleep(time.Millisecond * 50)
 			}
 		}
 	})
