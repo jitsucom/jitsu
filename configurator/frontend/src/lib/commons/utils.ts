@@ -1,13 +1,34 @@
 /* eslint-disable */
 import moment, { Duration, Moment } from 'moment';
-import { LS_ACCESS_KEY, LS_REFRESH_KEY } from 'lib/services/backend';
-import { assertHasOwnProperty, assertIsArray, assertIsObject } from 'utils/typeCheck';
+import { LS_ACCESS_KEY, LS_REFRESH_KEY } from 'lib/services/UserServiceBackend';
+import {
+  assertHasOwnProperty,
+  assertIsArray,
+  assertIsObject
+} from 'utils/typeCheck';
 
 export function concatenateURLs(baseUrl: string, url: string) {
-  let base = baseUrl.endsWith('/') ? baseUrl.substr(0, baseUrl.length - 1) : baseUrl;
+  let base = baseUrl.endsWith('/')
+    ? baseUrl.substr(0, baseUrl.length - 1)
+    : baseUrl;
   return base + (url.startsWith('/') ? url : '/' + url);
 }
 
+/**
+ * Sets debug info that is available as __enUIDebug in dev console. So far
+ * sets the field in any case, later it will be possible to do in only in dev mode
+ * @param field
+ * @param obj
+ */
+export function setDebugInfo(field: string, obj: any, purify = true) {
+  if (window) {
+    if (!window['__enUIDebug']) {
+      window['__enUIDebug'] = {};
+    }
+    window['__enUIDebug'][field] =
+      typeof obj === 'object' && purify ? Object.assign({}, obj) : obj;
+  }
+}
 
 function circularReferencesReplacer() {
   let cache = [];

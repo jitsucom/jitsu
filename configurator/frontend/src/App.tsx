@@ -5,9 +5,14 @@ import {Redirect, Route, Switch} from 'react-router-dom';
 import {Button, Form, Input, message, Modal} from 'antd';
 
 import './App.less';
-import ApplicationServices, {setDebugInfo} from './lib/services/ApplicationServices';
-import {CenteredSpin, GlobalError, handleError, Preloader} from './lib/components/components';
-import {reloadPage} from './lib/commons/utils';
+import ApplicationServices from './lib/services/ApplicationServices';
+import {
+  CenteredSpin,
+  GlobalError,
+  handleError,
+  Preloader
+} from './lib/components/components';
+import { reloadPage, setDebugInfo } from './lib/commons/utils';
 import {User} from './lib/services/model';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 

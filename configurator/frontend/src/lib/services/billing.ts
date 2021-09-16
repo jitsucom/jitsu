@@ -1,41 +1,66 @@
 import { IProject } from 'lib/services/model';
-import { BackendApiClient } from 'lib/services/ApplicationServices';
-import {
-  DatePoint,
-  IStatisticsService,
-  StatisticsService
-} from 'lib/services/stat';
-import { destinationsStore, IDestinationsStore } from '../../stores/destinations';
+import { DatePoint, StatisticsService } from 'lib/services/stat';
+import { IDestinationsStore } from '../../stores/destinations';
 import { ISourcesStore } from '../../stores/sources';
+import { BackendApiClient } from './BackendApiClient';
 
 export type PlanId = 'free' | 'growth' | 'premium' | 'enterprise';
 
 export type PaymentPlan = {
   name: string;
   id: PlanId;
-  eventsLimit: number
-  destinationsLimit: number
-  sourcesLimit: number
+  eventsLimit: number;
+  destinationsLimit: number;
+  sourcesLimit: number;
 };
 
 export const paymentPlans: Record<PlanId, PaymentPlan> = {
-  free: { name: 'Startup (free)', id: 'free', eventsLimit: 250_000, destinationsLimit:  2, sourcesLimit: 1 },
-  growth: { name: 'Growth', id: 'growth', eventsLimit: 1_000_000, destinationsLimit:  10, sourcesLimit: 5 },
-  premium: { name: 'Premium', id: 'premium', eventsLimit: 10_000_000, destinationsLimit:  10, sourcesLimit: 15 },
-  enterprise: { name: 'Enterprise', id: 'enterprise', eventsLimit: null, destinationsLimit: null, sourcesLimit: null }
+  free: {
+    name: 'Startup (free)',
+    id: 'free',
+    eventsLimit: 250_000,
+    destinationsLimit: 2,
+    sourcesLimit: 1
+  },
+  growth: {
+    name: 'Growth',
+    id: 'growth',
+    eventsLimit: 1_000_000,
+    destinationsLimit: 10,
+    sourcesLimit: 5
+  },
+  premium: {
+    name: 'Premium',
+    id: 'premium',
+    eventsLimit: 10_000_000,
+    destinationsLimit: 10,
+    sourcesLimit: 15
+  },
+  enterprise: {
+    name: 'Enterprise',
+    id: 'enterprise',
+    eventsLimit: null,
+    destinationsLimit: null,
+    sourcesLimit: null
+  }
 };
 
 /**
  * Status of current payment plan
  */
 export type PaymentPlanStatus = {
-  currentPlan: PaymentPlan,
-  eventsThisMonth: number,
-  sources: number,
-  destinations: number,
-}
+  currentPlan: PaymentPlan;
+  eventsThisMonth: number;
+  sources: number;
+  destinations: number;
+};
 
-export async function initPaymentPlan(project: IProject, backendApiClient: BackendApiClient, destinationsStore: IDestinationsStore, sourcesStore: ISourcesStore): Promise<PaymentPlanStatus> {
+export async function initPaymentPlan(
+  project: IProject,
+  backendApiClient: BackendApiClient,
+  destinationsStore: IDestinationsStore,
+  sourcesStore: ISourcesStore
+): Promise<PaymentPlanStatus> {
   const statService = new StatisticsService(backendApiClient, project, true);
   let currentPlan;
   if (!project?.planId) {
@@ -69,5 +94,10 @@ export async function initPaymentPlan(project: IProject, backendApiClient: Backe
     return res;
   }, 0);
 
-  return { currentPlan, eventsThisMonth, sources: sourcesStore.sources.length, destinations : destinationsStore.destinations.length }
+  return {
+    currentPlan,
+    eventsThisMonth,
+    sources: sourcesStore.sources.length,
+    destinations: destinationsStore.destinations.length
+  };
 }
