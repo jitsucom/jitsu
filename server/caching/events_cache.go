@@ -26,10 +26,10 @@ type EventsCache struct {
 func NewEventsCache(storage meta.Storage, capacityPerDestination int) *EventsCache {
 	c := &EventsCache{
 		storage:                storage,
-		originalCh:             make(chan *originalEvent, 1000000),
-		succeedCh:              make(chan *succeedEvent, 1000000),
-		failedCh:               make(chan *failedEvent, 1000000),
-		skippedCh:              make(chan *failedEvent, 1000000),
+		originalCh:             make(chan *originalEvent),
+		succeedCh:              make(chan *succeedEvent),
+		failedCh:               make(chan *failedEvent),
+		skippedCh:              make(chan *failedEvent),
 		capacityPerDestination: capacityPerDestination,
 
 		done: make(chan struct{}),
@@ -68,40 +68,28 @@ func (ec *EventsCache) start() {
 //Put puts value into channel which will be read and written to storage
 func (ec *EventsCache) Put(disabled bool, destinationID, eventID string, value events.Event) {
 	if !disabled && ec.isActive() {
-		select {
-		case ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}:
-		default:
-		}
+		ec.originalCh <- &originalEvent{destinationID: destinationID, eventID: eventID, event: value}
 	}
 }
 
 //Succeed puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Succeed(eventContext *adapters.EventContext) {
 	if !eventContext.CacheDisabled && ec.isActive() {
-		select {
-		case ec.succeedCh <- &succeedEvent{eventContext: eventContext}:
-		default:
-		}
+		ec.succeedCh <- &succeedEvent{eventContext: eventContext}
 	}
 }
 
 //Error puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Error(disabled bool, destinationID, eventID string, errMsg string) {
 	if !disabled && ec.isActive() {
-		select {
-		case ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
-		default:
-		}
+		ec.failedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}
 	}
 }
 
 //Skip puts value into channel which will be read and updated in storage
 func (ec *EventsCache) Skip(disabled bool, destinationID, eventID string, errMsg string) {
 	if !disabled && ec.isActive() {
-		select {
-		case ec.skippedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}:
-		default:
-		}
+		ec.skippedCh <- &failedEvent{destinationID: destinationID, eventID: eventID, error: errMsg}
 	}
 }
 
@@ -261,10 +249,10 @@ func (ec *EventsCache) GetTotal(destinationID string) int {
 
 //Close stops all underlying goroutines
 func (ec *EventsCache) Close() error {
+	close(ec.done)
 	close(ec.originalCh)
 	close(ec.succeedCh)
 	close(ec.failedCh)
-	close(ec.done)
 	return nil
 }
 
