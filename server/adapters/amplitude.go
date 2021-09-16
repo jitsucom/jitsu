@@ -92,7 +92,7 @@ func NewAmplitude(config *AmplitudeConfig, httpAdapterConfiguration *HTTPAdapter
 	}
 
 	httpAdapterConfiguration.HTTPReqFactory = httpReqFactory
-
+	httpAdapterConfiguration.Debug = true
 	httpAdapter, err := NewHTTPAdapter(httpAdapterConfiguration)
 	if err != nil {
 		return nil, err
