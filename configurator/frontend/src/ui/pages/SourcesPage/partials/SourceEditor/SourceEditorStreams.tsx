@@ -165,7 +165,7 @@ const SourceEditorStreams = ({ form, initialValues, connectorSource, handleTouch
                                         <>
                                         {connectorSource.collectionTypes.length > 7 &&
                                         <Input allowClear={true} onChange={handleCollectionTypesFilter} placeholder={"Type to search"}   /> }
-                                    <div className={styles.templates} style={{maxHeight: "400px", overflow: "scroll"}}>
+                                    <div className={styles.templates} style={{maxHeight: "400px"}}>
 
                                 {selectedCollectionTypes.map(
                                                 (type: string) => (
