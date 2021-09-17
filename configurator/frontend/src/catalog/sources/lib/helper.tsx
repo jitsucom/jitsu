@@ -1,9 +1,3 @@
-import { snakeCaseToWords, toTitleCase } from '../../../utils/strings';
-import {
-  assertIsArray,
-  assertIsArrayOfTypes,
-  assertIsObject
-} from '../../../utils/typeCheck';
 import {
   SingerTap,
   jsonType,
@@ -221,7 +215,7 @@ type AirbyteSpecNodeMappingParameters = {
  * @param specNode `connectionSpecification` field which is the root node of the airbyte source spec.
  */
 export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
-  specNode: unknown,
+  specNode,
   sourceName: string,
   options?: AirbyteSpecNodeMappingParameters
 ): Parameter[] {
@@ -253,9 +247,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         ? singleSelectionType(specNode['enum'])
         : makeStringType(pattern ? {pattern} : {});
       const mappedStringField: Parameter = {
-        displayName: specNode['title']
-          ? toTitleCase(specNode['title'])
-          : toTitleCase(snakeCaseToWords(nodeName)),
+        displayName: specNode['title'] || nodeName,
         id,
         type: fieldType,
         required,
@@ -270,9 +262,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
 
     case 'integer': {
       const mappedIntegerField: Parameter = {
-        displayName: specNode['title']
-          ? toTitleCase(specNode['title'])
-          : toTitleCase(snakeCaseToWords(nodeName)),
+        displayName: specNode['title'] || nodeName,
         id,
         type: makeIntType({
           minimum: specNode['minimum'],
@@ -289,9 +279,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
 
     case 'boolean': {
       const mappedBooleanField: Parameter = {
-        displayName: specNode['title']
-          ? toTitleCase(specNode['title'])
-          : toTitleCase(snakeCaseToWords(nodeName)),
+        displayName: specNode['title'] || nodeName,
         id,
         type: booleanType,
         required,
@@ -309,10 +297,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
 
       if (specNode['properties']) {
         optionsEntries = getEntriesFromPropertiesField(specNode);
-        const _listOfRequiredFields: unknown = specNode['required'] || [];
-        assertIsArrayOfTypes(_listOfRequiredFields, 'string');
-        listOfRequiredFields = _listOfRequiredFields;
-
+        listOfRequiredFields = specNode['required'] || [];
       } else if (specNode['oneOf']) {
         // this is a rare case, see the Postgres source spec for an example
         optionsEntries = getEntriesFromOneOfField(specNode, nodeName);
@@ -324,9 +309,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
             childNode['properties']?.[optionsFieldName]?.['const']
         );
         const mappedSelectionField: Parameter = {
-          displayName: specNode['title']
-            ? toTitleCase(specNode['title'])
-            : toTitleCase(snakeCaseToWords(nodeName)),
+          displayName: specNode['title'] || nodeName,
           id: `${parentNode.id}.${nodeName}.${optionsFieldName}`,
           type: singleSelectionType(options),
           required,
@@ -342,7 +325,6 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         );
       }
 
-      assertIsObject(specNode);
 
       const parentId = id;
       optionsEntries.forEach(([nodeName, node]) =>
@@ -364,9 +346,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
       if (specNode['allOf']) {
         // Case for the nodes that have the 'allOf' property
         const nodes = specNode['allOf'];
-        assertIsArray(nodes);
         nodes.forEach((node) => {
-          assertIsObject(node);
           result.push(
             ...mapAirbyteNode(node, sourceName, {
               nodeName,
@@ -394,16 +374,13 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
         );
       } else {
         // Special case for the nodes from the `oneOf` list in the `object` node
-        const childrenNodesEntries: unknown = Object.entries(
+        const childrenNodesEntries = Object.entries(
           specNode['properties']
         ).sort(([_, nodeA], [__, nodeB]) => nodeA?.['order'] - nodeB?.['order']);
 
         const parentNodeValueProperty = childrenNodesEntries[0][0];
         const parentNodeValueKey = `${parentNode.id}.${parentNodeValueProperty}`;
-        const _listOfRequiredFields: unknown = specNode['required'] || [];
-        assertIsObject(specNode);
-        assertIsArray(childrenNodesEntries);
-        assertIsArrayOfTypes(_listOfRequiredFields, 'string');
+        const _listOfRequiredFields = specNode['required'] || [];
         childrenNodesEntries
           .slice(1) // Ecludes the first entry as it is a duplicate definition of the parent node
           .forEach(([nodeName, node]) =>
@@ -436,16 +413,15 @@ export const mapAirbyteSpecToSourceConnectorConfig = function mapAirbyteNode(
 const getAirbyteSpecNodeByRef = (
   parentNode: EnrichedAirbyteSpecNode,
   ref: string
-): UnknownObject | null => {
+) => {
   const rootNode = getAirbyteSpecRootNode(parentNode);
   const nodesNames = ref.replace('#/', '').split('/');
 
-  return nodesNames.reduce<UnknownObject | null>(
+  return nodesNames.reduce(
     (parentNode, childNodeName) => {
       if (parentNode === null) return null;
       const childNode = parentNode[childNodeName];
       try {
-        assertIsObject(childNode);
         return childNode;
       } catch {
         return null;
@@ -465,8 +441,7 @@ const getAirbyteSpecRootNode = (
 };
 
 const getEntriesFromPropertiesField = (node: unknown): [string, unknown][] => {
-  const subNodes = node['properties'] as unknown;
-  assertIsObject(subNodes);
+  const subNodes = node['properties'];
   let entries = Object.entries(subNodes) as [string, unknown][];
   const isOrdered = entries[0][1]?.['order'];
   if (isOrdered)
@@ -481,8 +456,6 @@ const getEntriesFromOneOfField = (
   const subNodes = node['oneOf'] as unknown;
 
   // array assertion must fail here
-  assertIsArrayOfTypes(subNodes, new Object());
-
   return Object.entries(subNodes).map(([idx, subNode]) => [
     `${nodeName}-option-${idx}`,
     subNode
