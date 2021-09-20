@@ -5,6 +5,9 @@ server:
   admin_token: '${env.SERVER_ADMIN_TOKEN}'
   telemetry: 'http://localhost:7000/api/v1/telemetry?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
 
+geo:
+  maxmind_path: '${env.MAX_MIND_PATH | ""}'
+
 api_keys: 'http://localhost:7000/api/v1/apikeys?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
 
 destinations: 'http://localhost:7000/api/v1/destinations?token=${env.CONFIGURATOR_ADMIN_TOKEN}'
@@ -13,11 +16,21 @@ sources: 'http://localhost:7000/api/v1/sources?token=${env.CONFIGURATOR_ADMIN_TO
 
 system: 'http://localhost:7000/api/v1/system/configuration'
 
+notifications:
+  slack:
+    url: '${env.SLACK_NOTIFICATIONS_WEBHOOK|true}'
+
+users_recognition:
+  enabled: '${env.USER_RECOGNITION_ENABLED|true}'
+
 meta:
   storage:
     redis:
       host: '${env.REDIS_URL}'
       tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
+coordination:
+  type: redis
 
 sql_debug_log:
   ddl:

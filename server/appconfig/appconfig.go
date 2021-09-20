@@ -334,7 +334,7 @@ func (a *AppConfig) CloseWriteAheadLog() {
 }
 
 func loadGeoResolver() geo.Resolver {
-	if viper.IsSet("geo.maxmind_path") {
+	if viper.IsSet("geo.maxmind_path") && len(viper.GetString("geo.maxmind_path")) > 0 {
 		geoPath := viper.GetString("geo.maxmind_path")
 		geoResolver, err := geo.CreateResolver(viper.GetString("maxmind.download_url"), geoPath)
 		if err != nil {
