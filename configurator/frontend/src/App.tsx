@@ -17,25 +17,25 @@ import {User} from './lib/services/model';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from './Layout';
-import { initPaymentPlan, PaymentPlanStatus } from 'lib/services/billing';
+import { initPaymentPlan, PaymentPlanStatus } from 'lib/services/Billing';
 import { OnboardingTour } from 'lib/components/OnboardingTour/OnboardingTour';
 import { initializeAllStores } from 'stores/_initializeAllStores';
 import { destinationsStore } from './stores/destinations';
 import { sourcesStore } from './stores/sources';
 
 enum AppLifecycle {
-    LOADING, //Application is loading
-    REQUIRES_LOGIN, //Login form is displayed
-    APP, //Application
-    ERROR //Global error (maintenance)
+  LOADING, //Application is loading
+  REQUIRES_LOGIN, //Login form is displayed
+  APP, //Application
+  ERROR //Global error (maintenance)
 }
 
 type AppState = {
-    lifecycle: AppLifecycle;
-    globalErrorDetails?: string;
-    extraControls?: React.ReactNode;
-    user?: User;
-    paymentPlanStatus?: PaymentPlanStatus;
+  lifecycle: AppLifecycle;
+  globalErrorDetails?: string;
+  extraControls?: React.ReactNode;
+  user?: User;
+  paymentPlanStatus?: PaymentPlanStatus;
 };
 
 export const initializeApplication = async (
@@ -45,7 +45,7 @@ export const initializeApplication = async (
   paymentPlanStatus: PaymentPlanStatus;
 }> => {
   await services.init();
-  const { user } = await services.userService.waitForUser();
+  const user = services.userService.getUser();
   setDebugInfo('user', user);
   if (user) {
     services.analyticsService.onUserKnown(user);
@@ -55,7 +55,12 @@ export const initializeApplication = async (
 
   let paymentPlanStatus: PaymentPlanStatus;
   if (user && services.features.billingEnabled) {
-    paymentPlanStatus = await initPaymentPlan(services.activeProject, services.backendApiClient, destinationsStore, sourcesStore);
+    paymentPlanStatus = await initPaymentPlan(
+      services.activeProject,
+      services.backendApiClient,
+      destinationsStore,
+      sourcesStore
+    );
   }
 
   return { user, paymentPlanStatus };

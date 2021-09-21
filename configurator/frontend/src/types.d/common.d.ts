@@ -14,5 +14,5 @@ declare interface AnyObject {
 }
 
 declare type UnknownObject = {
-  [key: string]: unknown;
+  [key: string]: unknown | UnknownObject;
 };

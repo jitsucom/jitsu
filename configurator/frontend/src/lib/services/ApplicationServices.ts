@@ -16,6 +16,9 @@ import {
 import { HttpServerStorage, ServerStorage } from './ServerStorage';
 import { UserService } from './UserService';
 import { ApplicationConfiguration } from './ApplicationConfiguration';
+import { BillingApiClient, IBillingApiClient } from './BillingApiClient';
+import { BillingService, IBillingService } from './BillingService';
+import { StatisticsService } from './stat';
 
 export interface IApplicationServices {
   init(): Promise<void>;
@@ -24,6 +27,7 @@ export interface IApplicationServices {
   storageService: ServerStorage;
   analyticsService: AnalyticsService;
   backendApiClient: BackendApiClient;
+  billingService: IBillingService;
   features: FeatureSettings;
   applicationConfiguration: ApplicationConfiguration;
   showSelfHostedSignUp(): boolean;
@@ -32,8 +36,9 @@ export default class ApplicationServices implements IApplicationServices {
   private readonly _applicationConfiguration: ApplicationConfiguration;
   private readonly _analyticsService: AnalyticsService;
   private readonly _backendApiClient: BackendApiClient;
-  private readonly _billingApiClient: BackendApiClient;
+  private readonly _billingApiClient: IBillingApiClient;
   private readonly _storageService: ServerStorage;
+  private readonly _billingService: IBillingService;
 
   private _userService: UserService;
   private _features: FeatureSettings;
@@ -53,6 +58,15 @@ export default class ApplicationServices implements IApplicationServices {
       this._analyticsService
     );
     this._storageService = new HttpServerStorage(this._backendApiClient);
+    const billingApiClient = new BillingApiClient(
+      this._applicationConfiguration.billingApiBase,
+      () => this._userService.getUser().apiAccess,
+      this._analyticsService
+    );
+    this._billingService = new BillingService(
+      this._applicationConfiguration,
+      billingApiClient
+    );
   }
 
   //load backend configuration and create user service depend on authorization type
@@ -81,6 +95,13 @@ export default class ApplicationServices implements IApplicationServices {
         `Unknown backend configuration authorization type: ${configuration.authorization}`
       );
     }
+
+    await this._userService.waitForUser();
+    this._billingService.configure(
+      this._userService.getUser(),
+      this._features,
+      this._backendApiClient
+    );
   }
 
   get userService(): UserService {
@@ -97,6 +118,10 @@ export default class ApplicationServices implements IApplicationServices {
 
   get analyticsService(): AnalyticsService {
     return this._analyticsService;
+  }
+
+  get billingApiService(): IBillingApiClient {
+    return this._billingApiClient;
   }
 
   static get(): ApplicationServices {
@@ -117,6 +142,10 @@ export default class ApplicationServices implements IApplicationServices {
 
   get backendApiClient(): BackendApiClient {
     return this._backendApiClient;
+  }
+
+  get billingService(): IBillingService {
+    return this._billingService;
   }
 
   get features(): FeatureSettings {
