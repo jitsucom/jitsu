@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Button, Modal, Progress } from 'antd';
 import cn from 'classnames';
 import {
+  generateCheckoutLink,
   PaymentPlan,
   paymentPlans,
   PaymentPlanStatus
@@ -9,9 +10,6 @@ import {
 import { useServices } from 'hooks/useServices';
 import { handleError } from 'lib/components/components';
 import styles from './CurrentPlan.module.less';
-import firestore from 'firebase/database';
-import firebase from 'firebase';
-import { withQueryParams } from 'utils/queryParams';
 
 function numberWithCommas(x) {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -29,7 +27,8 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({
   const [upgradeDialogVisible, setUpgradeDialogVisible] = useState(false);
   const services = useServices();
   const usagaPct =
-    (planStatus.eventsThisMonth / planStatus.currentPlan.eventsLimit) * 100;
+    (planStatus.eventsInCurrentPeriod / planStatus.currentPlan.eventsLimit) *
+    100;
   return (
     <>
       <div>
@@ -49,7 +48,7 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({
             <tr>
               <td className={styles.limitName}>Events</td>
               <td className={styles.limitValue}>
-                {numberWithCommas(planStatus.eventsThisMonth)} /{' '}
+                {numberWithCommas(planStatus.eventsInCurrentPeriod)} /{' '}
                 {numberWithCommas(planStatus.currentPlan.eventsLimit)}
               </td>
             </tr>
@@ -85,7 +84,7 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({
       <PlanUpgradeDialog
         visible={upgradeDialogVisible}
         hide={() => setUpgradeDialogVisible(false)}
-        currentPlanName={planStatus.currentPlan.name}
+        currentPlanId={planStatus.currentPlan.id}
       />
     </>
   );
@@ -94,9 +93,9 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({
 export const PlanUpgradeDialog: React.FC<{
   visible: boolean;
   hide: () => void;
-  currentPlanName: string;
-}> = ({ visible, hide, currentPlanName }) => {
-  const [selectedPlan, setSelectedPlan] = useState<string>(currentPlanName);
+  currentPlanId: string;
+}> = ({ visible, hide, currentPlanId }) => {
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(currentPlanId);
   const [buttonLoading, setLoading] = useState(false);
   const services = useServices();
 
@@ -104,9 +103,9 @@ export const PlanUpgradeDialog: React.FC<{
     return {
       className: cn(
         styles.optionButton,
-        selectedPlan === plan.name ? styles.selectedOption : null
+        selectedPlanId === plan.id ? styles.selectedOption : null
       ),
-      onClick: () => setSelectedPlan(plan.name)
+      onClick: () => setSelectedPlanId(plan.id)
     };
   };
 
@@ -115,46 +114,24 @@ export const PlanUpgradeDialog: React.FC<{
     try {
       await services.analyticsService.track('upgrade_plan', {
         event: 'upgrade_plan',
-        plan: selectedPlan,
+        plan: selectedPlanId,
         user: services.userService.getUser().email
       });
-      window.location.href =
-        services.billingService.generateCheckoutLink(selectedPlan);
+      const user = services.userService.getUser();
+      window.location.href = generateCheckoutLink({
+        project_id: user.projects[0].id,
+        current_plan_id: currentPlanId,
+        plan_id_to_purchase: selectedPlanId,
+        user_email: user.email,
+        success_url: window.location.href,
+        cancel_url: window.location.href
+      });
     } catch (e) {
       handleError(e);
     } finally {
       setLoading(false);
     }
-  }, [selectedPlan]);
-
-  useEffect(() => {
-    const flow = async () => {
-      // const app = firebase.app();
-      // const db = firebase.firestore();
-
-      // console.log('Flow in progress');
-
-      // await db
-      //   .collection('subscriptions')
-      //   .get()
-      //   .then((res) =>
-      //     console.log(
-      //       'subs: ',
-      //       res.docs.map((doc) => doc.data())
-      //     )
-      //   )
-      //   .catch((err) => console.log('flow catched', err));
-      const user_id = services.userService.getUser().uid;
-      const result = fetch(
-        withQueryParams('https://billing.jitsu.com/api/get-user-subscription', {
-          user_id
-        })
-      );
-      console.log('RESULT', result);
-    };
-
-    flow();
-  }, []);
+  }, [selectedPlanId]);
 
   return (
     <Modal

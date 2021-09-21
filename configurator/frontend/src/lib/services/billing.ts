@@ -5,6 +5,10 @@ import { IDestinationsStore } from '../../stores/destinations';
 import { ISourcesStore } from '../../stores/sources';
 import ApplicationServices from './ApplicationServices';
 import { BackendApiClient } from './BackendApiClient';
+import firebase from 'firebase/app';
+import 'firebase/auth';
+import 'firebase/firestore';
+import { isObject } from 'utils/typeCheck';
 
 export type PaymentPlanId = 'free' | 'growth' | 'premium' | 'enterprise';
 
@@ -53,7 +57,7 @@ export const paymentPlans: Record<PaymentPlanId, PaymentPlan> = {
     destinationsLimit: null,
     sourcesLimit: null
   }
-};
+} as const;
 
 export const getPaymentPlanByName = (planName: string): PaymentPlan | null => {
   return Object.values(paymentPlans).find((plan) => plan.name === planName);
@@ -66,10 +70,36 @@ export const getFreePaymentPlan = () => paymentPlans.free;
  */
 export type PaymentPlanStatus = {
   currentPlan: PaymentPlan;
-  eventsThisMonth: number;
+  eventsInCurrentPeriod: number;
   sources: number;
   destinations: number;
 };
+
+export async function getCurrentPlanInfo(projectId: string): Promise<{
+  planId: string;
+  currentPeriodStart: Date | null;
+} | null> {
+  const subscription = await firebase
+    .firestore()
+    .collection('subscriptions')
+    .doc(projectId)
+    .get();
+
+  let { jitsu_plan_id, current_period_start } = subscription.data() ?? {};
+
+  if (!jitsu_plan_id || typeof jitsu_plan_id !== 'string') return null;
+
+  if (!isObject(current_period_start)) current_period_start = {};
+
+  const seconds = current_period_start._seconds;
+
+  let currentPeriodStart = seconds ? new Date(seconds * 1000) : null;
+
+  return {
+    planId: jitsu_plan_id,
+    currentPeriodStart
+  };
+}
 
 export async function initPaymentPlan(
   project: IProject,
@@ -78,22 +108,31 @@ export async function initPaymentPlan(
   sourcesStore: ISourcesStore
 ): Promise<PaymentPlanStatus> {
   const statService = new StatisticsService(backendApiClient, project, true);
-  let currentPlan;
-  if (!project?.planId) {
+  let { planId, currentPeriodStart } =
+    (await getCurrentPlanInfo(project.id)) ?? {};
+
+  let currentPlan: PaymentPlan | undefined;
+  if (!planId) {
     currentPlan = paymentPlans.free;
   } else {
-    currentPlan = paymentPlans[project.planId];
-    if (!currentPlan) {
-      throw new Error(`Unknown plan ${project.planId}`);
-    }
+    currentPlan = paymentPlans[planId];
+    if (!currentPlan) throw new Error(`Unknown plan ${planId}`);
   }
   const date = new Date();
+  const now = new Date();
+
+  let currentStatPeriodStart: Date = new Date();
+  // a month ago by default
+  currentStatPeriodStart.setMonth(now.getMonth() - 1);
+  currentStatPeriodStart.setHours(0, 0, 0, 0);
+  // get from subscription if not on free plan
+  if (currentPlan.id !== 'free') currentStatPeriodStart = currentPeriodStart;
 
   let stat: DatePoint[];
   try {
     stat = await statService.get(
-      new Date(date.getFullYear(), date.getMonth(), 1),
-      new Date(date.getFullYear(), date.getMonth() + 1, 0),
+      currentStatPeriodStart,
+      now,
       'day',
       'push_source'
     );
@@ -105,14 +144,14 @@ export async function initPaymentPlan(
     stat = [];
   }
 
-  let eventsThisMonth = stat.reduce((res, item) => {
+  let eventsInCurrentPeriod = stat.reduce((res, item) => {
     res += item.events;
     return res;
   }, 0);
 
   return {
     currentPlan,
-    eventsThisMonth,
+    eventsInCurrentPeriod,
     sources: sourcesStore.sources.length,
     destinations: destinationsStore.destinations.length
   };
@@ -128,5 +167,5 @@ export function generateCheckoutLink(params: {
 }): string {
   const billingUrl =
     ApplicationServices.get().applicationConfiguration.billingUrl;
-  return withQueryParams(billingUrl, params);
+  return withQueryParams(`${billingUrl}/checkout-redirect`, params);
 }
