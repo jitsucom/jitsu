@@ -8,7 +8,8 @@ export class ApplicationConfiguration {
   private readonly _firebaseConfig: any;
   private readonly _backendApiBase: string;
   private readonly _backendApiProxyBase: string;
-  private readonly _billingApiBase: string;
+  private readonly _billingUrl: string | null = null;
+  private readonly _billingApiBase: string | null = null;
   /**
    * One of the following: `development`, `production`
    */
@@ -21,8 +22,10 @@ export class ApplicationConfiguration {
     const backendApi = getBackendApiBase(this._rawConfig.env);
     this._backendApiBase = concatenateURLs(backendApi, '/api/v1');
     this._backendApiProxyBase = concatenateURLs(backendApi, '/proxy/api/v1');
-    const billingApi = this._rawConfig.billingApi;
-    this._billingApiBase = concatenateURLs(billingApi, '/api');
+    this._billingUrl = this.rawConfig.env.BILLING_API_BASE_URL;
+    this._billingApiBase = this._billingUrl
+      ? concatenateURLs(this._billingUrl, '/api')
+      : null;
     this._appEnvironment = (
       this._rawConfig.env.NODE_ENV || 'production'
     ).toLowerCase() as AppEnvironmentType;
@@ -39,7 +42,7 @@ export class ApplicationConfiguration {
         this._appEnvironment
       }. Firebase configured: ${!!this._firebaseConfig}. Build info: ${
         this._buildId
-      }`
+      }. Billing API: ${this._billingApiBase}.`
     );
   }
 
@@ -63,6 +66,10 @@ export class ApplicationConfiguration {
     return this._backendApiProxyBase;
   }
 
+  get billingUrl(): string {
+    return this._billingUrl;
+  }
+
   get billingApiBase(): string {
     return this._billingApiBase;
   }
@@ -80,15 +87,13 @@ export type RawConfigObject = {
     intercom?: string;
     eventnative?: string;
   };
-  billingApi: string;
 };
 
 function getRawApplicationConfig(): RawConfigObject {
   return {
     env: process.env || {},
     firebase: parseJson(process.env.FIREBASE_CONFIG, null),
-    keys: parseJson(process.env.ANALYTICS_KEYS, {}),
-    billingApi: process.env.BILLING_API_BASE_URL
+    keys: parseJson(process.env.ANALYTICS_KEYS, {})
   };
 }
 
