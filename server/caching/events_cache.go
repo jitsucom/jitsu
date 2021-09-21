@@ -2,12 +2,14 @@ package caching
 
 import (
 	"encoding/json"
+	"time"
+
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/safego"
-	"time"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 //EventsCache is an event cache based on meta.Storage(Redis)
@@ -100,7 +102,7 @@ func (ec *EventsCache) put(destinationID, eventID string, value events.Event) {
 		return
 	}
 
-	eventsInCache, err := ec.storage.AddEvent(destinationID, eventID, string(b), time.Now().UTC())
+	eventsInCache, err := ec.storage.AddEvent(destinationID, eventID, string(b), timestamp.Now().UTC())
 	if err != nil {
 		logging.SystemErrorf("[%s] Error saving event %v in cache: %v", destinationID, value.Serialize(), err)
 		return

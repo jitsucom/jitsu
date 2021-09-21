@@ -4,12 +4,6 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"github.com/jitsucom/jitsu/server/cmd"
-	"github.com/jitsucom/jitsu/server/events"
-	"github.com/jitsucom/jitsu/server/multiplexing"
-	"github.com/jitsucom/jitsu/server/schema"
-	"github.com/jitsucom/jitsu/server/system"
-	"github.com/jitsucom/jitsu/server/wal"
 	"math/rand"
 	"net/http"
 	"os"
@@ -25,27 +19,34 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/appstatus"
 	"github.com/jitsucom/jitsu/server/caching"
+	"github.com/jitsucom/jitsu/server/cmd"
 	"github.com/jitsucom/jitsu/server/config"
 	"github.com/jitsucom/jitsu/server/coordination"
 	"github.com/jitsucom/jitsu/server/counters"
 	"github.com/jitsucom/jitsu/server/destinations"
 	"github.com/jitsucom/jitsu/server/enrichment"
+	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/fallback"
 	"github.com/jitsucom/jitsu/server/logfiles"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/meta"
 	"github.com/jitsucom/jitsu/server/metrics"
 	"github.com/jitsucom/jitsu/server/middleware"
+	"github.com/jitsucom/jitsu/server/multiplexing"
 	"github.com/jitsucom/jitsu/server/notifications"
 	"github.com/jitsucom/jitsu/server/routers"
 	"github.com/jitsucom/jitsu/server/safego"
 	"github.com/jitsucom/jitsu/server/scheduling"
+	"github.com/jitsucom/jitsu/server/schema"
 	"github.com/jitsucom/jitsu/server/singer"
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/storages"
 	"github.com/jitsucom/jitsu/server/synchronization"
+	"github.com/jitsucom/jitsu/server/system"
 	"github.com/jitsucom/jitsu/server/telemetry"
+	"github.com/jitsucom/jitsu/server/timestamp"
 	"github.com/jitsucom/jitsu/server/users"
+	"github.com/jitsucom/jitsu/server/wal"
 	"github.com/spf13/viper"
 )
 
@@ -104,7 +105,7 @@ func main() {
 	flag.Parse()
 
 	//Setup seed for globalRand
-	rand.Seed(time.Now().Unix())
+	rand.Seed(timestamp.Now().Unix())
 
 	//Setup handlers binding for json parsing numbers into json.Number (not only in float64)
 	binding.EnableDecoderUseNumber = true

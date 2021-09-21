@@ -3,7 +3,6 @@ package logging
 import (
 	"github.com/jitsucom/jitsu/server/timestamp"
 	"io"
-	"time"
 )
 
 type DateTimeWriterProxy struct {
@@ -11,7 +10,7 @@ type DateTimeWriterProxy struct {
 }
 
 func (wp DateTimeWriterProxy) Write(bytes []byte) (int, error) {
-	return wp.writer.Write([]byte(time.Now().UTC().Format(timestamp.LogsLayout) + " " + string(bytes)))
+	return wp.writer.Write([]byte(timestamp.Now().UTC().Format(timestamp.LogsLayout) + " " + string(bytes)))
 }
 
 type PrefixDateTimeProxy struct {
@@ -24,5 +23,5 @@ func NewPrefixDateTimeProxy(prefix string, writer io.Writer) io.Writer {
 }
 
 func (pwp PrefixDateTimeProxy) Write(bytes []byte) (int, error) {
-	return pwp.writer.Write([]byte(time.Now().UTC().Format(timestamp.LogsLayout) + " " + pwp.prefix + " " + string(bytes)))
+	return pwp.writer.Write([]byte(timestamp.Now().UTC().Format(timestamp.LogsLayout) + " " + pwp.prefix + " " + string(bytes)))
 }

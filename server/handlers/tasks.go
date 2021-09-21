@@ -1,6 +1,10 @@
 package handlers
 
 import (
+	"net/http"
+	"strconv"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/jitsucom/jitsu/server/drivers"
 	driversbase "github.com/jitsucom/jitsu/server/drivers/base"
@@ -9,9 +13,6 @@ import (
 	"github.com/jitsucom/jitsu/server/sources"
 	"github.com/jitsucom/jitsu/server/synchronization"
 	"github.com/jitsucom/jitsu/server/timestamp"
-	"net/http"
-	"strconv"
-	"time"
 )
 
 type TaskIDResponse struct {
@@ -164,7 +165,7 @@ func (sh *TaskHandler) TaskLogsHandler(c *gin.Context) {
 		}
 	}
 
-	end := time.Now().UTC()
+	end := timestamp.Now().UTC()
 	endStr := c.Query("end")
 	if endStr != "" {
 		end, err = time.Parse(time.RFC3339Nano, endStr)

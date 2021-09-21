@@ -3,13 +3,13 @@ package storages
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/hashicorp/go-multierror"
 	"github.com/jitsucom/jitsu/server/adapters"
 	"github.com/jitsucom/jitsu/server/events"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/schema"
+	"github.com/jitsucom/jitsu/server/timestamp"
 )
 
 var disabledRecognitionConfiguration = &UserRecognitionConfiguration{enabled: false}
@@ -199,13 +199,13 @@ func (bq *BigQuery) SyncStore(overriddenDataSchema *schema.BatchHeader, objects 
 			}
 		}
 
-		start := time.Now()
+		start := timestamp.Now()
 
 		if err := bq.storeTable(flatData, table); err != nil {
 			return err
 		}
 
-		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", bq.ID(), len(flatData.GetPayload()), time.Now().Sub(start).Seconds())
+		logging.Debugf("[%s] Inserted [%d] rows in [%.2f] seconds", bq.ID(), len(flatData.GetPayload()), timestamp.Now().Sub(start).Seconds())
 	}
 
 	return nil
