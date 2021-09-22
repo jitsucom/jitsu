@@ -48,7 +48,7 @@ import { Page, usePageLocation } from 'navigation';
 // @Services
 import { useServices } from 'hooks/useServices';
 import { AnalyticsBlock } from 'lib/services/analytics';
-import { PaymentPlanStatus } from 'lib/services/Billing';
+import { PaymentPlanStatus } from 'lib/services/billing';
 // @Styles
 import styles from './Layout.module.less';
 // @Misc

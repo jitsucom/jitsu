@@ -17,7 +17,7 @@ import {User} from './lib/services/model';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from './Layout';
-import { initPaymentPlan, PaymentPlanStatus } from 'lib/services/Billing';
+import { initPaymentPlan, PaymentPlanStatus } from 'lib/services/billing';
 import { OnboardingTour } from 'lib/components/OnboardingTour/OnboardingTour';
 import { initializeAllStores } from 'stores/_initializeAllStores';
 import { destinationsStore } from './stores/destinations';
