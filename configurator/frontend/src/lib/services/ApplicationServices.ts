@@ -80,8 +80,6 @@ export default class ApplicationServices implements IApplicationServices {
         `Unknown backend configuration authorization type: ${configuration.authorization}`
       );
     }
-
-    await this._userService.waitForUser();
   }
 
   get userService(): UserService {
