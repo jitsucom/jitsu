@@ -14,7 +14,7 @@ import {
   PaymentPlan,
   paymentPlans,
   PaymentPlanStatus
-} from 'lib/services/Billing';
+} from 'lib/services/billing';
 import { useServices } from 'hooks/useServices';
 import { handleError } from 'lib/components/components';
 import styles from './CurrentPlan.module.less';
