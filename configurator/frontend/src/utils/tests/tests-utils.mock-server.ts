@@ -1,5 +1,5 @@
 // @Libs
-import { HttpServerStorage } from 'lib/services/ApplicationServices';
+import { HttpServerStorage } from 'lib/services/ServerStorage';
 import { rest } from 'msw';
 import { setupServer, SetupServerApi } from 'msw/node';
 // @Mock Responses
