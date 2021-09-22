@@ -45,7 +45,7 @@ export const initializeApplication = async (
   paymentPlanStatus: PaymentPlanStatus;
 }> => {
   await services.init();
-  const user = services.userService.getUser();
+  const { user } = await services.userService.waitForUser();
   setDebugInfo('user', user);
   if (user) {
     services.analyticsService.onUserKnown(user);
