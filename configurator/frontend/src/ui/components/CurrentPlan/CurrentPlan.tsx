@@ -1,5 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Button, Modal, Progress } from 'antd';
+import { useCallback, useMemo, useState } from 'react';
+import {
+  Button,
+  Modal,
+  Progress,
+  ButtonProps,
+  Typography,
+  Divider
+} from 'antd';
 import cn from 'classnames';
 import {
   generateCheckoutLink,
@@ -77,7 +84,7 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({
               setUpgradeDialogVisible(true);
             }}
           >
-            Upgrade
+            {planStatus.currentPlan.id === 'free' ? 'Upgrade' : 'Manage'}
           </a>
         </div>
       </div>
@@ -99,7 +106,32 @@ export const PlanUpgradeDialog: React.FC<{
   const [buttonLoading, setLoading] = useState(false);
   const services = useServices();
 
-  const buttonProps = (plan: PaymentPlan) => {
+  const [selectedPlan, currentPlan] = useMemo<
+    [PaymentPlan | null, PaymentPlan | null]
+  >(() => {
+    return [
+      paymentPlans[selectedPlanId] ?? null,
+      paymentPlans[currentPlanId] ?? null
+    ];
+  }, [selectedPlanId, currentPlanId]);
+
+  const actionLabel =
+    selectedPlanId === currentPlanId ? (
+      'Subscription Active'
+    ) : selectedPlanId === 'enterprise' ? (
+      <>
+        <span className="mr-1">Contact</span>
+        <Typography.Text copyable className="font-bold">
+          sales@jitsu.com
+        </Typography.Text>
+      </>
+    ) : selectedPlan.price_amount > currentPlan.price_amount ? (
+      'Upgrade'
+    ) : (
+      'Downgrade'
+    );
+
+  const buttonProps = (plan: PaymentPlan): ButtonProps => {
     return {
       className: cn(
         styles.optionButton,
@@ -113,15 +145,18 @@ export const PlanUpgradeDialog: React.FC<{
     setLoading(true);
     try {
       await services.analyticsService.track('upgrade_plan', {
-        event: 'upgrade_plan',
-        plan: selectedPlanId,
+        event:
+          selectedPlan.price_amount > currentPlan.price_amount
+            ? 'upgrade_plan'
+            : 'downgrade_plan',
+        plan: selectedPlan.id,
         user: services.userService.getUser().email
       });
       const user = services.userService.getUser();
       window.location.href = generateCheckoutLink({
         project_id: user.projects[0].id,
         current_plan_id: currentPlanId,
-        plan_id_to_purchase: selectedPlanId,
+        plan_id_to_purchase: selectedPlan.id,
         user_email: user.email,
         success_url: window.location.href,
         cancel_url: window.location.href
@@ -131,12 +166,12 @@ export const PlanUpgradeDialog: React.FC<{
     } finally {
       setLoading(false);
     }
-  }, [selectedPlanId]);
+  }, [selectedPlan]);
 
   return (
     <Modal
       destroyOnClose={true}
-      title="Change Plan"
+      title={<h1 className="text-xl m-0 p-0">Manage Subscription</h1>}
       visible={visible}
       onCancel={() => {
         hide();
@@ -144,10 +179,14 @@ export const PlanUpgradeDialog: React.FC<{
       footer={visible}
     >
       <>
-        <div className="text">
-          Please pick your new plan. We'll send you a payment link through
-          email.
+        <h3 className="font-bold">Change Payment Method</h3>
+        <div className="flex justify-center items-center">
+          <Button size="large" type="primary" className="mt-2 mb-2">
+            Go To Customer Portal
+          </Button>
         </div>
+        <Divider plain>or</Divider>
+        <h3 className="font-bold">Subscribe to a Different Plan</h3>
         <div className={styles.plan}>
           <div>
             <div {...buttonProps(paymentPlans.free)}>Startup</div>
@@ -166,15 +205,26 @@ export const PlanUpgradeDialog: React.FC<{
             <div className={styles.planPrice}>custom</div>
           </div>
         </div>
-        <div className="flex justify-center pt-6">
-          <Button
-            onClick={handleProceedToCheckout}
-            size="large"
-            type="primary"
-            loading={buttonLoading}
-          >
-            Checkout
-          </Button>
+        <div className="flex justify-center mt-6">
+          {selectedPlanId === 'enterprise' ? (
+            <span className="flex items-center text-base h-10">
+              {actionLabel}
+            </span>
+          ) : selectedPlanId === currentPlanId ? (
+            <span className="flex items-center text-base h-10">
+              {actionLabel}
+            </span>
+          ) : (
+            <Button
+              onClick={handleProceedToCheckout}
+              size="large"
+              loading={buttonLoading}
+              type={selectedPlanId === 'enterprise' ? 'ghost' : 'primary'}
+              disabled={selectedPlanId === currentPlanId}
+            >
+              {actionLabel}
+            </Button>
+          )}
         </div>
         <div className="flex justify-center pt-3">
           <a target="_blank" href="https://jitsu.com" rel="noreferrer">
