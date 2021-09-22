@@ -27,7 +27,7 @@ enum AppLifecycle {
   LOADING, //Application is loading
   REQUIRES_LOGIN, //Login form is displayed
   APP, //Application
-  ERROR //Global error (maintenance)
+  ERROR //Global error (maintenance) 
 }
 
 type AppState = {
