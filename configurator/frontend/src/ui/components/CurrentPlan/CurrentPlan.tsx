@@ -10,6 +10,7 @@ import {
 import cn from 'classnames';
 import {
   generateCheckoutLink,
+  generateCustomerPortalLink,
   PaymentPlan,
   paymentPlans,
   PaymentPlanStatus
@@ -91,7 +92,7 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({
       <PlanUpgradeDialog
         visible={upgradeDialogVisible}
         hide={() => setUpgradeDialogVisible(false)}
-        currentPlanId={planStatus.currentPlan.id}
+        planStatus={planStatus}
       />
     </>
   );
@@ -100,23 +101,21 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({
 export const PlanUpgradeDialog: React.FC<{
   visible: boolean;
   hide: () => void;
-  currentPlanId: string;
-}> = ({ visible, hide, currentPlanId }) => {
-  const [selectedPlanId, setSelectedPlanId] = useState<string>(currentPlanId);
+  planStatus: PaymentPlanStatus;
+}> = ({ visible, hide, planStatus }) => {
+  const [selectedPlanId, setSelectedPlanId] = useState<string>(
+    planStatus.currentPlan.id
+  );
   const [buttonLoading, setLoading] = useState(false);
   const services = useServices();
 
-  const [selectedPlan, currentPlan] = useMemo<
-    [PaymentPlan | null, PaymentPlan | null]
-  >(() => {
-    return [
-      paymentPlans[selectedPlanId] ?? null,
-      paymentPlans[currentPlanId] ?? null
-    ];
-  }, [selectedPlanId, currentPlanId]);
+  const selectedPlan = useMemo<PaymentPlan | null>(
+    () => paymentPlans[selectedPlanId] ?? null,
+    [selectedPlanId]
+  );
 
   const actionLabel =
-    selectedPlanId === currentPlanId ? (
+    selectedPlanId === planStatus.currentPlan.id ? (
       'Subscription Active'
     ) : selectedPlanId === 'enterprise' ? (
       <>
@@ -125,7 +124,7 @@ export const PlanUpgradeDialog: React.FC<{
           sales@jitsu.com
         </Typography.Text>
       </>
-    ) : selectedPlan.price_amount > currentPlan.price_amount ? (
+    ) : selectedPlan.price_amount > planStatus.currentPlan.price_amount ? (
       'Upgrade'
     ) : (
       'Downgrade'
@@ -146,7 +145,7 @@ export const PlanUpgradeDialog: React.FC<{
     try {
       await services.analyticsService.track('upgrade_plan', {
         event:
-          selectedPlan.price_amount > currentPlan.price_amount
+          selectedPlan.price_amount > planStatus.currentPlan.price_amount
             ? 'upgrade_plan'
             : 'downgrade_plan',
         plan: selectedPlan.id,
@@ -155,11 +154,28 @@ export const PlanUpgradeDialog: React.FC<{
       const user = services.userService.getUser();
       window.location.href = generateCheckoutLink({
         project_id: user.projects[0].id,
-        current_plan_id: currentPlanId,
+        current_plan_id: planStatus.currentPlan.id,
         plan_id_to_purchase: selectedPlan.id,
         user_email: user.email,
         success_url: window.location.href,
         cancel_url: window.location.href
+      });
+    } catch (e) {
+      handleError(e);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedPlan, planStatus.currentPlan]);
+
+  const handleProceedToCustomerPortal = useCallback(() => {
+    setLoading(true);
+    try {
+      const user = services.userService.getUser();
+      window.location.href = generateCustomerPortalLink({
+        project_id: user.projects[0].id,
+        current_plan_id: planStatus.currentPlan.id,
+        user_email: user.email,
+        return_url: window.location.href
       });
     } catch (e) {
       handleError(e);
@@ -179,13 +195,24 @@ export const PlanUpgradeDialog: React.FC<{
       footer={visible}
     >
       <>
-        <h3 className="font-bold">Change Payment Method</h3>
-        <div className="flex justify-center items-center">
-          <Button size="large" type="primary" className="mt-2 mb-2">
-            Go To Customer Portal
-          </Button>
-        </div>
-        <Divider plain>or</Divider>
+        {planStatus.isStripeCustomer && (
+          <>
+            <h3 className="font-bold">
+              Manage Payment Methods and Billing Details
+            </h3>
+            <div className="flex justify-center items-center">
+              <Button
+                size="large"
+                type="primary"
+                className="mt-2 mb-2"
+                onClick={handleProceedToCustomerPortal}
+              >
+                Go To Customer Portal
+              </Button>
+            </div>
+            <Divider plain>or</Divider>
+          </>
+        )}
         <h3 className="font-bold">Subscribe to a Different Plan</h3>
         <div className={styles.plan}>
           <div>
@@ -210,17 +237,17 @@ export const PlanUpgradeDialog: React.FC<{
             <span className="flex items-center text-base h-10">
               {actionLabel}
             </span>
-          ) : selectedPlanId === currentPlanId ? (
+          ) : selectedPlanId === planStatus.currentPlan.id ? (
             <span className="flex items-center text-base h-10">
               {actionLabel}
             </span>
           ) : (
             <Button
-              onClick={handleProceedToCheckout}
               size="large"
               loading={buttonLoading}
               type={selectedPlanId === 'enterprise' ? 'ghost' : 'primary'}
-              disabled={selectedPlanId === currentPlanId}
+              disabled={selectedPlanId === planStatus.currentPlan.id}
+              onClick={handleProceedToCheckout}
             >
               {actionLabel}
             </Button>
