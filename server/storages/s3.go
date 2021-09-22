@@ -21,7 +21,7 @@ type S3 struct {
 }
 
 func init() {
-	RegisterStorage(S3Type, NewS3)
+	RegisterStorage(StorageType{typeName: S3Type, createFunc: NewS3})
 }
 
 func NewS3(config *Config) (Storage, error) {

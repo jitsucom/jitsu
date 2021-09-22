@@ -156,6 +156,81 @@ const mapping: DestinationConfigurationTemplate = {
       src: '/eventn_ctx_event_id',
       dst: '/insert_id',
       action: 'move'
+    },
+    {
+      src: '/url',
+      dst: '/event_properties/url',
+      action: 'move'
+    },
+    {
+      src: '/utm',
+      dst: '/event_properties/utm',
+      action: 'move'
+    },
+    {
+      src: '/click_id',
+      dst: '/event_properties/click_id',
+      action: 'move'
+    },
+    {
+      src: '/doc_host',
+      dst: '/event_properties/doc_host',
+      action: 'move'
+    },
+    {
+      src: '/doc_path',
+      dst: '/event_properties/doc_path',
+      action: 'move'
+    },
+    {
+      src: '/doc_search',
+      dst: '/event_properties/doc_search',
+      action: 'move'
+    },
+    {
+      src: '/source_ip',
+      dst: '/event_properties/source_ip',
+      action: 'move'
+    },
+    {
+      src: '/screen_resolution',
+      dst: '/event_properties/screen_resolution',
+      action: 'move'
+    },
+    {
+      src: '/app',
+      dst: '/event_properties/app',
+      action: 'move'
+    },
+    {
+      src: '/referer',
+      dst: '/event_properties/referer',
+      action: 'move'
+    },
+    {
+      src: '/page_title',
+      dst: '/event_properties/page_title',
+      action: 'move'
+    },
+    {
+      src: '/src',
+      dst: '/event_properties/src',
+      action: 'move'
+    },
+    {
+      src: '/user_agent',
+      dst: '/event_properties/user_agent',
+      action: 'move'
+    },
+    {
+      src: '/vp_size',
+      dst: '/event_properties/vp_size',
+      action: 'move'
+    },
+    {
+      src: '/local_tz_offset',
+      dst: '/event_properties/local_tz_offset',
+      action: 'move'
     }
   ]
 }
