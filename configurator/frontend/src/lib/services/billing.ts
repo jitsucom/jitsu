@@ -71,6 +71,7 @@ export const getFreePaymentPlan = () => paymentPlans.free;
  */
 export type PaymentPlanStatus = {
   currentPlan: PaymentPlan;
+  isStripeCustomer: boolean;
   eventsInCurrentPeriod: number;
   sources: number;
   destinations: number;
@@ -87,13 +88,10 @@ export async function getCurrentPlanInfo(projectId: string): Promise<{
     .get();
 
   let { jitsu_plan_id, current_period_start } = subscription.data() ?? {};
-
   if (!jitsu_plan_id || typeof jitsu_plan_id !== 'string') return null;
-
   if (!isObject(current_period_start)) current_period_start = {};
 
   const seconds = current_period_start._seconds;
-
   let currentPeriodStart = seconds ? new Date(seconds * 1000) : null;
 
   return {
@@ -113,10 +111,12 @@ export async function initPaymentPlan(
     (await getCurrentPlanInfo(project.id)) ?? {};
 
   let currentPlan: PaymentPlan | undefined;
+  let isStripeCustomer: boolean = false;
   if (!planId) {
     currentPlan = paymentPlans.free;
   } else {
     currentPlan = paymentPlans[planId];
+    isStripeCustomer = true;
     if (!currentPlan) throw new Error(`Unknown plan ${planId}`);
   }
   const date = new Date();
@@ -152,6 +152,7 @@ export async function initPaymentPlan(
 
   return {
     currentPlan,
+    isStripeCustomer,
     eventsInCurrentPeriod,
     sources: sourcesStore.sources.length,
     destinations: destinationsStore.destinations.length
@@ -169,4 +170,15 @@ export function generateCheckoutLink(params: {
   const billingUrl =
     ApplicationServices.get().applicationConfiguration.billingUrl;
   return withQueryParams(`${billingUrl}/checkout-redirect`, params);
+}
+
+export function generateCustomerPortalLink(params: {
+  project_id: string;
+  current_plan_id: string;
+  user_email: string;
+  return_url: string;
+}): string {
+  const billingUrl =
+    ApplicationServices.get().applicationConfiguration.billingUrl;
+  return withQueryParams(`${billingUrl}/customer-portal-redirect`, params);
 }
