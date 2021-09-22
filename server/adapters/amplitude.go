@@ -114,7 +114,8 @@ func (a *Amplitude) TestAccess() error {
 		return err
 	}
 
-	r, err := httpReqFactory.Create(nil)
+	body := map[string]interface{}{"event_type": "test"}
+	r, err := httpReqFactory.Create(body)
 	if err != nil {
 		return err
 	}
@@ -128,7 +129,7 @@ func (a *Amplitude) TestAccess() error {
 		httpReq.Header.Add(k, v)
 	}
 
-	//send empty request and expect error
+	//send event with no user_id and expect error
 	resp, err := http.DefaultClient.Do(httpReq)
 	if resp != nil && resp.Body != nil {
 		defer resp.Body.Close()
@@ -144,11 +145,10 @@ func (a *Amplitude) TestAccess() error {
 			return fmt.Errorf("Error unmarshalling amplitude response body: %v", err)
 		}
 
-		if response.Code != 200 {
-			return fmt.Errorf("Error connecting to amplitude [code=%d]: %s", response.Code, response.Error)
+		if response.Code != 400 {
+			return fmt.Errorf("error connecting to amplitude [code=%d]: %s", response.Code, response.Error)
 		}
 
-		//assume other errors - it's ok
 		return nil
 	}
 

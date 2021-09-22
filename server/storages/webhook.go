@@ -25,7 +25,7 @@ type WebHook struct {
 }
 
 func init() {
-	RegisterStorage(WebHookType, NewWebHook)
+	RegisterStorage(StorageType{typeName: WebHookType, createFunc: NewWebHook})
 }
 
 //NewWebHook returns configured WebHook destination
