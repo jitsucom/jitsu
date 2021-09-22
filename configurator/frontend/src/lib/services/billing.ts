@@ -55,7 +55,8 @@ export const paymentPlans: Record<PaymentPlanId, PaymentPlan> = {
     id: 'enterprise',
     eventsLimit: null,
     destinationsLimit: null,
-    sourcesLimit: null
+    sourcesLimit: null,
+    price_amount: 9999
   }
 } as const;
 
