@@ -379,6 +379,7 @@ import { ArgsProps, MessageInstance } from 'antd/es/message';
 import { MessageType } from 'antd/lib/message';
 import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
 import { max } from 'lodash-es';
+import cn from 'classnames';
 
 SyntaxHighlighter.registerLanguage('javascript', js);
 SyntaxHighlighter.registerLanguage('json', json);
@@ -408,7 +409,7 @@ export function CodeSnippet(props: ICodeSnippetProps) {
   };
 
   let toolbar = (
-    <Row className={['code-snippet-toolbar', 'code-snippet-toolbar-' + toolBarPos].join(' ')}>
+    <Row className={cn('code-snippet-toolbar', 'code-snippet-toolbar-' + toolBarPos)}>
       <Col span={16}>{props.extra}</Col>
       <Col span={8}>
         <Align horizontal="right">

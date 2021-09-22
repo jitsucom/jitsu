@@ -6,11 +6,11 @@ import ApplicationServices from 'lib/services/ApplicationServices';
 // @Hooks
 import useLoader from 'hooks/useLoader';
 // @Types
-import { Event } from 'lib/components/EventsStream/EventsStream';
 // @Styles
 import styles from './CodeDebugger.module.less';
 import { useMemo, useState } from 'react';
 import debounce from 'lodash/debounce';
+import { Event } from '../../../lib/services/events';
 
 interface Props {
   handleClick: (ev: Event) => () => void;

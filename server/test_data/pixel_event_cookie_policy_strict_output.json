@@ -16,7 +16,8 @@
   "token": "c2stoken",
   "url": "https://jitsu.com/docs?search=true",
   "user": {
-    "anonymous_id": "bd802ebfaa2fc535520c79cf72edc313"
+    "anonymous_id": "bd802ebfaa2fc535520c79cf72edc313",
+    "hashed_anonymous_id":"bd802ebfaa2fc535520c79cf72edc313"
   },
   "user_agent": "Mozilla/5.0 (iPod; CPU iPhone OS 12_0 like macOS) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/12.0 Mobile/14A5335d Safari/602.1.50",
   "utc_time": "2020-06-16T23:00:00.000000Z"

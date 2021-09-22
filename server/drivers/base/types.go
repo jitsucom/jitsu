@@ -19,7 +19,7 @@ const (
 	FirebaseType        = "firebase"
 	GoogleAnalyticsType = "google_analytics"
 	GooglePlayType      = "google_play"
-	GoogleAdsType 		= "google_ads"
+	GoogleAdsType       = "google_ads"
 	RedisType           = "redis"
 
 	SingerType  = "singer"
@@ -43,7 +43,7 @@ type GoogleAuthConfig struct {
 	ClientSecret      string      `mapstructure:"client_secret" json:"client_secret,omitempty" yaml:"client_secret,omitempty"`
 	RefreshToken      string      `mapstructure:"refresh_token" json:"refresh_token,omitempty" yaml:"refresh_token,omitempty"`
 	ServiceAccountKey interface{} `mapstructure:"service_account_key" json:"service_account_key,omitempty" yaml:"service_account_key,omitempty"`
-	Subject			  string      `mapstructure:"subject" json:"subject,omitempty" yaml:"subject,omitempty"`
+	Subject           string      `mapstructure:"subject" json:"subject,omitempty" yaml:"subject,omitempty"`
 }
 
 func (gac *GoogleAuthConfig) Marshal() ([]byte, error) {
@@ -135,7 +135,7 @@ type CLIDriver interface {
 	//IsClosed returns true if the driver is already closed
 	IsClosed() bool
 	//Load runs CLI command and consumes output
-	Load(state string, taskLogger logging.TaskLogger, dataConsumer CLIDataConsumer) error
+	Load(state string, taskLogger logging.TaskLogger, dataConsumer CLIDataConsumer, taskCloser CLITaskCloser) error
 	//Ready returns true if the driver is ready otherwise returns ErrNotReady
 	Ready() (bool, error)
 	//GetTap returns Singer tap or airbyte docker image (without prefix 'airbyte/': source-mixpanel)
@@ -149,6 +149,12 @@ type CLIDriver interface {
 //CLIDataConsumer is used for consuming CLI drivers output
 type CLIDataConsumer interface {
 	Consume(representation *CLIOutputRepresentation) error
+}
+
+//CLITaskCloser is used for closing tasks
+type CLITaskCloser interface {
+	TaskID() string
+	CloseWithError(msg string, systemErr bool)
 }
 
 //CLIOutputRepresentation is a singer/airbyte output representation

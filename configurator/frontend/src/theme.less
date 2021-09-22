@@ -4,7 +4,7 @@
  */
 @bgPrimary: rgb(17, 24, 39); //#22313a;
 @bgSecondary: rgb(31, 41, 55); //#1e2a31;
-@bgComponent: rgb(26,35,50);
+@bgComponent: rgb(26,35,50); //#1A2332FF;
 
 @bgTableHeader: @bgComponent;
 @splitBorder: #394e5a;
@@ -15,6 +15,7 @@
 @error: #e53935;
 @heading: #c1c9d2;
 @text: #e5e7eb;
+@textPale: #ffffff;
 @secondaryText: #7996a9;
 @disabled: #415969;
 @secondaryBorder: #415969;
@@ -94,6 +95,10 @@
 
 .ant-select-item-option-active {
   background-color: @bgSecondary !important;
+}
+
+.ant-collapse-content-box {
+  background-color: @primary-background !important;
 }
 
 //body {
@@ -199,4 +204,35 @@
   @apply rounded-lg;
   background-color: @popover-background !important;
   border: 1px solid @splitBorder !important;
+}
+
+.ant-popover-inner {
+  //@apply border-2;
+  border: 1px solid @border-color-base;
+}
+
+.ant-popover-arrow {
+  width: 12px !important;
+  height: 12px !important;
+  border-left: 1px solid @border-color-base !important;
+  border-top: 1px solid @border-color-base !important;
+  z-index: 10000 !important;
+  background: @popover-background !important;
+}
+
+.ant-popover-placement-rightTop > .ant-popover-content > .ant-popover-arrow {
+  transform: rotate(-45deg)  !important;
+}
+
+.icon-size-base svg {
+@apply w-4 h-4;
+}
+
+.icon-size-lg svg {
+@apply w-5 h-5;
+}
+
+.ant-tabs-tab-active {
+  border-bottom-color: @bgPrimary !important;
+  background: linear-gradient(to bottom, @splitBorder 10%,@splitBorder 10%,@bgPrimary 10%,@bgPrimary 100%) !important;
 }

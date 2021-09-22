@@ -124,13 +124,16 @@
 }
 
 .code-snippet-wrapper {
+  overflow: auto;
   border-radius: @small-border-radius;
   pre {
+    overflow: auto;
     border-bottom-left-radius: @small-border-radius;
     border-bottom-right-radius: @small-border-radius;
+    font-family: @font-monospace;
     code {
       border-radius: @small-border-radius;
-      font-family: @font-monospace;
+      overflow: auto;
     }
     margin-bottom: 0;
   }

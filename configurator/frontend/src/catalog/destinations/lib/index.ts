@@ -12,6 +12,7 @@ import amplitudeDestination from './amplitude';
 import hubspotDestination from './hubspot';
 import dbtcloudDestination from './dbtcloud';
 import s3Destination from './s3';
+import { Destination } from '../types';
 
 export {
   postgresDestination,
