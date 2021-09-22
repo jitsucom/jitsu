@@ -21,6 +21,7 @@ import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import { LoginLink } from 'lib/components/LoginLink/LoginLink';
 import SignupPage from './ui/pages/GetStartedPage/SignupPage';
 import LoginPage from './ui/pages/GetStartedPage/LoginPage';
+import { StatusPage } from './lib/components/StatusPage/StatusPage';
 // @Components
 const ApiKeys = React.lazy(() => import('./lib/components/ApiKeys/ApiKeys'));
 const CustomDomains = React.lazy(() => import('./lib/components/CustomDomains/CustomDomains'));
@@ -36,7 +37,6 @@ const SetupForm = React.lazy(() => import('ui/pages/SetupPage/SetupForm'));
 const SourcesPage = React.lazy(
   () => import('ui/pages/SourcesPage/SourcesPage')
 );
-const StatusPage = React.lazy(() => import('./lib/components/StatusPage/StatusPage'));
 const ConnectionsPage = React.lazy(
   () => import('ui/pages/ConnectionsPage/ConnectionsPage')
 );

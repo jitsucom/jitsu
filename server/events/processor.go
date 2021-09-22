@@ -14,6 +14,7 @@ type RequestContext struct {
 	ClientIP            string `json:"client_ip,omitempty"`
 	Referer             string `json:"referer,omitempty"`
 	JitsuAnonymousID    string `json:"jitsu_anonymous_id,omitempty"`
+	HashedAnonymousID   string `json:"hashed_anonymous_id,omitempty"`
 	CookiesLawCompliant bool   `json:"cookie_laws_compliant,omitempty"`
 }
 

@@ -483,7 +483,7 @@ func (s *Snowflake) bulkInsertInTransaction(wrappedTx *Transaction, table *Table
 //bulkMergeInTransaction uses temporary table and insert from select statement
 func (s *Snowflake) bulkMergeInTransaction(wrappedTx *Transaction, table *Table, objects []map[string]interface{}) error {
 	tmpTable := &Table{
-		Name:           table.Name + "_tmp_" + uuid.NewLettersNumbers(),
+		Name:           fmt.Sprintf("jitsu_tmp_%s", uuid.NewLettersNumbers()[:5]),
 		Columns:        table.Columns,
 		PKFields:       map[string]bool{},
 		DeletePkFields: false,

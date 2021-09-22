@@ -12,9 +12,11 @@ import {User} from './lib/services/model';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from './Layout';
-import { PaymentPlanStatus } from 'lib/services/billing';
+import { initPaymentPlan, PaymentPlanStatus } from 'lib/services/billing';
 import { OnboardingTour } from 'lib/components/OnboardingTour/OnboardingTour';
 import { initializeAllStores } from 'stores/_initializeAllStores';
+import { destinationsStore } from './stores/destinations';
+import { sourcesStore } from './stores/sources';
 
 enum AppLifecycle {
     LOADING, //Application is loading
@@ -46,13 +48,9 @@ export const initializeApplication = async (
 
   await initializeAllStores();
 
-  let paymentPlanStatus: PaymentPlanStatus | undefined = undefined;
+  let paymentPlanStatus: PaymentPlanStatus;
   if (user && services.features.billingEnabled) {
-    paymentPlanStatus = new PaymentPlanStatus();
-    await paymentPlanStatus.init(
-      services.activeProject,
-      services.backendApiClient
-    );
+    paymentPlanStatus = await initPaymentPlan(services.activeProject, services.backendApiClient, destinationsStore, sourcesStore);
   }
 
   return { user, paymentPlanStatus };

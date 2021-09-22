@@ -39,7 +39,7 @@ function WelcomeBackHero({ signupEnabled }) {
   let history = useHistory();
   return <div className="flex flex-col justify-center items-center text-xl mt-12">
     <h1 className="text-center text-textPale font-heading font-bold tracking-wider">Welcome back!</h1>
-    {signupEnabled && <div className="mt-6">New to Jitsu? <a className={`text-textPale font-bold ${styles.underline}`} onClick={() => history.push('/signup')}>Sign up</a></div>}
+    {signupEnabled && <div className="mt-6">New to Jitsu? <a className={`text-textPale font-bold ${styles.heroLink}`} onClick={() => history.push('/signup')}>Sign up</a></div>}
   </div>
 
 }
@@ -51,10 +51,10 @@ function JitsuCloudHero() {
       <div className="mt-6">Jitsu.Cloud is a hosted version of our open-source project. Start collecting data in as little as 2 minutes</div>
       <div className="mt-6">
         <ul className={`list-inside list-none ${styles.featureList}`}>
-          <li>First <a href="https://jitsu.com/pricing" className={`text-textPale font-bold ${styles.underline}`}>250k</a> events per month are tracked for free</li>
+          <li>First <a href="https://jitsu.com/pricing" className={styles.heroLink}>250k</a> events per month are tracked for free</li>
           <li>Use your own tracking domain (<b className={`${styles.underline} font-monospace`}>track.myapp.com</b>)</li>
-          <li>Community support via Jitsu Public Slack (<a href="https://jitsu.com/slack" className={`whitespace-nowrap text-textPale ${styles.underline} font-bold`}>join now!</a>)</li>
-          <li>See all <a href="https://jitsu.com/pricing" className={`text-textPale ${styles.underline} font-bold`}>pricing options</a></li>
+          <li>Community support via Jitsu Public Slack (<a href="https://jitsu.com/slack" className={styles.heroLink}>join now!</a>)</li>
+          <li>See all <a href="https://jitsu.com/pricing" className={styles.heroLink}>pricing options</a></li>
         </ul>
       </div>
       <h2 className="text-center lg:text-left text-textPale font-heading font-bold tracking-wider mt-12">Interested in self-hosting?</h2>
@@ -71,24 +71,6 @@ function JitsuCloudHero() {
 function JitsuSelfHostingHero() {
   return <>
     <h1 className="text-center lg:text-left text-textPale font-heading font-bold tracking-wider">Welcome</h1>
-    <div>
-      <div className="mt-6">Jitsu.Cloud is a hosted version of our open-source project. Start collecting data in as little as 2 minutes</div>
-      <div className="mt-6">
-        <ul className={`list-inside list-none ${styles.featureList}`}>
-          <li>First <a href="https://jitsu.com/pricing" className={`text-textPale font-bold ${styles.underline}`}>250k</a> events per month are tracked for free</li>
-          <li>Use your own tracking domain (<b className={`${styles.underline} font-monospace`}>track.myapp.com</b>)</li>
-          <li>Community support via Jitsu Public Slack (<a href="https://jitsu.com/slack" className={`whitespace-nowrap text-textPale ${styles.underline} font-bold`}>join now!</a>)</li>
-          <li>See all <a href="https://jitsu.com/pricing" className={`text-textPale ${styles.underline} font-bold`}>pricing options</a></li>
-        </ul>
-      </div>
-      <h2 className="text-center lg:text-left text-textPale font-heading font-bold tracking-wider mt-12">Interested in self-hosting?</h2>
-      <a href="https://jitsu.com/docs/deployment" className="text-text hover:text-text flex flex-row items-center">
-        <div className="text-text pr-4">
-          <GitHubLogo/>
-        </div>
-        <div>Deploy Jitsu on your own infrastructure in <b className={styles.underline}>2 minutes</b>. Free forever!</div>
-      </a>
-    </div>
   </>;
 }
 
@@ -96,7 +78,7 @@ export default function GetStartedPage(props: GetStartedPageProps) {
   return <div className="flex flex-col lg:flex-row w-full min-h-screen">
     <div className={`bg-primary ${props.login && 'hidden'} lg:block bg-gradient-to-br to-success from-primaryHover md:w-full lg:w-1/2 min-h-screen order-last lg:order-first`}>
       <a href="https://jitsu.com" className="hidden lg:block"><img className="mt-12 ml-12 h-8" src={logo}/></a>
-      <div className="flex justify-around">
+      <div className={`flex justify-around ${styles.hero}`}>
         <div className="w-3/5 mt-12 font-family">
 
           {props.login ?

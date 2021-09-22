@@ -375,8 +375,8 @@ export interface SourceConnector {
  */
 export interface CollectionTemplate {
   templateName: string;
-  collectionName: string;
-  config: any;
+  description?: ReactNode;
+  collections: any[];
 }
 
 /**

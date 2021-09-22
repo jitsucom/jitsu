@@ -12,6 +12,12 @@ const makeObjectFromFieldsValues = <F = any>(fields: any): F => Object.keys(fiel
         current,
         value.map(f => typeof f === 'object' ? makeObjectFromFieldsValues(f) : f)
       );
+    } else if (value != null) {
+      set(
+          accumulator,
+          current,
+          makeObjectFromFieldsValues(value)
+      );
     }
   }
 

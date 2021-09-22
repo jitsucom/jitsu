@@ -78,16 +78,18 @@ export interface IStatisticsService {
     status?: DestinationsEventsCountType,
     destinationId?: string
   ): Promise<DatePoint[]>;
-  getDetailedStatisticsBySources(
+  getDetailedIncomingStatistics(
     start: Date,
     end: Date,
     granularity: Granularity,
+    type: 'push_source' | 'source'
   ): Promise<SourcesStatisticsDatePoint[]>;
   getDetailedStatisticsByDestinations(
     start: Date,
     end: Date,
     granularity: Granularity,
-    destinationId?: string
+    type: 'push_source' | 'source',
+    destinationId: string
   ): Promise<DestinationsStatisticsDatePoint[]>
 }
 
@@ -174,7 +176,7 @@ export class StatisticsService implements IStatisticsService {
             [name]: value
           };
         },
-        {total: 0}
+        { total: 0 }
       ) as GenericDetailedStatisticsDatePoint<K>;
     });
   }
@@ -252,14 +254,15 @@ export class StatisticsService implements IStatisticsService {
     );
   }
 
-  public async getDetailedStatisticsBySources(
+  public async getDetailedIncomingStatistics(
     start: Date,
     end: Date,
     granularity: Granularity,
+    type: 'push_source' | 'source'
   ): Promise<SourcesStatisticsDatePoint[]> {
     const [successData, skipData] = await Promise.all([
-      this.get(start, end, granularity, 'source', 'success'),
-      this.get(start, end, granularity, 'source', 'skip')
+      this.get(start, end, granularity, type, 'success'),
+      this.get(start, end, granularity, type, 'skip')
     ]);
 
     const sourceDataEntries: [SourcesEventsCountType, DatePoint[]][] = [
@@ -273,12 +276,13 @@ export class StatisticsService implements IStatisticsService {
     start: Date,
     end: Date,
     granularity: Granularity,
+    type: 'push_source' | 'source',
     destinationId?: string
   ): Promise<DestinationsStatisticsDatePoint[]> {
     const [successData, skipData, errorData] = await Promise.all([
-      this.get(start, end, granularity, 'destination', 'success', destinationId),
-      this.get(start, end, granularity, 'destination', 'skip', destinationId),
-      this.get(start, end, granularity, 'destination', 'errors', destinationId)
+      this.get(start, end, granularity, type, 'success', destinationId),
+      this.get(start, end, granularity, type, 'skip', destinationId),
+      this.get(start, end, granularity, type, 'errors', destinationId)
     ]);
 
     const destinationDataEntries: [DestinationsEventsCountType, DatePoint[]][] = [

@@ -32,7 +32,8 @@
       "pages": [
         "configuration",
         "destinations-configuration",
-        "sources-configuration"
+        "sources-configuration",
+        "sources"
       ]
     },
     {

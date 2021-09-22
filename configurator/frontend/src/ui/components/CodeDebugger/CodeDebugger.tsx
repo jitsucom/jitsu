@@ -6,7 +6,6 @@ import cn from 'classnames';
 import { DebugEvents } from 'ui/components/CodeDebugger/DebugEvents';
 import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
 // @Types
-import { Event as RecentEvent } from 'lib/components/EventsStream/EventsStream';
 // @Icons
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import UnorderedListOutlined from '@ant-design/icons/lib/icons/UnorderedListOutlined';
@@ -14,6 +13,7 @@ import CheckOutlined from '@ant-design/icons/lib/icons/CheckOutlined';
 import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
+import { Event as RecentEvent } from '../../../lib/services/events';
 
 interface Props {
   /**
