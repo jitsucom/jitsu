@@ -107,8 +107,7 @@ export async function initPaymentPlan(
   sourcesStore: ISourcesStore
 ): Promise<PaymentPlanStatus> {
   const statService = new StatisticsService(backendApiClient, project, true);
-  let { planId, currentPeriodStart } =
-    (await getCurrentPlanInfo(project.id)) ?? {};
+  let { planId, currentPeriodStart } =  (await getCurrentPlanInfo(project.id)) ?? {};
 
   let currentPlan: PaymentPlan | undefined;
   let isStripeCustomer: boolean = false;
@@ -161,24 +160,20 @@ export async function initPaymentPlan(
 
 export function generateCheckoutLink(params: {
   project_id: string;
-  current_plan_id: string;
-  plan_id_to_purchase: string;
   user_email: string;
-  success_url: string;
-  cancel_url: string;
+  plan_id: string;
+  redirect_base: string;
 }): string {
-  const billingUrl =
-    ApplicationServices.get().applicationConfiguration.billingUrl;
-  return withQueryParams(`${billingUrl}/checkout-redirect`, params);
+  const billingUrl = ApplicationServices.get().applicationConfiguration.billingUrl;
+  return withQueryParams(`${billingUrl}/api/init-checkout`, params);
 }
 
 export function generateCustomerPortalLink(params: {
   project_id: string;
-  current_plan_id: string;
   user_email: string;
   return_url: string;
 }): string {
   const billingUrl =
     ApplicationServices.get().applicationConfiguration.billingUrl;
-  return withQueryParams(`${billingUrl}/customer-portal-redirect`, params);
+  return withQueryParams(`${billingUrl}/api/to-customer-portal`, params);
 }
