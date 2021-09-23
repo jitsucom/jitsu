@@ -1,58 +1,138 @@
 import { IProject } from 'lib/services/model';
-import { BackendApiClient } from 'lib/services/ApplicationServices';
-import {
-  DatePoint,
-  IStatisticsService,
-  StatisticsService
-} from 'lib/services/stat';
-import { destinationsStore, IDestinationsStore } from '../../stores/destinations';
+import { DatePoint, StatisticsService } from 'lib/services/stat';
+import { withQueryParams } from 'utils/queryParams';
+import { IDestinationsStore } from '../../stores/destinations';
 import { ISourcesStore } from '../../stores/sources';
+import ApplicationServices from './ApplicationServices';
+import { BackendApiClient } from './BackendApiClient';
+import firebase from 'firebase/app';
+import 'firebase/auth';
+import 'firebase/firestore';
+import { isObject } from 'utils/typeCheck';
 
-export type PlanId = 'free' | 'growth' | 'premium' | 'enterprise';
+export type PaymentPlanId = 'free' | 'growth' | 'premium' | 'enterprise';
 
 export type PaymentPlan = {
   name: string;
-  id: PlanId;
-  eventsLimit: number
-  destinationsLimit: number
-  sourcesLimit: number
+  id: PaymentPlanId;
+  eventsLimit: number;
+  destinationsLimit: number;
+  sourcesLimit: number;
+  price_currency?: 'usd';
+  price_amount?: number;
 };
 
-export const paymentPlans: Record<PlanId, PaymentPlan> = {
-  free: { name: 'Startup (free)', id: 'free', eventsLimit: 250_000, destinationsLimit:  2, sourcesLimit: 1 },
-  growth: { name: 'Growth', id: 'growth', eventsLimit: 1_000_000, destinationsLimit:  10, sourcesLimit: 5 },
-  premium: { name: 'Premium', id: 'premium', eventsLimit: 10_000_000, destinationsLimit:  10, sourcesLimit: 15 },
-  enterprise: { name: 'Enterprise', id: 'enterprise', eventsLimit: null, destinationsLimit: null, sourcesLimit: null }
+export const paymentPlans: Record<PaymentPlanId, PaymentPlan> = {
+  free: {
+    name: 'Startup',
+    id: 'free',
+    eventsLimit: 250_000,
+    destinationsLimit: 2,
+    sourcesLimit: 1,
+    price_currency: 'usd',
+    price_amount: 0
+  },
+  growth: {
+    name: 'Growth',
+    id: 'growth',
+    eventsLimit: 1_000_000,
+    destinationsLimit: 10,
+    sourcesLimit: 5,
+    price_currency: 'usd',
+    price_amount: 99
+  },
+  premium: {
+    name: 'Premium',
+    id: 'premium',
+    eventsLimit: 10_000_000,
+    destinationsLimit: 10,
+    sourcesLimit: 15,
+    price_currency: 'usd',
+    price_amount: 299
+  },
+  enterprise: {
+    name: 'Enterprise',
+    id: 'enterprise',
+    eventsLimit: null,
+    destinationsLimit: null,
+    sourcesLimit: null,
+    price_amount: 9999
+  }
+} as const;
+
+export const getPaymentPlanByName = (planName: string): PaymentPlan | null => {
+  return Object.values(paymentPlans).find((plan) => plan.name === planName);
 };
+
+export const getFreePaymentPlan = () => paymentPlans.free;
 
 /**
  * Status of current payment plan
  */
 export type PaymentPlanStatus = {
-  currentPlan: PaymentPlan,
-  eventsThisMonth: number,
-  sources: number,
-  destinations: number,
+  currentPlan: PaymentPlan;
+  isStripeCustomer: boolean;
+  eventsInCurrentPeriod: number;
+  sources: number;
+  destinations: number;
+};
+
+export async function getCurrentPlanInfo(projectId: string): Promise<{
+  planId: string;
+  currentPeriodStart: Date | null;
+} | null> {
+  const subscription = await firebase
+    .firestore()
+    .collection('subscriptions')
+    .doc(projectId)
+    .get();
+
+  let { jitsu_plan_id, current_period_start } = subscription.data() ?? {};
+  if (!jitsu_plan_id || typeof jitsu_plan_id !== 'string') return null;
+  if (!isObject(current_period_start)) current_period_start = {};
+
+  const seconds = current_period_start._seconds;
+  let currentPeriodStart = seconds ? new Date(seconds * 1000) : null;
+
+  return {
+    planId: jitsu_plan_id,
+    currentPeriodStart
+  };
 }
 
-export async function initPaymentPlan(project: IProject, backendApiClient: BackendApiClient, destinationsStore: IDestinationsStore, sourcesStore: ISourcesStore): Promise<PaymentPlanStatus> {
+export async function initPaymentPlan(
+  project: IProject,
+  backendApiClient: BackendApiClient,
+  destinationsStore: IDestinationsStore,
+  sourcesStore: ISourcesStore
+): Promise<PaymentPlanStatus> {
   const statService = new StatisticsService(backendApiClient, project, true);
-  let currentPlan;
-  if (!project?.planId) {
+  let { planId, currentPeriodStart } =  (await getCurrentPlanInfo(project.id)) ?? {};
+
+  let currentPlan: PaymentPlan | undefined;
+  let isStripeCustomer: boolean = false;
+  if (!planId) {
     currentPlan = paymentPlans.free;
   } else {
-    currentPlan = paymentPlans[project.planId];
-    if (!currentPlan) {
-      throw new Error(`Unknown plan ${project.planId}`);
-    }
+    currentPlan = paymentPlans[planId];
+    isStripeCustomer = true;
+    if (!currentPlan) throw new Error(`Unknown plan ${planId}`);
   }
   const date = new Date();
+  const now = new Date();
+
+  let currentStatPeriodStart: Date = new Date();
+  // a month ago by default
+  currentStatPeriodStart.setMonth(now.getMonth() - 1);
+  currentStatPeriodStart.setHours(0, 0, 0, 0);
+  // get from subscription if not on free plan
+  if (currentPlan.id !== 'free') currentStatPeriodStart = currentPeriodStart;
 
   let stat: DatePoint[];
   try {
     stat = await statService.get(
-      new Date(date.getFullYear(), date.getMonth(), 1),
-      new Date(date.getFullYear(), date.getMonth() + 1, 0),
+      currentStatPeriodStart,
+      now,
       'day',
       'push_source'
     );
@@ -64,10 +144,36 @@ export async function initPaymentPlan(project: IProject, backendApiClient: Backe
     stat = [];
   }
 
-  let eventsThisMonth = stat.reduce((res, item) => {
+  let eventsInCurrentPeriod = stat.reduce((res, item) => {
     res += item.events;
     return res;
   }, 0);
 
-  return { currentPlan, eventsThisMonth, sources: sourcesStore.sources.length, destinations : destinationsStore.destinations.length }
+  return {
+    currentPlan,
+    isStripeCustomer,
+    eventsInCurrentPeriod,
+    sources: sourcesStore.sources.length,
+    destinations: destinationsStore.destinations.length
+  };
+}
+
+export function generateCheckoutLink(params: {
+  project_id: string;
+  user_email: string;
+  plan_id: string;
+  redirect_base: string;
+}): string {
+  const billingUrl = ApplicationServices.get().applicationConfiguration.billingUrl;
+  return withQueryParams(`${billingUrl}/api/init-checkout`, params);
+}
+
+export function generateCustomerPortalLink(params: {
+  project_id: string;
+  user_email: string;
+  return_url: string;
+}): string {
+  const billingUrl =
+    ApplicationServices.get().applicationConfiguration.billingUrl;
+  return withQueryParams(`${billingUrl}/api/to-customer-portal`, params);
 }

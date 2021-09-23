@@ -3,7 +3,7 @@
 // expect(element).toHaveTextContent(/react/i)
 import '@testing-library/jest-dom';
 import '@testing-library/jest-dom/extend-expect';
-import { LS_ACCESS_KEY, LS_REFRESH_KEY } from 'lib/services/backend';
+import { LS_ACCESS_KEY, LS_REFRESH_KEY } from 'lib/services/UserServiceBackend';
 
 jest.setTimeout(300_000);
 

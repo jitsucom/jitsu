@@ -39,14 +39,8 @@
     "start:cloud": "yarn set_cloud_env craco start",
     "build": "NODE_ENV=production craco build",
     "test:debug": "craco --inspect-brk test --runInBand --no-cache",
-    "test:cloud": "yarn set_cloud_env craco test",
-    "test:cloud:debug": "yarn set_cloud_env yarn test:debug",
-    "test:local": "yarn set_local_env craco test",
-    "test:local:debug": "yarn set_local_env yarn test:debug",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",
-    "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix",
-    "set_local_env": "NODE_ENV=development BACKEND_API_BASE=http://localhost:8000/configurator/",
-    "set_cloud_env": "NODE_ENV=development BACKEND_API_BASE=https://t.jitsu.com/configurator FIREBASE_CONFIG='{   \"apiKey\": \"AIzaSyDBm2HqvxleuJyD9xo8rh0vo1TQGp8Vohg\",   \"authDomain\": \"backbase.jitsu.com\",   \"databaseURL\": \"https://tracker-285220.firebaseio.com\",   \"projectId\": \"tracker-285220\",   \"storageBucket\": \"tracker-285220.appspot.com\",   \"messagingSenderId\": \"942257799287\",   \"appId\": \"1:942257799287:web:e3b0bd3435f929d6a00672\",   \"measurementId\": \"G-6ZMG0NSJP8\" }'"
+    "eslint:fix": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/ --fix"
   },
   "browserslist": {
     "production": [
