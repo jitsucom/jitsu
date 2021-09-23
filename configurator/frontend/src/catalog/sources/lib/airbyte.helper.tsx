@@ -1,9 +1,3 @@
-import { snakeCaseToWords, toTitleCase } from 'utils/strings';
-import {
-  assertIsArray,
-  assertIsArrayOfTypes,
-  assertIsObject
-} from 'utils/typeCheck';
 import {
   AirbyteSource,
   booleanType,
@@ -33,6 +27,7 @@ export const makeAirbyteSource = (
     collectionTypes: [],
     documentation: airbyteSource.documentation,
     collectionParameters: [],
+    staticStreamsConfigEndpoint: `/api/v1/airbyte/${dockerImageNameWithoutPrefix}/catalog`,
     configParameters: [
       {
         displayName: 'Airbyte Connector',
@@ -43,7 +38,7 @@ export const makeAirbyteSource = (
         constant: dockerImageNameWithoutPrefix
       }
     ],
-    hasLoadableParameters: true
+    hasLoadableConfigParameters: true
   };
 };
 
@@ -80,7 +75,7 @@ export const mapAirbyteSpecToSourceConnectorConfig = (
 };
 
 const mapAirbyteSpecNode = function mapSpecNode(
-  specNode: unknown,
+  specNode,
   options?: AirbyteSpecNodeMappingParameters
 ): Parameter[] {
   const result: Parameter[] = [];
@@ -111,9 +106,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
         ? singleSelectionType(specNode['enum'])
         : makeStringType(pattern ? { pattern } : {});
       const mappedStringField: Parameter = {
-        displayName: specNode['title']
-          ? toTitleCase(specNode['title'])
-          : toTitleCase(snakeCaseToWords(nodeName)),
+        displayName: specNode['title'] ?? nodeName,
         id,
         type: fieldType,
         required,
@@ -128,9 +121,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
 
     case 'integer': {
       const mappedIntegerField: Parameter = {
-        displayName: specNode['title']
-          ? toTitleCase(specNode['title'])
-          : toTitleCase(snakeCaseToWords(nodeName)),
+        displayName: specNode['title'] ?? nodeName,
         id,
         type: makeIntType({
           minimum: specNode['minimum'],
@@ -147,9 +138,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
 
     case 'boolean': {
       const mappedBooleanField: Parameter = {
-        displayName: specNode['title']
-          ? toTitleCase(specNode['title'])
-          : toTitleCase(snakeCaseToWords(nodeName)),
+        displayName: specNode['title'] ?? nodeName,
         id,
         type: booleanType,
         required,
@@ -167,8 +156,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
 
       if (specNode['properties']) {
         optionsEntries = getEntriesFromPropertiesField(specNode);
-        const _listOfRequiredFields: unknown = specNode['required'] || [];
-        assertIsArrayOfTypes(_listOfRequiredFields, 'string');
+        const _listOfRequiredFields: string[] = specNode['required'] || [];
         listOfRequiredFields = _listOfRequiredFields;
       } else if (specNode['oneOf']) {
         // this is a rare case, see the Postgres source spec for an example
@@ -181,9 +169,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
             childNode['properties']?.[optionsFieldName]?.['const']
         );
         const mappedSelectionField: Parameter = {
-          displayName: specNode['title']
-            ? toTitleCase(specNode['title'])
-            : toTitleCase(snakeCaseToWords(nodeName)),
+          displayName: specNode['title'] ?? nodeName,
           id: `${parentNode.id}.${nodeName}.${optionsFieldName}`,
           type: singleSelectionType(options),
           required,
@@ -198,8 +184,6 @@ const mapAirbyteSpecNode = function mapSpecNode(
           'Failed to parse Airbyte source spec -- unknown field of `object` type'
         );
       }
-
-      assertIsObject(specNode);
 
       const parentId = id;
       optionsEntries.forEach(([nodeName, node]) =>
@@ -221,9 +205,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
       if (specNode['allOf']) {
         // Case for the nodes that have the 'allOf' property
         const nodes = specNode['allOf'];
-        assertIsArray(nodes);
         nodes.forEach((node) => {
-          assertIsObject(node);
           result.push(
             ...mapSpecNode(node, {
               nodeName,
@@ -251,7 +233,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
         );
       } else {
         // Special case for the nodes from the `oneOf` list in the `object` node
-        const childrenNodesEntries: unknown = Object.entries(
+        const childrenNodesEntries = Object.entries(
           specNode['properties']
         ).sort(
           ([_, nodeA], [__, nodeB]) => nodeA?.['order'] - nodeB?.['order']
@@ -259,10 +241,7 @@ const mapAirbyteSpecNode = function mapSpecNode(
 
         const parentNodeValueProperty = childrenNodesEntries[0][0];
         const parentNodeValueKey = `${parentNode.id}.${parentNodeValueProperty}`;
-        const _listOfRequiredFields: unknown = specNode['required'] || [];
-        assertIsObject(specNode);
-        assertIsArray(childrenNodesEntries);
-        assertIsArrayOfTypes(_listOfRequiredFields, 'string');
+        const _listOfRequiredFields: string[] = specNode['required'] || [];
         childrenNodesEntries
           .slice(1) // Ecludes the first entry as it is a duplicate definition of the parent node
           .forEach(([nodeName, node]) =>
@@ -295,23 +274,19 @@ const mapAirbyteSpecNode = function mapSpecNode(
 const getAirbyteSpecNodeByRef = (
   parentNode: EnrichedAirbyteSpecNode,
   ref: string
-): UnknownObject | null => {
+) => {
   const rootNode = getAirbyteSpecRootNode(parentNode);
   const nodesNames = ref.replace('#/', '').split('/');
 
-  return nodesNames.reduce<UnknownObject | null>(
-    (parentNode, childNodeName) => {
-      if (parentNode === null) return null;
-      const childNode = parentNode[childNodeName];
-      try {
-        assertIsObject(childNode);
-        return childNode;
-      } catch {
-        return null;
-      }
-    },
-    rootNode
-  );
+  return nodesNames.reduce((parentNode, childNodeName) => {
+    if (parentNode === null) return null;
+    const childNode = parentNode[childNodeName];
+    try {
+      return childNode;
+    } catch {
+      return null;
+    }
+  }, rootNode);
 };
 
 const getAirbyteSpecRootNode = (
@@ -325,7 +300,6 @@ const getAirbyteSpecRootNode = (
 
 const getEntriesFromPropertiesField = (node: unknown): [string, unknown][] => {
   const subNodes = node['properties'] as unknown;
-  assertIsObject(subNodes);
   let entries = Object.entries(subNodes) as [string, unknown][];
   const isOrdered = entries[0][1]?.['order'];
   if (isOrdered)
@@ -338,9 +312,6 @@ const getEntriesFromOneOfField = (
   nodeName: string
 ): [string, object][] => {
   const subNodes = node['oneOf'] as unknown;
-
-  // array assertion must fail here
-  assertIsArrayOfTypes(subNodes, new Object());
 
   return Object.entries(subNodes).map(([idx, subNode]) => [
     `${nodeName}-option-${idx}`,
