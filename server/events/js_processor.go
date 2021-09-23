@@ -34,9 +34,7 @@ func (jp *JsProcessor) Preprocess(event Event, reqContext *RequestContext) {
 			logging.SystemErrorf("Error setting generated Jitsu anonymous ID: %v", err)
 		}
 	}
-	if err := HashedAnonymIDPath.Set(event, reqContext.HashedAnonymousID); err != nil {
-		logging.SystemErrorf("Error setting hashed anonymous ID: %v", err)
-	}
+	HashedAnonymIDPath.Set(event, reqContext.HashedAnonymousID)
 }
 
 //Postprocess puts event into recognition Service
