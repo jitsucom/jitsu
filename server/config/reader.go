@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+const notsetDefaultValue = "__NOTSET_DEFAULT_VALUE__"
+
 //Read reads config from configSourceStr that might be (HTTP URL or path to YAML/JSON file or plain JSON string)
 //replaces all ${env.VAR} placeholders with OS variables
 //configSourceStr might be overridden by "config_location" ENV variable
@@ -75,9 +77,9 @@ func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg st
 				logging.Fatalf("Malformed ${env.VAR} placeholder in config value: %s = %s", k, value)
 			}
 
-			var envName, defaultValue string
+			defaultValue := notsetDefaultValue
 			envExpression := values[0]
-			envName = envExpression
+			envName := envExpression
 			//check if default value
 			if strings.Contains(envName, "|") {
 				envNameParts := strings.Split(envName, "|")
@@ -88,8 +90,8 @@ func Read(configSourceStr string, containerizedRun bool, configNotFoundErrMsg st
 				defaultValue = envNameParts[1]
 			}
 			res := os.Getenv(envName)
-			if len(res) == 0 {
-				if defaultValue == "" {
+			if res == "" {
+				if defaultValue == notsetDefaultValue {
 					logging.Fatalf("Mandatory env variable was not found: %s", envName)
 				}
 
