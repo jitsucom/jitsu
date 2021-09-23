@@ -4,17 +4,16 @@ import firebase from 'firebase/app';
 import 'firebase/auth';
 import 'firebase/firestore';
 import Marshal from '../commons/marshalling';
-import { reloadPage } from '../commons/utils';
+import { reloadPage, setDebugInfo } from '../commons/utils';
+import { randomId } from 'utils/numbers';
 import {
-  BackendApiClient,
   LoginFeatures,
-  ServerStorage,
-  setDebugInfo,
   TelemetrySettings,
   UserLoginStatus,
   UserService
-} from './ApplicationServices';
-import { randomId } from 'utils/numbers';
+} from './UserService';
+import { BackendApiClient } from './BackendApiClient';
+import { ServerStorage } from './ServerStorage';
 
 export class FirebaseUserService implements UserService {
   private user?: User;

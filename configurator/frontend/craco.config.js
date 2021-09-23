@@ -28,7 +28,8 @@ module.exports = {
     headers: {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-      'Access-Control-Allow-Headers': 'X-Requested-With, content-type, Authorization'
+      'Access-Control-Allow-Headers':
+        'X-Requested-With, content-type, Authorization'
     },
     compress: true,
     overlay: {
@@ -46,12 +47,15 @@ module.exports = {
           GIT_COMMIT_REF: JSON.stringify(process.env.COMMIT_REF || null),
           BUILD_TIMESTAMP: JSON.stringify(new Date().toISOString()),
           BUILD_ID: JSON.stringify(process.env.BUILD_ID || null),
-//          BACKEND_API_BASE: JSON.stringify(process.env.PROXY_BACKEND ? `http://${DEV_HOST}:${DEV_PORT}` : process.env.BACKEND_API_BASE),
+          //          BACKEND_API_BASE: JSON.stringify(process.env.PROXY_BACKEND ? `http://${DEV_HOST}:${DEV_PORT}` : process.env.BACKEND_API_BASE),
           BACKEND_API_BASE: JSON.stringify(process.env.BACKEND_API_BASE),
           NODE_ENV: JSON.stringify(process.env.NODE_ENV || 'production'),
           ANALYTICS_KEYS: JSON.stringify(process.env.ANALYTICS_KEYS || null),
           APP_PATH: JSON.stringify(process.env.APP_PATH || ''),
-          FIREBASE_CONFIG: JSON.stringify(process.env.FIREBASE_CONFIG || null)
+          FIREBASE_CONFIG: JSON.stringify(process.env.FIREBASE_CONFIG || null),
+          BILLING_API_BASE_URL: JSON.stringify(
+            process.env.BILLING_API_BASE_URL || null
+          )
         }
       }),
       new BundleAnalyzerPlugin({
@@ -65,7 +69,7 @@ module.exports = {
     ],
     configure: (webpackConfig, { env, paths }) => {
       const miniCssExtractPlugin = webpackConfig.plugins.find(
-        plugin => plugin.constructor.name === 'MiniCssExtractPlugin'
+        (plugin) => plugin.constructor.name === 'MiniCssExtractPlugin'
       );
 
       if (miniCssExtractPlugin) {
@@ -110,7 +114,7 @@ module.exports = {
         cssLoaderOptions: {
           modules: { localIdentName: '[local]_[hash:base64:5]' }
         },
-        modifyLessRule: function(lessRule, _context) {
+        modifyLessRule: function (lessRule, _context) {
           lessRule.test = /\.(module)\.(less)$/;
           lessRule.exclude = path.join(__dirname, 'node_modules');
           return lessRule;
