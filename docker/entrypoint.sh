@@ -64,16 +64,6 @@ if [[ -z "$CONFIGURATOR_ADMIN_TOKEN" ]]; then
   export CONFIGURATOR_ADMIN_TOKEN=$(random)
 fi
 
-# Jitsu UI authorization access secret
-if [[ -z "$UI_AUTH_ACCESS_SECRET" ]]; then
-  export UI_AUTH_ACCESS_SECRET=$(random)
-fi
-
-# Jitsu UI authorization refresh secret
-if [[ -z "$UI_AUTH_REFRESH_SECRET" ]]; then
-  export UI_AUTH_REFRESH_SECRET=$(random)
-fi
-
 trap graceful_exit SIGQUIT SIGTERM SIGINT SIGHUP
 
 ### Start services
