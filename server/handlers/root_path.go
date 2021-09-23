@@ -5,6 +5,7 @@ import (
 	"github.com/jitsucom/jitsu/server/appconfig"
 	"github.com/jitsucom/jitsu/server/logging"
 	"github.com/jitsucom/jitsu/server/system"
+	"github.com/jitsucom/jitsu/server/utils"
 	"github.com/spf13/viper"
 	"html/template"
 	"io/ioutil"
@@ -69,9 +70,9 @@ func NewRootPathHandler(service *system.Service, sourceDir, configuratorURL stri
 //Handler handles requests and returns welcome page or redirect to Configurator URL
 func (rph *RootPathHandler) Handler(c *gin.Context) {
 	if rph.service.ShouldBeRedirected() {
-		redirectSchema := c.GetHeader("X-Forwarded-Proto")
-		redirectHost := c.GetHeader("X-Forwarded-Host")
-		realHost := c.GetHeader("X-Real-Host")
+		redirectSchema := utils.NvlString(c.GetHeader("X-Forwarded-Proto"), c.Request.URL.Scheme)
+		redirectHost := utils.NvlString(c.GetHeader("X-Forwarded-Host"), c.Request.Host)
+		realHost := utils.NvlString(c.GetHeader("X-Real-Host"), redirectHost, c.Request.Host)
 		if rph.redirectToHttps {
 			//use X-Forwarded-Host if redirect to https
 			//used in heroku deployments
