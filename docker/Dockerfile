@@ -46,6 +46,6 @@ RUN mv /home/configurator/app/web /home/configurator/web &&\
 USER $EVENTNATIVE_USER
 
 VOLUME ["/home/$EVENTNATIVE_USER/data", "/home/configurator/data"]
-EXPOSE 8000 8001 7000
+EXPOSE 8000
 
 ENTRYPOINT ["/home/eventnative/entrypoint.sh"]
