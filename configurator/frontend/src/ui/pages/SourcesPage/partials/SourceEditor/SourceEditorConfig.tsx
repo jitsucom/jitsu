@@ -90,31 +90,27 @@ const SourceEditorConfigComponent = ({
         </Col>
       </Row>
 
-
-        <Row>
-          <Col span={24}>
-            <Form.Item
-              initialValue={initialSchedule}
-              name="schedule"
-              className={`form-field_fixed-label ${editorStyles.field}`}
-              label="Schedule:"
-              labelCol={{ span: 4 }}
-              wrapperCol={{ span: 20 }}
-              rules={[
-                { required: true, message: 'You have to choose schedule' }
-              ]}
-            >
-              <Select>
-                {COLLECTIONS_SCHEDULES.map((option) => (
-                  <Select.Option value={option.value} key={option.value}>
-                    {option.label}
-                  </Select.Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
-
+      <Row>
+        <Col span={24}>
+          <Form.Item
+            initialValue={initialSchedule}
+            name="schedule"
+            className={`form-field_fixed-label ${editorStyles.field}`}
+            label="Schedule:"
+            labelCol={{ span: 4 }}
+            wrapperCol={{ span: 20 }}
+            rules={[{ required: true, message: 'You have to choose schedule' }]}
+          >
+            <Select>
+              {COLLECTIONS_SCHEDULES.map((option) => (
+                <Select.Option value={option.value} key={option.value}>
+                  {option.label}
+                </Select.Option>
+              ))}
+            </Select>
+          </Form.Item>
+        </Col>
+      </Row>
 
       <ConfigurableFieldsForm
         initialValues={initialValues}
@@ -123,7 +119,7 @@ const SourceEditorConfigComponent = ({
         handleTouchAnyField={handleTouchAnyField}
       />
 
-      {sourceReference.hasLoadableParameters && (
+      {sourceReference.hasLoadableConfigParameters && (
         <LoadableFieldsForm
           sourceReference={sourceReference}
           initialValues={initialValues}
