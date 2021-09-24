@@ -48,7 +48,7 @@ import { Page, usePageLocation } from 'navigation';
 // @Services
 import { useServices } from 'hooks/useServices';
 import { AnalyticsBlock } from 'lib/services/analytics';
-import { PaymentPlanStatus } from 'lib/services/billing';
+import { CurrentSubscription } from 'lib/services/billing';
 // @Styles
 import styles from './Layout.module.less';
 // @Misc
@@ -130,7 +130,7 @@ export const ApplicationSidebar: React.FC<{}> = () => {
 
 export type PageHeaderProps = {
   user: User
-  plan: PaymentPlanStatus
+  plan: CurrentSubscription
 }
 
 function abbr(user: User) {
@@ -177,7 +177,7 @@ export const PageHeader: React.FC<PageHeaderProps> = ({ plan, user, children }) 
   );
 }
 
-export const DropdownMenu: React.FC<{ user: User, plan: PaymentPlanStatus, hideMenu: () => void }> = ({ plan, user, hideMenu }) => {
+export const DropdownMenu: React.FC<{ user: User, plan: CurrentSubscription, hideMenu: () => void }> = ({ plan, user, hideMenu }) => {
   const services = useServices();
   const history = useHistory();
 
@@ -243,7 +243,7 @@ export const DropdownMenu: React.FC<{ user: User, plan: PaymentPlanStatus, hideM
 export type ApplicationPageWrapperProps = {
   page: Page
   user: User
-  plan: PaymentPlanStatus
+  plan: CurrentSubscription
   [propName: string]: any
 }
 
