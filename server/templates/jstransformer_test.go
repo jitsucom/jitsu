@@ -47,6 +47,9 @@ var JSTemplateTest = []struct {
 	{"test_data/object_modify.js", object{"event_type": "important", "user": object{"email": "reg@ksense.io"}}, object{"event_type": "jitsu", "user": object{"email": "reg@ksense.io"}}},
 	{"test_data/object_modify.js", object{"event_type": "important", "user": object{"email": "test@test.com"}}, object{"event_type": "skipped", "user": object{"email": "test@test.com"}}},
 
+	{"test_data/arrow_function.js", object{"event_type": "app_page"}, "APP_PAGE"},
+
+
 	//TODO: babels plugin transform-template-literals ruins emoji characters 😢 disable test for now
 	//{"test_data/template_literal_emoji.js", object{"event_type": "app_page"}, "🤘 app_page"},
 

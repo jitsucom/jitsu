@@ -21,6 +21,7 @@ func Transform(src string) (string, error) {
 		"plugins": []interface{}{
 			[]interface{}{"transform-last-statement", map[string]interface{}{"topLevel": true}},
 			"proposal-optional-chaining",
+			"transform-arrow-functions",
 			"transform-template-literals",
 			"loop-protect",
 		},
