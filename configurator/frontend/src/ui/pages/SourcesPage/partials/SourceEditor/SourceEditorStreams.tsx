@@ -30,7 +30,7 @@ const SourceEditorStreams = ({
   form,
   initialValues,
   connectorSource,
-  handleTouchAnyField,
+  handleTouchAnyField
 }: Props) => {
   const [selectedCollectionTypes, setSelectedCollectionTypes] = useState(
     connectorSource.collectionTypes
@@ -39,6 +39,10 @@ const SourceEditorStreams = ({
   const [addTemplateVisible, setAddTemplateVisible] = useState(false);
   const [activePanel, setActivePanel] = useState([]);
   const input = useRef(null);
+
+  const renderAddButton = connectorSource.collectionTypes.length <= 1;
+  const renderAddPopover = connectorSource.collectionTypes.length > 1;
+  const renderApplyTemplates = connectorSource.collectionTemplates;
 
   const handleCollectionTypesFilter = useCallback(
     (e) => {
@@ -64,12 +68,12 @@ const SourceEditorStreams = ({
   const getFormErrors = useCallback(
     (index: number) => {
       let fields = connectorSource.collectionParameters.map((v) => [
-        "collections",
+        'collections',
         index,
-        "parameters",
-        v.id,
+        'parameters',
+        v.id
       ]);
-      fields.push(["collections", index, "name"]);
+      fields.push(['collections', index, 'name']);
       return form.getFieldsError(fields).filter((v) => v.errors.length > 0);
     },
     [form, connectorSource]
@@ -118,7 +122,7 @@ const SourceEditorStreams = ({
         name: generateReportNameForType(type),
         type: type,
         parameters: {},
-        _id: randomId(),
+        _id: randomId()
       };
       for (const param of getCollectionParametersForType(type)) {
         if (param.defaultValue) {
@@ -133,7 +137,7 @@ const SourceEditorStreams = ({
       handleTouchAnyField,
       connectorSource.collectionTemplates,
       activePanel,
-      setActivePanel,
+      setActivePanel
     ]
   );
 
@@ -172,7 +176,7 @@ const SourceEditorStreams = ({
       connectorSource.collectionTemplates,
       activePanel,
       setActivePanel,
-      handleTouchAnyField,
+      handleTouchAnyField
     ]
   );
 
@@ -181,7 +185,7 @@ const SourceEditorStreams = ({
       const formValues = form.getFieldsValue();
       const collections = formValues.collections;
       const stream = collections[index];
-      if (typeof stream._id === "undefined") {
+      if (typeof stream._id === 'undefined') {
         stream._id = input.current.state.value;
       }
       form.setFieldsValue({ collections });
@@ -191,282 +195,276 @@ const SourceEditorStreams = ({
   );
 
   return (
-    <>
-      <Form
-        name="source-collections"
-        form={form}
-        initialValues={initialValues}
-        autoComplete="off"
-        onChange={handleTouchAnyField}
-      >
-        <Form.List name="collections">
-          {(
-            fields: FormListFieldData[],
-            operation: FormListOperation,
-            meta
-          ) => (
-            <>
-              <Row className={"pb-3"}>
-                <Col>
-                  {connectorSource.collectionTypes.length <= 1 && (
+    <Form
+      name="source-collections"
+      form={form}
+      initialValues={initialValues}
+      autoComplete="off"
+      onChange={handleTouchAnyField}
+    >
+      <Form.List name="collections">
+        {(fields: FormListFieldData[], operation: FormListOperation, meta) => (
+          <>
+            <Row className={'pb-3'}>
+              <Col>
+                {renderAddButton && (
+                  <Button
+                    size="large"
+                    className="mr-4"
+                    onClick={() =>
+                      addNewOfType(
+                        connectorSource.collectionTypes[0] ?? 'default',
+                        operation
+                      )
+                    }
+                    icon={<PlusOutlined />}
+                  >
+                    Add new stream
+                  </Button>
+                )}
+                {renderAddPopover && (
+                  <Popover
+                    placement="rightTop"
+                    visible={addStreamVisible}
+                    onVisibleChange={setAddStreamVisible}
+                    content={
+                      <>
+                        {connectorSource.collectionTypes.length > 7 && (
+                          <Input
+                            allowClear={true}
+                            onChange={handleCollectionTypesFilter}
+                            placeholder={'Type to search'}
+                          />
+                        )}
+                        <div
+                          className={styles.templates}
+                          style={{ maxHeight: '400px' }}
+                        >
+                          {selectedCollectionTypes.map((type: string) => (
+                            <div key={type} className={styles.template}>
+                              <div
+                                onClick={() => {
+                                  addNewOfType(type, operation);
+                                  setAddStreamVisible(false);
+                                }}
+                              >
+                                <p className="font-bold">{type}</p>
+                              </div>
+                              <Button
+                                className={styles.button}
+                                type="primary"
+                                onClick={() => {
+                                  addNewOfType(type, operation);
+                                  setAddStreamVisible(false);
+                                }}
+                              >
+                                Add
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    }
+                    trigger="click"
+                  >
                     <Button
                       size="large"
                       className="mr-4"
-                      onClick={() =>
-                        addNewOfType(
-                          connectorSource.collectionTypes[0] ?? "default",
-                          operation
-                        )
-                      }
                       icon={<PlusOutlined />}
                     >
                       Add new stream
                     </Button>
-                  )}
-                  {connectorSource.collectionTypes.length > 1 && (
+                  </Popover>
+                )}
+                {renderApplyTemplates && (
+                  <>
                     <Popover
                       placement="rightTop"
-                      visible={addStreamVisible}
-                      onVisibleChange={setAddStreamVisible}
+                      visible={addTemplateVisible}
+                      onVisibleChange={setAddTemplateVisible}
                       content={
-                        <>
-                          {connectorSource.collectionTypes.length > 7 && (
-                            <Input
-                              allowClear={true}
-                              onChange={handleCollectionTypesFilter}
-                              placeholder={"Type to search"}
-                            />
-                          )}
-                          <div
-                            className={styles.templates}
-                            style={{ maxHeight: "400px" }}
-                          >
-                            {selectedCollectionTypes.map((type: string) => (
-                              <div key={type} className={styles.template}>
-                                <div
-                                  onClick={() => {
-                                    addNewOfType(type, operation);
-                                    setAddStreamVisible(false);
-                                  }}
-                                >
-                                  <p className="font-bold">{type}</p>
+                        <div className={styles.templates}>
+                          {connectorSource.collectionTemplates.map(
+                            (template: CollectionTemplate, index) => (
+                              <div
+                                key={template.templateName}
+                                className={styles.template}
+                              >
+                                <div>
+                                  <p className="font-bold capitalize">
+                                    {template.templateName}
+                                  </p>
+                                  {template.description && (
+                                    <p className={styles.comment}>
+                                      {template.description}
+                                    </p>
+                                  )}
+                                  <p>
+                                    Streams:{' '}
+                                    <span className={styles.comment}>
+                                      {template.collections
+                                        .map<React.ReactNode>((s) => (
+                                          <>{s.name ?? s.type}</>
+                                        ))
+                                        .reduce((prev, curr) => [
+                                          prev,
+                                          ', ',
+                                          curr
+                                        ])}
+                                    </span>
+                                  </p>
                                 </div>
                                 <Button
-                                  className={styles.button}
                                   type="primary"
+                                  className={styles.button}
                                   onClick={() => {
-                                    addNewOfType(type, operation);
-                                    setAddStreamVisible(false);
+                                    handleApplyTemplate(index, operation);
+                                    setAddTemplateVisible(false);
                                   }}
                                 >
-                                  Add
+                                  Apply
                                 </Button>
                               </div>
-                            ))}
-                          </div>
-                        </>
+                            )
+                          )}
+                        </div>
                       }
                       trigger="click"
                     >
-                      <Button
-                        size="large"
-                        className="mr-4"
-                        icon={<PlusOutlined />}
-                      >
-                        Add new stream
+                      <Button className="mr-4" size={'large'}>
+                        Use template
                       </Button>
                     </Popover>
-                  )}
-                  {connectorSource.collectionTemplates && (
-                    <>
-                      <Popover
-                        placement="rightTop"
-                        visible={addTemplateVisible}
-                        onVisibleChange={setAddTemplateVisible}
-                        content={
-                          <div className={styles.templates}>
-                            {connectorSource.collectionTemplates.map(
-                              (template: CollectionTemplate, index) => (
-                                <div
-                                  key={template.templateName}
-                                  className={styles.template}
-                                >
-                                  <div>
-                                    <p className="font-bold capitalize">
-                                      {template.templateName}
-                                    </p>
-                                    {template.description && (
-                                      <p className={styles.comment}>
-                                        {template.description}
-                                      </p>
-                                    )}
-                                    <p>
-                                      Streams:{" "}
-                                      <span className={styles.comment}>
-                                        {template.collections
-                                          .map<React.ReactNode>((s) => (
-                                            <>{s.name ?? s.type}</>
-                                          ))
-                                          .reduce((prev, curr) => [
-                                            prev,
-                                            ", ",
-                                            curr,
-                                          ])}
-                                      </span>
-                                    </p>
-                                  </div>
-                                  <Button
-                                    type="primary"
-                                    className={styles.button}
-                                    onClick={() => {
-                                      handleApplyTemplate(index, operation);
-                                      setAddTemplateVisible(false);
-                                    }}
-                                  >
-                                    Apply
-                                  </Button>
-                                </div>
-                              )
-                            )}
-                          </div>
-                        }
-                        trigger="click"
-                      >
-                        <Button className="mr-4" size={"large"}>
-                          Use template
-                        </Button>
-                      </Popover>
-                    </>
-                  )}
-                </Col>
-              </Row>
-              <Collapse
-                activeKey={activePanel}
-                onChange={(v) => setActivePanel(v as string[])}
-                expandIcon={({ isActive }) => (
-                  <CaretRightOutlined rotate={isActive ? 90 : 0} />
+                  </>
                 )}
-              >
-                {fields.map((field: FormListFieldData) => {
-                  return (
-                    <Panel
-                      key={
-                        getStream(field.name)._id ?? getStream(field.name).name
-                      }
-                      header={
-                        <div className={"grid grid-cols-3"}>
-                          <div className={"whitespace-nowrap"}>
-                            Name:&nbsp;&nbsp;<b>{getStream(field.name).name}</b>
-                          </div>
-                          <div className={"whitespace-nowrap"}>
-                            Type:&nbsp;&nbsp;<b>{getStream(field.name).type}</b>
-                          </div>
-                          <div className={"text-right pr-8"}>
-                            {getFormErrors(field.name).length > 0 && (
-                              <span style={{ color: "red" }}>
-                                {" "}
-                                {getFormErrors(field.name).length} errors
-                              </span>
-                            )}
-                          </div>
+              </Col>
+            </Row>
+            <Collapse
+              activeKey={activePanel}
+              onChange={(v) => setActivePanel(v as string[])}
+              expandIcon={({ isActive }) => (
+                <CaretRightOutlined rotate={isActive ? 90 : 0} />
+              )}
+            >
+              {fields.map((field: FormListFieldData) => {
+                return (
+                  <Panel
+                    key={
+                      getStream(field.name)._id ?? getStream(field.name).name
+                    }
+                    header={
+                      <div className={'grid grid-cols-3'}>
+                        <div className={'whitespace-nowrap'}>
+                          Name:&nbsp;&nbsp;<b>{getStream(field.name).name}</b>
                         </div>
-                      }
-                      extra={
-                        <DeleteOutlined
-                          className={styles.delete}
-                          onClick={(event) => {
-                            remove(field.name, operation);
-                            event.stopPropagation();
-                          }}
-                        />
-                      }
-                    >
-                      <div className={styles.item} key={field.name}>
-                        <>
-                          <Row>
-                            <Col span={16}>
-                              <Form.Item
-                                className="form-field_fixed-label"
-                                label={
-                                  <LabelWithTooltip
-                                    documentation={
-                                      <>
-                                        Will be used as table name prefixed with
-                                        source_id. Table name will be:
-                                        <br />
-                                        <CodeInline>
-                                          {initialValues.sourceId}_
-                                          <b>
-                                            {getStream(field.name).name ??
-                                              "[Name]"}
-                                          </b>
-                                        </CodeInline>
-                                      </>
-                                    }
-                                    render={<>Name:</>}
-                                  />
-                                }
-                                name={[field.name, "name"]}
-                                rules={[
-                                  {
-                                    required: true,
-                                    message:
-                                      "Field is required. You can remove this collection.",
-                                  },
-                                  {
-                                    validator: (rule: any, value: string) => {
-                                      const formValues = form.getFieldsValue();
-                                      const isError = formValues.collections
-                                        .map(
-                                          (collection, index) =>
-                                            index !== field.name &&
-                                            collection.name
-                                        )
-                                        .includes(value);
-
-                                      return isError
-                                        ? Promise.reject(
-                                            "Must be unique under the current collection"
-                                          )
-                                        : Promise.resolve();
-                                    },
-                                  },
-                                ]}
-                                labelCol={{ span: 6 }}
-                                wrapperCol={{ span: 18 }}
-                              >
-                                <Input
-                                  autoComplete="off"
-                                  ref={input}
-                                  onChange={(e) =>
-                                    handleTouchParameter(field.name, e)
-                                  }
-                                />
-                              </Form.Item>
-                            </Col>
-                          </Row>
-                          {getCollectionParameters(field.name).map(
-                            (collection: CollectionParameter) => (
-                              <SourceFormCollectionsField
-                                documentation={collection.documentation}
-                                field={field}
-                                key={collection.id}
-                                collection={collection}
-                                handleFormFieldsChange={handleTouchAnyField}
-                              />
-                            )
+                        <div className={'whitespace-nowrap'}>
+                          Type:&nbsp;&nbsp;<b>{getStream(field.name).type}</b>
+                        </div>
+                        <div className={'text-right pr-8'}>
+                          {getFormErrors(field.name).length > 0 && (
+                            <span style={{ color: 'red' }}>
+                              {' '}
+                              {getFormErrors(field.name).length} errors
+                            </span>
                           )}
-                        </>
+                        </div>
                       </div>
-                    </Panel>
-                  );
-                })}
-              </Collapse>
-            </>
-          )}
-        </Form.List>
-      </Form>
-    </>
+                    }
+                    extra={
+                      <DeleteOutlined
+                        className={styles.delete}
+                        onClick={(event) => {
+                          remove(field.name, operation);
+                          event.stopPropagation();
+                        }}
+                      />
+                    }
+                  >
+                    <div className={styles.item} key={field.name}>
+                      <>
+                        <Row>
+                          <Col span={16}>
+                            <Form.Item
+                              className="form-field_fixed-label"
+                              label={
+                                <LabelWithTooltip
+                                  documentation={
+                                    <>
+                                      Will be used as table name prefixed with
+                                      source_id. Table name will be:
+                                      <br />
+                                      <CodeInline>
+                                        {initialValues.sourceId}_
+                                        <b>
+                                          {getStream(field.name).name ??
+                                            '[Name]'}
+                                        </b>
+                                      </CodeInline>
+                                    </>
+                                  }
+                                  render={<>Name:</>}
+                                />
+                              }
+                              name={[field.name, 'name']}
+                              rules={[
+                                {
+                                  required: true,
+                                  message:
+                                    'Field is required. You can remove this collection.'
+                                },
+                                {
+                                  validator: (rule: any, value: string) => {
+                                    const formValues = form.getFieldsValue();
+                                    const isError = formValues.collections
+                                      .map(
+                                        (collection, index) =>
+                                          index !== field.name &&
+                                          collection.name
+                                      )
+                                      .includes(value);
+
+                                    return isError
+                                      ? Promise.reject(
+                                          'Must be unique under the current collection'
+                                        )
+                                      : Promise.resolve();
+                                  }
+                                }
+                              ]}
+                              labelCol={{ span: 6 }}
+                              wrapperCol={{ span: 18 }}
+                            >
+                              <Input
+                                autoComplete="off"
+                                ref={input}
+                                onChange={(e) =>
+                                  handleTouchParameter(field.name, e)
+                                }
+                              />
+                            </Form.Item>
+                          </Col>
+                        </Row>
+                        {getCollectionParameters(field.name).map(
+                          (collection: CollectionParameter) => (
+                            <SourceFormCollectionsField
+                              documentation={collection.documentation}
+                              field={field}
+                              key={collection.id}
+                              collection={collection}
+                              handleFormFieldsChange={handleTouchAnyField}
+                            />
+                          )
+                        )}
+                      </>
+                    </div>
+                  </Panel>
+                );
+              })}
+            </Collapse>
+          </>
+        )}
+      </Form.List>
+    </Form>
   );
 };
 SourceEditorStreams.displayName = "SourceEditorStreams";

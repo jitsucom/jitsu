@@ -325,24 +325,10 @@ export interface SourceConnector {
    */
   pic: ReactNode;
   /**
-   * Parameters of each collection
-   */
-  collectionParameters: CollectionParameter[];
-  /**
    * Indicates whether to use only static collections or to allow user to
    * add custom ones
    */
   forbidCustomCollections?: boolean;
-  /**
-   * A list of non-configurable collections that can only be turned off
-   */
-  staticCollections?: SourceCollection[];
-  /**
-   * A function of the SourceConnector `config parameters` that loads
-   * available `static collections` dynamically if `config parameters`
-   * are valid
-   */
-  loadStaticCollections?: (config: unknown) => Promise<SourceCollection[]>;
   /**
    * Configuration parameters
    */
@@ -350,7 +336,11 @@ export interface SourceConnector {
   /**
    * `true` if need to additionally load `configParameters`
    */
-  hasLoadableParameters?: boolean;
+  hasLoadableConfigParameters?: boolean;
+  /**
+   * Parameters of each collection
+   */
+  collectionParameters: CollectionParameter[];
   /**
    * If collections are limited to certain names, list them here
    */
@@ -359,6 +349,16 @@ export interface SourceConnector {
    * Collection templates
    */
   collectionTemplates?: CollectionTemplate[];
+  /**
+   * A list of non-configurable collections that can only be turned on/off
+   */
+  staticCollections?: SourceCollection[];
+  /**
+   * API endpoint which should be requested for static streams config
+   * For now, if it is specified other streams (collections) will be ignored
+   * See SourceEditorStreams component for more detail
+   */
+  staticStreamsConfigEndpoint?: string;
   /**
    * API Connector documentation
    */

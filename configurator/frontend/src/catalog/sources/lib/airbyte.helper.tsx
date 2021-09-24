@@ -27,7 +27,7 @@ export const makeAirbyteSource = (
     collectionTypes: [],
     documentation: airbyteSource.documentation,
     collectionParameters: [],
-    staticStreamsConfigEndpoint: `/api/v1/airbyte/${dockerImageNameWithoutPrefix}/catalog`,
+    staticStreamsConfigEndpoint: `/airbyte/${dockerImageNameWithoutPrefix}/catalog`,
     configParameters: [
       {
         displayName: 'Airbyte Connector',
