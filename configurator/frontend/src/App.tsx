@@ -17,17 +17,18 @@ import {User} from './lib/services/model';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from './Layout';
-import { initPaymentPlan, PaymentPlanStatus } from 'lib/services/billing';
+import { checkQuotas, getCurrentSubscription, CurrentSubscription } from 'lib/services/billing';
 import { OnboardingTour } from 'lib/components/OnboardingTour/OnboardingTour';
 import { initializeAllStores } from 'stores/_initializeAllStores';
 import { destinationsStore } from './stores/destinations';
 import { sourcesStore } from './stores/sources';
+import BillingBlockingModal from './lib/components/BillingModal/BillingBlockingModal';
 
 enum AppLifecycle {
   LOADING, //Application is loading
   REQUIRES_LOGIN, //Login form is displayed
   APP, //Application
-  ERROR //Global error (maintenance) 
+  ERROR //Global error (maintenance)
 }
 
 type AppState = {
@@ -35,14 +36,14 @@ type AppState = {
   globalErrorDetails?: string;
   extraControls?: React.ReactNode;
   user?: User;
-  paymentPlanStatus?: PaymentPlanStatus;
+  paymentPlanStatus?: CurrentSubscription;
 };
 
 export const initializeApplication = async (
   services: ApplicationServices = ApplicationServices.get()
 ): Promise<{
   user: User;
-  paymentPlanStatus: PaymentPlanStatus;
+  paymentPlanStatus: CurrentSubscription;
 }> => {
   await services.init();
   const { user } = await services.userService.waitForUser();
@@ -53,15 +54,16 @@ export const initializeApplication = async (
 
   await initializeAllStores();
 
-  let paymentPlanStatus: PaymentPlanStatus;
+  let paymentPlanStatus: CurrentSubscription;
   if (user && services.features.billingEnabled) {
-    paymentPlanStatus = await initPaymentPlan(
+    paymentPlanStatus = await getCurrentSubscription(
       services.activeProject,
       services.backendApiClient,
       destinationsStore,
       sourcesStore
     );
   }
+  services.currentSubscription = paymentPlanStatus;
 
   return { user, paymentPlanStatus };
 };
@@ -86,9 +88,7 @@ export default class App extends React.Component<{}, AppState> {
 
     public async componentDidMount() {
         try {
-            const { user, paymentPlanStatus } = await initializeApplication(
-              this.services
-            );
+            const { user, paymentPlanStatus } = await initializeApplication(this.services);
 
             this.setState({
               lifecycle: user ? AppLifecycle.APP : AppLifecycle.REQUIRES_LOGIN,
@@ -186,7 +186,7 @@ export default class App extends React.Component<{}, AppState> {
 
         routes.push(<Redirect key="dashboardRedirect" from="*" to="/dashboard"/>);
 
-        const extraForms = <OnboardingTour />;
+        const extraForms = [<OnboardingTour />];
         if (this.services.userService.getUser().forcePasswordChange) {
             return (
                 <SetNewPassword
@@ -195,6 +195,12 @@ export default class App extends React.Component<{}, AppState> {
                     }}
                 />
             );
+        } else if (this.state.paymentPlanStatus) {
+          const quotasMessage = checkQuotas(this.state.paymentPlanStatus);
+          if (quotasMessage) {
+            extraForms.push(<BillingBlockingModal blockingReason={quotasMessage} subscription={this.state.paymentPlanStatus}/>)
+          }
+
         }
         return (
             <>

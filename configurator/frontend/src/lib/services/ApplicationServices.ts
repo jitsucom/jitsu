@@ -16,6 +16,7 @@ import {
 import { HttpServerStorage, ServerStorage } from './ServerStorage';
 import { UserService } from './UserService';
 import { ApplicationConfiguration } from './ApplicationConfiguration';
+import { CurrentSubscription } from './billing';
 
 export interface IApplicationServices {
   init(): Promise<void>;
@@ -39,6 +40,7 @@ export default class ApplicationServices implements IApplicationServices {
 
   public onboardingNotCompleteErrorMessage =
     "Onboarding process hasn't been fully completed. Please, contact the support";
+  private _currentSubscription: CurrentSubscription;
 
   constructor() {
     this._applicationConfiguration = new ApplicationConfiguration();
@@ -96,6 +98,14 @@ export default class ApplicationServices implements IApplicationServices {
 
   get analyticsService(): AnalyticsService {
     return this._analyticsService;
+  }
+
+  get currentSubscription(): CurrentSubscription {
+    return this._currentSubscription;
+  }
+
+  set currentSubscription(value: CurrentSubscription) {
+    this._currentSubscription = value;
   }
 
   static get(): ApplicationServices {

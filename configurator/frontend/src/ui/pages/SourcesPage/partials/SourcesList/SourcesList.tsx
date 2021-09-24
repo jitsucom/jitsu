@@ -31,6 +31,7 @@ import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
 import { taskLogsPageRoute } from 'ui/pages/TaskLogs/TaskLogsPage';
 import { withProgressBar } from 'lib/components/components';
+import { showSubscriptionLimitation } from '../../../../../lib/services/billing';
 
 const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
   const history = useHistory();
@@ -52,12 +53,12 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
     []
   );
 
-  const scheduleTasks = async (src: SourceData, full = false) => {
+  const scheduleTasks = async(src: SourceData, full = false) => {
     await withProgressBar({
       estimatedMs: 200,
       maxRetries: 2,
       retryDelayMs: 2000,
-      callback: async () => {
+      callback: async() => {
         if (full) {
           await services.backendApiClient.post(
             '/sources/clear_cache',
@@ -100,7 +101,13 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
   };
 
   const handleAddClick = useCallback(
-    () => history.push(sourcesPageRoutes.add),
+    () => {
+      if (sourcesStore.sources.length >= services.currentSubscription.currentPlan.quota.sources) {
+        showSubscriptionLimitation(services.currentSubscription, <>You current plan allows to have only {services.currentSubscription.currentPlan.quota.sources} sources</>)
+        return;
+      }
+      history.push(sourcesPageRoutes.add)
+    },
     [history]
   );
 
@@ -166,7 +173,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
                           <Menu.Item key="inc">
                             <Button
                               type="link"
-                              onClick={async () =>
+                              onClick={async() =>
                                 await scheduleTasks(src, false)
                               }
                             >
@@ -175,7 +182,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
                           </Menu.Item>
                           <Menu.Item key="all">
                             <Button
-                              onClick={async () =>
+                              onClick={async() =>
                                 await scheduleTasks(src, true)
                               }
                               type="link"
