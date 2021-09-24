@@ -242,23 +242,24 @@ export type Parameter = {
    * Type of parameter
    */
   type?: ParameterType<any>;
-
   /**
    * Default value (should be displayed by default)
    */
   defaultValue?: any;
-
   /**
    *  Flag describes required/optional nature of the field. IF empty - field is optional
    *  Either constant or function of current config
    */
   required?: ConstantOrFunction<any, any>;
-
   /**
    * Documentation
    */
   documentation?: ReactNode;
-
+  /**
+   * IDs of parameters that should include this parameter as a nested one. The first ID
+   * in the array belongs to the closest parent parameter.
+   */
+  parentParametersIds?: string[];
   /**
    * Either constant or function of current config (to be able to hide fields based on rules)
    *
@@ -270,11 +271,10 @@ export type Parameter = {
    * use `omitFieldRule` function.
    */
   constant?: ConstantOrFunction<any, any>;
-
   /**
    * Function of current config that shows whether to use field (render and send value) or not.
    */
-  omitFieldRule?: (config: unknown) => boolean
+  omitFieldRule?: (config: unknown) => boolean;
 };
 
 export interface CollectionParameter extends Parameter {
@@ -284,6 +284,8 @@ export interface CollectionParameter extends Parameter {
    */
   applyOnlyTo?: string[] | string;
 }
+
+export type SourceCollection = CollectionParameter[];
 
 type SourceConnectorId =
   | 'facebook_marketing'
@@ -304,7 +306,6 @@ export interface SourceConnector {
    * Enable collection Start Date parameter.
    * */
   isStartDateEnabled?: boolean;
-
   /**
    * If connector requires expert-level knowledge (such as JSON editing)
    *
@@ -324,36 +325,46 @@ export interface SourceConnector {
    */
   pic: ReactNode;
   /**
-   * Parameters of each collection
+   * Indicates whether to use only static collections or to allow user to
+   * add custom ones
    */
-  collectionParameters: CollectionParameter[];
+  forbidCustomCollections?: boolean;
   /**
    * Configuration parameters
    */
   configParameters: Parameter[];
-
   /**
    * `true` if need to additionally load `configParameters`
    */
-  hasLoadableParameters?: boolean;
-
+  hasLoadableConfigParameters?: boolean;
+  /**
+   * Parameters of each collection
+   */
+  collectionParameters: CollectionParameter[];
   /**
    * If collections are limited to certain names, list them here
    */
   collectionTypes: string[];
-
   /**
    * Collection templates
    */
   collectionTemplates?: CollectionTemplate[];
-
+  /**
+   * A list of non-configurable collections that can only be turned on/off
+   */
+  staticCollections?: SourceCollection[];
+  /**
+   * API endpoint which should be requested for static streams config
+   * For now, if it is specified other streams (collections) will be ignored
+   * See SourceEditorStreams component for more detail
+   */
+  staticStreamsConfigEndpoint?: string;
   /**
    * API Connector documentation
    */
   documentation?: ConnectorDocumentation;
-
   /**
-   * If true, user won't be able to add new sources of this type 
+   * If true, user won't be able to add new sources of this type
    * yet it will be possible to edit the existing ones
    */
   deprecated?: boolean;

@@ -90,6 +90,7 @@ export type RawConfigObject = {
 };
 
 function getRawApplicationConfig(): RawConfigObject {
+  console.log('FIREBASE', process.env.FIREBASE_CONFIG);
   return {
     env: process.env || {},
     firebase: parseJson(process.env.FIREBASE_CONFIG, null),
