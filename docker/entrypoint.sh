@@ -66,15 +66,6 @@ if [[ -z "$CONFIGURATOR_ADMIN_TOKEN" ]]; then
   echo "Generated Jitsu configurator admin token: $CONFIGURATOR_ADMIN_TOKEN"
 fi
 
-# Jitsu UI authorization access secret
-if [[ -z "$UI_AUTH_ACCESS_SECRET" ]]; then
-  export UI_AUTH_ACCESS_SECRET=$(random)
-fi
-
-# Jitsu UI authorization refresh secret
-if [[ -z "$UI_AUTH_REFRESH_SECRET" ]]; then
-  export UI_AUTH_REFRESH_SECRET=$(random)
-fi
 
 # Apply bashrc
 source ~/.bashrc
