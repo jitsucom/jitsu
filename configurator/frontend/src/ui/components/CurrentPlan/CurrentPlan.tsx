@@ -68,7 +68,7 @@ export const CurrentPlan: React.FC<CurrentPlanProps> = ({
               <tr>
                 <td className={styles.limitName}>Destinations</td>
                 <td className={styles.limitValue}>
-                  {numberFormat(planStatus.usage.sources)} /{' '}
+                  {numberFormat(planStatus.usage.destinations)} /{' '}
                   {numberFormat(planStatus.currentPlan.quota.destinations)}
                 </td>
               </tr>
