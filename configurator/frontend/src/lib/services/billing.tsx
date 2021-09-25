@@ -110,6 +110,10 @@ export type CurrentSubscription = {
    * Autorenew
    */
   autorenew: boolean
+  /**
+   * If UI shouldn't be blocked
+   */
+  doNotBlock: boolean
 };
 
 /**
@@ -141,6 +145,11 @@ export type FirebaseSubscriptionEntry = {
    * Current id of the customer
    */
   stripeCustomerId?: string
+
+  /**
+   * If UI shouldn't be blocked
+   */
+  doNotBlock?: boolean
 }
 
 /**
@@ -170,7 +179,8 @@ function parseSubscription(fb: FirebaseSubscriptionEntry, usage: Usage): Readonl
     stripeCustomerId: fb.stripeCustomerId,
     usage,
     autorenew: !!fb.stripeCustomerId,
-    expiration: fb.subscriptionExpires ? moment(fb.subscriptionExpires) : moment(quotaPeriodStart).add(1, 'M')
+    expiration: fb.subscriptionExpires ? moment(fb.subscriptionExpires) : moment(quotaPeriodStart).add(1, 'M'),
+    doNotBlock: !!fb.doNotBlock
   }
 }
 
@@ -224,6 +234,9 @@ export async function getCurrentSubscription(
  * Checks if user is over the limits. Returns the description
  */
 export function checkQuotas(status: CurrentSubscription): React.ReactElement {
+  if (status.doNotBlock) {
+    return null;
+  }
   if (status.usage.sources > status.currentPlan.quota.sources) {
     return <>
       you currently using {status.usage.sources} sources which is above <b>{status.currentPlan.id}</b> plan limit{' '}
