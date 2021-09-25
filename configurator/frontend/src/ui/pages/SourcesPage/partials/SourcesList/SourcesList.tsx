@@ -31,7 +31,7 @@ import { sourcesPageRoutes } from 'ui/pages/SourcesPage/SourcesPage.routes';
 import { sourcePageUtils } from 'ui/pages/SourcesPage/SourcePage.utils';
 import { taskLogsPageRoute } from 'ui/pages/TaskLogs/TaskLogsPage';
 import { withProgressBar } from 'lib/components/components';
-import { showSubscriptionLimitation } from '../../../../../lib/services/billing';
+import { showQuotaLimitModal } from '../../../../../lib/services/billing';
 
 const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
   const history = useHistory();
@@ -103,7 +103,7 @@ const SourcesListComponent = ({ setBreadcrumbs }: CommonSourcePageProps) => {
   const handleAddClick = useCallback(
     () => {
       if (sourcesStore.sources.length >= services.currentSubscription.currentPlan.quota.sources) {
-        showSubscriptionLimitation(services.currentSubscription, <>You current plan allows to have only {services.currentSubscription.currentPlan.quota.sources} sources</>)
+        showQuotaLimitModal(services.currentSubscription, <>You current plan allows to have only {services.currentSubscription.currentPlan.quota.sources} sources</>)
         return;
       }
       history.push(sourcesPageRoutes.add)
