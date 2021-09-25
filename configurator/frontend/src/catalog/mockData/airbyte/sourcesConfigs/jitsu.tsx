@@ -12,7 +12,7 @@ import {
 
 export const hubspot: Parameter[] = [
   {
-    id: 'config.config.connectionSpecification.start_date',
+    id: 'config.config.start_date',
     displayName: 'Start Date',
     type: makeStringType({
       pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
@@ -28,7 +28,7 @@ export const hubspot: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.credentials.api_key',
+    id: 'config.config.credentials.api_key',
     displayName: 'API Key',
     type: passwordType,
     required: true,
@@ -45,7 +45,7 @@ export const hubspot: Parameter[] = [
 
 export const mysql: Parameter[] = [
   {
-    id: 'config.config.connectionSpecification.host',
+    id: 'config.config.host',
     displayName: 'Host',
     type: stringType,
     required: true,
@@ -54,7 +54,7 @@ export const mysql: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.port',
+    id: 'config.config.port',
     displayName: 'Port',
     type: makeIntType({ minimum: 0, maximum: 65536 }),
     defaultValue: 3306,
@@ -64,7 +64,7 @@ export const mysql: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.database',
+    id: 'config.config.database',
     displayName: 'Database',
     type: stringType,
     required: true,
@@ -73,7 +73,7 @@ export const mysql: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.username',
+    id: 'config.config.username',
     displayName: 'Username',
     type: stringType,
     required: true,
@@ -86,7 +86,7 @@ export const mysql: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.password',
+    id: 'config.config.password',
     displayName: 'Password',
     type: passwordType,
     required: false,
@@ -99,7 +99,7 @@ export const mysql: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.jdbc_url_params',
+    id: 'config.config.jdbc_url_params',
     displayName: 'JDBC URL Params',
     type: stringType,
     required: false,
@@ -113,7 +113,7 @@ export const mysql: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.replication_method',
+    id: 'config.config.replication_method',
     displayName: 'Replication Method',
     type: singleSelectionType(['STANDARD', 'CDC']),
     defaultValue: 'STANDARD',
@@ -131,7 +131,7 @@ export const mysql: Parameter[] = [
 
 export const mongodb: Parameter[] = [
   {
-    id: 'config.config.connectionSpecification.host',
+    id: 'config.config.host',
     displayName: 'Host',
     type: stringType,
     required: true,
@@ -144,7 +144,7 @@ export const mongodb: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.port',
+    id: 'config.config.port',
     displayName: 'Port',
     type: makeIntType({ minimum: 0, maximum: 65536 }),
     defaultValue: 27017,
@@ -158,7 +158,7 @@ export const mongodb: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.database',
+    id: 'config.config.database',
     displayName: 'Database Name',
     type: stringType,
     required: true,
@@ -169,21 +169,21 @@ export const mongodb: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.user',
+    id: 'config.config.user',
     displayName: 'User',
     type: stringType,
     required: true,
     documentation: <span dangerouslySetInnerHTML={{ __html: 'User' }} />
   },
   {
-    id: 'config.config.connectionSpecification.password',
+    id: 'config.config.password',
     displayName: 'Password',
     type: passwordType,
     required: true,
     documentation: <span dangerouslySetInnerHTML={{ __html: 'Password' }} />
   },
   {
-    id: 'config.config.connectionSpecification.auth_source',
+    id: 'config.config.auth_source',
     displayName: 'Authentication Source',
     type: stringType,
     defaultValue: 'admin',
@@ -198,7 +198,7 @@ export const mongodb: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.replica_set',
+    id: 'config.config.replica_set',
     displayName: 'Replica Set',
     type: stringType,
     defaultValue: '',
@@ -213,7 +213,7 @@ export const mongodb: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.ssl',
+    id: 'config.config.ssl',
     displayName: 'TLS Connection',
     type: booleanType,
     defaultValue: false,
@@ -231,7 +231,7 @@ export const mongodb: Parameter[] = [
 
 export const googleAds: Parameter[] = [
   {
-    id: 'config.config.connectionSpecification.credentials.developer_token',
+    id: 'config.config.credentials.developer_token',
     displayName: 'Developer Token',
     type: passwordType,
     required: true,
@@ -245,7 +245,7 @@ export const googleAds: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.credentials.client_id',
+    id: 'config.config.credentials.client_id',
     displayName: 'Client ID',
     type: stringType,
     required: true,
@@ -259,7 +259,7 @@ export const googleAds: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.credentials.client_secret',
+    id: 'config.config.credentials.client_secret',
     displayName: 'Client Secret',
     type: passwordType,
     required: true,
@@ -273,7 +273,7 @@ export const googleAds: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.credentials.refresh_token',
+    id: 'config.config.credentials.refresh_token',
     displayName: 'Refresh Token',
     type: passwordType,
     required: true,
@@ -287,7 +287,7 @@ export const googleAds: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.customer_id',
+    id: 'config.config.customer_id',
     displayName: 'Customer ID',
     type: stringType,
     required: true,
@@ -301,7 +301,7 @@ export const googleAds: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.login_customer_id',
+    id: 'config.config.login_customer_id',
     displayName: 'Login Customer ID',
     type: stringType,
     required: false,
@@ -315,7 +315,7 @@ export const googleAds: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.start_date',
+    id: 'config.config.start_date',
     displayName: 'Start Date',
     type: makeStringType({ pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' }),
     required: true,
@@ -329,7 +329,7 @@ export const googleAds: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.conversion_window_days',
+    id: 'config.config.conversion_window_days',
     displayName: 'Conversion Window',
     type: makeIntType({ minimum: 0, maximum: 1095 }),
     defaultValue: 14,
@@ -346,7 +346,7 @@ export const googleAds: Parameter[] = [
 
 export const postgres: Parameter[] = [
   {
-    id: 'config.config.connectionSpecification.host',
+    id: 'config.config.host',
     displayName: 'Host',
     type: stringType,
     required: true,
@@ -355,7 +355,7 @@ export const postgres: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.port',
+    id: 'config.config.port',
     displayName: 'Port',
     type: makeIntType({ minimum: 0, maximum: 65536 }),
     defaultValue: 5432,
@@ -365,7 +365,7 @@ export const postgres: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.database',
+    id: 'config.config.database',
     displayName: 'DB Name',
     type: stringType,
     required: true,
@@ -374,7 +374,7 @@ export const postgres: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.username',
+    id: 'config.config.username',
     displayName: 'User',
     type: stringType,
     required: true,
@@ -387,7 +387,7 @@ export const postgres: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.password',
+    id: 'config.config.password',
     displayName: 'Password',
     type: passwordType,
     required: false,
@@ -400,7 +400,7 @@ export const postgres: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.ssl',
+    id: 'config.config.ssl',
     displayName: 'Connect Using SSL',
     type: booleanType,
     defaultValue: false,
@@ -414,7 +414,7 @@ export const postgres: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.replication_method.method',
+    id: 'config.config.replication_method.method',
     displayName: 'Replication Method',
     type: singleSelectionType(['Standard', 'CDC']),
     defaultValue: 'Standard',
@@ -429,7 +429,7 @@ export const postgres: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.replication_method.plugin',
+    id: 'config.config.replication_method.plugin',
     displayName: 'Plugin',
     defaultValue: 'pgoutput',
     type: singleSelectionType(['pgoutput', 'wal2json']),
@@ -447,7 +447,7 @@ export const postgres: Parameter[] = [
     }
   },
   {
-    id: 'config.config.connectionSpecification.replication_method.replication_slot',
+    id: 'config.config.replication_method.replication_slot',
     displayName: 'Replication Slot',
     type: stringType,
     required: true,
@@ -463,7 +463,7 @@ export const postgres: Parameter[] = [
     }
   },
   {
-    id: 'config.config.connectionSpecification.replication_method.publication',
+    id: 'config.config.replication_method.publication',
     displayName: 'Publication',
     type: stringType,
     required: true,
@@ -479,7 +479,7 @@ export const postgres: Parameter[] = [
     }
   },
   {
-    id: 'config.config.connectionSpecification.tunnel_method.tunnel_method',
+    id: 'config.config.tunnel_method.tunnel_method',
     displayName: 'SSH Tunnel Method',
     defaultValue: 'NO_TUNNEL',
     // type: singleSelectionType([
@@ -503,7 +503,7 @@ export const postgres: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.tunnel_method.tunnel_host',
+    id: 'config.config.tunnel_method.tunnel_host',
     displayName: 'SSH Tunnel Jump Server Host',
     type: stringType,
     required: true,
@@ -520,7 +520,7 @@ export const postgres: Parameter[] = [
     }
   },
   {
-    id: 'config.config.connectionSpecification.tunnel_method.tunnel_port',
+    id: 'config.config.tunnel_method.tunnel_port',
     displayName: 'SSH Connection Port',
     type: makeIntType({ minimum: 0, maximum: 65536 }),
     defaultValue: 22,
@@ -538,7 +538,7 @@ export const postgres: Parameter[] = [
     }
   },
   {
-    id: 'config.config.connectionSpecification.tunnel_method.tunnel_user',
+    id: 'config.config.tunnel_method.tunnel_user',
     displayName: 'SSH Login Username',
     type: stringType,
     required: true,
@@ -554,7 +554,7 @@ export const postgres: Parameter[] = [
     }
   },
   {
-    id: 'config.config.connectionSpecification.tunnel_method.ssh_key',
+    id: 'config.config.tunnel_method.ssh_key',
     displayName: 'SSH Private Key',
     type: makeStringType({ multiline: true }),
     required: true,
@@ -571,7 +571,7 @@ export const postgres: Parameter[] = [
     }
   },
   {
-    id: 'config.config.connectionSpecification.tunnel_method.tunnel_host',
+    id: 'config.config.tunnel_method.tunnel_host',
     displayName: 'SSH Tunnel Jump Server Host',
     type: stringType,
     required: true,
@@ -588,7 +588,7 @@ export const postgres: Parameter[] = [
     }
   },
   {
-    id: 'config.config.connectionSpecification.tunnel_method.tunnel_port',
+    id: 'config.config.tunnel_method.tunnel_port',
     displayName: 'SSH Connection Port',
     type: makeIntType({ minimum: 0, maximum: 65536 }),
     defaultValue: 22,
@@ -606,7 +606,7 @@ export const postgres: Parameter[] = [
     }
   },
   {
-    id: 'config.config.connectionSpecification.tunnel_method.tunnel_user',
+    id: 'config.config.tunnel_method.tunnel_user',
     displayName: 'SSH Login Username',
     type: stringType,
     required: true,
@@ -622,7 +622,7 @@ export const postgres: Parameter[] = [
     }
   },
   {
-    id: 'config.config.connectionSpecification.tunnel_method.tunnel_user_password',
+    id: 'config.config.tunnel_method.tunnel_user_password',
     displayName: 'Password',
     type: passwordType,
     required: true,
@@ -641,7 +641,7 @@ export const postgres: Parameter[] = [
 
 export const braintree: Parameter[] = [
   {
-    id: 'config.config.connectionSpecification.environment',
+    id: 'config.config.environment',
     displayName: 'Environment',
     type: selectionType(['Development', 'Sandbox', 'Qa', 'Production'], 1),
     required: true,
@@ -654,7 +654,7 @@ export const braintree: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.merchant_id',
+    id: 'config.config.merchant_id',
     displayName: 'Merchant ID',
     type: stringType,
     required: true,
@@ -668,7 +668,7 @@ export const braintree: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.private_key',
+    id: 'config.config.private_key',
     displayName: 'Private Key',
     type: passwordType,
     required: true,
@@ -681,7 +681,7 @@ export const braintree: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.public_key',
+    id: 'config.config.public_key',
     displayName: 'Public Key',
     type: stringType,
     required: true,
@@ -694,7 +694,7 @@ export const braintree: Parameter[] = [
     )
   },
   {
-    id: 'config.config.connectionSpecification.start_date',
+    id: 'config.config.start_date',
     displayName: 'Start Date',
     type: stringType,
     required: false,

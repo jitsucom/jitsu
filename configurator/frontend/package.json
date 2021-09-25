@@ -35,8 +35,6 @@
   "scripts": {
     "clean": "rm -rf ./node_modules/ build dist",
     "start": "NODE_ENV=development craco start",
-    "start:local": "yarn set_local_env craco start",
-    "start:cloud": "yarn set_cloud_env craco start",
     "build": "NODE_ENV=production craco build",
     "test:debug": "craco --inspect-brk test --runInBand --no-cache",
     "eslint:check": "eslint . --ext .tx,.tsx --ignore-pattern node_modules/",
@@ -75,6 +73,7 @@
     "monaco-editor-webpack-plugin": "^3.0.1",
     "msw": "^0.30.1",
     "postcss": "^7",
+    "prettier": "^2.4.1",
     "progress-bar-webpack-plugin": "^2.1.0",
     "react-scripts": "4.0.3",
     "source-map-explorer": "^2.5.2",

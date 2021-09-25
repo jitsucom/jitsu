@@ -57,6 +57,26 @@ export function assert(condition: boolean, errMsg?: string): asserts condition {
 }
 
 /**
+ * Asserts whether the value is string - if not, throws an error.
+ * Useful for making type checks that will provide type narrowing.
+ *
+ * @param value value to assert
+ * @param errMsg error message to throw if assertion fails
+ *
+ * @returns void or never
+ *
+ */
+ export function assertIsString(
+  value: unknown,
+  errMsg?: string
+): asserts value is string {
+  assert(
+    typeof value === 'string',
+    errMsg || `array assertion failed - ${value} is not an array`
+  );
+}
+
+/**
  * Asserts whether the value is array - if not, throws an error.
  * Useful for making type checks that will provide type narrowing.
  *

@@ -660,4 +660,4 @@ export const braintree = {
     type: 'object'
   },
   documentationUrl: 'https://docs.airbyte.io/integrations/sources/braintree'
-};
+} as const;
