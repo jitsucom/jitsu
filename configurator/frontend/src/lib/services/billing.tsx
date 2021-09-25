@@ -17,54 +17,62 @@ import { ReactElement } from 'react';
 
 export type PricingPlanId = 'free' | 'growth' | 'premium' | 'enterprise';
 
+export interface Quota extends Usage {
+  //allowed schedules (sync frequency), see schedule.ts for IDs
+  allowedSchedules: string[]
+}
+
 export type PricingPlan = {
   name: string;
   id: PricingPlanId;
-  quota: Usage
+  quota: Quota
   price?: number;
 };
 
-export const paymentPlans: Record<PricingPlanId, PricingPlan> = {
-  free: {
-    name: 'Startup',
-    id: 'free',
-    quota: {
-      destinations: 2,
-      sources: 1,
-      events: 250_000
-    },
-    price: 0
+const free: PricingPlan = {
+  name: 'Startup',
+  id: 'free',
+  quota: {
+    destinations: 2,
+    sources: 1,
+    events: 250_000,
+    allowedSchedules: ['1d']
   },
-  growth: {
-    name: 'Growth',
-    id: 'growth',
-    quota: {
-      destinations: 10,
-      sources: 5,
-      events: 1_000_000
-    },
-    price: 99
+  price: 0
+};
+const growth: PricingPlan = {
+  name: 'Growth',
+  id: 'growth',
+  quota: {
+    destinations: 10,
+    sources: 5,
+    events: 1_000_000,
+    allowedSchedules: ['1d', '1h', '5m']
   },
-  premium: {
-    name: 'Premium',
-    id: 'premium',
-    quota: {
-      destinations: 10,
-      sources: 15,
-      events: 10_000_000
-    },
-    price: 299
+  price: 99
+};
+const premium: PricingPlan = {
+  name: 'Premium',
+  id: 'premium',
+  quota: {
+    destinations: 10,
+    sources: 15,
+    events: 10_000_000,
+    allowedSchedules: ['1d', '1h', '5m', '1m']
   },
-  enterprise: {
-    name: 'Enterprise',
-    id: 'enterprise',
-    quota: {
-      destinations: 100,
-      sources: 150,
-      events: 10_000_000
-    }
+  price: 299
+};
+const enterprise: PricingPlan = {
+  name: 'Enterprise',
+  id: 'enterprise',
+  quota: {
+    destinations: 100,
+    sources: 150,
+    events: 10_000_000,
+    allowedSchedules: ['1d', '1h', '5m', '1m']
   }
-} as const;
+};
+export const paymentPlans: Record<PricingPlanId, PricingPlan> = { free, growth, premium, enterprise } as const;
 
 export const getFreePaymentPlan = () => paymentPlans.free;
 
@@ -261,7 +269,7 @@ export function generateCustomerPortalLink(params: {
   return withQueryParams(`${billingUrl}/api/to-customer-portal`, params);
 }
 
-export function showSubscriptionLimitation(subscription: CurrentSubscription, msg: ReactElement) {
+export function showQuotaLimitModal(subscription: CurrentSubscription, msg: ReactElement) {
   Modal.info({
     content: <div>
       <div className="text-lg text-center pt-4">{msg}</div>
