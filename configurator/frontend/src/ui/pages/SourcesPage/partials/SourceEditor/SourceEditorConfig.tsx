@@ -130,7 +130,7 @@ const SourceEditorConfigComponent = ({
         handleTouchAnyField={handleTouchAnyField}
       />
 
-      {sourceReference.hasLoadableParameters && (
+      {sourceReference.hasLoadableConfigParameters && (
         <LoadableFieldsForm
           sourceReference={sourceReference}
           initialValues={initialValues}
