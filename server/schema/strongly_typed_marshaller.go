@@ -43,7 +43,7 @@ func (pm *ParquetMarshaller) Marshal(bh *BatchHeader, data []map[string]interfac
 	for _, obj := range data {
 		parquetRec := pm.parquetRecord(bh, obj, fieldIndex)
 		if err = pw.Write(parquetRec); err != nil {
-			logging.Warnf("parquet write error", err)
+			logging.Warnf("parquet write error: %v", err)
 		}
 	}
 	return buf.Bytes(), nil
