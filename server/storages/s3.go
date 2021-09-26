@@ -80,9 +80,8 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 
 	storeFailedEvents := true
 	tableResults := map[string]*StoreResult{}
-	marshaller := s3.marshaller()
 	for _, fdata := range processedFiles {
-		b := fdata.GetPayloadBytes(marshaller)
+		b := s3.marshall(fdata)
 		fileName := s3.fileName(fdata)
 		err := s3.s3Adapter.UploadBytes(fileName, b)
 
@@ -116,11 +115,16 @@ func (s3 *S3) Store(fileName string, objects []map[string]interface{}, alreadyUp
 	return tableResults, nil, skippedEvents, nil
 }
 
-func (s3 *S3) marshaller() schema.Marshaller {
-	if s3.s3Adapter.Format() == adapters.S3FormatCSV {
-		return schema.CSVMarshallerInstance
-	} else {
-		return schema.JSONMarshallerInstance
+func (s3 *S3) marshall(fdata *schema.ProcessedFile) []byte {
+	switch s3.s3Adapter.Format() {
+	case adapters.S3FormatCSV:
+		return fdata.GetPayloadBytes(schema.CSVMarshallerInstance)
+	case adapters.S3FormatFlatJSON, adapters.S3FormatJSON:
+		return fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
+	case adapters.S3FormatParquet:
+		return fdata.GetPayloadUsingStronglyTypeMarshaller(schema.NewParquetMarshaller())
+	default:
+		return make([]byte, 0)
 	}
 }
 
