@@ -124,6 +124,7 @@ func (s3 *S3) marshall(fdata *schema.ProcessedFile) []byte {
 	case adapters.S3FormatParquet:
 		return fdata.GetPayloadUsingStronglyTypeMarshaller(schema.NewParquetMarshaller())
 	default:
+		// TODO do i need error handling here?
 		return make([]byte, 0)
 	}
 }
