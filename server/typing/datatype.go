@@ -152,3 +152,7 @@ func TypeFromValue(v interface{}) (DataType, error) {
 		return UNKNOWN, fmt.Errorf("Unknown DataType for value: %v type: %t", v, v)
 	}
 }
+
+func DataTypePtr(dt DataType) *DataType {
+	return &dt
+}
