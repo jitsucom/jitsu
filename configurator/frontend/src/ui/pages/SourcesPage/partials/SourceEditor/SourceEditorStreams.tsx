@@ -57,6 +57,10 @@ const SourceEditorStreams = ({
 
   const getStream = useCallback(
     (index: number) => {
+      console.log(
+        form.getFieldsValue().collections?.[index] ??
+          initialValues.collections[index]
+      );
       return (
         form.getFieldsValue().collections?.[index] ??
         initialValues.collections[index]
@@ -353,14 +357,48 @@ const SourceEditorStreams = ({
                       getStream(field.name)._id ?? getStream(field.name).name
                     }
                     header={
-                      <div className={'grid grid-cols-3'}>
-                        <div className={'whitespace-nowrap'}>
+                      <div
+                        className={
+                          'flex items-center w-full flex-wrap lg:flex-nowrap pr-8'
+                        }
+                      >
+                        <div
+                          className={
+                            'whitespace-nowrap lg:w-1/4 w-1/3 overflow-hidden overflow-ellipsis pr-2'
+                          }
+                          title={getStream(field.name).name}
+                        >
                           Name:&nbsp;&nbsp;<b>{getStream(field.name).name}</b>
                         </div>
-                        <div className={'whitespace-nowrap'}>
+                        <div
+                          className={
+                            'whitespace-nowrap lg:w-1/4 w-1/3 overflow-hidden overflow-ellipsis pr-2'
+                          }
+                          title={getStream(field.name).type}
+                        >
                           Type:&nbsp;&nbsp;<b>{getStream(field.name).type}</b>
                         </div>
-                        <div className={'text-right pr-8'}>
+                        <div
+                          className={
+                            'whitespace-nowrap lg:w-1/4 w-1/3 overflow-hidden overflow-ellipsis pr-2'
+                          }
+                        >
+                          Table Name:&nbsp;&nbsp;
+                          <b
+                            title={`${initialValues.sourceId}_${
+                              getStream(field.name).name ?? '[Name]'
+                            }`}
+                          >
+                            {`${initialValues.sourceId}_${
+                              getStream(field.name).name ?? '[Name]'
+                            }`}
+                          </b>
+                        </div>
+                        <div
+                          className={
+                            'w-full lg:w-1/4 lg:text-right lg:pr-8 overflow-hidden overflow-ellipsis'
+                          }
+                        >
                           {getFormErrors(field.name).length > 0 && (
                             <span style={{ color: 'red' }}>
                               {' '}
@@ -386,25 +424,7 @@ const SourceEditorStreams = ({
                           <Col span={16}>
                             <Form.Item
                               className="form-field_fixed-label"
-                              label={
-                                <LabelWithTooltip
-                                  documentation={
-                                    <>
-                                      Will be used as table name prefixed with
-                                      source_id. Table name will be:
-                                      <br />
-                                      <CodeInline>
-                                        {initialValues.sourceId}_
-                                        <b>
-                                          {getStream(field.name).name ??
-                                            '[Name]'}
-                                        </b>
-                                      </CodeInline>
-                                    </>
-                                  }
-                                  render={<>Name:</>}
-                                />
-                              }
+                              label={<>Name:</>}
                               name={[field.name, 'name']}
                               rules={[
                                 {
