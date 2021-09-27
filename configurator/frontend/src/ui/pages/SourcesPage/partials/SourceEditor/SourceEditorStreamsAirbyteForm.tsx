@@ -123,31 +123,46 @@ const SourceEditorStreamsAirbyteForm = ({
                 <Collapse.Panel
                   key={`${streamData.stream.name}__${streamData.stream.namespace}`}
                   header={
-                    <div className="flex items-center w-full">
-                      <div className={'grid grid-cols-5 flex-auto'}>
-                        <div className={'whitespace-nowrap w-full'}>
-                          <span className="inline-flex justify-between w-full">
-                            <span className="block flex-shrink-0">
-                              Name:&nbsp;&nbsp;
-                            </span>
-                            <b className="block flex-auto">
-                              <Typography.Text ellipsis className="w-full">
-                                {streamData.stream.name}
-                              </Typography.Text>
-                            </b>
-                          </span>
-                        </div>
-                        <div className={'whitespace-nowrap'}>
-                          Namespace:&nbsp;&nbsp;
-                          <b>{streamData.stream.namespace}</b>
-                        </div>
-                        <div className={'whitespace-nowrap'}>
-                          Sync Mode:&nbsp;&nbsp;<b>{streamData.sync_mode}</b>
-                        </div>
-                        <div className={'whitespace-nowrap'}>
-                          Destination Sync Mode:&nbsp;&nbsp;
-                          <b>{streamData.destination_sync_mode}</b>
-                        </div>
+                    <div className="flex w-full pr-12 flex-wrap lg:flex-nowrap">
+                      <div
+                        className={
+                          'whitespace-nowrap min-w-0 lg:w-1/4 md:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+                        }
+                      >
+                        <span>Name:&nbsp;&nbsp;</span>
+                        <b title={streamData.stream.name}>
+                          {streamData.stream.name}
+                        </b>
+                      </div>
+                      <div
+                        className={
+                          'whitespace-nowrap min-w-0 lg:w-1/4 md:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+                        }
+                      >
+                        Namespace:&nbsp;&nbsp;
+                        <b title={streamData.stream.namespace}>
+                          {streamData.stream.namespace}
+                        </b>
+                      </div>
+                      <div
+                        className={
+                          'whitespace-nowrap min-w-0 lg:w-1/4 md:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+                        }
+                      >
+                        Sync Mode:&nbsp;&nbsp;
+                        <b title={streamData.stream.namespace}>
+                          {streamData.sync_mode}
+                        </b>
+                      </div>
+                      <div
+                        className={
+                          'whitespace-nowrap min-w-0 lg:w-1/4 md:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+                        }
+                      >
+                        Destination Sync Mode:&nbsp;&nbsp;
+                        <b title={streamData.stream.namespace}>
+                          {streamData.destination_sync_mode}
+                        </b>
                       </div>
                     </div>
                   }
