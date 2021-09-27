@@ -122,7 +122,7 @@ func (s3 *S3) marshall(fdata *schema.ProcessedFile) []byte {
 	case adapters.S3FormatFlatJSON, adapters.S3FormatJSON:
 		return fdata.GetPayloadBytes(schema.JSONMarshallerInstance)
 	case adapters.S3FormatParquet:
-		return fdata.GetPayloadUsingStronglyTypeMarshaller(schema.NewParquetMarshaller())
+		return fdata.GetPayloadUsingStronglyTypedMarshaller(schema.NewParquetMarshaller())
 	default:
 		// TODO do i need error handling here?
 		return make([]byte, 0)
