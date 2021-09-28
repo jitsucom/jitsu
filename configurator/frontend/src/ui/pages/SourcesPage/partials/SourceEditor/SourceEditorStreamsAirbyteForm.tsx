@@ -173,73 +173,11 @@ const SourceEditorStreamsAirbyteForm = ({
                 <Collapse.Panel
                   key={`${streamData.stream.name}__${streamData.stream.namespace}`}
                   header={
-                    <div className="flex w-full pr-12 flex-wrap xl:flex-nowrap">
-                      <div
-                        className={
-                          'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
-                        }
-                      >
-                        <span>Name:&nbsp;&nbsp;</span>
-                        <b title={streamData.stream.name}>
-                          {streamData.stream.name}
-                        </b>
-                      </div>
-                      <div
-                        className={
-                          'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
-                        }
-                      >
-                        Namespace:&nbsp;&nbsp;
-                        <b title={streamData.stream.namespace}>
-                          {streamData.stream.namespace}
-                        </b>
-                      </div>
-                      <div
-                        className={`whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden ${
-                          !showSyncModeSelection && 'overflow-ellipsis'
-                        } pr-2`}
-                      >
-                        Sync Mode:&nbsp;&nbsp;
-                        {showSyncModeSelection ? (
-                          <Select
-                            size="small"
-                            defaultValue={
-                              streamData.sync_mode ??
-                              streamData.stream.supported_sync_modes?.[0]
-                            }
-                            onChange={(value) =>
-                              handleChangeSyncMode(value, streamData)
-                            }
-                            onClick={(e) => {
-                              // hack to prevent antd expanding the collapsible
-                              e.stopPropagation();
-                            }}
-                          >
-                            {streamData.stream.supported_sync_modes.map(
-                              (mode) => (
-                                <Select.Option value={mode}>
-                                  {mode}
-                                </Select.Option>
-                              )
-                            )}
-                          </Select>
-                        ) : (
-                          <b title={streamData.sync_mode}>
-                            {streamData.sync_mode}
-                          </b>
-                        )}
-                      </div>
-                      <div
-                        className={
-                          'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
-                        }
-                      >
-                        Destination Sync Mode:&nbsp;&nbsp;
-                        <b title={streamData.stream.namespace}>
-                          {streamData.destination_sync_mode}
-                        </b>
-                      </div>
-                    </div>
+                    <Header
+                      streamData={streamData}
+                      showSyncModeSelection={showSyncModeSelection}
+                      handleChangeSyncMode={handleChangeSyncMode}
+                    />
                   }
                   extra={
                     <Switch
@@ -284,3 +222,73 @@ const SourceEditorStreamsAirbyteForm = ({
 SourceEditorStreamsAirbyteForm.displayName = 'SourceEditorStreamsAirbyteForm';
 
 export { SourceEditorStreamsAirbyteForm };
+
+type HeaderProps = {
+  streamData: AirbyteStreamData;
+  showSyncModeSelection: boolean;
+  handleChangeSyncMode: (value: string, stream: AirbyteStreamData) => void;
+};
+
+const Header: React.FC<HeaderProps> = ({
+  streamData,
+  showSyncModeSelection,
+  handleChangeSyncMode
+}) => {
+  return (
+    <div className="flex w-full pr-12 flex-wrap xl:flex-nowrap">
+      <div
+        className={
+          'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+        }
+      >
+        <span>Name:&nbsp;&nbsp;</span>
+        <b title={streamData.stream.name}>{streamData.stream.name}</b>
+      </div>
+      <div
+        className={
+          'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+        }
+      >
+        Namespace:&nbsp;&nbsp;
+        <b title={streamData.stream.namespace}>{streamData.stream.namespace}</b>
+      </div>
+      <div
+        className={`whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden ${
+          !showSyncModeSelection && 'overflow-ellipsis'
+        } pr-2`}
+      >
+        Sync Mode:&nbsp;&nbsp;
+        {showSyncModeSelection ? (
+          <Select
+            size="small"
+            defaultValue={
+              streamData.sync_mode ??
+              streamData.stream.supported_sync_modes?.[0]
+            }
+            onChange={(value) => handleChangeSyncMode(value, streamData)}
+            onClick={(e) => {
+              // hack to prevent antd expanding the collapsible
+              e.stopPropagation();
+            }}
+          >
+            {streamData.stream.supported_sync_modes.map((mode) => (
+              <Select.Option value={mode}>{mode}</Select.Option>
+            ))}
+          </Select>
+        ) : (
+          <b title={streamData.sync_mode}>{streamData.sync_mode}</b>
+        )}
+      </div>
+      <div
+        className={
+          'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+        }
+      >
+        Destination Sync Mode:&nbsp;&nbsp;
+        <b title={streamData.stream.namespace}>
+          {streamData.destination_sync_mode}
+        </b>
+      </div>
+    </div>
+  );
+};
