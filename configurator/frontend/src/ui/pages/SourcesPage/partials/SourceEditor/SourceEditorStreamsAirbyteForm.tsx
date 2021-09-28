@@ -1,5 +1,13 @@
-import { CaretRightOutlined } from '@ant-design/icons';
-import { Collapse, Empty, Form, FormInstance, Select, Switch } from 'antd';
+import { CaretRightOutlined, ReloadOutlined } from '@ant-design/icons';
+import {
+  Button,
+  Collapse,
+  Empty,
+  Form,
+  FormInstance,
+  Select,
+  Switch
+} from 'antd';
 import Search from 'antd/lib/input/Search';
 import { Code } from 'lib/components/Code/Code';
 import { cloneDeep } from 'lodash';
@@ -10,6 +18,7 @@ interface Props {
   allStreams: Array<AirbyteStreamData>;
   initiallySelectedStreams: Array<AirbyteStreamData> | null;
   selectAllFieldsByDefault?: boolean;
+  handleRefreshStreams?: () => void;
 }
 
 const setAirbyteStreamsFormValues = (
@@ -68,7 +77,8 @@ const SourceEditorStreamsAirbyteForm = ({
   form,
   allStreams,
   initiallySelectedStreams,
-  selectAllFieldsByDefault
+  selectAllFieldsByDefault,
+  handleRefreshStreams
 }: Props) => {
   const [streamsToDisplay, setStreamsToDisplay] =
     useState<AirbyteStreamData[]>(allStreams);
@@ -120,12 +130,25 @@ const SourceEditorStreamsAirbyteForm = ({
 
   return (
     <div className="h-full w-full flex flex-col items-stretch">
-      <Search
-        enterButton="Search"
-        className="mb-4"
-        onSearch={handleSearch}
-        onChange={handleSearchValueClear}
-      />
+      <div className="flex justify-between items-center w-full mb-4">
+        <Search
+          enterButton="Search"
+          className="flex-auto"
+          onSearch={handleSearch}
+          onChange={handleSearchValueClear}
+          placeholder="Search streams..."
+        />
+        {handleRefreshStreams && (
+          <Button
+            type="ghost"
+            className="ml-4"
+            icon={<ReloadOutlined />}
+            onClick={handleRefreshStreams}
+          >
+            {'Refresh Streams'}
+          </Button>
+        )}
+      </div>
       <div className="flex-auto overflow-y-auto">
         <Form form={form} className="hidden">
           {/**
