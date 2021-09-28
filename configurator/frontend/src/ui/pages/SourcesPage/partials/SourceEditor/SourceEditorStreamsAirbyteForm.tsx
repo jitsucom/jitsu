@@ -11,7 +11,7 @@ import {
 import Search from 'antd/lib/input/Search';
 import { Code } from 'lib/components/Code/Code';
 import { cloneDeep } from 'lodash';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 
 interface Props {
   form: FormInstance;
@@ -162,6 +162,7 @@ const SourceEditorStreamsAirbyteForm = ({
             expandIconPosition="left"
             destroyInactivePanel
             className="mr-2"
+            bordered={false}
             expandIcon={({ isActive }) => (
               <CaretRightOutlined rotate={isActive ? 90 : 0} />
             )}
@@ -265,6 +266,7 @@ const Header: React.FC<HeaderProps> = ({
               streamData.sync_mode ??
               streamData.stream.supported_sync_modes?.[0]
             }
+            bordered={false}
             onChange={(value) => handleChangeSyncMode(value, streamData)}
             onClick={(e) => {
               // hack to prevent antd expanding the collapsible
