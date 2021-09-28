@@ -41,7 +41,8 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
   const {
     isLoading: isLoadingAirbyteStreams,
     data: airbyteStreamsLoadedData,
-    error: airbyteStreamsLoadError
+    error: airbyteStreamsLoadError,
+    reloader: reloadStreams
   } = useLoaderAsObject<AirbyteStreamData[]>(async () => {
     if (!connectorSource.staticStreamsConfigEndpoint)
       throw new Error(
@@ -77,7 +78,6 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
       const rawAirbyteStreams: UnknownObject[] = response.catalog.streams;
 
       const streams: AirbyteStreamData[] = rawAirbyteStreams.map((stream) => {
-
         assertIsString(stream.name);
         assertIsString(stream.namespace);
         assertIsObject(stream.json_schema);
@@ -142,36 +142,8 @@ export const SourceEditorStreamsAirbyteLoader: React.FC<Props> = ({
       allStreams={airbyteStreamsLoadedData}
       initiallySelectedStreams={previouslyCheckedStreams}
       selectAllFieldsByDefault={formLoadedForTheFirstTime}
+      handleRefreshStreams={reloadStreams}
     />
   );
 };
 
-/**
- * Deletes previously saved streams (aka collections) if they are not in the new list
- * of static streams.
- *
- * Note: The list of static streams depends on the Connection Parameters config; The
- * list is updated every time user changes the config.
- *
- * @param initialData
- * @returns
- */
-const applyNewAirbyteStreamsToInitialValues = (
-  initialValues: SourceData,
-  newStaticStreams: StreamWithRawData[]
-): SourceData => {
-  if (initialValues.collections) {
-    const allowedNames = new Set(newStaticStreams.map((stream) => stream.name));
-    const collections = initialValues.collections.filter((stream) =>
-      allowedNames.has(stream.name)
-    );
-
-    const updatedInitialValues = cloneDeep(initialValues);
-    updatedInitialValues.collections = newStaticStreams;
-    // updatedInitialValues.collections = collections;
-
-    return updatedInitialValues;
-  }
-
-  return initialValues;
-};
