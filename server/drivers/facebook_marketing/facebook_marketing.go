@@ -147,9 +147,8 @@ func (fm *FacebookMarketing) syncAdsReport(interval *base.TimeInterval) ([]map[s
 }
 
 func (fm *FacebookMarketing) buildTimeInterval(interval *base.TimeInterval) string {
-	dayStart := interval.LowerEndpoint()
-	since := base.DAY.Format(dayStart)
-	until := base.DAY.Format(dayStart.AddDate(0, 0, 1))
+	since := base.DAY.Format(interval.LowerEndpoint())
+	until := base.DAY.Format(interval.UpperEndpoint())
 	return fmt.Sprintf("{'since': '%s', 'until': '%s'}", since, until)
 }
 
