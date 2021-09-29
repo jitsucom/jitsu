@@ -9,19 +9,19 @@ import { CodeEditor } from 'ui/components/CodeEditor/CodeEditor';
 // @Icons
 import CaretRightOutlined from '@ant-design/icons/lib/icons/CaretRightOutlined';
 import UnorderedListOutlined from '@ant-design/icons/lib/icons/UnorderedListOutlined';
-import CheckOutlined from '@ant-design/icons/lib/icons/CheckOutlined';
-import CloseOutlined from '@ant-design/icons/lib/icons/CloseOutlined';
 // @Styles
 import styles from './CodeDebugger.module.less';
 import { Event as RecentEvent } from '../../../lib/services/events';
+import { SyntaxHighlighterAsync } from 'lib/components/SyntaxHighlighter/SyntaxHighlighter';
 
-interface Props {
+export interface CodeDebuggerProps {
   /**
    * Run handler, async.
    * That function takes form values and returns response or error
    * */
   run: (values: FormValues) => any;
   /**
+   * @deprecated
    * Prop to make code field hidden, visible by default
    * */
   codeFieldVisible?: boolean;
@@ -42,6 +42,7 @@ interface Props {
    * */
   handleCodeChange?: (value: string | object) => void;
   /**
+   * @deprecated
    * Close modal for cases with custom close button
    * */
   handleClose?: () => void;
@@ -54,19 +55,17 @@ export interface FormValues {
 
 interface CalculationResult {
   code: 'error' | 'success';
-  format: string | null
+  format: string | null;
   message: string;
 }
 
 const CodeDebugger = ({
   className,
-  codeFieldVisible = true,
   codeFieldLabel = 'Table Name expression',
   defaultCodeValue,
   handleCodeChange,
-  handleClose,
   run
-}: Props) => {
+}: CodeDebuggerProps) => {
   const rowWrapRef = useRef<HTMLDivElement>();
 
   const [objectInitialValue, setObjectInitialValue] = useState<string>();
@@ -79,14 +78,15 @@ const CodeDebugger = ({
 
   const [form] = Form.useForm();
 
-  const handleChange = (name: 'object' | 'code') => (value: string | object) => {
-    form.setFieldsValue({ [name]: value ? value : '' });
-    if (name === 'code' && handleCodeChange) {
-      handleCodeChange(value);
-    }
-  };
+  const handleChange =
+    (name: 'object' | 'code') => (value: string | object) => {
+      form.setFieldsValue({ [name]: value ? value : '' });
+      if (name === 'code' && handleCodeChange) {
+        handleCodeChange(value);
+      }
+    };
 
-  const handleFinish = async(values: FormValues) => {
+  const handleFinish = async (values: FormValues) => {
     setRunIsLoading(true);
 
     try {
@@ -97,7 +97,7 @@ const CodeDebugger = ({
         format: response.format,
         message: response.result
       });
-    } catch(error) {
+    } catch (error) {
       setCalcResult({
         code: 'error',
         format: error?._response?.format,
@@ -119,7 +119,10 @@ const CodeDebugger = ({
   const handleSwitchEventsVisible = () => switchEventsVisible(!isEventsVisible);
 
   const handleCloseEvents = useCallback((e) => {
-    if (!e.target.closest('.ant-dropdown') && !e.target.closest('#events-button')) {
+    if (
+      !e.target.closest('.ant-dropdown') &&
+      !e.target.closest('#events-button')
+    ) {
       switchEventsVisible(false);
     }
   }, []);
@@ -137,96 +140,117 @@ const CodeDebugger = ({
   }, [handleCloseEvents]);
 
   return (
-    <div className={cn(className, styles.wrap)}>
-      <Form form={form} onFinish={handleFinish}>
-        <div className={styles.buttonContainer}>
-          <div>
-            <Button
-              className="mr-2"
-              htmlType="submit"
-              icon={<CaretRightOutlined />}
-              loading={runIsLoading}
-              type="primary"
-            >Run</Button>
-            <Dropdown
-              forceRender
-              overlay={<DebugEvents handleClick={handleEventClick} />}
-              trigger={['click']}
-              visible={isEventsVisible}
+    <div
+      className={cn(
+        className,
+        'flex flex-col items-stretch h-screen max-h-full pt-4;'
+      )}
+    >
+      <Form form={form} className="flex-auto" onFinish={handleFinish}>
+        <Row ref={rowWrapRef} className="h-full">
+          <Col span={12} className={'flex flex-col h-full pr-2'}>
+            <label
+              htmlFor="object"
+              className="flex justify-between items-center h-12"
             >
-              <Button
-                icon={<UnorderedListOutlined />}
-                id="events-button"
-                onClick={handleSwitchEventsVisible}
-              >Copy Recent Event</Button>
-            </Dropdown>
-          </div>
-          {
-            handleClose && <Button icon={<CloseOutlined />} className="ml-4" onClick={handleClose} />
-          }
-        </div>
-
-        <Row className={styles.editorsRow} ref={rowWrapRef}>
-          <Col span={codeFieldVisible ? 12 : 24} className={cn(codeFieldVisible && 'pr-2')}>
+              <span className="block flex-grow-0">{'Event JSON'}</span>
+              <Dropdown
+                forceRender
+                className="flex-grow-0"
+                placement="bottomRight"
+                overlay={<DebugEvents handleClick={handleEventClick} />}
+                trigger={['click']}
+                visible={isEventsVisible}
+              >
+                <Button
+                  size="small"
+                  type="link"
+                  icon={<UnorderedListOutlined />}
+                  id="events-button"
+                  onClick={handleSwitchEventsVisible}
+                >
+                  Copy Recent Event
+                </Button>
+              </Dropdown>
+            </label>
             <Form.Item
-              className={styles.field}
-              colon
-              label="Event JSON"
-              labelAlign="left"
+              className={`${styles.field} w-full`}
+              colon={false}
               name="object"
             >
               <CodeEditor
                 initialValue={objectInitialValue}
-                language={"json"}
+                language={'json'}
                 handleChange={handleChange('object')}
               />
             </Form.Item>
           </Col>
 
-          {
-            codeFieldVisible && (
-              <Col span={12} className="pl-2">
-                <Form.Item
-                  className={styles.field}
-                  colon
-                  label={codeFieldLabel}
-                  labelAlign="left"
-                  name="code"
-                >
-                  <CodeEditor
-                    initialValue={defaultCodeValue}
-                    handleChange={handleChange('code')}
-                    language="javascript"
-                  />
-                </Form.Item>
-              </Col>
-            )
-          }
+          <Col span={12} className="flex flex-col pl-2">
+            <label
+              htmlFor="object"
+              className="flex justify-between items-center h-12"
+            >
+              <span className="block flex-grow-0">
+                {codeFieldLabel ?? 'Code'}
+              </span>
+              <Button
+                htmlType="submit"
+                size="small"
+                icon={<CaretRightOutlined />}
+                loading={runIsLoading}
+                type="primary"
+              >
+                Run
+              </Button>
+            </label>
+            <Form.Item className={styles.field} colon={false} name="code">
+              <CodeEditor
+                initialValue={defaultCodeValue}
+                handleChange={handleChange('code')}
+                language="javascript"
+              />
+            </Form.Item>
+          </Col>
         </Row>
-
-        <Tabs
-          activeKey={'output'}
-          className={styles.tabs}
-          tabPosition="left"
-        >
-          <Tabs.TabPane key="output" tab={<CheckOutlined />} forceRender className={styles.outputTab}>
-            <div className={styles.output}>
-              {
-                calcResult && <p
-                  className={cn(styles.item, {
-                    [styles.itemError]: calcResult.code === 'error',
-                    [styles.itemSuccess]: calcResult.code === 'success'
-                  })}>
-                  <strong className={styles.status}>{calcResult.code + (calcResult.format ? ' ('+ calcResult.format + ')' : '') }:</strong>
-                  <span className={styles.message}>{calcResult.message}</span>
-                </p>
-              }
-            </div>
-          </Tabs.TabPane>
-        </Tabs>
       </Form>
+      <div
+        className={`flex-auto max-h-40 box-border rounded-md font-mono list-none p-4 m-0 ${styles.darkenBackground}`}
+      >
+        {calcResult && (
+          <p
+            className={cn('flex items-stretch w-full h-full m-0', {
+              [styles.itemError]: calcResult.code === 'error',
+              [styles.itemSuccess]: calcResult.code === 'success'
+            })}
+          >
+            <strong
+              className={`whitespace-pre-wrap pr-3 flex-shrink-0 text-xs`}
+            >
+              {`${calcResult.code}${
+                calcResult.format ? `(${calcResult.format})` : ''
+              }:`}
+            </strong>
+            <span className={`flex-auto min-w-0 whitespace-pre-wrap text-xs`}>
+              {calcResult.code === 'error' ? (
+                calcResult.message
+              ) : (
+                <SyntaxHighlighterAsync
+                  language="json"
+                  className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter}`}
+                >
+                  {
+                    // 'safdasfs afdasfasdgasgdfags gasgafasdf asfafasdfasf afdasfdafdda sfasfadsfas fasfafsdasfafas'
+                    calcResult.message
+                  }
+                </SyntaxHighlighterAsync>
+              )}
+            </span>
+          </p>
+        )}
+      </div>
     </div>
-  )
+  );
 };
 
 CodeDebugger.displayName = 'CodeDebugger';

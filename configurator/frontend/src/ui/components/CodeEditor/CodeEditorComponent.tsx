@@ -73,8 +73,8 @@ const CodeEditorComponent = ({
           enabled: false
         },
         scrollbar: {
-          verticalScrollbarSize: 8,
-          horizontalScrollbarSize: 8
+          verticalScrollbarSize: 5,
+          horizontalScrollbarSize: 5
         },
         padding: {
           top: 4,

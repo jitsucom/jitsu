@@ -1,0 +1,26 @@
+.modal {
+  @apply flex;
+  @apply p-0 !important;
+  height: 95vh;
+
+  :global {
+    .ant-modal-content {
+      @apply flex flex-auto flex-col;
+      @apply rounded-md !important;
+      height: 100%;
+    }
+
+    .ant-modal-body {
+      @apply flex-auto h-full py-0 !important;
+      overflow-y: auto;
+    }
+
+    .ant-modal-footer {
+      border-top: none !important;
+    }
+  }
+}
+
+.modal__mask {
+  cursor: pointer;
+}
