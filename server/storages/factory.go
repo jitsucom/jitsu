@@ -36,9 +36,11 @@ var (
 
 	maxColumnNameLengthByDestinationType = map[string]int{
 		RedshiftType:  115,
+		MySQLType:  64,
 		BigQueryType:  300,
 		PostgresType:  59,
 		SnowflakeType: 251,
+		ClickHouseType: 251,
 	}
 )
 

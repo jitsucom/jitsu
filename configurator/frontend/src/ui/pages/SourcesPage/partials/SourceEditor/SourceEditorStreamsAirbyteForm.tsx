@@ -1,7 +1,8 @@
 import { CaretRightOutlined } from '@ant-design/icons';
-import { Collapse, Empty, Form, FormInstance, Switch, Typography } from 'antd';
+import { Collapse, Empty, Form, FormInstance, Select, Switch } from 'antd';
 import Search from 'antd/lib/input/Search';
 import { Code } from 'lib/components/Code/Code';
+import { cloneDeep } from 'lodash';
 import React, { useEffect, useState } from 'react';
 
 interface Props {
@@ -11,12 +12,12 @@ interface Props {
   selectAllFieldsByDefault?: boolean;
 }
 
-const initAirbyteStreamsForm = (
+const setAirbyteStreamsFormValues = (
   form: FormInstance,
-  initialValues: AirbyteStreamData[]
+  valuesToSet: AirbyteStreamData[]
 ): void => {
   const values = form.getFieldsValue();
-  form.setFieldsValue({ catalog: { streams: initialValues } });
+  form.setFieldsValue({ catalog: { streams: valuesToSet } });
 };
 
 const addStreamInForm = (
@@ -29,10 +30,24 @@ const addStreamInForm = (
   console.log('Added', form.getFieldsValue());
 };
 
-const handleUpdateStreamInForm = (
+const updateStreamValuesInForm = (
   form: FormInstance,
-  streamToAdd: AirbyteStreamData
-): void => {};
+  updatedStreamData: AirbyteStreamData
+): void => {
+  const updatedStreams = (form.getFieldsValue()?.catalog?.streams ?? []).map(
+    (streamData) => {
+      if (
+        streamData.stream.name === updatedStreamData.stream ||
+        streamData.stream.namespace === updatedStreamData.stream.namespace
+      ) {
+        return updatedStreamData;
+      }
+      return streamData;
+    }
+  );
+
+  setAirbyteStreamsFormValues(form, updatedStreams);
+};
 
 const deleteStreamFromForm = (
   form: FormInstance,
@@ -67,6 +82,16 @@ const SourceEditorStreamsAirbyteForm = ({
       : deleteStreamFromForm(form, stream);
   };
 
+  const handleChangeSyncMode = (
+    mode: string,
+    stream: AirbyteStreamData
+  ): void => {
+    const updatedStream: AirbyteStreamData = cloneDeep(stream);
+    updatedStream.sync_mode = mode;
+
+    updateStreamValuesInForm(form, updatedStream);
+  };
+
   const handleSearch = (query: string) => {
     setStreamsToDisplay((streams) =>
       streams.filter(
@@ -88,7 +113,7 @@ const SourceEditorStreamsAirbyteForm = ({
     const initialValues = selectAllFieldsByDefault
       ? allStreams
       : initiallySelectedStreams;
-    initAirbyteStreamsForm(form, initialValues);
+    setAirbyteStreamsFormValues(form, initialValues);
 
     console.log('Initialized. Values: ', form.getFieldsValue());
   }, []);
@@ -119,35 +144,77 @@ const SourceEditorStreamsAirbyteForm = ({
             )}
           >
             {streamsToDisplay.map((streamData) => {
+              const showSyncModeSelection =
+                streamData.stream.supported_sync_modes.length > 1;
               return (
                 <Collapse.Panel
                   key={`${streamData.stream.name}__${streamData.stream.namespace}`}
                   header={
-                    <div className="flex items-center w-full">
-                      <div className={'grid grid-cols-5 flex-auto'}>
-                        <div className={'whitespace-nowrap w-full'}>
-                          <span className="inline-flex justify-between w-full">
-                            <span className="block flex-shrink-0">
-                              Name:&nbsp;&nbsp;
-                            </span>
-                            <b className="block flex-auto">
-                              <Typography.Text ellipsis className="w-full">
-                                {streamData.stream.name}
-                              </Typography.Text>
-                            </b>
-                          </span>
-                        </div>
-                        <div className={'whitespace-nowrap'}>
-                          Namespace:&nbsp;&nbsp;
-                          <b>{streamData.stream.namespace}</b>
-                        </div>
-                        <div className={'whitespace-nowrap'}>
-                          Sync Mode:&nbsp;&nbsp;<b>{streamData.sync_mode}</b>
-                        </div>
-                        <div className={'whitespace-nowrap'}>
-                          Destination Sync Mode:&nbsp;&nbsp;
-                          <b>{streamData.destination_sync_mode}</b>
-                        </div>
+                    <div className="flex w-full pr-12 flex-wrap xl:flex-nowrap">
+                      <div
+                        className={
+                          'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+                        }
+                      >
+                        <span>Name:&nbsp;&nbsp;</span>
+                        <b title={streamData.stream.name}>
+                          {streamData.stream.name}
+                        </b>
+                      </div>
+                      <div
+                        className={
+                          'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+                        }
+                      >
+                        Namespace:&nbsp;&nbsp;
+                        <b title={streamData.stream.namespace}>
+                          {streamData.stream.namespace}
+                        </b>
+                      </div>
+                      <div
+                        className={`whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden ${
+                          !showSyncModeSelection && 'overflow-ellipsis'
+                        } pr-2`}
+                      >
+                        Sync Mode:&nbsp;&nbsp;
+                        {showSyncModeSelection ? (
+                          <Select
+                            size="small"
+                            defaultValue={
+                              streamData.sync_mode ??
+                              streamData.stream.supported_sync_modes?.[0]
+                            }
+                            onChange={(value) =>
+                              handleChangeSyncMode(value, streamData)
+                            }
+                            onClick={(e) => {
+                              // hack to prevent antd expanding the collapsible
+                              e.stopPropagation();
+                            }}
+                          >
+                            {streamData.stream.supported_sync_modes.map(
+                              (mode) => (
+                                <Select.Option value={mode}>
+                                  {mode}
+                                </Select.Option>
+                              )
+                            )}
+                          </Select>
+                        ) : (
+                          <b title={streamData.sync_mode}>
+                            {streamData.sync_mode}
+                          </b>
+                        )}
+                      </div>
+                      <div
+                        className={
+                          'whitespace-nowrap min-w-0 xl:w-1/4 lg:w-1/3 w-1/2 max-w-xs overflow-hidden overflow-ellipsis pr-2'
+                        }
+                      >
+                        Destination Sync Mode:&nbsp;&nbsp;
+                        <b title={streamData.stream.namespace}>
+                          {streamData.destination_sync_mode}
+                        </b>
                       </div>
                     </div>
                   }

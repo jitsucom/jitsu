@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+echo "Starting Jitsu. $@"
 
 ### Vars
 PID_SERVER=0
@@ -39,7 +40,8 @@ check_shutdown(){
 }
 
 ### Jitsu CLI has different entrypoint
-if [ -n "$1" ]; then
+if [ -n "$1" ] && [ "$1" != "/home/eventnative/entrypoint.sh" ]; then
+  echo "Jitsu CLI"
   /home/eventnative/app/eventnative "$@"
   if [ $? != 0 ] ; then
     exit 1

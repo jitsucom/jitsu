@@ -5,6 +5,8 @@ import (
 	"context"
 	"firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/auth"
+	"google.golang.org/genproto/googleapis/type/latlng"
+
 	"fmt"
 	"github.com/jitsucom/jitsu/server/drivers/base"
 	"github.com/jitsucom/jitsu/server/timestamp"
@@ -166,6 +168,10 @@ func (f *Firebase) loadCollection() ([]map[string]interface{}, error) {
 			return nil, fmt.Errorf("failed to get API keys from firestore: %v", err)
 		}
 		data := doc.Data()
+		if data == nil {
+			continue
+		}
+		data = convertSpecificTypes(data)
 		data[firestoreDocumentIDField] = doc.Ref.ID
 		documentJSONs = append(documentJSONs, data)
 	}
@@ -212,4 +218,22 @@ func (f *Firebase) loadUsers() ([]map[string]interface{}, error) {
 func (f *Firebase) unixTimestampToISOString(nanoseconds int64) string {
 	t := time.Unix(nanoseconds/1000, 0)
 	return timestamp.ToISOFormat(t)
+}
+
+func convertSpecificTypes(source map[string]interface{}) map[string]interface{} {
+	for name, value := range source {
+		switch v := value.(type) {
+		case *latlng.LatLng:
+			source[name + ".latitude"] = v.GetLatitude()
+			source[name + ".longitude"] = v.GetLongitude()
+			delete(source, name)
+		case latlng.LatLng:
+			source[name + ".latitude"] = v.GetLatitude()
+			source[name + ".longitude"] = v.GetLongitude()
+			delete(source, name)
+		case map[string]interface{}:
+			source[name] = convertSpecificTypes(v)
+		}
+	}
+	return source
 }
