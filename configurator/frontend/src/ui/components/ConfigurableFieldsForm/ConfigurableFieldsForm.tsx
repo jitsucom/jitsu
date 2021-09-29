@@ -48,6 +48,7 @@ import EyeInvisibleOutlined from '@ant-design/icons/lib/icons/EyeInvisibleOutlin
 import BugIcon from 'icons/bug';
 // @Styles
 import styles from './ConfigurableFieldsForm.module.less';
+import { CodeDebuggerModal } from '../CodeDebuggerModal/CodeDebuggerModal';
 
 /**
  * @param loading if `true` shows loader instead of the fields.
@@ -171,10 +172,10 @@ const ConfigurableFieldsForm = ({
   ) => {
     const fieldsValue = form.getFieldsValue();
     const defaultValueToDisplay =
-          form.getFieldValue(id) ||
-          getInitialValue(id, defaultValue, constantValue, type?.typeName);
+      form.getFieldValue(id) ||
+      getInitialValue(id, defaultValue, constantValue, type?.typeName);
 
-    form.setFieldsValue({id: defaultValueToDisplay})
+    form.setFieldsValue({ id: defaultValueToDisplay });
 
     switch (type?.typeName) {
       case 'description':
@@ -192,10 +193,10 @@ const ConfigurableFieldsForm = ({
 
       case 'int': {
         return (
-          <Input 
+          <Input
             defaultValue={defaultValueToDisplay}
-            autoComplete="off" 
-            onChange={handleChangeIntInput(id)} 
+            autoComplete="off"
+            onChange={handleChangeIntInput(id)}
           />
         );
       }
@@ -303,19 +304,17 @@ const ConfigurableFieldsForm = ({
 
   useEffect(() => {
     /**
-     * 
+     *
      * 1st render:
-     * component creates fields, fills them with values, 
+     * component creates fields, fills them with values,
      * lets the `form` instance to pick them
-     * 
+     *
      */
     let formValues = {};
     fieldsParamsList.forEach((param: Parameter) => {
-      let constantValue: any; 
+      let constantValue: any;
       if (typeof param.constant === 'function') {
-        constantValue = param.constant(
-          makeObjectFromFieldsValues(formValues)
-        );
+        constantValue = param.constant(makeObjectFromFieldsValues(formValues));
       }
 
       constantValue = constantValue || param.constant;
@@ -331,13 +330,13 @@ const ConfigurableFieldsForm = ({
     form.setFieldsValue(formValues);
 
     /**
-     * 
-     * 2nd render: component removes/adds fields conditionally 
+     *
+     * 2nd render: component removes/adds fields conditionally
      *  depending on the form values
-     * 
+     *
      */
-    forceUpdate()
-  }, [])
+    forceUpdate();
+  }, []);
 
   return loading ? (
     typeof loading === 'boolean' ? (
@@ -430,28 +429,20 @@ const ConfigurableFieldsForm = ({
             <Row key={id} className={cn(isHidden && 'hidden')}>
               <Col span={24}>
                 {isDebugSupported(id) ? (
-                  <Modal
-                    className={styles.modal}
-                    closable={false}
-                    maskClosable={false}
-                    onCancel={() => handleCloseDebugger(id)}
-                    onOk={() => handleSaveDebugger(id)}
+                  <CodeDebuggerModal
                     okText={`Save ${displayName} template`}
                     visible={debugModalsStates[id][0]}
-                    wrapClassName={styles.modalWrap}
-                    width="80%"
-                  >
-                    <CodeDebugger
-                      className="pb-2"
-                      codeFieldLabel="Expression"
-                      defaultCodeValue={get(initialValues, id)}
-                      handleClose={() => handleCloseDebugger(id)}
-                      handleCodeChange={(value) =>
-                        handleCodeChange(id, value.toString())
-                      }
-                      run={(values) => handleDebuggerRun(id, values)}
-                    />
-                  </Modal>
+                    onCancel={() => handleCloseDebugger(id)}
+                    onOk={() => handleSaveDebugger(id)}
+                    classNameDebugger="pb-2"
+                    codeFieldLabelDebugger="Expression"
+                    defaultCodeValueDebugger={get(initialValues, id)}
+                    handleCloseDebugger={() => handleCloseDebugger(id)}
+                    handleCodeChangeDebugger={(value) =>
+                      handleCodeChange(id, value.toString())
+                    }
+                    runDebugger={(values) => handleDebuggerRun(id, values)}
+                  />
                 ) : null}
                 <Form.Item
                   className={cn(

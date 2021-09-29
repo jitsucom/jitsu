@@ -26,12 +26,13 @@
 }
 
 .modal {
-  height: calc(100% - 200px);
   @apply flex;
 
   :global {
     .ant-modal-content {
       @apply flex flex-auto flex-col;
+      @apply rounded-md !important;
+      max-height: 95%;
     }
 
     .ant-modal-body {
@@ -43,6 +44,11 @@
       border-top: none !important;
     }
   }
+}
+
+.codeEditor {
+  // @apply rounded-md;
+  // border: 1px solid ;
 }
 
 .bugIcon {

@@ -1,31 +1,12 @@
 @import "./src/theme";
 
-.input {
-  background-color: @primary-background;
-}
-
-.buttonContainer {
-  @apply flex justify-between flex-shrink-0 pt-8 mb-4;
-}
-
-.events {
-  overflow-y: auto;
-}
-
-.panel {
-  :global {
-    .ant-collapse-content-box {
-      padding: 0 !important;
-    }
-  }
-}
-
-.editorsRow {
-  height: calc(100% - 264px);
+.darkenBackground {
+  background-color: @primary-background !important;
 }
 
 .field {
   @apply flex flex-col h-full;
+  @apply border-0;
 
   :global {
     .ant-form-item-control-input,
@@ -39,84 +20,14 @@
   }
 }
 
-.resultHeader {
-  &::after {
-    content: ":";
-    position: relative;
-    top: -0.5px;
-    margin: 0 8px 0 2px;
-  }
+.itemError {
+  color: @error-color;
 }
 
-.events {
-  @apply h-40;
-  overflow-y: auto;
+.itemSuccess {
+  color: @success-color;
 }
 
-.output {
-  @apply p-0 m-0 font-mono list-none;
-
-  .item {
-    @apply flex;
-
-    .status {
-      @apply w-60 whitespace-pre-wrap pr-3 flex-shrink-0;
-
-      .time {
-        font-size: 0.75em;
-      }
-    }
-    .message {
-          white-space: pre-wrap;
-        }
-  }
-
-  .itemError {
-    color: @error-color;
-  }
-
-  .itemSuccess {
-    color: @success-color;
-  }
-}
-
-.tabs {
-  border: 1px solid @border-color-base;
-  border-radius: @border-radius-base;
-  @apply h-40 mt-6;
-
-  .outputTab {
-    @apply p-3 !important;
-    overflow-y: auto;
-  }
-
-  :global {
-    .ant-tabs-nav {
-      min-width: auto !important;
-    }
-
-    .ant-tabs-content-holder {
-      overflow-y: scroll;
-      word-wrap: anywhere;
-    }
-
-    .ant-tabs-tab {
-      @apply m-0 p-3 !important;
-      border-bottom: 1px solid @border-color-base;
-    }
-
-    .anticon {
-      margin-right: 2px !important;
-    }
-  }
-}
-
-.wrap {
-  height: 100%;
-
-  :global {
-    .ant-form {
-      height: 100%;
-    }
-  }
+.syntaxHighlighter {
+  @apply pt-0 !important;
 }
