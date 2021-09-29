@@ -53,7 +53,6 @@ func (gc *GoogleConfig) Validate(streamMode bool) error {
 			}
 		}
 	}
-
 	switch gc.KeyFile.(type) {
 	case map[string]interface{}:
 		keyFileObject := gc.KeyFile.(map[string]interface{})
@@ -67,6 +66,9 @@ func (gc *GoogleConfig) Validate(streamMode bool) error {
 		gc.credentials = option.WithCredentialsJSON(b)
 	case string:
 		keyFile := gc.KeyFile.(string)
+		if keyFile == "workload_identity" {
+			return nil
+		}
 		if keyFile == "" {
 			return errors.New("Google key file is required parameter")
 		}
@@ -83,7 +85,13 @@ func (gc *GoogleConfig) Validate(streamMode bool) error {
 }
 
 func NewGoogleCloudStorage(ctx context.Context, config *GoogleConfig) (*GoogleCloudStorage, error) {
-	client, err := storage.NewClient(ctx, config.credentials)
+	var client *storage.Client
+	var err error
+	if config.credentials == nil {
+		client, err = storage.NewClient(ctx)
+	} else {
+		client, err = storage.NewClient(ctx, config.credentials)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("Error creating google cloud storage client: %v", err)
 	}

@@ -17,12 +17,13 @@ import {User} from './lib/services/model';
 import { PRIVATE_PAGES, PUBLIC_PAGES, SELFHOSTED_PAGES} from './navigation';
 
 import { ApplicationPage, emailIsNotConfirmedMessageConfig, SlackChatWidget } from './Layout';
-import { checkQuotas, getCurrentSubscription, CurrentSubscription } from 'lib/services/billing';
+import { checkQuotas, getCurrentSubscription, CurrentSubscription, paymentPlans } from 'lib/services/billing';
 import { OnboardingTour } from 'lib/components/OnboardingTour/OnboardingTour';
 import { initializeAllStores } from 'stores/_initializeAllStores';
 import { destinationsStore } from './stores/destinations';
 import { sourcesStore } from './stores/sources';
 import BillingBlockingModal from './lib/components/BillingModal/BillingBlockingModal';
+import moment, { Moment } from 'moment';
 
 enum AppLifecycle {
   LOADING, //Application is loading
@@ -56,12 +57,29 @@ export const initializeApplication = async (
 
   let paymentPlanStatus: CurrentSubscription;
   if (user && services.features.billingEnabled) {
-    paymentPlanStatus = await getCurrentSubscription(
-      services.activeProject,
-      services.backendApiClient,
-      destinationsStore,
-      sourcesStore
-    );
+    if (services.activeProject) {
+      paymentPlanStatus = await getCurrentSubscription(
+        services.activeProject,
+        services.backendApiClient,
+        destinationsStore,
+        sourcesStore
+      );
+    } else {
+      //project is not initialized yet, return mock result
+      paymentPlanStatus = {
+        autorenew: false,
+        expiration: moment().add(1, 'M'),
+        usage: {
+          events: 0,
+          sources: 0,
+          destinations: 0
+        },
+        currentPlan: paymentPlans.free,
+        quotaPeriodStart: moment(),
+        doNotBlock: true
+
+      }
+    }
   }
   services.currentSubscription = paymentPlanStatus;
 
