@@ -1,12 +1,17 @@
 @import "./src/theme";
 
+.withSmallScrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
 .darkenBackground {
   background-color: @primary-background !important;
 }
 
 .field {
   @apply flex flex-col h-full;
-  @apply border-0;
+  @apply border-0 mb-2 !important;
 
   :global {
     .ant-form-item-control-input,
