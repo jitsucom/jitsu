@@ -41,7 +41,7 @@ ENV TZ=UTC
 
 COPY --from=configurator /home/configurator /home/configurator
 COPY --from=server /home/eventnative /home/eventnative
-ADD configurator.yaml /home/configurator/data/config/
+
 ADD eventnative.yaml /home/eventnative/data/config/
 ADD entrypoint.sh /home/eventnative/entrypoint.sh
 ADD nginx.conf /etc/nginx/nginx.conf

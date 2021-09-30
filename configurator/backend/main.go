@@ -39,6 +39,7 @@ import (
 
 const (
 	serviceName = "Jitsu-Configurator"
+	jitsuServerDefaultUrl = "http://host.docker.internal:8001"
 )
 
 var (
@@ -67,7 +68,7 @@ func main() {
 	// Setup application directory as working directory
 	setAppWorkDir()
 
-	if err := config.Read(*configSource, *containerizedRun, ""); err != nil {
+	if err := config.Read(*configSource, *containerizedRun, "", "Jitsu Configurator"); err != nil {
 		logging.Fatal("Error while reading application config:", err)
 	}
 
@@ -162,6 +163,10 @@ func main() {
 			logging.Fatalf("Error parsing 'jitsu' config: %v", err)
 		}
 	}
+	if jitsuConfig.BaseURL == "" {
+		logging.Infof("⚠️  'jitsu.base_url' parameter is not provided. Default value: `%s. Use configurator.yaml file or JITSU_SERVER_URL environment variable to provide desired value.", jitsuServerDefaultUrl)
+		jitsuConfig.BaseURL = jitsuServerDefaultUrl
+	}
 
 	if err = jitsuConfig.Validate(); err != nil {
 		logging.Fatalf("Error validating 'jitsu' config: %v", err)
@@ -207,7 +212,7 @@ func main() {
 	router := SetupRouter(jitsuService, configurationsStorage, configurationsService,
 		authService, s3Config, sslUpdateExecutor, emailsService)
 	notifications.ServerStart()
-	logging.Info("Started server: " + appconfig.Instance.Authority)
+	logging.Info("⚙️ Started configurator: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
 		Handler:           middleware.Cors(router),
@@ -242,7 +247,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 	serverToken := viper.GetString("server.auth")
 	if strings.HasPrefix(serverToken, "demo") {
-		logging.Errorf("\n\t*** Please replace server.auth with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
+		logging.Errorf("\n\t*** ⚠️  Please replace server.auth (CONFIGURATOR_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
 
 	apiKeysHandler := handlers.NewAPIKeysHandler(configurationsService)
