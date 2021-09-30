@@ -1,6 +1,6 @@
 // @Libs
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Checkbox, Dropdown, Form } from 'antd';
+import { Button, Checkbox, Dropdown, Form, Spin } from 'antd';
 import cn from 'classnames';
 // @Components
 import { DebugEvents } from 'ui/components/CodeDebugger/DebugEvents';
@@ -13,7 +13,7 @@ import UnorderedListOutlined from '@ant-design/icons/lib/icons/UnorderedListOutl
 import styles from './CodeDebugger.module.less';
 import { Event as RecentEvent } from '../../../lib/services/events';
 import { SyntaxHighlighterAsync } from 'lib/components/SyntaxHighlighter/SyntaxHighlighter';
-import { CodeOutlined, SaveOutlined } from '@ant-design/icons';
+import { CodeOutlined, LoadingOutlined, SaveOutlined } from '@ant-design/icons';
 
 export interface CodeDebuggerProps {
   /**
@@ -240,25 +240,31 @@ const CodeDebugger = ({
           >
             <SectionWithLabel label="Result">
               <div
-                className={`h-full box-border font-mono list-none p-4 m-0 ${styles.darkenBackground}`}
+                className={`h-full box-border font-mono list-none px-2 pt-1 m-0 ${styles.darkenBackground}`}
               >
-                {calcResult && (
-                  <p
-                    className={cn('flex flex-col w-full h-full m-0', {
-                      [styles.itemError]: calcResult.code === 'error',
-                      [styles.itemSuccess]: calcResult.code === 'success'
-                    })}
+                <p
+                  className={cn('flex flex-col w-full h-full m-0', {
+                    [styles.itemError]: calcResult?.code === 'error',
+                    [styles.itemSuccess]: calcResult?.code === 'success'
+                  })}
+                >
+                  <strong
+                    className={cn(
+                      `absolute top-1 right-2 flex-shrink-0 text-xs`
+                    )}
                   >
-                    <strong
-                      className={`whitespace-pre-wrap pr-3 flex-shrink-0 text-xs`}
-                    >
-                      {`${calcResult.code}${
-                        calcResult.format ? `(${calcResult.format})` : ''
-                      }`}
-                    </strong>
-                    <span
-                      className={`flex-auto min-w-0 whitespace-pre-wrap text-xs`}
-                    >
+                    {runIsLoading ? (
+                      <Spin
+                        indicator={
+                          <LoadingOutlined style={{ fontSize: 15 }} spin />
+                        }
+                      />
+                    ) : (
+                      `${calcResult?.code ?? ''}`
+                    )}
+                  </strong>
+                  {calcResult && (
+                    <span className={`flex-auto min-w-0 text-xs`}>
                       {calcResult.code === 'error' ? (
                         calcResult.message
                       ) : (
@@ -278,8 +284,8 @@ const CodeDebugger = ({
                         </SyntaxHighlighterAsync>
                       )}
                     </span>
-                  </p>
-                )}
+                  )}
+                </p>
               </div>
             </SectionWithLabel>
           </div>
