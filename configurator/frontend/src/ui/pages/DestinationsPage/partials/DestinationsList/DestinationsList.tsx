@@ -73,7 +73,7 @@ const DestinationsListComponent = ({
             handleClick: () => {
               if (
                 destinationsStore.allDestinations.length >=
-                  subscription.currentPlan?.quota.destinations ??
+                  subscription?.currentPlan.quota.destinations ??
                 999
               ) {
                 showQuotaLimitModal(

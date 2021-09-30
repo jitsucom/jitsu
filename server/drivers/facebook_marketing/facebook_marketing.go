@@ -94,6 +94,10 @@ func TestFacebookMarketingConnection(sourceConfig *base.SourceConfig) error {
 	return nil
 }
 
+func (fm *FacebookMarketing) GetRefreshWindow() (time.Duration, error) {
+	return time.Hour * 24 * 31, nil
+}
+
 //GetAllAvailableIntervals return half a year by default
 func (fm *FacebookMarketing) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
 	if fm.collection.Type == AdsCollection {

@@ -212,7 +212,7 @@ func main() {
 	router := SetupRouter(jitsuService, configurationsStorage, configurationsService,
 		authService, s3Config, sslUpdateExecutor, emailsService)
 	notifications.ServerStart()
-	logging.Info("⚙️ Started configurator: " + appconfig.Instance.Authority)
+	logging.Info("⚙️  Started configurator: " + appconfig.Instance.Authority)
 	server := &http.Server{
 		Addr:              appconfig.Instance.Authority,
 		Handler:           middleware.Cors(router),
