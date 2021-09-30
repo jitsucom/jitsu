@@ -14,6 +14,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"time"
 )
 
 const (
@@ -239,6 +240,12 @@ func (acd *AbstractCLIDriver) GetCollectionTable() string {
 
 func (acd *AbstractCLIDriver) GetCollectionMetaKey() string {
 	return acd.tap
+}
+
+
+//GetRefreshWindow unsupported
+func (acd *AbstractCLIDriver) GetRefreshWindow() (time.Duration, error) {
+	return time.Nanosecond, fmt.Errorf("%s driver doesn't support GetRefreshWindow() func", acd.Type())
 }
 
 //GetAllAvailableIntervals unsupported
