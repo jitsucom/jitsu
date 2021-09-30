@@ -39,3 +39,6 @@ sql_debug_log:
   queries:
     path: /home/eventnative/data/logs
     rotation_min: 60
+
+google-ads:
+  developer-token: '${env.GOOGLE_ADS_DEVELOPER_TOKEN|}'
