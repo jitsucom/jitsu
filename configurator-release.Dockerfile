@@ -59,7 +59,7 @@ RUN chown -R $CONFIGURATOR_USER:$CONFIGURATOR_USER /home/$CONFIGURATOR_USER/app
 USER $CONFIGURATOR_USER
 WORKDIR /home/$CONFIGURATOR_USER/app
 
-COPY configurator.yaml /home/$CONFIGURATOR_USER/data/config/
+COPY docker/configurator.yaml /home/$CONFIGURATOR_USER/data/config/
 
 VOLUME ["/home/$CONFIGURATOR_USER/data"]
 EXPOSE 7000
