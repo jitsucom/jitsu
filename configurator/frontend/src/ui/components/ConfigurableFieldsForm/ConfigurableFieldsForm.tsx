@@ -14,7 +14,6 @@ import {
   Select,
   Switch,
   Tooltip,
-  Modal,
   Spin,
   FormItemProps
 } from 'antd';
@@ -32,10 +31,7 @@ import {
 // @Services
 import ApplicationServices from 'lib/services/ApplicationServices';
 // @Types
-import {
-  Parameter,
-  ParameterType
-} from 'catalog/sources/types';
+import { Parameter, ParameterType } from 'catalog/sources/types';
 import { FormInstance } from 'antd/lib/form/hooks/useForm';
 // @Utils
 import { makeObjectFromFieldsValues } from 'utils/forms/marshalling';
@@ -434,7 +430,6 @@ const ConfigurableFieldsForm = ({
                     visible={debugModalsStates[id][0]}
                     onCancel={() => handleCloseDebugger(id)}
                     onOk={() => handleSaveDebugger(id)}
-                    classNameDebugger="pb-2"
                     codeFieldLabelDebugger="Expression"
                     defaultCodeValueDebugger={get(initialValues, id)}
                     handleCloseDebugger={() => handleCloseDebugger(id)}

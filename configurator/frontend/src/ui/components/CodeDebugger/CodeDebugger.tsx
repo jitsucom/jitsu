@@ -148,7 +148,7 @@ const CodeDebugger = ({
     >
       <Form form={form} className="flex-auto" onFinish={handleFinish}>
         <Row ref={rowWrapRef} className="h-full">
-          <Col span={12} className={'flex flex-col h-full pr-2'}>
+          <Col span={12} className={'flex flex-col h-full pr-1'}>
             <label
               htmlFor="object"
               className="flex justify-between items-center h-12"
@@ -186,7 +186,7 @@ const CodeDebugger = ({
             </Form.Item>
           </Col>
 
-          <Col span={12} className="flex flex-col pl-2">
+          <Col span={12} className="flex flex-col pl-1">
             <label
               htmlFor="object"
               className="flex justify-between items-center h-12"
@@ -237,11 +237,11 @@ const CodeDebugger = ({
               ) : (
                 <SyntaxHighlighterAsync
                   language="json"
-                  className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter}`}
+                  className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
                 >
                   {
                     // 'safdasfs afdasfasdgasgdfags gasgafasdf asfafasdfasf afdasfdafdda sfasfadsfas fasfafsdasfafas'
-                    calcResult.message
+                    JSON.stringify(JSON.parse(calcResult.message), null, 2)
                   }
                 </SyntaxHighlighterAsync>
               )}
