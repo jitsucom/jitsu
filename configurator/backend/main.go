@@ -53,6 +53,11 @@ var (
 	builtAt string
 )
 
+type Version struct{
+	version string `json:"version"`
+	builtAt string `json:"builtAt"`
+}
+
 func main() {
 	flag.Parse()
 
@@ -294,8 +299,7 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted"), *dockerHubID).GetHandler)
 		apiV1.GET("/system/version", func(c *gin.Context) {
-			c.JSON(http.StatusOK, struct{version string `json:"version"`
-			builtAt string `json:"builtAt"`}{tag, builtAt})
+			c.JSON(http.StatusOK, Version{tag, builtAt})
 		})
 
 		usersAPIGroup := apiV1.Group("/users")
