@@ -48,6 +48,7 @@ var (
 	Instance     *AppConfig
 	RawVersion   string
 	MajorVersion string
+	BuiltAt 	 string
 	MinorVersion string
 	Beta         bool
 )

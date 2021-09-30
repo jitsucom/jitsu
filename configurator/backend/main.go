@@ -294,6 +294,9 @@ func SetupRouter(jitsuService *jitsu.Service, configurationsStorage storages.Con
 
 		apiV1.GET("/system/configuration", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted"), *dockerHubID).GetHandler)
 
+		apiV1.GET("/system/version", handlers.NewSystemHandler(authService, configurationsService, emailService.IsConfigured(), viper.GetBool("server.self_hosted"), *dockerHubID).GetHandler)
+		//todo return {version: 'beta' or '1.3.4', buildAt: ''}
+
 		usersAPIGroup := apiV1.Group("/users")
 		{
 			usersAPIGroup.GET("/info", authenticatorMiddleware.ClientAuth(enConfigurationsHandler.GetUserInfo))
