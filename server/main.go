@@ -122,6 +122,7 @@ func main() {
 
 	//parse EN version
 	appconfig.RawVersion = tag
+	appconfig.BuiltAt = builtAt
 	parsed := appconfig.VersionRegex.FindStringSubmatch(tag)
 	if len(parsed) == 4 {
 		appconfig.MajorVersion = parsed[1]
