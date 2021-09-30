@@ -220,11 +220,12 @@ const ConfigurableFieldsForm = ({
       case 'javascript':
       case 'json': {
         return (
-          <div>
+          <>
             <CodeEditor
-              handleChange={handleJsonChange(id)}
               initialValue={defaultValueToDisplay}
+              className={styles.codeEditor}
               language={type?.typeName}
+              handleChange={handleJsonChange(id)}
             />
             <span className="z-50 absolute top-2 right-3">
               {isDebugSupported(id) && (
@@ -235,7 +236,7 @@ const ConfigurableFieldsForm = ({
                 </Tooltip>
               )}
             </span>
-          </div>
+          </>
         );
       }
 
@@ -426,10 +427,7 @@ const ConfigurableFieldsForm = ({
               <Col span={24}>
                 {isDebugSupported(id) ? (
                   <CodeDebuggerModal
-                    okText={`Save ${displayName} template`}
                     visible={debugModalsStates[id][0]}
-                    onCancel={() => handleCloseDebugger(id)}
-                    onOk={() => handleSaveDebugger(id)}
                     codeFieldLabelDebugger="Expression"
                     defaultCodeValueDebugger={get(initialValues, id)}
                     handleCloseDebugger={() => handleCloseDebugger(id)}

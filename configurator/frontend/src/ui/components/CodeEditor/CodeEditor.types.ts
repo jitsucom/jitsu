@@ -1,7 +1,8 @@
 export interface Props {
-  handleChange: (value: string) => void;
   initialValue?: object | string;
+  className?: string;
   height?: number;
   language?: string;
   dynamicHeight?: () => number;
+  handleChange: (value: string) => void;
 }

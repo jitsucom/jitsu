@@ -1,6 +1,6 @@
 // @Libs
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Col, Dropdown, Form, Row, Tabs } from 'antd';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { Button, Checkbox, Dropdown, Form } from 'antd';
 import cn from 'classnames';
 // @Components
 import { DebugEvents } from 'ui/components/CodeDebugger/DebugEvents';
@@ -13,6 +13,7 @@ import UnorderedListOutlined from '@ant-design/icons/lib/icons/UnorderedListOutl
 import styles from './CodeDebugger.module.less';
 import { Event as RecentEvent } from '../../../lib/services/events';
 import { SyntaxHighlighterAsync } from 'lib/components/SyntaxHighlighter/SyntaxHighlighter';
+import { CodeOutlined, SaveOutlined } from '@ant-design/icons';
 
 export interface CodeDebuggerProps {
   /**
@@ -42,7 +43,6 @@ export interface CodeDebuggerProps {
    * */
   handleCodeChange?: (value: string | object) => void;
   /**
-   * @deprecated
    * Close modal for cases with custom close button
    * */
   handleClose?: () => void;
@@ -64,19 +64,33 @@ const CodeDebugger = ({
   codeFieldLabel = 'Table Name expression',
   defaultCodeValue,
   handleCodeChange,
+  handleClose,
   run
 }: CodeDebuggerProps) => {
   const rowWrapRef = useRef<HTMLDivElement>();
 
   const [objectInitialValue, setObjectInitialValue] = useState<string>();
-
-  const [isEventsVisible, switchEventsVisible] = useState<boolean>(false);
-
+  const [isEventsVisible, setEventsVisible] = useState<boolean>(false);
   const [calcResult, setCalcResult] = useState<CalculationResult>();
+  const [runIsLoading, setRunIsLoading] = useState<boolean>(false);
 
-  const [runIsLoading, setRunIsLoading] = useState<boolean>();
+  const [showInputEditor, setShowInputEditor] = useState<boolean>(true);
+  const [showCodeEditor, setShowCodeEditor] = useState<boolean>(true);
+  const [showResultCol, setShowResultCol] = useState<boolean>(false);
 
   const [form] = Form.useForm();
+
+  const toggleInputEditor = useCallback(() => {
+    setShowInputEditor((val) => !val);
+  }, []);
+
+  const toggleCodeEditor = useCallback(() => {
+    setShowCodeEditor((val) => !val);
+  }, []);
+
+  const toggleResultCol = useCallback(() => {
+    setShowResultCol((val) => !val);
+  }, []);
 
   const handleChange =
     (name: 'object' | 'code') => (value: string | object) => {
@@ -87,6 +101,7 @@ const CodeDebugger = ({
     };
 
   const handleFinish = async (values: FormValues) => {
+    setShowResultCol(true);
     setRunIsLoading(true);
 
     try {
@@ -113,17 +128,18 @@ const CodeDebugger = ({
 
     handleChange('object')(JSON.stringify(event));
 
-    switchEventsVisible(false);
+    setEventsVisible(false);
   };
 
-  const handleSwitchEventsVisible = () => switchEventsVisible(!isEventsVisible);
+  const handleSwitchEventsVisible = () =>
+    setEventsVisible((isEventsVisible) => !isEventsVisible);
 
   const handleCloseEvents = useCallback((e) => {
     if (
       !e.target.closest('.ant-dropdown') &&
       !e.target.closest('#events-button')
     ) {
-      switchEventsVisible(false);
+      setEventsVisible(false);
     }
   }, []);
 
@@ -146,109 +162,129 @@ const CodeDebugger = ({
         'flex flex-col items-stretch h-screen max-h-full pt-4;'
       )}
     >
-      <Form form={form} className="flex-auto" onFinish={handleFinish}>
-        <Row ref={rowWrapRef} className="h-full">
-          <Col span={12} className={'flex flex-col h-full pr-1'}>
-            <label
-              htmlFor="object"
-              className="flex justify-between items-center h-12"
-            >
-              <span className="block flex-grow-0">{'Event JSON'}</span>
-              <Dropdown
-                forceRender
-                className="flex-grow-0"
-                placement="bottomRight"
-                overlay={<DebugEvents handleClick={handleEventClick} />}
-                trigger={['click']}
-                visible={isEventsVisible}
-              >
-                <Button
-                  size="small"
-                  type="link"
-                  icon={<UnorderedListOutlined />}
-                  id="events-button"
-                  onClick={handleSwitchEventsVisible}
-                >
-                  Copy Recent Event
-                </Button>
-              </Dropdown>
-            </label>
-            <Form.Item
-              className={`${styles.field} w-full`}
-              colon={false}
-              name="object"
-            >
-              <CodeEditor
-                initialValue={objectInitialValue}
-                language={'json'}
-                handleChange={handleChange('object')}
-              />
-            </Form.Item>
-          </Col>
-
-          <Col span={12} className="flex flex-col pl-1">
-            <label
-              htmlFor="object"
-              className="flex justify-between items-center h-12"
-            >
-              <span className="block flex-grow-0">
-                {codeFieldLabel ?? 'Code'}
-              </span>
-              <Button
-                htmlType="submit"
-                size="small"
-                icon={<CaretRightOutlined />}
-                loading={runIsLoading}
-                type="primary"
-              >
-                Run
-              </Button>
-            </label>
-            <Form.Item className={styles.field} colon={false} name="code">
-              <CodeEditor
-                initialValue={defaultCodeValue}
-                handleChange={handleChange('code')}
-                language="javascript"
-              />
-            </Form.Item>
-          </Col>
-        </Row>
-      </Form>
-      <div
-        className={`flex-auto max-h-40 box-border rounded-md font-mono list-none p-4 m-0 ${styles.darkenBackground}`}
-      >
-        {calcResult && (
-          <p
-            className={cn('flex items-stretch w-full h-full m-0', {
-              [styles.itemError]: calcResult.code === 'error',
-              [styles.itemSuccess]: calcResult.code === 'success'
-            })}
-          >
-            <strong
-              className={`whitespace-pre-wrap pr-3 flex-shrink-0 text-xs`}
-            >
-              {`${calcResult.code}${
-                calcResult.format ? `(${calcResult.format})` : ''
-              }:`}
-            </strong>
-            <span className={`flex-auto min-w-0 whitespace-pre-wrap text-xs`}>
-              {calcResult.code === 'error' ? (
-                calcResult.message
-              ) : (
-                <SyntaxHighlighterAsync
-                  language="json"
-                  className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
-                >
-                  {
-                    // 'safdasfs afdasfasdgasgdfags gasgafasdf asfafasdfasf afdasfdafdda sfasfadsfas fasfafsdasfafas'
-                    JSON.stringify(JSON.parse(calcResult.message), null, 2)
-                  }
-                </SyntaxHighlighterAsync>
-              )}
-            </span>
-          </p>
-        )}
+      <div className="w-full mb-4">
+        <Controls
+          formId="inputs"
+          inputChecked={showInputEditor}
+          codeChecked={showCodeEditor}
+          outputChecked={showResultCol}
+          toggleInput={toggleInputEditor}
+          toggleCode={toggleCodeEditor}
+          toggleOutput={toggleResultCol}
+          handleExit={handleClose}
+        />
       </div>
+      <Form
+        form={form}
+        className="flex-auto"
+        id="inputs"
+        onFinish={handleFinish}
+      >
+        <div ref={rowWrapRef} className={`flex items-stretch h-full`}>
+          <div
+            className={`flex flex-col relative h-full pr-2 ${styles.column} ${
+              !showInputEditor && 'hidden'
+            }`}
+          >
+            <SectionWithLabel label="Event JSON" htmlFor="object">
+              <Form.Item
+                className={`${styles.field} w-full`}
+                colon={false}
+                name="object"
+              >
+                <CodeEditor
+                  initialValue={objectInitialValue}
+                  language={'json'}
+                  handleChange={handleChange('object')}
+                />
+              </Form.Item>
+            </SectionWithLabel>
+            <Dropdown
+              forceRender
+              className="absolute right-4 bottom-3"
+              placement="topRight"
+              overlay={<DebugEvents handleClick={handleEventClick} />}
+              trigger={['click']}
+              visible={isEventsVisible}
+            >
+              <Button
+                size="small"
+                type="link"
+                icon={<UnorderedListOutlined />}
+                id="events-button"
+                onClick={handleSwitchEventsVisible}
+              >
+                Copy Recent Event
+              </Button>
+            </Dropdown>
+          </div>
+
+          <div
+            className={`px-1 ${styles.columnWide} ${
+              !showCodeEditor && 'hidden'
+            }`}
+          >
+            <SectionWithLabel label={codeFieldLabel} htmlFor="code">
+              <Form.Item className={styles.field} colon={false} name="code">
+                <CodeEditor
+                  initialValue={defaultCodeValue}
+                  handleChange={handleChange('code')}
+                  language="javascript"
+                />
+              </Form.Item>
+            </SectionWithLabel>
+          </div>
+
+          <div
+            className={`pl-1 ${styles.column} ${!showResultCol && 'hidden'}`}
+          >
+            <SectionWithLabel label="Result">
+              <div
+                className={`h-full box-border font-mono list-none p-4 m-0 ${styles.darkenBackground}`}
+              >
+                {calcResult && (
+                  <p
+                    className={cn('flex flex-col w-full h-full m-0', {
+                      [styles.itemError]: calcResult.code === 'error',
+                      [styles.itemSuccess]: calcResult.code === 'success'
+                    })}
+                  >
+                    <strong
+                      className={`whitespace-pre-wrap pr-3 flex-shrink-0 text-xs`}
+                    >
+                      {`${calcResult.code}${
+                        calcResult.format ? `(${calcResult.format})` : ''
+                      }`}
+                    </strong>
+                    <span
+                      className={`flex-auto min-w-0 whitespace-pre-wrap text-xs`}
+                    >
+                      {calcResult.code === 'error' ? (
+                        calcResult.message
+                      ) : (
+                        <SyntaxHighlighterAsync
+                          language="json"
+                          className={`h-full w-full overflow-auto ${styles.darkenBackground} ${styles.syntaxHighlighter} ${styles.withSmallScrollbar}`}
+                        >
+                          {calcResult.message}
+                          {/* {
+                            // 'safdasfs afdasfasdgasgdfags gasgafasdf asfafasdfasf afdasfdafdda sfasfadsfas fasfafsdasfafas'
+                            JSON.stringify(
+                              JSON.parse(calcResult.message),
+                              null,
+                              2
+                            )
+                          } */}
+                        </SyntaxHighlighterAsync>
+                      )}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </SectionWithLabel>
+          </div>
+        </div>
+      </Form>
     </div>
   );
 };
@@ -256,3 +292,100 @@ const CodeDebugger = ({
 CodeDebugger.displayName = 'CodeDebugger';
 
 export { CodeDebugger };
+
+type ControlsProps = {
+  formId: string;
+  inputChecked: boolean;
+  codeChecked: boolean;
+  outputChecked: boolean;
+  toggleInput: () => void;
+  toggleCode: () => void;
+  toggleOutput: () => void;
+  handleExit: () => void;
+};
+
+const ControlsComponent: React.FC<ControlsProps> = ({
+  formId,
+  inputChecked,
+  codeChecked,
+  outputChecked,
+  toggleInput,
+  toggleCode,
+  toggleOutput,
+  handleExit
+}) => {
+  return (
+    <div className="flex w-full h-full">
+      <Button size="large" className="flex-grow-0" onClick={handleExit}>
+        {'Esc'}
+      </Button>
+      <div className="flex justify-center flex-auto min-w-0">
+        <Button
+          size="large"
+          className={`mr-1 ${styles.selectableButton} ${
+            inputChecked && styles.buttonSelected
+          }`}
+          onClick={toggleInput}
+        >
+          {'{  }'}
+        </Button>
+        <Button
+          size="large"
+          className={`mr-1 ${styles.selectableButton} ${
+            codeChecked && styles.buttonSelected
+          }`}
+          onClick={toggleCode}
+        >
+          {'</>'}
+        </Button>
+        <Button
+          size="large"
+          className={`${styles.selectableButton} ${
+            outputChecked && styles.buttonSelected
+          }`}
+          onClick={toggleOutput}
+        >
+          <CodeOutlined />
+        </Button>
+      </div>
+      <div className="flex-grow-0">
+        <Button
+          size="large"
+          type="primary"
+          icon={<CaretRightOutlined />}
+          className={`mr-1 ${styles.buttonGreen}`}
+          htmlType="submit"
+          form={formId}
+        />
+        <Button size="large" type="primary" icon={<SaveOutlined />} />
+      </div>
+    </div>
+  );
+};
+
+const Controls = memo(ControlsComponent);
+
+type SectionProps = {
+  label: string;
+  htmlFor?: string;
+};
+
+const SectionWithLabel: React.FC<SectionProps> = ({
+  label,
+  htmlFor,
+  children
+}) => {
+  return (
+    <div
+      className={`relative w-full h-full overflow-hidden pt-6 rounded-md ${styles.darkenBackground}`}
+    >
+      <label
+        className={`absolute top-1 left-2 z-10 ${styles.label}`}
+        htmlFor={htmlFor}
+      >
+        {label}
+      </label>
+      {children}
+    </div>
+  );
+};

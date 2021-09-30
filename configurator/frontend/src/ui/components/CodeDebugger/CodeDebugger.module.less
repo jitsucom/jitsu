@@ -1,17 +1,22 @@
 @import "./src/theme";
 
-.withSmallScrollbar::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
 .darkenBackground {
   background-color: @primary-background !important;
 }
 
+.column {
+  flex: 1 1 10%;
+  @apply min-w-0;
+}
+
+.columnWide {
+  flex: 2 1 auto;
+  @apply min-w-0;
+}
+
 .field {
   @apply flex flex-col h-full;
-  @apply border-0 mb-2 !important;
+  @apply border-0 mb-0 !important;
 
   :global {
     .ant-form-item-control-input,
@@ -25,6 +30,39 @@
   }
 }
 
+.buttonGreen {
+  // color: @success !important;
+  border-color: @success !important;
+  background-color: @success !important;
+}
+
+.buttonGreen:hover, .buttonGreen:focus {
+  // color: @successHover !important;
+  border-color: @successHover !important;
+  background-color: @successHover !important;
+}
+
+.buttonGreen:active {
+  // color: @successActive !important;
+  border-color: @successActive !important;
+  background-color: @successActive !important;
+}
+
+.selectableButton:active {
+  color: @text-color !important;
+  border-color: @text-color-secondary !important;
+}
+
+.buttonSelected, .buttonSelected:active {
+  color: @secondaryBorderFocus !important;
+  border-color: @secondaryBorderFocus !important;
+}
+
+.buttonSelected:hover {
+  color: @secondaryBorderHover;
+  border-color: @secondaryBorderHover;
+}
+
 .itemError {
   color: @error-color;
 }
@@ -33,6 +71,16 @@
   color: @success-color;
 }
 
+.withSmallScrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
 .syntaxHighlighter {
   @apply pt-0 !important;
+}
+
+.label {
+  font-size: 8px;
+  color: @text-color-secondary;
 }
