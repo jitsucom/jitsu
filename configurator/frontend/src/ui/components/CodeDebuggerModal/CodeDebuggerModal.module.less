@@ -1,17 +1,16 @@
 .modal {
   @apply flex;
-  @apply p-0 !important;
-  height: 95vh;
+  @apply h-screen w-screen max-w-none p-0 rounded-none !important;
 
   :global {
     .ant-modal-content {
       @apply flex flex-auto flex-col;
-      @apply rounded-md !important;
+      @apply rounded-none !important;
       height: 100%;
     }
 
     .ant-modal-body {
-      @apply flex-auto h-full py-0 !important;
+      @apply flex-auto h-full px-6 pt-7 pb-4 !important;
       overflow-y: auto;
     }
 

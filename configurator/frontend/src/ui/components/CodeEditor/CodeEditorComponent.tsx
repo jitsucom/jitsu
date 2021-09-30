@@ -26,9 +26,10 @@ monacoEditor.editor.defineTheme('own-theme', {
 });
 
 const CodeEditorComponent = ({
-  handleChange: handleChangeProp,
   initialValue,
-  language = 'json'
+  className,
+  language = 'json',
+  handleChange: handleChangeProp
 }: Props) => {
   const defaultValue = !initialValue
     ? ''
@@ -60,6 +61,7 @@ const CodeEditorComponent = ({
   return (
     <MonacoEditor
       ref={ref}
+      className={className}
       language={language}
       theme="own-theme"
       defaultValue={defaultValue}

@@ -33,7 +33,7 @@ export const CodeDebuggerModal: React.FC<Props> = ({
   return (
     <Modal
       centered
-      width="95vw"
+      footer={null}
       closable={false}
       maskClosable={true}
       className={`${styles.modal} ${modalClassName}`}
