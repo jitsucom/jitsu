@@ -32,6 +32,16 @@ func NewSystemHandler(authService *authorization.Service, configurationService *
 	}
 }
 
+func NewVersionHandler(dockerHubID string) *SystemHandler {
+	return &SystemHandler{
+		authService:          authService,
+		configurationService: configurationService,
+		smtp:                 smtp,
+		selfHosted:           selfHosted,
+		dockerHubID:          dockerHubID,
+	}
+}
+
 //GetHandler returns JSON with current authorization type and users existence
 func (sh *SystemHandler) GetHandler(c *gin.Context) {
 	exist, err := sh.authService.UsersExist()
