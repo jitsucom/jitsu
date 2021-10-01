@@ -225,11 +225,16 @@ const CodeDebugger = ({
             }`}
           >
             <SectionWithLabel label={codeFieldLabel} htmlFor="code">
-              <Form.Item className={styles.field} colon={false} name="code">
+              <Form.Item
+                className={`${styles.field} pl-2`}
+                colon={false}
+                name="code"
+              >
                 <CodeEditor
                   initialValue={defaultCodeValue}
-                  handleChange={handleChange('code')}
                   language="javascript"
+                  enableLineNumbers
+                  handleChange={handleChange('code')}
                 />
               </Form.Item>
             </SectionWithLabel>
