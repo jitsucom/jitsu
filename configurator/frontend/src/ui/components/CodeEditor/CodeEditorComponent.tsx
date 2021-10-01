@@ -29,6 +29,7 @@ const CodeEditorComponent = ({
   initialValue,
   className,
   language = 'json',
+  enableLineNumbers,
   handleChange: handleChangeProp
 }: Props) => {
   const defaultValue = !initialValue
@@ -68,7 +69,7 @@ const CodeEditorComponent = ({
       options={{
         glyphMargin: false,
         folding: false,
-        lineNumbers: 'off',
+        lineNumbers: enableLineNumbers ? 'on' : 'off',
         lineDecorationsWidth: 11,
         lineNumbersMinChars: 0,
         minimap: {

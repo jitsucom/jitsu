@@ -3,6 +3,7 @@ export interface Props {
   className?: string;
   height?: number;
   language?: string;
+  enableLineNumbers?: boolean;
   dynamicHeight?: () => number;
   handleChange: (value: string) => void;
 }
