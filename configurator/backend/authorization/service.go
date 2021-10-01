@@ -11,6 +11,7 @@ import (
 	uuid "github.com/satori/go.uuid"
 	"github.com/spf13/viper"
 	"golang.org/x/crypto/bcrypt"
+	"strings"
 )
 
 const (
@@ -50,10 +51,21 @@ func NewService(ctx context.Context, vp *viper.Viper, storage storages.Configura
 		}
 
 		port := vp.GetInt("auth.redis.port")
+		sentinelMaster := vp.GetString("auth.redis.sentinel_master_name")
+		if sentinelMaster != "" {
+			logging.Infof("redis sentinel master name is: %s", sentinelMaster)
+			if port == 0 {
+				return nil, errors.New("redis sentinel port is required")
+			}
+			if strings.HasPrefix(host, "redis") {
+				return nil, errors.New("redis sentinel host should be of the form subdomain.domain,  eg: localhost, stg-redis-headless.redis.svc.cluster.local . no redis:// or rediss:// prefix")
+			}
+		}
+
 		redisPassword := vp.GetString("auth.redis.password")
 		tlsSkipVerify := vp.GetBool("auth.redis.tls_skip_verify")
 
-		redisConfig := meta.NewRedisConfiguration(host, port, redisPassword, tlsSkipVerify)
+		redisConfig := meta.NewRedisConfiguration(host, port, redisPassword, tlsSkipVerify, sentinelMaster)
 		if defaultPort, ok := redisConfig.CheckAndSetDefaultPort(); ok {
 			logging.Infof("auth.redis.port isn't configured. Will be used default: %d", defaultPort)
 		}

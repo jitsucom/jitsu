@@ -81,7 +81,6 @@ server:
 
 destinations:
 ...
-
 coordination:
   redis:
     host: your_redis_host
@@ -108,6 +107,36 @@ meta.storage:
 
 coordination:
   type: redis
+```
+
+### redis sentinel support
+
+requires adding 'sentinel_master_name' key to configuration
+and explicitly specifying sentinel port
+on successful connection to one sentinel, all other sentinels will be discovered
+
+```yaml
+# eventnative.yaml
+meta:
+  storage:
+    redis:
+      host: your_redis_host # eg: localhost, redis-headless.redis.svc.cluster.local
+      port: 26379
+      sentinel_master_name: redis_dev_master
+
+# configurator.yaml
+storage:
+  redis:
+    host: '${env.REDIS_URL}'
+    sentinel_master_name: 'redis_dev_master'
+    port: 26379
+    tls_skip_verify: '${env.TLS_SKIP_VERIFY|false}'
+
+auth:
+  redis:
+    host: '${env.REDIS_URL}'
+    port: 26379
+    sentinel_master_name: 'redis_dev_master'
 ```
 
 Every **Jitsu Server** instance with configured coordination sends heartbeat requests every 90 seconds.
