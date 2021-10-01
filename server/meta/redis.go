@@ -36,27 +36,29 @@ var (
 
 //RedisConfiguration is a dto with Redis credentials and configuration parameters
 type RedisConfiguration struct {
-	host          string
-	port          int
-	password      string
-	tlsSkipVerify bool
+	host               string
+	sentinelMasterName string
+	port               int
+	password           string
+	tlsSkipVerify      bool
 }
 
 //NewRedisConfiguration returns filled RedisConfiguration and removes quotes in host
-func NewRedisConfiguration(host string, port int, password string, tlsSkipVerify bool) *RedisConfiguration {
+func NewRedisConfiguration(host string, port int, password string, tlsSkipVerify bool, sentinelMasterMame string) *RedisConfiguration {
 	host = strings.TrimPrefix(host, `"`)
 	host = strings.TrimPrefix(host, `'`)
 	host = strings.TrimSuffix(host, `"`)
 	host = strings.TrimSuffix(host, `'`)
 	return &RedisConfiguration{
-		host:          host,
-		port:          port,
-		password:      password,
-		tlsSkipVerify: tlsSkipVerify,
+		host:               host,
+		port:               port,
+		password:           password,
+		tlsSkipVerify:      tlsSkipVerify,
+		sentinelMasterName: sentinelMasterMame,
 	}
 }
 
-//CheckAndSetDefaultPort checks if port isn't set - put 6379
+//CheckAndSetDefaultPort checks if port isn't set - put 6379, if sentinel mode put 26379
 func (rc *RedisConfiguration) CheckAndSetDefaultPort() (int, bool) {
 	if rc.port == 0 && !rc.IsURL() && !rc.IsSecuredURL() {
 		parts := strings.Split(rc.host, ":")
@@ -67,6 +69,9 @@ func (rc *RedisConfiguration) CheckAndSetDefaultPort() (int, bool) {
 				rc.host = parts[0]
 				return rc.port, false
 			}
+		}
+		if rc.IsSentinelMode() {
+			rc.port = 26379
 		}
 		rc.port = 6379
 		return rc.port, true
@@ -83,6 +88,11 @@ func (rc *RedisConfiguration) IsURL() bool {
 //IsSecuredURL returns true if RedisConfiguration contains connection credentials via secured(SSL) URL
 func (rc *RedisConfiguration) IsSecuredURL() bool {
 	return strings.HasPrefix(rc.host, "rediss://")
+}
+
+//IsSentinelMode returns true if RedisConfiguration contains redis sentinel master name
+func (rc *RedisConfiguration) IsSentinelMode() bool {
+	return rc.sentinelMasterName != ""
 }
 
 //String returns host:port or host if host is an URL
@@ -155,40 +165,22 @@ func NewRedis(config *RedisConfiguration, anonymousEventsMinutesTTL int) (*Redis
 //host might be URLS : [redis:// or rediss://] or plain host
 func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
 	var dialFunc func() (redis.Conn, error)
-	if config.IsSecuredURL() {
-		//redis secured URL
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.DialURL(config.host, redis.DialTLSSkipVerify(config.tlsSkipVerify), defaultDialConnectTimeout, defaultDialReadTimeout)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
+	options := []redis.DialOption{defaultDialConnectTimeout, defaultDialReadTimeout}
+
+	if config.IsSentinelMode() {
+		if  config.password != ""{
+			options = append(options, redis.DialPassword(config.password))
 		}
-	} else if config.IsURL() {
-		//redis unsecured URL
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.DialURL(config.host, redis.DialTLSSkipVerify(true), defaultDialConnectTimeout, defaultDialReadTimeout)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
+		dialFunc = newSentinelDialFunc(config.sentinelMasterName, []string{config.String()}, options)
+	} else if config.IsSecuredURL() || config.IsURL() {
+		shouldSkipTls := config.tlsSkipVerify || config.IsURL()
+		options = append(options, redis.DialTLSSkipVerify(shouldSkipTls))
+		dialFunc = newDialUrlFunc(config, options)
 	} else {
-		//host + port
-		dialFunc = func() (redis.Conn, error) {
-			c, err := redis.Dial(
-				"tcp",
-				config.String(),
-				defaultDialConnectTimeout,
-				defaultDialReadTimeout,
-				redis.DialPassword(config.password),
-			)
-			if err != nil {
-				return nil, err
-			}
-			return c, err
-		}
+		options = append(options, redis.DialPassword(config.password))
+		dialFunc = newDialTcpFunc(config, options)
 	}
+
 	pool := &redis.Pool{
 		MaxIdle:     100,
 		MaxActive:   600,
@@ -208,11 +200,32 @@ func NewRedisPool(config *RedisConfiguration) (*redis.Pool, error) {
 
 	if _, err := redis.String(connection.Do("PING")); err != nil {
 		pool.Close()
-		return nil, fmt.Errorf("Error testing Redis connection: %v", err)
+		return nil, fmt.Errorf("testing Redis connection: %v", err)
 	}
 
 	return pool, nil
 }
+
+func newDialTcpFunc(config *RedisConfiguration, options []redis.DialOption) func() (redis.Conn, error) {
+	return func() (redis.Conn, error) {
+		c, err := redis.Dial("tcp", config.String(), options...)
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+}
+
+func newDialUrlFunc(config *RedisConfiguration, options []redis.DialOption) func() (redis.Conn, error) {
+	return func() (redis.Conn, error) {
+		c, err := redis.DialURL(config.host, options...)
+		if err != nil {
+			return nil, err
+		}
+		return c, err
+	}
+}
+
 
 //GetSignature returns sync interval signature from Redis
 func (r *Redis) GetSignature(sourceID, collection, interval string) (string, error) {

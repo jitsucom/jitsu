@@ -32,7 +32,7 @@ func init() {
 }
 
 //NewRedis returns configured Redis driver instance
-func NewRedis(ctx context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
+func NewRedis(_ context.Context, sourceConfig *base.SourceConfig, collection *base.Collection) (base.Driver, error) {
 	config := &RedisConfig{}
 	err := base.UnmarshalConfig(sourceConfig.Config, config)
 	if err != nil {
@@ -57,7 +57,7 @@ func NewRedis(ctx context.Context, sourceConfig *base.SourceConfig, collection *
 		return nil, fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify)
+	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify,config.SentinelMasterName)
 	if defaultPort, ok := redisConfig.CheckAndSetDefaultPort(); ok {
 		logging.Warnf("[%s] port wasn't provided. Will be used default one: %d", sourceConfig.SourceID, defaultPort)
 	}
@@ -90,7 +90,7 @@ func TestRedis(sourceConfig *base.SourceConfig) error {
 		return fmt.Errorf("Error casting redis port [%s] to int: %v", config.Port.String(), err)
 	}
 
-	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify)
+	redisConfig := meta.NewRedisConfiguration(config.Host, int(intPort), config.Password, config.TLSSkipVerify,config.SentinelMasterName)
 	redisConfig.CheckAndSetDefaultPort()
 
 	pool, err := meta.NewRedisPool(redisConfig)
