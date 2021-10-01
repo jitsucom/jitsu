@@ -122,7 +122,7 @@ export const allAirbyteSources: AirbyteSource[] = [
       ),
       connection:(
         <>
-          Please follow these <a href="https://developers.asana.com/docs/personal-access-token">steps</a>to obtain Personal Access Token for your account.
+          Please follow these <a href="https://developers.asana.com/docs/personal-access-token">steps</a> to obtain Personal Access Token for your account.
         </>
       )
     }

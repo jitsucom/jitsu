@@ -7,6 +7,23 @@ export interface IProject {
   planId: string;
 }
 
+/**
+ * Structure of /database API response
+ */
+export type PgDatabaseCredentials = {
+  User: string;
+  Password: string;
+  Host: string;
+  Port: string;
+  Database: string;
+};
+export interface Transformer<T> {
+  (data: any, headers?: any): T;
+}
+export const JSON_FORMAT: Transformer<any> = undefined;
+export const AS_IS_FORMAT: Transformer<string> = (response) =>
+  response ? response.toString() : null;
+
 export class Project implements IProject {
   private readonly _id: string;
   private _name: string;

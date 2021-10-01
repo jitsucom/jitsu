@@ -57,6 +57,26 @@ export function assert(condition: boolean, errMsg?: string): asserts condition {
 }
 
 /**
+ * Asserts whether the value is string - if not, throws an error.
+ * Useful for making type checks that will provide type narrowing.
+ *
+ * @param value value to assert
+ * @param errMsg error message to throw if assertion fails
+ *
+ * @returns void or never
+ *
+ */
+ export function assertIsString(
+  value: unknown,
+  errMsg?: string
+): asserts value is string {
+  assert(
+    typeof value === 'string',
+    errMsg || `array assertion failed - ${value} is not an array`
+  );
+}
+
+/**
  * Asserts whether the value is array - if not, throws an error.
  * Useful for making type checks that will provide type narrowing.
  *
@@ -147,4 +167,21 @@ export function assertHasOwnProperty<O extends {}, P extends PropertyKey>(
   errMsg?: string
 ): asserts object is O & Record<P, unknown> {
   assert(hasOwnProperty<O, P>(object, property), errMsg);
+}
+
+/**
+ * Asserts that object has all properties from the argument array
+ *
+ * @param object object to check
+ * @param properties array of properties to look for
+ * @param errMsg error to display if assertion failed
+ *
+ * @returns void or never
+ */
+ export function assertHasAllProperties<O extends {}, P extends PropertyKey[]>(
+  object: O,
+  properties: P,
+  errMsg?: string
+): asserts object is O & Record<keyof P, unknown> {
+  properties.forEach(property => assert(hasOwnProperty(object, property), errMsg));
 }

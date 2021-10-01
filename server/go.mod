@@ -35,8 +35,9 @@ require (
 	github.com/mitchellh/hashstructure/v2 v2.0.1
 	github.com/olekukonko/tablewriter v0.0.4
 	github.com/oschwald/geoip2-golang v1.4.0
-	github.com/panjf2000/ants/v2 v2.4.3
 	github.com/pierrec/lz4 v2.6.1+incompatible // indirect
+	github.com/panjf2000/ants/v2 v2.4.6
+	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.7.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/satori/go.uuid v1.2.0
@@ -57,6 +58,7 @@ require (
 	golang.org/x/oauth2 v0.0.0-20210819190943-2bc19b11175f
 	golang.org/x/term v0.0.0-20201126162022-7de9c90e9dd1
 	google.golang.org/api v0.56.0
+	google.golang.org/genproto v0.0.0-20210828152312-66f60bf46e71
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/segmentio/analytics-go.v3 v3.1.0
 	gotest.tools v2.2.0+incompatible

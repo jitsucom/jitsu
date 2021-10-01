@@ -236,12 +236,12 @@ func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.Re
 			logging.SystemErrorf("Unknown value %q for %q query parameter", middleware.CookiePolicyParameter, cookiePolicy)
 		}
 	}
+	hashedAnonymousID := fmt.Sprintf("%x", md5.Sum([]byte(clientIP + c.Request.UserAgent())))
 
 	var jitsuAnonymousID string
 	if !cookiesLawCompliant {
 		//cookie less
-		userIdentifier := clientIP + c.Request.UserAgent()
-		jitsuAnonymousID = fmt.Sprintf("%x", md5.Sum([]byte(userIdentifier)))
+		jitsuAnonymousID = hashedAnonymousID
 	}
 
 	//ip address
@@ -270,6 +270,7 @@ func getRequestContext(c *gin.Context, eventPayloads ...events.Event) *events.Re
 		ClientIP:            clientIP,
 		Referer:             c.Request.Referer(),
 		JitsuAnonymousID:    jitsuAnonymousID,
+		HashedAnonymousID:	 hashedAnonymousID,
 		CookiesLawCompliant: cookiesLawCompliant,
 	}
 }

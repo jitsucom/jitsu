@@ -49,6 +49,7 @@ var (
 
 	defaultValues = map[string]interface{}{
 		"int8":                     0,
+		"int16":                    0,
 		"int32":                    0,
 		"int64":                    0,
 		"int128":                   0,
@@ -59,18 +60,29 @@ var (
 		"numeric":                  0.0,
 		"datetime":                 time.Time{},
 		"uint8":                    false,
+		"uint16":                   0,
 		"uint32":                   0,
 		"uint64":                   0,
 		"uint128":                  0,
 		"uint256":                  0,
 		"string":                   "",
+		"lowcardinality(int8)":     0,
+		"lowcardinality(int16)":    0,
 		"lowcardinality(int32)":    0,
 		"lowcardinality(int64)":    0,
+		"lowcardinality(int128)":   0,
+		"lowcardinality(int256)":   0,
 		"lowcardinality(float32)":  0,
 		"lowcardinality(float64)":  0,
 		"lowcardinality(datetime)": time.Time{},
 		"lowcardinality(uint8)":    false,
+		"lowcardinality(uint16)":   0,
+		"lowcardinality(uint32)":   0,
+		"lowcardinality(uint64)":   0,
+		"lowcardinality(uint128)":  0,
+		"lowcardinality(uint256)":  0,
 		"lowcardinality(string)":   "",
+		"uuid":                     "00000000-0000-0000-0000-000000000000",
 	}
 )
 
@@ -560,7 +572,7 @@ func (ch *ClickHouse) insertInTransaction(wrappedTx *Transaction, table *Table, 
 
 	err := ch.executeInsert(wrappedTx, table, headerWithQuotes, removeLastComma(placeholdersBuilder.String()), valueArgs)
 	if err != nil {
-		return fmt.Errorf("Error executing insert in bulk: %v", err)
+		return err
 	}
 
 	return nil
@@ -573,7 +585,7 @@ func (ch *ClickHouse) executeInsert(wrappedTx *Transaction, table *Table, header
 	ch.queryLogger.LogQueryWithValues(statement, valueArgs)
 
 	if _, err := wrappedTx.tx.Exec(statement, valueArgs...); err != nil {
-		return err
+		return fmt.Errorf("error inserting in %s table statement: %s values: %v: %v", table.Name, statement, valueArgs, err)
 	}
 
 	return nil

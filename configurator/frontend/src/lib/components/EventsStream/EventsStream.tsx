@@ -125,7 +125,7 @@ const TabTitle: React.FC<{ icon: any, error?: boolean }> = ({ icon, error, child
  * @param len
  * @param children
  */
-const MaxLen: React.FC<{len: number}> = ({ len, children }) => {
+const MaxLen: React.FC<{ len: number }> = ({ len, children }) => {
   const string = reactElementToString(children);
   if (string.length <= len) {
     return <>{children}</>;
@@ -172,7 +172,7 @@ const EventsView: React.FC<{ event: Event, className?: string, allDestinations: 
           Event is in queue and hasn't been sent to {destination._id} yet
         </div>
       } else if (result.status === 'skip') {
-        display =<div className="font-monospace flex justify-center items-center">Event was skipped: {JSON.stringify(result.rawJson)}</div>
+        display = <div className="font-monospace flex justify-center items-center">Event was skipped: {JSON.stringify(result.rawJson)}</div>
       } else {
         display = getResultView(result.rawJson);
       }
@@ -218,7 +218,7 @@ function getResultView(obj: any) {
 
 }
 
-const EventsList: React.FC<{ destinationsFilter: string[], reloadCount: number }> = ({ destinationsFilter , reloadCount }) => {
+const EventsList: React.FC<{ destinationsFilter: string[], reloadCount: number }> = ({ destinationsFilter, reloadCount }) => {
   const [selectedEvent, setSelectedEvent] = useState(null);
   const services = useServices();
 
@@ -235,7 +235,7 @@ const EventsList: React.FC<{ destinationsFilter: string[], reloadCount: number }
       return { events, destinationId: dst._uid }
     });
   });
-  const [error, data, ,reload] = useLoader(() => Promise.all(promises), [destinationsFilter, reloadCount]);
+  const [error, data, , reload] = useLoader(() => Promise.all(promises), [destinationsFilter, reloadCount]);
   if (error) {
     return <CenteredError error={error}/>
   } else if (!data) {
@@ -271,8 +271,8 @@ const EventsList: React.FC<{ destinationsFilter: string[], reloadCount: number }
               {hasFailedEvent ?
                 <ExclamationCircleOutlined className="text-error"/> :
                 (hasPendingEvent ?
-                  <QuestionCircleOutlined className="text-warning"/> :
-                  <CheckCircleOutlined className="text-success"/>
+                    <QuestionCircleOutlined className="text-warning"/> :
+                    <CheckCircleOutlined className="text-success"/>
                 )}
             </Tooltip>
           </div>
@@ -296,7 +296,9 @@ const EventsList: React.FC<{ destinationsFilter: string[], reloadCount: number }
 const EventStreamComponent = () => {
   const location = useLocation();
   const params = new URLSearchParams(location.search);
-  const [filterByIds, setFilterByIds] = useState(params.get('onlyIds') ? params.get('onlyIds').split(',') : null);
+  const [filterByIds, setFilterByIds] = useState(params.get('onlyIds') ?
+    params.get('onlyIds').split(',') :
+    null);
   const [reloadCount, setReloadCount] = useState(0)
   const history = useHistory();
   return <div>
@@ -306,19 +308,19 @@ const EventStreamComponent = () => {
         history.push({ search: `onlyIds=${ids}` })
       }}/>
       <Button size="large" type="primary" onClick={() => {
-        setReloadCount(reloadCount+1);
+        setReloadCount(reloadCount + 1);
       }}>Reload</Button>
     </div>
-    <EventsList destinationsFilter={filterByIds} reloadCount={reloadCount} />
+    <EventsList destinationsFilter={filterByIds} reloadCount={reloadCount}/>
   </div>
 }
 
-const DestinationsFilter: React.FC<{onChange: (destinations: string[]) => void, allDestinations: DestinationData[], initialFilter?: string[] }> = ({ initialFilter, onChange, allDestinations }) => {
+const DestinationsFilter: React.FC<{ onChange: (destinations: string[]) => void, allDestinations: DestinationData[], initialFilter?: string[] }> = ({ initialFilter, onChange, allDestinations }) => {
   const [selectedIds, setSelectedIds] = useState(initialFilter || allDestinations.map(dst => dst._uid));
   const [popoverVisible, setPopoverVisible] = useState(false);
   const selectedAll = selectedIds.length === allDestinations.length;
 
-  return <Popover  visible={popoverVisible} placement="bottom" title={null} content={
+  return <Popover visible={popoverVisible} placement="bottom" title={null} content={
     <div className="w-96 h-96 overflow-y-hidden overflow-hidden pr-6">
       <div className="flex pb-4">
         <div className="flex-grow">
@@ -349,12 +351,14 @@ const DestinationsFilter: React.FC<{onChange: (destinations: string[]) => void, 
             <span className="icon-size-base">{destinationType.ui.icon}</span>
             <span><MaxLen len={40}>{dst._id}</MaxLen></span>
           </div>
-          <div><Checkbox checked={selectedIds.includes(dst._uid)} onClick={toggleCheckBox} /></div>
+          <div><Checkbox checked={selectedIds.includes(dst._uid)} onClick={toggleCheckBox}/></div>
 
         </div>
       })}</div>
     </div>} trigger="click">
-    <Button size="large" className="w-72" onClick={() => setPopoverVisible(!popoverVisible)}>Show Destinations: {selectedAll ? 'all' : `${selectedIds.length} out of ${allDestinations.length}`}</Button>
+    <Button size="large" className="w-72" onClick={() => setPopoverVisible(!popoverVisible)}>Show Destinations: {selectedAll ?
+      'all' :
+      `${selectedIds.length} out of ${allDestinations.length}`}</Button>
   </Popover>
 }
 

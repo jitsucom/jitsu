@@ -22,6 +22,7 @@ func (sp *SegmentProcessor) Preprocess(event Event, reqContext *RequestContext) 
 			logging.SystemErrorf("Error setting generated Jitsu anonymous ID: %v", err)
 		}
 	}
+	HashedAnonymIDPath.Set(event, reqContext.HashedAnonymousID)
 }
 
 //Postprocess puts event into recognition Service

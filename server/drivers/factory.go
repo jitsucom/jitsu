@@ -131,6 +131,9 @@ func ParseCollections(sourceConfig *base.SourceConfig) ([]*base.Collection, erro
 			}
 
 			collectionObj.SourceID = sourceConfig.SourceID
+			if collectionObj.Schedule == "" {
+				collectionObj.Schedule = sourceConfig.Schedule
+			}
 			if err := collectionObj.Init(); err != nil {
 				return nil, err
 			}

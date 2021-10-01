@@ -99,7 +99,7 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		return nil, fmt.Errorf("Unknown collection [%s]", collection.Type)
 	}
 
-	fields := strings.Split(reportConfig.Fields, ",")
+	fields := strings.Split(strings.ReplaceAll(reportConfig.Fields, " ",""), ",")
 
 	granularity := base.ALL
 	//for binary search we make a sorted copy of fields
@@ -115,6 +115,14 @@ func NewGoogleAds(ctx context.Context, sourceConfig *base.SourceConfig, collecti
 		}
 	}
 	return &GoogleAds{collection: collection, config: config, fields: fields, httpClient: httpClient, granularity: granularity}, nil
+}
+
+func (g *GoogleAds) GetRefreshWindow() (time.Duration, error) {
+	if g.granularity == base.ALL {
+		return time.Hour * 24, nil
+	} else {
+		return time.Hour * 24 * 31, nil
+	}
 }
 
 func (g *GoogleAds) GetAllAvailableIntervals() ([]*base.TimeInterval, error) {
@@ -235,7 +243,8 @@ func query(config *GoogleAdsConfig, httpClient *http.Client, query string) ([]ma
 			return nil, fmt.Errorf("failed to unmarshal response: %s", err)
 		}
 		if len(bodyObject) == 0 {
-			return nil, fmt.Errorf("empty response")
+			//no data
+			return []map[string]interface{}{}, nil
 		}
 		results, ok := bodyObject[0]["results"]
 		if !ok {

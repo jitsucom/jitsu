@@ -116,17 +116,21 @@ func main() {
 	// Setup application directory as working directory
 	setAppWorkDir()
 
-	if err := config.Read(*configSource, *containerizedRun, configNotFound); err != nil {
+	if err := config.Read(*configSource, *containerizedRun, configNotFound, "Jitsu Server"); err != nil {
 		logging.Fatal("Error while reading application config:", err)
 	}
 
 	//parse EN version
+	appconfig.RawVersion = tag
+	appconfig.BuiltAt = builtAt
 	parsed := appconfig.VersionRegex.FindStringSubmatch(tag)
 	if len(parsed) == 4 {
-		appconfig.RawVersion = parsed[0]
 		appconfig.MajorVersion = parsed[1]
 		appconfig.MinorVersion = parsed[3]
 		appconfig.Beta = parsed[2] == "beta"
+	}
+	if tag == "beta" {
+		appconfig.Beta = true
 	}
 
 	environment := os.Getenv("ENVIRONMENT")
@@ -338,7 +342,7 @@ func main() {
 
 	adminToken := viper.GetString("server.admin_token")
 	if strings.HasPrefix(adminToken, "demo") {
-		logging.Errorf("\n\t*** Please replace server.admin_token with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
+		logging.Errorf("\n\t*** ⚠️  Please replace server.admin_token (SERVER_ADMIN_TOKEN env variable) with any random string or uuid before deploying anything to production. Otherwise security of the platform can be compromised")
 	}
 
 	fallbackService, err := fallback.NewService(logEventPath, destinationsService, usersRecognitionService)

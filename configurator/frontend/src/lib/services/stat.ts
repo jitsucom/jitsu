@@ -1,6 +1,6 @@
 import moment, { Moment, unitOfTime } from 'moment';
-import { BackendApiClient } from 'lib/services/ApplicationServices';
 import { IProject } from 'lib/services/model';
+import { BackendApiClient } from './BackendApiClient';
 /**
  * Events that come directly from sources are in the `source` namespace.
  * When events are processed internally in Jitsu thay may get multiplexed
@@ -11,8 +11,8 @@ import { IProject } from 'lib/services/model';
  */
 type EventsNamespace = 'source' | 'push_source' | 'destination';
 
-type SourcesEventsCountType = 'success' | 'skip'
-type DestinationsEventsCountType = 'success' | 'skip' | 'errors'
+type SourcesEventsCountType = 'success' | 'skip';
+type DestinationsEventsCountType = 'success' | 'skip' | 'errors';
 type EventsCountType = SourcesEventsCountType | DestinationsEventsCountType;
 
 type Granularity = 'day' | 'hour' | 'total';
@@ -20,20 +20,24 @@ type Granularity = 'day' | 'hour' | 'total';
 type StatisticsPoint<T extends string> = {
   [key in T]: number;
 };
-type GenericDetailedStatisticsDatePoint<T extends string> = StatisticsPoint<T> & {
-  date: Moment;
-  total: number;
-}
+type GenericDetailedStatisticsDatePoint<T extends string> =
+  StatisticsPoint<T> & {
+    date: Moment;
+    total: number;
+  };
 
 export type DatePoint = {
   date: Moment;
   events: number;
 };
 
-export type DetailedStatisticsDatePoint = GenericDetailedStatisticsDatePoint<EventsCountType>;
+export type DetailedStatisticsDatePoint =
+  GenericDetailedStatisticsDatePoint<EventsCountType>;
 
-export type SourcesStatisticsDatePoint = GenericDetailedStatisticsDatePoint<SourcesEventsCountType>;
-export type DestinationsStatisticsDatePoint = GenericDetailedStatisticsDatePoint<DestinationsEventsCountType>;
+export type SourcesStatisticsDatePoint =
+  GenericDetailedStatisticsDatePoint<SourcesEventsCountType>;
+export type DestinationsStatisticsDatePoint =
+  GenericDetailedStatisticsDatePoint<DestinationsEventsCountType>;
 
 /**
  * Information about events per current period and prev
@@ -68,7 +72,7 @@ export interface IStatisticsService {
     end: Date,
     granularity: Granularity,
     namespace?: 'push_source',
-    status?: SourcesEventsCountType,
+    status?: SourcesEventsCountType
   ): Promise<DatePoint[]>;
   get(
     start: Date,
@@ -78,17 +82,19 @@ export interface IStatisticsService {
     status?: DestinationsEventsCountType,
     destinationId?: string
   ): Promise<DatePoint[]>;
-  getDetailedStatisticsBySources(
+  getDetailedIncomingStatistics(
     start: Date,
     end: Date,
     granularity: Granularity,
+    type: 'push_source' | 'source'
   ): Promise<SourcesStatisticsDatePoint[]>;
   getDetailedStatisticsByDestinations(
     start: Date,
     end: Date,
     granularity: Granularity,
-    destinationId?: string
-  ): Promise<DestinationsStatisticsDatePoint[]>
+    type: 'push_source' | 'source',
+    destinationId: string
+  ): Promise<DestinationsStatisticsDatePoint[]>;
 }
 
 export function addSeconds(date: Date, seconds: number): Date {
@@ -174,7 +180,7 @@ export class StatisticsService implements IStatisticsService {
             [name]: value
           };
         },
-        {total: 0}
+        { total: 0 }
       ) as GenericDetailedStatisticsDatePoint<K>;
     });
   }
@@ -252,14 +258,15 @@ export class StatisticsService implements IStatisticsService {
     );
   }
 
-  public async getDetailedStatisticsBySources(
+  public async getDetailedIncomingStatistics(
     start: Date,
     end: Date,
     granularity: Granularity,
+    type: 'push_source' | 'source'
   ): Promise<SourcesStatisticsDatePoint[]> {
     const [successData, skipData] = await Promise.all([
-      this.get(start, end, granularity, 'source', 'success'),
-      this.get(start, end, granularity, 'source', 'skip')
+      this.get(start, end, granularity, type, 'success'),
+      this.get(start, end, granularity, type, 'skip')
     ]);
 
     const sourceDataEntries: [SourcesEventsCountType, DatePoint[]][] = [
@@ -273,19 +280,21 @@ export class StatisticsService implements IStatisticsService {
     start: Date,
     end: Date,
     granularity: Granularity,
+    type: 'push_source' | 'source',
     destinationId?: string
   ): Promise<DestinationsStatisticsDatePoint[]> {
     const [successData, skipData, errorData] = await Promise.all([
-      this.get(start, end, granularity, 'destination', 'success', destinationId),
-      this.get(start, end, granularity, 'destination', 'skip', destinationId),
-      this.get(start, end, granularity, 'destination', 'errors', destinationId)
+      this.get(start, end, granularity, type, 'success', destinationId),
+      this.get(start, end, granularity, type, 'skip', destinationId),
+      this.get(start, end, granularity, type, 'errors', destinationId)
     ]);
 
-    const destinationDataEntries: [DestinationsEventsCountType, DatePoint[]][] = [
-      ['success', successData],
-      ['skip', skipData],
-      ['errors', errorData]
-    ];
+    const destinationDataEntries: [DestinationsEventsCountType, DatePoint[]][] =
+      [
+        ['success', successData],
+        ['skip', skipData],
+        ['errors', errorData]
+      ];
 
     return this.combineDestinationsStatisticsData(destinationDataEntries);
   }

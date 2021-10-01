@@ -45,7 +45,15 @@ type BigQuery struct {
 
 //NewBigQuery return configured BigQuery adapter instance
 func NewBigQuery(ctx context.Context, config *GoogleConfig, queryLogger *logging.QueryLogger, sqlTypes typing.SQLTypes) (*BigQuery, error) {
-	client, err := bigquery.NewClient(ctx, config.Project, config.credentials)
+
+	var client *bigquery.Client
+	var err error
+	if config.credentials == nil {
+		client, err = bigquery.NewClient(ctx, config.Project)
+	} else {
+		client, err = bigquery.NewClient(ctx, config.Project, config.credentials)
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("Error creating BigQuery client: %v", err)
 	}
@@ -72,7 +80,7 @@ func (bq *BigQuery) Copy(fileKey, tableName string) error {
 	}
 
 	if jobStatus.Err() != nil {
-		return fmt.Errorf("Error loading from google cloud storage to BigQuery table %s: %v", tableName, err)
+		return fmt.Errorf("Error loading from google cloud storage to BigQuery table %s: %v", tableName, jobStatus.Err())
 	}
 
 	return nil

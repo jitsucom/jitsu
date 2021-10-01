@@ -7,6 +7,7 @@ import (
 
 //UserAnonymIDPath is used for setting generated user identifier in case of GDPR
 var UserAnonymIDPath = jsonutils.NewJSONPath("/eventn_ctx/user/anonymous_id||/user/anonymous_id")
+var HashedAnonymIDPath = jsonutils.NewJSONPath("/eventn_ctx/user/hashed_anonymous_id||/user/hashed_anonymous_id")
 
 //JsProcessor preprocess client integration events
 type JsProcessor struct {
@@ -33,6 +34,7 @@ func (jp *JsProcessor) Preprocess(event Event, reqContext *RequestContext) {
 			logging.SystemErrorf("Error setting generated Jitsu anonymous ID: %v", err)
 		}
 	}
+	HashedAnonymIDPath.Set(event, reqContext.HashedAnonymousID)
 }
 
 //Postprocess puts event into recognition Service
