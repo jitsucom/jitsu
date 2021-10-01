@@ -162,7 +162,7 @@ const CodeDebugger = ({
         'flex flex-col items-stretch h-screen max-h-full pt-4;'
       )}
     >
-      <div className="w-full mb-4">
+      <div className="w-full mb-2">
         <Controls
           formId="inputs"
           inputChecked={showInputEditor}
@@ -182,7 +182,7 @@ const CodeDebugger = ({
       >
         <div ref={rowWrapRef} className={`flex items-stretch h-full`}>
           <div
-            className={`flex flex-col relative h-full pr-2 ${styles.column} ${
+            className={`flex flex-col relative h-full pr-1 ${styles.column} ${
               !showInputEditor && 'hidden'
             }`}
           >
@@ -327,12 +327,12 @@ const ControlsComponent: React.FC<ControlsProps> = ({
 }) => {
   return (
     <div className="flex w-full h-full">
-      <Button size="large" className="flex-grow-0" onClick={handleExit}>
+      <Button size="middle" className="flex-grow-0" onClick={handleExit}>
         {'Esc'}
       </Button>
       <div className="flex justify-center flex-auto min-w-0">
         <Button
-          size="large"
+          size="middle"
           className={`mr-1 ${styles.selectableButton} ${
             inputChecked && styles.buttonSelected
           }`}
@@ -341,7 +341,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
           {'{  }'}
         </Button>
         <Button
-          size="large"
+          size="middle"
           className={`mr-1 ${styles.selectableButton} ${
             codeChecked && styles.buttonSelected
           }`}
@@ -350,7 +350,7 @@ const ControlsComponent: React.FC<ControlsProps> = ({
           {'</>'}
         </Button>
         <Button
-          size="large"
+          size="middle"
           className={`${styles.selectableButton} ${
             outputChecked && styles.buttonSelected
           }`}
@@ -361,14 +361,14 @@ const ControlsComponent: React.FC<ControlsProps> = ({
       </div>
       <div className="flex-grow-0">
         <Button
-          size="large"
+          size="middle"
           type="primary"
           icon={<CaretRightOutlined />}
           className={`mr-1 ${styles.buttonGreen}`}
           htmlType="submit"
           form={formId}
         />
-        <Button size="large" type="primary" icon={<SaveOutlined />} />
+        <Button size="middle" type="primary" icon={<SaveOutlined />} />
       </div>
     </div>
   );
